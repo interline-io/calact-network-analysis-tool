@@ -1,0 +1,20 @@
+{
+  "name": "calact-network-analysis-tool",
+  "version": "1.0.0",
+  "description": "calact-network-analysis-tool",
+  "author": "Ian Rees",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "start": "nuxt start",
+    "generate": "nuxt generate",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "nuxt": "^3.15.4",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=4794b6b2b11184f0e8a7e4a2816d949d08493e7b"
+  },
+  "packageManager": "yarn@4.3.0"
+}
