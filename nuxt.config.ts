@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   ssr: false,
 
   modules: [
-    'tlv2-ui', // <-- comment out this line when using a local tlv2-ui repo
+    'tlv2-ui',
     '@nuxt/devtools'
   ],
 

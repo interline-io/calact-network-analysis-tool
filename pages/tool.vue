@@ -55,12 +55,19 @@
           />
         </div>
       </div>
-      <cal-map
+      <!-- This is a component for handling data flow -->
+
+      <cal-scenario
         :bbox="bbox"
         :start-date="startDate"
         :end-date="endDate"
-        @set-start-date="setStartDate"
-        @set-end-date="setEndDate"
+        @set-stop-features="setStopFeatures"
+      />
+
+      <!-- This is a component for displaying the map -->
+      <cal-map
+        :bbox="bbox"
+        :stop-features="stopFeatures"
         @set-bbox="setBbox"
       />
     </template>
@@ -74,7 +81,9 @@ definePageMeta({
   layout: false
 })
 
-const activeTab = ref('query')
+const route = useRoute()
+
+const activeTab = ref(route.query.activeTab || 'map')
 
 function setTab (v: string) {
   if (activeTab.value === v) {
@@ -89,6 +98,12 @@ function itemHelper (p: string): string {
     return 'is-active'
   }
   return 'is-secondary'
+}
+
+const stopFeatures = ref<Feature[]>([])
+
+function setStopFeatures (v: any) {
+  stopFeatures.value = v
 }
 </script>
 

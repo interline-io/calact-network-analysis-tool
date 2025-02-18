@@ -67,7 +67,7 @@ function itemHelper (p: string): string {
 
 </script>
 
-<style  lang="scss">
+<style lang="scss">
 /* Has to be global style for <template> to work */
   .cal-sidebar {
 
@@ -78,6 +78,11 @@ function itemHelper (p: string): string {
   display: flex;
   flex-grow: 1;
   flex-direction: column;
+
+  --bulma-duration: 1ms;
+      a:hover:not(.is-active) {
+        background:#ccc;
+      }
 
   .ca-main-item {
     border-bottom:solid 1px #eee;
@@ -137,7 +142,6 @@ function itemHelper (p: string): string {
         display: flex;
         flex-wrap: wrap;
         flex-direction: column;
-
         a {
           padding: 0.5em 0.25em;
         }

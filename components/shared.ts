@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { type Bbox, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
 import { navigateTo } from '#imports'
 
-const defaultBbox = '-121.21911,43.99134,-121.40447,44.12326'
+const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 
 const route = useRoute()
 

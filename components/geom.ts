@@ -65,3 +65,10 @@ export function fmtDate(d: Date | null): string {
     }
     return format(d, dateFmt)
 }
+
+export interface PopupFeature {
+    point: Point
+    text: string
+  }
+  
+  

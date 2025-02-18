@@ -1,7 +1,7 @@
 <template>
   <div class="cal-filter">
     <div class="cal-filter-main">
-      <tl-title>Filters</tl-title>
+      <tl-title title="Filters" />
 
       <aside class="menu">
         <p class="menu-label">
