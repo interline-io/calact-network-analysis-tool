@@ -69,8 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { type Feature, type Bbox, ptString, } from '../geom'
+import { type Bbox, ptString, } from '../geom'
 import { useToggle } from '@vueuse/core'
 
 const props = defineProps<{

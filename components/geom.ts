@@ -72,3 +72,9 @@ export interface PopupFeature {
   }
   
   
+  export interface MarkerFeature {
+    onDragEnd: any
+    point: Point
+    color: string
+    draggable: boolean
+  }
