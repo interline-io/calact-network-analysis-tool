@@ -7,11 +7,38 @@
         <p class="menu-label">
           Filters
         </p>
+        <o-button class="mx-4" icon-left="delete" @click="emit('resetFilters')">
+          Clear all
+        </o-button>
         <ul class="menu-list">
-          <li><a @click="setPanel('timeframes')">Timeframes <o-icon icon="chevron-right" size="small" /></a></li>
-          <li><a @click="setPanel('transit-layers')">Transit Layers <o-icon icon="chevron-right" size="small" /></a></li>
-          <li><a @click="setPanel('map')">Map Display <o-icon icon="chevron-right" size="small" /></a></li>
-          <li><a @click="setPanel('settings')">Settings <o-icon icon="chevron-right" size="small" /></a></li>
+          <li>
+            <a @click="setPanel('timeframes')">
+              <o-icon icon="chart-bar" />
+              Timeframes
+              <o-icon class="right-chev" icon="chevron-right" size="small" />
+            </a>
+          </li>
+          <li>
+            <a @click="setPanel('transit-layers')">
+              <o-icon icon="bus" />
+              Transit Layers
+              <o-icon class="right-chev" icon="chevron-right" size="small" />
+            </a>
+          </li>
+          <li>
+            <a @click="setPanel('map')">
+              <o-icon icon="layers-outline" />
+              Map Display
+              <o-icon class="right-chev" icon="chevron-right" size="small" />
+            </a>
+          </li>
+          <li>
+            <a @click="setPanel('settings')">
+              <o-icon icon="cog" />
+              Settings
+              <o-icon class="right-chev" icon="chevron-right" size="small" />
+            </a>
+          </li>
         </ul>
       </aside>
 
@@ -41,6 +68,7 @@
           @click="setPanel('')"
         />
       </div>
+
       <!-- TIMEFRAMES -->
       <div v-if="activePanel === 'timeframes'">
         <aside class="menu">
@@ -49,7 +77,7 @@
           </p>
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
-              <o-checkbox size="small">
+              <o-checkbox v-model="selectedDaysShadow" size="small" :native-value="dowValue">
                 {{ dowValue }}
               </o-checkbox>
             </li>
@@ -64,9 +92,9 @@
             Modes
           </p>
           <ul>
-            <li v-for="routeType of routeTypes" :key="routeType">
-              <o-checkbox size="small">
-                {{ routeType }}
+            <li v-for="[routeType, routeTypeDesc] of routeTypes" :key="routeType">
+              <o-checkbox v-model="selectedRouteTypesShadow" size="small" :native-value="routeType">
+                {{ routeTypeDesc }}
               </o-checkbox>
             </li>
           </ul>
@@ -89,8 +117,8 @@
             </o-field>
           </p>
           <ul>
-            <li v-for="agencyName of testAgencies" :key="agencyName">
-              <o-checkbox size="small">
+            <li v-for="agencyName of knownAgencies" :key="agencyName">
+              <o-checkbox v-model="selectedAgenciesShadow" size="small" :native-value="agencyName">
                 {{ agencyName }}
               </o-checkbox>
             </li>
@@ -139,10 +167,10 @@
 </template>
 
 <script setup lang="ts">
-import { fmtDate } from '../geom'
+import { type Feature, fmtDate } from '../geom'
+import { defineEmits } from 'vue'
 
 const dowValues = [
-  'All',
   'Monday',
   'Tuesday',
   'Wednesday',
@@ -152,28 +180,39 @@ const dowValues = [
   'Sunday'
 ]
 
-const routeTypes = [
-  'All',
-  'Bus',
-  'Rail',
-  'Ferry',
-  'Subway',
-  'Streetcar'
-]
-
-const testAgencies = [
-  'Agency 1',
-  'Agency 2',
-  'Agency 3',
-]
+const routeTypes = new Map<string, string>(Object.entries({
+  0: 'Streetcar',
+  1: 'Rail',
+  2: 'Subway',
+  3: 'Bus',
+  4: 'Ferry',
+}))
 
 const routeColorModes = [
   'Agency',
   'Frequency',
 ]
 
-const activePanel = ref('')
+const props = defineProps<{
+  stopFeatures: Feature[]
+  startDate: Date
+  endDate?: Date
+  selectedRouteTypes: string[]
+  selectedDays: string[]
+  selectedAgencies: string[]
+}>()
 
+const emit = defineEmits([
+  'setSelectedDays',
+  'setSelectedRouteTypes',
+  'setSelectedAgencies',
+  'resetFilters'
+])
+
+///////////////////
+// Panel
+
+const activePanel = ref('')
 function setPanel (v: string) {
   if (activePanel.value === v) {
     activePanel.value = ''
@@ -182,12 +221,53 @@ function setPanel (v: string) {
   activePanel.value = v
 }
 
+///////////////////
+// Agency selector
+const knownAgencies = computed(() => {
+  const agencies = new Set<string>()
+  for (const feature of props.stopFeatures) {
+    for (const rs of feature.properties.route_stops) {
+      agencies.add(rs.route.agency.agency_name)
+    }
+  }
+  return Array.from(agencies)
+})
+
+///////////////////
+// Shadowed props
+
 const currencyType = ref('usa')
 
-const props = defineProps<{
-  startDate: Date
-  endDate?: Date
-}>()
+const selectedAgenciesShadow = computed({
+  get () {
+    const p = props.selectedAgencies.slice(0)
+    return p.length === 0 ? knownAgencies.value : p
+  },
+  set (v) {
+    emit('setSelectedAgencies', v)
+  }
+})
+
+const selectedRouteTypesShadow = computed({
+  get () {
+    const p = props.selectedRouteTypes.slice(0)
+    return p.length === 0 ? Array.from(routeTypes.keys()) : p
+  },
+  set (v) {
+    emit('setSelectedRouteTypes', v)
+  }
+})
+
+const selectedDaysShadow = computed({
+  get () {
+    const p = props.selectedDays.slice(0)
+    return p.length === 0 ? dowValues : p
+  },
+  set (v) {
+    emit('setSelectedDays', v)
+  }
+})
+
 </script>
 
 <style scoped lang="scss">
@@ -210,11 +290,11 @@ const props = defineProps<{
     display:flex;
     width:400px;
     flex-direction: column;
-    background:#ccc;
+    background: var(--bulma-scheme-main-ter);
     padding:20px;
   }
 }
-.menu-list .icon {
+.menu-list .right-chev {
   float:right;
 }
 </style>

@@ -42,10 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, toRaw } from 'vue'
-import { type Bbox, type Feature, type PopupFeature } from '../geom'
-
-const route = useRoute()
+import { ref, computed, toRaw } from 'vue'
+import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 
 const emit = defineEmits([
   'setBbox',
@@ -56,11 +54,16 @@ const props = defineProps<{
   stopFeatures: Feature[]
 }>()
 
-const centerPoint = [
-  (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
-  (props.bbox.sw.lat + props.bbox.ne.lat) / 2
-]
+//////////////////
+// Map geometries
 
+// Compute initial center point; do not update
+const centerPoint = {
+  lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
+  lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
+}
+
+// Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
   if (props.bbox.valid) {
@@ -85,13 +88,12 @@ const bboxArea = computed(() => {
   return f
 })
 
+// Markers for bbox corners
 const bboxMarkers = computed(() => {
-  const ret = []
+  const ret: MarkerFeature[] = []
   ret.push({
-    lng: props.bbox.sw.lon,
-    lat: props.bbox.sw.lat,
+    point: props.bbox.sw,
     color: '#ff0000',
-    label: 'SW',
     draggable: true,
     onDragEnd: (c: any) => {
       emit('setBbox', {
@@ -104,10 +106,8 @@ const bboxMarkers = computed(() => {
     }
   })
   ret.push({
-    lng: props.bbox.ne.lon,
-    lat: props.bbox.ne.lat,
+    point: props.bbox.ne,
     color: '#00ff00',
-    label: 'NE',
     draggable: true,
     onDragEnd: (c: any) => {
       emit('setBbox', {
@@ -122,28 +122,41 @@ const bboxMarkers = computed(() => {
   return ret
 })
 
+// Lookup for stop features
+// This is necessary because the geojson properties are stringified
+const stopFeatureLookup = computed(() => {
+  const lookup = new Map<string, Feature>()
+  for (const feature of props.stopFeatures) {
+    lookup.set(feature.id, toRaw(feature))
+  }
+  return lookup
+})
+
+// Merge features
 const displayFeatures = computed(() => {
   const features: Feature[] = []
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
   }
   for (const stop of props.stopFeatures) {
-    const stopCopy = Object.assign({}, toRaw(stop))
-    stopCopy.properties['marker-color'] = '#ff0000'
-    stopCopy.properties['marker-radius'] = 10
-    features.push(toRaw(stop))
+    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: {
+      'marker-radius': 10,
+      'marker-color': stop.properties.marked ? '#ff0000' : '#0000ff',
+    }, id: stop.id }
+    features.push(stopCopy)
   }
   return features
 })
 
 /////////////////
-// Mapmove
+// Map events
 
-const extentBbox = ref(null)
+const extentBbox = ref(props.bbox)
 
 function mapMove (v: any) {
   const b = v.bbox
   extentBbox.value = {
+    valid: true,
     sw: { lon: b[0][0], lat: b[0][1] },
     ne: { lon: b[1][0], lat: b[1][1] }
   }
@@ -153,17 +166,30 @@ function useMapExtent () {
   emit('setBbox', extentBbox.value)
 }
 
-const popupFeatures = ref<PopupFeature>([])
+const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (features: Feature[]) {
   const a: PopupFeature[] = []
   for (const feature of features) {
-    if (feature.geometry.type !== 'Point') {
+    if (!feature.id || feature.geometry.type !== 'Point') {
       continue
     }
+    const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
+    if (!stopLookup) {
+      continue
+    }
+    const fp = stopLookup.properties
+    // FIXME
+    // THIS IS TEMPORARY - THIS IS NOT SAFE
+    const text = `
+    Stop ID: ${fp.stop_id}<br>
+    <strong>${fp.stop_name}</strong><br>
+    Routes: ${fp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
+    Agencies: ${fp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}
+    `
     a.push({
       point: { lon: feature.geometry.coordinates[0], lat: feature.geometry.coordinates[1] },
-      text: feature.properties.stop_name,
+      text: text
     })
   }
   popupFeatures.value = a
@@ -181,7 +207,7 @@ function mapClickFeatures (features: Feature[]) {
   width:300px;
   color:black;
   padding:5px;
-  height:300px;
+  height:150px;
   z-index:100;
   .message-body {
     background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-white-on-scheme-l), 0.25);

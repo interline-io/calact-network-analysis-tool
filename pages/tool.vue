@@ -52,6 +52,14 @@
             :bbox="bbox"
             :start-date="startDate"
             :end-date="endDate"
+            :stop-features="stopFeatures"
+            :selected-days="selectedDays"
+            :selected-route-types="selectedRouteTypes"
+            :selected-agencies="selectedAgencies"
+            @set-selected-route-types="setSelectedRouteTypes"
+            @set-selected-days="setSelectedDays"
+            @set-selected-agencies="setSelectedAgencies"
+            @reset-filters="resetFilters"
           />
         </div>
       </div>
@@ -61,6 +69,9 @@
         :bbox="bbox"
         :start-date="startDate"
         :end-date="endDate"
+        :selected-days="selectedDays"
+        :selected-route-types="selectedRouteTypes"
+        :selected-agencies="selectedAgencies"
         @set-stop-features="setStopFeatures"
       />
 
@@ -75,7 +86,9 @@
 </template>
 
 <script lang="ts" setup>
-import { startDate, endDate, bbox, setStartDate, setEndDate, setBbox } from '../components/shared'
+import { computed } from 'vue'
+import { type Bbox, type Feature, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
+import { navigateTo } from '#imports'
 
 definePageMeta({
   layout: false
@@ -83,7 +96,10 @@ definePageMeta({
 
 const route = useRoute()
 
-const activeTab = ref(route.query.activeTab || 'map')
+const activeTab = ref(route.query.activeTab || 'filter')
+
+// const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
+const defaultBbox = `-122.68112,45.51939,-122.67713,45.52240`
 
 function setTab (v: string) {
   if (activeTab.value === v) {
@@ -100,10 +116,70 @@ function itemHelper (p: string): string {
   return 'is-secondary'
 }
 
-const stopFeatures = ref<Feature[]>([])
+// Apply stop
 
+const stopFeatures = ref<Feature[]>([])
 function setStopFeatures (v: any) {
   stopFeatures.value = v
+}
+
+// Handle query parameters
+
+const startDate = computed(() => {
+  return parseDate(route.query.startDate?.toString() || '') || new Date()
+})
+
+const endDate = computed(() => {
+  return parseDate(route.query.endDate?.toString() || '') || new Date()
+})
+
+const bbox = computed(() => {
+  const bbox = route.query.bbox?.toString() ?? defaultBbox
+  return parseBbox(bbox)
+})
+
+function arrayParam (p: string): string[] {
+  return route.query[p]?.toString().split(',').filter(p => (p)) || []
+}
+
+const selectedDays = computed(() => {
+  return arrayParam('selectedDays')
+})
+
+const selectedRouteTypes = computed(() => {
+  return arrayParam('selectedRouteTypes')
+})
+
+const selectedAgencies = computed(() => {
+  return arrayParam('selectedAgencies')
+})
+
+async function setStartDate (v: Date) {
+  await navigateTo({ query: { ...route.query, startDate: fmtDate(v) } })
+}
+
+async function setEndDate (v: Date) {
+  await navigateTo({ query: { ...route.query, endDate: fmtDate(v) } })
+}
+
+async function setBbox (v: Bbox) {
+  await navigateTo({ replace: true, query: { ...route.query, bbox: bboxString(v) } })
+}
+
+async function setSelectedDays (v: string[]) {
+  await navigateTo({ query: { ...route.query, selectedDays: v.join(',') } })
+}
+
+async function setSelectedRouteTypes (v: string[]) {
+  await navigateTo({ query: { ...route.query, selectedRouteTypes: v.join(',') } })
+}
+
+// FIXME: agency names might contain commas; use multiple query parameters
+async function setSelectedAgencies (v: string[]) {
+  await navigateTo({ query: { ...route.query, selectedAgencies: v.join(',') } })
+}
+async function resetFilters () {
+  await navigateTo({ query: { ...route.query, selectedAgencies: '', selectedDays: '', selectedRouteTypes: '' } })
 }
 </script>
 
