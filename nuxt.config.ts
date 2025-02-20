@@ -16,7 +16,6 @@ export default defineNuxtConfig({
 
   tlv2: {
     bulma: '~/assets/main.scss',
-    useProxy: true
   },
 
   runtimeConfig: {
@@ -32,7 +31,8 @@ export default defineNuxtConfig({
       auth0RedirectUri: '',
       auth0Audience: '',
       auth0Scope: '',
-      loginGate: ''
+      loginGate: '',
+      requireLogin: '',
     }
   },
 

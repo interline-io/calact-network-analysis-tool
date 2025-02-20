@@ -4142,7 +4142,7 @@ __metadata:
   resolution: "calact-network-analysis-tool@workspace:."
   dependencies:
     nuxt: "npm:^3.15.4"
-    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=4794b6b2b11184f0e8a7e4a2816d949d08493e7b"
+    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=dd597bcb9d65e47e93c2793aa6b3c4ab9a8e4f5f"
   languageName: unknown
   linkType: soft
 
@@ -11367,9 +11367,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=4794b6b2b11184f0e8a7e4a2816d949d08493e7b":
+"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=dd597bcb9d65e47e93c2793aa6b3c4ab9a8e4f5f":
   version: 0.2.0
-  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=4794b6b2b11184f0e8a7e4a2816d949d08493e7b"
+  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=dd597bcb9d65e47e93c2793aa6b3c4ab9a8e4f5f"
   dependencies:
     "@apollo/client": "npm:^3.12.11"
     "@auth0/auth0-spa-js": "npm:^2.1.3"
@@ -11418,7 +11418,7 @@ __metadata:
     unstorage: "npm:^1.14.4"
     vitest: "npm:^3.0.5"
     vue: "npm:^3.5.13"
-  checksum: 10/f6afd50a78a5d969f7c85d689781ac5725f989acd73351d50acf40b94a7d5ca47c20e59f8980b7a9107dc0595a0cb3f6224eca1b103dcb40b2f0cacad5234d2e
+  checksum: 10/9563dee434c88e636d2c4cb6af15967afa40b1098c0570de7995ecb8d1bf7f92f76fa2262e16e98ded2f867c116c634e605770513b276d26a066ea7111cbd00b
   languageName: node
   linkType: hard
 
