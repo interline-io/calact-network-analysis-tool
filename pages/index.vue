@@ -1,14 +1,5 @@
 <template>
   <div>
-    <p style="position:relative">
-      <o-loading
-        v-model:active="loading"
-        :full-page="true"
-      >
-        Loading...
-      </o-loading>
-    </p>
-
     <tl-title title="CalACT" />
 
     <tl-msg-info>Basic messages</tl-msg-info>
