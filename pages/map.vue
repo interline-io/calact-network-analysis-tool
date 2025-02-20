@@ -35,6 +35,23 @@
     </template>
 
     <template #main>
+      <!-- Loading and error handling -->
+      <o-loading
+        :active="loading"
+        :full-page="true"
+      >
+        <img src="~assets/spinner.svg" alt="Loading">
+      </o-loading>
+
+      <tl-modal
+        v-model="hasError"
+        title="Error"
+      >
+        <tl-msg-error title="There was an error :(">
+          {{ error }}
+        </tl-msg-error>
+      </tl-modal>
+
       <div style="position:relative">
         <div v-if="activeTab === 'query'" class="cal-overlay">
           <cal-query
@@ -73,6 +90,8 @@
         :selected-route-types="selectedRouteTypes"
         :selected-agencies="selectedAgencies"
         @set-stop-features="setStopFeatures"
+        @set-loading="loading = $event"
+        @set-error="error = $event"
       />
 
       <!-- This is a component for displaying the map -->
@@ -96,10 +115,16 @@ definePageMeta({
 
 const route = useRoute()
 
-const activeTab = ref(route.query.activeTab || 'filter')
-
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 const defaultBbox = `-122.68112,45.51939,-122.67713,45.52240`
+
+// Loading and error handling
+const loading = ref(false)
+const hasError = computed(() => { return error.value !== null })
+const error = ref(null)
+
+// Tab handling
+const activeTab = ref(route.query.activeTab || 'filter')
 
 function setTab (v: string) {
   if (activeTab.value === v) {

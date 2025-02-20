@@ -10,6 +10,8 @@ import { useLazyQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
+  'setLoading',
+  'setError',
 ])
 
 const props = defineProps<{
@@ -102,6 +104,12 @@ function loadReload () {
 }
 
 watch(vars, loadReload)
+watch(loading, () => {
+  emit('setLoading', loading.value)
+})
+watch(error, () => {
+  emit('setError', error.value)
+})
 loadReload()
 
 const stopFeatures = computed(() => {
@@ -121,6 +129,10 @@ const stopFeatures = computed(() => {
     })
   }
   return features
+})
+
+watch(stopFeatures, () => {
+  emit('setStopFeatures', stopFeatures.value)
 })
 
 function stopFilter (stop: Record<string, any>): boolean {
@@ -170,7 +182,4 @@ function stopFilter (stop: Record<string, any>): boolean {
   return true
 }
 
-watch(stopFeatures, () => {
-  emit('setStopFeatures', stopFeatures.value)
-})
 </script>
