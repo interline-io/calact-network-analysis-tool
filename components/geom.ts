@@ -77,4 +77,5 @@ export interface PopupFeature {
     point: Point
     color: string
     draggable: boolean
+    element?: HTMLElement  // Optional HTML element for custom marker
   }
