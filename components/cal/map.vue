@@ -26,8 +26,20 @@
             <div>Selected Area</div>
           </div>
           <div>
-            <div />
-            <div>Drag Markers to Adjust Area</div>
+            <div>
+              <div class="legend-marker sw-marker">
+                <i class="mdi mdi-arrow-bottom-left"></i>
+              </div>
+            </div>
+            <div>SW Corner Marker</div>
+          </div>
+          <div>
+            <div>
+              <div class="legend-marker ne-marker">
+                <i class="mdi mdi-arrow-top-right"></i>
+              </div>
+            </div>
+            <div>NE Corner Marker</div>
           </div>
           <div>
             <div style="background:#0000ff">
@@ -113,10 +125,19 @@ const bboxArea = computed(() => {
 // Markers for bbox corners
 const bboxMarkers = computed(() => {
   const ret: MarkerFeature[] = []
+  
+  // Create SW marker with custom element
+  const swElement = document.createElement('div')
+  swElement.className = 'custom-marker sw-marker'
+  const swIconElement = document.createElement('i')
+  swIconElement.className = 'mdi mdi-arrow-bottom-left'
+  swElement.appendChild(swIconElement)
+  
   ret.push({
     point: props.bbox.sw,
     color: '#ff0000',
     draggable: true,
+    element: swElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
         ne: props.bbox.ne,
@@ -127,10 +148,19 @@ const bboxMarkers = computed(() => {
       })
     }
   })
+  
+  // Create NE marker with custom element
+  const neElement = document.createElement('div')
+  neElement.className = 'custom-marker ne-marker'
+  const neIconElement = document.createElement('i')
+  neIconElement.className = 'mdi mdi-arrow-top-right'
+  neElement.appendChild(neIconElement)
+  
   ret.push({
     point: props.bbox.ne,
     color: '#00ff00',
     draggable: true,
+    element: neElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
         sw: props.bbox.sw,
@@ -269,6 +299,40 @@ function mapClickFeatures (features: Feature[]) {
       }
     }
   }
+}
 
+/* Legend marker styles */
+.legend-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  position: relative;
+  background-color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;  
+  border: 2px solid grey;
+    
+  i {
+    font-size: 10px;
+  }
+}
+
+/* Custom marker styles */
+:deep(.custom-marker) {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  background-color: white;
+  border: 2px solid grey;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  i {
+    font-size: 16px;
+  }
 }
 </style>

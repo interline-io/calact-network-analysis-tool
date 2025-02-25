@@ -276,10 +276,17 @@ function drawMarkers (markers: MarkerFeature[]) {
   }
   const newMarkers: maplibre.Marker[] = []
   for (const m of markers) {
-    const newMarker = new maplibre.Marker({
+    const markerOptions: maplibre.MarkerOptions = {
       draggable: m.draggable,
       color: m.color,
-    })
+    }
+    
+    // Use custom element if provided
+    if (m.element) {
+      markerOptions.element = m.element
+    }
+    
+    const newMarker = new maplibre.Marker(markerOptions)
       .setLngLat([m.point.lon, m.point.lat])
       .addTo(map!)
     if (m.onDragEnd) {
