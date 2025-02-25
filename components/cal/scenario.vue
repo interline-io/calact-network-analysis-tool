@@ -15,13 +15,14 @@ const emit = defineEmits([
 ])
 
 const props = defineProps<{
-  startDate?: Date
-  endDate?: Date
   bbox: Bbox
-  selectedRouteTypes: string[]
-  selectedDays: string[]
-  selectedAgencies: string[]
 }>()
+
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
+const selectedDays = defineModel<string[]>('selectedDays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
 
 // Setup query variables
 
@@ -129,9 +130,10 @@ watch(stopFeatures, () => {
 function stopFilter (stop: Record<string, any>): boolean {
   // Check departure days
   // Must have service on at least one selected day
-  if (props.selectedDays.length > 0) {
+  const sd = selectedDays.value || []
+  if (sd.length > 0) {
     let found = false
-    for (const day of props.selectedDays) {
+    for (const day of sd) {
       if (stop[`departures_${day.toLowerCase()}`].length > 0) {
         found = true
         break
@@ -144,10 +146,11 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check route types
   // Must match at least one route type
-  if (props.selectedRouteTypes.length > 0) {
+  const srt = selectedRouteTypes.value || []
+  if (srt.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (props.selectedRouteTypes.includes(rs.route.route_type.toString())) {
+      if (srt.includes(rs.route.route_type.toString())) {
         found = true
         break
       }
@@ -159,10 +162,11 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check agencies
   // Must match at least one selected agency
-  if (props.selectedAgencies.length > 0) {
+  const sg = selectedAgencies.value || []
+  if (sg.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (props.selectedAgencies.includes(rs.route.agency.agency_name)) {
+      if (sg.includes(rs.route.agency.agency_name)) {
         found = true
         break
       }
@@ -171,6 +175,8 @@ function stopFilter (stop: Record<string, any>): boolean {
       return false
     }
   }
+
+  // Default is to return true
   return true
 }
 

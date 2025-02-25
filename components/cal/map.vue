@@ -30,13 +30,13 @@
             <div>Drag Markers to Adjust Area</div>
           </div>
           <div>
-            <div style="background:red">
+            <div style="background:#0000ff">
               .
             </div>
             <div>Stops satisfying all filters</div>
           </div>
           <div>
-            <div style="background:blue">
+            <div style="background:#000000">
               .
             </div>
             <div>Stops not satisfying all filters</div>
@@ -162,8 +162,8 @@ const displayFeatures = computed(() => {
   }
   for (const stop of props.stopFeatures) {
     const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: {
-      'marker-radius': 10,
-      'marker-color': stop.properties.marked ? '#ff0000' : '#0000ff',
+      'marker-radius': stop.properties.marked ? 10 : 4,
+      'marker-color': stop.properties.marked ? '#0000ff' : '#000000',
     }, id: stop.id }
     features.push(stopCopy)
   }
@@ -187,10 +187,6 @@ function mapMove (v: any) {
 watch(extentBbox, () => {
   emit('setMapExtent', extentBbox.value)
 })
-
-function useMapExtent () {
-  emit('setBbox', extentBbox.value)
-}
 
 const popupFeatures = ref<PopupFeature[]>([])
 

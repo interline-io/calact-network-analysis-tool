@@ -166,7 +166,7 @@ function createLayers () {
     paint: {
       'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
       'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
-      'circle-opacity': 0.4
+      'circle-opacity': 1.0
     }
   })
   map?.addLayer({

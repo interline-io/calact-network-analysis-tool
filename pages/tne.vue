@@ -192,7 +192,7 @@ const baseMap = computed({
 
 const selectedDays = computed({
   get () {
-    return arrayParam('selectedDays', dowValues)
+    return arrayParam('selectedDays', []) // dowValues
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedDays: v.join(',') } })
@@ -201,7 +201,7 @@ const selectedDays = computed({
 
 const selectedRouteTypes = computed({
   get () {
-    return arrayParam('selectedRouteTypes', Array.from(routeTypes.keys()))
+    return arrayParam('selectedRouteTypes', []) // Array.from(routeTypes.keys())
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedRouteTypes: v.join(',') } })
