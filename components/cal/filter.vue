@@ -27,7 +27,7 @@
       <div class="cal-filter-summary">
         <p>
           Showing data for:<br>
-          {{ fmtDate(startDate) }}
+          {{ fmtDate(startDate || null) }}
           <span v-if="endDate">
             - {{ fmtDate(endDate) }}
           </span>
@@ -59,7 +59,7 @@
           </p>
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
-              <o-checkbox v-model="selectedDaysShadow" :native-value="dowValue">
+              <o-checkbox v-model="selectedDays" :native-value="dowValue">
                 {{ dowValue }}
               </o-checkbox>
             </li>
@@ -75,7 +75,7 @@
           </p>
           <ul>
             <li v-for="[routeType, routeTypeDesc] of routeTypes" :key="routeType">
-              <o-checkbox v-model="selectedRouteTypesShadow" :native-value="routeType">
+              <o-checkbox v-model="selectedRouteTypes" :native-value="routeType">
                 {{ routeTypeDesc }}
               </o-checkbox>
             </li>
@@ -101,7 +101,7 @@
 
           <ul>
             <li v-for="agencyName of knownAgencies" :key="agencyName">
-              <o-checkbox v-model="selectedAgenciesShadow" :native-value="agencyName">
+              <o-checkbox v-model="selectedAgencies" :native-value="agencyName">
                 {{ agencyName }}
               </o-checkbox>
             </li>
@@ -117,7 +117,7 @@
           </p>
           <ul>
             <li v-for="routeColorMode of routeColorModes" :key="routeColorMode">
-              <o-radio v-model="colorKeyShadow" :native-value="routeColorMode">
+              <o-radio v-model="colorKey" :native-value="routeColorMode">
                 {{ routeColorMode }}
               </o-radio>
             </li>
@@ -127,7 +127,7 @@
           </p>
           <ul>
             <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle">
-              <o-radio v-model="baseMapShadow" :native-value="baseMapStyle">
+              <o-radio v-model="baseMap" :native-value="baseMapStyle">
                 <o-icon icon="map-search" size="large" /> {{ baseMapStyle }}
               </o-radio>
             </li>
@@ -143,12 +143,12 @@
           </p>
           <ul>
             <li>
-              <o-radio v-model="unitSystemShadow" native-value="us">
+              <o-radio v-model="unitSystem" native-value="us">
                 🇺🇸 USA
               </o-radio>
             </li>
             <li>
-              <o-radio v-model="unitSystemShadow" native-value="eu">
+              <o-radio v-model="unitSystem" native-value="eu">
                 🇪🇺 Metric
               </o-radio>
             </li>
@@ -158,6 +158,10 @@
     </div>
   </div>
 </template>
+
+<script lang="ts">
+import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../constants'
+</script>
 
 <script setup lang="ts">
 import { type Feature, fmtDate } from '../geom'
@@ -170,55 +174,22 @@ const menuItems = [
   { icon: 'cog', label: 'Settings', panel: 'settings' },
 ]
 
-const dowValues = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday'
-]
-
-const routeTypes = new Map<string, string>(Object.entries({
-  0: 'Streetcar',
-  1: 'Rail',
-  2: 'Subway',
-  3: 'Bus',
-  4: 'Ferry',
-}))
-
-const routeColorModes = [
-  'Agency',
-  'Frequency',
-]
-
-const baseMapStyles = [
-  'Streets',
-  'Satellite',
-]
-
 const props = defineProps<{
   stopFeatures: Feature[]
-  startDate: Date
-  endDate?: Date
-  unitSystem?: string
-  colorKey?: string
-  baseMap?: string
-  selectedRouteTypes: string[]
-  selectedDays: string[]
-  selectedAgencies: string[]
 }>()
 
 const emit = defineEmits([
-  'setSelectedDays',
-  'setSelectedRouteTypes',
-  'setSelectedAgencies',
-  'setUnitSystem',
-  'setColorKey',
-  'setBaseMap',
   'resetFilters'
 ])
+
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const unitSystem = defineModel<string>('unitSystem')
+const colorKey = defineModel<string>('colorKey')
+const baseMap = defineModel<string>('baseMap')
+const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
+const selectedDays = defineModel<string[]>('selectedDays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
 
 ///////////////////
 // Panel
@@ -234,6 +205,7 @@ function setPanel (v: string) {
 
 ///////////////////
 // Agency selector
+
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
   for (const feature of props.stopFeatures) {
@@ -242,66 +214,6 @@ const knownAgencies = computed(() => {
     }
   }
   return Array.from(agencies)
-})
-
-///////////////////
-// Shadowed props
-
-const colorKeyShadow = computed({
-  get () {
-    return props.colorKey
-  },
-  set (v) {
-    emit('setColorKey', v)
-  }
-})
-
-const unitSystemShadow = computed({
-  get () {
-    return props.unitSystem
-  },
-  set (v) {
-    emit('setUnitSystem', v)
-  }
-})
-
-const selectedAgenciesShadow = computed({
-  get () {
-    const p = props.selectedAgencies.slice(0)
-    return p.length === 0 ? knownAgencies.value : p
-  },
-  set (v) {
-    emit('setSelectedAgencies', v)
-  }
-})
-
-const selectedRouteTypesShadow = computed({
-  get () {
-    const p = props.selectedRouteTypes.slice(0)
-    return p.length === 0 ? Array.from(routeTypes.keys()) : p
-  },
-  set (v) {
-    emit('setSelectedRouteTypes', v)
-  }
-})
-
-const selectedDaysShadow = computed({
-  get () {
-    const p = props.selectedDays.slice(0)
-    return p.length === 0 ? dowValues : p
-  },
-  set (v) {
-    emit('setSelectedDays', v)
-  }
-})
-
-const baseMapShadow = computed({
-  get () {
-    return props.baseMap
-  },
-  set (v: string) {
-    emit('setBaseMap', v)
-  }
 })
 
 </script>

@@ -128,12 +128,13 @@ watch(stopFeatures, () => {
 // Filter stops
 function stopFilter (stop: Record<string, any>): boolean {
   // Check departure days
-  // Must have service for ALL selected days
+  // Must have service on at least one selected day
   if (props.selectedDays.length > 0) {
-    let found = true
+    let found = false
     for (const day of props.selectedDays) {
-      if (stop[`departures_${day.toLowerCase()}`].length === 0) {
-        found = false
+      if (stop[`departures_${day.toLowerCase()}`].length > 0) {
+        found = true
+        break
       }
     }
     if (!found) {

@@ -55,35 +55,26 @@
       <div style="position:relative">
         <div v-if="activeTab === 'query'" class="cal-overlay">
           <cal-query
+            v-model:start-date="startDate"
+            v-model:end-date="endDate"
+            v-model:geom-source="geomSource"
             :bbox="bbox"
-            :start-date="startDate"
-            :end-date="endDate"
-            :geom-source="geomSource"
-            @set-start-date="startDate = $event"
-            @set-end-date="endDate = $event"
             @set-bbox="bbox = $event"
-            @set-geom-source="geomSource = $event"
             @explore="activeTab = 'map'"
           />
         </div>
         <div v-if="activeTab === 'filter'" class="cal-overlay">
           <cal-filter
+            v-model:start-date="startDate"
+            v-model:end-date="endDate"
+            v-model:base-map="baseMap"
+            v-model:color-key="colorKey"
+            v-model:unit-system="unitSystem"
+            v-model:selected-days="selectedDays"
+            v-model:selected-route-types="selectedRouteTypes"
+            v-model:selected-agencies="selectedAgencies"
             :bbox="bbox"
-            :start-date="startDate"
-            :end-date="endDate"
             :stop-features="stopFeatures"
-            :selected-days="selectedDays"
-            :selected-route-types="selectedRouteTypes"
-            :selected-agencies="selectedAgencies"
-            :unit-system="unitSystem"
-            :color-key="colorKey"
-            :base-map="baseMap"
-            @set-base-map="baseMap = $event"
-            @set-color-key="colorKey = $event"
-            @set-unit-system="unitSystem = $event"
-            @set-selected-route-types="selectedRouteTypes = $event"
-            @set-selected-days="selectedDays = $event"
-            @set-selected-agencies="selectedAgencies = $event"
             @reset-filters="resetFilters"
           />
         </div>
@@ -118,6 +109,7 @@
 import { computed } from 'vue'
 import { type Bbox, type Feature, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
 import { navigateTo } from '#imports'
+import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -200,7 +192,7 @@ const baseMap = computed({
 
 const selectedDays = computed({
   get () {
-    return arrayParam('selectedDays')
+    return arrayParam('selectedDays', dowValues)
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedDays: v.join(',') } })
@@ -209,7 +201,7 @@ const selectedDays = computed({
 
 const selectedRouteTypes = computed({
   get () {
-    return arrayParam('selectedRouteTypes')
+    return arrayParam('selectedRouteTypes', Array.from(routeTypes.keys()))
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedRouteTypes: v.join(',') } })
@@ -218,7 +210,7 @@ const selectedRouteTypes = computed({
 
 const selectedAgencies = computed({
   get () {
-    return arrayParam('selectedAgencies')
+    return arrayParam('selectedAgencies', [])
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedAgencies: v.join(',') } })
@@ -234,6 +226,17 @@ const stopFeatures = ref<Feature[]>([])
 function setStopFeatures (v: any) {
   stopFeatures.value = v
 }
+
+// TODO: Use as default list of selected agencies
+const stopAgencies = computed(() => {
+  const agencies = new Set<string>()
+  for (const feature of stopFeatures.value) {
+    for (const rs of feature.properties.route_stops) {
+      agencies.add(rs.route.agency.agency_name)
+    }
+  }
+  return Array.from(agencies)
+})
 
 // Tab handling
 const activeTab = ref(route.query.activeTab || 'query')
@@ -266,12 +269,31 @@ async function setMapExtent (v: Bbox) {
 }
 
 async function resetFilters () {
-  await navigateTo({ replace: true, query: { ...route.query, selectedAgencies: '', selectedDays: '', selectedRouteTypes: '' } })
+  const p = removeEmpty({
+    ...route.query,
+    selectedAgencies: '',
+    selectedDays: '',
+    selectedRouteTypes: '',
+    colorKey: '',
+    unitSystem: '',
+    baseMap: ''
+  })
+  await navigateTo({ replace: true, query: p })
 }
 
 //////////////////////
 // Helpers
 //////////////////////
+
+function removeEmpty (v: Record<string, any>): Record<string, any> {
+  const r: Record<string, any> = {}
+  for (const k in v) {
+    if (v[k]) {
+      r[k] = v[k]
+    }
+  }
+  return r
+}
 
 function itemHelper (p: string): string {
   if (activeTab.value === p) {
@@ -280,8 +302,9 @@ function itemHelper (p: string): string {
   return 'is-secondary'
 }
 
-function arrayParam (p: string): string[] {
-  return route.query[p]?.toString().split(',').filter(p => (p)) || []
+function arrayParam (p: string, def: string[]): string[] {
+  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
+  return a.length > 0 ? a : def
 }
 
 </script>
