@@ -32,16 +32,19 @@
         <div class="columns">
           <div class="column is-one-third">
             <o-field label="Select geography by">
-              <o-select v-model="selectBy">
+              <o-select :model-value="props.geomSource" @update:model-value="emit('setGeomSource', $event)">
+                <option value="mapExtent" selected>
+                  Map extent
+                </option>
                 <option value="bbox">
                   Bounding box
                 </option>
               </o-select>
               <div class="cal-bbox-info">
                 <div style="text-align:center">
-                  <o-button icon-left="pin">
+                  <!-- <o-button icon-left="pin">
                     Select on map
-                  </o-button>
+                  </o-button> -->
                 </div>
                 <o-field label="SW Corner">
                   <o-input type="text" :value="ptString(bbox.sw)" />
@@ -75,6 +78,7 @@ import { useToggle } from '@vueuse/core'
 const props = defineProps<{
   startDate?: Date
   endDate?: Date
+  geomSource?: string
   bbox: Bbox
 }>()
 
@@ -82,6 +86,7 @@ const emit = defineEmits([
   'setStartDate',
   'setEndDate',
   'setBbox',
+  'setGeomSource',
   'explore'
 ])
 
@@ -90,7 +95,6 @@ const showDebug = ref(false)
 const selectSingleDay = ref(false)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
-const selectBy = ref('bbox')
 </script>
 
   <style scoped lang="scss">

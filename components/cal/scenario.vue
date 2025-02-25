@@ -6,7 +6,7 @@
 import { gql } from 'graphql-tag'
 import { ref, watch, computed } from 'vue'
 import { type Bbox, type Feature } from '../geom'
-import { useLazyQuery } from '@vue/apollo-composable'
+import { useQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
@@ -24,17 +24,6 @@ const props = defineProps<{
 }>()
 
 // Setup query variables
-const vars = computed(() => ({
-  where: {
-    location_type: 0,
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
-    }
-  }
-}))
 
 const query = gql`
 fragment deps on StopTime {
@@ -90,28 +79,30 @@ query ($where: StopFilter) {
   }
 }`
 
-const { result, loading, error, load, refetch } = useLazyQuery(query, {}, { clientId: 'transitland' })
-
-// Watch for changes
-const loadReady = computed(() => {
-  return props.bbox
-})
-
-function loadReload () {
-  if (loadReady.value) {
-    load(query, vars.value) || refetch(vars.value)
+const vars = computed(() => ({
+  where: {
+    location_type: 0,
+    bbox: {
+      min_lon: props.bbox.sw.lon,
+      min_lat: props.bbox.sw.lat,
+      max_lon: props.bbox.ne.lon,
+      max_lat: props.bbox.ne.lat
+    }
   }
-}
+}))
 
-watch(vars, loadReload)
+const { result, loading, error, refetch } = useQuery(query, vars, { clientId: 'transitland' })
+
+// Handle loading and errors
+emit('setLoading', loading.value)
 watch(loading, () => {
   emit('setLoading', loading.value)
 })
 watch(error, () => {
   emit('setError', error.value)
 })
-loadReload()
 
+// Handle resutls
 const stopFeatures = computed(() => {
   const features: Feature[] = []
   for (const stop of (result.value?.stops || [])) {
@@ -130,11 +121,11 @@ const stopFeatures = computed(() => {
   }
   return features
 })
-
 watch(stopFeatures, () => {
   emit('setStopFeatures', stopFeatures.value)
 })
 
+// Filter stops
 function stopFilter (stop: Record<string, any>): boolean {
   // Check departure days
   // Must have service for ALL selected days

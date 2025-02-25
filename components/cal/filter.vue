@@ -7,35 +7,17 @@
         <p class="menu-label">
           Filters
         </p>
-        <o-button class="mx-4" icon-left="delete" @click="emit('resetFilters')">
+        <o-button class="mx-4 mb-4" icon-left="delete" @click="emit('resetFilters')">
           Clear all
         </o-button>
         <ul class="menu-list">
-          <li>
-            <a @click="setPanel('timeframes')">
-              <o-icon icon="chart-bar" />
-              Timeframes
-              <o-icon class="right-chev" icon="chevron-right" size="small" />
-            </a>
-          </li>
-          <li>
-            <a @click="setPanel('transit-layers')">
-              <o-icon icon="bus" />
-              Transit Layers
-              <o-icon class="right-chev" icon="chevron-right" size="small" />
-            </a>
-          </li>
-          <li>
-            <a @click="setPanel('map')">
-              <o-icon icon="layers-outline" />
-              Map Display
-              <o-icon class="right-chev" icon="chevron-right" size="small" />
-            </a>
-          </li>
-          <li>
-            <a @click="setPanel('settings')">
-              <o-icon icon="cog" />
-              Settings
+          <li v-for="item of menuItems" :key="item.panel">
+            <a :class="{ 'is-active': activePanel === item.panel }" @click="setPanel(item.panel)">
+              <o-icon
+                :icon="item.icon"
+                class="is-fullwidth"
+              />
+              {{ item.label }}
               <o-icon class="right-chev" icon="chevron-right" size="small" />
             </a>
           </li>
@@ -77,7 +59,7 @@
           </p>
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
-              <o-checkbox v-model="selectedDaysShadow" size="small" :native-value="dowValue">
+              <o-checkbox v-model="selectedDaysShadow" :native-value="dowValue">
                 {{ dowValue }}
               </o-checkbox>
             </li>
@@ -93,7 +75,7 @@
           </p>
           <ul>
             <li v-for="[routeType, routeTypeDesc] of routeTypes" :key="routeType">
-              <o-checkbox v-model="selectedRouteTypesShadow" size="small" :native-value="routeType">
+              <o-checkbox v-model="selectedRouteTypesShadow" :native-value="routeType">
                 {{ routeTypeDesc }}
               </o-checkbox>
             </li>
@@ -103,7 +85,7 @@
             Agencies
           </p>
 
-          <p class="menu-label">
+          <!-- <p class="menu-label">
             <o-field grouped>
               <o-input type="text" placeholder="search" />
               <o-field addons>
@@ -115,10 +97,11 @@
                 </o-button>
               </o-field>
             </o-field>
-          </p>
+          </p> -->
+
           <ul>
             <li v-for="agencyName of knownAgencies" :key="agencyName">
-              <o-checkbox v-model="selectedAgenciesShadow" size="small" :native-value="agencyName">
+              <o-checkbox v-model="selectedAgenciesShadow" :native-value="agencyName">
                 {{ agencyName }}
               </o-checkbox>
             </li>
@@ -134,19 +117,21 @@
           </p>
           <ul>
             <li v-for="routeColorMode of routeColorModes" :key="routeColorMode">
-              <o-checkbox size="small">
+              <o-radio v-model="colorKeyShadow" :native-value="routeColorMode">
                 {{ routeColorMode }}
-              </o-checkbox>
+              </o-radio>
             </li>
           </ul>
           <p class="menu-label">
             Base map
           </p>
-          <p class="menu-label">
-            <o-icon icon="map-search" size="large" />
-            <o-icon icon="map-search" size="large" />
-            <o-icon icon="map-search" size="large" />
-          </p>
+          <ul>
+            <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle">
+              <o-radio v-model="baseMapShadow" :native-value="baseMapStyle">
+                <o-icon icon="map-search" size="large" /> {{ baseMapStyle }}
+              </o-radio>
+            </li>
+          </ul>
         </aside>
       </div>
 
@@ -157,8 +142,16 @@
             Units of measurement
           </p>
           <ul>
-            <li><o-radio><o-icon icon="currency-usd" />USA #1</o-radio></li>
-            <li><o-radio><o-icon icon="currency-eur" />Metric</o-radio></li>
+            <li>
+              <o-radio v-model="unitSystemShadow" native-value="us">
+                🇺🇸 USA
+              </o-radio>
+            </li>
+            <li>
+              <o-radio v-model="unitSystemShadow" native-value="eu">
+                🇪🇺 Metric
+              </o-radio>
+            </li>
           </ul>
         </aside>
       </div>
@@ -169,6 +162,13 @@
 <script setup lang="ts">
 import { type Feature, fmtDate } from '../geom'
 import { defineEmits } from 'vue'
+
+const menuItems = [
+  { icon: 'chart-bar', label: 'Timeframes', panel: 'timeframes' },
+  { icon: 'bus', label: 'Transit Layers', panel: 'transit-layers' },
+  { icon: 'layers-outline', label: 'Map Display', panel: 'map' },
+  { icon: 'cog', label: 'Settings', panel: 'settings' },
+]
 
 const dowValues = [
   'Monday',
@@ -193,10 +193,18 @@ const routeColorModes = [
   'Frequency',
 ]
 
+const baseMapStyles = [
+  'Streets',
+  'Satellite',
+]
+
 const props = defineProps<{
   stopFeatures: Feature[]
   startDate: Date
   endDate?: Date
+  unitSystem?: string
+  colorKey?: string
+  baseMap?: string
   selectedRouteTypes: string[]
   selectedDays: string[]
   selectedAgencies: string[]
@@ -206,6 +214,9 @@ const emit = defineEmits([
   'setSelectedDays',
   'setSelectedRouteTypes',
   'setSelectedAgencies',
+  'setUnitSystem',
+  'setColorKey',
+  'setBaseMap',
   'resetFilters'
 ])
 
@@ -236,7 +247,23 @@ const knownAgencies = computed(() => {
 ///////////////////
 // Shadowed props
 
-const currencyType = ref('usa')
+const colorKeyShadow = computed({
+  get () {
+    return props.colorKey
+  },
+  set (v) {
+    emit('setColorKey', v)
+  }
+})
+
+const unitSystemShadow = computed({
+  get () {
+    return props.unitSystem
+  },
+  set (v) {
+    emit('setUnitSystem', v)
+  }
+})
 
 const selectedAgenciesShadow = computed({
   get () {
@@ -268,6 +295,15 @@ const selectedDaysShadow = computed({
   }
 })
 
+const baseMapShadow = computed({
+  get () {
+    return props.baseMap
+  },
+  set (v: string) {
+    emit('setBaseMap', v)
+  }
+})
+
 </script>
 
 <style scoped lang="scss">
@@ -294,7 +330,13 @@ const selectedDaysShadow = computed({
     padding:20px;
   }
 }
-.menu-list .right-chev {
-  float:right;
+.menu-list {
+  a.is-active {
+    color:var(--bulma-text-main-ter);
+    background:var(--bulma-scheme-main-ter);
+  }
+  .right-chev {
+    float:right;
+  }
 }
 </style>

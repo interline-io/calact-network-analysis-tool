@@ -1,5 +1,18 @@
 <template>
   <div class="cal-map-outer">
+    <div class="cal-map-share-button">
+      <o-button icon-left="share" @click="toggleShareMenu()">
+        {{ showShareMenu ? 'Close' : 'Share' }}
+      </o-button>
+    </div>
+    <article v-if="showShareMenu" class="cal-map-share message is-dark">
+      <div class="message-header">
+        Share
+      </div>
+      <div class="message-body">
+        <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" />
+      </div>
+    </article>
     <article class="cal-map-legend message is-dark">
       <div class="message-header">
         Legend
@@ -17,12 +30,16 @@
             <div>Drag Markers to Adjust Area</div>
           </div>
           <div>
-            <div />
-            <div>
-              <o-button size="small" @click="useMapExtent">
-                Use map extent
-              </o-button>
+            <div style="background:red">
+              .
             </div>
+            <div>Stops satisfying all filters</div>
+          </div>
+          <div>
+            <div style="background:blue">
+              .
+            </div>
+            <div>Stops not satisfying all filters</div>
           </div>
         </div>
       </div>
@@ -30,7 +47,7 @@
     <cal-map-viewer-ts
       map-class="tall"
       :center="centerPoint"
-      :zoom="14"
+      :zoom="17"
       :features="displayFeatures"
       :markers="bboxMarkers"
       :auto-fit="false"
@@ -43,16 +60,21 @@
 
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
+import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 
 const emit = defineEmits([
   'setBbox',
+  'setMapExtent',
 ])
 
 const props = defineProps<{
   bbox: Bbox
   stopFeatures: Feature[]
 }>()
+
+const showShareMenu = ref(false)
+const toggleShareMenu = useToggle(showShareMenu)
 
 //////////////////
 // Map geometries
@@ -162,6 +184,10 @@ function mapMove (v: any) {
   }
 }
 
+watch(extentBbox, () => {
+  emit('setMapExtent', extentBbox.value)
+})
+
 function useMapExtent () {
   emit('setBbox', extentBbox.value)
 }
@@ -199,6 +225,25 @@ function mapClickFeatures (features: Feature[]) {
 <style scoped lang="scss">
 .cal-map-outer {
   position:relative;
+}
+.cal-map-share-button {
+  position:absolute;
+  right:50px;
+  top:6px;
+  z-index:100;
+}
+.cal-map-share {
+  position:absolute;
+  right:50px;
+  top:50px;
+  width:300px;
+  color:black;
+  padding:5px;
+  height:150px;
+  z-index:100;
+  .message-body {
+    background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-white-on-scheme-l), 0.25);
+  }
 }
 .cal-map-legend {
   position:absolute;
