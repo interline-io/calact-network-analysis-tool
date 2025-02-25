@@ -11,10 +11,10 @@
     <div class="cal-body">
       <o-field grouped style="width:100%">
         <o-field label="Start date">
-          <o-datepicker :value="props.startDate" @update:model-value="emit('setStartDate', $event)" />
+          <o-datepicker v-model="startDate" />
         </o-field>
         <o-field v-if="!selectSingleDay" label="End date">
-          <o-datepicker :value="props.endDate" @update:model-value="emit('setEndDate', $event)" />
+          <o-datepicker v-model="endDate" />
         </o-field>
         <o-field label=".">
           <o-button @click="toggleSelectSingleDay()">
@@ -32,38 +32,31 @@
         <div class="columns">
           <div class="column is-one-third">
             <o-field label="Select geography by">
-              <o-select v-model="selectBy">
+              <o-select v-model="geomSource">
+                <option value="mapExtent" selected>
+                  Map extent
+                </option>
                 <option value="bbox">
                   Bounding box
                 </option>
               </o-select>
               <div class="cal-bbox-info">
                 <div style="text-align:center">
-                  <o-button icon-left="pin">
+                  <!-- <o-button icon-left="pin">
                     Select on map
-                  </o-button>
+                  </o-button> -->
                 </div>
                 <o-field label="SW Corner">
-                  <o-input type="text" :value="ptString(bbox.sw)" />
+                  <o-input type="text" :value="ptString(props.bbox.sw)" />
                 </o-field>
                 <o-field label="NE Corner">
-                  <o-input type="text" :value="ptString(bbox.ne)" />
+                  <o-input type="text" :value="ptString(props.bbox.ne)" />
                 </o-field>
               </div>
             </o-field>
           </div>
         </div>
       </tl-msg-box>
-
-      <div v-if="showDebug">
-        <tl-msg-warning>
-          debug params:<br>
-          startDate: {{ startDate }}<br>
-          endDate: {{ endDate }}<br>
-          bbox: {{ bbox }}<br>
-          selectSingleDay: {{ selectSingleDay }}
-        </tl-msg-warning>
-      </div>
     </div>
   </div>
 </template>
@@ -73,27 +66,23 @@ import { type Bbox, ptString, } from '../geom'
 import { useToggle } from '@vueuse/core'
 
 const props = defineProps<{
-  startDate?: Date
-  endDate?: Date
   bbox: Bbox
 }>()
 
 const emit = defineEmits([
-  'setStartDate',
-  'setEndDate',
   'setBbox',
   'explore'
 ])
 
-const showDebug = ref(false)
-
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const geomSource = defineModel<string>('geomSource')
 const selectSingleDay = ref(false)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
-const selectBy = ref('bbox')
 </script>
 
-  <style scoped lang="scss">
+<style scoped lang="scss">
 .cal-query {
   display:flex;
   flex-direction:column;

@@ -12,7 +12,7 @@
       </p>
       <ul>
         <li>
-          <nuxt-link :to="{name: 'map'}">
+          <nuxt-link :to="{name: 'tne'}">
             Map Tool
           </nuxt-link>
         </li>

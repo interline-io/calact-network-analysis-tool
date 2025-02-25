@@ -6,7 +6,7 @@
 import { gql } from 'graphql-tag'
 import { ref, watch, computed } from 'vue'
 import { type Bbox, type Feature } from '../geom'
-import { useLazyQuery } from '@vue/apollo-composable'
+import { useQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
@@ -15,26 +15,16 @@ const emit = defineEmits([
 ])
 
 const props = defineProps<{
-  startDate?: Date
-  endDate?: Date
   bbox: Bbox
-  selectedRouteTypes: string[]
-  selectedDays: string[]
-  selectedAgencies: string[]
 }>()
 
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
+const selectedDays = defineModel<string[]>('selectedDays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
+
 // Setup query variables
-const vars = computed(() => ({
-  where: {
-    location_type: 0,
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
-    }
-  }
-}))
 
 const query = gql`
 fragment deps on StopTime {
@@ -90,28 +80,30 @@ query ($where: StopFilter) {
   }
 }`
 
-const { result, loading, error, load, refetch } = useLazyQuery(query, {}, { clientId: 'transitland' })
-
-// Watch for changes
-const loadReady = computed(() => {
-  return props.bbox
-})
-
-function loadReload () {
-  if (loadReady.value) {
-    load(query, vars.value) || refetch(vars.value)
+const vars = computed(() => ({
+  where: {
+    location_type: 0,
+    bbox: {
+      min_lon: props.bbox.sw.lon,
+      min_lat: props.bbox.sw.lat,
+      max_lon: props.bbox.ne.lon,
+      max_lat: props.bbox.ne.lat
+    }
   }
-}
+}))
 
-watch(vars, loadReload)
+const { result, loading, error, refetch } = useQuery(query, vars, { clientId: 'transitland' })
+
+// Handle loading and errors
+emit('setLoading', loading.value)
 watch(loading, () => {
   emit('setLoading', loading.value)
 })
 watch(error, () => {
   emit('setError', error.value)
 })
-loadReload()
 
+// Handle resutls
 const stopFeatures = computed(() => {
   const features: Feature[] = []
   for (const stop of (result.value?.stops || [])) {
@@ -130,19 +122,21 @@ const stopFeatures = computed(() => {
   }
   return features
 })
-
 watch(stopFeatures, () => {
   emit('setStopFeatures', stopFeatures.value)
 })
 
+// Filter stops
 function stopFilter (stop: Record<string, any>): boolean {
   // Check departure days
-  // Must have service for ALL selected days
-  if (props.selectedDays.length > 0) {
-    let found = true
-    for (const day of props.selectedDays) {
-      if (stop[`departures_${day.toLowerCase()}`].length === 0) {
-        found = false
+  // Must have service on at least one selected day
+  const sd = selectedDays.value || []
+  if (sd.length > 0) {
+    let found = false
+    for (const day of sd) {
+      if (stop[`departures_${day.toLowerCase()}`].length > 0) {
+        found = true
+        break
       }
     }
     if (!found) {
@@ -152,10 +146,11 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check route types
   // Must match at least one route type
-  if (props.selectedRouteTypes.length > 0) {
+  const srt = selectedRouteTypes.value || []
+  if (srt.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (props.selectedRouteTypes.includes(rs.route.route_type.toString())) {
+      if (srt.includes(rs.route.route_type.toString())) {
         found = true
         break
       }
@@ -167,10 +162,11 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check agencies
   // Must match at least one selected agency
-  if (props.selectedAgencies.length > 0) {
+  const sg = selectedAgencies.value || []
+  if (sg.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (props.selectedAgencies.includes(rs.route.agency.agency_name)) {
+      if (sg.includes(rs.route.agency.agency_name)) {
         found = true
         break
       }
@@ -179,6 +175,8 @@ function stopFilter (stop: Record<string, any>): boolean {
       return false
     }
   }
+
+  // Default is to return true
   return true
 }
 
