@@ -1,7 +1,7 @@
 <template>
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
-      <nuxt-link :to="{name:'index'}" class="ca-main-item">
+      <nuxt-link :to="{name:'index'}" class="ca-main-item" title="Home" role="button">
         <o-icon icon="home" size="large" class="is-fullwidth" />
       </nuxt-link>
       <aside class="menu">
@@ -9,12 +9,11 @@
         <div class="bottom-group">
           <ul class="menu-list">
             <li>
-              <a>
+              <a role="button" @click="toggleDarkMode()" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
                 <o-icon
                   class="icon-group"
                   size="large"
                   :icon="isDark ? 'weather-night' : 'weather-sunny'"
-                  @click="toggleDarkMode()"
                 />
               </a>
             </li>
@@ -22,6 +21,8 @@
               <nuxt-link
                 :to="{ name: 'help' }"
                 :class="itemHelper('/help')"
+                title="Help"
+                role="button"
               >
                 <o-icon icon="help" size="large" class="is-fullwidth" />
               </nuxt-link>
@@ -31,6 +32,8 @@
               <nuxt-link
                 :to="{ name: 'admin-profile' }"
                 :class="itemHelper('/admin/profile')"
+                title="My user profile"
+                role="button"
               >
                 <o-icon icon="account" size="large" class="is-fullwidth" />
               </nuxt-link>

@@ -35,7 +35,7 @@ import { useSlots } from 'vue'
 
 useHead({
   titleTemplate: (titleChunk) => {
-    return titleChunk ? `${titleChunk} • CalACT` : 'CalACT'
+    return titleChunk ? `${titleChunk} • CALACT NAT` : 'CALACT NAT'
   }
 })
 
