@@ -23,7 +23,7 @@
             <div>
               <div style="height:100%;width:100%;border:solid red 1px;" />
             </div>
-            <div>Selected Area</div>
+            <div>Bounding Box for Query</div>
           </div>
           <div v-if="props.displayEditBboxMode">
             <div>
@@ -31,7 +31,7 @@
                 <i class="mdi mdi-arrow-bottom-left"></i>
               </div>
             </div>
-            <div>SW Corner Marker</div>
+            <div>SW Bounding Box Corner</div>
           </div>
           <div v-if="props.displayEditBboxMode">
             <div>
@@ -39,7 +39,7 @@
                 <i class="mdi mdi-arrow-top-right"></i>
               </div>
             </div>
-            <div>NE Corner Marker</div>
+            <div>NE Bounding Box Corner</div>
           </div>
           <div>
             <div style="background:#0000ff">

@@ -164,8 +164,6 @@ const bbox = computed({
   }
 })
 
-const displayEditBboxMode = ref(false)
-
 const unitSystem = computed({
   get () {
     return route.query.unitSystem?.toString() || 'us'
@@ -244,6 +242,9 @@ const stopAgencies = computed(() => {
 // Tab handling
 const activeTab = ref(route.query.activeTab || 'query')
 
+// Initialize displayEditBboxMode based on initial values
+const displayEditBboxMode = ref(activeTab.value === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+
 function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = 'map'
@@ -258,6 +259,7 @@ function setTab (v: string) {
 
 // We need to keep reference to the map extent
 const mapExtent = ref<Bbox | null>(null)
+
 watch(geomSource, () => {
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
