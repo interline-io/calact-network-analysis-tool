@@ -1,6 +1,6 @@
 <template>
   <div>
-    <tl-title title="Profile" />
+    <tl-title title="My User Profile" />
     <tl-user-icon />
   </div>
 </template>
