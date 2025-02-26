@@ -1,23 +1,16 @@
 <template>
   <div>
-    <tl-title title="CalACT" />
+    <tl-title title="Welcome to the Network Analysis Tool" />
 
-    <tl-msg-info>Basic messages</tl-msg-info>
-
-    <div class="content">
-      <p>
-        Lorem ipsum dolor sit amet consectetur adipisicing elit.
-        Sequi rem itaque facilis perferendis officiis accusamus exercitationem deleniti,
-        est accusantium, voluptas, molestias laboriosam nesciunt nostrum! Qui vel voluptatibus labore fugit eligendi!
-      </p>
-      <ul>
-        <li>
-          <nuxt-link :to="{name: 'tne'}">
-            Map Tool
-          </nuxt-link>
-        </li>
-      </ul>
+    <div class="columns">
+      <div class="column"><p class="content">The Network Analysis Tool (or NAT) is being developed for the California Association for Coordinated Transportation (CALACT) and partner organizations to browse transit networks throughout California, Oregon, and Washington states.</p></div>
+      <div class="column has-text-right"><img src="~assets/calact-logo.jpg" alt="CALACT"></div>
     </div>
+    
+    <tl-msg-info>This tool is currently under active development. To gain access, contact the project managers.</tl-msg-info>
+    <nuxt-link class="button is-primary is-large is-fullwidth" :to="{name: 'tne'}">
+      Start Building a Query
+    </nuxt-link>
   </div>
 </template>
 
