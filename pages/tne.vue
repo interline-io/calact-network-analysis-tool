@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" @click="setTab('query')">
+          <a :class="itemHelper('query')" @click="setTab('query')" title="Query" role="button">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" @click="setTab('filter')">
+          <a :class="itemHelper('filter')" @click="setTab('filter')" title="Filter" role="button">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" @click="setTab('map')">
+          <a :class="itemHelper('map')" @click="setTab('map')" title="Map" role="button">
             <o-icon
               icon="map"
               class="is-fullwidth"
