@@ -45,10 +45,10 @@
               </template>
               <o-select v-model="geomSource">
                 <option value="mapExtent" selected>
-                  Current extent of map
+                  Covering extent of map
                 </option>
                 <option value="bbox">
-                  Bounding box on map
+                  Dragging bounding box
                 </option>
               </o-select>
               <!-- <div class="cal-bbox-info">

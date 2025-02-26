@@ -19,13 +19,13 @@
       </div>
       <div class="message-body">
         <div class="cal-map-legend-box">
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div style="height:100%;width:100%;border:solid red 1px;" />
             </div>
             <div>Selected Area</div>
           </div>
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div class="legend-marker sw-marker">
                 <i class="mdi mdi-arrow-bottom-left"></i>
@@ -33,7 +33,7 @@
             </div>
             <div>SW Corner Marker</div>
           </div>
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div class="legend-marker ne-marker">
                 <i class="mdi mdi-arrow-top-right"></i>
@@ -83,6 +83,7 @@ const emit = defineEmits([
 const props = defineProps<{
   bbox: Bbox
   stopFeatures: Feature[]
+  displayEditBboxMode?: boolean
 }>()
 
 const showShareMenu = ref(false)
@@ -100,7 +101,7 @@ const centerPoint = {
 // Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
-  if (props.bbox.valid) {
+  if (props.bbox.valid && props.displayEditBboxMode) {
     const p = props.bbox
     const coords = [[
       [p.sw.lon, p.sw.lat],
@@ -125,6 +126,10 @@ const bboxArea = computed(() => {
 // Markers for bbox corners
 const bboxMarkers = computed(() => {
   const ret: MarkerFeature[] = []
+  
+  if (!props.displayEditBboxMode) {
+    return ret
+  }
   
   // Create SW marker with custom element
   const swElement = document.createElement('div')

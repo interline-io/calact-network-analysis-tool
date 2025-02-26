@@ -98,6 +98,7 @@
       <cal-map
         :bbox="bbox"
         :stop-features="stopFeatures"
+        :display-edit-bbox-mode="displayEditBboxMode"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
       />
@@ -162,6 +163,8 @@ const bbox = computed({
     navigateTo({ replace: true, query: { ...route.query, bbox: bboxString(v) } })
   }
 })
+
+const displayEditBboxMode = ref(false)
 
 const unitSystem = computed({
   get () {
@@ -258,6 +261,14 @@ const mapExtent = ref<Bbox | null>(null)
 watch(geomSource, () => {
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
+  }
+})
+
+watch([activeTab, geomSource], () => {
+  if (activeTab.value === 'query' && geomSource.value === 'bbox') {
+    displayEditBboxMode.value = true
+  } else {
+    displayEditBboxMode.value = false
   }
 })
 
