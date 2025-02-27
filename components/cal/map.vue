@@ -214,21 +214,13 @@ const displayFeatures = computed(() => {
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
   }
-  for (const stop of props.stopFeatures) {
-    const stopProps = {
-      'marker-radius': stop.properties.marked ? 10 : 4,
-      'marker-color': stop.properties.marked ? '#0000ff' : '#000000',
-    }
-    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
-    features.push(stopCopy)
-  }
   for (const route of props.routeFeatures) {
     const rp = route.properties
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
     const routeProps = {
       'id': route.id,
       'stroke': routeColor,
-      'stroke-width': 4,
+      'stroke-width': 2,
       'stroke-opacity': 1.0,
       'route_id': rp.route_id,
       'route_type': rp.route_type,
@@ -239,6 +231,14 @@ const displayFeatures = computed(() => {
     }
     const routeCopy = { type: 'Feature', id: route.id, geometry: route.geometry, properties: routeProps }
     features.push(routeCopy)
+  }
+  for (const stop of props.stopFeatures) {
+    const stopProps = {
+      'marker-radius': stop.properties.marked ? 10 : 4,
+      'marker-color': stop.properties.marked ? '#0000ff' : '#000000',
+    }
+    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
+    features.push(stopCopy)
   }
   return features
 })

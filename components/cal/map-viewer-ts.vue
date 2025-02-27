@@ -160,16 +160,6 @@ function createLayers () {
     }
   })
   map?.addLayer({
-    id: 'points',
-    type: 'circle',
-    source: 'points',
-    paint: {
-      'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
-      'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
-      'circle-opacity': 1.0
-    }
-  })
-  map?.addLayer({
     id: 'lines',
     type: 'line',
     source: 'lines',
@@ -178,6 +168,16 @@ function createLayers () {
       'line-color': ['coalesce', ['get', 'stroke'], '#000000'],
       'line-width': ['coalesce', ['get', 'stroke-width'], 2],
       'line-opacity': 1.0
+    }
+  })
+  map?.addLayer({
+    id: 'points',
+    type: 'circle',
+    source: 'points',
+    paint: {
+      'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
+      'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
+      'circle-opacity': 1.0
     }
   })
   // add labels last
