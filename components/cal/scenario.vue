@@ -293,7 +293,7 @@ const maxQueryLimit = 10000
 function checkQueryLimit () {
   queryCount += 1
   if (queryCount > maxQueryLimit) {
-    alert('Fail safe check - query limit exceeded; click ok to continue anyway')
+    console.log('Query limit exceeded')
   }
 }
 
