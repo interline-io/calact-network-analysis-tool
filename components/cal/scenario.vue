@@ -6,14 +6,15 @@
 import { gql } from 'graphql-tag'
 import { ref, watch, computed, toRaw } from 'vue'
 import { type Bbox, type Feature } from '../geom'
-import { dowValues } from '../constants'
+import { dowValues, routeTypeColorMap } from '../constants'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
   'setLoading',
   'setError',
-  'setDepartureProgress'
+  'setDepartureProgress',
+  'setRouteFeatures'
 ])
 
 const props = defineProps<{
@@ -77,6 +78,7 @@ const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopErr
 watch(ready, (v) => {
   if (v) {
     stopLoad()
+    routeLoad()
   }
 })
 
@@ -90,6 +92,62 @@ watch(stopError, (v) => {
 
 watch(stopResult, (v) => {
   updateStops(v.stops || [], [])
+})
+
+/////////////////////////////
+// Routes
+/////////////////////////////
+
+// Setup query variables
+const routeQuery = gql`
+query ($limit: Int, $after: Int, $where: RouteFilter) {
+  routes(limit: $limit, after: $after, where: $where) {
+    id
+    route_id
+    route_short_name
+    route_long_name
+    route_type
+    geometry
+    agency {
+      id
+      agency_id
+      agency_name
+    }
+  }
+}`
+
+const routeVars = computed(() => ({
+  after: 0,
+  limit: 1000,
+  where: {
+    bbox: {
+      min_lon: props.bbox.sw.lon,
+      min_lat: props.bbox.sw.lat,
+      max_lon: props.bbox.ne.lon,
+      max_lat: props.bbox.ne.lat
+    }
+  }
+}))
+
+const { load: routeLoad, result: routeResult, error: routeError, } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+
+const rotueFeatures = computed(() => {
+  const features: Feature[] = []
+  for (const route of routeResult.value?.routes || []) {
+    const routeProps = Object.assign({}, route)
+    delete routeProps.geometry
+    features.push({
+      type: 'Feature',
+      id: route.id.toString(),
+      properties: routeProps,
+      geometry: route.geometry
+    })
+  }
+  return features
+})
+
+watch(rotueFeatures, (v) => {
+  emit('setRouteFeatures', v)
 })
 
 /////////////////////////////
@@ -164,6 +222,7 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
 
   // Update stop departures cache
   for (const stop of stopDepartures) {
+    // console.log('updating stop Departures', stop)
     stopDepartureCache.set(stop.id, toRaw(stop))
   }
 
@@ -179,9 +238,10 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
     checkQueryLimit()
     stopDepartureFetchMore({
       variables: { ids: toFetch },
-      updateQuery: (_, { fetchMoreResult }) => {
-      // Don't keep result, just use it to update the cache
-        updateStops(stopResult.value?.stops || [], fetchMoreResult?.stops || [])
+      updateQuery: (previousResult, { fetchMoreResult }) => {
+        const newDeps = [...previousResult.stops || [], ...fetchMoreResult?.stops || []]
+        // Don't keep result, just use it to update the cache
+        updateStops(stopResult.value?.stops || [], newDeps)
         return { stops: [] }
       }
     })

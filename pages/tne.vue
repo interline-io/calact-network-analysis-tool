@@ -99,6 +99,7 @@
         :ready="ready"
         @set-departure-progress="stopDepartureProgress = $event"
         @set-stop-features="setStopFeatures"
+        @set-route-features="setRouteFeatures"
         @set-loading="loading = $event"
         @set-error="error = $event"
       />
@@ -107,6 +108,7 @@
       <cal-map
         :bbox="bbox"
         :stop-features="stopFeatures"
+        :route-features="routeFeatures"
         :display-edit-bbox-mode="displayEditBboxMode"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
@@ -119,7 +121,6 @@
 import { computed } from 'vue'
 import { type Bbox, type Feature, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
 import { navigateTo } from '#imports'
-import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -129,7 +130,7 @@ const route = useRoute()
 
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 // const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
-const defaultBbox = '-121.44566,43.97697,-121.18267,44.13784'
+const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const ready = ref(false)
 function setReady () {
   ready.value = true
@@ -191,7 +192,7 @@ const unitSystem = computed({
 
 const colorKey = computed({
   get () {
-    return route.query.colorKey?.toString() || 'Agency'
+    return route.query.colorKey?.toString() || 'Type'
   },
   set (v: string) {
     navigateTo({ replace: true, query: { ...route.query, colorKey: v } })
@@ -240,20 +241,14 @@ const selectedAgencies = computed({
 
 // Stop features
 const stopFeatures = ref<Feature[]>([])
-function setStopFeatures (v: any) {
+function setStopFeatures (v: Feature[]) {
   stopFeatures.value = v
 }
 
-// TODO: Use as default list of selected agencies
-const stopAgencies = computed(() => {
-  const agencies = new Set<string>()
-  for (const feature of stopFeatures.value) {
-    for (const rs of feature.properties.route_stops) {
-      agencies.add(rs.route.agency.agency_name)
-    }
-  }
-  return Array.from(agencies)
-})
+const routeFeatures = ref<Feature[]>([])
+function setRouteFeatures (v: Feature[]) {
+  routeFeatures.value = v
+}
 
 // Tab handling
 const activeTab = ref(route.query.activeTab || 'query')

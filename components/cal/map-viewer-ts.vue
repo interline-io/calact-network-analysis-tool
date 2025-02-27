@@ -160,16 +160,6 @@ function createLayers () {
     }
   })
   map?.addLayer({
-    id: 'points',
-    type: 'circle',
-    source: 'points',
-    paint: {
-      'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
-      'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
-      'circle-opacity': 1.0
-    }
-  })
-  map?.addLayer({
     id: 'lines',
     type: 'line',
     source: 'lines',
@@ -178,6 +168,16 @@ function createLayers () {
       'line-color': ['coalesce', ['get', 'stroke'], '#000000'],
       'line-width': ['coalesce', ['get', 'stroke-width'], 2],
       'line-opacity': 1.0
+    }
+  })
+  map?.addLayer({
+    id: 'points',
+    type: 'circle',
+    source: 'points',
+    paint: {
+      'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
+      'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
+      'circle-opacity': 1.0
     }
   })
   // add labels last
@@ -201,7 +201,7 @@ function updateFeatures (features: Feature[]) {
   // Update sources
   const polygons = features.filter((s) => { return s.geometry.type === 'MultiPolygon' || s.geometry.type === 'Polygon' })
   const points = features.filter((s) => { return s.geometry.type === 'Point' })
-  const lines = features.filter((s) => { return s.geometry.type === 'LineString' })
+  const lines = features.filter((s) => { return s.geometry.type === 'LineString' || s.geometry.type === 'MultiLineString' })
   const polygonSource = map.getSource('polygons') as maplibre.GeoJSONSource
   const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
   const pointSource = map.getSource('points') as maplibre.GeoJSONSource
@@ -280,12 +280,12 @@ function drawMarkers (markers: MarkerFeature[]) {
       draggable: m.draggable,
       color: m.color,
     }
-    
+
     // Use custom element if provided
     if (m.element) {
       markerOptions.element = m.element
     }
-    
+
     const newMarker = new maplibre.Marker(markerOptions)
       .setLngLat([m.point.lon, m.point.lat])
       .addTo(map!)
@@ -301,9 +301,10 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
+  console.log('e:', e)
   const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'polygons', 'lines'] })
   if (features) {
-    emit('mapClickFeatures', features)
+    emit('mapClickFeatures', e.lngLat, features)
   }
 }
 
