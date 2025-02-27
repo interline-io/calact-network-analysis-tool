@@ -64,7 +64,7 @@
     <cal-map-viewer-ts
       map-class="tall"
       :center="centerPoint"
-      :zoom="10"
+      :zoom="14"
       :features="displayFeatures"
       :markers="bboxMarkers"
       :auto-fit="false"

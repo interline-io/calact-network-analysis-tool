@@ -130,7 +130,7 @@ const route = useRoute()
 
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 // const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
-const defaultBbox = '-121.44566,43.97697,-121.18267,44.13784'
+const defaultBbox = '-122.66887,45.50478,-122.64673,45.52543'
 const ready = ref(false)
 function setReady () {
   ready.value = true
