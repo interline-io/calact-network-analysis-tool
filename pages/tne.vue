@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" @click="setTab('query')" title="Query" role="button">
+          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab('query')">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" @click="setTab('filter')" title="Filter" role="button">
+          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab('filter')">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" @click="setTab('map')" title="Map" role="button">
+          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab('map')">
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -67,7 +67,7 @@
             v-model:geom-source="geomSource"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @explore="activeTab = 'map'"
+            @explore="setReady()"
           />
         </div>
         <div v-if="activeTab === 'filter'" class="cal-overlay">
@@ -96,6 +96,7 @@
         :selected-route-types="selectedRouteTypes"
         :selected-agencies="selectedAgencies"
         :geom-source="geomSource"
+        :ready="ready"
         @set-departure-progress="stopDepartureProgress = $event"
         @set-stop-features="setStopFeatures"
         @set-loading="loading = $event"
@@ -127,7 +128,13 @@ definePageMeta({
 const route = useRoute()
 
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
-const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
+// const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
+const defaultBbox = '-121.44566,43.97697,-121.18267,44.13784'
+const ready = ref(false)
+function setReady () {
+  ready.value = true
+  activeTab.value = 'map'
+}
 
 // Loading and error handling
 const loading = ref(false)
