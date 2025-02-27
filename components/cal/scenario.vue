@@ -4,14 +4,16 @@
 
 <script setup lang="ts">
 import { gql } from 'graphql-tag'
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, toRaw } from 'vue'
 import { type Bbox, type Feature } from '../geom'
+import { dowValues } from '../constants'
 import { useQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
   'setLoading',
   'setError',
+  'setDepartureProgress'
 ])
 
 const props = defineProps<{
@@ -24,45 +26,20 @@ const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 
+const stopDepartureLimit = 100
+
+/////////////////////////////
+// Basic stop data
+/////////////////////////////
+
 // Setup query variables
-
-const query = gql`
-fragment deps on StopTime {
-  departure {
-        scheduled
-        scheduled_local
-        scheduled_unix
-        scheduled_utc
-      }
-}
-
-query ($where: StopFilter) {
-  stops(where: $where) {
+const stopQuery = gql`
+query ($limit: Int, $after: Int, $where: StopFilter) {
+  stops(limit: $limit, after: $after, where: $where) {
     id
     stop_id
     stop_name
     geometry
-    departures_monday: departures(limit: 1000, where: {relative_date: MONDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_tuesday: departures(limit: 1000, where: {relative_date: TUESDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_wednesday: departures(limit: 1000, where: {relative_date: WEDNESDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_thursday: departures(limit: 1000, where: {relative_date: THURSDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_friday: departures(limit: 1000, where: {relative_date: FRIDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_saturday: departures(limit: 1000, where: {relative_date: SATURDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }    
-    departures_sunday: departures(limit: 1000, where: {relative_date: SUNDAY, start: "00:00:00", end: "23:59:59"}) {
-      ...deps
-    }
     route_stops {
       route {
         id
@@ -80,7 +57,9 @@ query ($where: StopFilter) {
   }
 }`
 
-const vars = computed(() => ({
+const stopVars = computed(() => ({
+  after: 0,
+  limit: 1000,
   where: {
     location_type: 0,
     bbox: {
@@ -92,26 +71,138 @@ const vars = computed(() => ({
   }
 }))
 
-const { result, loading, error, refetch } = useQuery(query, vars, { clientId: 'transitland' })
+const { result: stopResult, loading: stopLoading, error: stopError, refetch: stopRefetch, fetchMore: stopFetchMore } = useQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
 
 // Handle loading and errors
-emit('setLoading', loading.value)
-watch(loading, () => {
-  emit('setLoading', loading.value)
+watch(stopLoading, (v) => {
+  emit('setLoading', v)
 })
-watch(error, () => {
-  emit('setError', error.value)
+watch(stopError, (v) => {
+  emit('setError', v)
 })
 
-// Handle resutls
-const stopFeatures = computed(() => {
+watch(stopResult, (v) => {
+  updateStops(v.stops || [], [])
+})
+
+/////////////////////////////
+// Stop departures
+/////////////////////////////
+
+const stopDepartureQuery = gql`
+query ($ids: [Int!]) {
+  stops(ids: $ids) {
+    id
+    departures_monday: departures(limit: 1, where: {relative_date: MONDAY}) {
+      departure_time
+    }
+    departures_tuesday: departures(limit: 1, where: {relative_date: TUESDAY}) {
+      departure_time
+    }
+    departures_wednesday: departures(limit: 1, where: {relative_date: WEDNESDAY}) {
+      departure_time
+    }
+    departures_thursday: departures(limit: 1, where: {relative_date: THURSDAY}) {
+      departure_time
+    }
+    departures_friday: departures(limit: 1, where: {relative_date: FRIDAY}) {
+      departure_time
+    }
+    departures_saturday: departures(limit: 1, where: {relative_date: SATURDAY}) {
+      departure_time
+    }
+    departures_sunday: departures(limit: 1, where: {relative_date: SUNDAY}) {
+      departure_time
+    }    
+  }
+}`
+
+const stopDepartureVars = { ids: Array<number>() }
+const { error: stopDepartureError, fetchMore: stopDepartureFetchMore } = useQuery(stopDepartureQuery, stopDepartureVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+
+watch(stopDepartureError, (v) => {
+  emit('setError', v)
+})
+
+const stopDepartureCache = new Map<number, Record<string, any>>()
+
+/////////////////////////////////
+// Stop handlers
+/////////////////////////////////
+
+let prevStopAfter = 0
+function updateStops (stops: Record<string, any>[], stopDepartures: Record<string, any>[]) {
+  const stopIds = stops.map(s => s.id)
+
+  // Do we need to fetch more stops?
+  const nextStopAfter = stopIds[stopIds.length - 1]
+  if (stops.length === 0 || nextStopAfter === prevStopAfter) {
+    // No, set loading to false
+    stopLoading.value = false
+  } else {
+    // Fetch more stops
+    prevStopAfter = nextStopAfter
+    checkQueryLimit()
+    stopFetchMore({
+      variables: {
+        after: nextStopAfter,
+      },
+      updateQuery: (previousResult, { fetchMoreResult }) => {
+        const newStops = [...previousResult.stops || [], ...fetchMoreResult?.stops || []]
+        updateStops(newStops, [])
+        return { stops: newStops }
+      }
+    })
+  }
+
+  // Update stop departures cache
+  for (const stop of stopDepartures) {
+    stopDepartureCache.set(stop.id, toRaw(stop))
+  }
+
+  // Update the list of stops that need departures
+  const stopsNeedDepartures = stopIds.filter((id) => { return !stopDepartureCache.has(id) })
+  emit('setDepartureProgress', {
+    queue: stopsNeedDepartures.length,
+    total: stops.length || 0
+  })
+  if (stopsNeedDepartures.length > 0) {
+    const toFetch = stopsNeedDepartures.slice(0, stopDepartureLimit)
+    console.log('fetching departures:', toFetch)
+    checkQueryLimit()
+    stopDepartureFetchMore({
+      variables: { ids: toFetch },
+      updateQuery: (_, { fetchMoreResult }) => {
+      // Don't keep result, just use it to update the cache
+        updateStops(stopResult.value?.stops || [], fetchMoreResult?.stops || [])
+        return { stops: [] }
+      }
+    })
+  }
+
+  // Update stop features
+  updateStopFeatures(stops)
+}
+
+/////////////////////////////////
+// Feature handling
+/////////////////////////////////
+
+const stopFeatures = ref<Feature[]>([])
+
+function updateStopFeatures (stops: Record<string, any>[]) {
   const features: Feature[] = []
-  for (const stop of (result.value?.stops || [])) {
+  for (const stop of (stops || [])) {
     if (stop.route_stops.length === 0) {
       continue
     }
-    const stopProps = Object.assign({}, stop)
-    stopProps.marked = stopFilter(stop)
+    // Merge in dow values
+    const stopDow = stopDepartureCache.get(stop.id) || {}
+    const dowProps: Record<string, any> = {}
+    for (const dow of dowValues) {
+      dowProps[`departures_${dow.toLowerCase()}`] = stopDow[`departures_${dow.toLowerCase()}`] || []
+    }
+    const stopProps = Object.assign({}, stop, { marked: true }, dowProps)
     delete stopProps.geometry
     features.push({
       type: 'Feature',
@@ -120,9 +211,14 @@ const stopFeatures = computed(() => {
       geometry: stop.geometry
     })
   }
-  return features
-})
-watch(stopFeatures, () => {
+  stopFeatures.value = features
+}
+
+// Filtered stop features
+watch(() => [stopFeatures.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value], () => {
+  for (const stop of stopFeatures.value || []) {
+    stop.properties.marked = stopFilter(stop.properties)
+  }
   emit('setStopFeatures', stopFeatures.value)
 })
 
@@ -134,7 +230,8 @@ function stopFilter (stop: Record<string, any>): boolean {
   if (sd.length > 0) {
     let found = false
     for (const day of sd) {
-      if (stop[`departures_${day.toLowerCase()}`].length > 0) {
+      const deps = stop[`departures_${day.toLowerCase()}`] || []
+      if (deps.length > 0) {
         found = true
         break
       }
@@ -178,6 +275,19 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Default is to return true
   return true
+}
+
+////////////////////////
+// Helpers
+///////////////////////
+
+let queryCount = 0
+const maxQueryLimit = 1000
+function checkQueryLimit () {
+  queryCount += 1
+  if (queryCount > maxQueryLimit) {
+    alert('Fail safe check - query limit exceeded; click ok to continue anyway')
+  }
 }
 
 </script>

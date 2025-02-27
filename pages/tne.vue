@@ -31,17 +31,24 @@
             />
           </a>
         </li>
+        <li>
+          <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
+            <img src="~assets/spinner.svg" alt="Loading">
+            {{ stopDepartureProgress.total - stopDepartureProgress.queue }} /
+            {{ stopDepartureProgress.total }}
+          </a>
+        </li>
       </ul>
     </template>
 
     <template #main>
       <!-- Loading and error handling -->
-      <o-loading
+      <!-- <o-loading
         :active="loading"
         :full-page="true"
       >
         <img src="~assets/spinner.svg" alt="Loading">
-      </o-loading>
+      </o-loading> -->
 
       <tl-modal
         v-model="hasError"
@@ -89,6 +96,7 @@
         :selected-route-types="selectedRouteTypes"
         :selected-agencies="selectedAgencies"
         :geom-source="geomSource"
+        @set-departure-progress="stopDepartureProgress = $event"
         @set-stop-features="setStopFeatures"
         @set-loading="loading = $event"
         @set-error="error = $event"
@@ -125,6 +133,7 @@ const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
 const loading = ref(false)
 const hasError = computed(() => { return error.value !== null })
 const error = ref(null)
+const stopDepartureProgress = ref({ queue: 0, total: 0 })
 
 // Handle query parameters
 const geomSource = computed({
