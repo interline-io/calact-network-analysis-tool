@@ -7,7 +7,7 @@ import { gql } from 'graphql-tag'
 import { ref, watch, computed, toRaw } from 'vue'
 import { type Bbox, type Feature } from '../geom'
 import { dowValues } from '../constants'
-import { useQuery } from '@vue/apollo-composable'
+import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setStopFeatures',
@@ -20,6 +20,7 @@ const props = defineProps<{
   bbox: Bbox
 }>()
 
+const ready = defineModel<boolean>('ready')
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
@@ -71,7 +72,13 @@ const stopVars = computed(() => ({
   }
 }))
 
-const { result: stopResult, loading: stopLoading, error: stopError, refetch: stopRefetch, fetchMore: stopFetchMore } = useQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopError, refetch: stopRefetch, fetchMore: stopFetchMore } = useLazyQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+
+watch(ready, (v) => {
+  if (v) {
+    stopLoad()
+  }
+})
 
 // Handle loading and errors
 watch(stopLoading, (v) => {
@@ -168,7 +175,7 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
   })
   if (stopsNeedDepartures.length > 0) {
     const toFetch = stopsNeedDepartures.slice(0, stopDepartureLimit)
-    console.log('fetching departures:', toFetch)
+    console.log('fetching departures:', toFetch.length)
     checkQueryLimit()
     stopDepartureFetchMore({
       variables: { ids: toFetch },
