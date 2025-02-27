@@ -222,6 +222,7 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
 
   // Update stop departures cache
   for (const stop of stopDepartures) {
+    // console.log('updating stop Departures', stop)
     stopDepartureCache.set(stop.id, toRaw(stop))
   }
 
@@ -237,9 +238,10 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
     checkQueryLimit()
     stopDepartureFetchMore({
       variables: { ids: toFetch },
-      updateQuery: (_, { fetchMoreResult }) => {
-      // Don't keep result, just use it to update the cache
-        updateStops(stopResult.value?.stops || [], fetchMoreResult?.stops || [])
+      updateQuery: (previousResult, { fetchMoreResult }) => {
+        const newDeps = [...previousResult.stops || [], ...fetchMoreResult?.stops || []]
+        // Don't keep result, just use it to update the cache
+        updateStops(stopResult.value?.stops || [], newDeps)
         return { stops: [] }
       }
     })
