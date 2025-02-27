@@ -289,7 +289,7 @@ function stopFilter (stop: Record<string, any>): boolean {
 ///////////////////////
 
 let queryCount = 0
-const maxQueryLimit = 1000
+const maxQueryLimit = 10000
 function checkQueryLimit () {
   queryCount += 1
   if (queryCount > maxQueryLimit) {
