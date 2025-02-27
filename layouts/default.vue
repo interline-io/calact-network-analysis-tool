@@ -10,15 +10,17 @@
     <div class="main">
       <slot name="main">
         <div class="container is-fluid">
-          <div v-if="!slots.breadcrumbs">
-            <tl-breadcrumbs
-              :extra-route-names="{
-              }"
-              :extra-route-tags="{
-              }"
-            />
-          </div>
-          <slot />
+          <tl-login-gate role="tl_calact_nat">
+            <div v-if="!slots.breadcrumbs">
+              <tl-breadcrumbs
+                :extra-route-names="{
+                }"
+                :extra-route-tags="{
+                }"
+              />
+            </div>
+            <slot />
+          </tl-login-gate>
         </div>
         <div v-if="!slots.footer">
           <slot name="footer">
