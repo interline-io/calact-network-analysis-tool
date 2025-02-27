@@ -32,9 +32,10 @@
           </a>
         </li>
         <li>
-          <a v-if="stopDepartureProgress.queue > 0" class="menu-item">
-            queue: {{ stopDepartureProgress.queue }}<br>
-            total: {{ stopDepartureProgress.total }}
+          <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
+            <img src="~assets/spinner.svg" alt="Loading">
+            {{ stopDepartureProgress.total - stopDepartureProgress.queue }} /
+            {{ stopDepartureProgress.total }}
           </a>
         </li>
       </ul>
@@ -42,12 +43,12 @@
 
     <template #main>
       <!-- Loading and error handling -->
-      <o-loading
+      <!-- <o-loading
         :active="loading"
         :full-page="true"
       >
         <img src="~assets/spinner.svg" alt="Loading">
-      </o-loading>
+      </o-loading> -->
 
       <tl-modal
         v-model="hasError"
