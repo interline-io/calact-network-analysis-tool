@@ -10,15 +10,20 @@
     <div class="main">
       <slot name="main">
         <div class="container is-fluid">
+          <div v-if="!slots.breadcrumbs">
+            <tl-breadcrumbs
+              :extra-route-names="{
+              }"
+              :extra-route-tags="{
+              }"
+            />
+          </div>
           <tl-login-gate role="tl_calact_nat">
-            <div v-if="!slots.breadcrumbs">
-              <tl-breadcrumbs
-                :extra-route-names="{
-                }"
-                :extra-route-tags="{
-                }"
-              />
-            </div>
+            <template #roleText>
+              <o-notification icon="lock" class="mt-4">
+                Your account does not have permission to access this page. To gain access, contact the project managers.
+              </o-notification>
+            </template>
             <slot />
           </tl-login-gate>
         </div>
