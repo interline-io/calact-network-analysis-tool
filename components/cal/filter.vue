@@ -126,11 +126,14 @@
           </p>
           <ul>
             <li v-for="routeColorMode of routeColorModes" :key="routeColorMode">
-              <o-radio v-model="colorKey" :native-value="routeColorMode">
+              <o-radio v-model="colorKey" :native-value="routeColorMode" disabled>
                 {{ routeColorMode }}
               </o-radio>
             </li>
           </ul>
+          <p class="filter-legend">
+            * Not yet implemented
+          </p>
           <p class="menu-label">
             Base map
           </p>
@@ -262,7 +265,7 @@ const knownAgencies = computed(() => {
 }
 .filter-legend {
   font-size:10pt;
-  margin-top:40px;
+  margin-top:10px;
   margin-bottom:40px;
 }
 
