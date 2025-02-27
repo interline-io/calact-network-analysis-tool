@@ -19,27 +19,27 @@
       </div>
       <div class="message-body">
         <div class="cal-map-legend-box">
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div style="height:100%;width:100%;border:solid red 1px;" />
             </div>
-            <div>Selected Area</div>
+            <div>Bounding Box for Query</div>
           </div>
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div class="legend-marker sw-marker">
-                <i class="mdi mdi-arrow-bottom-left"></i>
+                <i class="mdi mdi-arrow-bottom-left" />
               </div>
             </div>
-            <div>SW Corner Marker</div>
+            <div>SW Bounding Box Corner</div>
           </div>
-          <div>
+          <div v-if="props.displayEditBboxMode">
             <div>
               <div class="legend-marker ne-marker">
-                <i class="mdi mdi-arrow-top-right"></i>
+                <i class="mdi mdi-arrow-top-right" />
               </div>
             </div>
-            <div>NE Corner Marker</div>
+            <div>NE Bounding Box Corner</div>
           </div>
           <div>
             <div style="background:#0000ff">
@@ -59,7 +59,7 @@
     <cal-map-viewer-ts
       map-class="tall"
       :center="centerPoint"
-      :zoom="17"
+      :zoom="10"
       :features="displayFeatures"
       :markers="bboxMarkers"
       :auto-fit="false"
@@ -83,6 +83,7 @@ const emit = defineEmits([
 const props = defineProps<{
   bbox: Bbox
   stopFeatures: Feature[]
+  displayEditBboxMode?: boolean
 }>()
 
 const showShareMenu = ref(false)
@@ -100,7 +101,7 @@ const centerPoint = {
 // Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
-  if (props.bbox.valid) {
+  if (props.bbox.valid && props.displayEditBboxMode) {
     const p = props.bbox
     const coords = [[
       [p.sw.lon, p.sw.lat],
@@ -125,14 +126,18 @@ const bboxArea = computed(() => {
 // Markers for bbox corners
 const bboxMarkers = computed(() => {
   const ret: MarkerFeature[] = []
-  
+
+  if (!props.displayEditBboxMode) {
+    return ret
+  }
+
   // Create SW marker with custom element
   const swElement = document.createElement('div')
   swElement.className = 'custom-marker sw-marker'
   const swIconElement = document.createElement('i')
   swIconElement.className = 'mdi mdi-arrow-bottom-left'
   swElement.appendChild(swIconElement)
-  
+
   ret.push({
     point: props.bbox.sw,
     color: '#ff0000',
@@ -148,14 +153,14 @@ const bboxMarkers = computed(() => {
       })
     }
   })
-  
+
   // Create NE marker with custom element
   const neElement = document.createElement('div')
   neElement.className = 'custom-marker ne-marker'
   const neIconElement = document.createElement('i')
   neIconElement.className = 'mdi mdi-arrow-top-right'
   neElement.appendChild(neIconElement)
-  
+
   ret.push({
     point: props.bbox.ne,
     color: '#00ff00',
@@ -310,9 +315,9 @@ function mapClickFeatures (features: Feature[]) {
   background-color: white;
   display: flex;
   justify-content: center;
-  align-items: center;  
+  align-items: center;
   border: 2px solid grey;
-    
+
   i {
     font-size: 10px;
   }
@@ -330,7 +335,7 @@ function mapClickFeatures (features: Feature[]) {
   display: flex;
   justify-content: center;
   align-items: center;
-  
+
   i {
     font-size: 16px;
   }

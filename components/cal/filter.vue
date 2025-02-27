@@ -64,6 +64,9 @@
               </o-checkbox>
             </li>
           </ul>
+          <p class="filter-legend">
+            * Stops with scheduled service on any of the selected days
+          </p>
         </aside>
       </div>
 
@@ -80,6 +83,9 @@
               </o-checkbox>
             </li>
           </ul>
+          <p class="filter-legend">
+            * Stops served by any of the selected route types
+          </p>
 
           <p class="menu-label">
             Agencies
@@ -106,6 +112,9 @@
               </o-checkbox>
             </li>
           </ul>
+          <p class="filter-legend">
+            * Stops served by any of the selected agencies
+          </p>
         </aside>
       </div>
 
@@ -251,4 +260,10 @@ const knownAgencies = computed(() => {
     float:right;
   }
 }
+.filter-legend {
+  font-size:10pt;
+  margin-top:40px;
+  margin-bottom:40px;
+}
+
 </style>

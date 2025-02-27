@@ -8,3 +8,10 @@ $duration: 1000ms;
     $link: $link,
 );
 
+.tooltip-trigger {
+    border: none;
+}
+
+.message .media-content{
+    overflow: visible !important; /* so datetime picker isn't hidden */
+}

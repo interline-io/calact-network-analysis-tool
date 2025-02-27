@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" @click="setTab('query')">
+          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab('query')">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" @click="setTab('filter')">
+          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab('filter')">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" @click="setTab('map')">
+          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab('map')">
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -67,7 +67,7 @@
             v-model:geom-source="geomSource"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @explore="activeTab = 'map'"
+            @explore="setReady()"
           />
         </div>
         <div v-if="activeTab === 'filter'" class="cal-overlay">
@@ -96,6 +96,7 @@
         :selected-route-types="selectedRouteTypes"
         :selected-agencies="selectedAgencies"
         :geom-source="geomSource"
+        :ready="ready"
         @set-departure-progress="stopDepartureProgress = $event"
         @set-stop-features="setStopFeatures"
         @set-loading="loading = $event"
@@ -106,6 +107,7 @@
       <cal-map
         :bbox="bbox"
         :stop-features="stopFeatures"
+        :display-edit-bbox-mode="displayEditBboxMode"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
       />
@@ -126,7 +128,13 @@ definePageMeta({
 const route = useRoute()
 
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
-const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
+// const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
+const defaultBbox = '-121.44566,43.97697,-121.18267,44.13784'
+const ready = ref(false)
+function setReady () {
+  ready.value = true
+  activeTab.value = 'map'
+}
 
 // Loading and error handling
 const loading = ref(false)
@@ -250,6 +258,9 @@ const stopAgencies = computed(() => {
 // Tab handling
 const activeTab = ref(route.query.activeTab || 'query')
 
+// Initialize displayEditBboxMode based on initial values
+const displayEditBboxMode = ref(activeTab.value === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+
 function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = 'map'
@@ -264,9 +275,18 @@ function setTab (v: string) {
 
 // We need to keep reference to the map extent
 const mapExtent = ref<Bbox | null>(null)
+
 watch(geomSource, () => {
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
+  }
+})
+
+watch([activeTab, geomSource], () => {
+  if (activeTab.value === 'query' && geomSource.value === 'bbox') {
+    displayEditBboxMode.value = true
+  } else {
+    displayEditBboxMode.value = false
   }
 })
 
