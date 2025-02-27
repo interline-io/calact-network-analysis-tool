@@ -10,7 +10,11 @@
         Share
       </div>
       <div class="message-body">
-        <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" />
+        <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" />
+        <br><br>
+        <o-button @click="copyUrlToClipboard">
+          Copy URL to Clipboard
+        </o-button>
       </div>
     </article>
     <article class="cal-map-legend message is-dark">
@@ -42,16 +46,17 @@
             <div>NE Bounding Box Corner</div>
           </div>
           <div>
-            <div style="background:#0000ff">
-              .
-            </div>
+            <div style="background:#0000ff" />
             <div>Stops satisfying all filters</div>
           </div>
           <div>
-            <div style="background:#000000">
-              .
-            </div>
+            <div style="background:#000000" />
             <div>Stops not satisfying all filters</div>
+          </div>
+          Routes:
+          <div v-for="[routeType, routeTypeColor] in routeTypeColorMap" :key="routeType">
+            <div :style="{background: routeTypeColor}" />
+            <div>{{ routeTypes.get(routeType) }}</div>
           </div>
         </div>
       </div>
@@ -73,7 +78,16 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import { type Bbox, type Point, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import { routeTypeColorMap, routeTypes } from '../constants'
+import { useToastNotification } from '#imports'
+
+const route = useRoute()
+
+function copyUrlToClipboard () {
+  navigator.clipboard.writeText(windowUrl.value)
+  useToastNotification().showToast('Copied to clipboard')
+}
 
 const emit = defineEmits([
   'setBbox',
@@ -83,11 +97,16 @@ const emit = defineEmits([
 const props = defineProps<{
   bbox: Bbox
   stopFeatures: Feature[]
+  routeFeatures: Feature[]
   displayEditBboxMode?: boolean
 }>()
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
+
+const windowUrl = computed(() => {
+  return window.location.href
+})
 
 //////////////////
 // Map geometries
@@ -196,11 +215,30 @@ const displayFeatures = computed(() => {
     features.push(toRaw(feature))
   }
   for (const stop of props.stopFeatures) {
-    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: {
+    const stopProps = {
       'marker-radius': stop.properties.marked ? 10 : 4,
       'marker-color': stop.properties.marked ? '#0000ff' : '#000000',
-    }, id: stop.id }
+    }
+    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
     features.push(stopCopy)
+  }
+  for (const route of props.routeFeatures) {
+    const rp = route.properties
+    const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
+    const routeProps = {
+      'id': route.id,
+      'stroke': routeColor,
+      'stroke-width': 4,
+      'stroke-opacity': 1.0,
+      'route_id': rp.route_id,
+      'route_type': rp.route_type,
+      'route_short_name': rp.route_short_name,
+      'route_long_name': rp.route_long_name,
+      'agency_name': rp.agency?.agency_name,
+      'agency_id': rp.agency?.agency_id,
+    }
+    const routeCopy = { type: 'Feature', id: route.id, geometry: route.geometry, properties: routeProps }
+    features.push(routeCopy)
   }
   return features
 })
@@ -225,27 +263,33 @@ watch(extentBbox, () => {
 
 const popupFeatures = ref<PopupFeature[]>([])
 
-function mapClickFeatures (features: Feature[]) {
+function mapClickFeatures (pt: any, features: Feature[]) {
   const a: PopupFeature[] = []
   for (const feature of features) {
-    if (!feature.id || feature.geometry.type !== 'Point') {
-      continue
+    const ft = feature.geometry.type
+    let text = 'Unknown feature'
+    if (ft === 'Point') {
+      const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
+      if (!stopLookup) {
+        continue
+      }
+      const fp = stopLookup.properties
+      // FIXME: THIS IS TEMPORARY - THIS IS NOT SAFE
+      text = `
+        Stop ID: ${fp.stop_id}<br>
+        <strong>${fp.stop_name}</strong><br>
+        Routes: ${fp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
+        Agencies: ${fp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
+    } else if (ft === 'LineString' || ft === 'MultiLineString') {
+      const rp = feature.properties
+      text = `
+        Route ID: ${rp.route_id}<br>
+        <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
+        Type: ${routeTypes.get(rp.route_type.toString())}<br>
+        Agency: ${rp.agency_name}`
     }
-    const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
-    if (!stopLookup) {
-      continue
-    }
-    const fp = stopLookup.properties
-    // FIXME
-    // THIS IS TEMPORARY - THIS IS NOT SAFE
-    const text = `
-    Stop ID: ${fp.stop_id}<br>
-    <strong>${fp.stop_name}</strong><br>
-    Routes: ${fp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
-    Agencies: ${fp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}
-    `
     a.push({
-      point: { lon: feature.geometry.coordinates[0], lat: feature.geometry.coordinates[1] },
+      point: { lon: pt.lng, lat: pt.lat },
       text: text
     })
   }
@@ -272,22 +316,16 @@ function mapClickFeatures (features: Feature[]) {
   padding:5px;
   height:150px;
   z-index:100;
-  .message-body {
-    background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-white-on-scheme-l), 0.25);
-  }
 }
 .cal-map-legend {
   position:absolute;
   right:50px;
-  bottom:50px;
+  bottom:220px;
   width:300px;
   color:black;
   padding:5px;
   height:150px;
   z-index:100;
-  .message-body {
-    background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-white-on-scheme-l), 0.25);
-  }
   .cal-map-legend-box {
     display: flex;
     flex-direction: column;
@@ -305,7 +343,6 @@ function mapClickFeatures (features: Feature[]) {
     }
   }
 }
-
 /* Legend marker styles */
 .legend-marker {
   width: 16px;
@@ -317,10 +354,14 @@ function mapClickFeatures (features: Feature[]) {
   justify-content: center;
   align-items: center;
   border: 2px solid grey;
-
   i {
     font-size: 10px;
   }
+}
+
+.message-body {
+  color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l), 1.0);
+  background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-scheme-main-l), 0.8);
 }
 
 /* Custom marker styles */
