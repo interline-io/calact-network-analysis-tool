@@ -91,19 +91,25 @@
             Agencies
           </p>
 
-          <!-- <p class="menu-label">
+          <p class="menu-label">
             <o-field grouped>
-              <o-input type="text" placeholder="search" />
+              <o-input
+                v-model="agencySearch"
+                type="Search"
+                placeholder="search"
+                icon-right="magnify"
+                icon-right-clickable
+              />
               <o-field addons>
-                <o-button>
+                <o-button @click="agencySelectNone">
                   None
                 </o-button>
-                <o-button>
+                <o-button @click="agencySelectAll">
                   All
                 </o-button>
               </o-field>
             </o-field>
-          </p> -->
+          </p>
 
           <ul>
             <li v-for="agencyName of knownAgencies" :key="agencyName">
@@ -218,12 +224,28 @@ function setPanel (v: string) {
 ///////////////////
 // Agency selector
 
+const agencySearch = ref('')
+
+function agencySelectNone () {
+  agencySearch.value = ''
+  selectedAgencies.value = []
+}
+
+function agencySelectAll () {
+  agencySearch.value = ''
+  selectedAgencies.value = knownAgencies.value
+}
+
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
   for (const feature of props.stopFeatures) {
     for (const rs of feature.properties.route_stops) {
       agencies.add(rs.route.agency.agency_name)
     }
+  }
+  const sv = agencySearch.value.toLowerCase()
+  if (sv) {
+    return Array.from(agencies).filter(a => a.toLowerCase().includes(sv))
   }
   return Array.from(agencies)
 })
@@ -235,15 +257,15 @@ const knownAgencies = computed(() => {
   display:flex;
   flex-direction:green;
   background: var(--bulma-scheme-main);
+  margin:0px;
   height:100%;
   padding-left:20px;
-  padding-right:20px;
   .cal-filter-main {
     display:flex;
     flex-direction: column;
     .menu {
       flex-grow:1;
-      width:200px;
+      width:250px;
     }
   }
   .cal-filter-sub {
@@ -251,7 +273,10 @@ const knownAgencies = computed(() => {
     width:400px;
     flex-direction: column;
     background: var(--bulma-scheme-main-ter);
-    padding:20px;
+    margin:0px;
+    padding-left:20px;
+    overflow-y:auto;
+    overflow-x:clip;
   }
 }
 .menu-list {
