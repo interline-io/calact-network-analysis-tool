@@ -210,6 +210,8 @@ const stopFeatureLookup = computed(() => {
 
 // Merge features
 const displayFeatures = computed(() => {
+  const bgColor = '#999'
+  const bgOpacity = 1.0
   const features: Feature[] = []
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
@@ -219,28 +221,32 @@ const displayFeatures = computed(() => {
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
     const routeProps = {
       'id': route.id,
-      'stroke': routeColor,
-      'stroke-width': 2,
-      'stroke-opacity': 1.0,
+      'stroke': rp.marked ? routeColor : bgColor,
+      'stroke-width': rp.marked ? 3 : 3,
+      'stroke-opacity': rp.marked ? 1 : bgOpacity,
       'route_id': rp.route_id,
       'route_type': rp.route_type,
       'route_short_name': rp.route_short_name,
       'route_long_name': rp.route_long_name,
       'agency_name': rp.agency?.agency_name,
       'agency_id': rp.agency?.agency_id,
+      'marked': rp.marked,
     }
     const routeCopy = { type: 'Feature', id: route.id, geometry: route.geometry, properties: routeProps }
     features.push(routeCopy)
   }
   for (const stop of props.stopFeatures) {
+    const sp = stop.properties
     const stopProps = {
-      'marker-radius': stop.properties.marked ? 10 : 4,
-      'marker-color': stop.properties.marked ? '#0000ff' : '#000000',
+      'marker-radius': sp.marked ? 10 : 10,
+      'marker-color': sp.marked ? '#0000ff' : bgColor,
+      'marker-opacity': sp.marked ? 1 : bgOpacity,
+      'marked': sp.marked,
     }
     const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
     features.push(stopCopy)
   }
-  return features
+  return features.toSorted((a, _) => (a.properties.marked ? 1 : -1))
 })
 
 /////////////////
