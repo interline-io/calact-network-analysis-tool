@@ -1,6 +1,6 @@
 export const routeTypes = new Map<string, string>(Object.entries({
-  0: 'Streetcar',
-  1: 'Rail',
+  0: 'Light rail',
+  1: 'Intercity rail',
   2: 'Subway',
   3: 'Bus',
   4: 'Ferry',
