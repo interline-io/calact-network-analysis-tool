@@ -101,7 +101,7 @@
         @set-stop-features="setStopFeatures"
         @set-route-features="setRouteFeatures"
         @set-loading="loading = $event"
-        @set-error="error = $event"
+        @set-error="setError"
       />
 
       <!-- This is a component for displaying the map -->
@@ -139,9 +139,14 @@ function setReady () {
 
 // Loading and error handling
 const loading = ref(false)
-const hasError = computed(() => { return error.value !== null })
+const hasError = ref(false)
 const error = ref(null)
 const stopDepartureProgress = ref({ queue: 0, total: 0 })
+
+function setError (err: any) {
+  error.value = err
+  hasError.value = true
+}
 
 // Handle query parameters
 const geomSource = computed({
