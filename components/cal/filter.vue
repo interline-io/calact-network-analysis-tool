@@ -247,7 +247,7 @@ const knownAgencies = computed(() => {
   if (sv) {
     return Array.from(agencies).filter(a => a.toLowerCase().includes(sv))
   }
-  return Array.from(agencies)
+  return Array.from(agencies).toSorted((a, b) => a.localeCompare(b))
 })
 
 </script>
