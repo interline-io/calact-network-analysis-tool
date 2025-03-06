@@ -73,7 +73,7 @@ const stopVars = computed(() => ({
   }
 }))
 
-const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopError, refetch: stopRefetch, fetchMore: stopFetchMore } = useLazyQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopError, fetchMore: stopFetchMore } = useLazyQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
 
 watch(ready, (v) => {
   if (v) {
@@ -89,7 +89,6 @@ watch(stopLoading, (v) => {
 watch(stopError, (v) => {
   emit('setError', v)
 })
-
 watch(stopResult, (v) => {
   updateStops(v.stops || [], [])
 })
@@ -118,7 +117,7 @@ query ($limit: Int, $after: Int, $where: RouteFilter) {
 
 const routeVars = computed(() => ({
   after: 0,
-  limit: 1000,
+  limit: 100,
   where: {
     bbox: {
       min_lon: props.bbox.sw.lon,
@@ -129,45 +128,41 @@ const routeVars = computed(() => ({
   }
 }))
 
-const { load: routeLoad, result: routeResult, error: routeError, } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const { load: routeLoad, result: routeResult, loading: routeLoading, error: routeError, fetchMore: routeFetchMore } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
 
-const routeFeatures = computed(() => {
-  const features: Feature[] = []
-  for (const route of routeResult.value?.routes || []) {
-    const marked = routeFilter(route)
-    const routeProps = Object.assign({}, route, { marked: marked })
-    delete routeProps.geometry
-    features.push({
-      type: 'Feature',
-      id: route.id.toString(),
-      properties: routeProps,
-      geometry: route.geometry
+watch(routeResult, (v) => {
+  updateRoutes(v.routes || [])
+})
+
+let prevRouteAfter = 0
+function updateRoutes (routes: Record<string, any>[]) {
+  const routeIds = routes.map(s => s.id)
+
+  // Do we need to fetch more routes?
+  const nextRouteAfter = routeIds[routeIds.length - 1]
+  if (routeIds.length === 0 || nextRouteAfter === prevRouteAfter) {
+    // No, set loading to false
+    routeLoading.value = false
+  } else {
+    // Fetch more routes
+    prevRouteAfter = nextRouteAfter
+    checkQueryLimit()
+    routeFetchMore({
+      variables: {
+        after: nextRouteAfter,
+      },
+      updateQuery: (previousResult, { fetchMoreResult }) => {
+        const newRoutes = [...previousResult.routes || [], ...fetchMoreResult?.routes || []]
+        updateRoutes(newRoutes)
+        return { routes: newRoutes }
+      }
     })
   }
-  return features
-})
-
-watch(routeFeatures, (v) => {
-  emit('setRouteFeatures', v)
-})
-
-// Filter stops
-function routeFilter (route: Record<string, any>): boolean {
-  // Check route types
-  const srt = selectedRouteTypes.value || []
-  if (srt.length > 0) {
-    return srt.includes(route.route_type.toString())
-  }
-
-  // Check agencies
-  const sg = selectedAgencies.value || []
-  if (sg.length > 0) {
-    return sg.includes(route.agency.agency_name)
-  }
-
-  // Default is to return true
-  return true
 }
+
+watch(routeError, (v) => {
+  emit('setError', v)
+})
 
 /////////////////////////////
 // Stop departures
@@ -270,12 +265,9 @@ function updateStops (stops: Record<string, any>[], stopDepartures: Record<strin
   updateStopFeatures(stops)
 }
 
-/////////////////////////////////
-// Feature handling
-/////////////////////////////////
-
 const stopFeatures = ref<Feature[]>([])
 
+// Merge together stop and departure data
 function updateStopFeatures (stops: Record<string, any>[]) {
   const features: Feature[] = []
   for (const stop of (stops || [])) {
@@ -357,6 +349,44 @@ function stopFilter (stop: Record<string, any>): boolean {
     if (!found) {
       return false
     }
+  }
+
+  // Default is to return true
+  return true
+}
+
+/////////////////////////////////
+// Route handling
+/////////////////////////////////
+
+// Filter route features
+watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
+  const features: Feature[] = []
+  for (const route of routeResult?.value?.routes || []) {
+    const routeProps = Object.assign({}, route, { marked: routeFilter(route) })
+    delete routeProps.geometry
+    features.push({
+      type: 'Feature',
+      id: route.id.toString(),
+      properties: routeProps,
+      geometry: route.geometry
+    })
+  }
+  emit('setRouteFeatures', features)
+})
+
+// Filter routes
+function routeFilter (route: Record<string, any>): boolean {
+  // Check route types
+  const srt = selectedRouteTypes.value || []
+  if (srt.length > 0) {
+    return srt.includes(route.route_type.toString())
+  }
+
+  // Check agencies
+  const sg = selectedAgencies.value || []
+  if (sg.length > 0) {
+    return sg.includes(route.agency.agency_name)
   }
 
   // Default is to return true

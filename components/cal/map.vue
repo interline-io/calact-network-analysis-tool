@@ -210,19 +210,21 @@ const stopFeatureLookup = computed(() => {
 
 // Merge features
 const displayFeatures = computed(() => {
-  const bgColor = '#999'
+  const bgColor = '#666'
   const bgOpacity = 1.0
   const features: Feature[] = []
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
   }
+
+  const renderRoutes: Feature[] = []
   for (const route of props.routeFeatures) {
     const rp = route.properties
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
     const routeProps = {
       'id': route.id,
       'stroke': rp.marked ? routeColor : bgColor,
-      'stroke-width': rp.marked ? 3 : 3,
+      'stroke-width': rp.marked ? 3 : 1,
       'stroke-opacity': rp.marked ? 1 : bgOpacity,
       'route_id': rp.route_id,
       'route_type': rp.route_type,
@@ -233,20 +235,28 @@ const displayFeatures = computed(() => {
       'marked': rp.marked,
     }
     const routeCopy = { type: 'Feature', id: route.id, geometry: route.geometry, properties: routeProps }
-    features.push(routeCopy)
+    renderRoutes.push(routeCopy)
   }
+
+  const renderStops: Feature[] = []
   for (const stop of props.stopFeatures) {
     const sp = stop.properties
     const stopProps = {
-      'marker-radius': sp.marked ? 10 : 10,
+      'marker-radius': sp.marked ? 8 : 4,
       'marker-color': sp.marked ? '#0000ff' : bgColor,
       'marker-opacity': sp.marked ? 1 : bgOpacity,
       'marked': sp.marked,
     }
     const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
-    features.push(stopCopy)
+    renderStops.push(stopCopy)
   }
-  return features.toSorted((a, _) => (a.properties.marked ? 1 : -1))
+
+  // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
+  features.push(...renderRoutes.filter(r => !r.properties.marked))
+  features.push(...renderStops.filter(r => !r.properties.marked))
+  features.push(...renderRoutes.filter(r => r.properties.marked))
+  features.push(...renderStops.filter(r => r.properties.marked))
+  return features
 })
 
 /////////////////
