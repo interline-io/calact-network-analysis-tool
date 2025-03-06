@@ -131,10 +131,11 @@ const routeVars = computed(() => ({
 
 const { load: routeLoad, result: routeResult, error: routeError, } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
 
-const rotueFeatures = computed(() => {
+const routeFeatures = computed(() => {
   const features: Feature[] = []
   for (const route of routeResult.value?.routes || []) {
-    const routeProps = Object.assign({}, route)
+    const marked = routeFilter(route)
+    const routeProps = Object.assign({}, route, { marked: marked })
     delete routeProps.geometry
     features.push({
       type: 'Feature',
@@ -146,9 +147,27 @@ const rotueFeatures = computed(() => {
   return features
 })
 
-watch(rotueFeatures, (v) => {
+watch(routeFeatures, (v) => {
   emit('setRouteFeatures', v)
 })
+
+// Filter stops
+function routeFilter (route: Record<string, any>): boolean {
+  // Check route types
+  const srt = selectedRouteTypes.value || []
+  if (srt.length > 0) {
+    return srt.includes(route.route_type.toString())
+  }
+
+  // Check agencies
+  const sg = selectedAgencies.value || []
+  if (sg.length > 0) {
+    return sg.includes(route.agency.agency_name)
+  }
+
+  // Default is to return true
+  return true
+}
 
 /////////////////////////////
 // Stop departures

@@ -138,6 +138,9 @@ function createSources () {
 }
 
 function createLayers () {
+  for (const labelLayer of labels('protomaps-base', 'grayscale')) {
+    map?.addLayer(labelLayer)
+  }
   map?.addLayer({
     id: 'polygons',
     type: 'fill',
@@ -167,7 +170,7 @@ function createLayers () {
     paint: {
       'line-color': ['coalesce', ['get', 'stroke'], '#000000'],
       'line-width': ['coalesce', ['get', 'stroke-width'], 2],
-      'line-opacity': 1.0
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0],
     }
   })
   map?.addLayer({
@@ -177,13 +180,9 @@ function createLayers () {
     paint: {
       'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
       'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
-      'circle-opacity': 1.0
+      'circle-opacity': ['coalesce', ['get', 'marker-opacity'], 1.0],
     }
   })
-  // add labels last
-  for (const labelLayer of labels('protomaps-base', 'grayscale')) {
-    map?.addLayer(labelLayer)
-  }
 }
 
 function updateFeatures (features: Feature[]) {
