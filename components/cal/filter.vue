@@ -59,13 +59,16 @@
           </p>
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
-              <o-checkbox v-model="selectedDays" :native-value="dowValue">
+              <o-checkbox v-model="selectedDays" :native-value="dowValue" :disabled="!stopDepartureLoadingComplete">
                 {{ dowValue }}
               </o-checkbox>
             </li>
           </ul>
           <p class="filter-legend">
             * Stops with scheduled service on any of the selected days
+          </p>
+          <p v-if="!stopDepartureLoadingComplete">
+            Loading...
           </p>
         </aside>
       </div>
@@ -208,6 +211,7 @@ const baseMap = defineModel<string>('baseMap')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
 
 ///////////////////
 // Panel
