@@ -80,6 +80,7 @@
             v-model:selected-days="selectedDays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
+            v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
             :bbox="bbox"
             :stop-features="stopFeatures"
             @reset-filters="resetFilters"
@@ -97,7 +98,8 @@
         :selected-agencies="selectedAgencies"
         :geom-source="geomSource"
         :ready="ready"
-        @set-departure-progress="stopDepartureProgress = $event"
+        @set-stop-departure-progress="stopDepartureProgress = $event"
+        @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="setStopFeatures"
         @set-route-features="setRouteFeatures"
         @set-loading="loading = $event"
@@ -142,6 +144,7 @@ const loading = ref(false)
 const hasError = ref(false)
 const error = ref(null)
 const stopDepartureProgress = ref({ queue: 0, total: 0 })
+const stopDepartureLoadingComplete = ref(false)
 
 function setError (err: any) {
   error.value = err

@@ -12,8 +12,9 @@ import { format } from 'date-fns'
 const emit = defineEmits([
   'setStopFeatures',
   'setLoading',
+  'setStopDepartureLoadingComplete',
   'setError',
-  'setDepartureProgress',
+  'setStopDepartureProgress',
   'setRouteFeatures'
 ])
 
@@ -30,6 +31,9 @@ const selectedAgencies = defineModel<string[]>('selectedAgencies')
 
 const stopDepartureLimit = 100
 const stopDepartureLoadingComplete = ref(false)
+watch(stopDepartureLoadingComplete, (v) => {
+  emit('setStopDepartureLoadingComplete', v)
+})
 
 /////////////////////////////
 // Stops
@@ -306,7 +310,7 @@ query (
   $ids: [Int!],
   $monday: Date,
   $tuesday: Date,
-  $wedneday: Date,
+  $wednesday: Date,
   $thursday: Date,
   $friday: Date,
   $saturday: Date,
@@ -320,7 +324,7 @@ query (
     departures_tuesday: departures(limit: 1, where: {service_date: $tuesday}) {
       departure_time
     }
-    departures_wednesday: departures(limit: 1, where: {service_date: $wedneday}) {
+    departures_wednesday: departures(limit: 1, where: {service_date: $wednesday}) {
       departure_time
     }
     departures_thursday: departures(limit: 1, where: {service_date: $thursday}) {
@@ -380,7 +384,7 @@ function stopDepartureFetchMoreCheck () {
   }
 
   // Update loading progress
-  emit('setDepartureProgress', {
+  emit('setStopDepartureProgress', {
     total: stopIds.length,
     queue: stopIdsNeedDeps.length
   })
