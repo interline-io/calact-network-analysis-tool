@@ -11418,7 +11418,7 @@ __metadata:
     unstorage: "npm:^1.14.4"
     vitest: "npm:^3.0.5"
     vue: "npm:^3.5.13"
-  checksum: 10/9563dee434c88e636d2c4cb6af15967afa40b1098c0570de7995ecb8d1bf7f92f76fa2262e16e98ded2f867c116c634e605770513b276d26a066ea7111cbd00b
+  checksum: 10/733e10832e3241e36dfbcef983cfae7b12fb71fea8a2315cc4418b3319abfb4118e92f32412b5fb8fd418fa708f88367a43faaeb68ae8fcfb610ec19b791db29
   languageName: node
   linkType: hard
 
