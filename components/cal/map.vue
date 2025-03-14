@@ -336,11 +336,10 @@ function mapClickFeatures (pt: any, features: Feature[]) {
 .cal-map-legend {
   position:absolute;
   right:50px;
-  bottom:220px;
+  bottom:30px;
   width:300px;
   color:black;
   padding:5px;
-  height:150px;
   z-index:100;
   .cal-map-legend-box {
     display: flex;

@@ -329,6 +329,6 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     height: 600px;
   }
   .tall {
-    height: calc(100vh - 60px);
+    height: 100vh;
   }
   </style>
