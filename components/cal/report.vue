@@ -4,6 +4,20 @@
       Reports
     </tl-title>
 
+    <div class="cal-report-options">
+      <div class="filter-detail">
+        Filter detail here (TBD)
+      </div>
+      <div class="report-select">
+        Showing data by:
+        <div class="which-report">{{ whichReport }}</div>
+        <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
+      </div>
+      <div class="download">
+        Download
+      </div>
+    </div>
+
     <table class="cal-report-table">
     <thead>
       <tr>
@@ -21,13 +35,14 @@
       <td>{{ row.modes }}</td>
       <td>{{ row.number_served }}</td>
       <td>{{ row.average_visits }}</td>
-      <!--<td>{{ row.data }}</td>-->
+      <!-- <td>{{ row.data }}</td> -->
     </tr>
     </tbody>
     </table>
 
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { routeTypes } from '../constants'
@@ -36,9 +51,19 @@ const props = defineProps<{
   stopFeatures: Feature[]
 }>()
 
+const whichReport = ref('stop');
+const page = ref(0);
+const resultPerPage = 100;
+
+const emit = defineEmits([
+  'clickFilterLink'
+]);
+
 
 const stopTable = computed(() => {
   const rows = [];
+  // pick a page here
+
   for (const stop of props.stopFeatures) {
     const props = stop.properties;
     const route_stops = props.route_stops || [];
@@ -80,6 +105,42 @@ const stopTable = computed(() => {
       > div, > article {
         margin-bottom:10px;
       }
+    }
+  }
+
+  .cal-report-options {
+    display: flex;
+    flex: 1;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    margin-bottom:20px;
+
+    > .filter-detail {
+      flex: 0 1 60%;
+      align-self: stretch;
+      background-color: #ddd;
+      border: 1px solid #333;
+      padding: 5px;
+    }
+
+    > .report-select {
+      flex: 0 1 25%;
+      align-self: stretch;
+      border: 1px solid #333;
+      padding: 5px;
+
+      > .which-report {
+        font-size: larger;
+        font-weight: bold;
+      }
+    }
+
+    > .download {
+      flex: 0 1 10%;
+      align-self: center;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 5px 15px;
     }
   }
 

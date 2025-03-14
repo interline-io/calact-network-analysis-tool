@@ -95,9 +95,11 @@
             @reset-filters="resetFilters"
           />
         </div>
+
         <div v-if="activeTab === 'report'" class="cal-overlay">
           <cal-report
             :stop-features="stopFeatures"
+            @click-filter-link="setTab('filter')"
           />
         </div>
 
