@@ -34,7 +34,7 @@
         <li>
           <a :class="itemHelper('report')" title="Report" role="button" @click="setTab('report')">
             <o-icon
-              icon="alert"
+              icon="file-chart"
               class="is-fullwidth"
               size="large"
             />
