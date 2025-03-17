@@ -4,7 +4,7 @@
       Reports
     </tl-title>
 
-    <div class="cal-report-options">
+    <div class="cal-report-options block">
 
       <div class="filter-detail">
         Filter detail here (TBD)
@@ -19,31 +19,34 @@
               v-model="whichReport"
               name="whichReport"
               native-value="route"
-              label="route" />
+              label="route"
+              @input="changeReport" />
 
             <o-radio
               v-model="whichReport"
               name="whichReport"
               native-value="stop"
-              label="stop" />
+              label="stop"
+              @input="changeReport" />
 
             <o-radio
               v-model="whichReport"
               name="whichReport"
               native-value="agency"
-              label="agency" />
+              label="agency"
+              @input="changeReport" />
           </o-field>
         </section>
 
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <div class="download">
+      <div class="download button">
         Download
       </div>
     </div>
 
-    <div class="cal-report-total">
+    <div class="cal-report-total block">
       {{ total }} results found
     </div>
 
@@ -54,10 +57,10 @@
       :per-page="perPage"
     />
 
-    <table class="cal-report-table">
+    <table class="cal-report-table table is-bordered is-striped">
       <thead v-if="whichReport === 'route'">
-        <tr>
-          <th>row</th>
+        <tr class="has-background-grey-dark">
+          <!-- <th>row</th> -->
           <th>route_id</th>
           <th>route_name</th>
           <th>mode</th>
@@ -68,8 +71,8 @@
         </tr>
       </thead>
       <thead v-else-if="whichReport === 'stop'">
-        <tr>
-          <th>row</th>
+        <tr class="has-background-grey-dark">
+          <!-- <th>row</th> -->
           <th>stop_id</th>
           <th>stop_name</th>
           <th>mode</th>
@@ -78,8 +81,8 @@
         </tr>
       </thead>
       <thead v-else-if="whichReport === 'agency'">
-        <tr>
-          <th>row</th>
+        <tr class="has-background-grey-dark">
+          <!-- <th>row</th> -->
           <th>agency_id</th>
           <th>agency_name</th>
           <th>number of routes</th>
@@ -89,7 +92,7 @@
 
       <tbody v-if="whichReport === 'route'">
         <tr v-for="result of reportData" :key="result.row">
-          <td>{{ result.row }}</td>
+          <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.route_id }}</td>
           <td>{{ result.route_name }}</td>
           <td>{{ result.mode }}</td>
@@ -101,18 +104,17 @@
       </tbody>
       <tbody v-else-if="whichReport === 'stop'">
         <tr v-for="result of reportData" :key="result.row">
-          <td>{{ result.row }}</td>
+          <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.stop_id }}</td>
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
           <td>{{ result.average_visits }}</td>
-          <!-- <td>{{ result.data }}</td> -->
          </tr>
       </tbody>
       <tbody v-else-if="whichReport === 'agency'">
         <tr v-for="result of reportData" :key="result.row">
-          <td>{{ result.row }}</td>
+          <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.agency_id }}</td>
           <td>{{ result.agency_name }}</td>
           <td>{{ result.number_routes }}</td>
@@ -121,6 +123,10 @@
       </tbody>
 
     </table>
+
+    <div class="cal-report-footer">
+      * results include only stops within the selected bounding box.
+    </div>
 
   </div>
 </template>
@@ -155,6 +161,12 @@ const reportData = computed(() => {
     return [];
   }
 });
+
+
+// When switching to a different report, return to first page
+function changeReport() {
+  current.value = 1;
+}
 
 
 //
@@ -339,7 +351,6 @@ function agencyReport() {
     flex: 0;
     flex-flow: row nowrap;
     justify-content: space-between;
-    margin-bottom:20px;
 
     > .filter-detail {
       flex: 0 1 60%;
@@ -363,34 +374,29 @@ function agencyReport() {
     }
 
     > .download {
+      opacity: 0 !important;
       flex: 0 1 10%;
       align-self: center;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 5px 15px;
     }
   }
 
   .cal-report-total {
-    margin-bottom: 20px;
     font-style: italic;
   }
 
   .cal-report-table {
     th, td {
-      border: 1px solid #333;
-      padding: 2px;
+      padding: 2px 5px;
     }
-    thead tr {
-      background-color: #bbb;
+    th {
+      background-color: #666;
+      color: #fff;
     }
+  }
 
-    tbody td {
-    }
-
-    tbody tr:nth-child(odd) {
-      background-color: #eee;
-    }
+  .cal-report-footer {
+    font-style: italic;
+    text-align: end;
   }
 
 </style>
