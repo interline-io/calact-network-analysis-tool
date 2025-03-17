@@ -133,6 +133,7 @@
 
 <script setup lang="ts">
 import { routeTypes } from '../constants'
+import { type Feature } from '../geom'
 
 const props = defineProps<{
   stopFeatures: Feature[]
@@ -147,7 +148,7 @@ const emit = defineEmits([
   'clickFilterLink'
 ])
 
-const reportData = computed(() => {
+const reportData = computed((): Record<string, any>[] => {
   if (whichReport.value === 'route') {
     return routeReport()
   } else if (whichReport.value === 'stop') {
