@@ -13,6 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "csv-stringify": "^6.5.2",
     "nuxt": "^3.15.4",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=dd597bcb9d65e47e93c2793aa6b3c4ab9a8e4f5f"
   },
