@@ -5,14 +5,39 @@
     </tl-title>
 
     <div class="cal-report-options">
+
       <div class="filter-detail">
         Filter detail here (TBD)
       </div>
+
       <div class="report-select">
         Showing data by:
-        <div class="which-report">{{ whichReport }}</div>
+
+        <section>
+          <o-field>
+            <o-radio
+              v-model="whichReport"
+              name="whichReport"
+              native-value="route"
+              label="route" />
+
+            <o-radio
+              v-model="whichReport"
+              name="whichReport"
+              native-value="stop"
+              label="stop" />
+
+            <o-radio
+              v-model="whichReport"
+              name="whichReport"
+              native-value="agency"
+              label="agency" />
+          </o-field>
+        </section>
+
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
+
       <div class="download">
         Download
       </div>
@@ -41,15 +66,15 @@
       </tr>
     </thead>
     <tbody>
-    <tr v-for="result of stopTable" :key="result.stop_id">
-      <td>{{ result.row }}</td>
-      <td>{{ result.stop_id }}</td>
-      <td>{{ result.stop_name }}</td>
-      <td>{{ result.modes }}</td>
-      <td>{{ result.number_served }}</td>
-      <td>{{ result.average_visits }}</td>
-      <!-- <td>{{ result.data }}</td> -->
-    </tr>
+      <tr v-for="result of report" :key="result.stop_id">
+        <td>{{ result.row }}</td>
+        <td>{{ result.stop_id }}</td>
+        <td>{{ result.stop_name }}</td>
+        <td>{{ result.modes }}</td>
+        <td>{{ result.number_served }}</td>
+        <td>{{ result.average_visits }}</td>
+        <!-- <td>{{ result.data }}</td> -->
+      </tr>
     </tbody>
     </table>
 
@@ -74,7 +99,7 @@ const emit = defineEmits([
 ]);
 
 
-const stopTable = computed(() => {
+const report = computed(() => {
   // Recalc totals, min/max, note that `current` page is one-based
   total.value = props.stopFeatures.length;
   const index = current.value - 1;
@@ -148,10 +173,11 @@ const stopTable = computed(() => {
     }
 
     > .report-select {
-      flex: 0 1 25%;
+      flex: 1 0 0;
       align-self: stretch;
       border: 1px solid #333;
       padding: 5px;
+      margin: 0 15px;
 
       > .which-report {
         font-size: larger;
