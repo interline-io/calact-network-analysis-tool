@@ -283,7 +283,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   const a: PopupFeature[] = []
   for (const feature of features) {
     const ft = feature.geometry.type
-    let text = 'Unknown feature'
+
+    let text = ''
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
       if (!stopLookup) {
@@ -304,11 +305,15 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         Type: ${routeTypes.get(rp.route_type.toString())}<br>
         Agency: ${rp.agency_name}`
     }
-    a.push({
-      point: { lon: pt.lng, lat: pt.lat },
-      text: text
-    })
+
+    if (text) {
+      a.push({
+        point: { lon: pt.lng, lat: pt.lat },
+        text: text
+      })
+    }
   }
+
   popupFeatures.value = a
 }
 </script>
