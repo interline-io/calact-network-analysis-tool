@@ -55,27 +55,71 @@
     />
 
     <table class="cal-report-table">
-    <thead>
-      <tr>
-        <th>row</th>
-        <th>stop_id</th>
-        <th>stop_name</th>
-        <th>mode</th>
-        <th>number of routes served</th>
-        <th>average visits per day</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-for="result of report" :key="result.stop_id">
-        <td>{{ result.row }}</td>
-        <td>{{ result.stop_id }}</td>
-        <td>{{ result.stop_name }}</td>
-        <td>{{ result.modes }}</td>
-        <td>{{ result.number_served }}</td>
-        <td>{{ result.average_visits }}</td>
-        <!-- <td>{{ result.data }}</td> -->
-      </tr>
-    </tbody>
+      <thead v-if="whichReport === 'route'">
+        <tr>
+          <th>row</th>
+          <th>route_id</th>
+          <th>route_name</th>
+          <th>mode</th>
+          <th>agency</th>
+          <th>average frequency</th>
+          <th>fastest frequency</th>
+          <th>slowest frequency</th>
+        </tr>
+      </thead>
+      <thead v-else-if="whichReport === 'stop'">
+        <tr>
+          <th>row</th>
+          <th>stop_id</th>
+          <th>stop_name</th>
+          <th>mode</th>
+          <th>number of routes served</th>
+          <th>average visits per day</th>
+        </tr>
+      </thead>
+      <thead v-else-if="whichReport === 'agency'">
+        <tr>
+          <th>row</th>
+          <th>agency_id</th>
+          <th>agency_name</th>
+          <th>number of routes</th>
+          <th>number of stops</th>
+        </tr>
+      </thead>
+
+      <tbody v-if="whichReport === 'route'">
+        <tr v-for="result of reportData" :key="result.row">
+          <td>{{ result.row }}</td>
+          <td>{{ result.route_id }}</td>
+          <td>{{ result.route_name }}</td>
+          <td>{{ result.mode }}</td>
+          <td>{{ result.agency }}</td>
+          <td>{{ result.average_frequency }}</td>
+          <td>{{ result.fastest_frequency }}</td>
+          <td>{{ result.slowest_frequency }}</td>
+        </tr>
+      </tbody>
+      <tbody v-else-if="whichReport === 'stop'">
+        <tr v-for="result of reportData" :key="result.row">
+          <td>{{ result.row }}</td>
+          <td>{{ result.stop_id }}</td>
+          <td>{{ result.stop_name }}</td>
+          <td>{{ result.modes }}</td>
+          <td>{{ result.number_served }}</td>
+          <td>{{ result.average_visits }}</td>
+          <!-- <td>{{ result.data }}</td> -->
+         </tr>
+      </tbody>
+      <tbody v-else-if="whichReport === 'agency'">
+        <tr v-for="result of reportData" :key="result.row">
+          <td>{{ result.row }}</td>
+          <td>{{ result.agency_id }}</td>
+          <td>{{ result.agency_name }}</td>
+          <td>{{ result.number_routes }}</td>
+          <td>{{ result.number_stops }}</td>
+        </tr>
+      </tbody>
+
     </table>
 
   </div>
@@ -99,15 +143,91 @@ const emit = defineEmits([
 ]);
 
 
-const report = computed(() => {
+const reportData = computed(() => {
+  if (whichReport.value === 'route') {
+    return routeReport();
+  } else if (whichReport.value === 'stop') {
+    return stopReport();
+  } else if (whichReport.value === 'agency') {
+    return agencyReport();
+  } else {
+    total.value = 0;
+    return [];
+  }
+});
+
+
+//
+// Gather data for route report
+//
+function routeReport() {
+  // Collect route data from the stop data.
+  const routeData = new Map();
+  for (const stop of props.stopFeatures) {
+    const props = stop.properties;
+    const route_stops = props.route_stops || [];
+
+    for (const rstop of route_stops) {
+      const rid = rstop.route.route_id;
+
+      let rdata = routeData.get(rid);
+      if (!rdata) {  // first time seeing this route
+        const rname = rstop.route.route_long_name;
+        const rtype = rstop.route.route_type;
+        const mode = routeTypes.get(rtype.toString());
+        const aname = rstop.route.agency?.agency_name || '';
+
+        rdata = {
+          id: rid,
+          name: rname,
+          mode: mode,
+          agency: aname
+        };
+        routeData.set(rid, rdata);
+      }
+    }
+  }
+
   // Recalc totals, min/max, note that `current` page is one-based
-  total.value = props.stopFeatures.length;
+  const arr = [...routeData.values()];
+  total.value = arr.length;
+  const index = current.value - 1;
+  const min = (index * perPage.value);
+  const max = (index * perPage.value) + (perPage.value);
+
+  const results = [];
+  for (let i = min; i < max && i < total.value; i++) {
+   const route = arr[i];
+
+   results.push({
+     row: i + 1,
+     route_id: route.id,
+     route_name: route.name,
+     mode: route.mode,
+     agency: route.agency,
+     average_frequency: 'TBD',
+     fastest_frequency: 'TBD',
+     slowest_frequency: 'TBD',
+     data: route
+   });
+ }
+
+ return results;
+}
+
+
+//
+// Gather data for stop report
+//
+function stopReport() {
+  // Recalc totals, min/max, note that `current` page is one-based
+  const arr = props.stopFeatures || [];
+  total.value = arr.length;
   const index = current.value - 1;
   const min = (index * perPage.value);
   const max = (index * perPage.value) + (perPage.value);
 
   // Gather results
-  const arr = props.stopFeatures || [];
   const results = [];
   for (let i = min; i < max && i < total.value; i++) {
     const stop = arr[i];
@@ -136,7 +256,64 @@ const report = computed(() => {
   }
 
   return results;
-})
+}
+
+
+//
+// Gather data for agency report
+//
+function agencyReport() {
+  // Collect agency data from the stop data.
+  const agencyData = new Map();
+  for (const stop of props.stopFeatures) {
+    const props = stop.properties;
+    const route_stops = props.route_stops || [];
+
+    for (const rstop of route_stops) {
+      const rid = rstop.route.route_id;
+      const aid = rstop.route.agency?.agency_id;
+      const aname = rstop.route.agency?.agency_name;
+      if (!aid || !aname) continue;  // no valid agency listed for this stop?
+
+      let adata = agencyData.get(aid);
+      if (!adata) {  // first time seeing this agency
+        adata = {
+          id: aid,
+          name: aname,
+          routes: new Set(),
+          stops: new Set()
+        };
+        agencyData.set(aid, adata);
+      }
+      adata.routes.add(rid);
+      adata.stops.add(props.stop_id);
+    }
+  }
+
+  // Recalc totals, min/max, note that `current` page is one-based
+  const arr = [...agencyData.values()];
+  total.value = arr.length;
+  const index = current.value - 1;
+  const min = (index * perPage.value);
+  const max = (index * perPage.value) + (perPage.value);
+
+  const results = [];
+  for (let i = min; i < max && i < total.value; i++) {
+   const agency = arr[i];
+
+   results.push({
+     row: i + 1,
+     agency_id: agency.id,
+     agency_name: agency.name,
+     number_routes: agency.routes.size,
+     number_stops: agency.stops.size,
+     data: agency
+   });
+ }
+
+ return results;
+}
+
 
 </script>
 
