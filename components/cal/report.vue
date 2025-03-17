@@ -5,7 +5,6 @@
     </tl-title>
 
     <div class="cal-report-options block">
-
       <div class="filter-detail">
         Filter detail here (TBD)
       </div>
@@ -20,21 +19,24 @@
               name="whichReport"
               native-value="route"
               label="route"
-              @input="changeReport" />
+              @input="changeReport"
+            />
 
             <o-radio
               v-model="whichReport"
               name="whichReport"
               native-value="stop"
               label="stop"
-              @input="changeReport" />
+              @input="changeReport"
+            />
 
             <o-radio
               v-model="whichReport"
               name="whichReport"
               native-value="agency"
               label="agency"
-              @input="changeReport" />
+              @input="changeReport"
+            />
           </o-field>
         </section>
 
@@ -110,7 +112,7 @@
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
           <td>{{ result.average_visits }}</td>
-         </tr>
+        </tr>
       </tbody>
       <tbody v-else-if="whichReport === 'agency'">
         <tr v-for="result of reportData" :key="result.row">
@@ -121,16 +123,13 @@
           <td>{{ result.number_stops }}</td>
         </tr>
       </tbody>
-
     </table>
 
     <div class="cal-report-footer">
       * results include only stops within the selected bounding box.
     </div>
-
   </div>
 </template>
-
 
 <script setup lang="ts">
 import { routeTypes } from '../constants'
@@ -139,120 +138,116 @@ const props = defineProps<{
   stopFeatures: Feature[]
 }>()
 
-const whichReport = ref<"route" | "stop" | "agency">("stop");
-const current = ref(1);
-const total = ref(0);
-const perPage = ref(20);
+const whichReport = ref<'route' | 'stop' | 'agency'>('stop')
+const current = ref(1)
+const total = ref(0)
+const perPage = ref(20)
 
 const emit = defineEmits([
   'clickFilterLink'
-]);
-
+])
 
 const reportData = computed(() => {
   if (whichReport.value === 'route') {
-    return routeReport();
+    return routeReport()
   } else if (whichReport.value === 'stop') {
-    return stopReport();
+    return stopReport()
   } else if (whichReport.value === 'agency') {
-    return agencyReport();
+    return agencyReport()
   } else {
-    total.value = 0;
-    return [];
+    total.value = 0
+    return []
   }
-});
-
+})
 
 // When switching to a different report, return to first page
-function changeReport() {
-  current.value = 1;
+function changeReport () {
+  current.value = 1
 }
-
 
 //
 // Gather data for route report
 //
-function routeReport() {
+function routeReport () {
   // Collect route data from the stop data.
-  const routeData = new Map();
+  const routeData = new Map()
   for (const stop of props.stopFeatures) {
-    const props = stop.properties;
-    const route_stops = props.route_stops || [];
+    const props = stop.properties
+    const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
-      const rid = rstop.route.route_id;
+      const rid = rstop.route.route_id
 
-      let rdata = routeData.get(rid);
-      if (!rdata) {  // first time seeing this route
-        const rname = rstop.route.route_long_name;
-        const rtype = rstop.route.route_type;
-        const mode = routeTypes.get(rtype.toString());
-        const aname = rstop.route.agency?.agency_name || '';
+      let rdata = routeData.get(rid)
+      if (!rdata) { // first time seeing this route
+        const rname = rstop.route.route_long_name
+        const rtype = rstop.route.route_type
+        const mode = routeTypes.get(rtype.toString())
+        const aname = rstop.route.agency?.agency_name || ''
 
         rdata = {
           id: rid,
           name: rname,
           mode: mode,
           agency: aname
-        };
-        routeData.set(rid, rdata);
+        }
+        routeData.set(rid, rdata)
       }
     }
   }
 
   // Recalc totals, min/max, note that `current` page is one-based
-  const arr = [...routeData.values()];
-  total.value = arr.length;
-  const index = current.value - 1;
-  const min = (index * perPage.value);
-  const max = (index * perPage.value) + (perPage.value);
+  const arr = [...routeData.values()]
+  total.value = arr.length
+  const index = current.value - 1
+  const min = (index * perPage.value)
+  const max = (index * perPage.value) + (perPage.value)
 
-  const results = [];
+  const results = []
   for (let i = min; i < max && i < total.value; i++) {
-   const route = arr[i];
+    const route = arr[i]
 
-   results.push({
-     row: i + 1,
-     route_id: route.id,
-     route_name: route.name,
-     mode: route.mode,
-     agency: route.agency,
-     average_frequency: 'TBD',
-     fastest_frequency: 'TBD',
-     slowest_frequency: 'TBD',
-     data: route
-   });
- }
+    results.push({
+      row: i + 1,
+      route_id: route.id,
+      route_name: route.name,
+      mode: route.mode,
+      agency: route.agency,
+      average_frequency: 'TBD',
+      fastest_frequency: 'TBD',
+      slowest_frequency: 'TBD',
+      data: route
+    })
+  }
 
- return results;
+  return results
 }
-
 
 //
 // Gather data for stop report
 //
-function stopReport() {
+function stopReport () {
   // Recalc totals, min/max, note that `current` page is one-based
-  const arr = props.stopFeatures || [];
-  total.value = arr.length;
-  const index = current.value - 1;
-  const min = (index * perPage.value);
-  const max = (index * perPage.value) + (perPage.value);
+  const arr = props.stopFeatures || []
+  total.value = arr.length
+  const index = current.value - 1
+  const min = (index * perPage.value)
+  const max = (index * perPage.value) + (perPage.value)
 
   // Gather results
-  const results = [];
+  const results = []
   for (let i = min; i < max && i < total.value; i++) {
-    const stop = arr[i];
-    const props = stop.properties;
-    const route_stops = props.route_stops || [];
+    const stop = arr[i]
+    const props = stop.properties
+    const route_stops = props.route_stops || []
 
     // gather modes at this stop
-    const modes = new Set();
+    const modes = new Set()
     for (const rstop of route_stops) {
-      const rtype = rstop.route.route_type;
-      const mode = routeTypes.get(rtype.toString());
+      const rtype = rstop.route.route_type
+      const mode = routeTypes.get(rtype.toString())
       if (mode) {
-        modes.add(mode);
+        modes.add(mode)
       }
     }
 
@@ -264,71 +259,68 @@ function stopReport() {
       number_served: route_stops.length,
       average_visits: 'TBD',
       data: stop
-    });
+    })
   }
 
-  return results;
+  return results
 }
-
 
 //
 // Gather data for agency report
 //
-function agencyReport() {
+function agencyReport () {
   // Collect agency data from the stop data.
-  const agencyData = new Map();
+  const agencyData = new Map()
   for (const stop of props.stopFeatures) {
-    const props = stop.properties;
-    const route_stops = props.route_stops || [];
+    const props = stop.properties
+    const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
-      const rid = rstop.route.route_id;
-      const aid = rstop.route.agency?.agency_id;
-      const aname = rstop.route.agency?.agency_name;
-      if (!aid || !aname) continue;  // no valid agency listed for this stop?
+      const rid = rstop.route.route_id
+      const aid = rstop.route.agency?.agency_id
+      const aname = rstop.route.agency?.agency_name
+      if (!aid || !aname) continue // no valid agency listed for this stop?
 
-      let adata = agencyData.get(aid);
-      if (!adata) {  // first time seeing this agency
+      let adata = agencyData.get(aid)
+      if (!adata) { // first time seeing this agency
         adata = {
           id: aid,
           name: aname,
           routes: new Set(),
           stops: new Set()
-        };
-        agencyData.set(aid, adata);
+        }
+        agencyData.set(aid, adata)
       }
-      adata.routes.add(rid);
-      adata.stops.add(props.stop_id);
+      adata.routes.add(rid)
+      adata.stops.add(props.stop_id)
     }
   }
 
   // Recalc totals, min/max, note that `current` page is one-based
-  const arr = [...agencyData.values()];
-  total.value = arr.length;
-  const index = current.value - 1;
-  const min = (index * perPage.value);
-  const max = (index * perPage.value) + (perPage.value);
+  const arr = [...agencyData.values()]
+  total.value = arr.length
+  const index = current.value - 1
+  const min = (index * perPage.value)
+  const max = (index * perPage.value) + (perPage.value)
 
-  const results = [];
+  const results = []
   for (let i = min; i < max && i < total.value; i++) {
-   const agency = arr[i];
+    const agency = arr[i]
 
-   results.push({
-     row: i + 1,
-     agency_id: agency.id,
-     agency_name: agency.name,
-     number_routes: agency.routes.size,
-     number_stops: agency.stops.size,
-     data: agency
-   });
- }
+    results.push({
+      row: i + 1,
+      agency_id: agency.id,
+      agency_name: agency.name,
+      number_routes: agency.routes.size,
+      number_stops: agency.stops.size,
+      data: agency
+    })
+  }
 
- return results;
+  return results
 }
 
-
 </script>
-
 
 <style scoped lang="scss">
   .cal-report {
