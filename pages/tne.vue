@@ -32,6 +32,15 @@
           </a>
         </li>
         <li>
+          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab('report')">
+            <o-icon
+              icon="file-chart"
+              class="is-fullwidth"
+              size="large"
+            />
+          </a>
+        </li>
+        <li>
           <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
             <img src="~assets/spinner.svg" alt="Loading">
             {{ stopDepartureProgress.total - stopDepartureProgress.queue }} /
@@ -86,6 +95,14 @@
             @reset-filters="resetFilters"
           />
         </div>
+
+        <div v-if="activeTab === 'report'" class="cal-overlay">
+          <cal-report
+            :stop-features="stopFeatures"
+            @click-filter-link="setTab('filter')"
+          />
+        </div>
+
       </div>
       <!-- This is a component for handling data flow -->
 
