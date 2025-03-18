@@ -78,9 +78,10 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Point, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { routeTypeColorMap, routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
+import { type Stop, type Route } from './scenario.vue'
 
 const route = useRoute()
 
@@ -96,8 +97,8 @@ const emit = defineEmits([
 
 const props = defineProps<{
   bbox: Bbox
-  stopFeatures: Feature[]
-  routeFeatures: Feature[]
+  stopFeatures: Stop[]
+  routeFeatures: Route[]
   displayEditBboxMode?: boolean
 }>()
 
@@ -201,9 +202,9 @@ const bboxMarkers = computed(() => {
 // Lookup for stop features
 // This is necessary because the geojson properties are stringified
 const stopFeatureLookup = computed(() => {
-  const lookup = new Map<string, Feature>()
+  const lookup = new Map<string, Stop>()
   for (const feature of props.stopFeatures) {
-    lookup.set(feature.id, toRaw(feature))
+    lookup.set(feature.id.toString(), toRaw(feature))
   }
   return lookup
 })
@@ -217,39 +218,41 @@ const displayFeatures = computed(() => {
     features.push(toRaw(feature))
   }
 
-  const renderRoutes: Feature[] = []
-  for (const route of props.routeFeatures) {
-    const rp = route.properties
+  const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
-    const routeProps = {
-      'id': route.id,
-      'stroke': rp.marked ? routeColor : bgColor,
-      'stroke-width': rp.marked ? 3 : 1,
-      'stroke-opacity': rp.marked ? 1 : bgOpacity,
-      'route_id': rp.route_id,
-      'route_type': rp.route_type,
-      'route_short_name': rp.route_short_name,
-      'route_long_name': rp.route_long_name,
-      'agency_name': rp.agency?.agency_name,
-      'agency_id': rp.agency?.agency_id,
-      'marked': rp.marked,
+    return {
+      type: 'Feature',
+      id: rp.id.toString(),
+      geometry: rp.geometry,
+      properties: {
+        'id': rp.id,
+        'stroke': rp.marked ? routeColor : bgColor,
+        'stroke-width': rp.marked ? 3 : 1,
+        'stroke-opacity': rp.marked ? 1 : bgOpacity,
+        'route_id': rp.route_id,
+        'route_type': rp.route_type,
+        'route_short_name': rp.route_short_name,
+        'route_long_name': rp.route_long_name,
+        'agency_name': rp.agency?.agency_name,
+        'agency_id': rp.agency?.agency_id,
+        'marked': rp.marked,
+      }
     }
-    const routeCopy = { type: 'Feature', id: route.id, geometry: route.geometry, properties: routeProps }
-    renderRoutes.push(routeCopy)
-  }
+  })
 
-  const renderStops: Feature[] = []
-  for (const stop of props.stopFeatures) {
-    const sp = stop.properties
-    const stopProps = {
-      'marker-radius': sp.marked ? 8 : 4,
-      'marker-color': sp.marked ? '#0000ff' : bgColor,
-      'marker-opacity': sp.marked ? 1 : bgOpacity,
-      'marked': sp.marked,
+  const renderStops: Feature[] = props.stopFeatures.map((sp) => {
+    return {
+      type: 'Feature',
+      id: sp.id.toString(),
+      geometry: sp.geometry,
+      properties: {
+        'marker-radius': sp.marked ? 8 : 4,
+        'marker-color': sp.marked ? '#0000ff' : bgColor,
+        'marker-opacity': sp.marked ? 1 : bgOpacity,
+        'marked': sp.marked,
+      },
     }
-    const stopCopy = { type: 'Feature', geometry: stop.geometry, properties: stopProps, id: stop.id }
-    renderStops.push(stopCopy)
-  }
+  })
 
   // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
   features.push(...renderRoutes.filter(r => !r.properties.marked))
@@ -290,7 +293,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       if (!stopLookup) {
         continue
       }
-      const fp = stopLookup.properties
+      const fp = stopLookup
       // FIXME: THIS IS TEMPORARY - THIS IS NOT SAFE
       text = `
         Stop ID: ${fp.stop_id}<br>

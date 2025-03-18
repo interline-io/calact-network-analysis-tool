@@ -2,21 +2,74 @@
   <div />
 </template>
 
+<script lang="ts">
+export interface Stop {
+  marked: boolean
+  id: number
+  stop_id: string
+  stop_name: string
+  geometry: GeoJSON.Point
+  route_stops: {
+    route: {
+      id: number
+      route_id: string
+      route_type: number
+      route_short_name: string
+      route_long_name: string
+      agency: {
+        id: number
+        agency_id: string
+        agency_name: string
+      }
+    }
+  }[]
+}
+
+export interface Route {
+  marked: boolean
+  id: number
+  route_id: string
+  route_short_name: string
+  route_long_name: string
+  route_type: number
+  geometry: GeoJSON.LineString
+  agency: {
+    id: number
+    agency_id: string
+    agency_name: string
+  }
+}
+
+export interface Agency {
+  id: number
+  agency_id: string
+  agency_name: string
+}
+
+export interface StopTime {
+  departure_time: string
+  trip: {
+    id: number
+    direction_id: number
+  }
+}
+</script>
+
 <script setup lang="ts">
 import { gql } from 'graphql-tag'
 import { ref, watch, computed } from 'vue'
-import { type Bbox, type Feature } from '../geom'
+import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 
-const emit = defineEmits([
-  'setStopFeatures',
-  'setLoading',
-  'setStopDepartureLoadingComplete',
-  'setError',
-  'setStopDepartureProgress',
-  'setRouteFeatures'
-])
+const emit = defineEmits<{
+  setRouteFeatures: [value: Route[]]
+  setStopFeatures: [value: Stop[]]
+  setLoading: [value: boolean]
+  setStopDepartureLoadingComplete: [value: boolean]
+  setError: [value: any]
+  setStopDepartureProgress: [value: { total: number, queue: number }]
+}>()
 
 const props = defineProps<{
   bbox: Bbox
@@ -78,7 +131,17 @@ const stopVars = computed(() => ({
   }
 }))
 
-const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopError, fetchMore: stopFetchMore } = useLazyQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  load: stopLoad,
+  result: stopResult,
+  loading: stopLoading,
+  error: stopError,
+  fetchMore: stopFetchMore
+} = useLazyQuery<{ stops: Stop[] }>(
+  stopQuery,
+  stopVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(ready, (v) => {
   if (v) {
@@ -97,20 +160,14 @@ watch(stopError, (v) => {
 
 // Filtered stop features
 watch(() => [stopResult.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value, stopDepartureLoadingComplete.value], () => {
-  const features: Feature[] = []
-  for (const stop of (stopResult.value?.stops || [])) {
-    if (stop.route_stops.length === 0) {
-      continue
-    }
-    const stopProps = Object.assign({ marked: stopFilter(stop) }, stop)
-    delete stopProps.geometry
-    features.push({
-      type: 'Feature',
-      id: stop.id.toString(),
-      properties: stopProps,
-      geometry: stop.geometry
-    })
+  const features = stopResult.value?.stops || []
+  const sd = selectedDays.value || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  for (const stop of features) {
+    stop.marked = stopFilter(stop, sd, srt, sg)
   }
+  console.log('setStopFeatures', features.length)
   emit('setStopFeatures', features)
 })
 
@@ -144,10 +201,9 @@ function stopFetchMoreCheck () {
 }
 
 // Filter stops
-function stopFilter (stop: Record<string, any>): boolean {
+function stopFilter (stop: Stop, sd: string[], srt: string[], sg: string[]): boolean {
   // Check departure days
   // Must have service on at least one selected day
-  const sd = selectedDays.value || []
   if (sd.length > 0 && stopDepartureLoadingComplete.value) {
     const stopDepartures = stopDepartureCache.get(stop.id) || {}
     let found = false
@@ -165,7 +221,6 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check route types
   // Must match at least one route type
-  const srt = selectedRouteTypes.value || []
   if (srt.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
@@ -181,7 +236,6 @@ function stopFilter (stop: Record<string, any>): boolean {
 
   // Check agencies
   // Must match at least one selected agency
-  const sg = selectedAgencies.value || []
   if (sg.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
@@ -234,7 +288,17 @@ const routeVars = computed(() => ({
   }
 }))
 
-const { load: routeLoad, result: routeResult, loading: routeLoading, error: routeError, fetchMore: routeFetchMore } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  load: routeLoad,
+  result: routeResult,
+  loading: routeLoading,
+  error: routeError,
+  fetchMore: routeFetchMore
+} = useLazyQuery<{ routes: Route[] }>(
+  routeQuery,
+  routeVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(routeError, (v) => {
   emit('setError', v)
@@ -269,30 +333,24 @@ function routeFetchMoreCheck () {
 
 // Filter route features
 watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
-  const features: Feature[] = []
-  for (const route of routeResult?.value?.routes || []) {
-    const routeProps = Object.assign({ marked: routeFilter(route) }, route)
-    delete routeProps.geometry
-    features.push({
-      type: 'Feature',
-      id: route.id.toString(),
-      properties: routeProps,
-      geometry: route.geometry
-    })
+  const features = routeResult.value?.routes || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  for (const route of features) {
+    route.marked = routeFilter(route, srt, sg)
   }
+  console.log('setRouteFeatures', features.length)
   emit('setRouteFeatures', features)
 })
 
 // Filter routes
-function routeFilter (route: Record<string, any>): boolean {
+function routeFilter (route: Route, srt: string[], sg: string[]): boolean {
   // Check route types
-  const srt = selectedRouteTypes.value || []
   if (srt.length > 0) {
     return srt.includes(route.route_type.toString())
   }
 
   // Check agencies
-  const sg = selectedAgencies.value || []
   if (sg.length > 0) {
     return sg.includes(route.agency.agency_name)
   }
@@ -306,6 +364,17 @@ function routeFilter (route: Record<string, any>): boolean {
 /////////////////////////////
 
 const stopDepartureQuery = gql`
+fragment departure on StopTime {
+  departure_time
+  trip {
+    id
+    direction_id
+    # route {
+    #   id
+    # }
+  }
+}
+
 query (
   $ids: [Int!],
   $monday: Date,
@@ -318,26 +387,26 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    departures_monday: departures(limit: 1, where: {service_date: $monday}) {
-      departure_time
+    departures_monday: departures(limit: 1000, where: {service_date: $monday}) {
+      ...departure
     }
-    departures_tuesday: departures(limit: 1, where: {service_date: $tuesday}) {
-      departure_time
+    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) {
+      ...departure
     }
-    departures_wednesday: departures(limit: 1, where: {service_date: $wednesday}) {
-      departure_time
+    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) {
+      ...departure
     }
-    departures_thursday: departures(limit: 1, where: {service_date: $thursday}) {
-      departure_time
+    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) {
+      ...departure
     }
-    departures_friday: departures(limit: 1, where: {service_date: $friday}) {
-      departure_time
+    departures_friday: departures(limit: 1000, where: {service_date: $friday}) {
+      ...departure
     }
-    departures_saturday: departures(limit: 1, where: {service_date: $saturday}) {
-      departure_time
+    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) {
+      ...departure
     }
-    departures_sunday: departures(limit: 1, where: {service_date: $sunday}) {
-      departure_time
+    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) {
+      ...departure
     }    
   }
 }`
@@ -361,13 +430,36 @@ const stopDepartureVars = computed(() => {
     saturday: nextWeek[6],
   }
 })
-const { error: stopDepartureError, load: stopDepartureLoad, fetchMore: stopDepartureFetchMore, loading: stopDepartureLoading } = useLazyQuery(stopDepartureQuery, stopDepartureVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  error: stopDepartureError,
+  load: stopDepartureLoad,
+  fetchMore: stopDepartureFetchMore,
+  loading: stopDepartureLoading
+} = useLazyQuery<{ stops: {
+  departures_monday: StopTime[]
+  departures_tuesday: StopTime[]
+  departures_wednesday: StopTime[]
+  departures_thursday: StopTime[]
+  departures_friday: StopTime[]
+  departures_saturday: StopTime[]
+  departures_sunday: StopTime[]
+}[] }>(
+  stopDepartureQuery,
+  stopDepartureVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(stopDepartureError, (v) => {
   emit('setError', v)
 })
 
+interface stopDepartureKey {
+  id: number
+  date: string
+}
+
 const stopDepartureCache = new Map<number, Record<string, any>>()
+// const stopDepartureCache = new Map<stopDepartureKey, StopDeparture[]>()
 
 function stopDepartureFetchMoreCheck () {
   if (stopDepartureLoading.value) {

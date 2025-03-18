@@ -131,10 +131,10 @@
 
 <script setup lang="ts">
 import { routeTypes } from '../constants'
-import { type Feature } from '../geom'
+import { type Stop } from './scenario.vue'
 
 const props = defineProps<{
-  stopFeatures: Feature[]
+  stopFeatures: Stop[]
 }>()
 
 const whichReport = ref<'route' | 'stop' | 'agency'>('stop')
@@ -171,7 +171,7 @@ function routeReport () {
   // Collect route data from the stop data.
   const routeData = new Map()
   for (const stop of props.stopFeatures) {
-    const props = stop.properties
+    const props = stop
     const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
@@ -237,7 +237,7 @@ function stopReport () {
   const results = []
   for (let i = min; i < max && i < total.value; i++) {
     const stop = arr[i]
-    const props = stop.properties
+    const props = stop
     const route_stops = props.route_stops || []
 
     // gather modes at this stop
@@ -271,7 +271,7 @@ function agencyReport () {
   // Collect agency data from the stop data.
   const agencyData = new Map()
   for (const stop of props.stopFeatures) {
-    const props = stop.properties
+    const props = stop
     const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {

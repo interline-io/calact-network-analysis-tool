@@ -38,7 +38,6 @@ const props = withDefaults(defineProps<{
   popupFeatures: () => ([]),
   mapClass: 'short',
   autoFit: true,
-
 })
 
 let map: (maplibre.Map | null) = null
@@ -213,7 +212,6 @@ function updateFeatures (features: Feature[]) {
   if (pointSource) {
     pointSource.setData({ type: 'FeatureCollection', features: points })
   }
-  fitFeatures(features)
 }
 
 function fitFeatures (features: Feature[]) {
