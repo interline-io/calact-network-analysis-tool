@@ -306,6 +306,17 @@ function routeFilter (route: Record<string, any>): boolean {
 /////////////////////////////
 
 const stopDepartureQuery = gql`
+fragment departure on StopTime {
+  departure_time
+  trip {
+    id
+    direction_id
+    # route {
+    #   id
+    # }
+  }
+}
+
 query (
   $ids: [Int!],
   $monday: Date,
@@ -318,26 +329,26 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    departures_monday: departures(limit: 1, where: {service_date: $monday}) {
-      departure_time
+    departures_monday: departures(limit: 1000, where: {service_date: $monday}) {
+      ...departure
     }
-    departures_tuesday: departures(limit: 1, where: {service_date: $tuesday}) {
-      departure_time
+    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) {
+      ...departure
     }
-    departures_wednesday: departures(limit: 1, where: {service_date: $wednesday}) {
-      departure_time
+    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) {
+      ...departure
     }
-    departures_thursday: departures(limit: 1, where: {service_date: $thursday}) {
-      departure_time
+    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) {
+      ...departure
     }
-    departures_friday: departures(limit: 1, where: {service_date: $friday}) {
-      departure_time
+    departures_friday: departures(limit: 1000, where: {service_date: $friday}) {
+      ...departure
     }
-    departures_saturday: departures(limit: 1, where: {service_date: $saturday}) {
-      departure_time
+    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) {
+      ...departure
     }
-    departures_sunday: departures(limit: 1, where: {service_date: $sunday}) {
-      departure_time
+    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) {
+      ...departure
     }    
   }
 }`
