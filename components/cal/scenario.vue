@@ -430,13 +430,36 @@ const stopDepartureVars = computed(() => {
     saturday: nextWeek[6],
   }
 })
-const { error: stopDepartureError, load: stopDepartureLoad, fetchMore: stopDepartureFetchMore, loading: stopDepartureLoading } = useLazyQuery(stopDepartureQuery, stopDepartureVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  error: stopDepartureError,
+  load: stopDepartureLoad,
+  fetchMore: stopDepartureFetchMore,
+  loading: stopDepartureLoading
+} = useLazyQuery<{ stops: {
+  departures_monday: StopTime[]
+  departures_tuesday: StopTime[]
+  departures_wednesday: StopTime[]
+  departures_thursday: StopTime[]
+  departures_friday: StopTime[]
+  departures_saturday: StopTime[]
+  departures_sunday: StopTime[]
+}[] }>(
+  stopDepartureQuery,
+  stopDepartureVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(stopDepartureError, (v) => {
   emit('setError', v)
 })
 
+interface stopDepartureKey {
+  id: number
+  date: string
+}
+
 const stopDepartureCache = new Map<number, Record<string, any>>()
+// const stopDepartureCache = new Map<stopDepartureKey, StopDeparture[]>()
 
 function stopDepartureFetchMoreCheck () {
   if (stopDepartureLoading.value) {
