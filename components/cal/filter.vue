@@ -185,8 +185,9 @@ import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../consta
 </script>
 
 <script setup lang="ts">
-import { type Feature, fmtDate } from '../geom'
+import { fmtDate } from '../geom'
 import { defineEmits } from 'vue'
+import { type Stop } from './scenario.vue'
 
 const menuItems = [
   { icon: 'chart-bar', label: 'Timeframes', panel: 'timeframes' },
@@ -196,7 +197,7 @@ const menuItems = [
 ]
 
 const props = defineProps<{
-  stopFeatures: Feature[]
+  stopFeatures: Stop[]
 }>()
 
 const emit = defineEmits([
@@ -243,7 +244,7 @@ function agencySelectAll () {
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
   for (const feature of props.stopFeatures) {
-    for (const rs of feature.properties.route_stops) {
+    for (const rs of feature.route_stops) {
       agencies.add(rs.route.agency.agency_name)
     }
   }

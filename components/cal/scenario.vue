@@ -50,7 +50,7 @@ export interface Agency {
 <script setup lang="ts">
 import { gql } from 'graphql-tag'
 import { ref, watch, computed } from 'vue'
-import { type Bbox, type Feature } from '../geom'
+import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 

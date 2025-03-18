@@ -78,7 +78,7 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Point, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { routeTypeColorMap, routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
 import { type Stop, type Route } from './scenario.vue'
@@ -221,43 +221,39 @@ const displayFeatures = computed(() => {
   const renderRoutes: Feature[] = []
   for (const rp of props.routeFeatures) {
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
-    const routeProps = {
-      'id': rp.id,
-      'stroke': rp.marked ? routeColor : bgColor,
-      'stroke-width': rp.marked ? 3 : 1,
-      'stroke-opacity': rp.marked ? 1 : bgOpacity,
-      'route_id': rp.route_id,
-      'route_type': rp.route_type,
-      'route_short_name': rp.route_short_name,
-      'route_long_name': rp.route_long_name,
-      'agency_name': rp.agency?.agency_name,
-      'agency_id': rp.agency?.agency_id,
-      'marked': rp.marked,
-    }
-    const routeCopy = {
+    features.push({
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
-      properties: routeProps
-    }
-    features.push(routeCopy)
+      properties: {
+        'id': rp.id,
+        'stroke': rp.marked ? routeColor : bgColor,
+        'stroke-width': rp.marked ? 3 : 1,
+        'stroke-opacity': rp.marked ? 1 : bgOpacity,
+        'route_id': rp.route_id,
+        'route_type': rp.route_type,
+        'route_short_name': rp.route_short_name,
+        'route_long_name': rp.route_long_name,
+        'agency_name': rp.agency?.agency_name,
+        'agency_id': rp.agency?.agency_id,
+        'marked': rp.marked,
+      }
+    })
   }
 
   const renderStops: Feature[] = []
   for (const sp of props.stopFeatures) {
-    const stopProps = {
-      'marker-radius': sp.marked ? 8 : 4,
-      'marker-color': sp.marked ? '#0000ff' : bgColor,
-      'marker-opacity': sp.marked ? 1 : bgOpacity,
-      'marked': sp.marked,
-    }
-    const stopCopy = {
+    features.push({
       type: 'Feature',
-      geometry: sp.geometry,
-      properties: stopProps,
       id: sp.id.toString(),
-    }
-    features.push(stopCopy)
+      geometry: sp.geometry,
+      properties: {
+        'marker-radius': sp.marked ? 8 : 4,
+        'marker-color': sp.marked ? '#0000ff' : bgColor,
+        'marker-opacity': sp.marked ? 1 : bgOpacity,
+        'marked': sp.marked,
+      },
+    })
   }
 
   return features

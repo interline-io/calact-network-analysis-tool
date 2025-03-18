@@ -102,7 +102,6 @@
             @click-filter-link="setTab('filter')"
           />
         </div>
-
       </div>
       <!-- This is a component for handling data flow -->
 
@@ -138,8 +137,9 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Bbox, type Feature, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
+import { type Bbox, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
 import { navigateTo } from '#imports'
+import { type Stop, type Route } from '../components/cal/scenario.vue'
 
 definePageMeta({
   layout: false
@@ -265,13 +265,13 @@ const selectedAgencies = computed({
 /////////////////////////
 
 // Stop features
-const stopFeatures = ref<Feature[]>([])
-function setStopFeatures (v: Feature[]) {
+const stopFeatures = ref<Stop[]>([])
+function setStopFeatures (v: Stop[]) {
   stopFeatures.value = v
 }
 
-const routeFeatures = ref<Feature[]>([])
-function setRouteFeatures (v: Feature[]) {
+const routeFeatures = ref<Route[]>([])
+function setRouteFeatures (v: Route[]) {
   routeFeatures.value = v
 }
 
