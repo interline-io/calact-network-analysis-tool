@@ -38,7 +38,6 @@ const props = withDefaults(defineProps<{
   popupFeatures: () => ([]),
   mapClass: 'short',
   autoFit: true,
-
 })
 
 let map: (maplibre.Map | null) = null

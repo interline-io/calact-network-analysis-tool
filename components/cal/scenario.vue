@@ -45,6 +45,14 @@ export interface Agency {
   agency_id: string
   agency_name: string
 }
+
+export interface StopTime {
+  departure_time: string
+  trip: {
+    id: number
+    direction_id: number
+  }
+}
 </script>
 
 <script setup lang="ts">
@@ -152,13 +160,14 @@ watch(stopError, (v) => {
 
 // Filtered stop features
 watch(() => [stopResult.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value, stopDepartureLoadingComplete.value], () => {
-  const features: Stop[] = []
-  for (const stop of (stopResult.value?.stops || [])) {
-    if (stop.route_stops.length === 0) {
-      continue
-    }
-    features.push(Object.assign({ marked: stopFilter(stop) }, stop))
+  const features = stopResult.value?.stops || []
+  const sd = selectedDays.value || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  for (const stop of features) {
+    stop.marked = stopFilter(stop, sd, srt, sg)
   }
+  console.log('setStopFeatures', features.length)
   emit('setStopFeatures', features)
 })
 
@@ -192,10 +201,9 @@ function stopFetchMoreCheck () {
 }
 
 // Filter stops
-function stopFilter (stop: Stop): boolean {
+function stopFilter (stop: Stop, sd: string[], srt: string[], sg: string[]): boolean {
   // Check departure days
   // Must have service on at least one selected day
-  const sd = selectedDays.value || []
   if (sd.length > 0 && stopDepartureLoadingComplete.value) {
     const stopDepartures = stopDepartureCache.get(stop.id) || {}
     let found = false
@@ -213,7 +221,6 @@ function stopFilter (stop: Stop): boolean {
 
   // Check route types
   // Must match at least one route type
-  const srt = selectedRouteTypes.value || []
   if (srt.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
@@ -229,7 +236,6 @@ function stopFilter (stop: Stop): boolean {
 
   // Check agencies
   // Must match at least one selected agency
-  const sg = selectedAgencies.value || []
   if (sg.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
@@ -327,22 +333,24 @@ function routeFetchMoreCheck () {
 
 // Filter route features
 watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
-  const features = (routeResult?.value?.routes || []).map((route: Route) => {
-    return Object.assign({ marked: routeFilter(route) }, route)
-  })
+  const features = routeResult.value?.routes || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  for (const route of features) {
+    route.marked = routeFilter(route, srt, sg)
+  }
+  console.log('setRouteFeatures', features.length)
   emit('setRouteFeatures', features)
 })
 
 // Filter routes
-function routeFilter (route: Route): boolean {
+function routeFilter (route: Route, srt: string[], sg: string[]): boolean {
   // Check route types
-  const srt = selectedRouteTypes.value || []
   if (srt.length > 0) {
     return srt.includes(route.route_type.toString())
   }
 
   // Check agencies
-  const sg = selectedAgencies.value || []
   if (sg.length > 0) {
     return sg.includes(route.agency.agency_name)
   }
