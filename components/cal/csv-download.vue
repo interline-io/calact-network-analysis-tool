@@ -28,7 +28,7 @@ function dataToBlob (csvData) {
 
 export default {
   props: {
-    buttonText: { type: String, default () { return 'Download table as CSV' } },
+    buttonText: { type: String, default () { return 'Download as CSV' } },
     disabled: { type: Boolean, default: false },
     filename: { type: String, default: 'export' },
     data: { type: Array, default () { return [] } }
