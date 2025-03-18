@@ -43,9 +43,7 @@
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <div class="download button">
-        Download
-      </div>
+      <cal-csv-download :data="reportData" />
     </div>
 
     <div class="cal-report-total block">
@@ -133,6 +131,7 @@
 
 <script setup lang="ts">
 import { routeTypes } from '../constants'
+import { type Feature } from '../geom'
 
 const props = defineProps<{
   stopFeatures: Feature[]
@@ -147,7 +146,7 @@ const emit = defineEmits([
   'clickFilterLink'
 ])
 
-const reportData = computed(() => {
+const reportData = computed((): Record<string, any>[] => {
   if (whichReport.value === 'route') {
     return routeReport()
   } else if (whichReport.value === 'stop') {
@@ -216,7 +215,7 @@ function routeReport () {
       average_frequency: 'TBD',
       fastest_frequency: 'TBD',
       slowest_frequency: 'TBD',
-      data: route
+      // data: route
     })
   }
 
@@ -258,7 +257,7 @@ function stopReport () {
       modes: [...modes].join(','),
       number_served: route_stops.length,
       average_visits: 'TBD',
-      data: stop
+      // data: stop
     })
   }
 
@@ -313,7 +312,7 @@ function agencyReport () {
       agency_name: agency.name,
       number_routes: agency.routes.size,
       number_stops: agency.stops.size,
-      data: agency
+      // data: agency
     })
   }
 
@@ -366,7 +365,6 @@ function agencyReport () {
     }
 
     > .download {
-      opacity: 0 !important;
       flex: 0 1 10%;
       align-self: center;
     }
