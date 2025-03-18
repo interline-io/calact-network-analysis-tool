@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "csv-stringify": "^6.5.2",
-    "nuxt": "^3.15.4",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=dd597bcb9d65e47e93c2793aa6b3c4ab9a8e4f5f"
+    "nuxt": "^3.16.0",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2"
   },
   "packageManager": "yarn@4.3.0"
 }
