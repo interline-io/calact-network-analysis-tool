@@ -213,7 +213,6 @@ function updateFeatures (features: Feature[]) {
   if (pointSource) {
     pointSource.setData({ type: 'FeatureCollection', features: points })
   }
-  fitFeatures(features)
 }
 
 function fitFeatures (features: Feature[]) {

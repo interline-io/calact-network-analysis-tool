@@ -218,10 +218,9 @@ const displayFeatures = computed(() => {
     features.push(toRaw(feature))
   }
 
-  const renderRoutes: Feature[] = []
-  for (const rp of props.routeFeatures) {
+  const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
     const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
-    features.push({
+    return {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
@@ -238,12 +237,11 @@ const displayFeatures = computed(() => {
         'agency_id': rp.agency?.agency_id,
         'marked': rp.marked,
       }
-    })
-  }
+    }
+  })
 
-  const renderStops: Feature[] = []
-  for (const sp of props.stopFeatures) {
-    features.push({
+  const renderStops: Feature[] = props.stopFeatures.map((sp) => {
+    return {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
@@ -253,9 +251,14 @@ const displayFeatures = computed(() => {
         'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked,
       },
-    })
-  }
+    }
+  })
 
+  // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
+  features.push(...renderRoutes.filter(r => !r.properties.marked))
+  features.push(...renderStops.filter(r => !r.properties.marked))
+  features.push(...renderRoutes.filter(r => r.properties.marked))
+  features.push(...renderStops.filter(r => r.properties.marked))
   return features
 })
 
