@@ -2,6 +2,51 @@
   <div />
 </template>
 
+<script lang="ts">
+interface Stop {
+  marked: boolean
+  id: number
+  stop_id: string
+  stop_name: string
+  geometry: GeoJSON.Point
+  route_stops: {
+    route: {
+      id: number
+      route_id: string
+      route_type: number
+      route_short_name: string
+      route_long_name: string
+      agency: {
+        id: number
+        agency_id: string
+        agency_name: string
+      }
+    }
+  }[]
+}
+
+interface Route {
+  marked: boolean
+  id: number
+  route_id: string
+  route_short_name: string
+  route_long_name: string
+  route_type: number
+  geometry: GeoJSON.LineString
+  agency: {
+    id: number
+    agency_id: string
+    agency_name: string
+  }
+}
+
+interface Agency {
+  id: number
+  agency_id: string
+  agency_name: string
+}
+</script>
+
 <script setup lang="ts">
 import { gql } from 'graphql-tag'
 import { ref, watch, computed } from 'vue'
@@ -9,14 +54,14 @@ import { type Bbox, type Feature } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 
-const emit = defineEmits([
-  'setStopFeatures',
-  'setLoading',
-  'setStopDepartureLoadingComplete',
-  'setError',
-  'setStopDepartureProgress',
-  'setRouteFeatures'
-])
+const emit = defineEmits<{
+  setRouteFeatures: [value: Feature[]]
+  setStopFeatures: [value: Feature[]]
+  setLoading: [value: boolean]
+  setStopDepartureLoadingComplete: [value: boolean]
+  setError: [value: any]
+  setStopDepartureProgress: [value: { total: number, queue: number }]
+}>()
 
 const props = defineProps<{
   bbox: Bbox
@@ -144,7 +189,7 @@ function stopFetchMoreCheck () {
 }
 
 // Filter stops
-function stopFilter (stop: Record<string, any>): boolean {
+function stopFilter (stop: Stop): boolean {
   // Check departure days
   // Must have service on at least one selected day
   const sd = selectedDays.value || []
