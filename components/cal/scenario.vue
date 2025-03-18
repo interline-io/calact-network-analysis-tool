@@ -3,7 +3,7 @@
 </template>
 
 <script lang="ts">
-interface Stop {
+export interface Stop {
   marked: boolean
   id: number
   stop_id: string
@@ -25,7 +25,7 @@ interface Stop {
   }[]
 }
 
-interface Route {
+export interface Route {
   marked: boolean
   id: number
   route_id: string
@@ -40,7 +40,7 @@ interface Route {
   }
 }
 
-interface Agency {
+export interface Agency {
   id: number
   agency_id: string
   agency_name: string
@@ -55,8 +55,8 @@ import { useLazyQuery } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 
 const emit = defineEmits<{
-  setRouteFeatures: [value: Feature[]]
-  setStopFeatures: [value: Feature[]]
+  setRouteFeatures: [value: Route[]]
+  setStopFeatures: [value: Stop[]]
   setLoading: [value: boolean]
   setStopDepartureLoadingComplete: [value: boolean]
   setError: [value: any]
@@ -123,7 +123,17 @@ const stopVars = computed(() => ({
   }
 }))
 
-const { load: stopLoad, result: stopResult, loading: stopLoading, error: stopError, fetchMore: stopFetchMore } = useLazyQuery(stopQuery, stopVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  load: stopLoad,
+  result: stopResult,
+  loading: stopLoading,
+  error: stopError,
+  fetchMore: stopFetchMore
+} = useLazyQuery<{ stops: Stop[] }>(
+  stopQuery,
+  stopVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(ready, (v) => {
   if (v) {
@@ -142,19 +152,12 @@ watch(stopError, (v) => {
 
 // Filtered stop features
 watch(() => [stopResult.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value, stopDepartureLoadingComplete.value], () => {
-  const features: Feature[] = []
+  const features: Stop[] = []
   for (const stop of (stopResult.value?.stops || [])) {
     if (stop.route_stops.length === 0) {
       continue
     }
-    const stopProps = Object.assign({ marked: stopFilter(stop) }, stop)
-    delete stopProps.geometry
-    features.push({
-      type: 'Feature',
-      id: stop.id.toString(),
-      properties: stopProps,
-      geometry: stop.geometry
-    })
+    features.push(Object.assign({ marked: stopFilter(stop) }, stop))
   }
   emit('setStopFeatures', features)
 })
@@ -279,7 +282,17 @@ const routeVars = computed(() => ({
   }
 }))
 
-const { load: routeLoad, result: routeResult, loading: routeLoading, error: routeError, fetchMore: routeFetchMore } = useLazyQuery(routeQuery, routeVars, { fetchPolicy: 'no-cache', clientId: 'transitland' })
+const {
+  load: routeLoad,
+  result: routeResult,
+  loading: routeLoading,
+  error: routeError,
+  fetchMore: routeFetchMore
+} = useLazyQuery<{ routes: Route[] }>(
+  routeQuery,
+  routeVars,
+  { fetchPolicy: 'no-cache', clientId: 'transitland' }
+)
 
 watch(routeError, (v) => {
   emit('setError', v)
@@ -314,22 +327,14 @@ function routeFetchMoreCheck () {
 
 // Filter route features
 watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
-  const features: Feature[] = []
-  for (const route of routeResult?.value?.routes || []) {
-    const routeProps = Object.assign({ marked: routeFilter(route) }, route)
-    delete routeProps.geometry
-    features.push({
-      type: 'Feature',
-      id: route.id.toString(),
-      properties: routeProps,
-      geometry: route.geometry
-    })
-  }
+  const features = (routeResult?.value?.routes || []).map((route: Route) => {
+    return Object.assign({ marked: routeFilter(route) }, route)
+  })
   emit('setRouteFeatures', features)
 })
 
 // Filter routes
-function routeFilter (route: Record<string, any>): boolean {
+function routeFilter (route: Route): boolean {
   // Check route types
   const srt = selectedRouteTypes.value || []
   if (srt.length > 0) {
