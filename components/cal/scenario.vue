@@ -61,6 +61,7 @@ import { ref, watch, computed } from 'vue'
 import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { format } from 'date-fns'
+import { useTask } from 'vue-concurrency'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
@@ -194,8 +195,11 @@ function stopFetchMoreCheck () {
       }
     }
   })
-  check?.then(() => {
-    stopDepartureFetchMoreCheck()
+  check?.then((v) => {
+    const stops = v?.data?.stops || v?.stops || []
+    const stopIds = stops.map(s => (s.id))
+    enqueueStopDepartureFetch(stopIds)
+    // stopDepartureFetchMoreCheck()
     stopFetchMoreCheck()
   })
 }
@@ -383,29 +387,36 @@ query (
   $thursday: Date,
   $friday: Date,
   $saturday: Date,
-  $sunday: Date
+  $sunday: Date,
+  $include_monday: Boolean!,
+  $include_tuesday: Boolean!,
+  $include_wednesday: Boolean!,
+  $include_thursday: Boolean!,
+  $include_friday: Boolean!,
+  $include_saturday: Boolean!,
+  $include_sunday: Boolean!
 ) {
   stops(ids: $ids) {
     id
-    departures_monday: departures(limit: 1000, where: {service_date: $monday}) {
+    departures_monday: departures(limit: 1000, where: {service_date: $monday}) @include(if: $include_monday) {
       ...departure
     }
-    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) {
+    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) @include(if: $include_tuesday) {
       ...departure
     }
-    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) {
+    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) @include(if: $include_wednesday) {
       ...departure
     }
-    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) {
+    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) @include(if: $include_thursday) {
       ...departure
     }
-    departures_friday: departures(limit: 1000, where: {service_date: $friday}) {
+    departures_friday: departures(limit: 1000, where: {service_date: $friday}) @include(if: $include_friday) {
       ...departure
     }
-    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) {
+    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) @include(if: $include_saturday) {
       ...departure
     }
-    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) {
+    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) @include(if: $include_sunday) {
       ...departure
     }    
   }
@@ -428,6 +439,13 @@ const stopDepartureVars = computed(() => {
     thursday: nextWeek[4],
     friday: nextWeek[5],
     saturday: nextWeek[6],
+    include_monday: true,
+    include_tuesday: true,
+    include_wednesday: true,
+    include_thursday: true,
+    include_friday: true,
+    include_saturday: true,
+    include_sunday: true
   }
 })
 const {
@@ -460,6 +478,97 @@ interface stopDepartureKey {
 
 const stopDepartureCache = new Map<number, Record<string, any>>()
 // const stopDepartureCache = new Map<stopDepartureKey, StopDeparture[]>()
+
+const stopDeprtureTaskManager = useTask(function*(_, w: StopDepartureFetchTask) {
+  return stopDepartureFetchMoreProcess(w)
+}).enqueue().maxConcurrency(1)
+
+interface StopDepartureFetchTask {
+  stopIds: number[]
+  monday: string
+  tuesday: string
+  wednesday: string
+  thursday: string
+  friday: string
+  saturday: string
+  sunday: string
+}
+
+function enqueueStopDepartureFetch (stopIds: number[]) {
+  const sd = startDate.value || new Date()
+
+  const endDate = new Date(sd.valueOf())
+  endDate.setDate(sd.getDate() + 3)
+
+  // Get inclusive date range
+  const dates = []
+  while (sd < endDate) {
+    dates.push(new Date(sd.valueOf()))
+    sd.setDate(sd.getDate() + 1)
+  }
+
+  // Break into weeks
+  for (let sid = 0; sid < stopIds.length; sid += 100) {
+    for (let i = 0; i < dates.length; i += 7) {
+      const w = {
+        stopIds: stopIds.slice(sid, sid + 100),
+        monday: '',
+        tuesday: '',
+        wednesday: '',
+        thursday: '',
+        friday: '',
+        saturday: '',
+        sunday: ''
+      }
+      for (const d of dates.slice(i, i + 7)) {
+        switch (d.getDay()) {
+          case 0: w.sunday = format(d, 'yyyy-MM-dd'); break
+          case 1: w.monday = format(d, 'yyyy-MM-dd'); break
+          case 2: w.tuesday = format(d, 'yyyy-MM-dd'); break
+          case 3: w.wednesday = format(d, 'yyyy-MM-dd'); break
+          case 4: w.thursday = format(d, 'yyyy-MM-dd'); break
+          case 5: w.friday = format(d, 'yyyy-MM-dd'); break
+          case 6: w.saturday = format(d, 'yyyy-MM-dd'); break
+        }
+      }
+      console.log('week:', w)
+      stopDeprtureTaskManager.enqueue().maxConcurrency(1).perform(w)
+    }
+  }
+}
+
+async function stopDepartureFetchMoreProcess (task: StopDepartureFetchTask) {
+  // Fetch more stop departures
+  if (task.stopIds.length === 0) {
+    return
+  }
+  checkQueryLimit()
+  const vars = {
+    ids: task.stopIds,
+    monday: task.monday,
+    tuesday: task.tuesday,
+    wednesday: task.wednesday,
+    thursday: task.thursday,
+    friday: task.friday,
+    saturday: task.saturday,
+    sunday: task.sunday,
+    include_monday: task.monday !== '',
+    include_tuesday: task.tuesday !== '',
+    include_wednesday: task.wednesday !== '',
+    include_thursday: task.thursday !== '',
+    include_friday: task.friday !== '',
+    include_saturday: task.saturday !== '',
+    include_sunday: task.sunday !== ''
+  }
+  console.log('loading task:', task)
+  const check = stopDepartureLoad() || stopDepartureFetchMore({
+    variables: vars,
+    updateQuery: () => {
+      return { stops: [] }
+    }
+  })
+  return check
+}
 
 function stopDepartureFetchMoreCheck () {
   if (stopDepartureLoading.value) {
