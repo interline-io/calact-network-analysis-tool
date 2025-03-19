@@ -90,6 +90,8 @@
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
             v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
+            v-model:start-time="startTime"
+            v-model:end-time="endTime"
             :bbox="bbox"
             :stop-features="stopFeatures"
             @reset-filters="resetFilters"
@@ -137,7 +139,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Bbox, parseBbox, bboxString, parseDate, fmtDate } from '../components/geom'
+import { type Bbox, parseBbox, bboxString, parseDate, fmtDate, parseTime, fmtTime, getLocalDateNoTime } from '../components/geom'
 import { navigateTo } from '#imports'
 import { type Stop, type Route } from '../components/cal/scenario.vue'
 
@@ -180,7 +182,7 @@ const geomSource = computed({
 
 const startDate = computed({
   get () {
-    return parseDate(route.query.startDate?.toString() || '') || new Date()
+    return parseDate(route.query.startDate?.toString() || '') || getLocalDateNoTime()
   },
   set (v: Date) {
     navigateTo({ replace: true, query: { ...route.query, startDate: fmtDate(v) } })
@@ -189,10 +191,28 @@ const startDate = computed({
 
 const endDate = computed({
   get () {
-    return parseDate(route.query.endDate?.toString() || '') || new Date()
+    return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
   },
   set (v: Date) {
     navigateTo({ replace: true, query: { ...route.query, endDate: fmtDate(v) } })
+  }
+})
+
+const startTime = computed({
+  get () {
+    return parseTime(route.query.startTime?.toString() || '')
+  },
+  set (v: Date | null) {
+    navigateTo({ replace: true, query: { ...route.query, startTime: fmtTime(v) } })
+  }
+})
+
+const endTime = computed({
+  get () {
+    return parseTime(route.query.endTime?.toString() || '')
+  },
+  set (v: Date | null) {
+    navigateTo({ replace: true, query: { ...route.query, endTime: fmtTime(v) } })
   }
 })
 
@@ -320,6 +340,8 @@ async function setMapExtent (v: Bbox) {
 async function resetFilters () {
   const p = removeEmpty({
     ...route.query,
+    startTime: '',
+    endTime: '',
     selectedAgencies: '',
     selectedDays: '',
     selectedRouteTypes: '',

@@ -53,10 +53,34 @@
 
       <!-- TIMEFRAMES -->
       <div v-if="activePanel === 'timeframes'">
-        <aside class="menu">
+        <aside class="cal-filter-days menu block">
           <p class="menu-label">
             Days of the week
           </p>
+
+          <section class="anyAllDays menu-list">
+            <o-field>
+              <o-radio
+                v-model="selectedAnyAllDays"
+                name="anyAllDays"
+                native-value="any"
+                label="Any of the following days"
+                @input="changeAnyAllDays"
+                :disabled="!stopDepartureLoadingComplete"
+              />
+            </o-field>
+            <o-field>
+              <o-radio
+                v-model="selectedAnyAllDays"
+                name="anyAllDays"
+                native-value="all"
+                label="All of the following days"
+                @input="changeAnyAllDays"
+                :disabled="!stopDepartureLoadingComplete"
+              />
+            </o-field>
+          </section>
+
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
               <o-checkbox v-model="selectedDays" :native-value="dowValue" :disabled="!stopDepartureLoadingComplete">
@@ -64,12 +88,51 @@
               </o-checkbox>
             </li>
           </ul>
-          <p class="filter-legend">
-            * Stops with scheduled service on any of the selected days
-          </p>
+
           <p v-if="!stopDepartureLoadingComplete">
             Loading...
           </p>
+        </aside>
+
+        <aside class="cal-filter-times menu block">
+          <p class="menu-label">
+            Time of Day
+          </p>
+
+          <o-field>
+            <o-checkbox
+              v-model="timeAllDay"
+              label="All Day"
+              :disabled="!stopDepartureLoadingComplete"
+            />
+          </o-field>
+
+          <p class="menu-label">
+            Starting
+          </p>
+
+          <o-field>
+            <o-timepicker
+              v-model="startTime"
+              icon="clock"
+              hour-format="12"
+              :disabled="!stopDepartureLoadingComplete || timeAllDay"
+            />
+          </o-field>
+
+          <p class="menu-label">
+            Ending
+          </p>
+
+          <o-field>
+            <o-timepicker
+              v-model="endTime"
+              icon="clock"
+              hour-format="12"
+              :disabled="!stopDepartureLoadingComplete || timeAllDay"
+            />
+          </o-field>
+
         </aside>
       </div>
 
@@ -185,7 +248,7 @@ import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../consta
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '../geom'
+import { fmtDate, getLocalDateNoTime } from '../geom'
 import { defineEmits } from 'vue'
 import { type Stop } from './scenario.vue'
 
@@ -213,6 +276,27 @@ const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
+
+const selectedAnyAllDays = ref<'any' | 'all'>('any')
+const startTime = defineModel<Date|null>('startTime')
+const endTime = defineModel<Date|null>('endTime')
+
+function changeAnyAllDays () {
+  // todo
+}
+
+const timeAllDay = computed({
+  get () : boolean {
+    return !!startTime.value || !!endTime.value;
+  },
+  set (v: boolean) {
+    if (v) {
+      startTime.value = null
+      endTime.value = null
+    }
+  }
+})
+
 
 ///////////////////
 // Panel
@@ -284,6 +368,16 @@ const knownAgencies = computed(() => {
     overflow-x:clip;
   }
 }
+
+.cal-filter-days .anyAllDays {
+  margin-left:20px;
+  margin-bottom:15px;
+
+  > div {
+    margin-bottom: unset;
+  }
+}
+
 .menu-list {
   a.is-active {
     color:var(--bulma-text-main-ter);
