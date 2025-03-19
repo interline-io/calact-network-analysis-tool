@@ -248,7 +248,8 @@ import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../consta
 </script>
 
 <script setup lang="ts">
-import { fmtDate, getLocalDateNoTime } from '../geom'
+import { endOfToday, startOfToday } from 'date-fns'
+import { fmtDate, fmtTime } from '../geom'
 import { defineEmits } from 'vue'
 import { type Stop } from './scenario.vue'
 
@@ -285,14 +286,26 @@ function changeAnyAllDays () {
   // todo
 }
 
+// const route = useRoute()
+
 const timeAllDay = computed({
   get () : boolean {
-    return !!startTime.value || !!endTime.value;
+    return (startTime.value === null && endTime.value === null);
+    // const start = route.query?.startTime || ''
+    // const end = route.query?.endTime || ''
+    // return !(start || end)
   },
   set (v: boolean) {
-    if (v) {
+    if (v) { // all day
       startTime.value = null
       endTime.value = null
+      // route.query.startTime = ''
+      // route.query.endTime = ''
+    } else {
+      startTime.value = startOfToday()
+      endTime.value = startOfToday()
+      // route.query.startTime = '00:00:00'
+      // route.query.endTime = '00:00:00'
     }
   }
 })

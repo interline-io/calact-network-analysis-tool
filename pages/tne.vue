@@ -203,6 +203,7 @@ const startTime = computed({
     return parseTime(route.query.startTime?.toString() || '')
   },
   set (v: Date | null) {
+    // route.query.startTime = fmtTime(v)
     navigateTo({ replace: true, query: { ...route.query, startTime: fmtTime(v) } })
   }
 })
@@ -212,6 +213,7 @@ const endTime = computed({
     return parseTime(route.query.endTime?.toString() || '')
   },
   set (v: Date | null) {
+    // route.query.endTime = fmtTime(v)
     navigateTo({ replace: true, query: { ...route.query, endTime: fmtTime(v) } })
   }
 })
