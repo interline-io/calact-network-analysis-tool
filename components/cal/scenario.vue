@@ -321,6 +321,7 @@ const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 
+const stopLimit = 1000
 const stopDepartureLoadingComplete = ref(false)
 watch(stopDepartureLoadingComplete, (v) => {
   emit('setStopDepartureLoadingComplete', v)
@@ -339,7 +340,7 @@ watch(ready, (v) => {
 
 const stopVars = computed(() => ({
   after: 0,
-  limit: 100,
+  limit: stopLimit,
   where: {
     location_type: 0,
     bbox: {
@@ -506,26 +507,34 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
   return check
 })
 
-function enqueueStopDepartureFetch (stopIds: number[]) {
+const selectedDateRange = computed((): Date[] => {
   const sd = startDate.value || new Date()
-  const ed = new Date(sd.valueOf())
-  ed.setDate(sd.getDate() + 3)
+  const ed = endDate.value || new Date()
+  // ed.setDate(ed.getDate() + 3)
 
   // Get inclusive date range
   const dates = []
-  while (sd < ed) {
+  while (sd <= ed) {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
+  console.log('selectedDateRange:', dates)
+  return dates
+})
 
+function enqueueStopDepartureFetch (stopIds: number[]) {
   // Break into weeks
-  for (let sid = 0; sid < stopIds.length; sid += 100) {
-    for (let i = 0; i < dates.length; i += 7) {
+  const dates = selectedDateRange.value
+  const batchSize = 100
+  const weekSize = 7
+  for (let sid = 0; sid < stopIds.length; sid += batchSize) {
+    for (let i = 0; i < dates.length; i += weekSize) {
       const w = new StopDepartureQueryVars()
-      w.ids = stopIds.slice(sid, sid + 100)
-      for (const d of dates.slice(i, i + 7)) {
+      w.ids = stopIds.slice(sid, sid + batchSize)
+      for (const d of dates.slice(i, i + weekSize)) {
         w.setDay(d)
       }
+      console.log('dates:', dates, 'task:', w)
       stopDepartureQueue.enqueue().maxConcurrency(1).perform(w)
     }
   }
