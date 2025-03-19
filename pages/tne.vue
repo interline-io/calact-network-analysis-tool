@@ -83,15 +83,17 @@
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
+            v-model:start-time="startTime"
+            v-model:end-time="endTime"
             v-model:base-map="baseMap"
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:selected-days="selectedDays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
+            v-model:selected-day-of-week-mode="selectedDayOfWeekMode"
+            v-model:selected-time-of-day-mode="selectedTimeOfDayMode"
             v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
-            v-model:start-time="startTime"
-            v-model:end-time="endTime"
             :bbox="bbox"
             :stop-features="stopFeatures"
             @reset-filters="resetFilters"
@@ -139,9 +141,11 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Bbox, parseBbox, bboxString, parseDate, fmtDate, parseTime, fmtTime, getLocalDateNoTime } from '../components/geom'
+import { type Bbox, parseBbox, bboxString } from '../components/geom'
+import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
 import { type Stop, type Route } from '../components/cal/scenario.vue'
+import { dowValues } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -203,7 +207,6 @@ const startTime = computed({
     return parseTime(route.query.startTime?.toString() || '')
   },
   set (v: Date | null) {
-    // route.query.startTime = fmtTime(v)
     navigateTo({ replace: true, query: { ...route.query, startTime: fmtTime(v) } })
   }
 })
@@ -213,7 +216,6 @@ const endTime = computed({
     return parseTime(route.query.endTime?.toString() || '')
   },
   set (v: Date | null) {
-    // route.query.endTime = fmtTime(v)
     navigateTo({ replace: true, query: { ...route.query, endTime: fmtTime(v) } })
   }
 })
@@ -255,12 +257,29 @@ const baseMap = computed({
   }
 })
 
-const selectedDays = computed({
+const selectedDayOfWeekMode = computed({
   get () {
-    return arrayParam('selectedDays', []) // dowValues
+    return route.query.selectedDayOfWeekMode?.toString() || 'All'
   },
-  set (v: string[]) {
-    navigateTo({ replace: true, query: { ...route.query, selectedDays: v.join(',') } })
+  set (v: string) {
+    const q = { ...route.query, selectedDayOfWeekMode: v }
+    if (v.toLowerCase() === 'all' || v === '') { // omit default values
+      delete q.selectedDayOfWeekMode
+    }
+    navigateTo({ replace: true, query: q })
+  }
+})
+
+const selectedTimeOfDayMode = computed({
+  get () {
+    return route.query.selectedTimeOfDayMode?.toString() || 'All'
+  },
+  set (v: string) {
+    const q = { ...route.query, selectedTimeOfDayMode: v }
+    if (v.toLowerCase() === 'all' || v === '') { // omit default values
+      delete q.selectedTimeOfDayMode
+    }
+    navigateTo({ replace: true, query: q })
   }
 })
 
@@ -279,6 +298,24 @@ const selectedAgencies = computed({
   },
   set (v: string[]) {
     navigateTo({ replace: true, query: { ...route.query, selectedAgencies: v.join(',') } })
+  }
+})
+
+const selectedDays = computed({
+  get () {
+    if (!route.query.hasOwnProperty('selectedDays')) { // if no `selectedDays` param present, check them all
+      return dowValues.slice()
+    } else {
+      return arrayParam('selectedDays', [])
+    }
+  },
+  set (v: string[]) {
+    const q = { ...route.query, selectedDays: v.join(',') }
+    const days = new Set(v)
+    if (dowValues.every(day => days.has(day))) { // if all days are checked, just omit the param
+      delete q.selectedDays
+    }
+    navigateTo({ replace: true, query: q })
   }
 })
 
@@ -347,6 +384,8 @@ async function resetFilters () {
     selectedAgencies: '',
     selectedDays: '',
     selectedRouteTypes: '',
+    selectedDayOfWeekMode: '',
+    selectedTimeOfDayMode: '',
     colorKey: '',
     unitSystem: '',
     baseMap: ''

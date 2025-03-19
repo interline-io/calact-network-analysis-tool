@@ -35,3 +35,12 @@ export const baseMapStyles = [
   'Satellite',
 ]
 
+export const selectedDayOfWeekModes = [
+  'All',
+  'Any',
+]
+
+export const selectedTimeOfDayModes = [
+  'All',
+  'Partial',
+]
