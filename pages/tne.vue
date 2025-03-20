@@ -43,8 +43,6 @@
         <li>
           <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
             <img src="~assets/spinner.svg" alt="Loading">
-            {{ stopDepartureProgress.total - stopDepartureProgress.queue }} /
-            {{ stopDepartureProgress.total }}
           </a>
         </li>
       </ul>
