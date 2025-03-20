@@ -258,6 +258,26 @@ class StopDepartureQueryVars {
   include_saturday: boolean = false
   include_sunday: boolean = false
 
+  get (dow: string): string {
+    switch (dow) {
+      case 'monday':
+        return this.monday
+      case 'tuesday':
+        return this.tuesday
+      case 'wednesday':
+        return this.wednesday
+      case 'thursday':
+        return this.thursday
+      case 'friday':
+        return this.friday
+      case 'saturday':
+        return this.saturday
+      case 'sunday':
+        return this.sunday
+    }
+    return ''
+  }
+
   setDay (d: Date) {
     const dateFmt = 'yyyy-MM-dd'
     switch (d.getDay()) {
@@ -292,6 +312,25 @@ class StopDepartureQueryVars {
     }
   }
 }
+
+interface StopDepartureCacheKey {
+  id: number
+  date: string
+}
+
+class StopDepartureCache {
+  cache: Map<StopDepartureCacheKey, StopDeparture[]> = new Map()
+
+  get (id: number, date: string): StopDeparture[] {
+    return this.cache.get({ id, date }) || []
+  }
+
+  add (id: number, date: string, value: StopDeparture[]) {
+    const a = this.cache.get({ id, date }) || []
+    a.push(...value)
+    this.cache.set({ id, date }, a)
+  }
+}
 </script>
 
 <script setup lang="ts">
@@ -320,6 +359,8 @@ const endDate = defineModel<Date>('endDate')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
+
+const stopDepartureCache = new StopDepartureCache()
 
 const stopLimit = 1000
 const stopDepartureLoadingComplete = ref(false)
@@ -503,6 +544,25 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
     updateQuery: () => {
       return { stops: [] }
     }
+  })
+  check?.then((v) => {
+    // Update cache
+    const stops = v?.data?.stops || v?.stops || []
+    const dows = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    for (const dow of dows) {
+      const dowDate = task.get(dow)
+      if (!dowDate) {
+        continue
+      }
+      for (const stop of stops) {
+        const deps = stop[`departures_${dow}`] || []
+        if (deps.length === 0) {
+          continue
+        }
+        stopDepartureCache.add(stop.id, dowDate, deps)
+      }
+    }
+    console.log('v', v)
   })
   return check
 })
