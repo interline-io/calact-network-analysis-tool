@@ -11,8 +11,8 @@
           Clear all
         </o-button>
         <ul class="menu-list">
-          <li v-for="item of menuItems" :key="item.panel">
-            <a :class="{ 'is-active': activeTab === item.panel }" @click="setPanel(item.panel)">
+          <li v-for="item of menuItems" :key="item.tab">
+            <a :class="{ 'is-active': activeTab === item.tab }" @click="setTab(item.tab)">
               <o-icon
                 :icon="item.icon"
                 class="is-fullwidth"
@@ -47,7 +47,7 @@
           icon="chevron-left"
           class="is-pulled-right"
           size="large"
-          @click="setPanel('')"
+          @click="setTab('')"
         />
       </div>
 
@@ -277,10 +277,10 @@ import { defineEmits } from 'vue'
 import { type Stop } from './scenario.vue'
 
 const menuItems = [
-  { icon: 'chart-bar', label: 'Timeframes', panel: 'timeframes' },
-  { icon: 'bus', label: 'Transit Layers', panel: 'transit-layers' },
-  { icon: 'layers-outline', label: 'Data Display', panel: 'data-display' },
-  { icon: 'cog', label: 'Settings', panel: 'settings' },
+  { icon: 'chart-bar', label: 'Timeframes', tab: 'timeframes' },
+  { icon: 'bus', label: 'Transit Layers', tab: 'transit-layers' },
+  { icon: 'layers-outline', label: 'Data Display', tab: 'data-display' },
+  { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
 const props = defineProps<{
@@ -308,9 +308,9 @@ const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingC
 const activeTab = defineModel<string>('activeTab')
 
 ///////////////////
-// Panel
+// Tab
 
-function setPanel (v: string) {
+function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = ''
     return
