@@ -11,27 +11,27 @@
     <div class="cal-body">
       <tl-msg-box variant="text" title="Date range">
         <o-field>
-        <template #label>
-          <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
-            Start date
-            <o-icon icon="information" />
-          </o-tooltip>
-        </template>
-        <o-datepicker v-model="startDate" />
-      </o-field>
-      <o-field addons>
-        <template #label>
-          <o-tooltip multiline label="The end date is not currently used. In the future, it will be used to define the end of date-bound queries.">
-            End date
-            <o-icon icon="information" />
-          </o-tooltip>
-        </template>
-        <o-datepicker v-model="endDate" v-if="!selectSingleDay" />
-        <o-button @click="toggleSelectSingleDay()" title="In the future, you will be able to specify an end date for date-bound queries.">
-          {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
-        </o-button>
-      </o-field>
-    </tl-msg-box>
+          <template #label>
+            <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
+              Start date
+              <o-icon icon="information" />
+            </o-tooltip>
+          </template>
+          <o-datepicker v-model="startDate" />
+        </o-field>
+        <o-field addons>
+          <template #label>
+            <o-tooltip multiline label="By default, the end date is one week after the start date.">
+              End date
+              <o-icon icon="information" />
+            </o-tooltip>
+          </template>
+          <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <o-button title="In the future, you will be able to specify an end date for date-bound queries." @click="toggleSelectSingleDay()">
+            {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
+          </o-button>
+        </o-field>
+      </tl-msg-box>
 
       <tl-msg-box variant="text" title="Geographic Bounds">
         <div class="columns">
@@ -51,6 +51,16 @@
                   Dragging bounding box
                 </option>
               </o-select>
+
+              <tl-msg-warning class="mt-4" style="width:400px">
+                Debug: use predefined bbox<br>
+                <o-select v-model="cannedBbox">
+                  <option v-for="cannedBboxName of cannedBboxes.keys()" :key="cannedBboxName" :value="cannedBboxName">
+                    {{ cannedBboxName }}
+                  </option>
+                </o-select>
+              </tl-msg-warning>
+
               <!-- <div class="cal-bbox-info">
                 <div style="text-align:center">
                   <o-button icon-left="pin">
@@ -76,7 +86,8 @@
 </template>
 
 <script setup lang="ts">
-import { type Bbox, ptString } from '../geom'
+import { type Bbox, parseBbox } from '../geom'
+import { cannedBboxes } from '../constants'
 import { useToggle } from '@vueuse/core'
 
 const props = defineProps<{
@@ -91,8 +102,15 @@ const emit = defineEmits([
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const geomSource = defineModel<string>('geomSource')
+const cannedBbox = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
+
+watch(() => cannedBbox.value, (cannedBboxName) => {
+  if (cannedBboxName) {
+    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName)))
+  }
+})
 
 const validQueryParams = computed(() => {
   return startDate.value && props.bbox?.valid

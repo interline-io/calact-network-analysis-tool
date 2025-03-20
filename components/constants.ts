@@ -1,3 +1,15 @@
+export const cannedBboxes = new Map<string, string>(Object.entries({
+  'Downtown Portland, OR': '-122.69075,45.51358,-122.66809,45.53306',
+  'Downtown Portland, OR (zoomed)': '-122.68308,45.52780,-122.68077,45.52932',
+  'Portland, OR': '-122.8,45.4,-122.5,45.7',
+  'Bend, OR': '-121.315,44.045,-121.295,44.055',
+  'Eugene, OR': '-123.125,44.025,-123.105,44.035',
+  'Salem, OR': '-123.015,44.935,-122.995,44.945',
+  'Corvallis, OR': '-123.255,44.555,-123.235,44.565',
+  'Astoria, OR': '-123.830,46.180,-123.810,46.190',  
+}))
+
+
 export const routeTypes = new Map<string, string>(Object.entries({
   0: 'Light rail',
   1: 'Intercity rail',
@@ -44,3 +56,4 @@ export const selectedTimeOfDayModes = [
   'All',
   'Partial',
 ]
+

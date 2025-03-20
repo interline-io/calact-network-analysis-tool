@@ -201,7 +201,12 @@ const startDate = computed({
 
 const endDate = computed({
   get () {
-    return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
+    if (route.query?.endDate) {
+      return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
+    }
+    const n = new Date(startDate.value.valueOf())
+    n.setDate(n.getDate() + 6)
+    return n
   },
   set (v: Date) {
     setQuery({ ...route.query, endDate: fmtDate(v) })
@@ -265,10 +270,10 @@ const baseMap = computed({
 
 const selectedDayOfWeekMode = computed({
   get () {
-    return route.query.selectedDayOfWeekMode?.toString() || 'All'
+    return route.query.selectedDayOfWeekMode?.toString() || 'Any'
   },
   set (v: string) {
-    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'All' ? '' : v })
+    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
   }
 })
 
@@ -301,7 +306,8 @@ const selectedAgencies = computed({
 
 const selectedDays = computed({
   get () {
-    if (!route.query.hasOwnProperty('selectedDays')) { // if no `selectedDays` param present, check them all
+    if (!route.query?.selectedDays) {
+      // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
       return arrayParam('selectedDays', [])
