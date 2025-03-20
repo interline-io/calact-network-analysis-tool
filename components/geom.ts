@@ -1,5 +1,3 @@
-import { parse, format } from 'date-fns'
-
 export interface Geometry {
     type: string
     coordinates: any[]
@@ -40,6 +38,7 @@ export function parseBbox(bbox: string | null): Bbox {
     }
     return { sw: sw, ne: ne, valid: false, }
 }
+
 export function bboxString(bbox: Bbox): string {
     return [
         bbox.sw.lon,
@@ -49,33 +48,16 @@ export function bboxString(bbox: Bbox): string {
     ].map((s)=>(s.toFixed(5))).join(',')
 }
 
-const dateFmt = 'yyyy-MM-dd'
-
-export function parseDate (d: string): Date | null {
-    if (d) {
-      return parse(d, dateFmt, new Date())
-    }
-    return null
-  }
-  
-  
-export function fmtDate(d: Date | null): string {
-    if (!d) {
-        return ''
-    }
-    return format(d, dateFmt)
-}
-
 export interface PopupFeature {
     point: Point
     text: string
-  }
-  
-  
-  export interface MarkerFeature {
+}
+
+
+export interface MarkerFeature {
     onDragEnd: any
     point: Point
     color: string
     draggable: boolean
     element?: HTMLElement  // Optional HTML element for custom marker
-  }
+}
