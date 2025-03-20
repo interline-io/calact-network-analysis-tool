@@ -147,7 +147,7 @@ import { type Bbox, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
 import { type Stop, type Route } from '../components/cal/scenario.vue'
-import { dowValues } from '../components/constants'
+import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -283,7 +283,7 @@ const selectedTimeOfDayMode = computed({
 
 const selectedRouteTypes = computed({
   get () {
-    return arrayParam('selectedRouteTypes', []) // Array.from(routeTypes.keys())
+    return arrayParam('selectedRouteTypes', Array.from(routeTypes.keys()))
   },
   set (v: string[]) {
     setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
