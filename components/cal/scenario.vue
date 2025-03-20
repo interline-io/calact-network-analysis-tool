@@ -313,22 +313,34 @@ class StopDepartureQueryVars {
   }
 }
 
-interface StopDepartureCacheKey {
-  id: number
+interface StopDepartureCacheItem {
   date: string
+  dow: string
+  departures: StopTime[]
 }
 
+// Two level cache
 class StopDepartureCache {
-  cache: Map<StopDepartureCacheKey, StopDeparture[]> = new Map()
+  cache: Map<number, Map<string, StopDeparture[]>> = new Map()
 
   get (id: number, date: string): StopDeparture[] {
-    return this.cache.get({ id, date }) || []
+    const a = this.cache.get(id) || new Map()
+    return a.get(date) || []
   }
 
   add (id: number, date: string, value: StopDeparture[]) {
-    const a = this.cache.get({ id, date }) || []
-    a.push(...value)
-    this.cache.set({ id, date }, a)
+    const a = this.cache.get(id) || new Map()
+    const b = a.get(date) || []
+    b.push(...value)
+    a.set(date, b)
+    this.cache.set(id, a)
+  }
+
+  debugStats () {
+    console.log('StopDepartureCache stats:')
+    for (const [stopId, departures] of this.cache) {
+      console.log(stopId, departures)
+    }
   }
 }
 </script>
@@ -568,6 +580,7 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
         stopDepartureCache.add(stop.id, dowDate, deps)
       }
     }
+    stopDepartureCache.debugStats()
   })
   return check
 })
