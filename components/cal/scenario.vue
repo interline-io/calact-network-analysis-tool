@@ -441,9 +441,9 @@ const stopQueue = useTask(function*(_, task: { after: number }) {
   })
   check?.then((v) => {
     const ids = (v?.data?.stops || v?.stops || []).map(s => (s.id))
+    enqueueStopDepartureFetch(ids)
     if (ids.length > 0) {
       stopQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
-      enqueueStopDepartureFetch(ids)
     }
   })
 })
@@ -532,8 +532,9 @@ watch(stopDepartureError, (v) => {
   emit('setError', v)
 })
 
+// Fetch more stop departures
 const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
-  // Fetch more stop departures
+  // Set loading state
   if (task.ids.length === 0) {
     emit('setStopDepartureProgress', { total: 0, queue: 0 })
     stopDepartureLoadingComplete.value = false
@@ -541,6 +542,7 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
   }
   emit('setStopDepartureProgress', { total: 1, queue: 1 })
   stopDepartureLoadingComplete.value = true
+
   checkQueryLimit()
   console.log('stopDepartureQueue:', task)
   const check = stopDepartureLoad() || stopDepartureFetchMore({
@@ -586,6 +588,11 @@ const selectedDateRange = computed((): Date[] => {
 
 // Break into weeks
 function enqueueStopDepartureFetch (stopIds: number[]) {
+  if (stopIds.length === 0) {
+    // Enqueue empty task to signal complete
+    stopDepartureQueue.enqueue().maxConcurrency(1).perform(new StopDepartureQueryVars())
+    return
+  }
   const dates = selectedDateRange.value
   const batchSize = 100
   const weekSize = 7
