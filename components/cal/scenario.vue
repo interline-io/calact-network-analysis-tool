@@ -568,7 +568,6 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
         stopDepartureCache.add(stop.id, dowDate, deps)
       }
     }
-    console.log('v', v)
   })
   return check
 })
@@ -603,7 +602,6 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
       for (const d of dates.slice(i, i + weekSize)) {
         w.setDay(d)
       }
-      console.log('dates:', dates, 'task:', w, stopDepartureQueue)
       stopDepartureQueue.enqueue().maxConcurrency(1).perform(w)
     }
   }
