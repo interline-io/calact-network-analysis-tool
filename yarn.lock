@@ -4686,6 +4686,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"caf@npm:^15.0.1":
+  version: 15.0.1
+  resolution: "caf@npm:15.0.1"
+  checksum: 10/7855c02460c405e6671f958deba5f4249821481ae5bb4c6330ff361b073f93046a066f9a59058bb99d4570bb7748621bad2299e11feae92f2d487ac62b93b5db
+  languageName: node
+  linkType: hard
+
 "calact-network-analysis-tool@workspace:.":
   version: 0.0.0-use.local
   resolution: "calact-network-analysis-tool@workspace:."
@@ -4693,6 +4700,7 @@ __metadata:
     csv-stringify: "npm:^6.5.2"
     nuxt: "npm:^3.16.0"
     tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2"
+    vue-concurrency: "npm:^5.0.3"
   languageName: unknown
   linkType: soft
 
@@ -13526,6 +13534,17 @@ __metadata:
   version: 2.2.0
   resolution: "vue-component-type-helpers@npm:2.2.0"
   checksum: 10/91ec570dcd01f2f4192118d0562faa28f7d06867e548bee265b7ca7a7dc5fd112b1251b5bca74f3b21558a4336b87466f6423b83bf42e41e068c1c7e122904f4
+  languageName: node
+  linkType: hard
+
+"vue-concurrency@npm:^5.0.3":
+  version: 5.0.3
+  resolution: "vue-concurrency@npm:5.0.3"
+  dependencies:
+    caf: "npm:^15.0.1"
+  peerDependencies:
+    vue: ^3.3
+  checksum: 10/294ca44b361d468b5defa04b15d425cbeeb246b7b943c226629fd8c968dd56d1bf89ab705766c56af0e2fa277c936f90f7270be15aced6c72082ef5d66f8b935
   languageName: node
   linkType: hard
 

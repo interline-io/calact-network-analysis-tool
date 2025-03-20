@@ -43,8 +43,6 @@
         <li>
           <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
             <img src="~assets/spinner.svg" alt="Loading">
-            {{ stopDepartureProgress.total - stopDepartureProgress.queue }} /
-            {{ stopDepartureProgress.total }}
           </a>
         </li>
       </ul>
@@ -116,6 +114,10 @@
         :selected-days="selectedDays"
         :selected-route-types="selectedRouteTypes"
         :selected-agencies="selectedAgencies"
+        :selected-time-of-day-mode="selectedTimeOfDayMode"
+        :selected-day-of-week-mode="selectedDayOfWeekMode"
+        :start-time="startTime"
+        :end-time="endTime"
         :geom-source="geomSource"
         :ready="ready"
         @set-stop-departure-progress="stopDepartureProgress = $event"
@@ -145,7 +147,7 @@ import { type Bbox, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
 import { type Stop, type Route } from '../components/cal/scenario.vue'
-import { dowValues } from '../components/constants'
+import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -175,12 +177,16 @@ function setError (err: any) {
 }
 
 // Handle query parameters
+async function setQuery (params: Record<string, any>) {
+  await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
+}
+
 const geomSource = computed({
   get () {
     return route.query.geomSource?.toString() || 'bbox'
   },
   set (v: string) {
-    navigateTo({ replace: true, query: { ...route.query, geomSource: v } })
+    setQuery({ ...route.query, geomSource: v })
   }
 })
 
@@ -189,34 +195,39 @@ const startDate = computed({
     return parseDate(route.query.startDate?.toString() || '') || getLocalDateNoTime()
   },
   set (v: Date) {
-    navigateTo({ replace: true, query: { ...route.query, startDate: fmtDate(v) } })
+    setQuery({ ...route.query, startDate: fmtDate(v) })
   }
 })
 
 const endDate = computed({
   get () {
-    return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
+    if (route.query?.endDate) {
+      return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
+    }
+    const n = new Date(startDate.value.valueOf())
+    n.setDate(n.getDate() + 6)
+    return n
   },
   set (v: Date) {
-    navigateTo({ replace: true, query: { ...route.query, endDate: fmtDate(v) } })
+    setQuery({ ...route.query, endDate: fmtDate(v) })
   }
 })
 
 const startTime = computed({
   get () {
-    return parseTime(route.query.startTime?.toString() || '')
+    return parseTime(route.query.startTime?.toString() || '') || new Date(0, 0, 0, 0, 0)
   },
   set (v: Date | null) {
-    navigateTo({ replace: true, query: { ...route.query, startTime: fmtTime(v) } })
+    setQuery({ ...route.query, startTime: fmtTime(v) })
   }
 })
 
 const endTime = computed({
   get () {
-    return parseTime(route.query.endTime?.toString() || '')
+    return parseTime(route.query.endTime?.toString() || '') || new Date(0, 0, 0, 23, 59)
   },
   set (v: Date | null) {
-    navigateTo({ replace: true, query: { ...route.query, endTime: fmtTime(v) } })
+    setQuery({ ...route.query, endTime: fmtTime(v) })
   }
 })
 
@@ -226,7 +237,7 @@ const bbox = computed({
     return parseBbox(bbox)
   },
   set (v: Bbox) {
-    navigateTo({ replace: true, query: { ...route.query, bbox: bboxString(v) } })
+    setQuery({ ...route.query, bbox: bboxString(v) })
   }
 })
 
@@ -235,7 +246,7 @@ const unitSystem = computed({
     return route.query.unitSystem?.toString() || 'us'
   },
   set (v: string) {
-    navigateTo({ replace: true, query: { ...route.query, unitSystem: v } })
+    setQuery({ ...route.query, unitSystem: v })
   }
 })
 
@@ -244,7 +255,7 @@ const colorKey = computed({
     return route.query.colorKey?.toString() || 'Type'
   },
   set (v: string) {
-    navigateTo({ replace: true, query: { ...route.query, colorKey: v } })
+    setQuery({ ...route.query, colorKey: v })
   }
 })
 
@@ -253,20 +264,16 @@ const baseMap = computed({
     return route.query.baseMap?.toString() || 'Streets'
   },
   set (v: string) {
-    navigateTo({ replace: true, query: { ...route.query, baseMap: v } })
+    setQuery({ ...route.query, baseMap: v })
   }
 })
 
 const selectedDayOfWeekMode = computed({
   get () {
-    return route.query.selectedDayOfWeekMode?.toString() || 'All'
+    return route.query.selectedDayOfWeekMode?.toString() || 'Any'
   },
   set (v: string) {
-    const q = { ...route.query, selectedDayOfWeekMode: v }
-    if (v.toLowerCase() === 'all' || v === '') { // omit default values
-      delete q.selectedDayOfWeekMode
-    }
-    navigateTo({ replace: true, query: q })
+    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
   }
 })
 
@@ -275,20 +282,16 @@ const selectedTimeOfDayMode = computed({
     return route.query.selectedTimeOfDayMode?.toString() || 'All'
   },
   set (v: string) {
-    const q = { ...route.query, selectedTimeOfDayMode: v }
-    if (v.toLowerCase() === 'all' || v === '') { // omit default values
-      delete q.selectedTimeOfDayMode
-    }
-    navigateTo({ replace: true, query: q })
+    setQuery({ ...route.query, selectedTimeOfDayMode: v === 'All' ? '' : v })
   }
 })
 
 const selectedRouteTypes = computed({
   get () {
-    return arrayParam('selectedRouteTypes', []) // Array.from(routeTypes.keys())
+    return arrayParam('selectedRouteTypes', Array.from(routeTypes.keys()))
   },
   set (v: string[]) {
-    navigateTo({ replace: true, query: { ...route.query, selectedRouteTypes: v.join(',') } })
+    setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
   }
 })
 
@@ -297,25 +300,24 @@ const selectedAgencies = computed({
     return arrayParam('selectedAgencies', [])
   },
   set (v: string[]) {
-    navigateTo({ replace: true, query: { ...route.query, selectedAgencies: v.join(',') } })
+    setQuery({ ...route.query, selectedAgencies: v.join(',') })
   }
 })
 
 const selectedDays = computed({
   get () {
-    if (!route.query.hasOwnProperty('selectedDays')) { // if no `selectedDays` param present, check them all
+    if (!route.query?.selectedDays) {
+      // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
       return arrayParam('selectedDays', [])
     }
   },
   set (v: string[]) {
-    const q = { ...route.query, selectedDays: v.join(',') }
+    // if all days are checked, just omit the param
     const days = new Set(v)
-    if (dowValues.every(day => days.has(day))) { // if all days are checked, just omit the param
-      delete q.selectedDays
-    }
-    navigateTo({ replace: true, query: q })
+    const omit = dowValues.every(day => days.has(day))
+    setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })
   }
 })
 

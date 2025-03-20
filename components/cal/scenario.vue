@@ -3,96 +3,12 @@
 </template>
 
 <script lang="ts">
-export interface Stop {
-  marked: boolean
-  id: number
-  stop_id: string
-  stop_name: string
-  geometry: GeoJSON.Point
-  route_stops: {
-    route: {
-      id: number
-      route_id: string
-      route_type: number
-      route_short_name: string
-      route_long_name: string
-      agency: {
-        id: number
-        agency_id: string
-        agency_name: string
-      }
-    }
-  }[]
-}
-
-export interface Route {
-  marked: boolean
-  id: number
-  route_id: string
-  route_short_name: string
-  route_long_name: string
-  route_type: number
-  geometry: GeoJSON.LineString
-  agency: {
-    id: number
-    agency_id: string
-    agency_name: string
-  }
-}
-
-export interface Agency {
-  id: number
-  agency_id: string
-  agency_name: string
-}
-
-export interface StopTime {
-  departure_time: string
-  trip: {
-    id: number
-    direction_id: number
-  }
-}
-</script>
-
-<script setup lang="ts">
 import { gql } from 'graphql-tag'
-import { ref, watch, computed } from 'vue'
-import { type Bbox } from '../geom'
-import { useLazyQuery } from '@vue/apollo-composable'
-import { format } from 'date-fns'
 
-const emit = defineEmits<{
-  setRouteFeatures: [value: Route[]]
-  setStopFeatures: [value: Stop[]]
-  setLoading: [value: boolean]
-  setStopDepartureLoadingComplete: [value: boolean]
-  setError: [value: any]
-  setStopDepartureProgress: [value: { total: number, queue: number }]
-}>()
-
-const props = defineProps<{
-  bbox: Bbox
-}>()
-
-const ready = defineModel<boolean>('ready')
-const startDate = defineModel<Date>('startDate')
-const endDate = defineModel<Date>('endDate')
-const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
-const selectedDays = defineModel<string[]>('selectedDays')
-const selectedAgencies = defineModel<string[]>('selectedAgencies')
-
-const stopDepartureLimit = 100
-const stopDepartureLoadingComplete = ref(false)
-watch(stopDepartureLoadingComplete, (v) => {
-  emit('setStopDepartureLoadingComplete', v)
-})
-
-/////////////////////////////
+//////////
 // Stops
-/////////////////////////////
+//////////
 
-// Setup query variables
 const stopQuery = gql`
 query ($limit: Int, $after: Int, $where: StopFilter) {
   stops(limit: $limit, after: $after, where: $where) {
@@ -117,9 +33,431 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
   }
 }`
 
+export interface Stop {
+  marked: boolean
+  id: number
+  stop_id: string
+  stop_name: string
+  geometry: GeoJSON.Point
+  route_stops: {
+    route: {
+      id: number
+      route_id: string
+      route_type: number
+      route_short_name: string
+      route_long_name: string
+      agency: {
+        id: number
+        agency_id: string
+        agency_name: string
+      }
+    }
+  }[]
+}
+
+const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+// Filter stops
+function stopFilter (
+  stop: Stop,
+  selectedDows: string[],
+  selectedDowMode: string,
+  selectedDateRange: Date[],
+  selectedRouteTypes: string[],
+  selectedAgencies: string[],
+  sdCache: StopDepartureCache | null,
+): boolean {
+  // Check departure days
+  if (selectedDows.length > 0 && sdCache) {
+    // For each day in selected date range,
+    // check if stop has service on that day.
+    // Skip if not in selected week days
+    // hasAny: stop has service on at least one selected day of week
+    // hasAll: stop has service on all selected days of week
+    let hasAny = false
+    let hasAll = true
+    for (const sd of selectedDateRange) {
+      const sdDow = dowDateString[sd.getDay()] || ''
+      if (!selectedDows.includes(sdDow)) {
+        continue
+      }
+      // TODO: memoize formatted date
+      const hasService = sdCache.hasService(stop.id, format(sd, 'yyyy-MM-dd'))
+      if (hasService) {
+        hasAny = true
+      } else {
+        hasAll = false
+      }
+      // console.log('stopFilter:', stop.id, sdDow, format(sd, 'yyyy-MM-dd'))
+    }
+    // console.log('stopFilter:', stop.id, 'hasAny:', hasAny, 'hasAll:', hasAll)
+    // Check mode
+    let found = false
+    if (selectedDowMode === 'Any') {
+      found = hasAny
+    } else if (selectedDowMode === 'All') {
+      found = hasAll
+    }
+    // Not found, no further processing
+    if (!found) {
+      return false
+    }
+  }
+
+  // Check route types
+  // Must match at least one route type
+  if (selectedRouteTypes.length > 0) {
+    let found = false
+    for (const rs of stop.route_stops) {
+      if (selectedRouteTypes.includes(rs.route.route_type.toString())) {
+        found = true
+        break
+      }
+    }
+    if (!found) {
+      return false
+    }
+  }
+
+  // Check agencies
+  // Must match at least one selected agency
+  if (selectedAgencies.length > 0) {
+    let found = false
+    for (const rs of stop.route_stops) {
+      if (selectedAgencies.includes(rs.route.agency.agency_name)) {
+        found = true
+        break
+      }
+    }
+    if (!found) {
+      return false
+    }
+  }
+
+  // Default is to return true
+  return true
+}
+
+//////////
+// Routes
+//////////
+
+const routeQuery = gql`
+query ($limit: Int, $after: Int, $where: RouteFilter) {
+  routes(limit: $limit, after: $after, where: $where) {
+    id
+    route_id
+    route_short_name
+    route_long_name
+    route_type
+    geometry
+    agency {
+      id
+      agency_id
+      agency_name
+    }
+  }
+}`
+
+export interface Route {
+  marked: boolean
+  id: number
+  route_id: string
+  route_short_name: string
+  route_long_name: string
+  route_type: number
+  geometry: GeoJSON.LineString
+  agency: {
+    id: number
+    agency_id: string
+    agency_name: string
+  }
+}
+
+export interface Agency {
+  id: number
+  agency_id: string
+  agency_name: string
+}
+
+// Filter routes
+function routeFilter (route: Route, srt: string[], sg: string[]): boolean {
+  // Check route types
+  if (srt.length > 0) {
+    return srt.includes(route.route_type.toString())
+  }
+
+  // Check agencies
+  if (sg.length > 0) {
+    return sg.includes(route.agency.agency_name)
+  }
+
+  // Default is to return true
+  return true
+}
+
+//////////
+// Stop departures
+//////////
+
+const stopDepartureQuery = gql`
+fragment departure on StopTime {
+  departure {
+    scheduled_utc
+    scheduled_local
+  }
+  trip {
+    id
+    direction_id
+    route {
+      id
+    }
+  }
+}
+
+query (
+  $ids: [Int!],
+  $monday: Date,
+  $tuesday: Date,
+  $wednesday: Date,
+  $thursday: Date,
+  $friday: Date,
+  $saturday: Date,
+  $sunday: Date,
+  $include_monday: Boolean!,
+  $include_tuesday: Boolean!,
+  $include_wednesday: Boolean!,
+  $include_thursday: Boolean!,
+  $include_friday: Boolean!,
+  $include_saturday: Boolean!,
+  $include_sunday: Boolean!
+) {
+  stops(ids: $ids) {
+    id
+    monday: departures(limit: 1000, where: {date: $monday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_monday) {
+      ...departure
+    }
+    tuesday: departures(limit: 1000, where: {date: $tuesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_tuesday) {
+      ...departure
+    }
+    wednesday: departures(limit: 1000, where: {date: $wednesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_wednesday) {
+      ...departure
+    }
+    thursday: departures(limit: 1000, where: {date: $thursday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_thursday) {
+      ...departure
+    }
+    friday: departures(limit: 1000, where: {date: $friday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_friday) {
+      ...departure
+    }
+    saturday: departures(limit: 1000, where: {date: $saturday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_saturday) {
+      ...departure
+    }
+    sunday: departures(limit: 1000, where: {date: $sunday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_sunday) {
+      ...departure
+    }    
+  }
+}`
+
+interface StopTime {
+  departure_time: string
+  trip: {
+    id: number
+    direction_id: number
+  }
+}
+
+interface StopDeparture {
+  id: number
+  monday: StopTime[]
+  tuesday: StopTime[]
+  wednesday: StopTime[]
+  thursday: StopTime[]
+  friday: StopTime[]
+  saturday: StopTime[]
+  sunday: StopTime[]
+}
+
+class StopDepartureQueryVars {
+  ids: number[] = []
+  monday: string = ''
+  tuesday: string = ''
+  wednesday: string = ''
+  thursday: string = ''
+  friday: string = ''
+  saturday: string = ''
+  sunday: string = ''
+  include_monday: boolean = false
+  include_tuesday: boolean = false
+  include_wednesday: boolean = false
+  include_thursday: boolean = false
+  include_friday: boolean = false
+  include_saturday: boolean = false
+  include_sunday: boolean = false
+
+  get (dow: string): string {
+    switch (dow) {
+      case 'monday':
+        return this.monday
+      case 'tuesday':
+        return this.tuesday
+      case 'wednesday':
+        return this.wednesday
+      case 'thursday':
+        return this.thursday
+      case 'friday':
+        return this.friday
+      case 'saturday':
+        return this.saturday
+      case 'sunday':
+        return this.sunday
+    }
+    return ''
+  }
+
+  setDay (d: Date) {
+    const dateFmt = 'yyyy-MM-dd'
+    switch (d.getDay()) {
+      case 0:
+        this.sunday = format(d, dateFmt)
+        this.include_sunday = true
+        break
+      case 1:
+        this.monday = format(d, dateFmt)
+        this.include_monday = true
+        break
+      case 2:
+        this.tuesday = format(d, dateFmt)
+        this.include_tuesday = true
+        break
+      case 3:
+        this.wednesday = format(d, dateFmt)
+        this.include_wednesday = true
+        break
+      case 4:
+        this.thursday = format(d, dateFmt)
+        this.include_thursday = true
+        break
+      case 5:
+        this.friday = format(d, dateFmt)
+        this.include_friday = true
+        break
+      case 6:
+        this.saturday = format(d, dateFmt)
+        this.include_saturday = true
+        break
+    }
+  }
+}
+
+// Two level cache
+class StopDepartureCache {
+  cache: Map<number, Map<string, StopDeparture[]>> = new Map()
+
+  get (id: number, date: string): StopDeparture[] {
+    const a = this.cache.get(id) || new Map()
+    return a.get(date) || []
+  }
+
+  add (id: number, date: string, value: StopDeparture[]) {
+    if (value.length === 0) {
+      return
+    }
+    const a = this.cache.get(id) || new Map()
+    const b = a.get(date) || []
+    b.push(...value)
+    a.set(date, b)
+    this.cache.set(id, a)
+  }
+
+  hasService (id: number, date: string): boolean {
+    const a = this.cache.get(id)
+    if (!a) {
+      return false
+    }
+    return (a.get(date) || []).length > 0
+  }
+
+  debugStats () {
+    const stopCount = this.cache.size
+    let total = 0
+    let dates = new Set()
+    for (const [_, stopDates] of this.cache) {
+      for (const [d, departures] of stopDates) {
+        dates.add(d)
+        total += departures.length
+      }
+    }
+    console.log('StopDepartureCache stats:', this.cache.size, 'stops', dates.size, 'dates', total, 'total departures')
+  }
+}
+</script>
+
+<script setup lang="ts">
+import { ref, watch, computed } from 'vue'
+import { type Bbox } from '../geom'
+import { useLazyQuery } from '@vue/apollo-composable'
+import { format } from 'date-fns'
+import { useTask } from 'vue-concurrency'
+
+const emit = defineEmits<{
+  setRouteFeatures: [value: Route[]]
+  setStopFeatures: [value: Stop[]]
+  setLoading: [value: boolean]
+  setStopDepartureLoadingComplete: [value: boolean]
+  setError: [value: any]
+  setStopDepartureProgress: [value: { total: number, queue: number }]
+}>()
+
+const props = defineProps<{
+  bbox: Bbox
+}>()
+
+const ready = defineModel<boolean>('ready')
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const startTime = defineModel<Date>('startTime')
+const endTime = defineModel<Date>('endTime')
+const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
+const selectedDays = defineModel<string[]>('selectedDays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
+
+const stopLimit = 1000
+const stopDepartureCache = new StopDepartureCache()
+const stopDepartureLoadingComplete = ref(false)
+watch(stopDepartureLoadingComplete, (v) => {
+  emit('setStopDepartureLoadingComplete', v)
+})
+
+watch(ready, (v) => {
+  if (v) {
+    stopQueue.perform({ after: 0 })
+    routeQueue.perform({ after: 0 })
+  }
+})
+
+const selectedDateRange = computed((): Date[] => {
+  // Get inclusive date range
+  const sd = new Date((startDate.value || new Date()).valueOf())
+  let ed = new Date((endDate.value || new Date()).valueOf())
+  const dates = []
+  while (sd <= ed) {
+    dates.push(new Date(sd.valueOf()))
+    sd.setDate(sd.getDate() + 1)
+  }
+  console.log('selectedDateRange:', dates)
+  return dates
+})
+
+/////////////////////////////
+// Stops
+/////////////////////////////
+
 const stopVars = computed(() => ({
   after: 0,
-  limit: 1000,
+  limit: stopLimit,
   where: {
     location_type: 0,
     bbox: {
@@ -143,13 +481,6 @@ const {
   { fetchPolicy: 'no-cache', clientId: 'transitland' }
 )
 
-watch(ready, (v) => {
-  if (v) {
-    stopFetchMoreCheck()
-    routeFetchMoreCheck()
-  }
-})
-
 watch(stopLoading, (v) => {
   emit('setLoading', v)
 })
@@ -159,34 +490,35 @@ watch(stopError, (v) => {
 })
 
 // Filtered stop features
-watch(() => [stopResult.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value, stopDepartureLoadingComplete.value], () => {
+watch(() => [
+  stopResult.value,
+  selectedDays.value,
+  selectedRouteTypes.value,
+  selectedAgencies.value,
+  selectedDayOfWeekMode.value,
+  selectedDateRange.value,
+  stopDepartureLoadingComplete.value
+], () => {
   const features = stopResult.value?.stops || []
   const sd = selectedDays.value || []
+  const sdMode = selectedDayOfWeekMode.value || ''
+  const sdRange = selectedDateRange.value || []
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   for (const stop of features) {
-    stop.marked = stopFilter(stop, sd, srt, sg)
+    stop.marked = stopFilter(stop, sd, sdMode, sdRange, srt, sg, sdCache)
   }
   console.log('setStopFeatures', features.length)
   emit('setStopFeatures', features)
 })
 
-let prevStopAfter = -1
-function stopFetchMoreCheck () {
-  // Do we need to fetch more stops?
-  const stopIds = (stopResult.value?.stops || []).map(s => s.id)
-  const nextStopAfter = stopIds[stopIds.length - 1] || 0
-  if (nextStopAfter === prevStopAfter) {
-    // No, set loading to false
-    stopLoading.value = false
-    return
-  }
-  // Fetch more stops
-  prevStopAfter = nextStopAfter
+const stopQueue = useTask(function*(_, task: { after: number }) {
+  console.log('stopQueue: run', task)
   checkQueryLimit()
   const check = stopLoad() || stopFetchMore({
     variables: {
-      after: nextStopAfter,
+      after: task.after,
     },
     updateQuery: (previousResult, { fetchMoreResult }) => {
       return {
@@ -194,86 +526,18 @@ function stopFetchMoreCheck () {
       }
     }
   })
-  check?.then(() => {
-    stopDepartureFetchMoreCheck()
-    stopFetchMoreCheck()
+  check?.then((v) => {
+    const ids = (v?.data?.stops || v?.stops || []).map(s => (s.id))
+    enqueueStopDepartureFetch(ids)
+    if (ids.length > 0) {
+      stopQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
+    }
   })
-}
-
-// Filter stops
-function stopFilter (stop: Stop, sd: string[], srt: string[], sg: string[]): boolean {
-  // Check departure days
-  // Must have service on at least one selected day
-  if (sd.length > 0 && stopDepartureLoadingComplete.value) {
-    const stopDepartures = stopDepartureCache.get(stop.id) || {}
-    let found = false
-    for (const day of sd) {
-      const deps = stopDepartures[`departures_${day.toLowerCase()}`] || []
-      if (deps.length > 0) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      return false
-    }
-  }
-
-  // Check route types
-  // Must match at least one route type
-  if (srt.length > 0) {
-    let found = false
-    for (const rs of stop.route_stops) {
-      if (srt.includes(rs.route.route_type.toString())) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      return false
-    }
-  }
-
-  // Check agencies
-  // Must match at least one selected agency
-  if (sg.length > 0) {
-    let found = false
-    for (const rs of stop.route_stops) {
-      if (sg.includes(rs.route.agency.agency_name)) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      return false
-    }
-  }
-
-  // Default is to return true
-  return true
-}
+})
 
 /////////////////////////////
 // Routes
 /////////////////////////////
-
-// Setup query variables
-const routeQuery = gql`
-query ($limit: Int, $after: Int, $where: RouteFilter) {
-  routes(limit: $limit, after: $after, where: $where) {
-    id
-    route_id
-    route_short_name
-    route_long_name
-    route_type
-    geometry
-    agency {
-      id
-      agency_id
-      agency_name
-    }
-  }
-}`
 
 const routeVars = computed(() => ({
   after: 0,
@@ -304,35 +568,32 @@ watch(routeError, (v) => {
   emit('setError', v)
 })
 
-let prevRouteAfter = -1
-function routeFetchMoreCheck () {
-  // Do we need to fetch more routes?
-  const routeIds = (routeResult?.value?.routes || []).map(s => s.id)
-  const nextRouteAfter = routeIds[routeIds.length - 1] || 0
-  if (nextRouteAfter === prevRouteAfter) {
-    // No, set loading to false
-    routeLoading.value = false
-    return
-  }
-  // Fetch more routes
-  prevRouteAfter = nextRouteAfter
+const routeQueue = useTask(function*(_, task: { after: number }) {
+  console.log('routeQueue: run', task)
   checkQueryLimit()
   const check = routeLoad() || routeFetchMore({
     variables: {
-      after: nextRouteAfter,
+      after: task.after,
     },
     updateQuery: (previousResult, { fetchMoreResult }) => {
       const newRoutes = [...previousResult.routes || [], ...fetchMoreResult?.routes || []]
       return { routes: newRoutes }
     }
   })
-  check?.then(() => {
-    routeFetchMoreCheck()
+  check?.then((v) => {
+    const ids = (v?.data?.routes || v?.routes || []).map(s => (s.id))
+    if (ids.length > 0) {
+      routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
+    }
   })
-}
+})
 
 // Filter route features
-watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
+watch(() => [
+  routeResult.value,
+  selectedRouteTypes.value,
+  selectedAgencies.value
+], () => {
   const features = routeResult.value?.routes || []
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
@@ -343,109 +604,18 @@ watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value
   emit('setRouteFeatures', features)
 })
 
-// Filter routes
-function routeFilter (route: Route, srt: string[], sg: string[]): boolean {
-  // Check route types
-  if (srt.length > 0) {
-    return srt.includes(route.route_type.toString())
-  }
-
-  // Check agencies
-  if (sg.length > 0) {
-    return sg.includes(route.agency.agency_name)
-  }
-
-  // Default is to return true
-  return true
-}
-
 /////////////////////////////
 // Stop departures
 /////////////////////////////
 
-const stopDepartureQuery = gql`
-fragment departure on StopTime {
-  departure_time
-  trip {
-    id
-    direction_id
-    # route {
-    #   id
-    # }
-  }
-}
-
-query (
-  $ids: [Int!],
-  $monday: Date,
-  $tuesday: Date,
-  $wednesday: Date,
-  $thursday: Date,
-  $friday: Date,
-  $saturday: Date,
-  $sunday: Date
-) {
-  stops(ids: $ids) {
-    id
-    departures_monday: departures(limit: 1000, where: {service_date: $monday}) {
-      ...departure
-    }
-    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) {
-      ...departure
-    }
-    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) {
-      ...departure
-    }
-    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) {
-      ...departure
-    }
-    departures_friday: departures(limit: 1000, where: {service_date: $friday}) {
-      ...departure
-    }
-    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) {
-      ...departure
-    }
-    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) {
-      ...departure
-    }    
-  }
-}`
-
-const stopDepartureVars = computed(() => {
-  const sd = startDate.value || new Date()
-  const nextWeek = new Array<string>(7)
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(sd.valueOf())
-    d.setDate(sd.getDate() + i)
-    nextWeek[d.getDay()] = format(d, 'yyyy-MM-dd')
-  }
-  return {
-    ids: [] as Number[],
-    sunday: nextWeek[0],
-    monday: nextWeek[1],
-    tuesday: nextWeek[2],
-    wednesday: nextWeek[3],
-    thursday: nextWeek[4],
-    friday: nextWeek[5],
-    saturday: nextWeek[6],
-  }
-})
 const {
   error: stopDepartureError,
   load: stopDepartureLoad,
   fetchMore: stopDepartureFetchMore,
   loading: stopDepartureLoading
-} = useLazyQuery<{ stops: {
-  departures_monday: StopTime[]
-  departures_tuesday: StopTime[]
-  departures_wednesday: StopTime[]
-  departures_thursday: StopTime[]
-  departures_friday: StopTime[]
-  departures_saturday: StopTime[]
-  departures_sunday: StopTime[]
-}[] }>(
+} = useLazyQuery<{ stops: StopDeparture[] }>(
   stopDepartureQuery,
-  stopDepartureVars,
+  new StopDepartureQueryVars(),
   { fetchPolicy: 'no-cache', clientId: 'transitland' }
 )
 
@@ -453,66 +623,71 @@ watch(stopDepartureError, (v) => {
   emit('setError', v)
 })
 
-interface stopDepartureKey {
-  id: number
-  date: string
-}
+// FIXME: StopDepartureQuery.isLoading doesnt seem to work
+const activeStopDepartureQueryCount = ref(0)
 
-const stopDepartureCache = new Map<number, Record<string, any>>()
-// const stopDepartureCache = new Map<stopDepartureKey, StopDeparture[]>()
-
-function stopDepartureFetchMoreCheck () {
-  if (stopDepartureLoading.value) {
-    // Currently loading - wait until this is resolved
-    return
-  }
-  // Do we need to fetch more stop departures?
-  const stopIds = (stopResult.value?.stops || []).map(s => s.id)
-  const stopIdsNeedDeps = []
-  for (const id of stopIds) {
-    if (!stopDepartureCache.has(id)) {
-      stopIdsNeedDeps.push(id)
-    }
-  }
-
-  // Update loading progress
-  emit('setStopDepartureProgress', {
-    total: stopIds.length,
-    queue: stopIdsNeedDeps.length
-  })
-
-  if (stopIdsNeedDeps.length === 0) {
-    // No, set loading to false
+watch(activeStopDepartureQueryCount, (v) => {
+  if (v === 0) {
     stopDepartureLoadingComplete.value = true
+  }
+  emit('setStopDepartureProgress', { total: 0, queue: v })
+})
+
+// Fetch more stop departures
+const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
+  // Set loading state
+  if (task.ids.length === 0) {
     return
   }
 
-  const sd = startDate.value || new Date()
-  const nextWeek = new Array<string>(7)
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(sd.valueOf())
-    d.setDate(sd.getDate() + i)
-    nextWeek[d.getDay()] = format(d, 'yyyy-MM-dd')
-  }
-
-  // Fetch more stop departures
-  const fetchStopIds = stopIdsNeedDeps.slice(0, stopDepartureLimit)
   checkQueryLimit()
-  const check = stopDepartureLoad() || stopDepartureFetchMore({
-    variables: {
-      ids: fetchStopIds,
-    },
+  console.log('stopDepartureQueue: run', task)
+  const check = stopDepartureLoad(stopDepartureQuery, task) || stopDepartureFetchMore({
+    variables: task,
     updateQuery: () => {
       return { stops: [] }
     }
   })
   check?.then((v) => {
+    // Update cache
+    activeStopDepartureQueryCount.value -= 1
     const stops = v?.data?.stops || v?.stops || []
-    for (const stop of stops) {
-      stopDepartureCache.set(stop.id, stop)
+    for (const dow of dowDateStringLower) {
+      const dowDate = task.get(dow)
+      if (!dowDate) {
+        continue
+      }
+      for (const stop of stops) {
+        const stopDepartures = stop[dow] || []
+        stopDepartureCache.add(stop.id, dowDate, stopDepartures)
+      }
     }
-    stopDepartureFetchMoreCheck()
+    stopDepartureCache.debugStats()
   })
+  return check
+})
+
+// Break into weeks
+function enqueueStopDepartureFetch (stopIds: number[]) {
+  if (stopIds.length === 0) {
+    // Enqueue empty task to signal complete
+    stopDepartureQueue.enqueue().maxConcurrency(1).perform(new StopDepartureQueryVars())
+    return
+  }
+  const dates = selectedDateRange.value
+  const batchSize = 100
+  const weekSize = 7
+  for (let sid = 0; sid < stopIds.length; sid += batchSize) {
+    for (let i = 0; i < dates.length; i += weekSize) {
+      const w = new StopDepartureQueryVars()
+      w.ids = stopIds.slice(sid, sid + batchSize)
+      for (const d of dates.slice(i, i + weekSize)) {
+        w.setDay(d)
+      }
+      activeStopDepartureQueryCount.value += 1
+      stopDepartureQueue.enqueue().maxConcurrency(1).perform(w)
+    }
+  }
 }
 
 ////////////////////////
