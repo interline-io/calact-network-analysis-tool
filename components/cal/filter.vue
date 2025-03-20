@@ -53,10 +53,32 @@
 
       <!-- TIMEFRAMES -->
       <div v-if="activePanel === 'timeframes'">
-        <aside class="menu">
+        <aside class="cal-filter-days menu block">
           <p class="menu-label">
             Days of the week
           </p>
+
+          <section class="cal-day-of-week-mode menu-list">
+            <o-field>
+              <o-radio
+                v-model="selectedDayOfWeekMode"
+                name="selectedDayOfWeekMode"
+                native-value="Any"
+                label="Any of the following days"
+                :disabled="!stopDepartureLoadingComplete"
+              />
+            </o-field>
+            <o-field>
+              <o-radio
+                v-model="selectedDayOfWeekMode"
+                name="selectedDayOfWeekMode"
+                native-value="All"
+                label="All of the following days"
+                :disabled="!stopDepartureLoadingComplete"
+              />
+            </o-field>
+          </section>
+
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
               <o-checkbox v-model="selectedDays" :native-value="dowValue" :disabled="!stopDepartureLoadingComplete">
@@ -64,12 +86,56 @@
               </o-checkbox>
             </li>
           </ul>
-          <p class="filter-legend">
-            * Stops with scheduled service on any of the selected days
-          </p>
+
           <p v-if="!stopDepartureLoadingComplete">
             Loading...
           </p>
+        </aside>
+
+        <aside class="cal-filter-times menu block">
+          <p class="menu-label">
+            Time of Day
+          </p>
+
+          <o-field class="cal-time-of-day-mode">
+            <o-checkbox
+              v-model="selectedTimeOfDayMode"
+              label="All Day"
+              true-value="All"
+              false-value="Partial"
+              :disabled="!stopDepartureLoadingComplete"
+            />
+          </o-field>
+
+          <p class="menu-label">
+            Starting
+          </p>
+
+          <o-field>
+            <o-timepicker
+              v-model="startTime"
+              inline
+              size="small"
+              icon="clock"
+              hour-format="12"
+              :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
+            />
+          </o-field>
+
+          <p class="menu-label">
+            Ending
+          </p>
+
+          <o-field>
+            <o-timepicker
+              v-model="endTime"
+              inline
+              size="small"
+              icon="clock"
+              hour-format="12"
+              :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
+            />
+          </o-field>
         </aside>
       </div>
 
@@ -185,7 +251,7 @@ import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../consta
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '../geom'
+import { fmtDate } from '../datetime'
 import { defineEmits } from 'vue'
 import { type Stop } from './scenario.vue'
 
@@ -206,9 +272,13 @@ const emit = defineEmits([
 
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
+const startTime = defineModel<Date | null>('startTime')
+const endTime = defineModel<Date | null>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
 const colorKey = defineModel<string>('colorKey')
 const baseMap = defineModel<string>('baseMap')
+const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
@@ -284,6 +354,16 @@ const knownAgencies = computed(() => {
     overflow-x:clip;
   }
 }
+
+.cal-day-of-week-mode {
+  margin-left:20px;
+  margin-bottom:15px;
+
+  > div {
+    margin-bottom: unset;
+  }
+}
+
 .menu-list {
   a.is-active {
     color:var(--bulma-text-main-ter);
