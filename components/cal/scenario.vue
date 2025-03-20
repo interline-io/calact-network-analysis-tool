@@ -56,30 +56,37 @@ export interface Stop {
 }
 
 // Filter stops
-function stopFilter (stop: Stop, sd: string[], srt: string[], sg: string[]): boolean {
+function stopFilter (
+  stop: Stop,
+  selectedDows: string[],
+  selectedDowMode: string,
+  selectedRouteTypes: string[],
+  selectedAgencies: string[],
+  sdCache: StopDepartureCache | null,
+): boolean {
   // Check departure days
   // Must have service on at least one selected day
-  // if (sd.length > 0 && stopDepartureLoadingComplete.value) {
-  //     const stopDepartures = stopDepartureCache.get(stop.id) || {}
-  //     let found = false
-  //     for (const day of sd) {
-  //         const deps = stopDepartures[`departures_${day.toLowerCase()}`] || []
-  //         if (deps.length > 0) {
-  //             found = true
-  //             break
-  //         }
-  //     }
-  //     if (!found) {
-  //         return false
-  //     }
-  // }
+  if (selectedDows.length > 0 && sdCache) {
+    // const stopDepartures = sdCache.get(stop.id) || {}
+    // let found = false
+    // for (const day of selectedDows) {
+    //   const deps = stopDepartures[`departures_${day.toLowerCase()}`] || []
+    //   if (deps.length > 0) {
+    //     found = true
+    //     break
+    //   }
+    // }
+    // if (!found) {
+    //   return false
+    // }
+  }
 
   // Check route types
   // Must match at least one route type
-  if (srt.length > 0) {
+  if (selectedRouteTypes.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (srt.includes(rs.route.route_type.toString())) {
+      if (selectedRouteTypes.includes(rs.route.route_type.toString())) {
         found = true
         break
       }
@@ -91,10 +98,10 @@ function stopFilter (stop: Stop, sd: string[], srt: string[], sg: string[]): boo
 
   // Check agencies
   // Must match at least one selected agency
-  if (sg.length > 0) {
+  if (selectedAgencies.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (sg.includes(rs.route.agency.agency_name)) {
+      if (selectedAgencies.includes(rs.route.agency.agency_name)) {
         found = true
         break
       }
@@ -336,6 +343,14 @@ class StopDepartureCache {
     this.cache.set(id, a)
   }
 
+  hasService (id: number, date: string): boolean {
+    const a = this.cache.get(id)
+    if (!a) {
+      return false
+    }
+    return (a.get(date) || []).length > 0
+  }
+
   debugStats () {
     console.log('StopDepartureCache stats:')
     for (const [stopId, departures] of this.cache) {
@@ -368,13 +383,16 @@ const props = defineProps<{
 const ready = defineModel<boolean>('ready')
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
+const startTime = defineModel<Date>('startTime')
+const endTime = defineModel<Date>('endTime')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
-
-const stopDepartureCache = new StopDepartureCache()
+const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
 
 const stopLimit = 1000
+const stopDepartureCache = new StopDepartureCache()
 const stopDepartureLoadingComplete = ref(false)
 watch(stopDepartureLoadingComplete, (v) => {
   emit('setStopDepartureLoadingComplete', v)
@@ -426,13 +444,21 @@ watch(stopError, (v) => {
 })
 
 // Filtered stop features
-watch(() => [stopResult.value, selectedDays.value, selectedRouteTypes.value, selectedAgencies.value, stopDepartureLoadingComplete.value], () => {
+watch(() => [
+  stopResult.value,
+  selectedDays.value,
+  selectedRouteTypes.value,
+  selectedAgencies.value,
+  stopDepartureLoadingComplete.value
+], () => {
   const features = stopResult.value?.stops || []
   const sd = selectedDays.value || []
+  const sdMode = selectedDayOfWeekMode.value || ''
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   for (const stop of features) {
-    stop.marked = stopFilter(stop, sd, srt, sg)
+    stop.marked = stopFilter(stop, sd, sdMode, srt, sg, sdCache)
   }
   console.log('setStopFeatures', features.length)
   emit('setStopFeatures', features)
@@ -514,7 +540,11 @@ const routeQueue = useTask(function*(_, task: { after: number }) {
 })
 
 // Filter route features
-watch(() => [routeResult.value, selectedRouteTypes.value, selectedAgencies.value], () => {
+watch(() => [
+  routeResult.value,
+  selectedRouteTypes.value,
+  selectedAgencies.value
+], () => {
   const features = routeResult.value?.routes || []
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
@@ -544,16 +574,22 @@ watch(stopDepartureError, (v) => {
   emit('setError', v)
 })
 
+// FIXME: StopDepartureQuery.isLoading doesnt seem to work
+const activeStopDepartureQueryCount = ref(0)
+
+watch(activeStopDepartureQueryCount, (v) => {
+  if (v === 0) {
+    stopDepartureLoadingComplete.value = true
+  }
+  emit('setStopDepartureProgress', { total: 0, queue: v })
+})
+
 // Fetch more stop departures
 const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
   // Set loading state
   if (task.ids.length === 0) {
-    emit('setStopDepartureProgress', { total: 0, queue: 0 })
-    stopDepartureLoadingComplete.value = false
     return
   }
-  emit('setStopDepartureProgress', { total: 1, queue: 1 })
-  stopDepartureLoadingComplete.value = true
 
   checkQueryLimit()
   console.log('stopDepartureQueue:', task)
@@ -565,6 +601,7 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
   })
   check?.then((v) => {
     // Update cache
+    activeStopDepartureQueryCount.value -= 1
     const stops = v?.data?.stops || v?.stops || []
     const dows = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     for (const dow of dows) {
@@ -615,6 +652,7 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
       for (const d of dates.slice(i, i + weekSize)) {
         w.setDay(d)
       }
+      activeStopDepartureQueryCount.value += 1
       stopDepartureQueue.enqueue().maxConcurrency(1).perform(w)
     }
   }
