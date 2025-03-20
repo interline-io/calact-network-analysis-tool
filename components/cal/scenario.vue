@@ -89,14 +89,14 @@ function stopFilter (
       } else {
         hasAll = false
       }
-      console.log('stopFilter:', stop.id, sdDow, format(sd, 'yyyy-MM-dd'))
+      // console.log('stopFilter:', stop.id, sdDow, format(sd, 'yyyy-MM-dd'))
     }
-    console.log('stopFilter:', stop.id, 'hasAny:', hasAny, 'hasAll:', hasAll)
+    // console.log('stopFilter:', stop.id, 'hasAny:', hasAny, 'hasAll:', hasAll)
     // Check mode
     let found = false
-    if (selectedDowMode === 'any') {
+    if (selectedDowMode === 'Any') {
       found = hasAny
-    } else if (selectedDowMode === 'all') {
+    } else if (selectedDowMode === 'All') {
       found = hasAll
     }
     // Not found, no further processing
@@ -357,7 +357,6 @@ class StopDepartureCache {
     if (value.length === 0) {
       return
     }
-    console.log('StopDepartureCache.add:', id, date, value)
     const a = this.cache.get(id) || new Map()
     const b = a.get(date) || []
     b.push(...value)
@@ -374,10 +373,16 @@ class StopDepartureCache {
   }
 
   debugStats () {
-    console.log('StopDepartureCache stats:', this.cache)
-    for (const [stopId, departures] of this.cache) {
-      console.log(stopId, departures)
+    const stopCount = this.cache.size
+    let total = 0
+    let dates = new Set()
+    for (const [_, stopDates] of this.cache) {
+      for (const [d, departures] of stopDates) {
+        dates.add(d)
+        total += departures.length
+      }
     }
+    console.log('StopDepartureCache stats:', this.cache.size, 'stops', dates.size, 'dates', total, 'total departures')
   }
 }
 </script>
@@ -503,7 +508,7 @@ watch(() => [
 })
 
 const stopQueue = useTask(function*(_, task: { after: number }) {
-  console.log('stopQueue:', task)
+  console.log('stopQueue: run', task)
   checkQueryLimit()
   const check = stopLoad() || stopFetchMore({
     variables: {
@@ -558,7 +563,7 @@ watch(routeError, (v) => {
 })
 
 const routeQueue = useTask(function*(_, task: { after: number }) {
-  console.log('routeQueue:', task)
+  console.log('routeQueue: run', task)
   checkQueryLimit()
   const check = routeLoad() || routeFetchMore({
     variables: {
@@ -630,7 +635,7 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
   }
 
   checkQueryLimit()
-  console.log('stopDepartureQueue:', task)
+  console.log('stopDepartureQueue: run', task)
   const check = stopDepartureLoad(stopDepartureQuery, task) || stopDepartureFetchMore({
     variables: task,
     updateQuery: () => {
