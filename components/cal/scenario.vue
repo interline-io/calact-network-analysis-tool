@@ -203,10 +203,16 @@ function routeFilter (route: Route, srt: string[], sg: string[]): boolean {
 
 const stopDepartureQuery = gql`
 fragment departure on StopTime {
-  departure_time
+  departure {
+    scheduled_utc
+    scheduled_local
+  }
   trip {
     id
     direction_id
+    route {
+      id
+    }
   }
 }
 
@@ -229,25 +235,25 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    monday: departures(limit: 1000, where: {service_date: $monday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_monday) {
+    monday: departures(limit: 1000, where: {date: $monday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_monday) {
       ...departure
     }
-    tuesday: departures(limit: 1000, where: {service_date: $tuesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_tuesday) {
+    tuesday: departures(limit: 1000, where: {date: $tuesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_tuesday) {
       ...departure
     }
-    wednesday: departures(limit: 1000, where: {service_date: $wednesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_wednesday) {
+    wednesday: departures(limit: 1000, where: {date: $wednesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_wednesday) {
       ...departure
     }
-    thursday: departures(limit: 1000, where: {service_date: $thursday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_thursday) {
+    thursday: departures(limit: 1000, where: {date: $thursday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_thursday) {
       ...departure
     }
-    friday: departures(limit: 1000, where: {service_date: $friday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_friday) {
+    friday: departures(limit: 1000, where: {date: $friday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_friday) {
       ...departure
     }
-    saturday: departures(limit: 1000, where: {service_date: $saturday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_saturday) {
+    saturday: departures(limit: 1000, where: {date: $saturday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_saturday) {
       ...departure
     }
-    sunday: departures(limit: 1000, where: {service_date: $sunday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_sunday) {
+    sunday: departures(limit: 1000, where: {date: $sunday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_sunday) {
       ...departure
     }    
   }
