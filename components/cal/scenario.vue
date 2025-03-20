@@ -55,30 +55,54 @@ export interface Stop {
   }[]
 }
 
+const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
 // Filter stops
 function stopFilter (
   stop: Stop,
   selectedDows: string[],
   selectedDowMode: string,
+  selectedDateRange: Date[],
   selectedRouteTypes: string[],
   selectedAgencies: string[],
   sdCache: StopDepartureCache | null,
 ): boolean {
   // Check departure days
-  // Must have service on at least one selected day
   if (selectedDows.length > 0 && sdCache) {
-    // const stopDepartures = sdCache.get(stop.id) || {}
-    // let found = false
-    // for (const day of selectedDows) {
-    //   const deps = stopDepartures[`departures_${day.toLowerCase()}`] || []
-    //   if (deps.length > 0) {
-    //     found = true
-    //     break
-    //   }
-    // }
-    // if (!found) {
-    //   return false
-    // }
+    // For each day in selected date range,
+    // check if stop has service on that day.
+    // Skip if not in selected week days
+    // hasAny: stop has service on at least one selected day of week
+    // hasAll: stop has service on all selected days of week
+    let hasAny = false
+    let hasAll = true
+    for (const sd of selectedDateRange) {
+      const sdDow = dowDateString[sd.getDay()] || ''
+      if (!selectedDows.includes(sdDow)) {
+        continue
+      }
+      // TODO: memoize formatted date
+      const hasService = sdCache.hasService(stop.id, format(sd, 'yyyy-MM-dd'))
+      if (hasService) {
+        hasAny = true
+      } else {
+        hasAll = false
+      }
+      console.log('stopFilter:', stop.id, sdDow, format(sd, 'yyyy-MM-dd'))
+    }
+    console.log('stopFilter:', stop.id, 'hasAny:', hasAny, 'hasAll:', hasAll)
+    // Check mode
+    let found = false
+    if (selectedDowMode === 'any') {
+      found = hasAny
+    } else if (selectedDowMode === 'all') {
+      found = hasAll
+    }
+    // Not found, no further processing
+    if (!found) {
+      return false
+    }
   }
 
   // Check route types
@@ -205,25 +229,25 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    departures_monday: departures(limit: 1000, where: {service_date: $monday}) @include(if: $include_monday) {
+    monday: departures(limit: 1000, where: {service_date: $monday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_monday) {
       ...departure
     }
-    departures_tuesday: departures(limit: 1000, where: {service_date: $tuesday}) @include(if: $include_tuesday) {
+    tuesday: departures(limit: 1000, where: {service_date: $tuesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_tuesday) {
       ...departure
     }
-    departures_wednesday: departures(limit: 1000, where: {service_date: $wednesday}) @include(if: $include_wednesday) {
+    wednesday: departures(limit: 1000, where: {service_date: $wednesday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_wednesday) {
       ...departure
     }
-    departures_thursday: departures(limit: 1000, where: {service_date: $thursday}) @include(if: $include_thursday) {
+    thursday: departures(limit: 1000, where: {service_date: $thursday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_thursday) {
       ...departure
     }
-    departures_friday: departures(limit: 1000, where: {service_date: $friday}) @include(if: $include_friday) {
+    friday: departures(limit: 1000, where: {service_date: $friday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_friday) {
       ...departure
     }
-    departures_saturday: departures(limit: 1000, where: {service_date: $saturday}) @include(if: $include_saturday) {
+    saturday: departures(limit: 1000, where: {service_date: $saturday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_saturday) {
       ...departure
     }
-    departures_sunday: departures(limit: 1000, where: {service_date: $sunday}) @include(if: $include_sunday) {
+    sunday: departures(limit: 1000, where: {service_date: $sunday, start: "00:00:00", end: "23:59:59"}) @include(if: $include_sunday) {
       ...departure
     }    
   }
@@ -239,13 +263,13 @@ interface StopTime {
 
 interface StopDeparture {
   id: number
-  departures_monday: StopTime[]
-  departures_tuesday: StopTime[]
-  departures_wednesday: StopTime[]
-  departures_thursday: StopTime[]
-  departures_friday: StopTime[]
-  departures_saturday: StopTime[]
-  departures_sunday: StopTime[]
+  monday: StopTime[]
+  tuesday: StopTime[]
+  wednesday: StopTime[]
+  thursday: StopTime[]
+  friday: StopTime[]
+  saturday: StopTime[]
+  sunday: StopTime[]
 }
 
 class StopDepartureQueryVars {
@@ -320,12 +344,6 @@ class StopDepartureQueryVars {
   }
 }
 
-interface StopDepartureCacheItem {
-  date: string
-  dow: string
-  departures: StopTime[]
-}
-
 // Two level cache
 class StopDepartureCache {
   cache: Map<number, Map<string, StopDeparture[]>> = new Map()
@@ -336,6 +354,10 @@ class StopDepartureCache {
   }
 
   add (id: number, date: string, value: StopDeparture[]) {
+    if (value.length === 0) {
+      return
+    }
+    console.log('StopDepartureCache.add:', id, date, value)
     const a = this.cache.get(id) || new Map()
     const b = a.get(date) || []
     b.push(...value)
@@ -352,7 +374,7 @@ class StopDepartureCache {
   }
 
   debugStats () {
-    console.log('StopDepartureCache stats:')
+    console.log('StopDepartureCache stats:', this.cache)
     for (const [stopId, departures] of this.cache) {
       console.log(stopId, departures)
     }
@@ -405,6 +427,19 @@ watch(ready, (v) => {
   }
 })
 
+const selectedDateRange = computed((): Date[] => {
+  // Get inclusive date range
+  const sd = new Date((startDate.value || new Date()).valueOf())
+  let ed = new Date((endDate.value || new Date()).valueOf())
+  const dates = []
+  while (sd <= ed) {
+    dates.push(new Date(sd.valueOf()))
+    sd.setDate(sd.getDate() + 1)
+  }
+  console.log('selectedDateRange:', dates)
+  return dates
+})
+
 /////////////////////////////
 // Stops
 /////////////////////////////
@@ -449,16 +484,19 @@ watch(() => [
   selectedDays.value,
   selectedRouteTypes.value,
   selectedAgencies.value,
+  selectedDayOfWeekMode.value,
+  selectedDateRange.value,
   stopDepartureLoadingComplete.value
 ], () => {
   const features = stopResult.value?.stops || []
   const sd = selectedDays.value || []
   const sdMode = selectedDayOfWeekMode.value || ''
+  const sdRange = selectedDateRange.value || []
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   for (const stop of features) {
-    stop.marked = stopFilter(stop, sd, sdMode, srt, sg, sdCache)
+    stop.marked = stopFilter(stop, sd, sdMode, sdRange, srt, sg, sdCache)
   }
   console.log('setStopFeatures', features.length)
   emit('setStopFeatures', features)
@@ -593,7 +631,7 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
 
   checkQueryLimit()
   console.log('stopDepartureQueue:', task)
-  const check = stopDepartureLoad() || stopDepartureFetchMore({
+  const check = stopDepartureLoad(stopDepartureQuery, task) || stopDepartureFetchMore({
     variables: task,
     updateQuery: () => {
       return { stops: [] }
@@ -603,36 +641,19 @@ const stopDepartureQueue = useTask(function*(_, task: StopDepartureQueryVars) {
     // Update cache
     activeStopDepartureQueryCount.value -= 1
     const stops = v?.data?.stops || v?.stops || []
-    const dows = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    for (const dow of dows) {
+    for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
         continue
       }
       for (const stop of stops) {
-        const deps = stop[`departures_${dow}`] || []
-        if (deps.length === 0) {
-          continue
-        }
-        stopDepartureCache.add(stop.id, dowDate, deps)
+        const stopDepartures = stop[dow] || []
+        stopDepartureCache.add(stop.id, dowDate, stopDepartures)
       }
     }
     stopDepartureCache.debugStats()
   })
   return check
-})
-
-const selectedDateRange = computed((): Date[] => {
-  // Get inclusive date range
-  const sd = startDate.value || new Date()
-  const ed = endDate.value || new Date()
-  const dates = []
-  while (sd <= ed) {
-    dates.push(new Date(sd.valueOf()))
-    sd.setDate(sd.getDate() + 1)
-  }
-  console.log('selectedDateRange:', dates)
-  return dates
 })
 
 // Break into weeks
