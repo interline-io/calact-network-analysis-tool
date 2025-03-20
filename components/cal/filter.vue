@@ -12,7 +12,7 @@
         </o-button>
         <ul class="menu-list">
           <li v-for="item of menuItems" :key="item.panel">
-            <a :class="{ 'is-active': activePanel === item.panel }" @click="setPanel(item.panel)">
+            <a :class="{ 'is-active': activeTab === item.panel }" @click="setPanel(item.panel)">
               <o-icon
                 :icon="item.icon"
                 class="is-fullwidth"
@@ -41,7 +41,7 @@
       </div>
     </div>
 
-    <div v-if="activePanel" class="cal-filter-sub">
+    <div v-if="activeTab" class="cal-filter-sub">
       <div>
         <o-icon
           icon="chevron-left"
@@ -52,7 +52,7 @@
       </div>
 
       <!-- TIMEFRAMES -->
-      <div v-if="activePanel === 'timeframes'">
+      <div v-if="activeTab === 'timeframes'">
         <aside class="cal-filter-days menu block">
           <p class="menu-label">
             Days of the week
@@ -140,7 +140,7 @@
       </div>
 
       <!-- LAYERS -->
-      <div v-if="activePanel === 'transit-layers'">
+      <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
           <p class="menu-label">
             Modes
@@ -193,16 +193,37 @@
         </aside>
       </div>
 
-      <!-- MAP DISPLAY -->
-      <div v-if="activePanel === 'map'">
+      <!-- DATA DISPLAY -->
+      <div v-if="activeTab === 'data-display'">
         <aside class="menu">
           <p class="menu-label">
-            Color routes by:
+            Show data by:
           </p>
           <ul>
-            <li v-for="routeColorMode of routeColorModes" :key="routeColorMode">
-              <o-radio v-model="colorKey" :native-value="routeColorMode" disabled>
-                {{ routeColorMode }}
+            <li v-for="dataDisplayModeOption of dataDisplayModes" :key="dataDisplayModeOption">
+              <o-radio v-model="dataDisplayMode" :native-value="dataDisplayModeOption">
+                {{ dataDisplayModeOption }}
+              </o-radio>
+            </li>
+          </ul>
+
+          <p class="menu-label">
+            Display map elements by:
+          </p>
+          <ul>
+            <li>
+              <o-radio v-model="colorKey" native-value="Mode" :disabled="dataDisplayMode === 'Agency'">
+                Mode
+              </o-radio>
+            </li>
+            <li>
+              <o-radio v-model="colorKey" native-value="Frequency" :disabled="dataDisplayMode === 'Agency'">
+                Frequency
+              </o-radio>
+            </li>
+            <li>
+              <o-radio v-model="colorKey" native-value="Fare" :disabled="dataDisplayMode === 'Agency'">
+                Fare *
               </o-radio>
             </li>
           </ul>
@@ -223,7 +244,7 @@
       </div>
 
       <!-- SETTINGS -->
-      <div v-if="activePanel === 'settings'">
+      <div v-if="activeTab === 'settings'">
         <aside class="menu">
           <p class="menu-label">
             Units of measurement
@@ -247,7 +268,7 @@
 </template>
 
 <script lang="ts">
-import { routeTypes, dowValues, routeColorModes, baseMapStyles } from '../constants'
+import { routeTypes, dowValues, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
 </script>
 
 <script setup lang="ts">
@@ -258,7 +279,7 @@ import { type Stop } from './scenario.vue'
 const menuItems = [
   { icon: 'chart-bar', label: 'Timeframes', panel: 'timeframes' },
   { icon: 'bus', label: 'Transit Layers', panel: 'transit-layers' },
-  { icon: 'layers-outline', label: 'Map Display', panel: 'map' },
+  { icon: 'layers-outline', label: 'Data Display', panel: 'data-display' },
   { icon: 'cog', label: 'Settings', panel: 'settings' },
 ]
 
@@ -276,6 +297,7 @@ const startTime = defineModel<Date | null>('startTime')
 const endTime = defineModel<Date | null>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
 const colorKey = defineModel<string>('colorKey')
+const dataDisplayMode = defineModel<string>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
 const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
@@ -283,17 +305,17 @@ const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
+const activeTab = defineModel<string>('activeTab')
 
 ///////////////////
 // Panel
 
-const activePanel = ref('')
 function setPanel (v: string) {
-  if (activePanel.value === v) {
-    activePanel.value = ''
+  if (activeTab.value === v) {
+    activeTab.value = ''
     return
   }
-  activePanel.value = v
+  activeTab.value = v
 }
 
 ///////////////////

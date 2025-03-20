@@ -15,27 +15,24 @@
         <section>
           <o-field>
             <o-radio
-              v-model="whichReport"
-              name="whichReport"
-              native-value="route"
-              label="route"
-              @input="changeReport"
+              v-model="dataDisplayMode"
+              name="dataDisplayMode"
+              native-value="Route"
+              label="Route"
             />
 
             <o-radio
-              v-model="whichReport"
-              name="whichReport"
-              native-value="stop"
-              label="stop"
-              @input="changeReport"
+              v-model="dataDisplayMode"
+              name="dataDisplayMode"
+              native-value="Stop"
+              label="Stop"
             />
 
             <o-radio
-              v-model="whichReport"
-              name="whichReport"
-              native-value="agency"
-              label="agency"
-              @input="changeReport"
+              v-model="dataDisplayMode"
+              name="dataDisplayMode"
+              native-value="Agency"
+              label="Agency"
             />
           </o-field>
         </section>
@@ -58,7 +55,7 @@
     />
 
     <table class="cal-report-table table is-bordered is-striped">
-      <thead v-if="whichReport === 'route'">
+      <thead v-if="dataDisplayMode === 'Route'">
         <tr class="has-background-grey-dark">
           <!-- <th>row</th> -->
           <th>route_id</th>
@@ -70,7 +67,7 @@
           <th>slowest frequency</th>
         </tr>
       </thead>
-      <thead v-else-if="whichReport === 'stop'">
+      <thead v-else-if="dataDisplayMode === 'Stop'">
         <tr class="has-background-grey-dark">
           <!-- <th>row</th> -->
           <th>stop_id</th>
@@ -80,7 +77,7 @@
           <th>average visits per day</th>
         </tr>
       </thead>
-      <thead v-else-if="whichReport === 'agency'">
+      <thead v-else-if="dataDisplayMode === 'Agency'">
         <tr class="has-background-grey-dark">
           <!-- <th>row</th> -->
           <th>agency_id</th>
@@ -90,7 +87,7 @@
         </tr>
       </thead>
 
-      <tbody v-if="whichReport === 'route'">
+      <tbody v-if="dataDisplayMode === 'Route'">
         <tr v-for="result of reportData" :key="result.row">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.route_id }}</td>
@@ -102,7 +99,7 @@
           <td>{{ result.slowest_frequency }}</td>
         </tr>
       </tbody>
-      <tbody v-else-if="whichReport === 'stop'">
+      <tbody v-else-if="dataDisplayMode === 'Stop'">
         <tr v-for="result of reportData" :key="result.row">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.stop_id }}</td>
@@ -112,7 +109,7 @@
           <td>{{ result.average_visits }}</td>
         </tr>
       </tbody>
-      <tbody v-else-if="whichReport === 'agency'">
+      <tbody v-else-if="dataDisplayMode === 'Agency'">
         <tr v-for="result of reportData" :key="result.row">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.agency_id }}</td>
@@ -137,21 +134,21 @@ const props = defineProps<{
   stopFeatures: Stop[]
 }>()
 
-const whichReport = ref<'route' | 'stop' | 'agency'>('stop')
 const current = ref(1)
 const total = ref(0)
 const perPage = ref(20)
+const dataDisplayMode = defineModel<string>('dataDisplayMode')
 
 const emit = defineEmits([
   'clickFilterLink'
 ])
 
 const reportData = computed((): Record<string, any>[] => {
-  if (whichReport.value === 'route') {
+  if (dataDisplayMode.value === 'Route') {
     return routeReport()
-  } else if (whichReport.value === 'stop') {
+  } else if (dataDisplayMode.value === 'Route') {
     return stopReport()
-  } else if (whichReport.value === 'agency') {
+  } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {
     total.value = 0
@@ -160,9 +157,9 @@ const reportData = computed((): Record<string, any>[] => {
 })
 
 // When switching to a different report, return to first page
-function changeReport () {
+watch(dataDisplayMode, () => {
   current.value = 1
-}
+})
 
 //
 // Gather data for route report

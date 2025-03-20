@@ -35,9 +35,15 @@ export const dowValues = [
 ]
 
 export const routeColorModes = [
-  'Type',
-  'Agency',
+  'Mode',
   'Frequency',
+  'Fare',
+]
+
+export const dataDisplayModes = [
+  'Agency',
+  'Route',
+  'Stop',
 ]
 
 export const baseMapStyles = [
