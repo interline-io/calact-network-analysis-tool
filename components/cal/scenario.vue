@@ -101,47 +101,7 @@ watch(stopError, (v) => {
   emit('setError', v)
 })
 
-// Filtered stop features
-watch(() => [
-  stopResult.value,
-  selectedDays.value,
-  selectedRouteTypes.value,
-  selectedAgencies.value,
-  selectedDayOfWeekMode.value,
-  selectedDateRange.value,
-  stopDepartureLoadingComplete.value
-], () => {
-  const sd = selectedDays.value || []
-  const sdMode = selectedDayOfWeekMode.value || ''
-  const sdRange = selectedDateRange.value || []
-  const srt = selectedRouteTypes.value || []
-  const sg = selectedAgencies.value || []
-  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-
-  // Derived properties and filtering
-  const features: Stop[] = (stopResult.value?.stops || []).map((s) => {
-    // gather modes at this stop
-    const route_stops = s.route_stops || []
-    const modes = new Set()
-    for (const rstop of route_stops) {
-      const rtype = rstop.route.route_type
-      const mode = routeTypes.get(rtype.toString())
-      if (mode) {
-        modes.add(mode)
-      }
-    }
-    return {
-      ...s,
-      stop_modes: Array.from(modes).join(','),
-      routes_served_count: route_stops.length,
-      average_visit_count: 0,
-      marked: stopFilter(s, sd, sdMode, sdRange, srt, sg, sdCache)
-    }
-  })
-  console.log('setStopFeatures', features.length)
-  emit('setStopFeatures', features)
-})
-
+// Stop queue
 const stopQueue = useTask(function* (_, task: { after: number }) {
   console.log('stopQueue: run', task)
   checkQueryLimit()
@@ -162,6 +122,55 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
       stopQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
     }
   })
+})
+
+// Derived properties
+const stopFeatures = computed((): Stop[] => {
+  // Derived properties
+  const features: Stop[] = (stopResult.value?.stops || []).map((s) => {
+    // gather modes at this stop
+    const route_stops = s.route_stops || []
+    const modes = new Set()
+    for (const rstop of route_stops) {
+      const rtype = rstop.route.route_type
+      const mode = routeTypes.get(rtype.toString())
+      if (mode) {
+        modes.add(mode)
+      }
+    }
+    return {
+      ...s,
+      modes: Array.from(modes).join(','),
+      number_served: route_stops.length,
+      average_visits: 0,
+      marked: true,
+    }
+  })
+  return features
+})
+
+// Apply stop filters
+watch(() => [
+  stopFeatures.value,
+  selectedDays.value,
+  selectedRouteTypes.value,
+  selectedAgencies.value,
+  selectedDayOfWeekMode.value,
+  selectedDateRange.value,
+  stopDepartureLoadingComplete.value
+], () => {
+  // Apply filters
+  const sd = selectedDays.value || []
+  const sdMode = selectedDayOfWeekMode.value || ''
+  const sdRange = selectedDateRange.value || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  for (const stop of stopFeatures.value) {
+    stop.marked = stopFilter(stop, sd, sdMode, sdRange, srt, sg, sdCache)
+  }
+  console.log('setStopFeatures', stopFeatures.value.length)
+  emit('setStopFeatures', stopFeatures.value)
 })
 
 /////////////////////////////
@@ -217,27 +226,35 @@ const routeQueue = useTask(function* (_, task: { after: number }) {
   })
 })
 
-// Filter route features
+// Derived properties
+const routeFeatures = computed((): Route[] => {
+  const features: Route[] = (routeResult.value?.routes || []).map(s => ({
+    route_name: s.route_long_name || s.route_short_name || s.route_id,
+    agency_name: s.agency?.agency_name || 'Unknown',
+    mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
+    marked: true,
+    average_frequency: 0,
+    fastest_frequency: 0,
+    slowest_frequency: 0,
+    ...s,
+  }))
+  return features
+})
+
+// Apply route filter
 watch(() => [
-  routeResult.value,
+  routeFeatures.value,
   selectedRouteTypes.value,
   selectedAgencies.value
 ], () => {
   // Derived properties and filtering
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
-  const features: Route[] = (routeResult.value?.routes || []).map(s => ({
-    route_name: s.route_long_name || s.route_short_name || s.route_id,
-    route_mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
-    route_agency: s.agency?.agency_name || 'Unknown',
-    marked: routeFilter(s, srt, sg),
-    average_frequency: 0,
-    fastest_frequency: 0,
-    slowest_frequency: 0,
-    ...s,
-  }))
-  console.log('setRouteFeatures', features.length)
-  emit('setRouteFeatures', features)
+  for (const route of routeFeatures.value) {
+    route.marked = routeFilter(route, srt, sg)
+  }
+  console.log('setRouteFeatures', routeFeatures.value.length)
+  emit('setRouteFeatures', routeFeatures.value)
 })
 
 /////////////////////////////

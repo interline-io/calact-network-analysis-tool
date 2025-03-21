@@ -63,8 +63,8 @@ export interface RouteDerived {
   [key: string]: any
   marked: boolean
   route_name: string
-  route_mode: string
-  route_agency: string
+  agency_name: string
+  mode: string
 }
 
 export type RouteCsv = RouteGtfs & RouteDerived & { row: number }

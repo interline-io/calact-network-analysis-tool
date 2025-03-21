@@ -56,9 +56,9 @@ export interface StopGtfs {
 export interface StopDerived {
   // Derived properties
   marked: boolean
-  stop_modes: string
-  routes_served_count: number
-  average_visit_count: number
+  modes: string
+  number_served: number
+  average_visits: number
 }
 
 export type StopGql = {

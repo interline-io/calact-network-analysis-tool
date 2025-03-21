@@ -40,85 +40,10 @@
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <cal-csv-download :data="reportData" />
+      <cal-csv-download :data="reportData.data" />
     </div>
 
-    <div class="cal-report-total block">
-      {{ total }} results found
-    </div>
-
-    <o-pagination
-      v-model:current="current"
-      :total="total"
-      order="centered"
-      :per-page="perPage"
-    />
-
-    <table class="cal-report-table table is-bordered is-striped">
-      <thead v-if="dataDisplayMode === 'Route'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>route_id</th>
-          <th>route_name</th>
-          <th>mode</th>
-          <th>agency</th>
-          <th>average frequency</th>
-          <th>fastest frequency</th>
-          <th>slowest frequency</th>
-        </tr>
-      </thead>
-      <thead v-else-if="dataDisplayMode === 'Stop'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>stop_id</th>
-          <th>stop_name</th>
-          <th>mode</th>
-          <th>number of routes served</th>
-          <th>average visits per day</th>
-        </tr>
-      </thead>
-      <thead v-else-if="dataDisplayMode === 'Agency'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>agency_id</th>
-          <th>agency_name</th>
-          <th>number of routes</th>
-          <th>number of stops</th>
-        </tr>
-      </thead>
-
-      <tbody v-if="dataDisplayMode === 'Route'">
-        <tr v-for="result of reportData" :key="result.row">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.route_id }}</td>
-          <td>{{ result.route_name }}</td>
-          <td>{{ result.mode }}</td>
-          <td>{{ result.agency_name }}</td>
-          <td>{{ result.average_frequency }}</td>
-          <td>{{ result.fastest_frequency }}</td>
-          <td>{{ result.slowest_frequency }}</td>
-        </tr>
-      </tbody>
-      <tbody v-else-if="dataDisplayMode === 'Stop'">
-        <tr v-for="result of reportData" :key="result.row">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.stop_id }}</td>
-          <td>{{ result.stop_name }}</td>
-          <td>{{ result.modes }}</td>
-          <td>{{ result.number_served }}</td>
-          <td>{{ result.average_visits }}</td>
-        </tr>
-      </tbody>
-      <tbody v-else-if="dataDisplayMode === 'Agency'">
-        <tr v-for="result of reportData" :key="result.row">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.agency_id }}</td>
-          <td>{{ result.agency_name }}</td>
-          <td>{{ result.number_routes }}</td>
-          <td>{{ result.number_stops }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <cal-datagrid v-model:current="current" :table-report="reportData" />
 
     <div class="cal-report-footer">
       * results include only stops within the selected bounding box.
@@ -127,7 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { type Stop, type StopCsv } from '../stop'
+import { type TableReport } from './datagrid.vue'
+import { type StopCsv, type Stop } from '../stop'
 import { type Route, type RouteCsv } from '../route'
 import { type Agency, type AgencyCsv } from '../agency'
 
@@ -137,15 +63,14 @@ const props = defineProps<{
 }>()
 
 const current = ref(1)
-const total = ref(0)
-const perPage = ref(20)
+const perPage = 20
 const dataDisplayMode = defineModel<string>('dataDisplayMode')
 
 const emit = defineEmits([
   'clickFilterLink'
 ])
 
-const reportData = computed((): Record<string, any>[] => {
+const reportData = computed((): TableReport => {
   if (dataDisplayMode.value === 'Route') {
     return routeReport()
   } else if (dataDisplayMode.value === 'Stop') {
@@ -153,8 +78,7 @@ const reportData = computed((): Record<string, any>[] => {
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {
-    total.value = 0
-    return []
+    return { columns: [], data: [], total: 0, perPage: perPage }
   }
 })
 
@@ -166,16 +90,17 @@ watch(dataDisplayMode, () => {
 //
 // Gather data for route report
 //
-function routeReport () {
+function routeReport (): TableReport {
   // Recalc totals, min/max, note that `current` page is one-based
-  const arr = props.routeFeatures || []
-  total.value = arr.length
+  const arr = props.routeFeatures
+  const total = arr.length
   const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
+  const min = (index * perPage)
+  const max = (index * perPage) + (perPage)
 
+  // Gather results
   const results: RouteCsv[] = []
-  for (let i = min; i < max && i < total.value; i++) {
+  for (let i = min; i < max && i < total; i++) {
     const route = arr[i]
     results.push({
       row: i + 1,
@@ -183,9 +108,9 @@ function routeReport () {
       average_frequency: route.average_frequency,
       fastest_frequency: route.fastest_frequency,
       slowest_frequency: route.slowest_frequency,
-      agency_name: route.agency_name,
-      mode: route.mode,
+      agency_name: route.agency?.agency_name,
       route_name: route.route_name,
+      route_mode: route.route_mode,
       // GTFS properties
       route_id: route.route_id,
       route_agency: route.route_agency,
@@ -201,30 +126,44 @@ function routeReport () {
       continuous_pickup: route.continuous_pickup,
     })
   }
-  return results
+
+  return {
+    total: total,
+    perPage: perPage,
+    columns: [
+      { key: 'route_id', label: 'Route ID', sortable: true },
+      { key: 'route_name', label: 'Route Name', sortable: true },
+      { key: 'route_mode', label: 'Mode', sortable: true },
+      { key: 'route_agency', label: 'Agency', sortable: true },
+      { key: 'average_frequency', label: 'Average Frequency', sortable: true },
+      { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
+      { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
+    ],
+    data: results,
+  }
 }
 
 //
 // Gather data for stop report
 //
-function stopReport () {
+function stopReport (): TableReport {
   // Recalc totals, min/max, note that `current` page is one-based
   const arr = props.stopFeatures || []
-  total.value = arr.length
+  const total = arr.length
   const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
+  const min = (index * perPage)
+  const max = (index * perPage) + (perPage)
 
   // Gather results
   const results: StopCsv[] = []
-  for (let i = min; i < max && i < total.value; i++) {
+  for (let i = min; i < max && i < total; i++) {
     const stop = arr[i]
     results.push({
       row: i + 1,
       marked: stop.marked,
-      number_served: stop.number_served,
-      average_visits: stop.average_visits,
-      modes: stop.modes,
+      routes_served_count: stop.routes_served_count,
+      average_visit_count: stop.average_visit_count,
+      stop_modes: stop.stop_modes,
       // GTFS properties
       location_type: stop.location_type,
       stop_id: stop.stop_id,
@@ -238,13 +177,25 @@ function stopReport () {
       tts_stop_name: stop.tts_stop_name,
     })
   }
-  return results
+
+  return {
+    total: total,
+    perPage: perPage,
+    columns: [
+      { key: 'stop_id', label: 'Stop ID', sortable: true },
+      { key: 'stop_name', label: 'Stop Name', sortable: true },
+      { key: 'stop_modes', label: 'Modes', sortable: true },
+      { key: 'routes_served_count', label: 'Routes Served', sortable: true },
+      { key: 'average_visit_count', label: 'Average Visits', sortable: true },
+    ],
+    data: results
+  }
 }
 
 //
 // Gather data for agency report
 //
-function agencyReport () {
+function agencyReport (): TableReport {
   // Collect agency data from the stop data.
   const agencyData = new Map()
   for (const stop of props.stopFeatures) {
@@ -274,13 +225,14 @@ function agencyReport () {
 
   // Recalc totals, min/max, note that `current` page is one-based
   const arr = [...agencyData.values()]
-  total.value = arr.length
+  const total = arr.length
   const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
+  const min = (index * perPage)
+  const max = (index * perPage) + (perPage)
 
-  const results = []
-  for (let i = min; i < max && i < total.value; i++) {
+  // Gather results
+  const results: AgencyCsv[] = []
+  for (let i = min; i < max && i < total; i++) {
     const agency = arr[i]
     results.push({
       row: i + 1,
@@ -298,77 +250,85 @@ function agencyReport () {
     })
   }
 
-  return results
+  return {
+    total: total,
+    perPage: perPage,
+    columns: [
+      { key: 'agency_id', label: 'Agency ID', sortable: true },
+      { key: 'agency_name', label: 'Agency Name', sortable: true },
+      { key: 'number_routes', label: 'Number of Routes', sortable: true },
+      { key: 'number_stops', label: 'Number of Stops', sortable: true },
+    ], data: results }
 }
 
 </script>
 
-  <style scoped lang="scss">
-    .cal-report {
-      display:flex;
-      flex-direction:column;
-      background: var(--bulma-scheme-main);
-      height:100%;
-      min-width:80vw;
-      padding-left:20px;
-      padding-right:20px;
-      > .cal-body {
-        > div, > article {
-          margin-bottom:10px;
-        }
+<style scoped lang="scss">
+  .cal-report {
+    display:flex;
+    flex-direction:column;
+    background: var(--bulma-scheme-main);
+    height:100%;
+    min-width:80vw;
+    padding-left:20px;
+    padding-right:20px;
+    > .cal-body {
+      > div, > article {
+        margin-bottom:10px;
+      }
+    }
+  }
+
+  .cal-report-options {
+    display: flex;
+    flex: 0;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+
+    > .filter-detail {
+      flex: 0 1 60%;
+      align-self: stretch;
+      background-color: #ddd;
+      border: 1px solid #333;
+      padding: 5px;
+    }
+
+    > .report-select {
+      flex: 1 0 0;
+      align-self: stretch;
+      border: 1px solid #333;
+      padding: 5px;
+      margin: 0 15px;
+
+      > .which-report {
+        font-size: larger;
+        font-weight: bold;
       }
     }
 
-    .cal-report-options {
-      display: flex;
-      flex: 0;
-      flex-flow: row nowrap;
-      justify-content: space-between;
-
-      > .filter-detail {
-        flex: 0 1 60%;
-        align-self: stretch;
-        background-color: #ddd;
-        border: 1px solid #333;
-        padding: 5px;
-      }
-
-      > .report-select {
-        flex: 1 0 0;
-        align-self: stretch;
-        border: 1px solid #333;
-        padding: 5px;
-        margin: 0 15px;
-
-        > .which-report {
-          font-size: larger;
-          font-weight: bold;
-        }
-      }
-
-      > .download {
-        flex: 0 1 10%;
-        align-self: center;
-      }
+    > .download {
+      flex: 0 1 10%;
+      align-self: center;
     }
+  }
 
-    .cal-report-total {
-      font-style: italic;
+  .cal-report-total {
+    font-style: italic;
+  }
+
+  .cal-report-table {
+    th, td {
+      padding: 2px 5px;
     }
-
-    .cal-report-table {
-      th, td {
-        padding: 2px 5px;
-      }
-      th {
-        background-color: #666;
-        color: #fff;
-      }
+    th {
+      background-color: #666;
+      color: #fff;
     }
+  }
 
-    .cal-report-footer {
-      font-style: italic;
-      text-align: end;
-    }
+  .cal-report-footer {
+    font-style: italic;
+    text-align: end;
+  }
 
-  </style>
+</style>
