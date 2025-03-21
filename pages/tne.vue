@@ -77,6 +77,7 @@
             @explore="setReady()"
           />
         </div>
+
         <div v-if="activeTab.tab === 'filter'" class="cal-overlay">
           <cal-filter
             v-model:start-date="startDate"
@@ -92,6 +93,15 @@
             v-model:selected-agencies="selectedAgencies"
             v-model:selected-day-of-week-mode="selectedDayOfWeekMode"
             v-model:selected-time-of-day-mode="selectedTimeOfDayMode"
+            v-model:frequency-under-enabled="frequencyUnderEnabled"
+            v-model:frequency-under="frequencyUnder"
+            v-model:frequency-over-enabled="frequencyOverEnabled"
+            v-model:frequency-over="frequencyOver"
+            v-model:calculate-frequency-mode="calculateFrequencyMode"
+            v-model:max-fare-enabled="maxFareEnabled"
+            v-model:max-fare="maxFare"
+            v-model:min-fare-enabled="minFareEnabled"
+            v-model:min-fare="minFare"
             v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
             :bbox="bbox"
             :stop-features="stopFeatures"
@@ -320,7 +330,7 @@ const selectedAgencies = computed({
 
 const selectedDays = computed({
   get () {
-    if (!route.query?.selectedDays) {
+    if (!route.query.hasOwnProperty('selectedDays')) {
       // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
@@ -332,6 +342,87 @@ const selectedDays = computed({
     const days = new Set(v)
     const omit = dowValues.every(day => days.has(day))
     setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })
+  }
+})
+
+const frequencyUnderEnabled = computed({
+  get () {
+    return route.query.frequencyUnderEnabled?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, frequencyUnderEnabled: v ? 'true' : '' })
+  }
+})
+
+const frequencyUnder = computed({
+  get () {
+    return parseInt(route.query.frequencyUnder?.toString() || '') || 0
+  },
+  set (v: number) {
+    setQuery({ ...route.query, frequencyUnder: v.toString() })
+  }
+})
+
+const frequencyOverEnabled = computed({
+  get () {
+    return route.query.frequencyOverEnabled?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, frequencyOverEnabled: v ? 'true' : '' })
+  }
+})
+
+const frequencyOver = computed({
+  get () {
+    return parseInt(route.query.frequencyOver?.toString() || '') || 0
+  },
+  set (v: number) {
+    setQuery({ ...route.query, frequencyOver: v.toString() })
+  }
+})
+
+const calculateFrequencyMode = computed({
+  get () {
+    return route.query.calculateFrequencyMode?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, calculateFrequencyMode: v ? 'true' : '' })
+  }
+})
+
+const maxFareEnabled = computed({
+  get () {
+    return route.query.maxFareEnabled?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, maxFareEnabled: v ? 'true' : '' })
+  }
+})
+
+const maxFare = computed({
+  get () {
+    return parseInt(route.query.maxFare?.toString() || '') || 0
+  },
+  set (v: number) {
+    setQuery({ ...route.query, maxFare: v.toString() })
+  }
+})
+
+const minFareEnabled = computed({
+  get () {
+    return route.query.minFareEnabled?.toString() === 'true'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, minFareEnabled: v ? 'true' : '' })
+  }
+})
+
+const minFare = computed({
+  get () {
+    return parseInt(route.query.minFare?.toString() || '') || 0
+  },
+  set (v: string) {
+    setQuery({ ...route.query, minFare: v.toString() })
   }
 })
 
@@ -403,14 +494,27 @@ async function resetFilters () {
     startTime: '',
     endTime: '',
     selectedAgencies: '',
-    selectedDays: '',
+    // selectedDays: '',
     selectedRouteTypes: '',
     selectedDayOfWeekMode: '',
     selectedTimeOfDayMode: '',
+    frequencyUnderEnabled: '',
+    frequencyUnder: '',
+    frequencyOverEnabled: '',
+    frequencyOver: '',
+    calculateFrequencyMode: '',
+    maxFareEnabled: '',
+    maxFare: '',
+    minFareEnabled: '',
+    minFare: '',
     colorKey: '',
     unitSystem: '',
     baseMap: ''
   })
+  // Note, `selectedDays` is special, see note below.
+  // When clearing filters, it should removed, not set to ''
+  delete p.selectedDays
+
   await navigateTo({ replace: true, query: p })
 }
 
@@ -419,9 +523,13 @@ async function resetFilters () {
 //////////////////////
 
 function removeEmpty (v: Record<string, any>): Record<string, any> {
+  // Note, `selectedDays` is special - we want to allow it to be empty string ''.
+  // That means the user unchecked all the days.
+  // Removing it would re-check all the days.
+  // todo: improve?
   const r: Record<string, any> = {}
   for (const k in v) {
-    if (v[k]) {
+    if (v[k] || k === 'selectedDays') {
       r[k] = v[k]
     }
   }
