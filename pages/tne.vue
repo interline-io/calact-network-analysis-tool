@@ -412,7 +412,6 @@ const minFare = computed({
   }
 })
 
-
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -476,7 +475,7 @@ async function resetFilters () {
     startTime: '',
     endTime: '',
     selectedAgencies: '',
-    //selectedDays: '',
+    // selectedDays: '',
     selectedRouteTypes: '',
     selectedDayOfWeekMode: '',
     selectedTimeOfDayMode: '',

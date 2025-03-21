@@ -236,7 +236,6 @@
           <p class="filter-legend">
             * Fare filtering not yet implemented
           </p>
-
         </aside>
       </div>
 
