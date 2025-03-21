@@ -157,6 +157,7 @@
                 v-model="frequencyUnder"
                 number
                 type="number"
+                min="0"
                 :disabled="!stopDepartureLoadingComplete || !frequencyUnderEnabled"
               />
             </div>
@@ -176,6 +177,7 @@
                 v-model="frequencyOver"
                 number
                 type="number"
+                min="0"
                 :disabled="!stopDepartureLoadingComplete || !frequencyOverEnabled"
               />
             </div>
@@ -202,12 +204,13 @@
               label="Maximum fare $"
               :disabled="true"
             />
-            <div class="cal-input-width-80">
+            <div class="cal-input-width-100">
               <o-input
                 v-model="maxFare"
                 number
                 type="number"
-                placeholder="0"
+                min="0"
+                step="0.01"
                 :disabled="true"
               />
             </div>
@@ -219,12 +222,13 @@
               label="Minimum fare $"
               :disabled="true"
             />
-            <div class="cal-input-width-80">
+            <div class="cal-input-width-100">
               <o-input
                 v-model="minFare"
                 number
                 type="number"
-                placeholder="0"
+                min="0"
+                step="0.01"
                 :disabled="true"
               />
             </div>
@@ -481,6 +485,11 @@ const knownAgencies = computed(() => {
   }
   .cal-input-width-80 {
     max-width: 80px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  .cal-input-width-100 {
+    max-width: 100px;
     border: 1px solid #ccc;
     border-radius: 5px;
   }
