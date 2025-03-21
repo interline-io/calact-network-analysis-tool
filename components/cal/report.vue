@@ -130,6 +130,7 @@
 import { type Stop, type StopCsv } from '../stop'
 import { type Route, type RouteCsv } from '../route'
 import { type Agency, type AgencyCsv } from '../agency'
+import { type TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
@@ -144,6 +145,32 @@ const dataDisplayMode = defineModel<string>('dataDisplayMode')
 const emit = defineEmits([
   'clickFilterLink'
 ])
+
+// TODO: For when we switch to datagrid
+const stopColumns: TableColumn[] = [
+  { key: 'route_id', label: 'Route ID', sortable: true },
+  { key: 'route_name', label: 'Route Name', sortable: true },
+  { key: 'route_mode', label: 'Mode', sortable: true },
+  { key: 'route_agency', label: 'Agency', sortable: true },
+  { key: 'average_frequency', label: 'Average Frequency', sortable: true },
+  { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
+  { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
+]
+
+const routeColumns: TableColumn[] = [
+  { key: 'stop_id', label: 'Stop ID', sortable: true },
+  { key: 'stop_name', label: 'Stop Name', sortable: true },
+  { key: 'stop_modes', label: 'Modes', sortable: true },
+  { key: 'routes_served_count', label: 'Routes Served', sortable: true },
+  { key: 'average_visit_count', label: 'Average Visits', sortable: true },
+]
+
+const agencyColumns: TableColumn[] = [
+  { key: 'agency_id', label: 'Agency ID', sortable: true },
+  { key: 'agency_name', label: 'Agency Name', sortable: true },
+  { key: 'number_routes', label: 'Number of Routes', sortable: true },
+  { key: 'number_stops', label: 'Number of Stops', sortable: true },
+]
 
 const reportData = computed((): Record<string, any>[] => {
   if (dataDisplayMode.value === 'Route') {

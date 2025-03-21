@@ -31,10 +31,16 @@
 </template>
 
 <script lang="ts">
+export interface TableColumn {
+  key: string
+  label: string
+  sortable: boolean
+}
+
 export interface TableReport {
   total: number
   perPage: number
-  columns: { key: string, label: string, sortable: boolean }[]
+  columns: TableColumn[]
   data: Record<string, any>[]
 }
 </script>
