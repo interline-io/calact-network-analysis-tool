@@ -81,7 +81,8 @@ import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { routeTypeColorMap, routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
-import { type Stop, type Route } from './scenario.vue'
+import { type Stop } from '../stop'
+import { type Route } from '../route'
 
 const route = useRoute()
 

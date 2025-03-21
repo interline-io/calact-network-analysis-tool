@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab('query')">
+          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({tab:'query', sub:''})">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab('filter')">
+          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({tab:'filter', sub:''})">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab('map')">
+          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({tab:'map', sub:''})">
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -32,7 +32,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab('report')">
+          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({tab:'report', sub:''})">
             <o-icon
               icon="file-chart"
               class="is-fullwidth"
@@ -67,7 +67,7 @@
       </tl-modal>
 
       <div style="position:relative">
-        <div v-if="activeTab === 'query'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'query'" class="cal-overlay">
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -78,13 +78,14 @@
           />
         </div>
 
-        <div v-if="activeTab === 'filter'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'filter'" class="cal-overlay">
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:start-time="startTime"
             v-model:end-time="endTime"
             v-model:base-map="baseMap"
+            v-model:data-display-mode="dataDisplayMode"
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:selected-days="selectedDays"
@@ -104,14 +105,17 @@
             v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
             :bbox="bbox"
             :stop-features="stopFeatures"
+            :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
           />
         </div>
 
-        <div v-if="activeTab === 'report'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'report'" class="cal-overlay">
           <cal-report
+            v-model:data-display-mode="dataDisplayMode"
             :stop-features="stopFeatures"
-            @click-filter-link="setTab('filter')"
+            :route-features="routeFeatures"
+            @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
           />
         </div>
       </div>
@@ -156,7 +160,8 @@ import { computed } from 'vue'
 import { type Bbox, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
-import { type Stop, type Route } from '../components/cal/scenario.vue'
+import { type Stop } from '../components/stop'
+import { type Route } from '../components/route'
 import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
@@ -171,7 +176,7 @@ const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const ready = ref(false)
 function setReady () {
   ready.value = true
-  activeTab.value = 'map'
+  activeTab.value = { tab: 'map', sub: '' }
 }
 
 // Loading and error handling
@@ -257,6 +262,15 @@ const unitSystem = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, unitSystem: v })
+  }
+})
+
+const dataDisplayMode = computed({
+  get () {
+    return route.query.dataDisplayMode?.toString() || 'Route'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, dataDisplayMode: v })
   }
 })
 
@@ -428,14 +442,19 @@ function setRouteFeatures (v: Route[]) {
 }
 
 // Tab handling
-const activeTab = ref(route.query.activeTab || 'query')
+const activeTab = ref({ tab: 'query', sub: '' })
 
 // Initialize displayEditBboxMode based on initial values
-const displayEditBboxMode = ref(activeTab.value === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
 
-function setTab (v: string) {
-  if (activeTab.value === v) {
-    activeTab.value = 'map'
+interface Tab {
+  tab: string
+  sub: string
+}
+
+function setTab (v: Tab) {
+  if (activeTab.value.tab === v.tab) {
+    activeTab.value = { tab: 'map', sub: '' }
     return
   }
   activeTab.value = v
@@ -455,7 +474,7 @@ watch(geomSource, () => {
 })
 
 watch([activeTab, geomSource], () => {
-  if (activeTab.value === 'query' && geomSource.value === 'bbox') {
+  if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
     displayEditBboxMode.value = true
   } else {
     displayEditBboxMode.value = false
@@ -518,7 +537,7 @@ function removeEmpty (v: Record<string, any>): Record<string, any> {
 }
 
 function itemHelper (p: string): string {
-  if (activeTab.value === p) {
+  if (activeTab.value.tab === p) {
     return 'is-active'
   }
   return 'is-secondary'
