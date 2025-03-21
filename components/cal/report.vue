@@ -336,7 +336,7 @@ function agencyReport () {
       flex-direction:column;
       background: var(--bulma-scheme-main);
       height:100%;
-      min-width:80vw;
+      width: calc(100vw - 100px);
       padding-left:20px;
       padding-right:20px;
       > .cal-body {
