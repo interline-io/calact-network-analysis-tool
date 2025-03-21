@@ -316,7 +316,7 @@ const selectedAgencies = computed({
 
 const selectedDays = computed({
   get () {
-    if (!route.query?.selectedDays) {
+    if (!route.query.hasOwnProperty('selectedDays')) {
       // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
@@ -476,7 +476,7 @@ async function resetFilters () {
     startTime: '',
     endTime: '',
     selectedAgencies: '',
-    selectedDays: '',
+    //selectedDays: '',
     selectedRouteTypes: '',
     selectedDayOfWeekMode: '',
     selectedTimeOfDayMode: '',
@@ -493,6 +493,10 @@ async function resetFilters () {
     unitSystem: '',
     baseMap: ''
   })
+  // Note, `selectedDays` is special, see note below.
+  // When clearing filters, it should removed, not set to ''
+  delete p.selectedDays
+
   await navigateTo({ replace: true, query: p })
 }
 
@@ -501,9 +505,13 @@ async function resetFilters () {
 //////////////////////
 
 function removeEmpty (v: Record<string, any>): Record<string, any> {
+  // Note, `selectedDays` is special - we want to allow it to be empty string ''.
+  // That means the user unchecked all the days.
+  // Removing it would re-check all the days.
+  // todo: improve?
   const r: Record<string, any> = {}
   for (const k in v) {
-    if (v[k]) {
+    if (v[k] || k === 'selectedDays') {
       r[k] = v[k]
     }
   }
