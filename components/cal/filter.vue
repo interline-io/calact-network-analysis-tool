@@ -140,7 +140,7 @@
       </div>
 
       <!-- SERVICE LEVELS -->
-      <div v-if="activePanel === 'service-levels'">
+      <div v-if="activeTab === 'service-levels'">
         <aside class="cal-service-levels menu">
           <p class="menu-label">
             Frequency
@@ -188,7 +188,7 @@
 
           <o-field>
             <o-checkbox
-              v-model="calculateFequencyMode"
+              v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
               :disabled="true"
             />
@@ -377,11 +377,11 @@ import { defineEmits } from 'vue'
 import { type Stop } from '../stop'
 
 const menuItems = [
-  { icon: 'calendar-blank', label: 'Timeframes', panel: 'timeframes' },
-  { icon: 'chart-bar', label: 'Service Levels', panel: 'service-levels' },
-  { icon: 'bus', label: 'Transit Layers', panel: 'transit-layers' },
-  { icon: 'layers-outline', label: 'Map Display', panel: 'map' },
-  { icon: 'cog', label: 'Settings', panel: 'settings' },
+  { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
+  { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
+  { icon: 'bus', label: 'Transit Layers', tab: 'transit-layers' },
+  { icon: 'layers-outline', label: 'Data Display', tab: 'data-display' },
+  { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
 const props = defineProps<{
@@ -409,11 +409,11 @@ const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 const frequencyOver = defineModel<string>('freqencyOver')
-const calculateFrequencyMode = defineModel<string>('calculateFrequencyMode')
+const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
 const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
-const maxFare = defineModel<string>('maxFare')
+const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
-const minFare = defineModel<string>('minFare')
+const minFare = defineModel<number>('minFare')
 const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
 const activeTab = defineModel<string>('activeTab')
 
