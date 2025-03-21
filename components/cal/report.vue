@@ -93,7 +93,7 @@
           <td>{{ result.route_id }}</td>
           <td>{{ result.route_name }}</td>
           <td>{{ result.mode }}</td>
-          <td>{{ result.agency }}</td>
+          <td>{{ result.agency_name }}</td>
           <td>{{ result.average_frequency }}</td>
           <td>{{ result.fastest_frequency }}</td>
           <td>{{ result.slowest_frequency }}</td>
@@ -127,11 +127,14 @@
 </template>
 
 <script setup lang="ts">
-import { routeTypes } from '../constants'
-import { type Stop } from './scenario.vue'
+import { type Stop, type StopCsv } from '../stop'
+import { type Route, type RouteCsv } from '../route'
+import { type Agency, type AgencyCsv } from '../agency'
+import { type TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
+  routeFeatures: Route[]
 }>()
 
 const current = ref(1)
@@ -143,10 +146,36 @@ const emit = defineEmits([
   'clickFilterLink'
 ])
 
+// TODO: For when we switch to datagrid
+const stopColumns: TableColumn[] = [
+  { key: 'route_id', label: 'Route ID', sortable: true },
+  { key: 'route_name', label: 'Route Name', sortable: true },
+  { key: 'route_mode', label: 'Mode', sortable: true },
+  { key: 'route_agency', label: 'Agency', sortable: true },
+  { key: 'average_frequency', label: 'Average Frequency', sortable: true },
+  { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
+  { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
+]
+
+const routeColumns: TableColumn[] = [
+  { key: 'stop_id', label: 'Stop ID', sortable: true },
+  { key: 'stop_name', label: 'Stop Name', sortable: true },
+  { key: 'stop_modes', label: 'Modes', sortable: true },
+  { key: 'routes_served_count', label: 'Routes Served', sortable: true },
+  { key: 'average_visit_count', label: 'Average Visits', sortable: true },
+]
+
+const agencyColumns: TableColumn[] = [
+  { key: 'agency_id', label: 'Agency ID', sortable: true },
+  { key: 'agency_name', label: 'Agency Name', sortable: true },
+  { key: 'number_routes', label: 'Number of Routes', sortable: true },
+  { key: 'number_stops', label: 'Number of Stops', sortable: true },
+]
+
 const reportData = computed((): Record<string, any>[] => {
   if (dataDisplayMode.value === 'Route') {
     return routeReport()
-  } else if (dataDisplayMode.value === 'Route') {
+  } else if (dataDisplayMode.value === 'Stop') {
     return stopReport()
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
@@ -165,57 +194,40 @@ watch(dataDisplayMode, () => {
 // Gather data for route report
 //
 function routeReport () {
-  // Collect route data from the stop data.
-  const routeData = new Map()
-  for (const stop of props.stopFeatures) {
-    const props = stop
-    const route_stops = props.route_stops || []
-
-    for (const rstop of route_stops) {
-      const rid = rstop.route.route_id
-
-      let rdata = routeData.get(rid)
-      if (!rdata) { // first time seeing this route
-        const rname = rstop.route.route_long_name
-        const rtype = rstop.route.route_type
-        const mode = routeTypes.get(rtype.toString())
-        const aname = rstop.route.agency?.agency_name || ''
-
-        rdata = {
-          id: rid,
-          name: rname,
-          mode: mode,
-          agency: aname
-        }
-        routeData.set(rid, rdata)
-      }
-    }
-  }
-
   // Recalc totals, min/max, note that `current` page is one-based
-  const arr = [...routeData.values()]
+  const arr = props.routeFeatures || []
   total.value = arr.length
   const index = current.value - 1
   const min = (index * perPage.value)
   const max = (index * perPage.value) + (perPage.value)
 
-  const results = []
+  const results: RouteCsv[] = []
   for (let i = min; i < max && i < total.value; i++) {
     const route = arr[i]
-
     results.push({
       row: i + 1,
-      route_id: route.id,
-      route_name: route.name,
+      marked: route.marked,
+      average_frequency: route.average_frequency,
+      fastest_frequency: route.fastest_frequency,
+      slowest_frequency: route.slowest_frequency,
+      agency_name: route.agency_name,
       mode: route.mode,
-      agency: route.agency,
-      average_frequency: 'TBD',
-      fastest_frequency: 'TBD',
-      slowest_frequency: 'TBD',
-      // data: route
+      route_name: route.route_name,
+      // GTFS properties
+      route_id: route.route_id,
+      route_agency: route.route_agency,
+      route_long_name: route.route_long_name,
+      route_short_name: route.route_short_name,
+      route_type: route.route_type,
+      route_color: route.route_color,
+      route_text_color: route.route_text_color,
+      route_url: route.route_url,
+      route_desc: route.route_desc,
+      route_sort_order: route.route_sort_order,
+      continuous_drop_off: route.continuous_drop_off,
+      continuous_pickup: route.continuous_pickup,
     })
   }
-
   return results
 }
 
@@ -231,33 +243,28 @@ function stopReport () {
   const max = (index * perPage.value) + (perPage.value)
 
   // Gather results
-  const results = []
+  const results: StopCsv[] = []
   for (let i = min; i < max && i < total.value; i++) {
     const stop = arr[i]
-    const props = stop
-    const route_stops = props.route_stops || []
-
-    // gather modes at this stop
-    const modes = new Set()
-    for (const rstop of route_stops) {
-      const rtype = rstop.route.route_type
-      const mode = routeTypes.get(rtype.toString())
-      if (mode) {
-        modes.add(mode)
-      }
-    }
-
     results.push({
       row: i + 1,
-      stop_id: props.stop_id,
-      stop_name: props.stop_name,
-      modes: [...modes].join(','),
-      number_served: route_stops.length,
-      average_visits: 'TBD',
-      // data: stop
+      marked: stop.marked,
+      number_served: stop.number_served,
+      average_visits: stop.average_visits,
+      modes: stop.modes,
+      // GTFS properties
+      location_type: stop.location_type,
+      stop_id: stop.stop_id,
+      stop_name: stop.stop_name,
+      stop_desc: stop.stop_desc,
+      stop_timezone: stop.stop_timezone,
+      stop_url: stop.stop_url,
+      zone_id: stop.zone_id,
+      wheelchair_boarding: stop.wheelchair_boarding,
+      platform_code: stop.platform_code,
+      tts_stop_name: stop.tts_stop_name,
     })
   }
-
   return results
 }
 
@@ -302,14 +309,19 @@ function agencyReport () {
   const results = []
   for (let i = min; i < max && i < total.value; i++) {
     const agency = arr[i]
-
     results.push({
       row: i + 1,
-      agency_id: agency.id,
-      agency_name: agency.name,
       number_routes: agency.routes.size,
       number_stops: agency.stops.size,
-      // data: agency
+      marked: agency.marked,
+      // GTFs properties
+      agency_id: agency.id,
+      agency_name: agency.name,
+      agency_email: agency.agency_email,
+      agency_fare_url: agency.agency_fare_url,
+      agency_lang: agency.agency_lang,
+      agency_phone: agency.agency_phone,
+      agency_timezone: agency.agency_timezone,
     })
   }
 
@@ -318,72 +330,72 @@ function agencyReport () {
 
 </script>
 
-<style scoped lang="scss">
-  .cal-report {
-    display:flex;
-    flex-direction:column;
-    background: var(--bulma-scheme-main);
-    height:100%;
-    min-width:80vw;
-    padding-left:20px;
-    padding-right:20px;
-    > .cal-body {
-      > div, > article {
-        margin-bottom:10px;
-      }
-    }
-  }
-
-  .cal-report-options {
-    display: flex;
-    flex: 0;
-    flex-flow: row nowrap;
-    justify-content: space-between;
-
-    > .filter-detail {
-      flex: 0 1 60%;
-      align-self: stretch;
-      background-color: #ddd;
-      border: 1px solid #333;
-      padding: 5px;
-    }
-
-    > .report-select {
-      flex: 1 0 0;
-      align-self: stretch;
-      border: 1px solid #333;
-      padding: 5px;
-      margin: 0 15px;
-
-      > .which-report {
-        font-size: larger;
-        font-weight: bold;
+  <style scoped lang="scss">
+    .cal-report {
+      display:flex;
+      flex-direction:column;
+      background: var(--bulma-scheme-main);
+      height:100%;
+      width: calc(100vw - 100px);
+      padding-left:20px;
+      padding-right:20px;
+      > .cal-body {
+        > div, > article {
+          margin-bottom:10px;
+        }
       }
     }
 
-    > .download {
-      flex: 0 1 10%;
-      align-self: center;
+    .cal-report-options {
+      display: flex;
+      flex: 0;
+      flex-flow: row nowrap;
+      justify-content: space-between;
+
+      > .filter-detail {
+        flex: 0 1 60%;
+        align-self: stretch;
+        background-color: #ddd;
+        border: 1px solid #333;
+        padding: 5px;
+      }
+
+      > .report-select {
+        flex: 1 0 0;
+        align-self: stretch;
+        border: 1px solid #333;
+        padding: 5px;
+        margin: 0 15px;
+
+        > .which-report {
+          font-size: larger;
+          font-weight: bold;
+        }
+      }
+
+      > .download {
+        flex: 0 1 10%;
+        align-self: center;
+      }
     }
-  }
 
-  .cal-report-total {
-    font-style: italic;
-  }
-
-  .cal-report-table {
-    th, td {
-      padding: 2px 5px;
+    .cal-report-total {
+      font-style: italic;
     }
-    th {
-      background-color: #666;
-      color: #fff;
+
+    .cal-report-table {
+      th, td {
+        padding: 2px 5px;
+      }
+      th {
+        background-color: #666;
+        color: #fff;
+      }
     }
-  }
 
-  .cal-report-footer {
-    font-style: italic;
-    text-align: end;
-  }
+    .cal-report-footer {
+      font-style: italic;
+      text-align: end;
+    }
 
-</style>
+  </style>

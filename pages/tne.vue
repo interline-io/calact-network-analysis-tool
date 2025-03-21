@@ -104,6 +104,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             :stop-features="stopFeatures"
+            :route-features="routeFeatures"
             @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
           />
         </div>
@@ -149,7 +150,8 @@ import { computed } from 'vue'
 import { type Bbox, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
-import { type Stop, type Route } from '../components/cal/scenario.vue'
+import { type Stop } from '../components/stop'
+import { type Route } from '../components/route'
 import { dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({

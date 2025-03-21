@@ -274,7 +274,7 @@ import { routeTypes, dowValues, routeColorModes, dataDisplayModes, baseMapStyles
 <script setup lang="ts">
 import { fmtDate } from '../datetime'
 import { defineEmits } from 'vue'
-import { type Stop } from './scenario.vue'
+import { type Stop } from '../stop'
 
 const menuItems = [
   { icon: 'chart-bar', label: 'Timeframes', tab: 'timeframes' },
