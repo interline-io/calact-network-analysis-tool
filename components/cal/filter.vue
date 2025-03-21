@@ -139,6 +139,103 @@
         </aside>
       </div>
 
+      <!-- SERVICE LEVELS -->
+      <div v-if="activePanel === 'service-levels'">
+        <aside class="cal-service-levels menu">
+          <p class="menu-label">
+            Frequency
+          </p>
+
+          <o-field grouped>
+            <o-checkbox
+              v-model="frequencyUnderEnabled"
+              label="Avg. Frequency ≦"
+              :disabled="!stopDepartureLoadingComplete"
+            />
+            <div class="cal-input-width-80">
+              <o-input
+                v-model="frequencyUnder"
+                number
+                type="number"
+                :disabled="!stopDepartureLoadingComplete || !frequencyUnderEnabled"
+              />
+            </div>
+            <div>
+              minutes
+            </div>
+          </o-field>
+
+          <o-field grouped>
+            <o-checkbox
+              v-model="frequencyOverEnabled"
+              label="Avg. Frequency >"
+              :disabled="!stopDepartureLoadingComplete"
+            />
+            <div class="cal-input-width-80">
+              <o-input
+                v-model="frequencyOver"
+                number
+                type="number"
+                :disabled="!stopDepartureLoadingComplete || !frequencyOverEnabled"
+              />
+            </div>
+            <div>
+              minutes
+            </div>
+          </o-field>
+
+          <o-field>
+            <o-checkbox
+              v-model="calculateFequencyMode"
+              label="Calculate frequency based on single routes"
+              :disabled="true"
+            />
+          </o-field>
+
+          <p class="menu-label">
+            Fares
+          </p>
+
+          <o-field grouped>
+            <o-checkbox
+              v-model="maxFareEnabled"
+              label="Maximum fare $"
+              :disabled="true"
+            />
+            <div class="cal-input-width-80">
+              <o-input
+                v-model="maxFare"
+                number
+                type="number"
+                placeholder="0"
+                :disabled="true"
+              />
+            </div>
+          </o-field>
+
+          <o-field grouped>
+            <o-checkbox
+              v-model="minFareEnabled"
+              label="Minimum fare $"
+              :disabled="true"
+            />
+            <div class="cal-input-width-80">
+              <o-input
+                v-model="minFare"
+                number
+                type="number"
+                placeholder="0"
+                :disabled="true"
+              />
+            </div>
+          </o-field>
+          <p class="filter-legend">
+            * Fare filtering not yet implemented
+          </p>
+
+        </aside>
+      </div>
+
       <!-- LAYERS -->
       <div v-if="activePanel === 'transit-layers'">
         <aside class="menu">
@@ -256,7 +353,8 @@ import { defineEmits } from 'vue'
 import { type Stop } from './scenario.vue'
 
 const menuItems = [
-  { icon: 'chart-bar', label: 'Timeframes', panel: 'timeframes' },
+  { icon: 'calendar-blank', label: 'Timeframes', panel: 'timeframes' },
+  { icon: 'chart-bar', label: 'Service Levels', panel: 'service-levels' },
   { icon: 'bus', label: 'Transit Layers', panel: 'transit-layers' },
   { icon: 'layers-outline', label: 'Map Display', panel: 'map' },
   { icon: 'cog', label: 'Settings', panel: 'settings' },
@@ -282,6 +380,15 @@ const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
 const selectedDays = defineModel<string[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
+const frequencyUnder = defineModel<number>('frequencyUnder')
+const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
+const frequencyOver = defineModel<string>('freqencyOver')
+const calculateFrequencyMode = defineModel<string>('calculateFrequencyMode')
+const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
+const maxFare = defineModel<string>('maxFare')
+const minFareEnabled = defineModel<boolean>('minFareEnabled')
+const minFare = defineModel<string>('minFare')
 const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
 
 ///////////////////
@@ -361,6 +468,21 @@ const knownAgencies = computed(() => {
 
   > div {
     margin-bottom: unset;
+  }
+}
+
+.cal-service-levels {
+  .is-grouped div {
+    display: flex;
+    align-items: center;
+  }
+  .is-grouped .checkbox {
+    width: 185px;
+  }
+  .cal-input-width-80 {
+    max-width: 80px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
   }
 }
 
