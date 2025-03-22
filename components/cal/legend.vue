@@ -28,7 +28,7 @@
           <div>Routes satisfying all filters</div>
         </div>
         <div>
-          <div class="legend-item legend-dashed-line"/>
+          <div class="legend-item legend-thin-line"/>
           <div>Routes not satisfying all filters</div>
         </div>
       </div>
@@ -46,30 +46,30 @@
       <!-- Color Style -->
       <div v-if="props.dataDisplayMode === 'Agency'" class="cal-map-legend-section">
         <div class="legend-heading">Agencies:</div>
-        <div v-for="[color, label] of sampleAgencies" :key="routeType">
-          <div class="legend-item legend-marker-square" :style="{background: color}" />
-          <div>{{ label }}</div>
+        <div v-for="s of styleData" :key="s.color">
+          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+          <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Mode'" class="cal-map-legend-section">
         <div class="legend-heading">Modes:</div>
-        <div v-for="[color, label] of sampleModes" :key="routeType">
-          <div class="legend-item legend-marker-square" :style="{background: color}" />
-          <div>{{ label }}</div>
+        <div v-for="s of styleData" :key="s.color">
+          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+          <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Frequency'" class="cal-map-legend-section">
         <div class="legend-heading">Avg. visits per day:</div>
-        <div v-for="[color, label] of sampleVisits" :key="routeType">
-          <div class="legend-item legend-marker-square" :style="{background: color}" />
-          <div>{{ label }}</div>
+        <div v-for="s of styleData" :key="s.color">
+          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+          <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Fare'" class="cal-map-legend-section">
         <div class="legend-heading">Fares:</div>
-        <div v-for="[color, label] of sampleAgencies" :key="routeType">
-          <div class="legend-item legend-marker-square" :style="{background: color}" />
-          <div>{{ label }}</div>
+        <div v-for="s of styleData" :key="s.color">
+          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+          <div>{{ s.label }}</div>
         </div>
       </div>
 
@@ -84,33 +84,9 @@ import { routeTypeColorMap, routeTypes } from '../constants'
 const props = defineProps<{
   dataDisplayMode: string,
   colorKey: string,
+  styleData: any,
   displayEditBboxMode?: boolean
 }>()
-
-
-// WIP: sample data
-const sampleModes = new Map<string,string>(Object.entries({
-  '#e41a1c': 'Light rail',
-  '#ff7f00': 'Intercity rail',
-  '#fee08b': 'Subway',
-  '#1f78b4': 'Bus',
-  '#984ea3': 'Ferry'
-}));
-const sampleAgencies = new Map<string,string>(Object.entries({
-  '#e41a1c': 'Trimet',
-  '#ff7f00': 'C Tran',
-  '#fee08b': 'Amtrak',
-  '#1f78b4': 'Greyhound',
-  '#984ea3': 'Portland Streetcar'
-}));
-const sampleVisits = new Map<string,string>(Object.entries({
-  '#e41a1c': '40+',
-  '#ff7f00': '30-39',
-  '#fee08b': '20-29',
-  '#1f78b4': '10-19',
-  '#984ea3': '0-0'
-}));
-
 
 </script>
 
@@ -180,9 +156,9 @@ const sampleVisits = new Map<string,string>(Object.entries({
   background-color: #0000;
 }
 
-.legend-dashed-line {
-  border-top: 3px dotted #0006;
-  margin-top: 15px;
+.legend-thin-line {
+  border-top: 1.5px solid #aaa8;
+  margin-top: 17px;
   background-color: #0000;
 }
 
@@ -195,7 +171,7 @@ const sampleVisits = new Map<string,string>(Object.entries({
   width: 10px;
   height: 10px;
   margin: 5px;
-  background-color: #0006;
+  background-color: #aaa8;
   border-radius: 50%;
 }
 

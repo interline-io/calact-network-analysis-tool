@@ -22,6 +22,7 @@
     <cal-legend
       :data-display-mode="dataDisplayMode"
       :color-key="colorKey"
+      :style-data="styleData"
       :display-edit-bbox-mode="displayEditBboxMode"
     />
 
@@ -176,25 +177,117 @@ const stopFeatureLookup = computed(() => {
   return lookup
 })
 
-// Merge features
+// Calculate style data first
+interface Matcher {
+  label: string
+  color: string
+  match: Function
+}
+
+// Depending on the data display, set up matcher rules to choose a styling.
+// Matchers should run in the order that they are added to the rules array.
+const styleData = computed(() => {
+  const rules = [];
+
+  // Fares not implemented yet, for now just style Fares as agencies
+  if (props.dataDisplayMode === 'Agency' || props.colorKey === 'Fares') {
+    rules.push({
+      label: 'Trimet', color: '#e41a1c', match: (v) => v.agency?.agency_id === 'TRIMET'
+    });
+    rules.push({
+      label: 'C Tran', color: '#ff7f00', match: (v) => v.agency?.agency_id === 'C-TRAN'
+    });
+    rules.push({
+      label: 'Amtrak', color: '#fee08b', match: (v) => v.agency?.agency_id === '51'
+    });
+    rules.push({
+      label: 'Blue Star Bus', color: '#1f78b4', match: (v) => v.agency?.agency_id === '169'
+    });
+    rules.push({
+      label: 'Portland Streetcar', color: '#984ea3', match: (v) => v.agency?.agency_id === 'PSC'
+    });
+
+  } else if (props.colorKey === 'Mode') {
+    rules.push({
+      label: 'Light Rail', color: '#e41a1c', match: (v) => (v.mode || v.modes) === 'Light rail'
+    });
+    rules.push({
+      label: 'Intercity Rail', color: '#ff7f00', match: (v) => (v.mode || v.modes) === 'Intercity rail'
+    });
+    rules.push({
+      label: 'Subway', color: '#fee08b', match: (v) => (v.mode || v.modes) === 'Subway'
+    });
+    rules.push({
+      label: 'Bus', color: '#1f78b4', match: (v) => (v.mode || v.modes) === 'Bus'
+    });
+    rules.push({
+      label: 'Ferry', color: '#984ea3', match: (v) => (v.mode || v.modes) === 'Ferry'
+    });
+
+  } else if (props.colorKey === 'Frequency') {
+    rules.push({
+      label: '40+', color: '#e41a1c', match: (v) => {
+        const f = +v.average_frequency || 0;
+        return f >= 40;
+      }
+    });
+    rules.push({
+      label: '30-39', color: '#ff7f00', match: (v) => {
+        const f = +v.average_frequency || 0;
+        return f >= 30;
+      }
+    });
+    rules.push({
+      label: '20-29', color: '#fee08b', match: (v) => {
+        const f = +v.average_frequency || 0;
+        return f >= 20;
+      }
+    });
+    rules.push({
+      label: '10-19', color: '#1f78b4', match: (v) => {
+        const f = +v.average_frequency || 0;
+        return f >= 10;
+      }
+    });
+    rules.push({
+      label: '0-9', color: '#984ea3', match: (v) => {
+        const f = +v.average_frequency || 0;
+        return f >= 0;
+      }
+    });
+  }
+
+  // Add a catchall style that matches last
+  rules.push({
+    label: 'Other', color: '#000', match: (v) => true
+  });
+
+  return rules
+})
+
+
+// Merge features, applying the styleData as GeoJSON simplestyle
 const displayFeatures = computed(() => {
-  const bgColor = '#666'
-  const bgOpacity = 1.0
+  const bgColor = '#aaa'
+  const bgOpacity = 0.4
   const features: Feature[] = []
+  const s = styleData.value || []
+
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
   }
 
   const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
-    const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
+    const style = s.find(rule => rule.match(rp));
+    // const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
     return {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
       properties: {
         'id': rp.id,
-        'stroke': rp.marked ? routeColor : bgColor,
-        'stroke-width': rp.marked ? 3 : 1,
+        'stroke': rp.marked ? style.color : bgColor,
+        'stroke-width': rp.marked ? 3 : 1.5,
         'stroke-opacity': rp.marked ? 1 : bgOpacity,
         'route_id': rp.route_id,
         'route_type': rp.route_type,
@@ -208,13 +301,14 @@ const displayFeatures = computed(() => {
   })
 
   const renderStops: Feature[] = props.stopFeatures.map((sp) => {
+    const style = s.find(rule => rule.match(sp));
     return {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
       properties: {
         'marker-radius': sp.marked ? 8 : 4,
-        'marker-color': sp.marked ? '#0000ff' : bgColor,
+        'marker-color': sp.marked ? style.color : bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked,
       },
