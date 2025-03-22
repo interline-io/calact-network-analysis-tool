@@ -142,12 +142,14 @@
         @set-error="setError"
       />
 
-      <!-- This is a component for displaying the map -->
+      <!-- This is a component for displaying the map and legend -->
       <cal-map
         :bbox="bbox"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :display-edit-bbox-mode="displayEditBboxMode"
+        :data-display-mode="dataDisplayMode"
+        :color-key="colorKey"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
       />

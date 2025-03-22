@@ -5,6 +5,7 @@
         {{ showShareMenu ? 'Close' : 'Share' }}
       </o-button>
     </div>
+
     <article v-if="showShareMenu" class="cal-map-share message is-dark">
       <div class="message-header">
         Share
@@ -17,50 +18,13 @@
         </o-button>
       </div>
     </article>
-    <article class="cal-map-legend message is-dark">
-      <div class="message-header">
-        Legend
-      </div>
-      <div class="message-body">
-        <div class="cal-map-legend-box">
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div style="height:100%;width:100%;border:solid red 1px;" />
-            </div>
-            <div>Bounding Box for Query</div>
-          </div>
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div class="legend-marker sw-marker">
-                <i class="mdi mdi-arrow-bottom-left" />
-              </div>
-            </div>
-            <div>SW Bounding Box Corner</div>
-          </div>
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div class="legend-marker ne-marker">
-                <i class="mdi mdi-arrow-top-right" />
-              </div>
-            </div>
-            <div>NE Bounding Box Corner</div>
-          </div>
-          <div>
-            <div style="background:#0000ff" />
-            <div>Stops satisfying all filters</div>
-          </div>
-          <div>
-            <div style="background:#000000" />
-            <div>Stops not satisfying all filters</div>
-          </div>
-          Routes:
-          <div v-for="[routeType, routeTypeColor] in routeTypeColorMap" :key="routeType">
-            <div :style="{background: routeTypeColor}" />
-            <div>{{ routeTypes.get(routeType) }}</div>
-          </div>
-        </div>
-      </div>
-    </article>
+
+    <cal-legend
+      :data-display-mode="dataDisplayMode"
+      :color-key="colorKey"
+      :display-edit-bbox-mode="displayEditBboxMode"
+    />
+
     <cal-map-viewer-ts
       map-class="tall"
       :center="centerPoint"
@@ -100,6 +64,8 @@ const props = defineProps<{
   bbox: Bbox
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  dataDisplayMode: string,
+  colorKey: string,
   displayEditBboxMode?: boolean
 }>()
 
@@ -341,51 +307,6 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   padding:5px;
   height:150px;
   z-index:100;
-}
-.cal-map-legend {
-  position:absolute;
-  right:50px;
-  bottom:30px;
-  width:300px;
-  color:black;
-  padding:5px;
-  z-index:100;
-  .cal-map-legend-box {
-    display: flex;
-    flex-direction: column;
-    > div {
-      display: flex;
-      height:30px;
-      align-items:center;
-      div:first-child {
-        width:20px;
-        height:20px;
-      }
-      div:nth-child(2) {
-        padding-left:10px;
-      }
-    }
-  }
-}
-/* Legend marker styles */
-.legend-marker {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  position: relative;
-  background-color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border: 2px solid grey;
-  i {
-    font-size: 10px;
-  }
-}
-
-.message-body {
-  color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l), 1.0);
-  background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-scheme-main-l), 0.8);
 }
 
 /* Custom marker styles */
