@@ -1,8 +1,9 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import { StopDepartureCache } from './departure'
+import { StopDepartureCache } from './departure-cache'
 import { type dow } from './constants'
 import { parseHMS } from './datetime'
+
 //////////
 // Stops
 //////////
@@ -193,35 +194,35 @@ export function stopVisits(
     result.total.date_count += 1
     result.total.visit_count += count
     result.total.visit_average = checkDiv(result.total.visit_count, result.total.date_count)
-    let r = result.total
+    let resultDay = result.total
     switch (sd.getDay()) {
       case 0:
-        r = result.sunday
+        resultDay = result.sunday
         break
       case 1:
-        r = result.monday
+        resultDay = result.monday
         break
       case 2:
-        r = result.tuesday
+        resultDay = result.tuesday
         break
       case 3:
-        r = result.wednesday
+        resultDay = result.wednesday
         break
       case 4:
-        r = result.thursday
+        resultDay = result.thursday
         break
       case 5:
-        r = result.friday
+        resultDay = result.friday
         break
       case 6:
-        r = result.saturday
+        resultDay = result.saturday
         break
     }
-    r.date_count += 1
-    r.visit_count += count
-    r.visit_average = checkDiv(r.visit_count, r.date_count)
+    resultDay.date_count += 1
+    resultDay.visit_count += count
+    resultDay.visit_average = checkDiv(resultDay.visit_count, resultDay.date_count)
     if (count === 0) {
-      r.all_date_service = false
+      resultDay.all_date_service = false
     }
   }
   // console.log('stopVisitResult:', stop.id, 'counts:', result)

@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
-import { type StopTime, StopDepartureCache } from './departure'
+import { type StopTime } from './departure'
+import { StopDepartureCache } from './departure-cache'
 import { format } from 'date-fns'
 import { parseHMS } from './datetime'
 
@@ -169,7 +170,7 @@ export function routeHeadways(
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
-  sdCache: StopDepartureCache
+  sdCache: StopDepartureCache | null
 ): RouteHeadwaySummary {
   const result = newRouteHeadwaySummary()
   if (!sdCache) {
