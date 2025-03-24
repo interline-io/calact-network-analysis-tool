@@ -106,7 +106,7 @@
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
-          <td>{{ result.average_visits }}</td>
+          <td>{{ result.visit_count_daily_average < 0 ? 'Loading' : result.visit_count_daily_average }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { type Stop, type StopCsv } from '../stop'
+import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv } from '../route'
 import { type Agency, type AgencyCsv } from '../agency'
 import { type TableColumn } from './datagrid.vue'
@@ -173,10 +173,16 @@ const agencyColumns: TableColumn[] = [
 ]
 
 const reportData = computed((): Record<string, any>[] => {
+  // inline reports so they are dependent on the model data
   if (dataDisplayMode.value === 'Route') {
     return routeReport()
   } else if (dataDisplayMode.value === 'Stop') {
-    return stopReport()
+    const stopCsvs = props.stopFeatures.map(stopToStopCsv)
+    for (let i = 0; i < stopCsvs.length; i++) {
+      stopCsvs[i].row = i + 1
+    }
+    total.value = stopCsvs.length
+    return stopCsvs
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {
@@ -226,43 +232,6 @@ function routeReport () {
       route_sort_order: route.route_sort_order,
       continuous_drop_off: route.continuous_drop_off,
       continuous_pickup: route.continuous_pickup,
-    })
-  }
-  return results
-}
-
-//
-// Gather data for stop report
-//
-function stopReport () {
-  // Recalc totals, min/max, note that `current` page is one-based
-  const arr = props.stopFeatures || []
-  total.value = arr.length
-  const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
-
-  // Gather results
-  const results: StopCsv[] = []
-  for (let i = min; i < max && i < total.value; i++) {
-    const stop = arr[i]
-    results.push({
-      row: i + 1,
-      marked: stop.marked,
-      number_served: stop.number_served,
-      average_visits: stop.average_visits,
-      modes: stop.modes,
-      // GTFS properties
-      location_type: stop.location_type,
-      stop_id: stop.stop_id,
-      stop_name: stop.stop_name,
-      stop_desc: stop.stop_desc,
-      stop_timezone: stop.stop_timezone,
-      stop_url: stop.stop_url,
-      zone_id: stop.zone_id,
-      wheelchair_boarding: stop.wheelchair_boarding,
-      platform_code: stop.platform_code,
-      tts_stop_name: stop.tts_stop_name,
     })
   }
   return results

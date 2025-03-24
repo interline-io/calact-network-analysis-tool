@@ -8,9 +8,10 @@ import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDepartureQuery } from '../departure'
-import { type Stop, type StopGql, stopFilter, stopQuery } from '../stop'
+import { type Stop, type StopGql, stopQuery, stopVisits, stopSetDerived } from '../stop'
 import { type Route, type RouteGql, routeFilter, routeQuery } from '../route'
-import { routeTypes } from '../constants'
+import { type dow, routeTypes } from '../constants'
+import { format } from 'date-fns'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
@@ -31,7 +32,7 @@ const endDate = defineModel<Date>('endDate')
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
-const selectedDays = defineModel<string[]>('selectedDays')
+const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
 const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
@@ -128,7 +129,7 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
 const stopFeatures = computed((): Stop[] => {
   // Derived properties
   const features: Stop[] = (stopResult.value?.stops || []).map((s) => {
-    // gather modes at this stop
+    // Gather modes at this stop
     const route_stops = s.route_stops || []
     const modes = new Set()
     for (const rstop of route_stops) {
@@ -144,6 +145,7 @@ const stopFeatures = computed((): Stop[] => {
       number_served: route_stops.length,
       average_visits: 0,
       marked: true,
+      visits: stopVisits(s, [], [], '00:00:00', '24:00:00', null),
     }
   })
   return features
@@ -166,8 +168,20 @@ watch(() => [
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const stop of stopFeatures.value) {
-    stop.marked = stopFilter(stop, sd, sdMode, sdRange, srt, sg, sdCache)
+    stopSetDerived(
+      stop,
+      sd,
+      sdMode,
+      sdRange,
+      srt,
+      sg,
+      ts,
+      te,
+      sdCache
+    )
   }
   console.log('setStopFeatures', stopFeatures.value.length)
   emit('setStopFeatures', stopFeatures.value)
