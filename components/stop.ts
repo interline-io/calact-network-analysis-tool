@@ -222,7 +222,7 @@ export function stopVisits(
       r.all_date_service = false
     }
   }
-  console.log('stopVisitResult:', stop.id, 'counts:', result)
+  // console.log('stopVisitResult:', stop.id, 'counts:', result)
   return result
 }
 

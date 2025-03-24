@@ -298,7 +298,6 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  console.log('e:', e)
   const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'polygons', 'lines'] })
   if (features) {
     emit('mapClickFeatures', e.lngLat, features)
