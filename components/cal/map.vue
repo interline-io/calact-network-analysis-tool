@@ -44,7 +44,7 @@
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
-import { routeTypeColorMap, routeTypes } from '../constants'
+import { routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
@@ -65,8 +65,8 @@ const props = defineProps<{
   bbox: Bbox
   stopFeatures: Stop[]
   routeFeatures: Route[]
-  dataDisplayMode: string,
-  colorKey: string,
+  dataDisplayMode: string
+  colorKey: string
   displayEditBboxMode?: boolean
 }>()
 
@@ -181,90 +181,89 @@ const stopFeatureLookup = computed(() => {
 interface Matcher {
   label: string
   color: string
-  match: Function
+  match: (x: Stop | Route) => boolean
 }
 
 // Depending on the data display, set up matcher rules to choose a styling.
 // Matchers should run in the order that they are added to the rules array.
-const styleData = computed(() => {
-  const rules = [];
+const styleData = computed((): Matcher[] => {
+  const rules: Matcher[] = []
 
   // Fares not implemented yet, for now just style Fares as agencies
   if (props.dataDisplayMode === 'Agency' || props.colorKey === 'Fares') {
     rules.push({
-      label: 'Trimet', color: '#e41a1c', match: (v) => v.agency?.agency_id === 'TRIMET'
-    });
+      label: 'Trimet', color: '#e41a1c', match: v => v.agency?.agency_id === 'TRIMET'
+    })
     rules.push({
-      label: 'C Tran', color: '#ff7f00', match: (v) => v.agency?.agency_id === 'C-TRAN'
-    });
+      label: 'C Tran', color: '#ff7f00', match: v => v.agency?.agency_id === 'C-TRAN'
+    })
     rules.push({
-      label: 'Amtrak', color: '#fee08b', match: (v) => v.agency?.agency_id === '51'
-    });
+      label: 'Amtrak', color: '#fee08b', match: v => v.agency?.agency_id === '51'
+    })
     rules.push({
-      label: 'Blue Star Bus', color: '#1f78b4', match: (v) => v.agency?.agency_id === '169'
-    });
+      label: 'Blue Star Bus', color: '#1f78b4', match: v => v.agency?.agency_id === '169'
+    })
     rules.push({
-      label: 'Portland Streetcar', color: '#984ea3', match: (v) => v.agency?.agency_id === 'PSC'
-    });
-
-  } else if (props.colorKey === 'Mode') {
+      label: 'Portland Streetcar', color: '#984ea3', match: v => v.agency?.agency_id === 'PSC'
+    })
+  }
+  else if (props.colorKey === 'Mode') {
     rules.push({
-      label: 'Light Rail', color: '#e41a1c', match: (v) => (v.mode || v.modes) === 'Light rail'
-    });
+      label: 'Light Rail', color: '#e41a1c', match: v => (v.mode || v.modes) === 'Light rail'
+    })
     rules.push({
-      label: 'Intercity Rail', color: '#ff7f00', match: (v) => (v.mode || v.modes) === 'Intercity rail'
-    });
+      label: 'Intercity Rail', color: '#ff7f00', match: v => (v.mode || v.modes) === 'Intercity rail'
+    })
     rules.push({
-      label: 'Subway', color: '#fee08b', match: (v) => (v.mode || v.modes) === 'Subway'
-    });
+      label: 'Subway', color: '#fee08b', match: v => (v.mode || v.modes) === 'Subway'
+    })
     rules.push({
-      label: 'Bus', color: '#1f78b4', match: (v) => (v.mode || v.modes) === 'Bus'
-    });
+      label: 'Bus', color: '#1f78b4', match: v => (v.mode || v.modes) === 'Bus'
+    })
     rules.push({
-      label: 'Ferry', color: '#984ea3', match: (v) => (v.mode || v.modes) === 'Ferry'
-    });
-
-  } else if (props.colorKey === 'Frequency') {
+      label: 'Ferry', color: '#984ea3', match: v => (v.mode || v.modes) === 'Ferry'
+    })
+  }
+  else if (props.colorKey === 'Frequency') {
     rules.push({
       label: '40+', color: '#e41a1c', match: (v) => {
-        const f = +v.average_frequency || 0;
-        return f >= 40;
+        const f = +v.average_frequency || 0
+        return f >= 40
       }
-    });
+    })
     rules.push({
       label: '30-39', color: '#ff7f00', match: (v) => {
-        const f = +v.average_frequency || 0;
-        return f >= 30;
+        const f = +v.average_frequency || 0
+        return f >= 30
       }
-    });
+    })
     rules.push({
       label: '20-29', color: '#fee08b', match: (v) => {
-        const f = +v.average_frequency || 0;
-        return f >= 20;
+        const f = +v.average_frequency || 0
+        return f >= 20
       }
-    });
+    })
     rules.push({
       label: '10-19', color: '#1f78b4', match: (v) => {
-        const f = +v.average_frequency || 0;
-        return f >= 10;
+        const f = +v.average_frequency || 0
+        return f >= 10
       }
-    });
+    })
     rules.push({
       label: '0-9', color: '#984ea3', match: (v) => {
-        const f = +v.average_frequency || 0;
-        return f >= 0;
+        const f = +v.average_frequency || 0
+        return f >= 0
       }
-    });
+    })
   }
 
   // Add a catchall style that matches last
   rules.push({
-    label: 'Other', color: '#000', match: (v) => true
-  });
+    label: 'Other', color: '#000', match: v => true
+  })
 
   return rules
 })
-
 
 // Merge features, applying the styleData as GeoJSON simplestyle
 const displayFeatures = computed(() => {
@@ -278,8 +277,7 @@ const displayFeatures = computed(() => {
   }
 
   const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
-    const style = s.find(rule => rule.match(rp));
-    // const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
+    const style = s.find(rule => rule.match(rp))
     return {
       type: 'Feature',
       id: rp.id.toString(),
@@ -301,7 +299,7 @@ const displayFeatures = computed(() => {
   })
 
   const renderStops: Feature[] = props.stopFeatures.map((sp) => {
-    const style = s.find(rule => rule.match(sp));
+    const style = s.find(rule => rule.match(sp))
     return {
       type: 'Feature',
       id: sp.id.toString(),

@@ -12,11 +12,15 @@
           <div>Bounding Box for Query</div>
         </div>
         <div>
-          <div class="legend-item legend-marker-round"><i class="mdi mdi-arrow-bottom-left" /></div>
+          <div class="legend-item legend-marker-round">
+            <i class="mdi mdi-arrow-bottom-left" />
+          </div>
           <div>SW Bounding Box Corner</div>
         </div>
         <div>
-          <div class="legend-item legend-marker-round"><i class="mdi mdi-arrow-top-right" /></div>
+          <div class="legend-item legend-marker-round">
+            <i class="mdi mdi-arrow-top-right" />
+          </div>
           <div>NE Bounding Box Corner</div>
         </div>
       </div>
@@ -24,57 +28,63 @@
       <!-- Geometry Style -->
       <div v-if="props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
         <div>
-          <div class="legend-item legend-full-line"/>
+          <div class="legend-item legend-full-line" />
           <div>Routes satisfying all filters</div>
         </div>
         <div>
-          <div class="legend-item legend-thin-line"/>
+          <div class="legend-item legend-thin-line" />
           <div>Routes not satisfying all filters</div>
         </div>
       </div>
       <div v-else-if="props.dataDisplayMode === 'Stop'" class="cal-map-legend-section">
         <div>
-          <div class="legend-item legend-large-circle"/>
+          <div class="legend-item legend-large-circle" />
           <div>Stops satisfying all filters</div>
         </div>
         <div>
-          <div class="legend-item legend-small-circle"/>
+          <div class="legend-item legend-small-circle" />
           <div>Stops not satisfying all filters</div>
         </div>
       </div>
 
       <!-- Color Style -->
       <div v-if="props.dataDisplayMode === 'Agency'" class="cal-map-legend-section">
-        <div class="legend-heading">Agencies:</div>
+        <div class="legend-heading">
+          Agencies:
+        </div>
         <div v-for="s of styleData" :key="s.color">
           <div class="legend-item legend-marker-square" :style="{background: s.color}" />
           <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Mode'" class="cal-map-legend-section">
-        <div class="legend-heading">Modes:</div>
+        <div class="legend-heading">
+          Modes:
+        </div>
         <div v-for="s of styleData" :key="s.color">
           <div class="legend-item legend-marker-square" :style="{background: s.color}" />
           <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Frequency'" class="cal-map-legend-section">
-        <div class="legend-heading">Avg. visits per day:</div>
+        <div class="legend-heading">
+          Avg. visits per day:
+        </div>
         <div v-for="s of styleData" :key="s.color">
           <div class="legend-item legend-marker-square" :style="{background: s.color}" />
           <div>{{ s.label }}</div>
         </div>
       </div>
       <div v-else-if="props.colorKey === 'Fare'" class="cal-map-legend-section">
-        <div class="legend-heading">Fares:</div>
+        <div class="legend-heading">
+          Fares:
+        </div>
         <div v-for="s of styleData" :key="s.color">
           <div class="legend-item legend-marker-square" :style="{background: s.color}" />
           <div>{{ s.label }}</div>
         </div>
       </div>
-
     </div>
-
   </article>
 </template>
 
@@ -82,9 +92,9 @@
 import { routeTypeColorMap, routeTypes } from '../constants'
 
 const props = defineProps<{
-  dataDisplayMode: string,
-  colorKey: string,
-  styleData: any,
+  dataDisplayMode: string
+  colorKey: string
+  styleData: any
   displayEditBboxMode?: boolean
 }>()
 
@@ -174,6 +184,5 @@ const props = defineProps<{
   background-color: #aaa8;
   border-radius: 50%;
 }
-
 
 </style>
