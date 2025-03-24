@@ -10,8 +10,8 @@ export const cannedBboxes = new Map<string, string>(Object.entries({
 
 export const routeTypes = new Map<string, string>(Object.entries({
   0: 'Light rail',
-  1: 'Intercity rail',
-  2: 'Subway',
+  1: 'Subway',
+  2: 'Intercity rail',
   3: 'Bus',
   4: 'Ferry',
 }))
