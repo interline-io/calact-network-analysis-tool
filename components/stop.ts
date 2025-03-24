@@ -125,8 +125,6 @@ export function stopSetDerived(
   stop.visit_count_daily_average = sv.visit_count_daily_average
 }
 
-
-
 export function stopVisits(
   stop: StopGql,
   selectedDows: string[],
@@ -137,12 +135,19 @@ export function stopVisits(
     visit_count_total: 0,
     visit_count_daily_average: 0,
     visit_count_monday: 0,
+    visit_count_monday_average: 0,
     visit_count_tuesday: 0,
+    visit_count_tuesday_average: 0,
     visit_count_wednesday: 0,
+    visit_count_wednesday_average: 0,
     visit_count_thursday: 0,
+    visit_count_thursday_average: 0,
     visit_count_friday: 0,
+    visit_count_friday_average: 0,
     visit_count_saturday: 0,
+    visit_count_saturday_average: 0,
     visit_count_sunday: 0,
+    visit_count_sunday_average: 0,
     visit_count_dates: {},
   }
   if (!sdCache) {
@@ -153,9 +158,47 @@ export function stopVisits(
     if (!selectedDows.includes(sdDow)) {
       continue
     }
+    let monday_count = 0
+    let tuesday_count = 0
+    let wednesday_count = 0
+    let thursday_count = 0
+    let friday_count = 0
+    let saturday_count = 0
+    let sunday_count = 0
     // TODO: memoize formatted date
-    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))
-    result.visit_count_total += stopDeps.length
+    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))    
+    const sl = stopDeps.length
+    result.visit_count_total += sl
+    switch (sd.getDay()) {
+      case 0:
+        monday_count += 1
+        result.visit_count_sunday += sl
+        break
+      case 1:
+        tuesday_count +=1 
+        result.visit_count_monday += sl
+        break
+      case 2:
+        wednesday_count +=1 
+        result.visit_count_tuesday += sl
+        break
+      case 3:
+        thursday_count += 1
+        result.visit_count_wednesday += sl
+        break
+      case 4:
+        friday_count +=1 
+        result.visit_count_thursday += sl
+        break
+      case 5:
+        saturday_count +=1 
+        result.visit_count_friday += sl
+        break
+      case 6:
+        sunday_count +=1 
+        result.visit_count_saturday += sl
+        break
+    }    
   }
   // Check div 0
   result.visit_count_daily_average = selectedDateRange.length > 0 ?
