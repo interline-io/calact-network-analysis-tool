@@ -250,7 +250,6 @@ function stopReport () {
       row: i + 1,
       marked: stop.marked,
       number_served: stop.number_served,
-      average_visits: stop.average_visits,
       modes: stop.modes,
       // GTFS properties
       location_type: stop.location_type,
