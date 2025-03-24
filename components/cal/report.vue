@@ -106,7 +106,7 @@
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
-          <td>{{ result.visit_count_daily_average >= 0 ? '-' : result.visit_count_daily_average }}</td>
+          <td>{{ result.visit_count_daily_average >= 0 ? result.visit_count_daily_average : '-' }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
