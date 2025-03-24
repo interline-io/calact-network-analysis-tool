@@ -16,13 +16,14 @@ export const routeTypes = new Map<string, string>(Object.entries({
   4: 'Ferry',
 }))
 
-export const routeTypeColorMap = new Map<string, string>(Object.entries({
- 0: '#e41a1c',
- 1: '#ff7f00',
- 2: '#fee08b',
- 3: '#1f78b4',
- 4: '#984ea3',
-}))
+export const colors = [
+  '#e41a1c', // red
+  '#ff7f00', // orange
+  '#fee08b', // yellow
+  '#1f78b4', // blue
+  '#984ea3', // purple
+  '#333333'  // black
+]
 
 export type dow = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
 

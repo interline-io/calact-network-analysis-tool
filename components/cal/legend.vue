@@ -89,7 +89,6 @@
 </template>
 
 <script setup lang="ts">
-import { routeTypeColorMap, routeTypes } from '../constants'
 
 const props = defineProps<{
   dataDisplayMode: string

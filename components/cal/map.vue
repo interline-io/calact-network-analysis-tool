@@ -44,7 +44,7 @@
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
-import { routeTypes } from '../constants'
+import { colors, routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
@@ -177,11 +177,50 @@ const stopFeatureLookup = computed(() => {
   return lookup
 })
 
+// Calculate top agencies in result set
+// (we will order them by the most to least stops)
+interface AgencyData {
+  id: string
+  name: string
+  stops: Set<string>
+}
+const agencyData = computed((): AgencyData[] => {
+  // Collect agency data from the stop data.
+  const data = new Map()
+  for (const stop of props.stopFeatures) {
+    const props = stop
+    const route_stops = props.route_stops || []
+
+    for (const rstop of route_stops) {
+      const rid = rstop.route.route_id
+      const aid = rstop.route.agency?.agency_id
+      const aname = rstop.route.agency?.agency_name
+      if (!aid || !aname) continue // no valid agency listed for this stop?
+
+      let adata = data.get(aid)
+      if (!adata) { // first time seeing this agency
+        adata = {
+          id: aid,
+          name: aname,
+          stops: new Set()
+        }
+        data.set(aid, adata)
+      }
+      adata.stops.add(props.stop_id)
+    }
+  }
+
+  return [...data.values()]
+    .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
+})
+
+type MatchFunction = (x: Stop | Route) => boolean
+
 // Calculate style data first
 interface Matcher {
   label: string
   color: string
-  match: (x: Stop | Route) => boolean
+  match: MatchFunction
 }
 
 // Depending on the data display, set up matcher rules to choose a styling.
@@ -189,78 +228,70 @@ interface Matcher {
 const styleData = computed((): Matcher[] => {
   const rules: Matcher[] = []
 
-  // Fares not implemented yet, for now just style Fares as agencies
-  if (props.dataDisplayMode === 'Agency' || props.colorKey === 'Fares') {
-    rules.push({
-      label: 'Trimet', color: '#e41a1c', match: v => v.agency?.agency_id === 'TRIMET'
-    })
-    rules.push({
-      label: 'C Tran', color: '#ff7f00', match: v => v.agency?.agency_id === 'C-TRAN'
-    })
-    rules.push({
-      label: 'Amtrak', color: '#fee08b', match: v => v.agency?.agency_id === '51'
-    })
-    rules.push({
-      label: 'Blue Star Bus', color: '#1f78b4', match: v => v.agency?.agency_id === '169'
-    })
-    rules.push({
-      label: 'Portland Streetcar', color: '#984ea3', match: v => v.agency?.agency_id === 'PSC'
-    })
-  }
-  else if (props.colorKey === 'Mode') {
-    rules.push({
-      label: 'Light Rail', color: '#e41a1c', match: v => (v.mode || v.modes) === 'Light rail'
-    })
-    rules.push({
-      label: 'Intercity Rail', color: '#ff7f00', match: v => (v.mode || v.modes) === 'Intercity rail'
-    })
-    rules.push({
-      label: 'Subway', color: '#fee08b', match: v => (v.mode || v.modes) === 'Subway'
-    })
-    rules.push({
-      label: 'Bus', color: '#1f78b4', match: v => (v.mode || v.modes) === 'Bus'
-    })
-    rules.push({
-      label: 'Ferry', color: '#984ea3', match: v => (v.mode || v.modes) === 'Ferry'
-    })
-  }
-  else if (props.colorKey === 'Frequency') {
-    rules.push({
-      label: '40+', color: '#e41a1c', match: (v) => {
-        const f = +v.average_frequency || 0
-        return f >= 40
+  function getAgencyMatcher (val: string): MatchFunction {
+    return (v: Stop | Route) => {
+      if (v.__typename === 'Stop') {
+        const rstops = v.route_stops || []
+        return rstops.length > 0 && rstops[0].route?.agency?.agency_id === val
+      } else if (v.__typename === 'Route') {
+        return v.agency?.agency_id === val
       }
-    })
-    rules.push({
-      label: '30-39', color: '#ff7f00', match: (v) => {
-        const f = +v.average_frequency || 0
-        return f >= 30
-      }
-    })
-    rules.push({
-      label: '20-29', color: '#fee08b', match: (v) => {
-        const f = +v.average_frequency || 0
-        return f >= 20
-      }
-    })
-    rules.push({
-      label: '10-19', color: '#1f78b4', match: (v) => {
-        const f = +v.average_frequency || 0
-        return f >= 10
-      }
-    })
-    rules.push({
-      label: '0-9', color: '#984ea3', match: (v) => {
-        const f = +v.average_frequency || 0
-        return f >= 0
-      }
-    })
+      return false
+    }
   }
 
-  // Add a catchall style that matches last
-  rules.push({
-    label: 'Other', color: '#000', match: v => true
-  })
+  function getModeMatcher (val: string): MatchFunction {
+    return (v: Stop | Route) => {
+      if (v.__typename === 'Stop') {
+        return v.modes === val
+      } else if (v.__typename === 'Route') {
+        return v.mode === val
+      }
+      return false
+    }
+  }
+
+  function getFrequencyMatcher (val: number): MatchFunction {
+    return (v: Stop | Route) => {
+      const f = +v.average_frequency || 0
+      return f >= val
+    }
+  }
+
+  // Reserve an extra color for "other", if needed
+  const maxColor = colors.length - 1
+  let valueCount = 0
+
+  // Fares not implemented yet, for now just style Fares as agencies
+  if (props.dataDisplayMode === 'Agency' || props.colorKey === 'Fares') {
+    const agencies = agencyData.value || []
+    valueCount = agencies.length
+    for (let i = 0; i < Math.min(valueCount, maxColor); i++) {
+      const agency = agencies[i]
+      const color = colors[i]
+      rules.push({ label: agency.name, color: color, match: getAgencyMatcher(agency.id) })
+    }
+  } else if (props.colorKey === 'Mode') {
+    const modes = [...routeTypes.values()]
+    valueCount = modes.length
+    for (i = 0; i < Math.min(valueCount, maxColor); i++) {
+      const mode = modes[i]
+      const color = colors[i]
+      rules.push({ label: mode, color: color, match: getModeMatcher(mode) })
+    }
+  } else if (props.colorKey === 'Frequency') {
+    valueCount = 5
+    rules.push({ label: '40+', color: colors[0], match: getFrequencyMatcher(40) })
+    rules.push({ label: '30-39', color: colors[1], match: getFrequencyMatcher(30) })
+    rules.push({ label: '20-29', color: colors[2], match: getFrequencyMatcher(20) })
+    rules.push({ label: '10-19', color: colors[3], match: getFrequencyMatcher(10) })
+    rules.push({ label: '0-9', color: colors[4], match: getFrequencyMatcher(0) })
+  }
+
+  // If we used all colors (or no colors), add a catchall "other" rule
+  if (valueCount > maxColor || valueCount === 0) {
+    rules.push({ label: 'Other', color: '#000', match: v => true })
+  }
 
   return rules
 })
