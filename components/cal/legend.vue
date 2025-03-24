@@ -48,35 +48,20 @@
       </div>
 
       <!-- Color Style -->
-      <div v-if="props.dataDisplayMode === 'Agency'" class="cal-map-legend-section">
-        <div class="legend-heading">
+      <div class="cal-map-legend-section">
+        <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
           Agencies:
         </div>
-        <div v-for="s of styleData" :key="s.color">
-          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
-          <div>{{ s.label }}</div>
-        </div>
-      </div>
-      <div v-else-if="props.colorKey === 'Mode'" class="cal-map-legend-section">
-        <div class="legend-heading">
+        <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
           Modes:
         </div>
-        <div v-for="s of styleData" :key="s.color">
-          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
-          <div>{{ s.label }}</div>
+        <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
+          Avg. minutes:
         </div>
-      </div>
-      <div v-else-if="props.colorKey === 'Frequency'" class="cal-map-legend-section">
-        <div class="legend-heading">
+        <div v-else-if="props.dataDisplayMode === 'Stop' && props.colorKey === 'Frequency'" class="legend-heading">
           Avg. visits per day:
         </div>
-        <div v-for="s of styleData" :key="s.color">
-          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
-          <div>{{ s.label }}</div>
-        </div>
-      </div>
-      <div v-else-if="props.colorKey === 'Fare'" class="cal-map-legend-section">
-        <div class="legend-heading">
+        <div v-else-if="props.colorKey === 'Fare'" class="legend-heading">
           Fares:
         </div>
         <div v-for="s of styleData" :key="s.color">
