@@ -41,3 +41,13 @@ export function getUTCDateNoTime(): Date {
     const now = new Date()
     return new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
+
+export function parseHMS(value: string): number {
+    const a = (value || '').split(':').map((s) => {
+      return parseInt(s)
+    })
+    if (a.length !== 3) {
+      return -1
+    }
+    return a[0] * 3600 + a[1] * 60 + a[2]
+  }

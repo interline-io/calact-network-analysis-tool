@@ -278,7 +278,7 @@ const dataDisplayMode = computed({
 
 const colorKey = computed({
   get () {
-    return route.query.colorKey?.toString() || 'Type'
+    return route.query.colorKey?.toString() || 'Mode'
   },
   set (v: string) {
     setQuery({ ...route.query, colorKey: v })

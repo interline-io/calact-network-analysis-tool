@@ -94,9 +94,9 @@
           <td>{{ result.route_name }}</td>
           <td>{{ result.mode }}</td>
           <td>{{ result.agency_name }}</td>
-          <td>{{ result.average_frequency }}</td>
-          <td>{{ result.fastest_frequency }}</td>
-          <td>{{ result.slowest_frequency }}</td>
+          <td>{{ result.average_frequency >= 0 ? Math.round(result.average_frequency / 60) : '-' }}</td>
+          <td>{{ result.fastest_frequency >= 0 ? Math.round(result.fastest_frequency / 60) : '-' }}</td>
+          <td>{{ result.slowest_frequency >= 0 ? Math.round(result.slowest_frequency / 60) : '-' }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Stop'">
@@ -106,7 +106,7 @@
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
-          <td>{{ result.visit_count_daily_average < 0 ? 'Loading' : result.visit_count_daily_average }}</td>
+          <td>{{ result.visit_count_daily_average >= 0 ? result.visit_count_daily_average : '-' }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
@@ -128,7 +128,7 @@
 
 <script setup lang="ts">
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
-import { type Route, type RouteCsv } from '../route'
+import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency, type AgencyCsv } from '../agency'
 import { type TableColumn } from './datagrid.vue'
 
@@ -173,16 +173,23 @@ const agencyColumns: TableColumn[] = [
 ]
 
 const reportData = computed((): Record<string, any>[] => {
+  const index = current.value - 1
+
   // inline reports so they are dependent on the model data
   if (dataDisplayMode.value === 'Route') {
-    return routeReport()
+    const routeCsvs = props.routeFeatures.map(routeToRouteCsv)
+    for (let i = 0; i < routeCsvs.length; i++) {
+      routeCsvs[i].row = i + 1
+    }
+    total.value = routeCsvs.length
+    return routeCsvs.slice(index * perPage.value, (index + 1) * perPage.value)
   } else if (dataDisplayMode.value === 'Stop') {
     const stopCsvs = props.stopFeatures.map(stopToStopCsv)
     for (let i = 0; i < stopCsvs.length; i++) {
       stopCsvs[i].row = i + 1
     }
     total.value = stopCsvs.length
-    return stopCsvs
+    return stopCsvs.slice(index * perPage.value, (index + 1) * perPage.value)
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {
@@ -195,47 +202,6 @@ const reportData = computed((): Record<string, any>[] => {
 watch(dataDisplayMode, () => {
   current.value = 1
 })
-
-//
-// Gather data for route report
-//
-function routeReport () {
-  // Recalc totals, min/max, note that `current` page is one-based
-  const arr = props.routeFeatures || []
-  total.value = arr.length
-  const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
-
-  const results: RouteCsv[] = []
-  for (let i = min; i < max && i < total.value; i++) {
-    const route = arr[i]
-    results.push({
-      row: i + 1,
-      marked: route.marked,
-      average_frequency: route.average_frequency,
-      fastest_frequency: route.fastest_frequency,
-      slowest_frequency: route.slowest_frequency,
-      agency_name: route.agency_name,
-      mode: route.mode,
-      route_name: route.route_name,
-      // GTFS properties
-      route_id: route.route_id,
-      route_agency: route.route_agency,
-      route_long_name: route.route_long_name,
-      route_short_name: route.route_short_name,
-      route_type: route.route_type,
-      route_color: route.route_color,
-      route_text_color: route.route_text_color,
-      route_url: route.route_url,
-      route_desc: route.route_desc,
-      route_sort_order: route.route_sort_order,
-      continuous_drop_off: route.continuous_drop_off,
-      continuous_pickup: route.continuous_pickup,
-    })
-  }
-  return results
-}
 
 //
 // Gather data for agency report

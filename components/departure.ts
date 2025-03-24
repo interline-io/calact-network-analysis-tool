@@ -65,6 +65,9 @@ export interface StopTime {
   trip: {
     id: number
     direction_id: number
+    route: {
+      id: number
+    }
   }
 }
 
@@ -96,7 +99,7 @@ export class StopDepartureQueryVars {
   include_saturday: boolean = false
   include_sunday: boolean = false
 
-  get (dow: string): string {
+  get(dow: string): string {
     switch (dow) {
       case 'monday':
         return this.monday
@@ -116,7 +119,7 @@ export class StopDepartureQueryVars {
     return ''
   }
 
-  setDay (d: Date) {
+  setDay(d: Date) {
     const dateFmt = 'yyyy-MM-dd'
     switch (d.getDay()) {
       case 0:
@@ -148,47 +151,5 @@ export class StopDepartureQueryVars {
         this.include_saturday = true
         break
     }
-  }
-}
-
-// Two level cache
-export class StopDepartureCache {
-  cache: Map<number, Map<string, StopTime[]>> = new Map()
-
-  get (id: number, date: string): StopTime[] {
-    const a = this.cache.get(id) || new Map()
-    return a.get(date) || []
-  }
-
-  add (id: number, date: string, value: StopDeparture[]) {
-    if (value.length === 0) {
-      return
-    }
-    const a = this.cache.get(id) || new Map()
-    const b = a.get(date) || []
-    b.push(...value)
-    a.set(date, b)
-    this.cache.set(id, a)
-  }
-
-  hasService (id: number, date: string): boolean {
-    const a = this.cache.get(id)
-    if (!a) {
-      return false
-    }
-    return (a.get(date) || []).length > 0
-  }
-
-  debugStats () {
-    const stopCount = this.cache.size
-    let total = 0
-    let dates = new Set()
-    for (const [_, stopDates] of this.cache) {
-      for (const [d, departures] of stopDates) {
-        dates.add(d)
-        total += departures.length
-      }
-    }
-    console.log('StopDepartureCache stats:', this.cache.size, 'stops', dates.size, 'dates', total, 'total departures')
   }
 }

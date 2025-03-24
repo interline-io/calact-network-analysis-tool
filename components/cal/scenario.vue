@@ -7,11 +7,33 @@ import { ref, watch, computed } from 'vue'
 import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
-import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDepartureQuery } from '../departure'
-import { type Stop, type StopGql, stopQuery, stopVisits, stopSetDerived } from '../stop'
-import { type Route, type RouteGql, routeFilter, routeQuery } from '../route'
 import { type dow, routeTypes } from '../constants'
 import { format } from 'date-fns'
+
+import {
+  type StopDeparture,
+  StopDepartureQueryVars,
+  stopDepartureQuery
+} from '../departure'
+import {
+  StopDepartureCache
+} from '../departure-cache'
+
+import {
+  type Stop,
+  type StopGql,
+  stopQuery,
+  stopVisits,
+  stopSetDerived
+} from '../stop'
+
+import {
+  type Route,
+  type RouteGql,
+  routeSetDerived,
+  routeQuery,
+  newRouteHeadwaySummary
+} from '../route'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
@@ -162,24 +184,24 @@ watch(() => [
   stopDepartureLoadingComplete.value
 ], () => {
   // Apply filters
-  const sd = selectedDays.value || []
-  const sdMode = selectedDayOfWeekMode.value || ''
-  const sdRange = selectedDateRange.value || []
-  const srt = selectedRouteTypes.value || []
-  const sg = selectedAgencies.value || []
+  const selectedDaysValue = selectedDays.value || []
+  const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
+  const selectedDateRangeValue = selectedDateRange.value || []
+  const selectedRouteTypesValue = selectedRouteTypes.value || []
+  const selectedAgenciesValue = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
-  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const stop of stopFeatures.value) {
     stopSetDerived(
       stop,
-      sd,
-      sdMode,
-      sdRange,
-      srt,
-      sg,
-      ts,
-      te,
+      selectedDaysValue,
+      selectedDayOfWeekModeValue,
+      selectedDateRangeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      startTimeValue,
+      endTimeValue,
       sdCache
     )
   }
@@ -243,14 +265,15 @@ const routeQueue = useTask(function* (_, task: { after: number }) {
 // Derived properties
 const routeFeatures = computed((): Route[] => {
   const features: Route[] = (routeResult.value?.routes || []).map(s => ({
+    ...s,
     route_name: s.route_long_name || s.route_short_name || s.route_id,
     agency_name: s.agency?.agency_name || 'Unknown',
     mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
     marked: true,
-    average_frequency: 0,
-    fastest_frequency: 0,
-    slowest_frequency: 0,
-    ...s,
+    average_frequency: -1,
+    fastest_frequency: -1,
+    slowest_frequency: -1,
+    headways: newRouteHeadwaySummary(),
   }))
   return features
 })
@@ -259,13 +282,26 @@ const routeFeatures = computed((): Route[] => {
 watch(() => [
   routeFeatures.value,
   selectedRouteTypes.value,
-  selectedAgencies.value
+  selectedAgencies.value,
+  stopDepartureLoadingComplete.value
 ], () => {
-  // Derived properties and filtering
-  const srt = selectedRouteTypes.value || []
-  const sg = selectedAgencies.value || []
+  // Apply filters
+  const selectedDateRangeValue = selectedDateRange.value || []
+  const selectedRouteTypesValue = selectedRouteTypes.value || []
+  const selectedAgenciesValue = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const route of routeFeatures.value) {
-    route.marked = routeFilter(route, srt, sg)
+    routeSetDerived(
+      route,
+      selectedDateRangeValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      sdCache,
+    )
   }
   console.log('setRouteFeatures', routeFeatures.value.length)
   emit('setRouteFeatures', routeFeatures.value)
