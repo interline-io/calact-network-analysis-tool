@@ -12,10 +12,13 @@ import { format } from 'date-fns'
 
 import {
   type StopDeparture,
-  StopDepartureCache,
   StopDepartureQueryVars,
   stopDepartureQuery
 } from '../departure'
+import {
+  StopDepartureCache
+} from '../departure-cache'
+
 import {
   type Stop,
   type StopGql,
@@ -23,6 +26,7 @@ import {
   stopVisits,
   stopSetDerived
 } from '../stop'
+
 import {
   type Route,
   type RouteGql,
@@ -180,24 +184,24 @@ watch(() => [
   stopDepartureLoadingComplete.value
 ], () => {
   // Apply filters
-  const sd = selectedDays.value || []
-  const sdMode = selectedDayOfWeekMode.value || ''
-  const sdRange = selectedDateRange.value || []
-  const srt = selectedRouteTypes.value || []
-  const sg = selectedAgencies.value || []
+  const selectedDaysValue = selectedDays.value || []
+  const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
+  const selectedDateRangeValue = selectedDateRange.value || []
+  const selectedRouteTypesValue = selectedRouteTypes.value || []
+  const selectedAgenciesValue = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
-  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const stop of stopFeatures.value) {
     stopSetDerived(
       stop,
-      sd,
-      sdMode,
-      sdRange,
-      srt,
-      sg,
-      ts,
-      te,
+      selectedDaysValue,
+      selectedDayOfWeekModeValue,
+      selectedDateRangeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      startTimeValue,
+      endTimeValue,
       sdCache
     )
   }
@@ -281,21 +285,21 @@ watch(() => [
   selectedAgencies.value,
   stopDepartureLoadingComplete.value
 ], () => {
-  // Derived properties and filtering
-  const srt = selectedRouteTypes.value || []
-  const sg = selectedAgencies.value || []
+  // Apply filters
+  const selectedDateRangeValue = selectedDateRange.value || []
+  const selectedRouteTypesValue = selectedRouteTypes.value || []
+  const selectedAgenciesValue = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-  const sdRange = selectedDateRange.value || []
-  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
-  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const route of routeFeatures.value) {
     routeSetDerived(
       route,
-      sdRange,
-      ts,
-      te,
-      srt,
-      sg,
+      selectedDateRangeValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
       sdCache,
     )
   }
