@@ -7,11 +7,29 @@ import { ref, watch, computed } from 'vue'
 import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
-import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDepartureQuery } from '../departure'
-import { type Stop, type StopGql, stopQuery, stopVisits, stopSetDerived } from '../stop'
-import { type Route, type RouteGql, routeSetDerived, routeQuery } from '../route'
 import { type dow, routeTypes } from '../constants'
 import { format } from 'date-fns'
+
+import {
+  type StopDeparture,
+  StopDepartureCache,
+  StopDepartureQueryVars,
+  stopDepartureQuery
+} from '../departure'
+import {
+  type Stop,
+  type StopGql,
+  stopQuery,
+  stopVisits,
+  stopSetDerived
+} from '../stop'
+import {
+  type Route,
+  type RouteGql,
+  routeSetDerived,
+  routeQuery,
+  newRouteHeadwaySummary
+} from '../route'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
@@ -243,6 +261,7 @@ const routeQueue = useTask(function* (_, task: { after: number }) {
 // Derived properties
 const routeFeatures = computed((): Route[] => {
   const features: Route[] = (routeResult.value?.routes || []).map(s => ({
+    ...s,
     route_name: s.route_long_name || s.route_short_name || s.route_id,
     agency_name: s.agency?.agency_name || 'Unknown',
     mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
@@ -250,7 +269,7 @@ const routeFeatures = computed((): Route[] => {
     average_frequency: -1,
     fastest_frequency: -1,
     slowest_frequency: -1,
-    ...s,
+    headways: newRouteHeadwaySummary(),
   }))
   return features
 })
@@ -266,8 +285,19 @@ watch(() => [
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  const sdRange = selectedDateRange.value || []
+  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const route of routeFeatures.value) {
-    routeSetDerived(route, srt, sg, sdCache)
+    routeSetDerived(
+      route,
+      sdRange,
+      ts,
+      te,
+      srt,
+      sg,
+      sdCache,
+    )
   }
   console.log('setRouteFeatures', routeFeatures.value.length)
   emit('setRouteFeatures', routeFeatures.value)

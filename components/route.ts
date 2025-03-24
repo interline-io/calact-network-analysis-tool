@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
-import { StopDepartureCache } from './departure'
+import { type StopTime, StopDepartureCache } from './departure'
+import { format } from 'date-fns'
 
 //////////
 // Routes
@@ -66,6 +67,7 @@ export interface RouteDerived {
   route_name: string
   agency_name: string
   mode: string
+  headways: RouteHeadwaySummary
   average_frequency: number
   fastest_frequency: number
   slowest_frequency: number
@@ -102,6 +104,9 @@ export type Route = RouteGql & RouteDerived
 
 export function routeSetDerived (
   route: Route,
+  selectedDateRange: Date[],
+  selectedStartTime: string,
+  selectedEndTime: string,
   selectedRouteTypes: string[],
   selectedAgencies: string[],
   sdCache: StopDepartureCache | null,
@@ -109,7 +114,13 @@ export function routeSetDerived (
   // Set derived properties
   route.marked = routeMarked(route, selectedRouteTypes, selectedAgencies)
   if (sdCache) {
-    routeHeadways(route, sdCache)
+    routeHeadways(
+      route,       
+      selectedDateRange,
+      selectedStartTime,
+      selectedEndTime,
+      sdCache,
+    )
     route.average_frequency = 1
     route.fastest_frequency = 2
     route.slowest_frequency = 3  
@@ -135,13 +146,35 @@ export function routeMarked (route: RouteGql, srt: string[], sg: string[]): bool
 
 export function routeHeadways(
   route: Route,
+  selectedDateRange: Date[],
+  selectedStartTime: string,
+  selectedEndTime: string,
   sdCache: StopDepartureCache
 ): RouteHeadwaySummary {
-  const id = route.id
-  console.log('routeHeadways:', id)
-  const result = {
-    total: newRouteHeadwayDirections(),
-    monday: newRouteHeadwayDirections()
+  const result = newRouteHeadwaySummary()
+  if (!sdCache) {
+    return result
+  }  
+  for (const d of selectedDateRange) {
+    let dir = 0
+    let stopId: number = 0
+    let stopDepartures: StopTime[] = []
+    const dir0 = sdCache.getRouteDate(route.id, 0, format(d, 'yyyy-MM-dd'))
+    const dir1 = sdCache.getRouteDate(route.id, 1, format(d, 'yyyy-MM-dd'))
+    for (const [depStopId, deps] of dir0.entries()) {
+      if (deps.length > stopDepartures.length) {
+        stopId = depStopId
+        stopDepartures = deps
+      }
+    }
+    for (const [depStopId, deps] of dir1.entries()) {
+      if (deps.length > stopDepartures.length) {
+        dir = 1
+        stopId = depStopId
+        stopDepartures = deps
+      }
+    }
+    console.log('route:', route.id, 'date:', d, 'stopId:', stopId, 'dir:', dir, 'stopDepartures:', stopDepartures.length) 
   }
   return result
 }
@@ -168,6 +201,13 @@ export function routeToRouteCsv(route: Route): RouteCsv {
     route_sort_order: route.route_sort_order,
     continuous_drop_off: route.continuous_drop_off,
     continuous_pickup: route.continuous_pickup,
+  }
+}
+
+export function newRouteHeadwaySummary(): RouteHeadwaySummary {
+  return {
+    total: newRouteHeadwayDirections(),
+    monday: newRouteHeadwayDirections()
   }
 }
 
