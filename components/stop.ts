@@ -93,9 +93,39 @@ export type StopGql = {
 
 export type StopCsv = StopGtfs & StopDerived & StopVisitSummary & { row: number }
 
-export type Stop = StopGql & StopDerived & StopVisitSummary 
+export type Stop = StopGql & StopDerived & StopVisitSummary
 
 const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Mutates calculated fields on Stop
+export function stopSetDerived(
+  stop: Stop,
+  selectedDows: string[],
+  selectedDowMode: string,
+  selectedDateRange: Date[],
+  selectedRouteTypes: string[],
+  selectedAgencies: string[],
+  sdCache: StopDepartureCache | null,) {
+  // Apply filters
+  stop.marked = stopFilter(
+    stop, 
+    selectedDows, 
+    selectedDowMode, 
+    selectedDateRange, 
+    selectedRouteTypes, 
+    selectedAgencies, 
+    sdCache,
+  )
+  const sv = stopVisits(
+    stop, 
+    selectedDows, 
+    selectedDateRange, 
+    sdCache,
+  )
+  stop.visit_count_daily_average = sv.visit_count_daily_average
+}
+
+
 
 export function stopVisits(
   stop: StopGql,
@@ -128,7 +158,7 @@ export function stopVisits(
     result.visit_count_total += stopDeps.length
   }
   // Check div 0
-  result.visit_count_daily_average = selectedDateRange.length > 0 ? 
+  result.visit_count_daily_average = selectedDateRange.length > 0 ?
     Math.round(result.visit_count_total / selectedDateRange.length) : 0
   console.log('stopVisitResult:', stop.id, 'counts:', result)
   return result
