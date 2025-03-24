@@ -106,7 +106,7 @@
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
-          <td>{{ result.average_visits }}</td>
+          <td>{{ result.visit_count_daily_average }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
@@ -263,6 +263,16 @@ function stopReport () {
       wheelchair_boarding: stop.wheelchair_boarding,
       platform_code: stop.platform_code,
       tts_stop_name: stop.tts_stop_name,
+      visit_count_total: stop.visit_count_total,
+      visit_count_daily_average: stop.visit_count_daily_average,
+      visit_count_monday: stop.visit_count_monday,
+      visit_count_tuesday: stop.visit_count_tuesday,
+      visit_count_wednesday: stop.visit_count_wednesday,
+      visit_count_thursday: stop.visit_count_thursday,
+      visit_count_friday: stop.visit_count_friday,
+      visit_count_saturday: stop.visit_count_saturday,
+      visit_count_sunday: stop.visit_count_sunday,
+      visit_count_dates: stop.visit_count_dates,
     })
   }
   return results

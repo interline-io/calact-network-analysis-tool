@@ -54,11 +54,22 @@ export interface StopGtfs {
 }
 
 export interface StopDerived {
-  // Derived properties
   marked: boolean
   modes: string
   number_served: number
-  average_visits: number
+}
+
+export interface StopVisitSummary {
+  visit_count_total: number
+  visit_count_daily_average: number
+  visit_count_monday: number
+  visit_count_tuesday: number
+  visit_count_wednesday: number
+  visit_count_thursday: number
+  visit_count_friday: number
+  visit_count_saturday: number
+  visit_count_sunday: number
+  visit_count_dates: { [key: string]: number }
 }
 
 export type StopGql = {
@@ -80,14 +91,51 @@ export type StopGql = {
   }[]
 } & StopGtfs
 
-export type StopCsv = StopGtfs & StopDerived & { row: number }
+export type StopCsv = StopGtfs & StopDerived & StopVisitSummary & { row: number }
 
-export type Stop = StopGql & StopDerived
+export type Stop = StopGql & StopDerived & StopVisitSummary 
 
 const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+export function stopVisits(
+  stop: StopGql,
+  selectedDows: string[],
+  selectedDateRange: Date[],
+  sdCache: StopDepartureCache | null,
+): StopVisitSummary {
+  let result = {
+    visit_count_total: 0,
+    visit_count_daily_average: 0,
+    visit_count_monday: 0,
+    visit_count_tuesday: 0,
+    visit_count_wednesday: 0,
+    visit_count_thursday: 0,
+    visit_count_friday: 0,
+    visit_count_saturday: 0,
+    visit_count_sunday: 0,
+    visit_count_dates: {},
+  }
+  if (!sdCache) {
+    return result
+  }
+  for (const sd of selectedDateRange) {
+    const sdDow = dowDateString[sd.getDay()] || ''
+    if (!selectedDows.includes(sdDow)) {
+      continue
+    }
+    // TODO: memoize formatted date
+    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))
+    result.visit_count_total += stopDeps.length
+  }
+  // Check div 0
+  result.visit_count_daily_average = selectedDateRange.length > 0 ? 
+    Math.round(result.visit_count_total / selectedDateRange.length) : 0
+  console.log('stopVisitResult:', stop.id, 'counts:', result)
+  return result
+}
+
 // Filter stops
-export function stopFilter (
+export function stopFilter(
   stop: StopGql,
   selectedDows: string[],
   selectedDowMode: string,

@@ -8,7 +8,7 @@ import { type Bbox } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDepartureQuery } from '../departure'
-import { type Stop, type StopGql, stopFilter, stopQuery } from '../stop'
+import { type Stop, type StopGql, stopFilter, stopQuery, stopVisits } from '../stop'
 import { type Route, type RouteGql, routeFilter, routeQuery } from '../route'
 import { routeTypes } from '../constants'
 
@@ -126,6 +126,13 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
 
 // Derived properties
 const stopFeatures = computed((): Stop[] => {
+  const sd = selectedDays.value || []
+  const sdMode = selectedDayOfWeekMode.value || ''
+  const sdRange = selectedDateRange.value || []
+  const srt = selectedRouteTypes.value || []
+  const sg = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+
   // Derived properties
   const features: Stop[] = (stopResult.value?.stops || []).map((s) => {
     // gather modes at this stop
@@ -144,6 +151,7 @@ const stopFeatures = computed((): Stop[] => {
       number_served: route_stops.length,
       average_visits: 0,
       marked: true,
+      ...stopVisits(s, [], [], null),
     }
   })
   return features
@@ -168,6 +176,8 @@ watch(() => [
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   for (const stop of stopFeatures.value) {
     stop.marked = stopFilter(stop, sd, sdMode, sdRange, srt, sg, sdCache)
+    const sv = stopVisits(stop, sd, sdRange, sdCache)
+    stop.visit_count_daily_average = sv.visit_count_daily_average
   }
   console.log('setStopFeatures', stopFeatures.value.length)
   emit('setStopFeatures', stopFeatures.value)
