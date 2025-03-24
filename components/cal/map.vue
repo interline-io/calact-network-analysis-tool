@@ -5,6 +5,7 @@
         {{ showShareMenu ? 'Close' : 'Share' }}
       </o-button>
     </div>
+
     <article v-if="showShareMenu" class="cal-map-share message is-dark">
       <div class="message-header">
         Share
@@ -17,50 +18,14 @@
         </o-button>
       </div>
     </article>
-    <article class="cal-map-legend message is-dark">
-      <div class="message-header">
-        Legend
-      </div>
-      <div class="message-body">
-        <div class="cal-map-legend-box">
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div style="height:100%;width:100%;border:solid red 1px;" />
-            </div>
-            <div>Bounding Box for Query</div>
-          </div>
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div class="legend-marker sw-marker">
-                <i class="mdi mdi-arrow-bottom-left" />
-              </div>
-            </div>
-            <div>SW Bounding Box Corner</div>
-          </div>
-          <div v-if="props.displayEditBboxMode">
-            <div>
-              <div class="legend-marker ne-marker">
-                <i class="mdi mdi-arrow-top-right" />
-              </div>
-            </div>
-            <div>NE Bounding Box Corner</div>
-          </div>
-          <div>
-            <div style="background:#0000ff" />
-            <div>Stops satisfying all filters</div>
-          </div>
-          <div>
-            <div style="background:#000000" />
-            <div>Stops not satisfying all filters</div>
-          </div>
-          Routes:
-          <div v-for="[routeType, routeTypeColor] in routeTypeColorMap" :key="routeType">
-            <div :style="{background: routeTypeColor}" />
-            <div>{{ routeTypes.get(routeType) }}</div>
-          </div>
-        </div>
-      </div>
-    </article>
+
+    <cal-legend
+      :data-display-mode="dataDisplayMode"
+      :color-key="colorKey"
+      :style-data="styleData"
+      :display-edit-bbox-mode="displayEditBboxMode"
+    />
+
     <cal-map-viewer-ts
       map-class="tall"
       :center="centerPoint"
@@ -79,7 +44,7 @@
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
-import { routeTypeColorMap, routeTypes } from '../constants'
+import { colors, routeTypes } from '../constants'
 import { useToastNotification } from '#imports'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
@@ -100,6 +65,8 @@ const props = defineProps<{
   bbox: Bbox
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  dataDisplayMode: string
+  colorKey: string
   displayEditBboxMode?: boolean
 }>()
 
@@ -210,25 +177,146 @@ const stopFeatureLookup = computed(() => {
   return lookup
 })
 
-// Merge features
+// Calculate top agencies in result set
+// (we will order them by the most to least stops)
+interface AgencyData {
+  id: string
+  name: string
+  stops: Set<string>
+}
+const agencyData = computed((): AgencyData[] => {
+  // Collect agency data from the stop data.
+  const data = new Map()
+  for (const stop of props.stopFeatures) {
+    const props = stop
+    const route_stops = props.route_stops || []
+
+    for (const rstop of route_stops) {
+      const rid = rstop.route.route_id
+      const aid = rstop.route.agency?.agency_id
+      const aname = rstop.route.agency?.agency_name
+      if (!aid || !aname) continue // no valid agency listed for this stop?
+
+      let adata = data.get(aid)
+      if (!adata) { // first time seeing this agency
+        adata = {
+          id: aid,
+          name: aname,
+          stops: new Set()
+        }
+        data.set(aid, adata)
+      }
+      adata.stops.add(props.stop_id)
+    }
+  }
+
+  return [...data.values()]
+    .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
+})
+
+type MatchFunction = (x: Stop | Route) => boolean
+
+// Calculate style data first
+interface Matcher {
+  label: string
+  color: string
+  match: MatchFunction
+}
+
+// Depending on the data display, set up matcher rules to choose a styling.
+// Matchers should run in the order that they are added to the rules array.
+const styleData = computed((): Matcher[] => {
+  const rules: Matcher[] = []
+
+  function getAgencyMatcher (val: string): MatchFunction {
+    return (v: Stop | Route) => {
+      if (v.__typename === 'Stop') {
+        const rstops = v.route_stops || []
+        return rstops.length > 0 && rstops[0].route?.agency?.agency_id === val
+      } else if (v.__typename === 'Route') {
+        return v.agency?.agency_id === val
+      }
+      return false
+    }
+  }
+
+  function getModeMatcher (val: string): MatchFunction {
+    return (v: Stop | Route) => {
+      if (v.__typename === 'Stop') {
+        return v.modes === val
+      } else if (v.__typename === 'Route') {
+        return v.mode === val
+      }
+      return false
+    }
+  }
+
+  function getFrequencyMatcher (val: number): MatchFunction {
+    return (v: Stop | Route) => {
+      const f = +v.average_frequency || 0
+      return f >= val
+    }
+  }
+
+  // Reserve an extra color for "other", if needed
+  const maxColor = colors.length - 1
+  let valueCount = 0
+
+  // Fares not implemented yet, for now just style Fares as agencies
+  if (props.dataDisplayMode === 'Agency' || props.colorKey === 'Fares') {
+    const agencies = agencyData.value || []
+    valueCount = agencies.length
+    for (let i = 0; i < Math.min(valueCount, maxColor); i++) {
+      const agency = agencies[i]
+      const color = colors[i]
+      rules.push({ label: agency.name, color: color, match: getAgencyMatcher(agency.id) })
+    }
+  } else if (props.colorKey === 'Mode') {
+    const modes = [...routeTypes.values()]
+    valueCount = modes.length
+    for (let i = 0; i < Math.min(valueCount, maxColor); i++) {
+      const mode = modes[i]
+      const color = colors[i]
+      rules.push({ label: mode, color: color, match: getModeMatcher(mode) })
+    }
+  } else if (props.colorKey === 'Frequency') {
+    valueCount = 5
+    rules.push({ label: '40+', color: colors[0], match: getFrequencyMatcher(40) })
+    rules.push({ label: '30-39', color: colors[1], match: getFrequencyMatcher(30) })
+    rules.push({ label: '20-29', color: colors[2], match: getFrequencyMatcher(20) })
+    rules.push({ label: '10-19', color: colors[3], match: getFrequencyMatcher(10) })
+    rules.push({ label: '0-9', color: colors[4], match: getFrequencyMatcher(0) })
+  }
+
+  // If we used all colors (or no colors), add a catchall "other" rule
+  if (valueCount > maxColor || valueCount === 0) {
+    rules.push({ label: 'Other', color: '#000', match: v => true })
+  }
+
+  return rules
+})
+
+// Merge features, applying the styleData as GeoJSON simplestyle
 const displayFeatures = computed(() => {
-  const bgColor = '#666'
-  const bgOpacity = 1.0
+  const bgColor = '#aaa'
+  const bgOpacity = 0.4
   const features: Feature[] = []
+  const s = styleData.value || []
+
   for (const feature of bboxArea.value) {
     features.push(toRaw(feature))
   }
 
   const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
-    const routeColor = routeTypeColorMap.get(rp.route_type.toString()) || '#000000'
+    const style = s.find(rule => rule.match(rp))
     return {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
       properties: {
         'id': rp.id,
-        'stroke': rp.marked ? routeColor : bgColor,
-        'stroke-width': rp.marked ? 3 : 1,
+        'stroke': style?.color || bgColor,
+        'stroke-width': rp.marked ? 3 : 1.5,
         'stroke-opacity': rp.marked ? 1 : bgOpacity,
         'route_id': rp.route_id,
         'route_type': rp.route_type,
@@ -242,13 +330,14 @@ const displayFeatures = computed(() => {
   })
 
   const renderStops: Feature[] = props.stopFeatures.map((sp) => {
+    const style = s.find(rule => rule.match(sp))
     return {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
       properties: {
         'marker-radius': sp.marked ? 8 : 4,
-        'marker-color': sp.marked ? '#0000ff' : bgColor,
+        'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked,
       },
@@ -341,51 +430,6 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   padding:5px;
   height:150px;
   z-index:100;
-}
-.cal-map-legend {
-  position:absolute;
-  right:50px;
-  bottom:30px;
-  width:300px;
-  color:black;
-  padding:5px;
-  z-index:100;
-  .cal-map-legend-box {
-    display: flex;
-    flex-direction: column;
-    > div {
-      display: flex;
-      height:30px;
-      align-items:center;
-      div:first-child {
-        width:20px;
-        height:20px;
-      }
-      div:nth-child(2) {
-        padding-left:10px;
-      }
-    }
-  }
-}
-/* Legend marker styles */
-.legend-marker {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  position: relative;
-  background-color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border: 2px solid grey;
-  i {
-    font-size: 10px;
-  }
-}
-
-.message-body {
-  color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l), 1.0);
-  background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-scheme-main-l), 0.8);
 }
 
 /* Custom marker styles */
