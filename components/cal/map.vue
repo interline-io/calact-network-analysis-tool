@@ -274,7 +274,7 @@ const styleData = computed((): Matcher[] => {
   } else if (props.colorKey === 'Mode') {
     const modes = [...routeTypes.values()]
     valueCount = modes.length
-    for (i = 0; i < Math.min(valueCount, maxColor); i++) {
+    for (let i = 0; i < Math.min(valueCount, maxColor); i++) {
       const mode = modes[i]
       const color = colors[i]
       rules.push({ label: mode, color: color, match: getModeMatcher(mode) })
@@ -315,7 +315,7 @@ const displayFeatures = computed(() => {
       geometry: rp.geometry,
       properties: {
         'id': rp.id,
-        'stroke': rp.marked ? style.color : bgColor,
+        'stroke': style?.color || bgColor,
         'stroke-width': rp.marked ? 3 : 1.5,
         'stroke-opacity': rp.marked ? 1 : bgOpacity,
         'route_id': rp.route_id,
@@ -337,7 +337,7 @@ const displayFeatures = computed(() => {
       geometry: sp.geometry,
       properties: {
         'marker-radius': sp.marked ? 8 : 4,
-        'marker-color': sp.marked ? style.color : bgColor,
+        'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked,
       },
