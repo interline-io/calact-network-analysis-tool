@@ -2,7 +2,7 @@ import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
 import { StopDepartureCache } from './departure'
 import { type dow } from './constants'
-
+import { parseHMS } from './datetime'
 //////////
 // Stops
 //////////
@@ -119,7 +119,7 @@ export type Stop = StopGql & StopDerived
 const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 //////////////////////////////////////
-//////////////////////////////////////
+// Stop filtering
 //////////////////////////////////////
 
 // Mutates calculated fields on Stop
@@ -136,20 +136,20 @@ export function stopSetDerived(
   // Apply filters
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
-    stop, 
-    selectedDows, 
-    selectedDateRange, 
+    stop,
+    selectedDows,
+    selectedDateRange,
     selectedStartTime,
-    selectedEndTime,  
+    selectedEndTime,
     sdCache,
   )
   stop.marked = stopMarked(
-    stop, 
-    selectedDows, 
-    selectedDowMode, 
-    selectedDateRange, 
-    selectedRouteTypes, 
-    selectedAgencies, 
+    stop,
+    selectedDows,
+    selectedDowMode,
+    selectedDateRange,
+    selectedRouteTypes,
+    selectedAgencies,
     sdCache,
   )
 }
@@ -175,16 +175,18 @@ export function stopVisits(
   if (!sdCache) {
     return result
   }
+  const startTime = parseHMS(selectedStartTime)
+  const endTime = parseHMS(selectedEndTime)
   for (const sd of selectedDateRange) {
     const sdDow = dowDateString[sd.getDay()] || ''
     if (!selectedDows.includes(sdDow)) {
       continue
     }
     // TODO: memoize formatted date
-    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))
+    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map((st) => {return parseHMS(st.departure_time)})
     let count = 0
-    for (const dep of stopDeps) {
-      if (dep.departure_time >= selectedStartTime && dep.departure_time <= selectedEndTime) {
+    for (const depTime of stopDepTimes) {
+      if (depTime >= startTime && depTime <= endTime) {
         count += 1
       }
     }
@@ -194,7 +196,7 @@ export function stopVisits(
     let r = result.total
     switch (sd.getDay()) {
       case 0:
-        r  = result.sunday
+        r = result.sunday
         break
       case 1:
         r = result.monday
@@ -208,13 +210,13 @@ export function stopVisits(
       case 4:
         r = result.thursday
         break
-      case 5:   
+      case 5:
         r = result.friday
         break
       case 6:
         r = result.saturday
-        break 
-    }    
+        break
+    }
     r.date_count += 1
     r.visit_count += count
     r.visit_average = checkDiv(r.visit_count, r.date_count)
@@ -224,35 +226,6 @@ export function stopVisits(
   }
   // console.log('stopVisitResult:', stop.id, 'counts:', result)
   return result
-}
-
-export function stopToStopCsv(stop: Stop): StopCsv {
-  return {
-    row: 0,
-    // GTFS properties
-    location_type: stop.location_type,
-    stop_id: stop.stop_id,
-    stop_name: stop.stop_name,
-    stop_desc: stop.stop_desc,
-    stop_timezone: stop.stop_timezone,
-    stop_url: stop.stop_url,
-    zone_id: stop.zone_id,
-    wheelchair_boarding: stop.wheelchair_boarding,
-    platform_code: stop.platform_code,
-    tts_stop_name: stop.tts_stop_name,
-    // Derived properties
-    marked: stop.marked,
-    number_served: stop.number_served,
-    modes: stop.modes,
-    visit_count_daily_average: Math.round(stop.visits.total.visit_average),
-    visit_count_monday_average: Math.round(stop.visits.monday.visit_average),
-    visit_count_tuesday_average: Math.round(stop.visits.tuesday.visit_average),
-    visit_count_wednesday_average:Math.round(stop.visits.wednesday.visit_average),
-    visit_count_thursday_average:Math.round( stop.visits.thursday.visit_average),
-    visit_count_friday_average: Math.round(stop.visits.friday.visit_average),
-    visit_count_saturday_average: Math.round(stop.visits.saturday.visit_average),
-    visit_count_sunday_average: Math.round(stop.visits.sunday.visit_average),
-  }
 }
 
 // Filter stops
@@ -271,9 +244,9 @@ export function stopMarked(
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-  for (const sd of selectedDows) {
+    for (const sd of selectedDows) {
       // if-else tree required to avoid arbitrary index into type
-      let r: StopVisitCounts|null = null
+      let r: StopVisitCounts | null = null
       if (sd === 'sunday') { r = stop.visits.sunday }
       else if (sd === 'monday') { r = stop.visits.monday }
       else if (sd === 'tuesday') { r = stop.visits.tuesday }
@@ -281,7 +254,7 @@ export function stopMarked(
       else if (sd === 'thursday') { r = stop.visits.thursday }
       else if (sd === 'friday') { r = stop.visits.friday }
       else if (sd === 'saturday') { r = stop.visits.saturday }
-      if (!r ) { continue}
+      if (!r) { continue }
       if (r.visit_count > 0) {
         hasAny = true
       }
@@ -345,6 +318,39 @@ function newStopVisitCounts(): StopVisitCounts {
   }
 }
 
-function checkDiv(a: number, b: number):number{ 
+function checkDiv(a: number, b: number): number {
   return b === 0 ? 0 : a / b
+}
+
+///////////////////////////
+// Stop csv
+///////////////////////////
+
+export function stopToStopCsv(stop: Stop): StopCsv {
+  return {
+    row: 0,
+    // GTFS properties
+    location_type: stop.location_type,
+    stop_id: stop.stop_id,
+    stop_name: stop.stop_name,
+    stop_desc: stop.stop_desc,
+    stop_timezone: stop.stop_timezone,
+    stop_url: stop.stop_url,
+    zone_id: stop.zone_id,
+    wheelchair_boarding: stop.wheelchair_boarding,
+    platform_code: stop.platform_code,
+    tts_stop_name: stop.tts_stop_name,
+    // Derived properties
+    marked: stop.marked,
+    number_served: stop.number_served,
+    modes: stop.modes,
+    visit_count_daily_average: Math.round(stop.visits.total.visit_average),
+    visit_count_monday_average: Math.round(stop.visits.monday.visit_average),
+    visit_count_tuesday_average: Math.round(stop.visits.tuesday.visit_average),
+    visit_count_wednesday_average: Math.round(stop.visits.wednesday.visit_average),
+    visit_count_thursday_average: Math.round(stop.visits.thursday.visit_average),
+    visit_count_friday_average: Math.round(stop.visits.friday.visit_average),
+    visit_count_saturday_average: Math.round(stop.visits.saturday.visit_average),
+    visit_count_sunday_average: Math.round(stop.visits.sunday.visit_average),
+  }
 }

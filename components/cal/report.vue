@@ -94,9 +94,9 @@
           <td>{{ result.route_name }}</td>
           <td>{{ result.mode }}</td>
           <td>{{ result.agency_name }}</td>
-          <td>{{ result.average_frequency }}</td>
-          <td>{{ result.fastest_frequency }}</td>
-          <td>{{ result.slowest_frequency }}</td>
+          <td>{{ result.average_frequency ? Math.round(result.average_frequency / 60) : '-' }}</td>
+          <td>{{ result.fastest_frequency ? Math.round(result.fastest_frequency / 60) : '-' }}</td>
+          <td>{{ result.slowest_frequency ? Math.round(result.slowest_frequency / 60) : '-' }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Stop'">
@@ -106,7 +106,7 @@
           <td>{{ result.stop_name }}</td>
           <td>{{ result.modes }}</td>
           <td>{{ result.number_served }}</td>
-          <td>{{ result.visit_count_daily_average < 0 ? 'Loading' : result.visit_count_daily_average }}</td>
+          <td>{{ result.visit_count_daily_average < 0 ? '-' : result.visit_count_daily_average }}</td>
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
