@@ -1,6 +1,7 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
 import { StopDepartureCache } from './departure'
+import { type dow } from './constants'
 
 //////////
 // Stops
@@ -64,6 +65,7 @@ export interface StopVisitCounts {
   visit_average: number
   visit_count: number
   date_count: number,
+  all_date_service: boolean
 }
 
 
@@ -114,7 +116,7 @@ export type StopCsv = StopGtfs & {
 
 export type Stop = StopGql & StopDerived
 
-const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 //////////////////////////////////////
 //////////////////////////////////////
@@ -123,7 +125,7 @@ const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 // Mutates calculated fields on Stop
 export function stopSetDerived(
   stop: Stop,
-  selectedDows: string[],
+  selectedDows: dow[],
   selectedDowMode: string,
   selectedDateRange: Date[],
   selectedRouteTypes: string[],
@@ -132,6 +134,15 @@ export function stopSetDerived(
   selectedEndTime: string,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
+  // Make sure to run stopVisits before stopFilter
+  stop.visits = stopVisits(
+    stop, 
+    selectedDows, 
+    selectedDateRange, 
+    selectedStartTime,
+    selectedEndTime,  
+    sdCache,
+  )
   stop.marked = stopFilter(
     stop, 
     selectedDows, 
@@ -141,23 +152,14 @@ export function stopSetDerived(
     selectedAgencies, 
     sdCache,
   )
-  stop.visits = stopVisits(
-    stop, 
-    selectedDows, 
-    selectedDateRange, 
-    selectedStartTime,
-    selectedEndTime,  
-    sdCache,
-  )
 }
 
 export function stopVisits(
   stop: StopGql,
-  selectedDows: string[],
+  selectedDows: dow[],
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
-  
   sdCache: StopDepartureCache | null,
 ): StopVisitSummary {
   let result = {
@@ -216,6 +218,9 @@ export function stopVisits(
     r.date_count += 1
     r.visit_count += count
     r.visit_average = checkDiv(r.visit_count, r.date_count)
+    if (count === 0) {
+      r.all_date_service = false
+    }
   }
   console.log('stopVisitResult:', stop.id, 'counts:', result)
   return result
@@ -252,8 +257,8 @@ export function stopToStopCsv(stop: Stop): StopCsv {
 
 // Filter stops
 export function stopFilter(
-  stop: StopGql,
-  selectedDows: string[],
+  stop: Stop,
+  selectedDows: dow[],
   selectedDowMode: string,
   selectedDateRange: Date[],
   selectedRouteTypes: string[],
@@ -261,29 +266,29 @@ export function stopFilter(
   sdCache: StopDepartureCache | null,
 ): boolean {
   // Check departure days
-  if (selectedDows.length > 0 && sdCache) {
-    // For each day in selected date range,
-    // check if stop has service on that day.
-    // Skip if not in selected week days
+  if (sdCache) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedDateRange) {
-      const sdDow = dowDateString[sd.getDay()] || ''
-      if (!selectedDows.includes(sdDow)) {
-        continue
-      }
-      // TODO: memoize formatted date
-      const hasService = sdCache.hasService(stop.id, format(sd, 'yyyy-MM-dd'))
-      if (hasService) {
+  for (const sd of selectedDows) {
+      // if-else tree required to avoid arbitrary index into type
+      let r: StopVisitCounts|null = null
+      if (sd === 'sunday') { r = stop.visits.sunday }
+      else if (sd === 'monday') { r = stop.visits.monday }
+      else if (sd === 'tuesday') { r = stop.visits.tuesday }
+      else if (sd === 'wednesday') { r = stop.visits.wednesday }
+      else if (sd === 'thursday') { r = stop.visits.thursday }
+      else if (sd === 'friday') { r = stop.visits.friday }
+      else if (sd === 'saturday') { r = stop.visits.saturday }
+      if (!r ) { continue}
+      if (r.visit_count > 0) {
         hasAny = true
-      } else {
+      }
+      if (!r.all_date_service) {
         hasAll = false
       }
-      // console.log('stopFilter:', stop.id, sdDow, format(sd, 'yyyy-MM-dd'))
     }
-    // console.log('stopFilter:', stop.id, 'hasAny:', hasAny, 'hasAll:', hasAll)
     // Check mode
     let found = false
     if (selectedDowMode === 'Any') {
@@ -335,7 +340,8 @@ function newStopVisitCounts(): StopVisitCounts {
   return {
     visit_count: 0,
     date_count: 0,
-    visit_average: -1
+    visit_average: -1,
+    all_date_service: true
   }
 }
 

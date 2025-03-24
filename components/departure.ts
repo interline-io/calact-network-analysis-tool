@@ -8,10 +8,6 @@ import { format } from 'date-fns'
 export const stopDepartureQuery = gql`
 fragment departure on StopTime {
   departure_time
-  departure {
-    scheduled_utc
-    scheduled_local
-  }
   trip {
     id
     direction_id

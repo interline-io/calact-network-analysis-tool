@@ -24,14 +24,16 @@ export const routeTypeColorMap = new Map<string, string>(Object.entries({
  4: '#984ea3',
 }))
 
-export const dowValues = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday'
+export type dow = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+
+export const dowValues: dow[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday'
 ]
 
 export const routeColorModes = [

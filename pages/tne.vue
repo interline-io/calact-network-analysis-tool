@@ -162,7 +162,7 @@ import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../c
 import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
 import { type Route } from '../components/route'
-import { dowValues, routeTypes } from '../components/constants'
+import { type dow, dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
   layout: false
@@ -329,12 +329,12 @@ const selectedAgencies = computed({
 })
 
 const selectedDays = computed({
-  get () {
+  get (): dow[] {
     if (!route.query.hasOwnProperty('selectedDays')) {
       // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
-      return arrayParam('selectedDays', [])
+      return arrayParam('selectedDays', []) as dow[]
     }
   },
   set (v: string[]) {

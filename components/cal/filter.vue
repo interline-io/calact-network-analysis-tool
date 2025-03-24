@@ -368,7 +368,7 @@
 </template>
 
 <script lang="ts">
-import { routeTypes, dowValues, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
+import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
 </script>
 
 <script setup lang="ts">
@@ -403,7 +403,7 @@ const baseMap = defineModel<string>('baseMap')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
 const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
 const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
-const selectedDays = defineModel<string[]>('selectedDays')
+const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyUnder = defineModel<number>('frequencyUnder')
