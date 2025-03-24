@@ -1,4 +1,5 @@
 import { gql } from 'graphql-tag'
+import { StopDepartureCache } from './departure'
 
 //////////
 // Routes
@@ -65,14 +66,59 @@ export interface RouteDerived {
   route_name: string
   agency_name: string
   mode: string
+  average_frequency: number
+  fastest_frequency: number
+  slowest_frequency: number
 }
 
-export type RouteCsv = RouteGtfs & RouteDerived & { row: number }
+export type RouteHeadwayCount = {
+  stop_id: number
+  direction: number
+  headways_seconds: number[]
+}
+
+export type RouteHeadwayDirections = {
+  dir0: RouteHeadwayCount
+  dir1: RouteHeadwayCount
+}
+
+export type RouteHeadwaySummary = {
+  total: RouteHeadwayDirections
+  monday: RouteHeadwayDirections
+}
+
+export type RouteCsv = RouteGtfs & {
+  row: number 
+  marked: boolean
+  route_name: string
+  agency_name: string
+  mode: string
+  average_frequency: number
+  fastest_frequency: number
+  slowest_frequency: number
+}
 
 export type Route = RouteGql & RouteDerived
 
+export function routeSetDerived (
+  route: Route,
+  selectedRouteTypes: string[],
+  selectedAgencies: string[],
+  sdCache: StopDepartureCache | null,
+) {
+  // Set derived properties
+  route.marked = routeMarked(route, selectedRouteTypes, selectedAgencies)
+  if (sdCache) {
+    routeHeadways(route, sdCache)
+    route.average_frequency = 1
+    route.fastest_frequency = 2
+    route.slowest_frequency = 3  
+  }
+}
+
+
 // Filter routes
-export function routeFilter (route: RouteGql, srt: string[], sg: string[]): boolean {
+export function routeMarked (route: RouteGql, srt: string[], sg: string[]): boolean {
   // Check route types
   if (srt.length > 0) {
     return srt.includes(route.route_type.toString())
@@ -85,4 +131,49 @@ export function routeFilter (route: RouteGql, srt: string[], sg: string[]): bool
 
   // Default is to return true
   return true
+}
+
+export function routeHeadways(
+  route: Route,
+  sdCache: StopDepartureCache
+): RouteHeadwaySummary {
+  const id = route.id
+  console.log('routeHeadways:', id)
+  const result = {
+    total: newRouteHeadwayDirections(),
+    monday: newRouteHeadwayDirections()
+  }
+  return result
+}
+
+export function routeToRouteCsv(route: Route): RouteCsv {
+  return {
+    row: 0,
+    marked: route.marked,
+    average_frequency: route.average_frequency,
+    fastest_frequency: route.fastest_frequency,
+    slowest_frequency: route.slowest_frequency,
+    agency_name: route.agency_name,
+    mode: route.mode,
+    route_name: route.route_name,
+    // GTFS properties
+    route_id: route.route_id,
+    route_long_name: route.route_long_name,
+    route_short_name: route.route_short_name,
+    route_type: route.route_type,
+    route_color: route.route_color,
+    route_text_color: route.route_text_color,
+    route_url: route.route_url,
+    route_desc: route.route_desc,
+    route_sort_order: route.route_sort_order,
+    continuous_drop_off: route.continuous_drop_off,
+    continuous_pickup: route.continuous_pickup,
+  }
+}
+
+function newRouteHeadwayDirections() {
+  return {
+    dir0: {stop_id: 0, direction: 0, headways_seconds: []},
+    dir1: {stop_id: 0, direction: 1, headways_seconds: []}
+  }
 }

@@ -65,6 +65,9 @@ export interface StopTime {
   trip: {
     id: number
     direction_id: number
+    route: {
+      id: number
+    }
   }
 }
 
@@ -177,6 +180,11 @@ export class StopDepartureCache {
       return false
     }
     return (a.get(date) || []).length > 0
+  }
+
+  getRouteDate(id: number, dir: number, date: string): any {
+    console.log('getRouteDate:', id, 'dir:', dir, 'date:', date)
+    return {}
   }
 
   debugStats () {

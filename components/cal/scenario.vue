@@ -9,7 +9,7 @@ import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDepartureQuery } from '../departure'
 import { type Stop, type StopGql, stopQuery, stopVisits, stopSetDerived } from '../stop'
-import { type Route, type RouteGql, routeFilter, routeQuery } from '../route'
+import { type Route, type RouteGql, routeSetDerived, routeQuery } from '../route'
 import { type dow, routeTypes } from '../constants'
 import { format } from 'date-fns'
 
@@ -247,9 +247,9 @@ const routeFeatures = computed((): Route[] => {
     agency_name: s.agency?.agency_name || 'Unknown',
     mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
     marked: true,
-    average_frequency: 0,
-    fastest_frequency: 0,
-    slowest_frequency: 0,
+    average_frequency: -1,
+    fastest_frequency: -1,
+    slowest_frequency: -1,
     ...s,
   }))
   return features
@@ -259,13 +259,15 @@ const routeFeatures = computed((): Route[] => {
 watch(() => [
   routeFeatures.value,
   selectedRouteTypes.value,
-  selectedAgencies.value
+  selectedAgencies.value,
+  stopDepartureLoadingComplete.value
 ], () => {
   // Derived properties and filtering
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   for (const route of routeFeatures.value) {
-    route.marked = routeFilter(route, srt, sg)
+    routeSetDerived(route, srt, sg, sdCache)
   }
   console.log('setRouteFeatures', routeFeatures.value.length)
   emit('setRouteFeatures', routeFeatures.value)

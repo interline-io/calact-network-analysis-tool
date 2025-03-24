@@ -134,7 +134,7 @@ export function stopSetDerived(
   selectedEndTime: string,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
-  // Make sure to run stopVisits before stopFilter
+  // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop, 
     selectedDows, 
@@ -143,7 +143,7 @@ export function stopSetDerived(
     selectedEndTime,  
     sdCache,
   )
-  stop.marked = stopFilter(
+  stop.marked = stopMarked(
     stop, 
     selectedDows, 
     selectedDowMode, 
@@ -256,7 +256,7 @@ export function stopToStopCsv(stop: Stop): StopCsv {
 }
 
 // Filter stops
-export function stopFilter(
+export function stopMarked(
   stop: Stop,
   selectedDows: dow[],
   selectedDowMode: string,
