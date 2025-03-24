@@ -57,19 +57,25 @@ export interface StopDerived {
   marked: boolean
   modes: string
   number_served: number
+  visits: StopVisitSummary
 }
 
+export interface StopVisitCounts {
+  visit_average: number
+  visit_count: number
+  date_count: number,
+}
+
+
 export interface StopVisitSummary {
-  visit_count_total: number
-  visit_count_daily_average: number
-  visit_count_monday: number
-  visit_count_tuesday: number
-  visit_count_wednesday: number
-  visit_count_thursday: number
-  visit_count_friday: number
-  visit_count_saturday: number
-  visit_count_sunday: number
-  visit_count_dates: { [key: string]: number }
+  total: StopVisitCounts
+  monday: StopVisitCounts
+  tuesday: StopVisitCounts
+  wednesday: StopVisitCounts
+  thursday: StopVisitCounts
+  friday: StopVisitCounts
+  saturday: StopVisitCounts
+  sunday: StopVisitCounts
 }
 
 export type StopGql = {
@@ -91,11 +97,28 @@ export type StopGql = {
   }[]
 } & StopGtfs
 
-export type StopCsv = StopGtfs & StopDerived & StopVisitSummary & { row: number }
+export type StopCsv = StopGtfs & {
+  row: number
+  modes: string
+  number_served: number
+  marked: boolean
+  visit_count_daily_average: number
+  visit_count_monday_average: number
+  visit_count_tuesday_average: number
+  visit_count_wednesday_average: number
+  visit_count_thursday_average: number
+  visit_count_friday_average: number
+  visit_count_saturday_average: number
+  visit_count_sunday_average: number
+}
 
-export type Stop = StopGql & StopDerived & StopVisitSummary
+export type Stop = StopGql & StopDerived
 
 const dowDateString = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+//////////////////////////////////////
+//////////////////////////////////////
+//////////////////////////////////////
 
 // Mutates calculated fields on Stop
 export function stopSetDerived(
@@ -105,6 +128,8 @@ export function stopSetDerived(
   selectedDateRange: Date[],
   selectedRouteTypes: string[],
   selectedAgencies: string[],
+  selectedStartTime: string,
+  selectedEndTime: string,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
   stop.marked = stopFilter(
@@ -116,39 +141,34 @@ export function stopSetDerived(
     selectedAgencies, 
     sdCache,
   )
-  const sv = stopVisits(
+  stop.visits = stopVisits(
     stop, 
     selectedDows, 
     selectedDateRange, 
+    selectedStartTime,
+    selectedEndTime,  
     sdCache,
   )
-  stop.visit_count_daily_average = sv.visit_count_daily_average
 }
 
 export function stopVisits(
   stop: StopGql,
   selectedDows: string[],
   selectedDateRange: Date[],
+  selectedStartTime: string,
+  selectedEndTime: string,
+  
   sdCache: StopDepartureCache | null,
 ): StopVisitSummary {
   let result = {
-    visit_count_total: 0,
-    visit_count_daily_average: 0,
-    visit_count_monday: 0,
-    visit_count_monday_average: 0,
-    visit_count_tuesday: 0,
-    visit_count_tuesday_average: 0,
-    visit_count_wednesday: 0,
-    visit_count_wednesday_average: 0,
-    visit_count_thursday: 0,
-    visit_count_thursday_average: 0,
-    visit_count_friday: 0,
-    visit_count_friday_average: 0,
-    visit_count_saturday: 0,
-    visit_count_saturday_average: 0,
-    visit_count_sunday: 0,
-    visit_count_sunday_average: 0,
-    visit_count_dates: {},
+    monday: newStopVisitCounts(),
+    tuesday: newStopVisitCounts(),
+    wednesday: newStopVisitCounts(),
+    thursday: newStopVisitCounts(),
+    friday: newStopVisitCounts(),
+    saturday: newStopVisitCounts(),
+    sunday: newStopVisitCounts(),
+    total: newStopVisitCounts(),
   }
   if (!sdCache) {
     return result
@@ -158,53 +178,76 @@ export function stopVisits(
     if (!selectedDows.includes(sdDow)) {
       continue
     }
-    let monday_count = 0
-    let tuesday_count = 0
-    let wednesday_count = 0
-    let thursday_count = 0
-    let friday_count = 0
-    let saturday_count = 0
-    let sunday_count = 0
     // TODO: memoize formatted date
-    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))    
-    const sl = stopDeps.length
-    result.visit_count_total += sl
+    const stopDeps = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd'))
+    let count = 0
+    for (const dep of stopDeps) {
+      if (dep.departure_time >= selectedStartTime && dep.departure_time <= selectedEndTime) {
+        count += 1
+      }
+    }
+    result.total.date_count += 1
+    result.total.visit_count += count
+    result.total.visit_average = checkDiv(result.total.visit_count, result.total.date_count)
+    let r = result.total
     switch (sd.getDay()) {
       case 0:
-        monday_count += 1
-        result.visit_count_sunday += sl
+        r  = result.sunday
         break
       case 1:
-        tuesday_count +=1 
-        result.visit_count_monday += sl
+        r = result.monday
         break
       case 2:
-        wednesday_count +=1 
-        result.visit_count_tuesday += sl
+        r = result.tuesday
         break
       case 3:
-        thursday_count += 1
-        result.visit_count_wednesday += sl
+        r = result.wednesday
         break
       case 4:
-        friday_count +=1 
-        result.visit_count_thursday += sl
+        r = result.thursday
         break
-      case 5:
-        saturday_count +=1 
-        result.visit_count_friday += sl
+      case 5:   
+        r = result.friday
         break
       case 6:
-        sunday_count +=1 
-        result.visit_count_saturday += sl
-        break
+        r = result.saturday
+        break 
     }    
+    r.date_count += 1
+    r.visit_count += count
+    r.visit_average = checkDiv(r.visit_count, r.date_count)
   }
-  // Check div 0
-  result.visit_count_daily_average = selectedDateRange.length > 0 ?
-    Math.round(result.visit_count_total / selectedDateRange.length) : 0
   console.log('stopVisitResult:', stop.id, 'counts:', result)
   return result
+}
+
+export function stopToStopCsv(stop: Stop): StopCsv {
+  return {
+    row: 0,
+    // GTFS properties
+    location_type: stop.location_type,
+    stop_id: stop.stop_id,
+    stop_name: stop.stop_name,
+    stop_desc: stop.stop_desc,
+    stop_timezone: stop.stop_timezone,
+    stop_url: stop.stop_url,
+    zone_id: stop.zone_id,
+    wheelchair_boarding: stop.wheelchair_boarding,
+    platform_code: stop.platform_code,
+    tts_stop_name: stop.tts_stop_name,
+    // Derived properties
+    marked: stop.marked,
+    number_served: stop.number_served,
+    modes: stop.modes,
+    visit_count_daily_average: Math.round(stop.visits.total.visit_average),
+    visit_count_monday_average: Math.round(stop.visits.monday.visit_average),
+    visit_count_tuesday_average: Math.round(stop.visits.tuesday.visit_average),
+    visit_count_wednesday_average:Math.round(stop.visits.wednesday.visit_average),
+    visit_count_thursday_average:Math.round( stop.visits.thursday.visit_average),
+    visit_count_friday_average: Math.round(stop.visits.friday.visit_average),
+    visit_count_saturday_average: Math.round(stop.visits.saturday.visit_average),
+    visit_count_sunday_average: Math.round(stop.visits.sunday.visit_average),
+  }
 }
 
 // Filter stops
@@ -286,4 +329,16 @@ export function stopFilter(
 
   // Default is to return true
   return true
+}
+
+function newStopVisitCounts(): StopVisitCounts {
+  return {
+    visit_count: 0,
+    date_count: 0,
+    visit_average: -1
+  }
+}
+
+function checkDiv(a: number, b: number):number{ 
+  return b === 0 ? 0 : a / b
 }

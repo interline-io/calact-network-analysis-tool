@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 
 export const stopDepartureQuery = gql`
 fragment departure on StopTime {
+  departure_time
   departure {
     scheduled_utc
     scheduled_local
@@ -156,9 +157,9 @@ export class StopDepartureQueryVars {
 
 // Two level cache
 export class StopDepartureCache {
-  cache: Map<number, Map<string, StopDeparture[]>> = new Map()
+  cache: Map<number, Map<string, StopTime[]>> = new Map()
 
-  get (id: number, date: string): StopDeparture[] {
+  get (id: number, date: string): StopTime[] {
     const a = this.cache.get(id) || new Map()
     return a.get(date) || []
   }

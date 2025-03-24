@@ -11,6 +11,7 @@ import { type StopDeparture, StopDepartureCache, StopDepartureQueryVars, stopDep
 import { type Stop, type StopGql, stopQuery, stopVisits, stopSetDerived } from '../stop'
 import { type Route, type RouteGql, routeFilter, routeQuery } from '../route'
 import { routeTypes } from '../constants'
+import { format } from 'date-fns'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
@@ -144,7 +145,7 @@ const stopFeatures = computed((): Stop[] => {
       number_served: route_stops.length,
       average_visits: 0,
       marked: true,
-      ...stopVisits(s, [], [], null),
+      visits: stopVisits(s, [], [], null),
     }
   })
   return features
@@ -167,8 +168,20 @@ watch(() => [
   const srt = selectedRouteTypes.value || []
   const sg = selectedAgencies.value || []
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  const ts = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const te = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   for (const stop of stopFeatures.value) {
-    stopSetDerived(stop, sd, sdMode, sdRange, srt, sg, sdCache)
+    stopSetDerived(
+      stop,
+      sd,
+      sdMode,
+      sdRange,
+      srt,
+      sg,
+      ts,
+      te,
+      sdCache
+    )
   }
   console.log('setStopFeatures', stopFeatures.value.length)
   emit('setStopFeatures', stopFeatures.value)
