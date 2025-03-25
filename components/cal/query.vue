@@ -27,7 +27,7 @@
             </o-tooltip>
           </template>
           <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
-          <o-button title="In the future, you will be able to specify an end date for date-bound queries." @click="toggleSelectSingleDay()">
+          <o-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
         </o-field>
