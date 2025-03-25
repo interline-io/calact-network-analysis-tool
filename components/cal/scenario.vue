@@ -368,10 +368,12 @@ watch(() => [
       selectedDaysValue,
       selectedDayOfWeekModeValue,
       selectedDateRangeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
       startTimeValue,
       endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
       markedRoutes,
       sdCache
     )

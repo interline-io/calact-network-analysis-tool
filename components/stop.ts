@@ -129,6 +129,10 @@ export function stopSetDerived(
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
+  selectedRouteTypes: number[],
+  selectedAgencies: string[],
+  frequencyUnder: number,
+  frequencyOver: number,
   markedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
@@ -145,6 +149,10 @@ export function stopSetDerived(
     stop,
     selectedDays,
     selectedDayMode,
+    selectedRouteTypes,
+    selectedAgencies,
+    frequencyUnder,
+    frequencyOver,
     markedRoutes,
     sdCache,
   )
@@ -234,6 +242,10 @@ function stopMarked(
   stop: Stop,
   selectedDays: dow[],
   selectedDayMode: string,
+  selectedRouteTypes: number[],
+  selectedAgencies: string[],
+  frequencyUnder: number,
+  frequencyOver: number,
   markedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,
 ): boolean {
@@ -276,9 +288,9 @@ function stopMarked(
 
   // Check marked routes
   // Must match at least one marked route
-  if (markedRoutes.size > 0) {
-    const found = stop.route_stops.some((rs) => markedRoutes.has(rs.route.id))
-    if (!found) {
+  if (selectedAgencies.length > 0 || selectedRouteTypes.length > 0 || frequencyUnder > 0 || frequencyOver > 0) {
+    const hasMarkedRoute = stop.route_stops.some((rs) => markedRoutes.has(rs.route.id))
+    if (!hasMarkedRoute) {
       return false
     }
   }
