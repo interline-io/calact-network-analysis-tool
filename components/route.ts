@@ -157,12 +157,16 @@ export function routeMarked(
 ): boolean {
   // Check route types
   if (selectedRouteTypes.length > 0) {
-    return selectedRouteTypes.includes(route.route_type)
+    if (!selectedRouteTypes.includes(route.route_type)) {
+      return false
+    }
   }
 
   // Check agencies
   if (selectedAgencies.length > 0) {
-    return selectedAgencies.includes(route.agency.agency_name)
+    if (!selectedAgencies.includes(route.agency.agency_name)) {
+      return false
+    }
   }
 
   // Default is to return true
