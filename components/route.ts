@@ -97,7 +97,7 @@ export type RouteHeadwaySummary = {
 }
 
 export type RouteCsv = RouteGtfs & {
-  row: number
+  id: number
   marked: boolean
   route_name: string
   agency_name: string
@@ -302,7 +302,7 @@ function newRouteHeadwayDirections() {
 
 export function routeToRouteCsv(route: Route): RouteCsv {
   return {
-    row: 0,
+    id: route.id,
     marked: route.marked,
     average_frequency: Math.round(route.average_frequency),
     fastest_frequency: Math.round(route.fastest_frequency),

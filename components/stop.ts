@@ -99,7 +99,7 @@ export type StopGql = {
 } & StopGtfs
 
 export type StopCsv = StopGtfs & {
-  row: number
+  id: number
   modes: string
   number_served: number
   marked: boolean
@@ -327,8 +327,8 @@ export function stopToStopCsv(stop: Stop): StopCsv {
     }
   }
   return {
-    row: 0,
     // GTFS properties
+    id: stop.id,
     location_type: stop.location_type,
     stop_id: stop.stop_id,
     stop_name: stop.stop_name,
