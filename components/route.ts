@@ -183,13 +183,13 @@ function routeMarked(
   }
 
   if (sdCache && frequencyOver >= 0) {
-    if (route.average_frequency < frequencyOver*60) {
+    if (route.average_frequency < frequencyOver*60 || route.average_frequency < 0) {
       return false
     }
   }
 
   if (sdCache && frequencyUnder >= 0) {
-    if (route.average_frequency > frequencyUnder*60) {
+    if (route.average_frequency > frequencyUnder*60 || route.average_frequency < 0) {
       return false
     }
   }
