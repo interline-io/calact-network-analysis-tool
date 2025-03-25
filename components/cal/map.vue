@@ -228,33 +228,54 @@ interface Matcher {
 const styleData = computed((): Matcher[] => {
   const rules: Matcher[] = []
 
+  const routeHeadwayLookup = new Map<number, number>()
+  for (const route of props.routeFeatures) {
+    routeHeadwayLookup.set(route.id, route.average_frequency)
+  }
+  console.log('routeHeadwayLookup:', routeHeadwayLookup)
+
   function getAgencyMatcher (val: string): MatchFunction {
-    return (v: Stop | Route) => {
+    return (v: any) => {
       if (v.__typename === 'Stop') {
-        const rstops = v.route_stops || []
-        return rstops.length > 0 && rstops[0].route?.agency?.agency_id === val
+        return (v as Stop).route_stops.some((rs: any) => rs.route.agency?.agency_id === val)
       } else if (v.__typename === 'Route') {
-        return v.agency?.agency_id === val
+        return (v as Route).agency?.agency_id === val
       }
       return false
     }
   }
 
-  function getModeMatcher (val: string): MatchFunction {
-    return (v: Stop | Route) => {
+  function getModeMatcher (val: number): MatchFunction {
+    return (v: any) => {
       if (v.__typename === 'Stop') {
-        return v.modes === val
+        return (v as Stop).route_stops.every((rs: any) => rs.route.route_type === val)
       } else if (v.__typename === 'Route') {
-        return v.mode === val
+        return (v as Route).route_type === val
       }
       return false
     }
   }
 
   function getFrequencyMatcher (val: number): MatchFunction {
-    return (v: Stop | Route) => {
-      const f = +v.average_frequency || 0
-      return f >= val
+    console.log('getFrequencyMatcher:', val)
+    return (v: any) => {
+      if (v.__typename === 'Stop') {
+        return (v as Stop).route_stops.some((rs: any) => {
+          const route = rs.route
+          const headway = routeHeadwayLookup.get(route.id) || -1
+          if (headway <= 0) {
+            return false
+          }
+          return headway >= val * 60
+        })
+      } else if (v.__typename === 'Route') {
+        const headway = (v as Route).average_frequency
+        if (headway <= 0) {
+          return false
+        }
+        return headway >= val * 60
+      }
+      return false
     }
   }
 
@@ -272,12 +293,13 @@ const styleData = computed((): Matcher[] => {
       rules.push({ label: agency.name, color: color, match: getAgencyMatcher(agency.id) })
     }
   } else if (props.colorKey === 'Mode') {
-    const modes = [...routeTypes.values()]
+    const modes = [...routeTypes.keys()]
     valueCount = modes.length
     for (let i = 0; i < Math.min(valueCount, maxColor); i++) {
       const mode = modes[i]
+      const label = routeTypes.get(mode) || 'Unknown'
       const color = colors[i]
-      rules.push({ label: mode, color: color, match: getModeMatcher(mode) })
+      rules.push({ label: label, color: color, match: getModeMatcher(mode) })
     }
   } else if (props.colorKey === 'Frequency') {
     valueCount = 5
@@ -286,6 +308,7 @@ const styleData = computed((): Matcher[] => {
     rules.push({ label: '20-29', color: colors[2], match: getFrequencyMatcher(20) })
     rules.push({ label: '10-19', color: colors[3], match: getFrequencyMatcher(10) })
     rules.push({ label: '0-9', color: colors[4], match: getFrequencyMatcher(0) })
+    rules.push({ label: 'Unknown', color: '#000', match: x => true })
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
@@ -336,6 +359,7 @@ const displayFeatures = computed(() => {
       id: sp.id.toString(),
       geometry: sp.geometry,
       properties: {
+        'id': sp.id,
         'marker-radius': sp.marked ? 8 : 4,
         'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
