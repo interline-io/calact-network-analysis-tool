@@ -141,8 +141,8 @@
         :ready="ready"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
-        @set-stop-features="setStopFeatures"
-        @set-route-features="setRouteFeatures"
+        @set-stop-features="stopFeatures = $event"
+        @set-route-features="routeFeatures = $event"
         @set-loading="loading = $event"
         @set-error="setError"
       />
@@ -442,15 +442,8 @@ const minFare = computed({
 /////////////////////////
 
 // Stop features
-const stopFeatures = ref<Stop[]>([])
-function setStopFeatures (v: Stop[]) {
-  stopFeatures.value = v
-}
-
-const routeFeatures = ref<Route[]>([])
-function setRouteFeatures (v: Route[]) {
-  routeFeatures.value = v
-}
+const stopFeatures = shallowRef<Stop[]>([])
+const routeFeatures = shallowRef<Route[]>([])
 
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })

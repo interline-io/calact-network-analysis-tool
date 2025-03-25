@@ -23,7 +23,6 @@ import {
   type Stop,
   type StopGql,
   stopQuery,
-  stopVisits,
   stopSetDerived
 } from '../stop'
 
@@ -86,7 +85,6 @@ const selectedDateRange = computed((): Date[] => {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
-  console.log('selectedDateRange:', dates)
   return dates
 })
 
@@ -151,70 +149,6 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
   })
 })
 
-// Derived properties
-const stopFeatures = computed((): Stop[] => {
-  // Derived properties
-  const features: Stop[] = (stopResult.value?.stops || []).map((s) => {
-    // Gather modes at this stop
-    const route_stops = s.route_stops || []
-    const modes = new Set()
-    for (const rstop of route_stops) {
-      const rtype = rstop.route.route_type
-      const mode = routeTypes.get(rtype)
-      if (mode) {
-        modes.add(mode)
-      }
-    }
-    return {
-      ...s,
-      modes: Array.from(modes).join(','),
-      number_served: route_stops.length,
-      average_visits: 0,
-      marked: true,
-      visits: stopVisits(s, [], [], '00:00:00', '24:00:00', null),
-    }
-  })
-  return features
-})
-
-// Apply stop filters
-watch(() => [
-  stopFeatures.value,
-  selectedDays.value,
-  selectedRouteTypes.value,
-  selectedAgencies.value,
-  selectedDayOfWeekMode.value,
-  selectedDateRange.value,
-  stopDepartureLoadingComplete.value
-], () => {
-  // Apply filters
-  const selectedDaysValue = selectedDays.value || []
-  const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
-  const selectedDateRangeValue = selectedDateRange.value || []
-  const selectedRouteTypesValue = selectedRouteTypes.value || []
-  const selectedAgenciesValue = selectedAgencies.value || []
-  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
-  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
-  const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
-  const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
-  for (const stop of stopFeatures.value) {
-    stopSetDerived(
-      stop,
-      selectedDaysValue,
-      selectedDayOfWeekModeValue,
-      selectedDateRangeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
-      startTimeValue,
-      endTimeValue,
-      sdCache
-    )
-  }
-  console.log('setStopFeatures', stopFeatures.value.length)
-  emit('setStopFeatures', stopFeatures.value)
-})
-
 /////////////////////////////
 // Routes
 /////////////////////////////
@@ -266,61 +200,6 @@ const routeQueue = useTask(function* (_, task: { after: number }) {
       routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
     }
   })
-})
-
-// Derived properties
-const routeFeatures = computed((): Route[] => {
-  const features: Route[] = (routeResult.value?.routes || []).map(s => ({
-    ...s,
-    route_name: s.route_long_name || s.route_short_name || s.route_id,
-    agency_name: s.agency?.agency_name || 'Unknown',
-    mode: routeTypes.get(s.route_type) || 'Unknown',
-    marked: true,
-    average_frequency: -1,
-    fastest_frequency: -1,
-    slowest_frequency: -1,
-    headways: newRouteHeadwaySummary(),
-  }))
-  return features
-})
-
-// Apply route filter
-watch(() => [
-  routeFeatures.value,
-  selectedRouteTypes.value,
-  selectedAgencies.value,
-  frequencyUnderEnabled.value,
-  frequencyUnder.value,
-  frequencyOverEnabled.value,
-  frequencyOver.value,
-  startTime.value,
-  endTime.value,
-  stopDepartureLoadingComplete.value
-], () => {
-  // Apply filters
-  const selectedDateRangeValue = selectedDateRange.value || []
-  const selectedRouteTypesValue = selectedRouteTypes.value || []
-  const selectedAgenciesValue = selectedAgencies.value || []
-  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
-  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
-  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
-  const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
-  const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
-  for (const route of routeFeatures.value) {
-    routeSetDerived(
-      route,
-      selectedDateRangeValue,
-      startTimeValue,
-      endTimeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
-      frequencyUnderValue,
-      frequencyOverValue,
-      sdCache,
-    )
-  }
-  console.log('setRouteFeatures', routeFeatures.value.length)
-  emit('setRouteFeatures', routeFeatures.value)
 })
 
 /////////////////////////////
@@ -410,6 +289,96 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
     }
   }
 }
+
+////////////////////////
+// Route and stop filters
+////////////////////////
+
+// Apply filters to routes and stops
+watch(() => [
+  stopResult.value,
+  routeResult.value,
+  endTime.value,
+  frequencyOver.value,
+  frequencyOverEnabled.value,
+  frequencyUnder.value,
+  frequencyUnderEnabled.value,
+  selectedAgencies.value,
+  selectedDateRange.value,
+  selectedDayOfWeekMode.value,
+  selectedDays.value,
+  selectedRouteTypes.value,
+  startTime.value,
+  stopDepartureLoadingComplete.value,
+], () => {
+  // Check defaults
+  const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
+  const selectedDateRangeValue = selectedDateRange.value || []
+  const selectedDaysValue = selectedDays.value || []
+  const selectedRouteTypesValue = selectedRouteTypes.value || []
+  const selectedAgenciesValue = selectedAgencies.value || []
+  const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
+  const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
+  const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
+
+  // Apply route filters
+  const routeFeatures: Route[] = []
+  for (const routeGql of routeResult.value?.routes || []) {
+    const route: Route = {
+      ...routeGql,
+      route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
+      agency_name: routeGql.agency?.agency_name || 'Unknown',
+      mode: routeTypes.get(routeGql.route_type) || 'Unknown',
+      marked: true,
+      average_frequency: -1,
+      fastest_frequency: -1,
+      slowest_frequency: -1,
+      headways: newRouteHeadwaySummary(),
+    }
+    routeSetDerived(
+      route,
+      selectedDateRangeValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
+      sdCache,
+    )
+    routeFeatures.push(route)
+  }
+  emit('setRouteFeatures', routeFeatures)
+
+  // Memoize selected routes
+  const selectedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
+
+  // Apply stop filters
+  const stopFeatures: Stop[] = []
+  for (const stopGql of (stopResult.value?.stops || [])) {
+    const stop: Stop = {
+      ...stopGql,
+      marked: true,
+      visits: null,
+    }
+    stopSetDerived(
+      stop,
+      selectedDaysValue,
+      selectedDayOfWeekModeValue,
+      selectedDateRangeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRoutes,
+      sdCache
+    )
+    stopFeatures.push(stop)
+  }
+  emit('setStopFeatures', stopFeatures)
+})
 
 ////////////////////////
 // Helpers

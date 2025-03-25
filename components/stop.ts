@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
 import { StopDepartureCache } from './departure-cache'
-import { type dow } from './constants'
+import { type dow, routeTypes } from './constants'
 import { parseHMS } from './datetime'
 
 //////////
@@ -57,9 +57,7 @@ export interface StopGtfs {
 
 export interface StopDerived {
   marked: boolean
-  modes: string
-  number_served: number
-  visits: StopVisitSummary
+  visits: StopVisitSummary | null
 }
 
 export interface StopVisitCounts {
@@ -133,6 +131,7 @@ export function stopSetDerived(
   selectedAgencies: string[],
   selectedStartTime: string,
   selectedEndTime: string,
+  selectedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
   // Make sure to run stopVisits before stopMarked
@@ -151,19 +150,14 @@ export function stopSetDerived(
     selectedDateRange,
     selectedRouteTypes,
     selectedAgencies,
+    selectedRoutes,
     sdCache,
   )
 }
 
-export function stopVisits(
-  stop: StopGql,
-  selectedDays: dow[],
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  sdCache: StopDepartureCache | null,
-): StopVisitSummary {
-  let result = {
+export function newStopVisitSummary(): StopVisitSummary {
+  return {
+    total: newStopVisitCounts(),
     monday: newStopVisitCounts(),
     tuesday: newStopVisitCounts(),
     wednesday: newStopVisitCounts(),
@@ -171,8 +165,19 @@ export function stopVisits(
     friday: newStopVisitCounts(),
     saturday: newStopVisitCounts(),
     sunday: newStopVisitCounts(),
-    total: newStopVisitCounts(),
   }
+}
+
+
+function stopVisits(
+  stop: StopGql,
+  selectedDays: dow[],
+  selectedDateRange: Date[],
+  selectedStartTime: string,
+  selectedEndTime: string,
+  sdCache: StopDepartureCache | null,
+): StopVisitSummary {
+  let result = newStopVisitSummary()
   if (!sdCache) {
     return result
   }
@@ -237,6 +242,7 @@ function stopMarked(
   selectedDateRange: Date[],
   selectedRouteTypes: number[],
   selectedAgencies: string[],
+  selectedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,
 ): boolean {
   // Check departure days
@@ -248,13 +254,13 @@ function stopMarked(
     for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | null = null
-      if (sd === 'sunday') { r = stop.visits.sunday }
-      else if (sd === 'monday') { r = stop.visits.monday }
-      else if (sd === 'tuesday') { r = stop.visits.tuesday }
-      else if (sd === 'wednesday') { r = stop.visits.wednesday }
-      else if (sd === 'thursday') { r = stop.visits.thursday }
-      else if (sd === 'friday') { r = stop.visits.friday }
-      else if (sd === 'saturday') { r = stop.visits.saturday }
+      if (sd === 'sunday') { r = stop.visits?.sunday || null }
+      else if (sd === 'monday') { r = stop.visits?.monday || null}
+      else if (sd === 'tuesday') { r = stop.visits?.tuesday || null}
+      else if (sd === 'wednesday') { r = stop.visits?.wednesday || null}
+      else if (sd === 'thursday') { r = stop.visits?.thursday || null}
+      else if (sd === 'friday') { r = stop.visits?.friday || null}
+      else if (sd === 'saturday') { r = stop.visits?.saturday || null}
       if (!r) { continue }
       if (r.visit_count > 0) {
         hasAny = true
@@ -328,6 +334,15 @@ function checkDiv(a: number, b: number): number {
 ///////////////////////////
 
 export function stopToStopCsv(stop: Stop): StopCsv {
+  const routeStops = stop.route_stops || []
+  const modes = new Set()
+  for (const rstop of routeStops) {
+    const rtype = rstop.route.route_type
+    const mode = routeTypes.get(rtype)
+    if (mode) {
+      modes.add(mode)
+    }
+  }
   return {
     row: 0,
     // GTFS properties
@@ -343,15 +358,15 @@ export function stopToStopCsv(stop: Stop): StopCsv {
     tts_stop_name: stop.tts_stop_name,
     // Derived properties
     marked: stop.marked,
-    number_served: stop.number_served,
-    modes: stop.modes,
-    visit_count_daily_average: Math.round(stop.visits.total.visit_average),
-    visit_count_monday_average: Math.round(stop.visits.monday.visit_average),
-    visit_count_tuesday_average: Math.round(stop.visits.tuesday.visit_average),
-    visit_count_wednesday_average: Math.round(stop.visits.wednesday.visit_average),
-    visit_count_thursday_average: Math.round(stop.visits.thursday.visit_average),
-    visit_count_friday_average: Math.round(stop.visits.friday.visit_average),
-    visit_count_saturday_average: Math.round(stop.visits.saturday.visit_average),
-    visit_count_sunday_average: Math.round(stop.visits.sunday.visit_average),
+    number_served: stop.route_stops.length,
+    modes: Array.from(modes).join(','),
+    visit_count_daily_average: Math.round(stop.visits?.total?.visit_average || -1),
+    visit_count_monday_average: Math.round(stop.visits?.monday?.visit_average || -1),
+    visit_count_tuesday_average: Math.round(stop.visits?.tuesday?.visit_average || -1),
+    visit_count_wednesday_average: Math.round(stop.visits?.wednesday?.visit_average || -1),
+    visit_count_thursday_average: Math.round(stop.visits?.thursday?.visit_average || -1),
+    visit_count_friday_average: Math.round(stop.visits?.friday?.visit_average || -1),
+    visit_count_saturday_average: Math.round(stop.visits?.saturday?.visit_average || -1),
+    visit_count_sunday_average: Math.round(stop.visits?.sunday?.visit_average || -1),
   }
 }
