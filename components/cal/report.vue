@@ -6,7 +6,21 @@
 
     <div class="cal-report-options block">
       <div class="filter-detail">
-        Filter detail here (TBD)
+        <div v-if="dataDisplayMode === 'Agency'">
+          Showing agencies:
+        </div>
+        <div v-if="dataDisplayMode === 'Route'">
+          Showing routes:
+        </div>
+        <div v-if="dataDisplayMode === 'Stop'">
+          Showing stops:
+        </div>
+
+        <ul style="list-style: disc inside">
+          <li v-for="item of filterSummary" :key="item">
+            {{ item }}
+          </li>
+        </ul>
       </div>
 
       <div class="report-select">
@@ -135,6 +149,7 @@ import { type TableColumn } from './datagrid.vue'
 const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  filterSummary: string[]
 }>()
 
 const current = ref(1)

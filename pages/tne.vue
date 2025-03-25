@@ -116,6 +116,7 @@
             v-model:data-display-mode="dataDisplayMode"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
+            :filter-summary="filterSummary"
             @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
           />
         </div>
@@ -448,6 +449,93 @@ const minFare = computed({
   }
 })
 
+// Each result in the filter summary will be a string to be used as a bullet point.
+// We will only include results if the filter is set to something interesting (not default)
+const filterSummary = computed((): string[] => {
+  const mode = dataDisplayMode.value
+  const results: string[] = []
+
+  // route types
+  const rtypes = selectedRouteTypes.value.map(val => toTitleCase(routeTypes.get(val))).filter(Boolean)
+  if (rtypes.length !== routeTypes.size) {
+    results.push('with route types ' + rtypes.join(', '))
+  }
+
+  // agencies
+  const agencies = selectedAgencies.value
+  if (agencies.length) {
+    results.push('operated by ' + agencies.join(', '))
+  }
+
+  // date range
+  const today = fmtDate(getLocalDateNoTime(), 'P')
+  const sdate = fmtDate(startDate.value, 'P') || today
+  const edate = fmtDate(endDate.value, 'P') || today
+  if (sdate !== today && edate !== today && sdate !== edate) {
+    results.push('operating between ' + sdate + ' and ' + edate)
+  } else if (sdate !== today && edate !== today && sdate === edate) {
+    results.push('operating on ' + sdate)
+  } else if (sdate !== today && edate === today) {
+    results.push('operating after ' + sdate)
+  }
+
+  // days of week  (always show something here)
+  const days = selectedDays.value.map(val => toTitleCase(val))
+  const dowMode = selectedDayOfWeekMode.value
+  if (dowMode === 'All' /* && days.length !== 7 */) {
+    results.push('operating all of ' + days.join(', '))
+  } else if (dowMode === 'Any') {
+    results.push('operating any of ' + days.join(', '))
+  }
+
+  // time range
+  if (selectedTimeOfDayMode.value !== 'All') {
+    const stime = fmtTime(startTime.value, 'p')
+    const etime = fmtTime(endTime.value, 'p')
+    if (stime && etime && stime !== etime) {
+      results.push('operating between ' + stime + ' and ' + etime)
+    } else if (stime && etime && stime === etime) {
+      results.push('operating at ' + stime)
+    } else if (stime && !etime) {
+      results.push('operating after ' + stime)
+    } else if (etime && !stime) {
+      results.push('operating before ' + etime)
+    }
+  }
+
+  // frequencies
+  const hasMinFreq = frequencyOverEnabled.value
+  const minFreq = frequencyOver.value
+  const hasMaxFreq = frequencyUnderEnabled.value
+  const maxFreq = frequencyUnder.value
+  if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
+    results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
+  } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
+    results.push('with frequency exactly ' + minFreq + ' minutes')
+  } else if (hasMinFreq && !hasMaxFreq) {
+    results.push('with frequency at least ' + minFreq + ' minutes')
+  } else if (hasMaxFreq && !hasMinFreq) {
+    results.push('with frequency less than ' + maxFreq + ' minutes')
+  }
+
+  // fares
+  const hasMinFare = minFareEnabled.value
+  const minDollar = minFare.value
+  const hasMaxFare = maxFareEnabled.value
+  const maxDollar = maxFare.value
+  if (hasMinFare && hasMaxFare && minDollar !== maxDollar) {
+    results.push('with fare between $' + minDollar + ' and $' + maxDollar)
+  } else if (hasMinFare && hasMaxFare && minDollar === maxDollar) {
+    results.push('with fare exactly $' + minDollar)
+  } else if (hasMinFare && !hasMaxFare) {
+    results.push('with fare at least $' + minDollar)
+  } else if (hasMaxFare && !hasMinFare) {
+    results.push('with fare less than $' + maxDollar)
+  }
+
+  return results
+})
+
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -562,6 +650,13 @@ function itemHelper (p: string): string {
 function arrayParam (p: string, def: string[]): string[] {
   const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
   return a.length > 0 ? a : def
+}
+
+function toTitleCase (str: string): string {
+  return str.replace(
+    /\w\S*/g,
+    text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
+  )
 }
 
 </script>

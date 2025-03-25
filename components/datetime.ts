@@ -11,11 +11,11 @@ export function parseDate(d: string): Date | null {
     return null
   }
 
-export function fmtDate(d: Date | null): string {
+export function fmtDate(d: Date | null, fmt?: string = dateFmt): string {
     if (!d) {
         return ''
     }
-    return format(d, dateFmt)
+    return format(d, fmt)
 }
 
 export function parseTime(d: string): Date | null {
@@ -25,11 +25,11 @@ export function parseTime(d: string): Date | null {
     return null
 }
 
-export function fmtTime(d: Date | null): string {
+export function fmtTime(d: Date | null, fmt?: string = timeFmt): string {
     if (!d) {
         return ''
     }
-    return format(d, timeFmt)
+    return format(d, fmt)
 }
 
 export function getLocalDateNoTime(): Date {
