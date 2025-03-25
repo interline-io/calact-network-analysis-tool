@@ -316,7 +316,7 @@ const displayFeatures = computed(() => {
       properties: {
         'id': rp.id,
         'stroke': style?.color || bgColor,
-        'stroke-width': rp.marked ? 3 : 1.5,
+        'stroke-width': rp.marked ? 3 : 0.75,
         'stroke-opacity': rp.marked ? 1 : bgOpacity,
         'route_id': rp.route_id,
         'route_type': rp.route_type,

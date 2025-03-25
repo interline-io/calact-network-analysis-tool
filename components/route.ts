@@ -120,10 +120,11 @@ export function routeSetDerived(
   selectedEndTime: string,
   selectedRouteTypes: number[],
   selectedAgencies: string[],
+  frequencyUnder: number,
+  frequencyOver: number,
   sdCache: StopDepartureCache | null,
 ) {
   // Set derived properties
-  route.marked = routeMarked(route, selectedRouteTypes, selectedAgencies)
   if (sdCache) {
     const headwayResult = routeHeadways(
       route,
@@ -147,13 +148,25 @@ export function routeSetDerived(
       route.slowest_frequency = -1
     }
   }
+  // Mark after setting frequency values
+  route.marked = routeMarked(
+    route, 
+    selectedRouteTypes, 
+    selectedAgencies, 
+    frequencyUnder, 
+    frequencyOver,
+    sdCache,
+  )
 }
 
 // Filter routes
-export function routeMarked(
-  route: RouteGql, 
+function routeMarked(
+  route: Route, 
   selectedRouteTypes: number[], 
-  selectedAgencies: string[]
+  selectedAgencies: string[],
+  frequencyUnder: number,
+  frequencyOver: number,
+  sdCache: StopDepartureCache | null,
 ): boolean {
   // Check route types
   if (selectedRouteTypes.length > 0) {
@@ -165,6 +178,18 @@ export function routeMarked(
   // Check agencies
   if (selectedAgencies.length > 0) {
     if (!selectedAgencies.includes(route.agency.agency_name)) {
+      return false
+    }
+  }
+
+  if (sdCache && frequencyOver >= 0) {
+    if (route.average_frequency < frequencyOver*60 || route.average_frequency < 0) {
+      return false
+    }
+  }
+
+  if (sdCache && frequencyUnder >= 0) {
+    if (route.average_frequency > frequencyUnder*60 || route.average_frequency < 0) {
       return false
     }
   }

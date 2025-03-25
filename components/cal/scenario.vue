@@ -58,6 +58,10 @@ const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
 const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
+const frequencyUnder = defineModel<number>('frequencyUnder')
+const frequencyOver = defineModel<number>('frequencyOver')
+const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
+const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 
 const stopLimit = 1000
 const stopDepartureCache = new StopDepartureCache()
@@ -192,6 +196,8 @@ watch(() => [
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
   const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
+  const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
   for (const stop of stopFeatures.value) {
     stopSetDerived(
       stop,
@@ -283,6 +289,12 @@ watch(() => [
   routeFeatures.value,
   selectedRouteTypes.value,
   selectedAgencies.value,
+  frequencyUnderEnabled.value,
+  frequencyUnder.value,
+  frequencyOverEnabled.value,
+  frequencyOver.value,
+  startTime.value,
+  endTime.value,
   stopDepartureLoadingComplete.value
 ], () => {
   // Apply filters
@@ -292,6 +304,8 @@ watch(() => [
   const sdCache = stopDepartureLoadingComplete.value ? stopDepartureCache : null
   const startTimeValue = startTime.value ? format(startTime.value, 'HH:mm:ss') : '00:00:00'
   const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
+  const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
+  const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
   for (const route of routeFeatures.value) {
     routeSetDerived(
       route,
@@ -300,6 +314,8 @@ watch(() => [
       endTimeValue,
       selectedRouteTypesValue,
       selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
       sdCache,
     )
   }
