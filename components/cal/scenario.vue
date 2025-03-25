@@ -353,7 +353,7 @@ watch(() => [
   emit('setRouteFeatures', routeFeatures)
 
   // Memoize selected routes
-  const selectedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
+  const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
 
   // Apply stop filters
   const stopFeatures: Stop[] = []
@@ -368,11 +368,13 @@ watch(() => [
       selectedDaysValue,
       selectedDayOfWeekModeValue,
       selectedDateRangeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
       startTimeValue,
       endTimeValue,
-      selectedRoutes,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
+      markedRoutes,
       sdCache
     )
     stopFeatures.push(stop)
