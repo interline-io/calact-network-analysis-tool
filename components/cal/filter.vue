@@ -361,6 +361,20 @@
               </o-radio>
             </li>
           </ul>
+
+          <p class="menu-label">
+            Display options
+          </p>
+          <ul>
+            <li>
+              <o-field grouped>
+                <o-checkbox
+                  v-model="hideUnmarked"
+                  label="Hide unmarked routes/stops"
+                />
+              </o-field>
+            </li>
+          </ul>
         </aside>
       </div>
     </div>
@@ -397,6 +411,7 @@ const endDate = defineModel<Date>('endDate')
 const startTime = defineModel<Date | null>('startTime')
 const endTime = defineModel<Date | null>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
+const hideUnmarked = defineModel<boolean>('hideUnmarked')
 const colorKey = defineModel<string>('colorKey')
 const dataDisplayMode = defineModel<string>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
