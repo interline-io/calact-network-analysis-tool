@@ -68,6 +68,7 @@ const props = defineProps<{
   dataDisplayMode: string
   colorKey: string
   displayEditBboxMode?: boolean
+  hideUnmarked: boolean
 }>()
 
 const showShareMenu = ref(false)
@@ -436,8 +437,10 @@ const displayFeatures = computed(() => {
   })
 
   // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
-  features.push(...renderRoutes.filter(r => !r.properties.marked))
-  features.push(...renderStops.filter(r => !r.properties.marked))
+  if (!props.hideUnmarked) {
+    features.push(...renderRoutes.filter(r => !r.properties.marked))
+    features.push(...renderStops.filter(r => !r.properties.marked))
+  }
   features.push(...renderRoutes.filter(r => r.properties.marked))
   features.push(...renderStops.filter(r => r.properties.marked))
   return features

@@ -88,6 +88,7 @@
             v-model:data-display-mode="dataDisplayMode"
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
+            v-model:hide-unmarked="hideUnmarked"
             v-model:selected-days="selectedDays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
@@ -155,6 +156,7 @@
         :display-edit-bbox-mode="displayEditBboxMode"
         :data-display-mode="dataDisplayMode"
         :color-key="colorKey"
+        :hide-unmarked="hideUnmarked"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
       />
@@ -269,6 +271,15 @@ const unitSystem = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, unitSystem: v })
+  }
+})
+
+const hideUnmarked = computed({
+  get () {
+    return route.query.hideUnmarked?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
   }
 })
 
@@ -513,7 +524,8 @@ async function resetFilters () {
     minFare: '',
     colorKey: '',
     unitSystem: '',
-    baseMap: ''
+    hideUnmarked: '',
+    baseMap: '',
   })
   // Note, `selectedDays` is special, see note below.
   // When clearing filters, it should removed, not set to ''
