@@ -122,6 +122,10 @@
       <!-- This is a component for handling data flow -->
 
       <cal-scenario
+        v-model:frequency-under-enabled="frequencyUnderEnabled"
+        v-model:frequency-under="frequencyUnder"
+        v-model:frequency-over-enabled="frequencyOverEnabled"
+        v-model:frequency-over="frequencyOver"
         :bbox="bbox"
         :start-date="startDate"
         :end-date="endDate"
@@ -130,6 +134,7 @@
         :selected-agencies="selectedAgencies"
         :selected-time-of-day-mode="selectedTimeOfDayMode"
         :selected-day-of-week-mode="selectedDayOfWeekMode"
+
         :start-time="startTime"
         :end-time="endTime"
         :geom-source="geomSource"
@@ -362,7 +367,7 @@ const frequencyUnderEnabled = computed({
 
 const frequencyUnder = computed({
   get () {
-    return parseInt(route.query.frequencyUnder?.toString() || '') || 0
+    return parseInt(route.query.frequencyUnder?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyUnder: v.toString() })
@@ -380,7 +385,7 @@ const frequencyOverEnabled = computed({
 
 const frequencyOver = computed({
   get () {
-    return parseInt(route.query.frequencyOver?.toString() || '') || 0
+    return parseInt(route.query.frequencyOver?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyOver: v.toString() })

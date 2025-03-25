@@ -230,7 +230,7 @@ export function stopVisits(
 }
 
 // Filter stops
-export function stopMarked(
+function stopMarked(
   stop: Stop,
   selectedDays: dow[],
   selectedDayMode: string,
