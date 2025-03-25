@@ -129,7 +129,7 @@ export function stopSetDerived(
   selectedDows: dow[],
   selectedDowMode: string,
   selectedDateRange: Date[],
-  selectedRouteTypes: string[],
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   selectedStartTime: string,
   selectedEndTime: string,
@@ -235,7 +235,7 @@ export function stopMarked(
   selectedDows: dow[],
   selectedDowMode: string,
   selectedDateRange: Date[],
-  selectedRouteTypes: string[],
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   sdCache: StopDepartureCache | null,
 ): boolean {
@@ -281,7 +281,7 @@ export function stopMarked(
   if (selectedRouteTypes.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (selectedRouteTypes.includes(rs.route.route_type.toString())) {
+      if (selectedRouteTypes.includes(rs.route.route_type)) {
         found = true
         break
       }

@@ -118,7 +118,7 @@ export function routeSetDerived(
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
-  selectedRouteTypes: string[],
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   sdCache: StopDepartureCache | null,
 ) {
@@ -150,15 +150,19 @@ export function routeSetDerived(
 }
 
 // Filter routes
-export function routeMarked(route: RouteGql, srt: string[], sg: string[]): boolean {
+export function routeMarked(
+  route: RouteGql, 
+  selectedRouteTypes: number[], 
+  selectedAgencies: string[]
+): boolean {
   // Check route types
-  if (srt.length > 0) {
-    return srt.includes(route.route_type.toString())
+  if (selectedRouteTypes.length > 0) {
+    return selectedRouteTypes.includes(route.route_type)
   }
 
   // Check agencies
-  if (sg.length > 0) {
-    return sg.includes(route.agency.agency_name)
+  if (selectedAgencies.length > 0) {
+    return selectedAgencies.includes(route.agency.agency_name)
   }
 
   // Default is to return true
