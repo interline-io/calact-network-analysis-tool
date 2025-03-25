@@ -232,7 +232,6 @@ const styleData = computed((): Matcher[] => {
   for (const route of props.routeFeatures) {
     routeHeadwayLookup.set(route.id, route.average_frequency)
   }
-  console.log('routeHeadwayLookup:', routeHeadwayLookup)
 
   function getAgencyMatcher (val: string): MatchFunction {
     return (v: any) => {
@@ -257,7 +256,6 @@ const styleData = computed((): Matcher[] => {
   }
 
   function getFrequencyMatcher (val: number): MatchFunction {
-    console.log('getFrequencyMatcher:', val)
     return (v: any) => {
       if (v.__typename === 'Stop') {
         return (v as Stop).route_stops.some((rs: any) => {
