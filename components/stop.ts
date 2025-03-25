@@ -126,10 +126,10 @@ const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thurs
 // Mutates calculated fields on Stop
 export function stopSetDerived(
   stop: Stop,
-  selectedDows: dow[],
-  selectedDowMode: string,
+  selectedDays: dow[],
+  selectedDayMode: string,
   selectedDateRange: Date[],
-  selectedRouteTypes: string[],
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   selectedStartTime: string,
   selectedEndTime: string,
@@ -138,7 +138,7 @@ export function stopSetDerived(
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop,
-    selectedDows,
+    selectedDays,
     selectedDateRange,
     selectedStartTime,
     selectedEndTime,
@@ -146,8 +146,8 @@ export function stopSetDerived(
   )
   stop.marked = stopMarked(
     stop,
-    selectedDows,
-    selectedDowMode,
+    selectedDays,
+    selectedDayMode,
     selectedDateRange,
     selectedRouteTypes,
     selectedAgencies,
@@ -157,7 +157,7 @@ export function stopSetDerived(
 
 export function stopVisits(
   stop: StopGql,
-  selectedDows: dow[],
+  selectedDays: dow[],
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
@@ -180,7 +180,7 @@ export function stopVisits(
   const endTime = parseHMS(selectedEndTime)
   for (const sd of selectedDateRange) {
     const sdDow = dowDateString[sd.getDay()] || ''
-    if (!selectedDows.includes(sdDow)) {
+    if (!selectedDays.includes(sdDow)) {
       continue
     }
     // TODO: memoize formatted date
@@ -232,10 +232,10 @@ export function stopVisits(
 // Filter stops
 export function stopMarked(
   stop: Stop,
-  selectedDows: dow[],
-  selectedDowMode: string,
+  selectedDays: dow[],
+  selectedDayMode: string,
   selectedDateRange: Date[],
-  selectedRouteTypes: string[],
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   sdCache: StopDepartureCache | null,
 ): boolean {
@@ -245,7 +245,7 @@ export function stopMarked(
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedDows) {
+    for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | null = null
       if (sd === 'sunday') { r = stop.visits.sunday }
@@ -265,9 +265,9 @@ export function stopMarked(
     }
     // Check mode
     let found = false
-    if (selectedDowMode === 'Any') {
+    if (selectedDayMode === 'Any') {
       found = hasAny
-    } else if (selectedDowMode === 'All') {
+    } else if (selectedDayMode === 'All') {
       found = hasAll
     }
     // Not found, no further processing
@@ -281,7 +281,7 @@ export function stopMarked(
   if (selectedRouteTypes.length > 0) {
     let found = false
     for (const rs of stop.route_stops) {
-      if (selectedRouteTypes.includes(rs.route.route_type.toString())) {
+      if (selectedRouteTypes.includes(rs.route.route_type)) {
         found = true
         break
       }

@@ -313,8 +313,12 @@ const selectedTimeOfDayMode = computed({
 })
 
 const selectedRouteTypes = computed({
-  get () {
-    return arrayParam('selectedRouteTypes', Array.from(routeTypes.keys()))
+  get (): number[] {
+    const d = arrayParam('selectedRouteTypes', [])
+    if (d.length) {
+      return d.map(p => parseInt(p))
+    }
+    return Array.from(routeTypes.keys())
   },
   set (v: string[]) {
     setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
@@ -322,7 +326,7 @@ const selectedRouteTypes = computed({
 })
 
 const selectedAgencies = computed({
-  get () {
+  get (): string[] {
     return arrayParam('selectedAgencies', [])
   },
   set (v: string[]) {

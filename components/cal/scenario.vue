@@ -53,7 +53,7 @@ const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
-const selectedRouteTypes = defineModel<string[]>('selectedRouteTypes')
+const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
 const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
@@ -156,7 +156,7 @@ const stopFeatures = computed((): Stop[] => {
     const modes = new Set()
     for (const rstop of route_stops) {
       const rtype = rstop.route.route_type
-      const mode = routeTypes.get(rtype.toString())
+      const mode = routeTypes.get(rtype)
       if (mode) {
         modes.add(mode)
       }
@@ -268,7 +268,7 @@ const routeFeatures = computed((): Route[] => {
     ...s,
     route_name: s.route_long_name || s.route_short_name || s.route_id,
     agency_name: s.agency?.agency_name || 'Unknown',
-    mode: routeTypes.get(s.route_type.toString()) || 'Unknown',
+    mode: routeTypes.get(s.route_type) || 'Unknown',
     marked: true,
     average_frequency: -1,
     fastest_frequency: -1,

@@ -177,14 +177,14 @@ const reportData = computed((): Record<string, any>[] => {
 
   // inline reports so they are dependent on the model data
   if (dataDisplayMode.value === 'Route') {
-    const routeCsvs = props.routeFeatures.map(routeToRouteCsv)
+    const routeCsvs = props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
     for (let i = 0; i < routeCsvs.length; i++) {
       routeCsvs[i].row = i + 1
     }
     total.value = routeCsvs.length
     return routeCsvs.slice(index * perPage.value, (index + 1) * perPage.value)
   } else if (dataDisplayMode.value === 'Stop') {
-    const stopCsvs = props.stopFeatures.map(stopToStopCsv)
+    const stopCsvs = props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
     for (let i = 0; i < stopCsvs.length; i++) {
       stopCsvs[i].row = i + 1
     }
