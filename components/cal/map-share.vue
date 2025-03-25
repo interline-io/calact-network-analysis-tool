@@ -22,10 +22,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, toRaw } from 'vue'
-import { useToggle } from '@vueuse/core'
-import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
-import { colors, routeTypes } from '../constants'
+import { ref, computed } from 'vue'
 import { useToastNotification } from '#imports'
 import { type Stop, stopToStopCsv } from '../stop'
 import { type Route, routeToRouteCsv } from '../route'
@@ -37,6 +34,10 @@ const props = defineProps<{
 }>()
 
 const route = useRoute()
+
+const windowUrl = computed(() => {
+  return window.location.href
+})
 
 const reportData = ref([])
 

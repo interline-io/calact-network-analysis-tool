@@ -40,16 +40,10 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
-import { useToastNotification } from '#imports'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
 
 const route = useRoute()
-
-function copyUrlToClipboard () {
-  navigator.clipboard.writeText(windowUrl.value)
-  useToastNotification().showToast('Copied to clipboard')
-}
 
 const emit = defineEmits([
   'setBbox',
@@ -68,10 +62,6 @@ const props = defineProps<{
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
-
-const windowUrl = computed(() => {
-  return window.location.href
-})
 
 //////////////////
 // Map geometries
