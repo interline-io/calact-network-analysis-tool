@@ -6,18 +6,13 @@
       </o-button>
     </div>
 
-    <article v-if="showShareMenu" class="cal-map-share message is-dark">
-      <div class="message-header">
-        Share
-      </div>
-      <div class="message-body">
-        <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" />
-        <br><br>
-        <o-button @click="copyUrlToClipboard">
-          Copy URL to Clipboard
-        </o-button>
-      </div>
-    </article>
+    <div v-if="showShareMenu" class="cal-map-share">
+      <cal-map-share
+        :display-features="displayFeatures"
+        :stop-features="stopFeatures"
+        :route-features="routeFeatures"
+      />
+    </div>
 
     <cal-legend
       :data-display-mode="dataDisplayMode"
@@ -45,16 +40,10 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
-import { useToastNotification } from '#imports'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
 
 const route = useRoute()
-
-function copyUrlToClipboard () {
-  navigator.clipboard.writeText(windowUrl.value)
-  useToastNotification().showToast('Copied to clipboard')
-}
 
 const emit = defineEmits([
   'setBbox',
@@ -73,10 +62,6 @@ const props = defineProps<{
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
-
-const windowUrl = computed(() => {
-  return window.location.href
-})
 
 //////////////////
 // Map geometries

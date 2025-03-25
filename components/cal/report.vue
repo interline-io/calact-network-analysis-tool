@@ -102,7 +102,7 @@
       </thead>
 
       <tbody v-if="dataDisplayMode === 'Route'">
-        <tr v-for="result of reportData" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.route_id }}</td>
           <td>{{ result.route_name }}</td>
@@ -114,7 +114,7 @@
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Stop'">
-        <tr v-for="result of reportData" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.stop_id }}</td>
           <td>{{ result.stop_name }}</td>
@@ -124,7 +124,7 @@
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
-        <tr v-for="result of reportData" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.agency_id }}</td>
           <td>{{ result.agency_name }}</td>
@@ -153,7 +153,8 @@ const props = defineProps<{
 }>()
 
 const current = ref(1)
-const total = ref(0)
+const index = computed(() => current.value - 1)
+const total = computed(() => reportData.value.length)
 const perPage = ref(20)
 const dataDisplayMode = defineModel<string>('dataDisplayMode')
 
@@ -188,27 +189,14 @@ const agencyColumns: TableColumn[] = [
 ]
 
 const reportData = computed((): Record<string, any>[] => {
-  const index = current.value - 1
-
   // inline reports so they are dependent on the model data
   if (dataDisplayMode.value === 'Route') {
-    const routeCsvs = props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
-    for (let i = 0; i < routeCsvs.length; i++) {
-      routeCsvs[i].row = i + 1
-    }
-    total.value = routeCsvs.length
-    return routeCsvs.slice(index * perPage.value, (index + 1) * perPage.value)
+    return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
   } else if (dataDisplayMode.value === 'Stop') {
-    const stopCsvs = props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
-    for (let i = 0; i < stopCsvs.length; i++) {
-      stopCsvs[i].row = i + 1
-    }
-    total.value = stopCsvs.length
-    return stopCsvs.slice(index * perPage.value, (index + 1) * perPage.value)
+    return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {
-    total.value = 0
     return []
   }
 })
