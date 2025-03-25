@@ -102,7 +102,7 @@
       </thead>
 
       <tbody v-if="dataDisplayMode === 'Route'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.route_id }}</td>
           <td>{{ result.route_name }}</td>
@@ -114,7 +114,7 @@
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Stop'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.stop_id }}</td>
           <td>{{ result.stop_name }}</td>
@@ -124,7 +124,7 @@
         </tr>
       </tbody>
       <tbody v-else-if="dataDisplayMode === 'Agency'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.row">
+        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
           <!-- <td>{{ result.row }}</td> -->
           <td>{{ result.agency_id }}</td>
           <td>{{ result.agency_name }}</td>
@@ -191,17 +191,9 @@ const agencyColumns: TableColumn[] = [
 const reportData = computed((): Record<string, any>[] => {
   // inline reports so they are dependent on the model data
   if (dataDisplayMode.value === 'Route') {
-    const routeCsvs = props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
-    for (let i = 0; i < routeCsvs.length; i++) {
-      routeCsvs[i].row = i + 1
-    }
-    return routeCsvs
+    return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
   } else if (dataDisplayMode.value === 'Stop') {
-    const stopCsvs = props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
-    for (let i = 0; i < stopCsvs.length; i++) {
-      stopCsvs[i].row = i + 1
-    }
-    return stopCsvs
+    return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
   } else {

@@ -10,11 +10,11 @@
       <br><br>
       <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" />
       <br><br>
-      <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" />
+      <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" filename="routes" />
       <br>
-      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" />
+      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops " />
       <br>
-      <cal-csv-download :data="reportData" button-text="Download agencies as CSV" disabled />
+      <cal-csv-download :data="reportData" button-text="Download agencies as CSV" disabled filename="agencies" />
       (todo)
       <br>
     </div>
@@ -41,11 +41,11 @@ const route = useRoute()
 const reportData = ref([])
 
 const routeCsvData = computed(() => {
-  return props.stopFeatures.map(s => stopToStopCsv(s))
+  return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
 })
 
 const stopCsvData = computed(() => {
-  return props.routeFeatures.map(s => routeToRouteCsv(s))
+  return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
 })
 
 function copyUrlToClipboard () {
