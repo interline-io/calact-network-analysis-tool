@@ -6,18 +6,13 @@
       </o-button>
     </div>
 
-    <article v-if="showShareMenu" class="cal-map-share message is-dark">
-      <div class="message-header">
-        Share
-      </div>
-      <div class="message-body">
-        <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" />
-        <br><br>
-        <o-button @click="copyUrlToClipboard">
-          Copy URL to Clipboard
-        </o-button>
-      </div>
-    </article>
+    <div v-if="showShareMenu" class="cal-map-share">
+      <cal-map-share
+        :display-features="displayFeatures"
+        :stop-features="stopFeatures"
+        :route-features="routeFeatures"
+      />
+    </div>
 
     <cal-legend
       :data-display-mode="dataDisplayMode"

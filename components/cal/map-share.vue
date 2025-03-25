@@ -1,0 +1,55 @@
+<template>
+  <article class="message is-dark">
+    <div class="message-header">
+      Share
+    </div>
+    <div class="message-body">
+      <o-button @click="copyUrlToClipboard">
+        Copy URL to Clipboard
+      </o-button>
+      <br><br>
+      <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" />
+      <br><br>
+      <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" />
+      <br>
+      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" />
+      <br>
+      <cal-csv-download :data="reportData" button-text="Download agencies as CSV" disabled />
+      (todo)
+      <br>
+    </div>
+  </article>
+</template>
+
+<script lang="ts" setup>
+import { ref, computed, toRaw } from 'vue'
+import { useToggle } from '@vueuse/core'
+import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import { colors, routeTypes } from '../constants'
+import { useToastNotification } from '#imports'
+import { type Stop, stopToStopCsv } from '../stop'
+import { type Route, routeToRouteCsv } from '../route'
+
+const props = defineProps<{
+  stopFeatures: Stop[]
+  routeFeatures: Route[]
+  displayFeatures: Feature[]
+}>()
+
+const route = useRoute()
+
+const reportData = ref([])
+
+const routeCsvData = computed(() => {
+  return props.stopFeatures.map(s => stopToStopCsv(s))
+})
+
+const stopCsvData = computed(() => {
+  return props.routeFeatures.map(s => routeToRouteCsv(s))
+})
+
+function copyUrlToClipboard () {
+  navigator.clipboard.writeText(windowUrl.value)
+  useToastNotification().showToast('Copied to clipboard')
+}
+</script>
