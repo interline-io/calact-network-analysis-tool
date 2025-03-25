@@ -27,7 +27,7 @@
             </o-tooltip>
           </template>
           <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
-          <o-button title="In the future, you will be able to specify an end date for date-bound queries." @click="toggleSelectSingleDay()">
+          <o-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
         </o-field>
@@ -38,7 +38,7 @@
           <div class="column is-half">
             <o-field>
               <template #label>
-                <o-tooltip multiline label="Specify the area of interest for your query. In the future, there will be additional options including selection of Census geographies.">
+                <o-tooltip multiline label="Specify the area of interest for your query. In the future, there will be additional options including selection of Census geographies. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
                   Select geography by
                   <o-icon icon="information" />
                 </o-tooltip>
