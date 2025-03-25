@@ -50,8 +50,8 @@ export const dataDisplayModes = [
 ]
 
 export const baseMapStyles = [
-  'Streets',
-  'Satellite',
+  {name: 'Streets', icon: 'map-search', available: true},
+  {name: 'Satellite', icon: 'satellite', available: false},
 ]
 
 export const selectedDayOfWeekModes = [

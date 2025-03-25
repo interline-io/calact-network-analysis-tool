@@ -195,7 +195,7 @@
           </o-field>
 
           <p class="menu-label">
-            Fares
+            Fares <o-tooltip label="Fare filtering is planned for future implementation" multiline><i class="mdi mdi-information-outline" /></o-tooltip>
           </p>
 
           <o-field grouped>
@@ -233,9 +233,6 @@
               />
             </div>
           </o-field>
-          <p class="filter-legend">
-            * Fare filtering not yet implemented
-          </p>
         </aside>
       </div>
 
@@ -322,21 +319,20 @@
               </o-radio>
             </li>
             <li>
-              <o-radio v-model="colorKey" native-value="Fare" :disabled="dataDisplayMode === 'Agency'">
-                Fare *
+              <o-radio v-model="colorKey" native-value="Fare" :disabled="true /* this is future functionality */">
+                Fare <o-tooltip label="This is planned for future implementation" multiline>
+                  <i class="mdi mdi-information-outline" />
+                </o-tooltip>
               </o-radio>
             </li>
           </ul>
-          <p class="filter-legend">
-            * Not yet implemented
-          </p>
           <p class="menu-label">
-            Base map
+            Base map <o-tooltip label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future" multiline><i class="mdi mdi-information-outline" /></o-tooltip>
           </p>
           <ul>
-            <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle">
-              <o-radio v-model="baseMap" :native-value="baseMapStyle">
-                <o-icon icon="map-search" size="large" /> {{ baseMapStyle }}
+            <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle.name">
+              <o-radio v-model="baseMap" :native-value="baseMapStyle.name" :disabled="!baseMapStyle.available">
+                <o-icon :icon="baseMapStyle.icon" size="medium" /> {{ baseMapStyle.name }}
               </o-radio>
             </li>
           </ul>
@@ -497,8 +493,7 @@ const knownAgencies = computed(() => {
     background: var(--bulma-scheme-main-ter);
     margin:0px;
     padding-left:20px;
-    overflow-y:auto;
-    overflow-x:clip;
+    /* removed overflow styling so we don't cut off tooltips */
   }
 }
 
