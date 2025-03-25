@@ -127,11 +127,9 @@ export function stopSetDerived(
   selectedDays: dow[],
   selectedDayMode: string,
   selectedDateRange: Date[],
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
   selectedStartTime: string,
   selectedEndTime: string,
-  selectedRoutes: Set<number>,
+  markedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,) {
   // Apply filters
   // Make sure to run stopVisits before stopMarked
@@ -147,10 +145,7 @@ export function stopSetDerived(
     stop,
     selectedDays,
     selectedDayMode,
-    selectedDateRange,
-    selectedRouteTypes,
-    selectedAgencies,
-    selectedRoutes,
+    markedRoutes,
     sdCache,
   )
 }
@@ -239,10 +234,7 @@ function stopMarked(
   stop: Stop,
   selectedDays: dow[],
   selectedDayMode: string,
-  selectedDateRange: Date[],
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  selectedRoutes: Set<number>,
+  markedRoutes: Set<number>,
   sdCache: StopDepartureCache | null,
 ): boolean {
   // Check departure days
@@ -282,31 +274,10 @@ function stopMarked(
     }
   }
 
-  // Check route types
-  // Must match at least one route type
-  if (selectedRouteTypes.length > 0) {
-    let found = false
-    for (const rs of stop.route_stops) {
-      if (selectedRouteTypes.includes(rs.route.route_type)) {
-        found = true
-        break
-      }
-    }
-    if (!found) {
-      return false
-    }
-  }
-
-  // Check agencies
-  // Must match at least one selected agency
-  if (selectedAgencies.length > 0) {
-    let found = false
-    for (const rs of stop.route_stops) {
-      if (selectedAgencies.includes(rs.route.agency.agency_name)) {
-        found = true
-        break
-      }
-    }
+  // Check marked routes
+  // Must match at least one marked route
+  if (markedRoutes.size > 0) {
+    const found = stop.route_stops.some((rs) => markedRoutes.has(rs.route.id))
     if (!found) {
       return false
     }
