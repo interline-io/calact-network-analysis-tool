@@ -196,9 +196,8 @@ const reportData = computed((): Record<string, any>[] => {
     return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
   } else if (dataDisplayMode.value === 'Agency') {
     return agencyReport()
-  } else {
-    return []
   }
+  return []
 })
 
 // When switching to a different report, return to first page
@@ -209,61 +208,49 @@ watch(dataDisplayMode, () => {
 //
 // Gather data for agency report
 //
-function agencyReport () {
+function agencyReport (): AgencyCsv[] {
   // Collect agency data from the stop data.
   const agencyData = new Map()
   for (const stop of props.stopFeatures) {
-    const props = stop
-    const route_stops = props.route_stops || []
-
-    for (const rstop of route_stops) {
+    for (const rstop of stop.route_stops || []) {
       const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
       const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) continue // no valid agency listed for this stop?
-
-      let adata = agencyData.get(aid)
-      if (!adata) { // first time seeing this agency
-        adata = {
-          id: aid,
-          name: aname,
-          routes: new Set(),
-          stops: new Set()
-        }
-        agencyData.set(aid, adata)
+      if (!aid || !aname) {
+        continue // no valid agency listed for this stop?
+      }
+      let adata = agencyData.get(aid) || {
+        id: aid,
+        name: aname,
+        routes: new Set(),
+        stops: new Set(),
+        marked: true,
+        data: rstop.route.agency
       }
       adata.routes.add(rid)
-      adata.stops.add(props.stop_id)
+      adata.stops.add(stop.stop_id)
+      agencyData.set(aid, adata)
     }
   }
 
-  // Recalc totals, min/max, note that `current` page is one-based
   const arr = [...agencyData.values()]
-  total.value = arr.length
-  const index = current.value - 1
-  const min = (index * perPage.value)
-  const max = (index * perPage.value) + (perPage.value)
-
-  const results = []
-  for (let i = min; i < max && i < total.value; i++) {
-    const agency = arr[i]
-    results.push({
-      row: i + 1,
-      number_routes: agency.routes.size,
-      number_stops: agency.stops.size,
-      marked: agency.marked,
+  return arr.map((adata): AgencyCsv => {
+    const agency = adata.data as Agency
+    return {
+      marked: adata.marked,
+      number_routes: adata.routes.size,
+      number_stops: adata.stops.size,
       // GTFs properties
-      agency_id: agency.id,
-      agency_name: agency.name,
+      id: agency.id,
+      agency_id: agency.agency_id,
+      agency_name: agency.agency_name,
       agency_email: agency.agency_email,
       agency_fare_url: agency.agency_fare_url,
       agency_lang: agency.agency_lang,
       agency_phone: agency.agency_phone,
       agency_timezone: agency.agency_timezone,
-    })
-  }
-
-  return results
+    }
+  })
 }
 
 </script>
