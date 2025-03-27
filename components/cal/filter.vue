@@ -81,9 +81,12 @@
 
           <ul>
             <li v-for="dowValue of dowValues" :key="dowValue">
-              <o-checkbox v-model="selectedDays" :native-value="dowValue" :disabled="!stopDepartureLoadingComplete">
-                {{ dowValue }}
-              </o-checkbox>
+              <o-checkbox
+                v-model="selectedDays"
+                :native-value="dowValue"
+                :label="dowValue"
+                :disabled="!stopDepartureLoadingComplete || !dowAvailable.has(dowValue)"
+              />
             </li>
           </ul>
 
@@ -382,6 +385,7 @@ import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, bas
 </script>
 
 <script setup lang="ts">
+import { eachDayOfInterval } from 'date-fns'
 import { fmtDate } from '../datetime'
 import { defineEmits } from 'vue'
 import { type Stop } from '../stop'
@@ -466,6 +470,18 @@ const knownAgencies = computed(() => {
     return Array.from(agencies).filter(a => a.toLowerCase().includes(sv))
   }
   return Array.from(agencies).toSorted((a, b) => a.localeCompare(b))
+})
+
+const dowAvailable = computed((): Set<string> => {
+  // JavaScript day of week starts on Sunday, this is different from dowValues
+  const jsDowValues: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const result = new Set<string>()
+  const range = eachDayOfInterval({ start: startDate.value, end: endDate.value })
+  for (const d of range) {
+    result.add(jsDowValues[d.getDay()])
+    if (result.size === 7) break // we got them all
+  }
+  return result
 })
 
 </script>
