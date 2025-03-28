@@ -504,7 +504,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   position:absolute;
   right:50px;
   top:6px;
-  z-index:100;
+  z-index:101;
 }
 .cal-map-share {
   position:absolute;
@@ -514,7 +514,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   color:black;
   padding:5px;
   height:150px;
-  z-index:100;
+  z-index:101;
 }
 
 /* Custom marker styles */
