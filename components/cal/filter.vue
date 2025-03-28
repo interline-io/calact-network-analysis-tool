@@ -400,6 +400,7 @@ const menuItems = [
 
 const props = defineProps<{
   stopFeatures: Stop[]
+  stopDepartureLoadingComplete: boolean
 }>()
 
 const emit = defineEmits([
@@ -429,7 +430,6 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
-const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
 const activeTab = defineModel<string>('activeTab')
 
 ///////////////////

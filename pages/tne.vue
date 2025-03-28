@@ -103,8 +103,7 @@
             v-model:max-fare="maxFare"
             v-model:min-fare-enabled="minFareEnabled"
             v-model:min-fare="minFare"
-            v-model:stop-departure-loading-complete="stopDepartureLoadingComplete"
-            :bbox="bbox"
+            :stop-departure-loading-complete="stopDepartureLoadingComplete"
             :stop-features="stopFeatures"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
@@ -117,6 +116,7 @@
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :filter-summary="filterSummary"
+            :stop-departure-loading-complete="stopDepartureLoadingComplete"
             @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
           />
         </div>
@@ -136,7 +136,6 @@
         :selected-agencies="selectedAgencies"
         :selected-time-of-day-mode="selectedTimeOfDayMode"
         :selected-day-of-week-mode="selectedDayOfWeekMode"
-
         :start-time="startTime"
         :end-time="endTime"
         :geom-source="geomSource"
