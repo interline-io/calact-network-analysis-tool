@@ -18,6 +18,7 @@
       :data-display-mode="dataDisplayMode"
       :color-key="colorKey"
       :style-data="styleData"
+      :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
     />
 
@@ -429,6 +430,11 @@ const displayFeatures = computed(() => {
   features.push(...renderRoutes.filter(r => r.properties.marked))
   features.push(...renderStops.filter(r => r.properties.marked))
   return features
+})
+
+// Is there data to display?
+const hasData = computed((): boolean => {
+  return !!(props.stopFeatures.length || props.routeFeatures.length)
 })
 
 /////////////////

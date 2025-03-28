@@ -26,7 +26,7 @@
       </div>
 
       <!-- Geometry Style -->
-      <div v-if="props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
+      <div v-if="props.hasData && props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
         <div>
           <div class="legend-item legend-full-line" />
           <div>Routes satisfying all filters</div>
@@ -48,7 +48,7 @@
       </div>
 
       <!-- Color Style -->
-      <div class="cal-map-legend-section">
+      <div v-if="props.hasData" class="cal-map-legend-section">
         <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
           Agencies:
         </div>
@@ -69,6 +69,16 @@
           <div>{{ s.label }}</div>
         </div>
       </div>
+
+      <div v-if="!props.hasData && !props.displayEditBboxMode">
+        <p class="legend-loading">
+          <o-loading
+            :active="true"
+            :full-page="false"
+          />
+        </p>
+      </div>
+
     </div>
   </article>
 </template>
@@ -79,6 +89,7 @@ const props = defineProps<{
   dataDisplayMode: string
   colorKey: string
   styleData: any
+  hasData: boolean
   displayEditBboxMode?: boolean
 }>()
 
@@ -167,6 +178,11 @@ const props = defineProps<{
   margin: 5px;
   background-color: #aaa8;
   border-radius: 50%;
+}
+
+.legend-loading {
+  position: relative;
+  height: 40px;
 }
 
 </style>
