@@ -54,7 +54,10 @@
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <cal-csv-download :data="reportData" />
+      <cal-csv-download
+        :data="reportData"
+        :disabled="!stopDepartureLoadingComplete"
+      />
     </div>
 
     <div class="cal-report-total block">
@@ -150,6 +153,7 @@ const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
   filterSummary: string[]
+  stopDepartureLoadingComplete: boolean
 }>()
 
 const current = ref(1)

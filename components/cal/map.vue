@@ -18,6 +18,7 @@
       :data-display-mode="dataDisplayMode"
       :color-key="colorKey"
       :style-data="styleData"
+      :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
     />
 
@@ -431,6 +432,11 @@ const displayFeatures = computed(() => {
   return features
 })
 
+// Is there data to display?
+const hasData = computed((): boolean => {
+  return !!(props.stopFeatures.length || props.routeFeatures.length)
+})
+
 /////////////////
 // Map events
 
@@ -498,7 +504,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   position:absolute;
   right:50px;
   top:6px;
-  z-index:100;
+  z-index:101;
 }
 .cal-map-share {
   position:absolute;
@@ -508,7 +514,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   color:black;
   padding:5px;
   height:150px;
-  z-index:100;
+  z-index:101;
 }
 
 /* Custom marker styles */
