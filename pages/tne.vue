@@ -74,7 +74,7 @@
             v-model:geom-source="geomSource"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @explore="setReady()"
+            @explore="runQuery()"
           />
         </div>
 
@@ -128,6 +128,7 @@
         v-model:frequency-under="frequencyUnder"
         v-model:frequency-over-enabled="frequencyOverEnabled"
         v-model:frequency-over="frequencyOver"
+        :run-count="runCount"
         :bbox="bbox"
         :start-date="startDate"
         :end-date="endDate"
@@ -139,7 +140,6 @@
         :start-time="startTime"
         :end-time="endTime"
         :geom-source="geomSource"
-        :ready="ready"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="stopFeatures = $event"
@@ -182,11 +182,7 @@ const route = useRoute()
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 // const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
-const ready = ref(false)
-function setReady () {
-  ready.value = true
-  activeTab.value = { tab: 'map', sub: '' }
-}
+const runCount = ref(0)
 
 // Loading and error handling
 const loading = ref(false)
@@ -198,6 +194,14 @@ const stopDepartureLoadingComplete = ref(false)
 function setError (err: any) {
   error.value = err
   hasError.value = true
+}
+
+// Runs on explore event from query (when user clicks "Run Query")
+function runQuery () {
+  runCount.value++
+  activeTab.value = { tab: 'map', sub: '' }
+  stopFeatures.value = []
+  routeFeatures.value = []
 }
 
 // Handle query parameters
