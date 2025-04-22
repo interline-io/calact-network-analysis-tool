@@ -11,6 +11,7 @@
         :display-features="displayFeatures"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
+        :stop-departure-loading-complete="stopDepartureLoadingComplete"
       />
     </div>
 
@@ -59,6 +60,7 @@ const props = defineProps<{
   colorKey: string
   displayEditBboxMode?: boolean
   hideUnmarked: boolean
+  stopDepartureLoadingComplete: boolean
 }>()
 
 const showShareMenu = ref(false)

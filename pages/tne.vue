@@ -157,6 +157,7 @@
         :data-display-mode="dataDisplayMode"
         :color-key="colorKey"
         :hide-unmarked="hideUnmarked"
+        :stop-departure-loading-complete="stopDepartureLoadingComplete"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
       />
