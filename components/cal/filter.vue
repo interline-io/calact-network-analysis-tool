@@ -120,7 +120,7 @@
               inline
               size="small"
               icon="clock"
-              hour-format="12"
+              hour-format="24"
               :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
             />
           </o-field>
@@ -135,7 +135,7 @@
               inline
               size="small"
               icon="clock"
-              hour-format="12"
+              hour-format="24"
               :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
             />
           </o-field>
@@ -198,7 +198,9 @@
           </o-field>
 
           <p class="menu-label">
-            Fares <o-tooltip label="Fare filtering is planned for future implementation" multiline><i class="mdi mdi-information-outline" /></o-tooltip>
+            Fares <o-tooltip label="Fare filtering is planned for future implementation" multiline>
+              <i class="mdi mdi-information-outline" />
+            </o-tooltip>
           </p>
 
           <o-field grouped>
@@ -330,7 +332,9 @@
             </li>
           </ul>
           <p class="menu-label">
-            Base map <o-tooltip label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future" multiline><i class="mdi mdi-information-outline" /></o-tooltip>
+            Base map <o-tooltip label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future" multiline>
+              <i class="mdi mdi-information-outline" />
+            </o-tooltip>
           </p>
           <ul>
             <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle.name">
@@ -400,6 +404,7 @@ const menuItems = [
 
 const props = defineProps<{
   stopFeatures: Stop[]
+  stopDepartureLoadingComplete: boolean
 }>()
 
 const emit = defineEmits([
@@ -429,7 +434,6 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
-const stopDepartureLoadingComplete = defineModel<boolean>('stopDepartureLoadingComplete')
 const activeTab = defineModel<string>('activeTab')
 
 ///////////////////

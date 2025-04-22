@@ -47,7 +47,7 @@ const props = defineProps<{
   bbox: Bbox
 }>()
 
-const ready = defineModel<boolean>('ready')
+const runCount = defineModel<number>('runCount')
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const startTime = defineModel<Date>('startTime')
@@ -69,7 +69,7 @@ watch(stopDepartureLoadingComplete, (v) => {
   emit('setStopDepartureLoadingComplete', v)
 })
 
-watch(ready, (v) => {
+watch(runCount, (v) => {
   if (v) {
     stopQueue.perform({ after: 0 })
     routeQueue.perform({ after: 0 })

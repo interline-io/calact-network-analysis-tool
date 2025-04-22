@@ -1,75 +1,96 @@
 <template>
   <article class="cal-map-legend message is-dark">
-    <div class="message-header">
-      Legend
-    </div>
-
-    <div class="message-body cal-map-legend-box">
-      <!-- BBOX -->
-      <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
-        <div>
-          <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
-          <div>Bounding Box for Query</div>
+    <o-collapse
+      :open="true"
+      animation="slide"
+    >
+      <template #trigger="{ open }">
+        <div class="message-header">
+          <span class="message-header-title">
+            Legend
+          </span>
+          <span class="message-header-icon">
+            <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
+          </span>
         </div>
-        <div>
-          <div class="legend-item legend-marker-round">
-            <i class="mdi mdi-arrow-bottom-left" />
+      </template>
+
+      <div class="cal-map-legend-box">
+        <!-- BBOX -->
+        <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
+            <div>Bounding Box for Query</div>
           </div>
-          <div>SW Bounding Box Corner</div>
-        </div>
-        <div>
-          <div class="legend-item legend-marker-round">
-            <i class="mdi mdi-arrow-top-right" />
+          <div>
+            <div class="legend-item legend-marker-round">
+              <i class="mdi mdi-arrow-bottom-left" />
+            </div>
+            <div>SW Bounding Box Corner</div>
           </div>
-          <div>NE Bounding Box Corner</div>
+          <div>
+            <div class="legend-item legend-marker-round">
+              <i class="mdi mdi-arrow-top-right" />
+            </div>
+            <div>NE Bounding Box Corner</div>
+          </div>
         </div>
-      </div>
 
-      <!-- Geometry Style -->
-      <div v-if="props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
-        <div>
-          <div class="legend-item legend-full-line" />
-          <div>Routes satisfying all filters</div>
+        <!-- Geometry Style -->
+        <div v-if="props.hasData && props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-full-line" />
+            <div>Routes satisfying all filters</div>
+          </div>
+          <div>
+            <div class="legend-item legend-thin-line" />
+            <div>Routes not satisfying all filters</div>
+          </div>
         </div>
-        <div>
-          <div class="legend-item legend-thin-line" />
-          <div>Routes not satisfying all filters</div>
+        <div v-else-if="props.dataDisplayMode === 'Stop'" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-large-circle" />
+            <div>Stops satisfying all filters</div>
+          </div>
+          <div>
+            <div class="legend-item legend-small-circle" />
+            <div>Stops not satisfying all filters</div>
+          </div>
         </div>
-      </div>
-      <div v-else-if="props.dataDisplayMode === 'Stop'" class="cal-map-legend-section">
-        <div>
-          <div class="legend-item legend-large-circle" />
-          <div>Stops satisfying all filters</div>
-        </div>
-        <div>
-          <div class="legend-item legend-small-circle" />
-          <div>Stops not satisfying all filters</div>
-        </div>
-      </div>
 
-      <!-- Color Style -->
-      <div class="cal-map-legend-section">
-        <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
-          Agencies:
+        <!-- Color Style -->
+        <div v-if="props.hasData" class="cal-map-legend-section">
+          <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
+            Agencies:
+          </div>
+          <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
+            Modes:
+          </div>
+          <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
+            Avg. minutes:
+          </div>
+          <div v-else-if="props.dataDisplayMode === 'Stop' && props.colorKey === 'Frequency'" class="legend-heading">
+            Avg. visits per day:
+          </div>
+          <div v-else-if="props.colorKey === 'Fare'" class="legend-heading">
+            Fares:
+          </div>
+          <div v-for="s of styleData" :key="s.color">
+            <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+            <div>{{ s.label }}</div>
+          </div>
         </div>
-        <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
-          Modes:
-        </div>
-        <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
-          Avg. minutes:
-        </div>
-        <div v-else-if="props.dataDisplayMode === 'Stop' && props.colorKey === 'Frequency'" class="legend-heading">
-          Avg. visits per day:
-        </div>
-        <div v-else-if="props.colorKey === 'Fare'" class="legend-heading">
-          Fares:
-        </div>
-        <div v-for="s of styleData" :key="s.color">
-          <div class="legend-item legend-marker-square" :style="{background: s.color}" />
-          <div>{{ s.label }}</div>
+
+        <div v-if="!props.hasData && !props.displayEditBboxMode">
+          <p class="legend-loading">
+            <o-loading
+              :active="true"
+              :full-page="false"
+            />
+          </p>
         </div>
       </div>
-    </div>
+    </o-collapse>
   </article>
 </template>
 
@@ -79,6 +100,7 @@ const props = defineProps<{
   dataDisplayMode: string
   colorKey: string
   styleData: any
+  hasData: boolean
   displayEditBboxMode?: boolean
 }>()
 
@@ -92,6 +114,10 @@ const props = defineProps<{
   width: 300px;
   color: black;
   z-index: 100;
+}
+
+.message-header {
+  cursor: pointer;
 }
 
 .cal-map-legend-box {
@@ -167,6 +193,11 @@ const props = defineProps<{
   margin: 5px;
   background-color: #aaa8;
   border-radius: 50%;
+}
+
+.legend-loading {
+  position: relative;
+  height: 40px;
 }
 
 </style>
