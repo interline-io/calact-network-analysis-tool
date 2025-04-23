@@ -106,6 +106,7 @@
             v-model:min-fare="minFare"
             :stop-departure-loading-complete="stopDepartureLoadingComplete"
             :stop-features="stopFeatures"
+            :agency-features="agencyFeatures"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
           />
@@ -116,6 +117,7 @@
             v-model:data-display-mode="dataDisplayMode"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
+            :agency-features="agencyFeatures"
             :filter-summary="filterSummary"
             :stop-departure-loading-complete="stopDepartureLoadingComplete"
             @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
@@ -145,6 +147,7 @@
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="stopFeatures = $event"
+        @set-agency-features="agencyFeatures = $event"
         @set-route-features="routeFeatures = $event"
         @set-loading="loading = $event"
         @set-error="setError"
@@ -155,6 +158,7 @@
         :bbox="bbox"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
+        :agency-features="agencyFeatures"
         :display-edit-bbox-mode="displayEditBboxMode"
         :data-display-mode="dataDisplayMode"
         :color-key="colorKey"
@@ -174,6 +178,7 @@ import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../c
 import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
 import { type Route } from '../components/route'
+import { type Agency } from '../components/agency'
 import { type dow, dowValues, routeTypes } from '../components/constants'
 
 definePageMeta({
@@ -206,6 +211,7 @@ function runQuery () {
   activeTab.value = { tab: 'map', sub: '' }
   stopFeatures.value = []
   routeFeatures.value = []
+  agencyFeatures.value = []
 }
 
 // Handle query parameters
@@ -550,6 +556,7 @@ const filterSummary = computed((): string[] => {
 // Stop features
 const stopFeatures = shallowRef<Stop[]>([])
 const routeFeatures = shallowRef<Route[]>([])
+const agencyFeatures = shallowRef<Agency[]>([])
 
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })

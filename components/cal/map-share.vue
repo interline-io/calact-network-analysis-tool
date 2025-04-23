@@ -12,10 +12,9 @@
       <br><br>
       <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" filename="routes" :disabled="!stopDepartureLoadingComplete" />
       <br>
-      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops " :disabled="!stopDepartureLoadingComplete" />
+      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops" :disabled="!stopDepartureLoadingComplete" />
       <br>
-      <cal-csv-download :data="reportData" button-text="Download agencies as CSV" disabled filename="agencies" />
-      <span style="font-size:10pt" class="is-pulled-right">(todo)</span>
+      <cal-csv-download :data="agencyCsvData" button-text="Download agencies as CSV" filename="agencies" :disabled="!stopDepartureLoadingComplete" />
       <br>
     </div>
   </article>
@@ -26,11 +25,13 @@ import { ref, computed } from 'vue'
 import { useToastNotification } from '#imports'
 import { type Stop, stopToStopCsv } from '../stop'
 import { type Route, routeToRouteCsv } from '../route'
+import { type Agency, agencyToAgencyCsv } from '../agency'
 import { type Feature } from '../geom'
 
 const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  agencyFeatures: Agency[]
   displayFeatures: Feature[]
   stopDepartureLoadingComplete: boolean
 }>()
@@ -49,6 +50,10 @@ const routeCsvData = computed(() => {
 
 const stopCsvData = computed(() => {
   return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
+})
+
+const agencyCsvData = computed(() => {
+  return props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv)
 })
 
 function copyUrlToClipboard () {

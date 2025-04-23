@@ -27,6 +27,10 @@ import {
 } from '../stop'
 
 import {
+  type Agency
+} from '../agency'
+
+import {
   type Route,
   type RouteGql,
   routeSetDerived,
@@ -37,6 +41,7 @@ import {
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]
   setStopFeatures: [value: Stop[]]
+  setAgencyFeatures: [value: Agency[]]
   setLoading: [value: boolean]
   setStopDepartureLoadingComplete: [value: boolean]
   setError: [value: any]
@@ -328,6 +333,7 @@ watch(() => [
   const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
   const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
 
+  /////////////////////////
   // Apply route filters
   const routeFeatures: Route[] = []
   for (const routeGql of routeResult.value?.routes || []) {
@@ -360,6 +366,7 @@ watch(() => [
   // Memoize selected routes
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
 
+  /////////////////////////
   // Apply stop filters
   const stopFeatures: Stop[] = []
   for (const stopGql of (stopResult.value?.stops || [])) {
@@ -385,6 +392,46 @@ watch(() => [
     stopFeatures.push(stop)
   }
   emit('setStopFeatures', stopFeatures)
+
+  /////////////////////////
+  // Apply agency filters
+  const agencyData = new Map()
+  for (const stop of stopFeatures) {
+    for (const rstop of stop.route_stops || []) {
+      const agency = rstop.route.agency
+      const aid = agency?.agency_id
+      if (!aid) {
+        continue // no valid agency listed for this stop?
+      }
+      let adata = agencyData.get(aid) || {
+        id: aid,
+        routes: new Set(),
+        stops: new Set(),
+        agency: agency
+      }
+      adata.routes.add(rstop.route.route_id)
+      adata.stops.add(stop.stop_id)
+      agencyData.set(aid, adata)
+    }
+  }
+  const agencyDataValues = [...agencyData.values()]
+  const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
+    const agency = adata.agency as Agency
+    return {
+      marked: true,
+      number_routes: adata.routes.size,
+      number_stops: adata.stops.size,
+      id: agency.id,
+      agency_id: agency.agency_id,
+      agency_name: agency.agency_name,
+      agency_email: agency.agency_email,
+      agency_fare_url: agency.agency_fare_url,
+      agency_lang: agency.agency_lang,
+      agency_phone: agency.agency_phone,
+      agency_timezone: agency.agency_timezone,
+    }
+  })
+  emit('setAgencyFeatures', agencyFeatures)
 })
 
 ////////////////////////
