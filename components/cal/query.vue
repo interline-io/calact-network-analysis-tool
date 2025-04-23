@@ -52,7 +52,7 @@
                 </option>
               </o-select>
 
-              <tl-msg-warning class="mt-4" style="width:400px">
+              <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px">
                 Debug: use predefined bbox<br>
                 <o-select v-model="cannedBbox">
                   <option v-for="cannedBboxName of cannedBboxes.keys()" :key="cannedBboxName" :value="cannedBboxName">
@@ -105,6 +105,7 @@ const geomSource = defineModel<string>('geomSource')
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
+const debugMenu = useDebugMenu()
 
 watch(() => cannedBbox.value, (cannedBboxName) => {
   if (cannedBboxName) {

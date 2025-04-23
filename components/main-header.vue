@@ -9,7 +9,18 @@
         <div class="bottom-group">
           <ul class="menu-list">
             <li>
-              <a role="button" @click="toggleDarkMode()" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+              <a role="button" :title="debugMenu ? 'Turn off debug' : 'Turn on debug'" @click="debugMenuToggle()">
+                <o-icon
+                  class="icon-group"
+                  size="large"
+                  icon="application-cog"
+                  :variant="debugMenu ? 'warning' : ''"
+                />
+              </a>
+            </li>
+
+            <li>
+              <a role="button" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDarkMode()">
                 <o-icon
                   class="icon-group"
                   size="large"
@@ -58,6 +69,9 @@ const isDark = useDark({
 const route = useRoute()
 
 const toggleDarkMode = useToggle(isDark)
+
+const debugMenu = useDebugMenu()
+const debugMenuToggle = useToggle(debugMenu)
 
 const loggedIn = useUser()?.loggedIn
 
