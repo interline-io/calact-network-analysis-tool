@@ -11,6 +11,7 @@
         :display-features="displayFeatures"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
+        :agency-features="agencyFeatures"
         :stop-departure-loading-complete="stopDepartureLoadingComplete"
       />
     </div>
@@ -44,6 +45,7 @@ import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '
 import { colors, routeTypes } from '../constants'
 import { type Stop } from '../stop'
 import { type Route } from '../route'
+import { type Agency } from '../agency'
 
 const route = useRoute()
 
@@ -56,6 +58,7 @@ const props = defineProps<{
   bbox: Bbox
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  agencyFeatures: Agency[]
   dataDisplayMode: string
   colorKey: string
   displayEditBboxMode?: boolean

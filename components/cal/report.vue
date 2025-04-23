@@ -146,12 +146,13 @@
 <script setup lang="ts">
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
-import { type Agency, type AgencyCsv } from '../agency'
+import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '../agency'
 import { type TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
+  agencyFeatures: Agency[]
   filterSummary: string[]
   stopDepartureLoadingComplete: boolean
 }>()
@@ -199,7 +200,7 @@ const reportData = computed((): Record<string, any>[] => {
   } else if (dataDisplayMode.value === 'Stop') {
     return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
   } else if (dataDisplayMode.value === 'Agency') {
-    return agencyReport()
+    return props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv)
   }
   return []
 })
@@ -208,54 +209,6 @@ const reportData = computed((): Record<string, any>[] => {
 watch(dataDisplayMode, () => {
   current.value = 1
 })
-
-//
-// Gather data for agency report
-//
-function agencyReport (): AgencyCsv[] {
-  // Collect agency data from the stop data.
-  const agencyData = new Map()
-  for (const stop of props.stopFeatures) {
-    for (const rstop of stop.route_stops || []) {
-      const rid = rstop.route.route_id
-      const aid = rstop.route.agency?.agency_id
-      const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) {
-        continue // no valid agency listed for this stop?
-      }
-      let adata = agencyData.get(aid) || {
-        id: aid,
-        name: aname,
-        routes: new Set(),
-        stops: new Set(),
-        marked: true,
-        data: rstop.route.agency
-      }
-      adata.routes.add(rid)
-      adata.stops.add(stop.stop_id)
-      agencyData.set(aid, adata)
-    }
-  }
-
-  const arr = [...agencyData.values()]
-  return arr.map((adata): AgencyCsv => {
-    const agency = adata.data as Agency
-    return {
-      marked: adata.marked,
-      number_routes: adata.routes.size,
-      number_stops: adata.stops.size,
-      // GTFs properties
-      id: agency.id,
-      agency_id: agency.agency_id,
-      agency_name: agency.agency_name,
-      agency_email: agency.agency_email,
-      agency_fare_url: agency.agency_fare_url,
-      agency_lang: agency.agency_lang,
-      agency_phone: agency.agency_phone,
-      agency_timezone: agency.agency_timezone,
-    }
-  })
-}
 
 </script>
 

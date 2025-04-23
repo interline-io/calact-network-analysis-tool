@@ -32,19 +32,20 @@ export interface AgencyGtfs {
   
   export type Agency = AgencyGql & AgencyDerived
   
-  // export function agencyToAgencyCsv(agency: Agency): AgencyCsv {
-  //     return {
-  //       marked: agency.marked,
-  //       number_routes: agency.routes.size,
-  //       number_stops: agency.stops.size,
-  //       // GTFS properties
-  //       id: agency.id,
-  //       agency_id: agency.agency_id,
-  //       agency_name: agency.name,
-  //       agency_email: agency.agency_email,
-  //       agency_fare_url: agency.agency_fare_url,
-  //       agency_lang: agency.agency_lang,
-  //       agency_phone: agency.agency_phone,
-  //       agency_timezone: agency.agency_timezone,
-  //     }
-  // }
+  export function agencyToAgencyCsv(agency: Agency): AgencyCsv {
+    console.log('agencyToAgencyCsv', agency)
+      return {
+        marked: agency.marked,
+        number_routes: agency.number_routes,
+        number_stops: agency.number_stops,
+        // GTFS properties
+        id: agency.id,
+        agency_id: agency.agency_id,
+        agency_name: agency.agency_name,
+        agency_email: agency.agency_email,
+        agency_fare_url: agency.agency_fare_url,
+        agency_lang: agency.agency_lang,
+        agency_phone: agency.agency_phone,
+        agency_timezone: agency.agency_timezone,
+      }
+  }
