@@ -45,6 +45,7 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   bbox: Bbox
+  scheduleEnabled: boolean
 }>()
 
 const runCount = defineModel<number>('runCount')
@@ -238,6 +239,10 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   // Set loading state
   if (task.ids.length === 0) {
     return
+  }
+  if (!props.scheduleEnabled) {
+    console.log('schedule loading disabled, skipping departure queue')
+    task.ids = [0]
   }
 
   checkQueryLimit()
