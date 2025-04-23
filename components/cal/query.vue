@@ -52,13 +52,24 @@
                 </option>
               </o-select>
 
-              <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px">
-                Debug: use predefined bbox<br>
-                <o-select v-model="cannedBbox">
-                  <option v-for="cannedBboxName of cannedBboxes.keys()" :key="cannedBboxName" :value="cannedBboxName">
-                    {{ cannedBboxName }}
-                  </option>
-                </o-select>
+              <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+                <o-field label="Preset bounding box">
+                  <o-select v-model="cannedBbox">
+                    <option v-for="cannedBboxName of cannedBboxes.keys()" :key="cannedBboxName" :value="cannedBboxName">
+                      {{ cannedBboxName }}
+                    </option>
+                  </o-select>
+                </o-field>
+                <br>
+                <o-field label="Data options">
+                  <o-checkbox
+                    v-model="scheduleEnabled"
+                    :true-value="true"
+                    :false-value="false"
+                  >
+                    Load schedule data
+                  </o-checkbox>
+                </o-field>
               </tl-msg-warning>
 
               <!-- <div class="cal-bbox-info">
@@ -102,6 +113,7 @@ const emit = defineEmits([
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const geomSource = defineModel<string>('geomSource')
+const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
