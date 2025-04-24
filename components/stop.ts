@@ -67,7 +67,6 @@ export interface StopVisitCounts {
   all_date_service: boolean
 }
 
-
 export interface StopVisitSummary {
   total: StopVisitCounts
   monday: StopVisitCounts

@@ -361,10 +361,8 @@ watch(() => [
     )
     routeFeatures.push(route)
   }
-  emit('setRouteFeatures', routeFeatures)
-
-  // Memoize selected routes
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
+  emit('setRouteFeatures', routeFeatures)
 
   /////////////////////////
   // Apply stop filters
@@ -391,6 +389,7 @@ watch(() => [
     )
     stopFeatures.push(stop)
   }
+  const markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
   emit('setStopFeatures', stopFeatures)
 
   /////////////////////////
@@ -409,18 +408,27 @@ watch(() => [
         stops: new Set(),
         agency: agency
       }
-      adata.routes.add(rstop.route.route_id)
-      adata.stops.add(stop.stop_id)
+      adata.routes.add(rstop.route.id)
+      adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }
   }
+  const markedAgencies: Set<number> = new Set()
+  stopFeatures.filter(s => s.marked).forEach((s) => {
+    for (const rstop of s.route_stops || []) {
+      markedAgencies.add(rstop.route.agency?.id)
+    }
+  })
+  routeFeatures.filter(s => s.marked).forEach((s) => {
+    markedAgencies.add(s.agency?.id)
+  })
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
     const agency = adata.agency as Agency
     return {
-      marked: true,
-      number_routes: adata.routes.size,
-      number_stops: adata.stops.size,
+      marked: markedAgencies.has(agency.id),
+      number_routes: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
+      number_stops: adata.stops.size, // adata.stops.intersection(markedStops).size,
       id: agency.id,
       agency_id: agency.agency_id,
       agency_name: agency.agency_name,
