@@ -43,16 +43,18 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
-import { type Stop } from '../stop'
-import { type Route } from '../route'
+import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
+import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency } from '../agency'
 
 const route = useRoute()
 
-const emit = defineEmits([
-  'setBbox',
-  'setMapExtent',
-])
+const emit = defineEmits<{
+  setBbox: [value: BBox]
+  setMapExtent: [value: BBox]
+  setDisplayFeatures: [value: Feature[]]
+  setExportFeatures: [value: Feature[]]
+}>()
 
 const props = defineProps<{
   bbox: Bbox
@@ -378,20 +380,27 @@ const styleData = computed((): Matcher[] => {
   return rules
 })
 
-// Merge features, applying the styleData as GeoJSON simplestyle
-const displayFeatures = computed(() => {
+// Features for display include the all route and stop features
+// Features for export include only the "marked" features and the csv column data
+// Match all features to styling rules and apply as GeoJSON simplestyle
+const displayFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
-  const features: Feature[] = []
-  const s = styleData.value || []
+  const styleRules = styleData.value || []
+  const forDisplay: Feature[] = []
+  const forExport: Feature[] = []
 
+  // bbox is for display only
   for (const feature of bboxArea.value) {
-    features.push(toRaw(feature))
+    forDisplay.push(toRaw(feature))
   }
 
-  const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
-    const style = s.find(rule => rule.match(rp))
-    return {
+  // Gather routes
+  for (const rp of props.routeFeatures) {
+    if (props.hideUnmarked && !rp.marked) continue // skip
+
+    const style = styleRules.find(rule => rule.match(rp))
+    const displayFeature = {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
@@ -409,11 +418,20 @@ const displayFeatures = computed(() => {
         'marked': rp.marked,
       }
     }
-  })
+    forDisplay.push(displayFeature)
 
-  const renderStops: Feature[] = props.stopFeatures.map((sp) => {
-    const style = s.find(rule => rule.match(sp))
-    return {
+    if (!rp.marked) continue
+    const exportFeature = structuredClone(displayFeature)
+    Object.assign(exportFeature.properties, routeToRouteCsv(rp))
+    forExport.push(exportFeature)
+  }
+
+  // Gather stops
+  for (const sp of props.stopFeatures) {
+    if (props.hideUnmarked && !sp.marked) continue // skip
+
+    const style = styleRules.find(rule => rule.match(sp))
+    const displayFeature = {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
@@ -423,18 +441,20 @@ const displayFeatures = computed(() => {
         'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked,
-      },
+      }
     }
-  })
+    forDisplay.push(displayFeature)
 
-  // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
-  if (!props.hideUnmarked) {
-    features.push(...renderRoutes.filter(r => !r.properties.marked))
-    features.push(...renderStops.filter(r => !r.properties.marked))
+    if (!sp.marked) continue
+    const exportFeature = structuredClone(displayFeature)
+    Object.assign(exportFeature.properties, stopToStopCsv(sp))
+    forExport.push(exportFeature)
   }
-  features.push(...renderRoutes.filter(r => r.properties.marked))
-  features.push(...renderStops.filter(r => r.properties.marked))
-  return features
+
+  emit('setDisplayFeatures', forDisplay)
+  emit('setExportFeatures', forExport)
+
+  return forDisplay
 })
 
 // Is there data to display?
