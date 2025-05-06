@@ -70,7 +70,6 @@ const props = defineProps<{
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
-const exportFeatures = ref<Feature[]>([])
 
 //////////////////
 // Map geometries
@@ -211,17 +210,15 @@ const agencyData = computed((): AgencyData[] => {
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
 })
 
+// Depending on the data display, set up matcher rules to choose a styling.
+// Matchers should run in the order that they are added to the rules array.
 type MatchFunction = (x: Stop | Route) => boolean
 
-// Calculate style data first
 interface Matcher {
   label: string
   color: string
   match: MatchFunction
 }
-
-// Depending on the data display, set up matcher rules to choose a styling.
-// Matchers should run in the order that they are added to the rules array.
 const styleData = computed((): Matcher[] => {
   const routeLookup = new Map<number, Route>()
   for (const route of props.routeFeatures) {
@@ -383,17 +380,15 @@ const styleData = computed((): Matcher[] => {
   return rules
 })
 
-// Features for display include the all route and stop features
-// Features for export include only the "marked" features and the csv column data
+// Features for display include the all route and stop features.
 // Match all features to styling rules and apply as GeoJSON simplestyle
 const displayFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
   const styleRules = styleData.value || []
   const forDisplay: Feature[] = []
-  const forExport: Feature[] = []
 
-  // bbox is for display only
+  // Include bbox in display features
   for (const feature of bboxArea.value) {
     forDisplay.push(toRaw(feature))
   }
@@ -401,11 +396,11 @@ const displayFeatures = computed((): Feature[] => {
   // Gather routes
   for (const rp of props.routeFeatures) {
     if (props.hideUnmarked && !rp.marked) {
-      continue // skip both display and export
+      continue
     }
 
     const style = styleRules.find(rule => rule.match(rp))
-    const displayFeature = {
+    const feature = {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
@@ -420,26 +415,20 @@ const displayFeatures = computed((): Feature[] => {
         'route_long_name': rp.route_long_name,
         'agency_name': rp.agency?.agency_name,
         'agency_id': rp.agency?.agency_id,
-        'marked': rp.marked,
+        'marked': rp.marked
       }
     }
-    forDisplay.push(displayFeature)
-
-    if (rp.marked) {
-      const exportFeature = structuredClone(displayFeature)
-      Object.assign(exportFeature.properties, routeToRouteCsv(rp))
-      forExport.push(exportFeature)
-    }
+    forDisplay.push(feature)
   }
 
   // Gather stops
   for (const sp of props.stopFeatures) {
     if (props.hideUnmarked && !sp.marked) {
-      continue // skip both display and export
+      continue
     }
 
     const style = styleRules.find(rule => rule.match(sp))
-    const displayFeature = {
+    const feature = {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
@@ -448,23 +437,77 @@ const displayFeatures = computed((): Feature[] => {
         'marker-radius': sp.marked ? 8 : 4,
         'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
-        'marked': sp.marked,
+        'marked': sp.marked
       }
     }
-    forDisplay.push(displayFeature)
-
-    if (sp.marked) {
-      const exportFeature = structuredClone(displayFeature)
-      Object.assign(exportFeature.properties, stopToStopCsv(sp))
-      forExport.push(exportFeature)
-    }
+    forDisplay.push(feature)
   }
 
-  emit('setDisplayFeatures', forDisplay)
-  emit('setExportFeatures', forExport)
-
-  exportFeatures.value = forExport
   return forDisplay
+})
+
+// Features for export include only the "marked" features and the csv column data.
+const exportFeatures = computed((): Feature[] => {
+  const bgColor = '#aaa'
+  const bgOpacity = 0.4
+  const styleRules = styleData.value || []
+  const forExport: Feature[] = []
+
+  // Gather routes
+  for (const rp of props.routeFeatures) {
+    if (!rp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(rp))
+    const feature = {
+      type: 'Feature',
+      id: rp.id.toString(),
+      geometry: rp.geometry,
+      properties: {
+        'id': rp.id,
+        'stroke': style?.color || bgColor,
+        'stroke-width': rp.marked ? 3 : 0.75,
+        'stroke-opacity': rp.marked ? 1 : bgOpacity,
+        'agency_name': rp.agency?.agency_name,
+        'agency_id': rp.agency?.agency_id
+      }
+    }
+    Object.assign(feature.properties, routeToRouteCsv(rp))
+    forExport.push(feature)
+  }
+
+  // Gather stops
+  for (const sp of props.stopFeatures) {
+    if (!sp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(sp))
+    const feature = {
+      type: 'Feature',
+      id: sp.id.toString(),
+      geometry: sp.geometry,
+      properties: {
+        'id': sp.id,
+        'marker-radius': sp.marked ? 8 : 4,
+        'marker-color': style?.color || bgColor,
+        'marker-opacity': sp.marked ? 1 : bgOpacity
+      }
+    }
+    Object.assign(feature.properties, stopToStopCsv(sp))
+    forExport.push(feature)
+  }
+
+  return forExport
+})
+
+watch(displayFeatures, () => {
+  emit('setDisplayFeatures', displayFeatures.value)
+})
+
+watch(exportFeatures, () => {
+  emit('setExportFeatures', exportFeatures.value)
 })
 
 // Is there data to display?
