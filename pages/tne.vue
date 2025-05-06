@@ -118,14 +118,15 @@
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
+            :export-features="exportFeatures"
             :filter-summary="filterSummary"
             :stop-departure-loading-complete="stopDepartureLoadingComplete"
             @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
           />
         </div>
       </div>
-      <!-- This is a component for handling data flow -->
 
+      <!-- This is a component for handling data flow -->
       <cal-scenario
         v-model:frequency-under-enabled="frequencyUnderEnabled"
         v-model:frequency-under="frequencyUnder"
@@ -166,6 +167,7 @@
         :stop-departure-loading-complete="stopDepartureLoadingComplete"
         @set-bbox="bbox = $event"
         @set-map-extent="setMapExtent"
+        @set-export-features="exportFeatures = $event"
       />
     </template>
   </NuxtLayout>
@@ -173,7 +175,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Bbox, parseBbox, bboxString } from '../components/geom'
+import { type Bbox, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
@@ -553,10 +555,10 @@ const filterSummary = computed((): string[] => {
 // Event passing
 /////////////////////////
 
-// Stop features
 const stopFeatures = shallowRef<Stop[]>([])
 const routeFeatures = shallowRef<Route[]>([])
 const agencyFeatures = shallowRef<Agency[]>([])
+const exportFeatures = shallowRef<Feature[]>([])
 
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })

@@ -8,7 +8,7 @@
 
     <div v-if="showShareMenu" class="cal-map-share">
       <cal-map-share
-        :display-features="displayFeatures"
+        :export-features="exportFeatures"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :agency-features="agencyFeatures"
@@ -43,16 +43,18 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
-import { type Stop } from '../stop'
-import { type Route } from '../route'
+import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
+import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency } from '../agency'
 
 const route = useRoute()
 
-const emit = defineEmits([
-  'setBbox',
-  'setMapExtent',
-])
+const emit = defineEmits<{
+  setBbox: [value: BBox]
+  setMapExtent: [value: BBox]
+  setDisplayFeatures: [value: Feature[]]
+  setExportFeatures: [value: Feature[]]
+}>()
 
 const props = defineProps<{
   bbox: Bbox
@@ -187,7 +189,9 @@ const agencyData = computed((): AgencyData[] => {
       const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
       const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) continue // no valid agency listed for this stop?
+      if (!aid || !aname) {
+        continue // no valid agency listed for this stop?
+      }
 
       let adata = data.get(aid)
       if (!adata) { // first time seeing this agency
@@ -206,17 +210,15 @@ const agencyData = computed((): AgencyData[] => {
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
 })
 
+// Depending on the data display, set up matcher rules to choose a styling.
+// Matchers should run in the order that they are added to the rules array.
 type MatchFunction = (x: Stop | Route) => boolean
 
-// Calculate style data first
 interface Matcher {
   label: string
   color: string
   match: MatchFunction
 }
-
-// Depending on the data display, set up matcher rules to choose a styling.
-// Matchers should run in the order that they are added to the rules array.
 const styleData = computed((): Matcher[] => {
   const routeLookup = new Map<number, Route>()
   for (const route of props.routeFeatures) {
@@ -378,20 +380,27 @@ const styleData = computed((): Matcher[] => {
   return rules
 })
 
-// Merge features, applying the styleData as GeoJSON simplestyle
-const displayFeatures = computed(() => {
+// Features for display include the all route and stop features.
+// Match all features to styling rules and apply as GeoJSON simplestyle
+const displayFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
-  const features: Feature[] = []
-  const s = styleData.value || []
+  const styleRules = styleData.value || []
+  const forDisplay: Feature[] = []
 
+  // Include bbox in display features
   for (const feature of bboxArea.value) {
-    features.push(toRaw(feature))
+    forDisplay.push(toRaw(feature))
   }
 
-  const renderRoutes: Feature[] = props.routeFeatures.map((rp) => {
-    const style = s.find(rule => rule.match(rp))
-    return {
+  // Gather routes
+  for (const rp of props.routeFeatures) {
+    if (props.hideUnmarked && !rp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(rp))
+    const feature = {
       type: 'Feature',
       id: rp.id.toString(),
       geometry: rp.geometry,
@@ -406,14 +415,20 @@ const displayFeatures = computed(() => {
         'route_long_name': rp.route_long_name,
         'agency_name': rp.agency?.agency_name,
         'agency_id': rp.agency?.agency_id,
-        'marked': rp.marked,
+        'marked': rp.marked
       }
     }
-  })
+    forDisplay.push(feature)
+  }
 
-  const renderStops: Feature[] = props.stopFeatures.map((sp) => {
-    const style = s.find(rule => rule.match(sp))
-    return {
+  // Gather stops
+  for (const sp of props.stopFeatures) {
+    if (props.hideUnmarked && !sp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(sp))
+    const feature = {
       type: 'Feature',
       id: sp.id.toString(),
       geometry: sp.geometry,
@@ -422,19 +437,77 @@ const displayFeatures = computed(() => {
         'marker-radius': sp.marked ? 8 : 4,
         'marker-color': style?.color || bgColor,
         'marker-opacity': sp.marked ? 1 : bgOpacity,
-        'marked': sp.marked,
-      },
+        'marked': sp.marked
+      }
     }
-  })
-
-  // Add unmarked routes, then unmarked stops, then marked routes, then marked stops
-  if (!props.hideUnmarked) {
-    features.push(...renderRoutes.filter(r => !r.properties.marked))
-    features.push(...renderStops.filter(r => !r.properties.marked))
+    forDisplay.push(feature)
   }
-  features.push(...renderRoutes.filter(r => r.properties.marked))
-  features.push(...renderStops.filter(r => r.properties.marked))
-  return features
+
+  return forDisplay
+})
+
+// Features for export include only the "marked" features and the csv column data.
+const exportFeatures = computed((): Feature[] => {
+  const bgColor = '#aaa'
+  const bgOpacity = 0.4
+  const styleRules = styleData.value || []
+  const forExport: Feature[] = []
+
+  // Gather routes
+  for (const rp of props.routeFeatures) {
+    if (!rp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(rp))
+    const feature = {
+      type: 'Feature',
+      id: rp.id.toString(),
+      geometry: rp.geometry,
+      properties: {
+        'id': rp.id,
+        'stroke': style?.color || bgColor,
+        'stroke-width': rp.marked ? 3 : 0.75,
+        'stroke-opacity': rp.marked ? 1 : bgOpacity,
+        'agency_name': rp.agency?.agency_name,
+        'agency_id': rp.agency?.agency_id
+      }
+    }
+    Object.assign(feature.properties, routeToRouteCsv(rp))
+    forExport.push(feature)
+  }
+
+  // Gather stops
+  for (const sp of props.stopFeatures) {
+    if (!sp.marked) {
+      continue
+    }
+
+    const style = styleRules.find(rule => rule.match(sp))
+    const feature = {
+      type: 'Feature',
+      id: sp.id.toString(),
+      geometry: sp.geometry,
+      properties: {
+        'id': sp.id,
+        'marker-radius': sp.marked ? 8 : 4,
+        'marker-color': style?.color || bgColor,
+        'marker-opacity': sp.marked ? 1 : bgOpacity
+      }
+    }
+    Object.assign(feature.properties, stopToStopCsv(sp))
+    forExport.push(feature)
+  }
+
+  return forExport
+})
+
+watch(displayFeatures, () => {
+  emit('setDisplayFeatures', displayFeatures.value)
+})
+
+watch(exportFeatures, () => {
+  emit('setExportFeatures', exportFeatures.value)
 })
 
 // Is there data to display?

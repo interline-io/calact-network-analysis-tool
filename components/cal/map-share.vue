@@ -8,8 +8,8 @@
         Copy URL to Clipboard
       </o-button>
       <br><br>
-      <tl-geojson-downloader :features="displayFeatures" label="Download as GeoJSON" filename="export" :disabled="!stopDepartureLoadingComplete" />
-      <br><br>
+      <cal-geojson-download :data="exportFeatures" :disabled="!stopDepartureLoadingComplete" />
+      <br>
       <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" filename="routes" :disabled="!stopDepartureLoadingComplete" />
       <br>
       <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops" :disabled="!stopDepartureLoadingComplete" />
@@ -32,7 +32,7 @@ const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
   agencyFeatures: Agency[]
-  displayFeatures: Feature[]
+  exportFeatures: Feature[]
   stopDepartureLoadingComplete: boolean
 }>()
 

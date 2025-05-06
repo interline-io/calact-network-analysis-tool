@@ -54,10 +54,17 @@
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <cal-csv-download
-        :data="reportData"
-        :disabled="!stopDepartureLoadingComplete"
-      />
+      <div class="cal-report-download">
+        <cal-csv-download
+          :data="reportData"
+          :disabled="!stopDepartureLoadingComplete"
+        />
+
+        <cal-geojson-download
+          :data="exportFeatures"
+          :disabled="!stopDepartureLoadingComplete"
+        />
+      </div>
     </div>
 
     <div class="cal-report-total block">
@@ -147,12 +154,14 @@
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '../agency'
+import { type Feature } from '../geom'
 import { type TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
   agencyFeatures: Agency[]
+  exportFeatures: Feature[]
   filterSummary: string[]
   stopDepartureLoadingComplete: boolean
 }>()
@@ -212,72 +221,74 @@ watch(dataDisplayMode, () => {
 
 </script>
 
-  <style scoped lang="scss">
-    .cal-report {
-      display:flex;
-      flex-direction:column;
-      background: var(--bulma-scheme-main);
-      height:100%;
-      width: calc(100vw - 100px);
-      padding-left:20px;
-      padding-right:20px;
-      > .cal-body {
-        > div, > article {
-          margin-bottom:10px;
-        }
+<style scoped lang="scss">
+  .cal-report {
+    display:flex;
+    flex-direction:column;
+    background: var(--bulma-scheme-main);
+    height:100%;
+    width: calc(100vw - 100px);
+    padding-left:20px;
+    padding-right:20px;
+    > .cal-body {
+      > div, > article {
+        margin-bottom:10px;
+      }
+    }
+  }
+
+  .cal-report-options {
+    display: flex;
+    flex: 0;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+
+    > .filter-detail {
+      flex: 0 1 60%;
+      align-self: stretch;
+      background-color: #ddd;
+      border: 1px solid #333;
+      padding: 5px;
+    }
+
+    > .report-select {
+      flex: 1 0 0;
+      align-self: stretch;
+      border: 1px solid #333;
+      padding: 5px;
+      margin: 0 15px;
+
+      > .which-report {
+        font-size: larger;
+        font-weight: bold;
       }
     }
 
-    .cal-report-options {
+    > .cal-report-download {
       display: flex;
-      flex: 0;
-      flex-flow: row nowrap;
-      justify-content: space-between;
-
-      > .filter-detail {
-        flex: 0 1 60%;
-        align-self: stretch;
-        background-color: #ddd;
-        border: 1px solid #333;
-        padding: 5px;
-      }
-
-      > .report-select {
-        flex: 1 0 0;
-        align-self: stretch;
-        border: 1px solid #333;
-        padding: 5px;
-        margin: 0 15px;
-
-        > .which-report {
-          font-size: larger;
-          font-weight: bold;
-        }
-      }
-
-      > .download {
-        flex: 0 1 10%;
-        align-self: center;
-      }
+      flex: 0 1 10%;
+      align-self: center;
+      flex-flow: column nowrap;
     }
+  }
 
-    .cal-report-total {
-      font-style: italic;
+  .cal-report-total {
+    font-style: italic;
+  }
+
+  .cal-report-table {
+    th, td {
+      padding: 2px 5px;
     }
-
-    .cal-report-table {
-      th, td {
-        padding: 2px 5px;
-      }
-      th {
-        background-color: #666;
-        color: #fff;
-      }
+    th {
+      background-color: #666;
+      color: #fff;
     }
+  }
 
-    .cal-report-footer {
-      font-style: italic;
-      text-align: end;
-    }
+  .cal-report-footer {
+    font-style: italic;
+    text-align: end;
+  }
 
-  </style>
+</style>
