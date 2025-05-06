@@ -189,7 +189,9 @@ const agencyData = computed((): AgencyData[] => {
       const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
       const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) continue // no valid agency listed for this stop?
+      if (!aid || !aname) {
+        continue // no valid agency listed for this stop?
+      }
 
       let adata = data.get(aid)
       if (!adata) { // first time seeing this agency
@@ -397,7 +399,9 @@ const displayFeatures = computed((): Feature[] => {
 
   // Gather routes
   for (const rp of props.routeFeatures) {
-    if (props.hideUnmarked && !rp.marked) continue // skip
+    if (props.hideUnmarked && !rp.marked) {
+      continue // skip both display and export
+    }
 
     const style = styleRules.find(rule => rule.match(rp))
     const displayFeature = {
@@ -420,15 +424,18 @@ const displayFeatures = computed((): Feature[] => {
     }
     forDisplay.push(displayFeature)
 
-    if (!rp.marked) continue
-    const exportFeature = structuredClone(displayFeature)
-    Object.assign(exportFeature.properties, routeToRouteCsv(rp))
-    forExport.push(exportFeature)
+    if (rp.marked) {
+      const exportFeature = structuredClone(displayFeature)
+      Object.assign(exportFeature.properties, routeToRouteCsv(rp))
+      forExport.push(exportFeature)
+    }
   }
 
   // Gather stops
   for (const sp of props.stopFeatures) {
-    if (props.hideUnmarked && !sp.marked) continue // skip
+    if (props.hideUnmarked && !sp.marked) {
+      continue // skip both display and export
+    }
 
     const style = styleRules.find(rule => rule.match(sp))
     const displayFeature = {
@@ -445,10 +452,11 @@ const displayFeatures = computed((): Feature[] => {
     }
     forDisplay.push(displayFeature)
 
-    if (!sp.marked) continue
-    const exportFeature = structuredClone(displayFeature)
-    Object.assign(exportFeature.properties, stopToStopCsv(sp))
-    forExport.push(exportFeature)
+    if (sp.marked) {
+      const exportFeature = structuredClone(displayFeature)
+      Object.assign(exportFeature.properties, stopToStopCsv(sp))
+      forExport.push(exportFeature)
+    }
   }
 
   emit('setDisplayFeatures', forDisplay)
