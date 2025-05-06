@@ -8,7 +8,7 @@
 
     <div v-if="showShareMenu" class="cal-map-share">
       <cal-map-share
-        :display-features="displayFeatures"
+        :export-features="exportFeatures"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :agency-features="agencyFeatures"
@@ -70,6 +70,7 @@ const props = defineProps<{
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
+const exportFeatures = ref<Feature[]>([])
 
 //////////////////
 // Map geometries
@@ -462,6 +463,7 @@ const displayFeatures = computed((): Feature[] => {
   emit('setDisplayFeatures', forDisplay)
   emit('setExportFeatures', forExport)
 
+  exportFeatures.value = forExport
   return forDisplay
 })
 
