@@ -72,6 +72,7 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
+            v-model:boundary-type="boundaryType"
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
             @set-bbox="bbox = $event"
@@ -227,6 +228,15 @@ const geomSource = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, geomSource: v })
+  }
+})
+
+const boundaryType = computed({
+  get () {
+    return route.query.boundaryType?.toString() || ''
+  },
+  set (v: string) {
+    setQuery({ ...route.query, boundaryType: v })
   }
 })
 
