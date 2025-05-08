@@ -164,6 +164,35 @@ const sampleBoundaryData = {
 /////////////////////////////////////////
 /////////////////////////////////////////
 
+// query mockup
+// {
+//   census_datasets(where:{dataset_name:"tiger2024"}) {
+//     dataset_name
+//     geographies(limit: 10, where:{layer:"county", search:"ala"}) {
+//       id
+//       geoid
+//       name
+//     }
+//   }
+// }
+// result mockup
+// {
+//   "data": {
+//     "census_datasets": [
+//       {
+//         "dataset_name": "tiger2024",
+//         "geographies": [
+//           {
+//             "id": 2099,
+//             "geoid": "0500000US06001",
+//             "name": "Alameda"
+//           }
+//         ]
+//       }
+//     ]
+//   }
+// }
+
 // import { gql } from 'graphql-tag'
 // import { useQuery } from '@vue/apollo-composable'
 
