@@ -37,6 +37,23 @@ export const dowValues: dow[] = [
   'sunday'
 ]
 
+export const geomSources = {
+  'mapExtent': 'Covering extent of map',
+  'bbox': 'Dragging bounding box',
+  'adminBoundary': 'Administrative Boundary',
+}
+
+export const boundaryTypes = {
+  'county': 'County',
+  'state': 'State',
+  'censusTract': 'Census Tract',
+  'censusBlockGroup': 'Census Block Group',
+  'censusBlock': 'Census Block',
+  'city': 'City',
+  'censusUrbanizedArea': 'Census Urbanized Area',
+  'ftaUrbanizedArea': 'FTA Urbanized Area',
+}
+
 export const routeColorModes = [
   'Mode',
   'Frequency',
