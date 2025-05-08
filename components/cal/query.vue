@@ -161,6 +161,56 @@ const sampleBoundaryData = {
   Q1816149: 'West Slope',
 }
 
+/////////////////////////////////////////
+/////////////////////////////////////////
+
+// import { gql } from 'graphql-tag'
+// import { useQuery } from '@vue/apollo-composable'
+
+// const geographyQuery = gql`
+// query($dataset_name: String, $search: String, $layer: String, $limit: Int=10){
+//   census_datasets(where:{dataset_name:$dataset_name}) {
+//     dataset_name
+//     # layers # COMING SOON
+//     geographies(limit: $limit, where:{layer:$layer, search:$search}) {
+//       id
+//       geoid
+//       name
+//       # geometry
+//     }
+//   }
+// }
+// `
+
+// const { geomResult, loading, error } = useQuery(
+//   geographyQuery,
+//   () => ({
+//     dataset_name: 'tiger2024',
+//     search: geomSearch.value,
+//     layer: geomLayer.value,
+//     limit: 10,
+//   }))
+
+// const geomSearchLayers = computed(() => {
+//   // aggregate uniq off geomResult.value.census_datasets.layers results
+//   return ['tract', 'census']
+// })
+// const geomSearchEntities = computed(() => {
+//   // aggregate off geomResult.value.census_datasets.geographies results
+//   return []
+// })
+// const geomSearchEntitiesSelected = computed(() => {
+//   // filter geomSearchEntities based on user selection
+//   return []
+// })
+
+// end goal: have an array of geojson features selected by the user
+//    to pass into the scenario
+//    and have each stop returned by the query to include the matching geography ids
+
+/////////////////////////////////////////
+/////////////////////////////////////////
+
 watch(() => cannedBbox.value, (cannedBboxName) => {
   if (cannedBboxName) {
     emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName)))
