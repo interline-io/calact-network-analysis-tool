@@ -54,7 +54,7 @@
           </o-field>
         </tl-msg-warning>
 
-        <div class="columns">
+        <div class="columns is-align-items-flex-end">
           <div class="column is-half">
             <o-field>
               <template #label>
@@ -77,9 +77,9 @@
                 Boundary Type
               </template>
               <o-select
-                v-model="boundaryType"
-                :options="boundaryTypes"
-                @input="changeBoundaryType"
+                v-model="geomLayer"
+                :options="geomLayers"
+                @input="changeGeomLayer"
               />
             </o-field>
           </div>
@@ -91,15 +91,13 @@
               Include Boundaries
             </template>
             <o-taginput
-              v-model="boundaries"
-              :options="sampleBoundaryData"
-              open-on-focus
-              closable
+              v-model="geomSelected"
+              v-model:input="geomSearch"
+              :options="geomOptions"
+              :filter="geomFilter"
               close-icon=""
-              keep-open
               icon="magnify"
               placeholder="Search..."
-              :filter="filterBoundaries"
               expanded
             />
           </o-field>
@@ -115,8 +113,10 @@
 
 <script setup lang="ts">
 import { type Bbox, parseBbox } from '../geom'
-import { cannedBboxes, geomSources, boundaryTypes } from '../constants'
+import { cannedBboxes, geomSources, geomLayers } from '../constants'
+import { gql } from 'graphql-tag'
 import { useToggle } from '@vueuse/core'
+import { useQuery } from '@vue/apollo-composable'
 
 const props = defineProps<{
   bbox: Bbox
@@ -124,114 +124,101 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'setBbox',
+  'setFeatures',
   'explore'
 ])
 
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
-const geomSource = defineModel<string>('geomSource')
-const boundaryType = defineModel<string>('boundaryType')
 const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
+const geomSource = defineModel<string>('geomSource')
+const geomLayer = defineModel<string>('geomLayer')
+const geomSearch = defineModel<string>('geomSearch') // the user's search string
+const geomSelected = defineModel<unknown[]>('geomSelected') // selected geometries
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 const debugMenu = useDebugMenu()
 
-const boundaries = ref([])
-const sampleBoundaryData = {
-  Q581346: 'Aloha',
-  Q2587933: 'Barberton',
-  Q588923: 'Bethany',
-  Q1815228: 'Bull Mountain',
-  Q2896285: 'Cedar Hills',
-  Q2896288: 'Cedar Mill',
-  Q3473327: 'Dunthorpe',
-  Q3046557: 'Fairview',
-  Q1815675: 'Felida',
-  Q1983444: 'Garden Home-Whitford',
-  Q2605832: 'Hazel Dell',
-  Q1815789: 'Hockinson',
-  Q3473329: 'Marlene Village',
-  Q1815894: 'Minnehaha',
-  Q1815903: 'Mount Vista',
-  Q2889407: 'Oak Hills',
-  Q2581728: 'Orchards',
-  Q1815994: 'Salmon Creek',
-  Q3473334: 'West Haven-Sylvan',
-  Q1816149: 'West Slope',
+const geographyQuery = gql`
+query($dataset_name: String, $search: String, $layer: String, $limit: Int=10){
+  census_datasets(where:{dataset_name:$dataset_name}) {
+    dataset_name
+    geographies(limit: $limit, where:{layer:$layer, search:$search}) {
+      id
+      geoid
+      layer_name
+      name
+      geometry
+    }
+  }
 }
+`
 
-/////////////////////////////////////////
-/////////////////////////////////////////
-
-// query mockup
-// {
-//   census_datasets(where:{dataset_name:"tiger2024"}) {
-//     dataset_name
-//     geographies(limit: 10, where:{layer:"county", search:"ala"}) {
-//       id
-//       geoid
-//       name
-//     }
-//   }
-// }
-// result mockup
-// {
-//   "data": {
-//     "census_datasets": [
-//       {
-//         "dataset_name": "tiger2024",
-//         "geographies": [
-//           {
-//             "id": 2099,
-//             "geoid": "0500000US06001",
-//             "name": "Alameda"
-//           }
-//         ]
-//       }
-//     ]
-//   }
-// }
-
-// import { gql } from 'graphql-tag'
-// import { useQuery } from '@vue/apollo-composable'
-
-// const geographyQuery = gql`
-// query($dataset_name: String, $search: String, $layer: String, $limit: Int=10){
-//   census_datasets(where:{dataset_name:$dataset_name}) {
-//     dataset_name
-//     # layers # COMING SOON
-//     geographies(limit: $limit, where:{layer:$layer, search:$search}) {
-//       id
-//       geoid
-//       name
-//       # geometry
-//     }
-//   }
-// }
-// `
-
-// const { geomResult, loading, error } = useQuery(
-//   geographyQuery,
-//   () => ({
-//     dataset_name: 'tiger2024',
-//     search: geomSearch.value,
-//     layer: geomLayer.value,
-//     limit: 10,
-//   }))
+const {
+  result: geomResult,
+  loading: geomLoading,
+  error: geomError
+} = useQuery(
+  geographyQuery,
+  () => ({
+    dataset_name: 'tiger2024',
+    layer: geomLayer.value,
+    search: geomSearch.value,
+    limit: 15,
+  }), {
+    debounce: 50,
+    keepPreviousResult: true
+  }
+)
 
 // const geomSearchLayers = computed(() => {
 //   // aggregate uniq off geomResult.value.census_datasets.layers results
 //   return ['tract', 'census']
 // })
-// const geomSearchEntities = computed(() => {
-//   // aggregate off geomResult.value.census_datasets.geographies results
-//   return []
-// })
-// const geomSearchEntitiesSelected = computed(() => {
-//   // filter geomSearchEntities based on user selection
-//   return []
-// })
+
+const geomOptions = computed(() => {
+  // "options" must include the already selected geographies, otherwise the label will not work
+  const options = new Map<string, Object>() // geoid, Geography
+  const selected = geomSelected.value || []
+  for (const geo of selected) {
+    options.set(geo.geoid, geo)
+  }
+
+  // Add the search query results
+  const datasets = geomResult?.value?.census_datasets || []
+  if (datasets.length) { // should be 1 dataset 'tiger2024'
+    const geographies = datasets[0].geographies || []
+    for (const geo of geographies) {
+      if (options.has(geo.geoid)) {
+        continue // already selected
+      }
+      options.set(geo.geoid, geo)
+    }
+  }
+
+  // Convert `options` into Array with `value` and `label` props
+  const results = []
+  for (const geo of options.values()) {
+    // for now, generate a id to put after the name
+    const id = geo.geoid.replace(/^.*US/, '')
+    results.push({ value: geo, label: `${geo.name} (${id})` })
+  }
+  return results
+})
+
+// Which options to include in the select dropdown
+// @param  option - the option to test (items in the options array)
+// @param  value  - the value to test (what the user typed)
+function geomFilter (option: any, value: string): boolean {
+  const selected = geomSelected.value || []
+  for (const geo of selected) {
+    if (geo.geoid === option?.geoid) {
+      return true // value was already selected, exclude it from dropdown
+    }
+  }
+  return false
+}
 
 // end goal: have an array of geojson features selected by the user
 //    to pass into the scenario
@@ -246,30 +233,41 @@ watch(() => cannedBbox.value, (cannedBboxName) => {
   }
 })
 
+watch(geomSelected, () => {
+  const selected = geomSelected.value || []
+  const features = []
+
+  for (const geo of selected) {
+    const properties = Object.assign({}, geo)
+    delete properties.geometry
+
+    features.push({
+      type: 'Feature',
+      geometry: geo.geometry,
+      properties: properties
+    })
+  }
+
+  const geojson = {
+    type: 'FeatureCollection',
+    features: features
+  }
+  emit('setFeatures', geojson)
+})
+
 const validQueryParams = computed(() => {
   return startDate.value && props.bbox?.valid
 })
 
 function changeGeomSource () {
-  boundaryType.value = ''
-  boundaries.value = []
+  geomLayer.value = ''
+  geomSearch.value = ''
+  geomSelected.value = []
 }
 
-function changeBoundaryType () {
-  boundaries.value = []
-}
-
-// Which boundaries to show in the select field
-// @param  option - the option to test (keys from the list of boundaries)
-// @param  value  - the value to test (what the user typed)
-function filterBoundaries (option: string, value: string): boolean {
-  const exists = Array.from(boundaries.value).includes(option)
-  if (exists) {
-    return true // value was already picked, exclude it
-  }
-  const label = sampleBoundaryData[option]?.toLowerCase()
-  const val = value.toLowerCase()
-  return !label?.includes(val)
+function changeGeomLayer () {
+  geomSearch.value = ''
+  geomSelected.value = []
 }
 
 </script>

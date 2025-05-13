@@ -72,10 +72,11 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
-            v-model:boundary-type="boundaryType"
+            v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
             @set-bbox="bbox = $event"
+            @set-features="selectedFeatures = $event"
             @explore="runQuery()"
           />
         </div>
@@ -195,6 +196,7 @@ const route = useRoute()
 const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
+const selectedFeatures = ref(null) // for now
 
 // Loading and error handling
 const loading = ref(false)
@@ -231,12 +233,12 @@ const geomSource = computed({
   }
 })
 
-const boundaryType = computed({
+const geomLayer = computed({
   get () {
-    return route.query.boundaryType?.toString() || ''
+    return route.query.geomLayer?.toString() || ''
   },
   set (v: string) {
-    setQuery({ ...route.query, boundaryType: v })
+    setQuery({ ...route.query, geomLayer: v })
   }
 })
 
