@@ -51,6 +51,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   bbox: Bbox
   scheduleEnabled: boolean
+  selectedFeatures: Feature[]
 }>()
 
 const runCount = defineModel<number>('runCount')
@@ -67,7 +68,6 @@ const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
-const selectedFeatures = defineModel<Feature[]>('selectedFeatures')
 
 const stopLimit = 1000
 const stopDepartureCache = new StopDepartureCache()
@@ -99,19 +99,30 @@ const selectedDateRange = computed((): Date[] => {
 // Stops
 /////////////////////////////
 
-const stopVars = computed(() => ({
-  after: 0,
-  limit: stopLimit,
-  where: {
-    location_type: 0,
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
+const stopVars = computed(() => {
+  const bbox = {
+    min_lon: props.bbox.sw.lon,
+    min_lat: props.bbox.sw.lat,
+    max_lon: props.bbox.ne.lon,
+    max_lat: props.bbox.ne.lat
+  }
+  // BUG: server only accepts id/geometry properties on features today
+  const fc = props.selectedFeatures.map(s => ({
+    id: s.id,
+    geometry: s.geometry
+  }))
+
+  //  Allow bbox OR features
+  return {
+    after: 0,
+    limit: stopLimit,
+    where: {
+      location_type: 0,
+      bbox: fc.length > 0 ? null : bbox,
+      within_features: fc.length > 0 ? fc : null,
     }
   }
-}))
+})
 
 const {
   load: stopLoad,
@@ -321,7 +332,7 @@ watch(() => [
   selectedRouteTypes.value,
   startTime.value,
   stopDepartureLoadingComplete.value,
-  selectedFeatures.value,
+  props.selectedFeatures,
 ], () => {
   // Check defaults
   const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
@@ -335,7 +346,7 @@ watch(() => [
   const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
   const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
 
-  console.log('selectedFeatures', selectedFeatures.value)
+  console.log('selectedFeatures', props.selectedFeatures)
 
   /////////////////////////
   // Apply route filters
