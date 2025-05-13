@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { type Bbox } from '../geom'
+import { type Bbox, type Feature } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type dow, routeTypes } from '../constants'
@@ -51,6 +51,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   bbox: Bbox
   scheduleEnabled: boolean
+  selectedFeatures: Feature[]
 }>()
 
 const runCount = defineModel<number>('runCount')
@@ -98,19 +99,30 @@ const selectedDateRange = computed((): Date[] => {
 // Stops
 /////////////////////////////
 
-const stopVars = computed(() => ({
-  after: 0,
-  limit: stopLimit,
-  where: {
-    location_type: 0,
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
+const stopVars = computed(() => {
+  const bbox = {
+    min_lon: props.bbox.sw.lon,
+    min_lat: props.bbox.sw.lat,
+    max_lon: props.bbox.ne.lon,
+    max_lat: props.bbox.ne.lat
+  }
+  // BUG: server only accepts id/geometry properties on features today
+  const fc = props.selectedFeatures.map(s => ({
+    id: s.id,
+    geometry: s.geometry
+  }))
+
+  //  Allow bbox OR features
+  return {
+    after: 0,
+    limit: stopLimit,
+    where: {
+      location_type: 0,
+      bbox: fc.length > 0 ? null : bbox,
+      within_features: fc.length > 0 ? fc : null,
     }
   }
-}))
+})
 
 const {
   load: stopLoad,
@@ -320,6 +332,7 @@ watch(() => [
   selectedRouteTypes.value,
   startTime.value,
   stopDepartureLoadingComplete.value,
+  props.selectedFeatures,
 ], () => {
   // Check defaults
   const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
@@ -332,6 +345,8 @@ watch(() => [
   const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
   const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
+
+  console.log('selectedFeatures', props.selectedFeatures)
 
   /////////////////////////
   // Apply route filters

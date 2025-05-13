@@ -50,8 +50,8 @@ import { type Agency } from '../agency'
 const route = useRoute()
 
 const emit = defineEmits<{
-  setBbox: [value: BBox]
-  setMapExtent: [value: BBox]
+  setBbox: [value: Bbox]
+  setMapExtent: [value: Bbox]
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
 }>()
@@ -61,6 +61,7 @@ const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
   agencyFeatures: Agency[]
+  selectedFeatures: Feature[]
   dataDisplayMode: string
   colorKey: string
   displayEditBboxMode?: boolean
@@ -391,6 +392,11 @@ const displayFeatures = computed((): Feature[] => {
   // Include bbox in display features
   for (const feature of bboxArea.value) {
     forDisplay.push(toRaw(feature))
+  }
+
+  // Include selected features in display features
+  for (const feature of props.selectedFeatures) {
+    forDisplay.push(feature)
   }
 
   // Gather routes
