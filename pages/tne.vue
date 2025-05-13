@@ -147,6 +147,7 @@
         :end-time="endTime"
         :geom-source="geomSource"
         :schedule-enabled="scheduleEnabled"
+        :selected-features="selectedFeatures"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="stopFeatures = $event"
@@ -159,6 +160,7 @@
       <!-- This is a component for displaying the map and legend -->
       <cal-map
         :bbox="bbox"
+        :selected-features="selectedFeatures"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :agency-features="agencyFeatures"
@@ -196,7 +198,7 @@ const route = useRoute()
 const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
-const selectedFeatures = ref(null) // for now
+const selectedFeatures = ref<Feature[]>([]) // for now
 
 // Loading and error handling
 const loading = ref(false)
@@ -483,7 +485,7 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = selectedRouteTypes.value.map(val => toTitleCase(routeTypes.get(val))).filter(Boolean)
+  const rtypes = selectedRouteTypes.value.map(val => toTitleCase(routeTypes.get(val) || '')).filter(Boolean)
   if (rtypes.length !== routeTypes.size) {
     results.push('with route types ' + rtypes.join(', '))
   }

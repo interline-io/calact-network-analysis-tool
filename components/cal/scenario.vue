@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { type Bbox } from '../geom'
+import { type Bbox, type Feature } from '../geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type dow, routeTypes } from '../constants'
@@ -67,6 +67,7 @@ const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
+const selectedFeatures = defineModel<Feature[]>('selectedFeatures')
 
 const stopLimit = 1000
 const stopDepartureCache = new StopDepartureCache()
@@ -320,6 +321,7 @@ watch(() => [
   selectedRouteTypes.value,
   startTime.value,
   stopDepartureLoadingComplete.value,
+  selectedFeatures.value,
 ], () => {
   // Check defaults
   const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
@@ -332,6 +334,8 @@ watch(() => [
   const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
   const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
+
+  console.log('selectedFeatures', selectedFeatures.value)
 
   /////////////////////////
   // Apply route filters

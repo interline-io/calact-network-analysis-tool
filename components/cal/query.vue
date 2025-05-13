@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { type Bbox, parseBbox } from '../geom'
+import { type Bbox, type Feature, type Geometry, parseBbox } from '../geom'
 import { cannedBboxes, geomSources, geomLayers } from '../constants'
 import { gql } from 'graphql-tag'
 import { useToggle } from '@vueuse/core'
@@ -160,7 +160,7 @@ interface CensusGeography {
   geoid: string
   layer_name: string
   name: string
-  geometry: GeoJSON.FeatureCollection
+  geometry: Geometry
 }
 
 interface CensusDataset {
@@ -254,6 +254,7 @@ watch(geomSelected, () => {
     features.push({
       type: 'Feature',
       geometry: geo.geometry,
+      id: geo.geoid,
       properties: {
         id: geo.geoid,
         name: geo.name,
@@ -263,11 +264,7 @@ watch(geomSelected, () => {
     })
   }
 
-  const geojson = {
-    type: 'FeatureCollection',
-    features: features
-  }
-  emit('setFeatures', geojson)
+  emit('setFeatures', features)
 })
 
 const validQueryParams = computed(() => {
