@@ -134,7 +134,7 @@ const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const geomSource = defineModel<string>('geomSource')
 const geomLayer = defineModel<string>('geomLayer')
 const geomSearch = defineModel<string>('geomSearch') // the user's search string
-const geomSelected = defineModel<unknown[]>('geomSelected') // selected geometries
+const geomSelected = defineModel<CensusGeography[]>('geomSelected') // selected geometries
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
@@ -155,11 +155,24 @@ query($dataset_name: String, $search: String, $layer: String, $limit: Int=10){
 }
 `
 
+interface CensusGeography {
+  id: string
+  geoid: string
+  layer_name: string
+  name: string
+  geometry: GeoJSON.FeatureCollection
+}
+
+interface CensusDataset {
+  dataset_name: string
+  geographies: [CensusGeography]
+}
+
 const {
   result: geomResult,
   loading: geomLoading,
   error: geomError
-} = useQuery(
+} = useQuery<{ census_datasets: CensusDataset[] }>(
   geographyQuery,
   () => ({
     dataset_name: 'tiger2024',
@@ -179,7 +192,7 @@ const {
 
 const geomOptions = computed(() => {
   // "options" must include the already selected geographies, otherwise the label will not work
-  const options = new Map<string, Object>() // geoid, Geography
+  const options = new Map<string, CensusGeography>() // geoid, Geography
   const selected = geomSelected.value || []
   for (const geo of selected) {
     options.set(geo.geoid, geo)
@@ -229,7 +242,7 @@ function geomFilter (option: any, value: string): boolean {
 
 watch(() => cannedBbox.value, (cannedBboxName) => {
   if (cannedBboxName) {
-    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName)))
+    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName) || null))
   }
 })
 
@@ -238,13 +251,15 @@ watch(geomSelected, () => {
   const features = []
 
   for (const geo of selected) {
-    const properties = Object.assign({}, geo)
-    delete properties.geometry
-
     features.push({
       type: 'Feature',
       geometry: geo.geometry,
-      properties: properties
+      properties: {
+        id: geo.geoid,
+        name: geo.name,
+        layer_name: geo.layer_name,
+        geoid: geo.geoid
+      }
     })
   }
 
