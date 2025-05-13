@@ -79,7 +79,6 @@ watch(stopDepartureLoadingComplete, (v) => {
 watch(runCount, (v) => {
   if (v) {
     stopQueue.perform({ after: 0 })
-    routeQueue.perform({ after: 0 })
   }
 })
 
@@ -159,7 +158,17 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
     }
   })
   check?.then((v) => {
-    const ids = (v?.data?.stops || v?.stops || []).map(s => (s.id))
+    const stopData = v?.data?.stops || v?.stops || []
+    const routeIds: Set<number> = new Set()
+    for (const stop of stopData) {
+      for (const rs of stop.route_stops || []) {
+        routeIds.add(rs.route.id)
+      }
+    }
+    console.log('got routeIds:', routeIds)
+    routeQueue.enqueue().maxConcurrency(1).perform({ ids: [...routeIds] })
+
+    const ids = stopData.map(s => (s.id))
     enqueueStopDepartureFetch(ids)
     if (ids.length > 0) {
       stopQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
@@ -200,12 +209,12 @@ watch(routeError, (v) => {
   emit('setError', v)
 })
 
-const routeQueue = useTask(function* (_, task: { after: number }) {
+const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   console.log('routeQueue: run', task)
   checkQueryLimit()
   const check = routeLoad() || routeFetchMore({
     variables: {
-      after: task.after,
+      ids: task.ids,
     },
     updateQuery: (previousResult, { fetchMoreResult }) => {
       const newRoutes = [...previousResult.routes || [], ...fetchMoreResult?.routes || []]
@@ -213,10 +222,10 @@ const routeQueue = useTask(function* (_, task: { after: number }) {
     }
   })
   check?.then((v) => {
-    const ids = (v?.data?.routes || v?.routes || []).map(s => (s.id))
-    if (ids.length > 0) {
-      routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
-    }
+    // const ids = (v?.data?.routes || v?.routes || []).map(s => (s.id))
+    // if (ids.length > 0) {
+    //   routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
+    // }
   })
 })
 
