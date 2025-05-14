@@ -210,6 +210,11 @@ const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   const check = routeLoad(routeQuery, { ids: fetchRouteIds }) || routeFetchMore({
     variables: {
       ids: fetchRouteIds,
+    },
+    updateQuery: (previousResult, { fetchMoreResult }) => {
+      return {
+        routes: []
+      }
     }
   })
   check?.then((v) => {
