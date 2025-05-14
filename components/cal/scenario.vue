@@ -158,6 +158,7 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
     }
   })
   check?.then((v) => {
+    console.log('stopQueue: resolved')
     const stopData = v?.data?.stops || v?.stops || []
     const routeIds: Set<number> = new Set()
     for (const stop of stopData) {
@@ -197,28 +198,38 @@ watch(routeError, (v) => {
   emit('setError', v)
 })
 
+const routeResultFixed = ref<RouteGql[]>([])
+
 const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   console.log('routeQueue: run', task)
   checkQueryLimit()
-  const currentRouteIds = new Set<number>((routeResult.value?.routes || []).map(r => r.id))
+  const currentRouteIds = new Set<number>((routeResultFixed?.value || []).map(r => r.id))
   const taskRouteIds = new Set<number>(task.ids)
   const fetchRouteIds = [...taskRouteIds.difference(currentRouteIds)]
-  if (fetchRouteIds.length === 0) {
-    console.log('routeQueue: no ids, skipping')
-    return
-  }
-  console.log('routeQueue: fetchRouteIds', fetchRouteIds)
-  const check = routeLoad(routeQuery, { ids: fetchRouteIds, }) || routeFetchMore({
-    variables: { ids: fetchRouteIds, },
-    updateQuery: (previousResult, { fetchMoreResult }) => {
-      return {
-        routes: [...previousResult?.routes || [], ...fetchMoreResult?.routes || []]
-      }
+  console.log('routeQueue: currentRouteIds:', currentRouteIds, 'taskIds:', taskRouteIds, 'fetchRouteIds', fetchRouteIds)
+  const check = routeLoad(routeQuery, { ids: fetchRouteIds }) || routeFetchMore({
+    variables: {
+      ids: fetchRouteIds,
     }
   })
   check?.then((v) => {
-    console.log('routeQueue: result', v.map(r => r.id))
+    console.log('routeQueue: resolved')
+    const routeData = v?.data?.routes || v?.routes || []
+    const routeIdx = new Map<number, RouteGql>()
+    console.log('routeQueue: resolved routeData', routeData, 'routeResultFixed', routeResultFixed.value)
+    for (const route of routeResultFixed.value || []) {
+      routeIdx.set(route.id, route)
+    }
+    for (const route of routeData) {
+      routeIdx.set(route.id, route)
+    }
+    console.log(
+      'routeQueue: resolved',
+      '\nallRouteIds:', [...routeIdx.keys()]
+    )
+    routeResultFixed.value = [...routeIdx.values()]
   })
+  return check
 })
 
 /////////////////////////////
@@ -292,6 +303,7 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
 
 // Break into weeks
 function enqueueStopDepartureFetch (stopIds: number[]) {
+  return
   if (stopIds.length === 0) {
     // Enqueue empty task to signal complete
     stopDepartureQueue.enqueue().maxConcurrency(1).perform(new StopDepartureQueryVars())
@@ -320,7 +332,7 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
 // Apply filters to routes and stops
 watch(() => [
   stopResult.value,
-  routeResult.value,
+  routeResultFixed.value,
   endTime.value,
   frequencyOver.value,
   frequencyOverEnabled.value,
@@ -352,7 +364,7 @@ watch(() => [
   /////////////////////////
   // Apply route filters
   const routeFeatures: Route[] = []
-  for (const routeGql of routeResult.value?.routes || []) {
+  for (const routeGql of routeResultFixed?.value || []) {
     const route: Route = {
       ...routeGql,
       route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
