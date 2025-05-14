@@ -9,8 +9,8 @@ import { parseHMS } from './datetime'
 //////////
 
 export const routeQuery = gql`
-query ($limit: Int, $after: Int, $where: RouteFilter) {
-  routes(limit: $limit, after: $after, where: $where) {
+query ($ids: [Int!], $where: RouteFilter) {
+  routes(limit: 1000, ids: $ids, where: $where) {
     id
     route_id
     route_short_name

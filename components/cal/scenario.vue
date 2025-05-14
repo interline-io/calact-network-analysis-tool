@@ -162,11 +162,12 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
     const routeIds: Set<number> = new Set()
     for (const stop of stopData) {
       for (const rs of stop.route_stops || []) {
-        routeIds.add(rs.route.id)
+        routeIds.add(rs.route?.id)
       }
     }
-    console.log('got routeIds:', routeIds)
-    routeQueue.enqueue().maxConcurrency(1).perform({ ids: [...routeIds] })
+    if (routeIds.size > 0) {
+      routeQueue.enqueue().maxConcurrency(1).perform({ ids: [...routeIds] })
+    }
 
     const ids = stopData.map(s => (s.id))
     enqueueStopDepartureFetch(ids)
@@ -180,19 +181,6 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
 // Routes
 /////////////////////////////
 
-const routeVars = computed(() => ({
-  after: 0,
-  limit: 100,
-  where: {
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
-    }
-  }
-}))
-
 const {
   load: routeLoad,
   result: routeResult,
@@ -201,7 +189,7 @@ const {
   fetchMore: routeFetchMore
 } = useLazyQuery<{ routes: RouteGql[] }>(
   routeQuery,
-  routeVars,
+  { ids: [] },
   { fetchPolicy: 'no-cache', clientId: 'transitland' }
 )
 
@@ -212,20 +200,24 @@ watch(routeError, (v) => {
 const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   console.log('routeQueue: run', task)
   checkQueryLimit()
-  const check = routeLoad() || routeFetchMore({
-    variables: {
-      ids: task.ids,
-    },
+  const currentRouteIds = new Set<number>((routeResult.value?.routes || []).map(r => r.id))
+  const taskRouteIds = new Set<number>(task.ids)
+  const fetchRouteIds = [...taskRouteIds.difference(currentRouteIds)]
+  if (fetchRouteIds.length === 0) {
+    console.log('routeQueue: no ids, skipping')
+    return
+  }
+  console.log('routeQueue: fetchRouteIds', fetchRouteIds)
+  const check = routeLoad(routeQuery, { ids: fetchRouteIds, }) || routeFetchMore({
+    variables: { ids: fetchRouteIds, },
     updateQuery: (previousResult, { fetchMoreResult }) => {
-      const newRoutes = [...previousResult.routes || [], ...fetchMoreResult?.routes || []]
-      return { routes: newRoutes }
+      return {
+        routes: [...previousResult?.routes || [], ...fetchMoreResult?.routes || []]
+      }
     }
   })
   check?.then((v) => {
-    // const ids = (v?.data?.routes || v?.routes || []).map(s => (s.id))
-    // if (ids.length > 0) {
-    //   routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
-    // }
+    console.log('routeQueue: result', v.map(r => r.id))
   })
 })
 
@@ -282,13 +274,13 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   check?.then((v) => {
     // Update cache
     activeStopDepartureQueryCount.value -= 1
-    const stops = v?.data?.stops || v?.stops || []
+    const stopData = v?.data?.stops || v?.stops || []
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
         continue
       }
-      for (const stop of stops) {
+      for (const stop of stopData) {
         const stopDepartures = stop[dow] || []
         stopDepartureCache.add(stop.id, dowDate, stopDepartures)
       }
