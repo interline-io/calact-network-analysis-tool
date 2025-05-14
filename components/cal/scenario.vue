@@ -211,7 +211,7 @@ const routeQueue = useTask(function* (_, task: { ids: number[] }) {
     variables: {
       ids: fetchRouteIds,
     },
-    updateQuery: (previousResult, { fetchMoreResult }) => {
+    updateQuery: () => {
       return {
         routes: []
       }
@@ -221,7 +221,6 @@ const routeQueue = useTask(function* (_, task: { ids: number[] }) {
     console.log('routeQueue: resolved')
     const routeData = v?.data?.routes || v?.routes || []
     const routeIdx = new Map<number, RouteGql>()
-    console.log('routeQueue: resolved routeData', routeData, 'routeResultFixed', routeResultFixed.value)
     for (const route of routeResultFixed.value || []) {
       routeIdx.set(route.id, route)
     }
