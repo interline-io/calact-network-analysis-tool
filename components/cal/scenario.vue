@@ -79,7 +79,6 @@ watch(stopDepartureLoadingComplete, (v) => {
 watch(runCount, (v) => {
   if (v) {
     stopQueue.perform({ after: 0 })
-    routeQueue.perform({ after: 0 })
   }
 })
 
@@ -159,7 +158,19 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
     }
   })
   check?.then((v) => {
-    const ids = (v?.data?.stops || v?.stops || []).map(s => (s.id))
+    console.log('stopQueue: resolved')
+    const stopData = v?.data?.stops || v?.stops || []
+    const routeIds: Set<number> = new Set()
+    for (const stop of stopData) {
+      for (const rs of stop.route_stops || []) {
+        routeIds.add(rs.route?.id)
+      }
+    }
+    if (routeIds.size > 0) {
+      routeQueue.enqueue().maxConcurrency(1).perform({ ids: [...routeIds] })
+    }
+
+    const ids = stopData.map(s => (s.id))
     enqueueStopDepartureFetch(ids)
     if (ids.length > 0) {
       stopQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
@@ -171,19 +182,6 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
 // Routes
 /////////////////////////////
 
-const routeVars = computed(() => ({
-  after: 0,
-  limit: 100,
-  where: {
-    bbox: {
-      min_lon: props.bbox.sw.lon,
-      min_lat: props.bbox.sw.lat,
-      max_lon: props.bbox.ne.lon,
-      max_lat: props.bbox.ne.lat
-    }
-  }
-}))
-
 const {
   load: routeLoad,
   result: routeResult,
@@ -192,7 +190,7 @@ const {
   fetchMore: routeFetchMore
 } = useLazyQuery<{ routes: RouteGql[] }>(
   routeQuery,
-  routeVars,
+  { ids: [] },
   { fetchPolicy: 'no-cache', clientId: 'transitland' }
 )
 
@@ -200,24 +198,42 @@ watch(routeError, (v) => {
   emit('setError', v)
 })
 
-const routeQueue = useTask(function* (_, task: { after: number }) {
+const routeResultFixed = ref<RouteGql[]>([])
+
+const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   console.log('routeQueue: run', task)
   checkQueryLimit()
-  const check = routeLoad() || routeFetchMore({
+  const currentRouteIds = new Set<number>((routeResultFixed?.value || []).map(r => r.id))
+  const taskRouteIds = new Set<number>(task.ids)
+  const fetchRouteIds = [...taskRouteIds.difference(currentRouteIds)]
+  console.log('routeQueue: currentRouteIds:', currentRouteIds, 'taskIds:', taskRouteIds, 'fetchRouteIds', fetchRouteIds)
+  const check = routeLoad(routeQuery, { ids: fetchRouteIds }) || routeFetchMore({
     variables: {
-      after: task.after,
+      ids: fetchRouteIds,
     },
-    updateQuery: (previousResult, { fetchMoreResult }) => {
-      const newRoutes = [...previousResult.routes || [], ...fetchMoreResult?.routes || []]
-      return { routes: newRoutes }
+    updateQuery: () => {
+      return {
+        routes: []
+      }
     }
   })
   check?.then((v) => {
-    const ids = (v?.data?.routes || v?.routes || []).map(s => (s.id))
-    if (ids.length > 0) {
-      routeQueue.enqueue().maxConcurrency(1).perform({ after: ids[ids.length - 1] })
+    console.log('routeQueue: resolved')
+    const routeData = v?.data?.routes || v?.routes || []
+    const routeIdx = new Map<number, RouteGql>()
+    for (const route of routeResultFixed.value || []) {
+      routeIdx.set(route.id, route)
     }
+    for (const route of routeData) {
+      routeIdx.set(route.id, route)
+    }
+    console.log(
+      'routeQueue: resolved',
+      '\nallRouteIds:', [...routeIdx.keys()]
+    )
+    routeResultFixed.value = [...routeIdx.values()]
   })
+  return check
 })
 
 /////////////////////////////
@@ -273,13 +289,13 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   check?.then((v) => {
     // Update cache
     activeStopDepartureQueryCount.value -= 1
-    const stops = v?.data?.stops || v?.stops || []
+    const stopData = v?.data?.stops || v?.stops || []
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
         continue
       }
-      for (const stop of stops) {
+      for (const stop of stopData) {
         const stopDepartures = stop[dow] || []
         stopDepartureCache.add(stop.id, dowDate, stopDepartures)
       }
@@ -291,6 +307,7 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
 
 // Break into weeks
 function enqueueStopDepartureFetch (stopIds: number[]) {
+  return
   if (stopIds.length === 0) {
     // Enqueue empty task to signal complete
     stopDepartureQueue.enqueue().maxConcurrency(1).perform(new StopDepartureQueryVars())
@@ -319,7 +336,7 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
 // Apply filters to routes and stops
 watch(() => [
   stopResult.value,
-  routeResult.value,
+  routeResultFixed.value,
   endTime.value,
   frequencyOver.value,
   frequencyOverEnabled.value,
@@ -351,7 +368,7 @@ watch(() => [
   /////////////////////////
   // Apply route filters
   const routeFeatures: Route[] = []
-  for (const routeGql of routeResult.value?.routes || []) {
+  for (const routeGql of routeResultFixed?.value || []) {
     const route: Route = {
       ...routeGql,
       route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
