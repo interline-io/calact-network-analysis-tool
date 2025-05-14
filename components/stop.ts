@@ -25,6 +25,12 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     platform_code
     tts_stop_name
     geometry
+    census_geographies(where:{dataset:"tiger2024", radius:0.1}) {
+      id
+      geoid
+      layer_name
+      name
+    }
     route_stops {
       route {
         id
