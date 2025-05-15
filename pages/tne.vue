@@ -76,7 +76,7 @@
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @set-features="selectedFeatures = $event"
+            @set-features="setSelectedFeatures"
             @explore="runQuery()"
           />
         </div>
@@ -117,6 +117,7 @@
         <div v-if="activeTab.tab === 'report'" class="cal-overlay">
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
+            v-model:aggregate-mode="geomLayer"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
@@ -147,6 +148,7 @@
         :end-time="endTime"
         :geom-source="geomSource"
         :schedule-enabled="scheduleEnabled"
+        :geography-ids="geographyIds"
         :selected-features="selectedFeatures"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
@@ -200,6 +202,12 @@ const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
 const selectedFeatures = ref<Feature[]>([]) // for now
 
+function setSelectedFeatures (features: Feature[]) {
+  console.log('setSelectedFeatures', features)
+  selectedFeatures.value = features
+  console.log('selectedFeatures geographyIds:', features.map(f => parseInt(f.id)))
+}
+
 // Loading and error handling
 const loading = ref(false)
 const hasError = ref(false)
@@ -237,10 +245,19 @@ const geomSource = computed({
 
 const geomLayer = computed({
   get () {
-    return route.query.geomLayer?.toString() || ''
+    return route.query.geomLayer?.toString() || 'place'
   },
   set (v: string) {
     setQuery({ ...route.query, geomLayer: v })
+  }
+})
+
+const geographyIds = computed({
+  get () {
+    return route.query.geographyIds?.toString().split(',').map(parseInt) || []
+  },
+  set (v: number[]) {
+    setQuery({ ...route.query, geomLayer: v.map(String).join(',') })
   }
 })
 

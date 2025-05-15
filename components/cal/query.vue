@@ -156,7 +156,7 @@ query($dataset_name: String, $search: String, $layer: String, $limit: Int=100){
 `
 
 interface CensusGeography {
-  id: string
+  id: number
   geoid: string
   layer_name: string
   name: string
@@ -184,11 +184,6 @@ const {
     keepPreviousResult: true
   }
 )
-
-// const geomSearchLayers = computed(() => {
-//   // aggregate uniq off geomResult.value.census_datasets.layers results
-//   return ['tract', 'census']
-// })
 
 const geomOptions = computed(() => {
   // "options" must include the already selected geographies, otherwise the label will not work
@@ -254,7 +249,7 @@ watch(geomSelected, () => {
     features.push({
       type: 'Feature',
       geometry: geo.geometry,
-      id: geo.geoid,
+      id: geo.id,
       properties: {
         id: geo.geoid,
         name: geo.name,
@@ -272,7 +267,7 @@ const validQueryParams = computed(() => {
 })
 
 function changeGeomSource () {
-  geomLayer.value = ''
+  // geomLayer.value = ''
   geomSearch.value = ''
   geomSelected.value = []
 }
