@@ -195,7 +195,7 @@ const route = useRoute()
 
 // const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
 // const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
-const scheduleEnabled = ref(false)
+const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
 const selectedFeatures = ref<Feature[]>([]) // for now
