@@ -68,9 +68,9 @@ export interface StopDerived {
 }
 
 export interface StopVisitCounts {
-  visit_average: number
-  visit_count: number
   date_count: number,
+  visit_count: number
+  visit_average: number | null
   all_date_service: boolean
 }
 
@@ -89,6 +89,12 @@ export type StopGql = {
   id: number
   geometry: GeoJSON.Point
   within_features: string[]
+  census_geographies: [{
+    id: number
+    name: string
+    geoid: string
+    layer_name: string
+  }]
   route_stops: {
     route: {
       id: number
@@ -107,17 +113,28 @@ export type StopGql = {
 
 export type StopCsv = StopGtfs & {
   id: number
-  modes: string
-  number_served: number
+  routes_modes: string
+  routes_count: number
+  agencies_count: number,
   marked: boolean
-  visit_count_daily_average: number
-  visit_count_monday_average: number
-  visit_count_tuesday_average: number
-  visit_count_wednesday_average: number
-  visit_count_thursday_average: number
-  visit_count_friday_average: number
-  visit_count_saturday_average: number
-  visit_count_sunday_average: number
+  visit_count_daily_average: number | null
+  visit_count_monday_average: number | null
+  visit_count_tuesday_average: number | null
+  visit_count_wednesday_average: number | null
+  visit_count_thursday_average: number | null
+  visit_count_friday_average: number | null
+  visit_count_saturday_average: number | null
+  visit_count_sunday_average: number | null
+}
+
+interface StopGeoAggregateCsv {
+  geoid: string
+  layer_name: string
+  name: string
+  routes_count: number,
+  routes_modes: string
+  stops_count: number
+  agencies_count: number
 }
 
 export type Stop = StopGql & StopDerived
@@ -298,6 +315,7 @@ function stopMarked(
   if (selectedAgencies.length > 0 || selectedRouteTypes.length > 0 || frequencyUnder > 0 || frequencyOver > 0) {
     const hasMarkedRoute = stop.route_stops.some((rs) => markedRoutes.has(rs.route.id))
     if (!hasMarkedRoute) {
+      console.log('no marked route', stop.id)
       return false
     }
   }
@@ -310,7 +328,7 @@ function newStopVisitCounts(): StopVisitCounts {
   return {
     visit_count: 0,
     date_count: 0,
-    visit_average: -1,
+    visit_average: null,
     all_date_service: true
   }
 }
@@ -323,10 +341,60 @@ function checkDiv(a: number, b: number): number {
 // Stop csv
 ///////////////////////////
 
+
+export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): StopGeoAggregateCsv[] {  
+  const stopAgg = new Map<string, {
+    geoid: string
+    layer_name: string
+    name: string
+    stops_count: Set<number>
+    routes_count: Set<number>
+    routes_modes: Set<number>
+    agencies_count: Set<number>
+  }>()
+
+  for (const stop of stops) {
+    const geogs = (stop.census_geographies || []).filter((g) => g.layer_name === aggregationKey)
+    for (const geog of geogs) {
+      const a = stopAgg.get(geog.geoid) || {
+        geoid: geog.geoid,
+        layer_name: geog.layer_name,
+        name: geog.name,
+        stops_count: new Set<number>(),
+        routes_count: new Set<number>(),
+        routes_modes: new Set<number>(),
+        agencies_count: new Set<number>(),
+      }
+      a.stops_count.add(stop.id)
+      for (const rstop of stop.route_stops) {
+        a.agencies_count.add(rstop.route.agency.id)
+        a.routes_count.add(rstop.route.id)
+        a.routes_modes.add(rstop.route.route_type)
+      }
+      stopAgg.set(geog.geoid, a)  
+    }
+  }
+  const result = stopAgg.values().map((a):StopGeoAggregateCsv => {
+    const rmodes = a.routes_modes.values().map((r):string => routeTypes.get(r) || 'Unknown')
+    return {
+      geoid: a.geoid,
+      layer_name: a.layer_name,
+      name: a.name,
+      stops_count: a.stops_count.size,
+      routes_count: a.routes_count.size,
+      routes_modes: [...rmodes].join(', '),
+      agencies_count: a.agencies_count.size,
+    }
+  })
+  return [...result]
+}
+
 export function stopToStopCsv(stop: Stop): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
+  const agencies = new Set()
   for (const rstop of routeStops) {
+    agencies.add(rstop.route.agency.id)
     const rtype = rstop.route.route_type
     const mode = routeTypes.get(rtype)
     if (mode) {
@@ -348,15 +416,25 @@ export function stopToStopCsv(stop: Stop): StopCsv {
     tts_stop_name: stop.tts_stop_name,
     // Derived properties
     marked: stop.marked,
-    number_served: stop.route_stops.length,
-    modes: Array.from(modes).join(','),
-    visit_count_daily_average: Math.round(stop.visits?.total?.visit_average || -1),
-    visit_count_monday_average: Math.round(stop.visits?.monday?.visit_average || -1),
-    visit_count_tuesday_average: Math.round(stop.visits?.tuesday?.visit_average || -1),
-    visit_count_wednesday_average: Math.round(stop.visits?.wednesday?.visit_average || -1),
-    visit_count_thursday_average: Math.round(stop.visits?.thursday?.visit_average || -1),
-    visit_count_friday_average: Math.round(stop.visits?.friday?.visit_average || -1),
-    visit_count_saturday_average: Math.round(stop.visits?.saturday?.visit_average || -1),
-    visit_count_sunday_average: Math.round(stop.visits?.sunday?.visit_average || -1),
+    routes_count: stop.route_stops.length,
+    routes_modes: Array.from(modes).join(','),
+    agencies_count: agencies.size,
+    visit_count_daily_average: roundOr(stop.visits?.total?.visit_average),
+    visit_count_monday_average: roundOr(stop.visits?.monday?.visit_average),
+    visit_count_tuesday_average: roundOr(stop.visits?.tuesday?.visit_average),
+    visit_count_wednesday_average: roundOr(stop.visits?.wednesday?.visit_average),
+    visit_count_thursday_average: roundOr(stop.visits?.thursday?.visit_average),
+    visit_count_friday_average: roundOr(stop.visits?.friday?.visit_average),
+    visit_count_saturday_average: roundOr(stop.visits?.saturday?.visit_average),
+    visit_count_sunday_average: roundOr(stop.visits?.sunday?.visit_average),
   }
+}
+
+function roundOr(value: number | null | undefined): number | null {
+  const digits = 2
+  if (value == null) {
+    return null
+  }
+  const factor = Math.pow(10, digits)
+  return Math.round(value * factor) / factor
 }
