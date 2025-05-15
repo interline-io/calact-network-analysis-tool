@@ -47,9 +47,9 @@ export const geomLayers = {
   'county': 'County',
   'state': 'State',
   'tract': 'Census Tract',
-  'block_group': 'Census Block Group',
-  'block': 'Census Block',
-  'city': 'City',
+  'bg': 'Census Block Group',
+  'tabblock20': 'Census Block',
+  'place': 'City',
   'urbanized_area': 'Census Urbanized Area',
   'fta_urbanized_area': 'FTA Urbanized Area',
 }
