@@ -1,9 +1,7 @@
 <template>
-  <div>
-    <button :disabled="disabled" class="button is-fullwidth my-1" @click="saveFile">
-      <o-icon icon="download" /> <span>{{ buttonText }}</span>
-    </button>
-  </div>
+  <o-button icon-left="download" :disabled="disabled" @click="saveFile">
+    {{ buttonText }}
+  </o-button>
 </template>
 
 <script>
