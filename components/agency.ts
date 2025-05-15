@@ -19,25 +19,27 @@ export interface AgencyGtfs {
   
   export interface AgencyDerived {
     marked: boolean
-    number_routes: number
-    number_stops: number
+    routes_count: number
+    routes_modes: string
+    stops_count: number
   }
   
   export type AgencyCsv = AgencyGtfs & { 
     id: number
     marked: boolean
-    number_routes: number
-    number_stops: number
+    routes_count: number
+    routes_modes: string
+    stops_count: number
   }
   
   export type Agency = AgencyGql & AgencyDerived
   
   export function agencyToAgencyCsv(agency: Agency): AgencyCsv {
-    console.log('agencyToAgencyCsv', agency)
       return {
         marked: agency.marked,
-        number_routes: agency.number_routes,
-        number_stops: agency.number_stops,
+        routes_count: agency.routes_count,
+        routes_modes: agency.routes_modes,
+        stops_count: agency.stops_count,
         // GTFS properties
         id: agency.id,
         agency_id: agency.agency_id,

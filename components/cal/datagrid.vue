@@ -1,15 +1,24 @@
 <template>
   <div class="cal-report">
     <div class="cal-report-total block">
-      {{ tableReport.total }} results found
+      {{ total }} results found
     </div>
 
-    <o-pagination
-      v-model:current="current"
-      :total="tableReport.total"
-      order="centered"
-      :per-page="tableReport.perPage"
-    />
+    <o-field grouped expanded>
+      <o-field>
+        <cal-csv-download
+          :data="tableReport.data"
+          :disabled="loading"
+        />
+      </o-field>
+      <o-pagination
+        v-model:current="current"
+        expanded
+        :total="total"
+        order="centered"
+        :per-page="perPage"
+      />
+    </o-field>
 
     <table class="cal-report-table table is-bordered is-striped">
       <thead>
@@ -20,7 +29,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in tableReport.data" :key="row.id">
+        <tr v-for="row in currentRows" :key="row.id">
           <td v-for="column in tableReport.columns" :key="column.key">
             {{ row[column.key] }}
           </td>
@@ -38,8 +47,6 @@ export interface TableColumn {
 }
 
 export interface TableReport {
-  total: number
-  perPage: number
   columns: TableColumn[]
   data: Record<string, any>[]
 }
@@ -47,8 +54,18 @@ export interface TableReport {
 
 <script setup lang="ts">
 
+const perPage = 20
+const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
-const current = defineModel<number>('current', { required: true })
+const current = defineModel<number>('current', { default: 1 })
+const currentRows = computed(() => {
+  const start = (current.value - 1) * perPage
+  const end = start + perPage
+  return tableReport?.value?.data.slice(start, end) || []
+})
+const total = computed(() => {
+  return (tableReport?.value?.data || []).length
+})
 
 </script>
 

@@ -23,7 +23,7 @@
         </ul>
       </div>
 
-      <div class="report-select">
+      <div class="cal-report-option-section">
         Showing data by:
 
         <section>
@@ -54,12 +54,19 @@
         <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
-      <div class="cal-report-download">
-        <cal-csv-download
-          :data="reportData"
-          :disabled="!stopDepartureLoadingComplete"
-        />
+      <div class="cal-report-option-section">
+        Aggregate data by:
+        <br>
+        <br>
+        <o-field>
+          <o-select
+            v-model="aggregateMode"
+            :options="aggregateOptions"
+          />
+        </o-field>
+      </div>
 
+      <div class="cal-report-download">
         <cal-geojson-download
           :data="exportFeatures"
           :disabled="!stopDepartureLoadingComplete"
@@ -67,95 +74,28 @@
       </div>
     </div>
 
-    <div class="cal-report-total block">
-      {{ total }} results found
+    <div v-if="aggregateMode">
+      <cal-datagrid
+        :table-report="geoReportData"
+        :loading="!stopDepartureLoadingComplete"
+      />
+      <hr>
     </div>
 
-    <o-pagination
-      v-model:current="current"
-      :total="total"
-      order="centered"
-      :per-page="perPage"
+    <cal-datagrid
+      :table-report="reportData"
+      :loading="!stopDepartureLoadingComplete"
     />
-
-    <table class="cal-report-table table is-bordered is-striped">
-      <thead v-if="dataDisplayMode === 'Route'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>route_id</th>
-          <th>route_name</th>
-          <th>mode</th>
-          <th>agency</th>
-          <th>average frequency</th>
-          <th>fastest frequency</th>
-          <th>slowest frequency</th>
-        </tr>
-      </thead>
-      <thead v-else-if="dataDisplayMode === 'Stop'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>stop_id</th>
-          <th>stop_name</th>
-          <th>mode</th>
-          <th>number of routes served</th>
-          <th>average visits per day</th>
-        </tr>
-      </thead>
-      <thead v-else-if="dataDisplayMode === 'Agency'">
-        <tr class="has-background-grey-dark">
-          <!-- <th>row</th> -->
-          <th>agency_id</th>
-          <th>agency_name</th>
-          <th>number of routes</th>
-          <th>number of stops</th>
-        </tr>
-      </thead>
-
-      <tbody v-if="dataDisplayMode === 'Route'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.route_id }}</td>
-          <td>{{ result.route_name }}</td>
-          <td>{{ result.mode }}</td>
-          <td>{{ result.agency_name }}</td>
-          <td>{{ result.average_frequency >= 0 ? Math.round(result.average_frequency / 60) : '-' }}</td>
-          <td>{{ result.fastest_frequency >= 0 ? Math.round(result.fastest_frequency / 60) : '-' }}</td>
-          <td>{{ result.slowest_frequency >= 0 ? Math.round(result.slowest_frequency / 60) : '-' }}</td>
-        </tr>
-      </tbody>
-      <tbody v-else-if="dataDisplayMode === 'Stop'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.stop_id }}</td>
-          <td>{{ result.stop_name }}</td>
-          <td>{{ result.modes }}</td>
-          <td>{{ result.number_served }}</td>
-          <td>{{ result.visit_count_daily_average >= 0 ? result.visit_count_daily_average : '-' }}</td>
-        </tr>
-      </tbody>
-      <tbody v-else-if="dataDisplayMode === 'Agency'">
-        <tr v-for="result of reportData.slice(index * perPage, (index + 1) * perPage)" :key="result.id">
-          <!-- <td>{{ result.row }}</td> -->
-          <td>{{ result.agency_id }}</td>
-          <td>{{ result.agency_name }}</td>
-          <td>{{ result.number_routes }}</td>
-          <td>{{ result.number_stops }}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="cal-report-footer">
-      * results include only stops within the selected bounding box.
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
+import { type Stop, type StopCsv, stopToStopCsv, stopGeoAggregateCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '../agency'
 import { type Feature } from '../geom'
-import { type TableColumn } from './datagrid.vue'
+import { type TableReport, type TableColumn } from './datagrid.vue'
+import { geomLayers } from '../constants'
 
 const props = defineProps<{
   stopFeatures: Stop[]
@@ -166,57 +106,96 @@ const props = defineProps<{
   stopDepartureLoadingComplete: boolean
 }>()
 
-const current = ref(1)
-const index = computed(() => current.value - 1)
-const total = computed(() => reportData.value.length)
-const perPage = ref(20)
-const dataDisplayMode = defineModel<string>('dataDisplayMode')
+const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
+const aggregateMode = defineModel<string>('aggregateMode', { default: 'county' })
 
 const emit = defineEmits([
   'clickFilterLink'
 ])
 
+// Copy the geometry layers, and add a 'None' option
+const aggregateOptions: Record<string, string> = Object.assign({ none: '' }, geomLayers)
+
 // TODO: For when we switch to datagrid
-const stopColumns: TableColumn[] = [
+const routeColumns: TableColumn[] = [
   { key: 'route_id', label: 'Route ID', sortable: true },
   { key: 'route_name', label: 'Route Name', sortable: true },
   { key: 'route_mode', label: 'Mode', sortable: true },
-  { key: 'route_agency', label: 'Agency', sortable: true },
+  { key: 'agency_name', label: 'Agency', sortable: true },
   { key: 'average_frequency', label: 'Average Frequency', sortable: true },
   { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
   { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
 ]
 
-const routeColumns: TableColumn[] = [
+// const routeColumnsAggregate: TableColumn[] = [
+//   { key: 'aggregate_name', label: 'Name', sortable: true },
+//   { key: 'aggregate_total', label: 'Number of Routes', sortable: true },
+//   { key: 'average_frequency', label: 'Average Frequency', sortable: true },
+//   { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
+//   { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
+// ]
+
+const stopColumns: TableColumn[] = [
   { key: 'stop_id', label: 'Stop ID', sortable: true },
   { key: 'stop_name', label: 'Stop Name', sortable: true },
-  { key: 'stop_modes', label: 'Modes', sortable: true },
-  { key: 'routes_served_count', label: 'Routes Served', sortable: true },
-  { key: 'average_visit_count', label: 'Average Visits', sortable: true },
+  { key: 'routes_modes', label: 'Modes', sortable: true },
+  { key: 'routes_count', label: 'Routes Served', sortable: true },
+  { key: 'agencies_count', label: 'Agencies Served', sortable: true },
+  { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
 ]
-
+const stopGeoAggregateColumns: TableColumn[] = [
+  { key: 'name', label: 'Name', sortable: true },
+  { key: 'stops_count', label: 'Number of Stops', sortable: true },
+  { key: 'routes_modes', label: 'Modes', sortable: true },
+  { key: 'routes_count', label: 'Routes Served', sortable: true },
+  { key: 'agencies_count', label: 'Agencies Served', sortable: true },
+  { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
+]
 const agencyColumns: TableColumn[] = [
   { key: 'agency_id', label: 'Agency ID', sortable: true },
   { key: 'agency_name', label: 'Agency Name', sortable: true },
-  { key: 'number_routes', label: 'Number of Routes', sortable: true },
-  { key: 'number_stops', label: 'Number of Stops', sortable: true },
+  { key: 'routes_count', label: 'Number of Routes', sortable: true },
+  { key: 'routes_modes', label: 'Modes', sortable: true },
+  { key: 'stops_count', label: 'Number of Stops', sortable: true },
 ]
 
-const reportData = computed((): Record<string, any>[] => {
-  // inline reports so they are dependent on the model data
-  if (dataDisplayMode.value === 'Route') {
-    return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
-  } else if (dataDisplayMode.value === 'Stop') {
-    return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
-  } else if (dataDisplayMode.value === 'Agency') {
-    return props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv)
+// const agencyColumnsAggregate: TableColumn[] = [
+//   { key: 'aggregate_name', label: 'Name', sortable: true },
+//   { key: 'aggregate_total', label: 'Number of Agencies', sortable: true },
+//   { key: 'number_routes', label: 'Number of Routes', sortable: true },
+//   { key: 'number_stops', label: 'Number of Stops', sortable: true },
+// ]
+
+const geoReportData = computed((): TableReport => {
+  // Handle aggregation
+  if (dataDisplayMode.value === 'Stop') {
+    return {
+      data: stopGeoAggregateCsv(props.stopFeatures.filter(s => (s.marked)), aggregateMode.value),
+      columns: stopGeoAggregateColumns
+    }
   }
-  return []
+  return { data: [], columns: [] }
 })
 
-// When switching to a different report, return to first page
-watch(dataDisplayMode, () => {
-  current.value = 1
+const reportData = computed((): TableReport => {
+  // Non-aggregated data
+  if (dataDisplayMode.value === 'Route') {
+    return {
+      data: props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv),
+      columns: routeColumns
+    }
+  } else if (dataDisplayMode.value === 'Stop') {
+    return {
+      data: props.stopFeatures.filter(s => s.marked).map(stopToStopCsv), columns:
+         stopColumns
+    }
+  } else if (dataDisplayMode.value === 'Agency') {
+    return {
+      data: props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv),
+      columns: agencyColumns
+    }
+  }
+  return { data: [], columns: [] }
 })
 
 </script>
@@ -244,19 +223,19 @@ watch(dataDisplayMode, () => {
     justify-content: space-between;
 
     > .filter-detail {
-      flex: 0 1 60%;
+      flex: 1 1 25%;
       align-self: stretch;
       background-color: #ddd;
       border: 1px solid #333;
       padding: 5px;
     }
 
-    > .report-select {
-      flex: 1 0 0;
+    > .cal-report-option-section {
+      flex: 1;
       align-self: stretch;
       border: 1px solid #333;
       padding: 5px;
-      margin: 0 15px;
+      margin-left: 15px;
 
       > .which-report {
         font-size: larger;
@@ -265,30 +244,11 @@ watch(dataDisplayMode, () => {
     }
 
     > .cal-report-download {
+      flex: 1;
       display: flex;
-      flex: 0 1 10%;
       align-self: center;
       flex-flow: column nowrap;
+      margin-left: 15px;
     }
   }
-
-  .cal-report-total {
-    font-style: italic;
-  }
-
-  .cal-report-table {
-    th, td {
-      padding: 2px 5px;
-    }
-    th {
-      background-color: #666;
-      color: #fff;
-    }
-  }
-
-  .cal-report-footer {
-    font-style: italic;
-    text-align: end;
-  }
-
 </style>
