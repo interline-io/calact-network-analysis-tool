@@ -68,11 +68,11 @@ export interface RouteDerived {
   marked: boolean
   route_name: string
   agency_name: string
-  mode: string
+  route_mode: string
   headways: RouteHeadwaySummary
-  average_frequency: number
-  fastest_frequency: number
-  slowest_frequency: number
+  average_frequency: number | null
+  fastest_frequency: number | null
+  slowest_frequency: number | null
 }
 
 export type RouteHeadwayCount = {
@@ -101,10 +101,10 @@ export type RouteCsv = RouteGtfs & {
   marked: boolean
   route_name: string
   agency_name: string
-  mode: string
-  average_frequency: number
-  fastest_frequency: number
-  slowest_frequency: number
+  route_mode: string
+  average_frequency: number | null
+  fastest_frequency: number | null
+  slowest_frequency: number | null
 }
 
 export type Route = RouteGql & RouteDerived
@@ -143,9 +143,9 @@ export function routeSetDerived(
       route.fastest_frequency = hw.headways_seconds[0]
       route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1]
     } else {
-      route.average_frequency = -1
-      route.fastest_frequency = -1
-      route.slowest_frequency = -1
+      route.average_frequency = null
+      route.fastest_frequency = null
+      route.slowest_frequency = null
     }
   }
   // Mark after setting frequency values
@@ -183,13 +183,13 @@ function routeMarked(
   }
 
   if (sdCache && frequencyOver >= 0) {
-    if (route.average_frequency < frequencyOver*60 || route.average_frequency < 0) {
+    if (!route.average_frequency || route.average_frequency < frequencyOver*60) {
       return false
     }
   }
 
   if (sdCache && frequencyUnder >= 0) {
-    if (route.average_frequency > frequencyUnder*60 || route.average_frequency < 0) {
+    if (!route.average_frequency || route.average_frequency > frequencyUnder*60) {
       return false
     }
   }
@@ -304,11 +304,11 @@ export function routeToRouteCsv(route: Route): RouteCsv {
   return {
     id: route.id,
     marked: route.marked,
-    average_frequency: Math.round(route.average_frequency),
-    fastest_frequency: Math.round(route.fastest_frequency),
-    slowest_frequency: Math.round(route.slowest_frequency),
+    average_frequency: route.average_frequency ? Math.round(route.average_frequency) : null,
+    fastest_frequency: route.fastest_frequency ? Math.round(route.fastest_frequency) : null,
+    slowest_frequency: route.slowest_frequency ? Math.round(route.slowest_frequency) : null,
     agency_name: route.agency_name,
-    mode: route.mode,
+    route_mode: route.route_mode,
     route_name: route.route_name,
     // GTFS properties
     route_id: route.route_id,
