@@ -275,7 +275,7 @@ const styleData = computed((): Matcher[] => {
           return headway >= val * 60
         })
       } else if (v.__typename === 'Route') {
-        const headway = (v as Route).average_frequency
+        const headway = (v as Route).average_frequency || -1
         return headway >= val * 60
       }
       return false
