@@ -4,12 +4,21 @@
       {{ total }} results found
     </div>
 
-    <o-pagination
-      v-model:current="current"
-      :total="total"
-      order="centered"
-      :per-page="perPage"
-    />
+    <o-field grouped expanded>
+      <o-field>
+        <cal-csv-download
+          :data="tableReport.data"
+          :disabled="loading"
+        />
+      </o-field>
+      <o-pagination
+        v-model:current="current"
+        expanded
+        :total="total"
+        order="centered"
+        :per-page="perPage"
+      />
+    </o-field>
 
     <table class="cal-report-table table is-bordered is-striped">
       <thead>
@@ -46,6 +55,7 @@ export interface TableReport {
 <script setup lang="ts">
 
 const perPage = 20
+const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
 const currentRows = computed(() => {
