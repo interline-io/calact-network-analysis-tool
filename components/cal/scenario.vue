@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 
 import {
   type StopDeparture,
+  type StopTime,
   StopDepartureQueryVars,
   stopDepartureQuery
 } from '../departure'
@@ -159,7 +160,7 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
   })
   check?.then((v) => {
     console.log('stopQueue: resolved')
-    const stopData = v?.data?.stops || v?.stops || []
+    const stopData: StopGql[] = v?.data?.stops || v?.stops || []
     const routeIds: Set<number> = new Set()
     for (const stop of stopData) {
       for (const rs of stop.route_stops || []) {
@@ -219,7 +220,7 @@ const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   })
   check?.then((v) => {
     console.log('routeQueue: resolved')
-    const routeData = v?.data?.routes || v?.routes || []
+    const routeData: RouteGql[] = v?.data?.routes || v?.routes || []
     const routeIdx = new Map<number, RouteGql>()
     for (const route of routeResultFixed.value || []) {
       routeIdx.set(route.id, route)
@@ -289,15 +290,22 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   check?.then((v) => {
     // Update cache
     activeStopDepartureQueryCount.value -= 1
-    const stopData = v?.data?.stops || v?.stops || []
+    const stopData: StopDeparture[] = v?.data?.stops || v?.stops || []
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
         continue
       }
       for (const stop of stopData) {
-        const stopDepartures = stop[dow] || []
-        stopDepartureCache.add(stop.id, dowDate, stopDepartures)
+        let r: StopTime[] = []
+        if (dow === 'monday') { r = stop.monday || [] }
+        if (dow === 'tuesday') { r = stop.tuesday || [] }
+        if (dow === 'wednesday') { r = stop.wednesday || [] }
+        if (dow === 'thursday') { r = stop.thursday || [] }
+        if (dow === 'friday') { r = stop.friday || [] }
+        if (dow === 'saturday') { r = stop.saturday || [] }
+        if (dow === 'sunday') { r = stop.sunday || [] }
+        stopDepartureCache.add(stop.id, dowDate, r)
       }
     }
     stopDepartureCache.debugStats()
@@ -307,7 +315,6 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
 
 // Break into weeks
 function enqueueStopDepartureFetch (stopIds: number[]) {
-  return
   if (stopIds.length === 0) {
     // Enqueue empty task to signal complete
     stopDepartureQueue.enqueue().maxConcurrency(1).perform(new StopDepartureQueryVars())
@@ -373,11 +380,11 @@ watch(() => [
       ...routeGql,
       route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
       agency_name: routeGql.agency?.agency_name || 'Unknown',
-      mode: routeTypes.get(routeGql.route_type) || 'Unknown',
+      route_mode: routeTypes.get(routeGql.route_type) || 'Unknown',
       marked: true,
-      average_frequency: -1,
-      fastest_frequency: -1,
-      slowest_frequency: -1,
+      average_frequency: null,
+      fastest_frequency: null,
+      slowest_frequency: null,
       headways: newRouteHeadwaySummary(),
     }
     routeSetDerived(
@@ -437,10 +444,12 @@ watch(() => [
       let adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),
+        routes_modes: new Set(),
         stops: new Set(),
         agency: agency
       }
       adata.routes.add(rstop.route.id)
+      adata.routes_modes.add(rstop.route.route_type)
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }
@@ -459,8 +468,9 @@ watch(() => [
     const agency = adata.agency as Agency
     return {
       marked: markedAgencies.has(agency.id),
-      number_routes: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
-      number_stops: adata.stops.size, // adata.stops.intersection(markedStops).size,
+      routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
+      routes_modes: [...adata.routes_modes].map(r => (routeTypes.get(r) || 'Unknown')).join(', '),
+      stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
       id: agency.id,
       agency_id: agency.agency_id,
       agency_name: agency.agency_name,
