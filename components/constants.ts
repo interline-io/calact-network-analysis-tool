@@ -46,12 +46,12 @@ export const geomSources = {
 export const geomLayers = {
   'county': 'County',
   'state': 'State',
-  'censusTract': 'Census Tract',
-  'censusBlockGroup': 'Census Block Group',
-  'censusBlock': 'Census Block',
+  'tract': 'Census Tract',
+  'block_group': 'Census Block Group',
+  'block': 'Census Block',
   'city': 'City',
-  'censusUrbanizedArea': 'Census Urbanized Area',
-  'ftaUrbanizedArea': 'FTA Urbanized Area',
+  'urbanized_area': 'Census Urbanized Area',
+  'fta_urbanized_area': 'FTA Urbanized Area',
 }
 
 export const routeColorModes = [
