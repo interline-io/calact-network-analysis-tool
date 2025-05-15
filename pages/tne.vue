@@ -115,7 +115,7 @@
         </div>
 
         <div v-if="activeTab.tab === 'report'" class="cal-overlay">
-          <cal-report2
+          <cal-report
             v-model:data-display-mode="dataDisplayMode"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
