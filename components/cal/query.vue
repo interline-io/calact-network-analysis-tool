@@ -141,7 +141,7 @@ const toggleSelectSingleDay = useToggle(selectSingleDay)
 const debugMenu = useDebugMenu()
 
 const geographyQuery = gql`
-query($dataset_name: String, $search: String, $layer: String, $limit: Int=10){
+query($dataset_name: String, $search: String, $layer: String, $limit: Int=100){
   census_datasets(where:{dataset_name:$dataset_name}) {
     dataset_name
     geographies(limit: $limit, where:{layer:$layer, search:$search}) {
@@ -178,7 +178,7 @@ const {
     dataset_name: 'tiger2024',
     layer: geomLayer.value,
     search: geomSearch.value,
-    limit: 15,
+    limit: 100,
   }), {
     debounce: 50,
     keepPreviousResult: true
