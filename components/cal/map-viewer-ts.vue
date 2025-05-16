@@ -24,21 +24,13 @@ const emit = defineEmits([
   'setZoom',
 ])
 
-const props = withDefaults(defineProps<{
-  features?: Feature[]
-  markers?: MarkerFeature[]
-  popupFeatures?: PopupFeature[]
-  mapClass?: string
-  autoFit?: boolean
-  center: Point
-  zoom: number
-}>(), {
-  features: () => ([]),
-  markers: () => ([]),
-  popupFeatures: () => ([]),
-  mapClass: 'short',
-  autoFit: true,
-})
+const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
+const features = defineModel<Feature[]>('features', { default: [] })
+const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
+const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
+const mapClass = defineModel<string>('mapClass', { default: 'short' })
+const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
+const zoom = defineModel<number>('zoom', { default: 12 })
 
 let map: (maplibre.Map | null) = null
 const markerLayer = ref<maplibre.Marker[]>([])
@@ -46,33 +38,33 @@ const markerLayer = ref<maplibre.Marker[]>([])
 //////////////////////
 // Watchers
 
-watch(() => props.features, (v) => {
+watch(() => overlayFeatures.value, (v) => {
   nextTick(() => {
-    updateFeatures(v)
+    updateOverlayFeatures(v)
   })
 })
 
-watch(() => props.markers, (v) => {
+watch(() => markers.value, (v) => {
   drawMarkers(v)
 })
 
-watch(() => props.popupFeatures, (v) => {
+watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
 })
 
-watch(() => props.features, (v) => {
+watch(() => features.value, (v) => {
   updateFeatures(v)
 })
 
-watch(() => props.center, (oldVal, newVal) => {
+watch(() => center, (oldVal, newVal) => {
   if (oldVal.toString() === newVal.toString()) {
     return
   }
-  map?.jumpTo({ center: props.center, zoom: props.zoom })
+  map?.jumpTo({ center: center.value, zoom: zoom.value })
 })
 
-watch(() => props.zoom, () => {
-  map?.jumpTo({ center: props.center, zoom: props.zoom })
+watch(() => zoom, () => {
+  map?.jumpTo({ center: center.value, zoom: zoom.value })
 })
 
 //////////////////////
@@ -88,8 +80,8 @@ function initMap () {
   const opts: maplibre.MapOptions = {
     interactive: true,
     container: 'mapelem',
-    zoom: props.zoom,
-    center: props.center,
+    zoom: zoom.value,
+    center: center.value,
     style: {
       glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
       version: 8,
@@ -107,12 +99,12 @@ function initMap () {
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
   map.addControl(new maplibre.NavigationControl())
-  drawMarkers(props.markers)
+  drawMarkers(markers.value)
   map.on('load', () => {
     createSources()
     createLayers()
-    updateFeatures(props.features)
-    fitFeatures(props.features)
+    updateOverlayFeatures(overlayFeatures.value)
+    updateFeatures(features.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
     map?.on('zoom', mapZoom)
@@ -122,7 +114,7 @@ function initMap () {
 }
 
 function createSources () {
-  map?.addSource('polygons', {
+  map?.addSource('overlayPolygons', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -141,24 +133,24 @@ function createLayers () {
     map?.addLayer(labelLayer)
   }
   map?.addLayer({
-    id: 'polygons',
+    id: 'overlay-polygons',
     type: 'fill',
-    source: 'polygons',
+    source: 'overlayPolygons',
     layout: {},
     paint: {
-      'fill-color': ['coalesce', ['get', 'fill-color'], '#ccc'],
-      'fill-opacity': 0.2
+      'fill-color': '#ccc',
+      'fill-opacity': 0.3
     }
   })
   map?.addLayer({
-    id: 'polygons-outline',
+    id: 'overlay-polygons-outline',
     type: 'line',
-    source: 'polygons',
+    source: 'overlayPolygons',
     layout: {},
     paint: {
-      'line-width': ['coalesce', ['get', 'line-width'], 2],
-      'line-color': ['coalesce', ['get', 'line-color'], '#ff0000'],
-      'line-opacity': 0.2
+      'line-width': 2,
+      'line-color': '#ff0000',
+      'line-opacity': 0.6
     }
   })
   map?.addLayer({
@@ -184,12 +176,13 @@ function createLayers () {
   })
 }
 
-function updateFeatures (features: Feature[]) {
+function updateOverlayFeatures (features: Feature[]) {
+  console.log('updateOverlayFeatures', features)
   if (!map) {
     return
   }
   // Check source exists
-  const p = map.getSource('polygons')
+  const p = map.getSource('overlayPolygons')
   if (!p) {
     return
   }
@@ -197,15 +190,31 @@ function updateFeatures (features: Feature[]) {
     return
   }
   // Update sources
-  const polygons = features.filter((s) => { return s.geometry.type === 'MultiPolygon' || s.geometry.type === 'Polygon' })
-  const points = features.filter((s) => { return s.geometry.type === 'Point' })
-  const lines = features.filter((s) => { return s.geometry.type === 'LineString' || s.geometry.type === 'MultiLineString' })
-  const polygonSource = map.getSource('polygons') as maplibre.GeoJSONSource
-  const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
-  const pointSource = map.getSource('points') as maplibre.GeoJSONSource
+  const polygonSource = map.getSource('overlayPolygons') as maplibre.GeoJSONSource
   if (polygonSource) {
+    const polygons = features.filter((s) => { return s.geometry.type === 'MultiPolygon' || s.geometry.type === 'Polygon' })
     polygonSource.setData({ type: 'FeatureCollection', features: polygons })
   }
+  fitFeatures(features)
+}
+
+function updateFeatures (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  // Check source exists
+  const p = map.getSource('lines')
+  if (!p) {
+    return
+  }
+  if (!map) {
+    return
+  }
+  // Update sources
+  const points = features.filter((s) => { return s.geometry.type === 'Point' })
+  const lines = features.filter((s) => { return s.geometry.type === 'LineString' || s.geometry.type === 'MultiLineString' })
+  const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
+  const pointSource = map.getSource('points') as maplibre.GeoJSONSource
   if (lineSource) {
     lineSource.setData({ type: 'FeatureCollection', features: lines })
   }
@@ -238,7 +247,7 @@ function fitFeatures (features: Feature[]) {
       }
     }
   }
-  if (props.autoFit && coords.length > 0) {
+  if (coords.length > 0) {
     const bounds = coords.reduce(function (bounds, coord) {
       return bounds.extend(coord)
     }, new maplibre.LngLatBounds(coords[0], coords[0]))
@@ -298,7 +307,7 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'polygons', 'lines'] })
+  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
   if (features) {
     emit('mapClickFeatures', e.lngLat, features)
   }
@@ -313,7 +322,7 @@ function mapMove () {
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'polygons', 'lines'] })
+  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
   if (features) {
     emit('mapHoverFeatures', features)
   }

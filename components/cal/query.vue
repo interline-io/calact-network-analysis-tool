@@ -124,7 +124,7 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'setBbox',
-  'setFeatures',
+  'setSelectedFeatures',
   'explore'
 ])
 
@@ -258,8 +258,7 @@ watch(geomSelected, () => {
       }
     })
   }
-
-  emit('setFeatures', features)
+  emit('setSelectedFeatures', features)
 })
 
 const validQueryParams = computed(() => {

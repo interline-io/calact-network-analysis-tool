@@ -76,7 +76,7 @@
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @set-features="setSelectedFeatures"
+            @set-selected-features="setSelectedFeatures"
             @explore="runQuery()"
           />
         </div>

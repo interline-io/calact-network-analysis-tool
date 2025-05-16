@@ -167,7 +167,7 @@ const agencyColumns: TableColumn[] = [
 // ]
 
 const geoReportData = computed((): TableReport => {
-  if (aggregateMode.value === '') {
+  if (aggregateMode.value === '' || aggregateMode.value === 'none') {
     return { data: [], columns: [] }
   }
   // Handle aggregation
