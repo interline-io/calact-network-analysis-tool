@@ -131,25 +131,25 @@
 
       <!-- This is a component for handling data flow -->
       <cal-scenario
-        v-model:frequency-under-enabled="frequencyUnderEnabled"
-        v-model:frequency-under="frequencyUnder"
-        v-model:frequency-over-enabled="frequencyOverEnabled"
-        v-model:frequency-over="frequencyOver"
-        :run-count="runCount"
         :bbox="bbox"
-        :start-date="startDate"
         :end-date="endDate"
-        :selected-days="selectedDays"
-        :selected-route-types="selectedRouteTypes"
-        :selected-agencies="selectedAgencies"
-        :selected-time-of-day-mode="selectedTimeOfDayMode"
-        :selected-day-of-week-mode="selectedDayOfWeekMode"
-        :start-time="startTime"
         :end-time="endTime"
-        :geom-source="geomSource"
-        :schedule-enabled="scheduleEnabled"
+        :frequency-over-enabled="frequencyOverEnabled"
+        :frequency-over="frequencyOver"
+        :frequency-under-enabled="frequencyUnderEnabled"
+        :frequency-under="frequencyUnder"
         :geography-ids="geographyIds"
+        :geom-source="geomSource"
+        :run-count="runCount"
+        :schedule-enabled="scheduleEnabled"
+        :selected-agencies="selectedAgencies"
+        :selected-day-of-week-mode="selectedDayOfWeekMode"
+        :selected-days="selectedDays"
         :selected-features="selectedFeatures"
+        :selected-route-types="selectedRouteTypes"
+        :selected-time-of-day-mode="selectedTimeOfDayMode"
+        :start-date="startDate"
+        :start-time="startTime"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="stopFeatures = $event"
@@ -203,9 +203,8 @@ const runCount = ref(0)
 const selectedFeatures = ref<Feature[]>([]) // for now
 
 function setSelectedFeatures (features: Feature[]) {
-  console.log('setSelectedFeatures', features)
   selectedFeatures.value = features
-  console.log('selectedFeatures geographyIds:', features.map(f => parseInt(f.id)))
+  geographyIds.value = features.map(f => parseInt(f.id))
 }
 
 // Loading and error handling
@@ -257,7 +256,7 @@ const geographyIds = computed({
     return route.query.geographyIds?.toString().split(',').map(parseInt) || []
   },
   set (v: number[]) {
-    setQuery({ ...route.query, geomLayer: v.map(String).join(',') })
+    setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
   }
 })
 
