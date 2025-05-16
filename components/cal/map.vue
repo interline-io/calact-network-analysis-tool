@@ -28,9 +28,9 @@
       map-class="tall"
       :center="centerPoint"
       :zoom="14"
+      :overlay-features="overlayFeatures"
       :features="displayFeatures"
       :markers="bboxMarkers"
-      :auto-fit="false"
       :popup-features="popupFeatures"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
@@ -46,8 +46,6 @@ import { colors, routeTypes } from '../constants'
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency } from '../agency'
-
-const route = useRoute()
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]
@@ -383,10 +381,7 @@ const styleData = computed((): Matcher[] => {
 
 // Features for display include the all route and stop features.
 // Match all features to styling rules and apply as GeoJSON simplestyle
-const displayFeatures = computed((): Feature[] => {
-  const bgColor = '#aaa'
-  const bgOpacity = 0.4
-  const styleRules = styleData.value || []
+const overlayFeatures = computed((): Feature[] => {
   const forDisplay: Feature[] = []
 
   // Include bbox in display features
@@ -398,6 +393,14 @@ const displayFeatures = computed((): Feature[] => {
   for (const feature of props.selectedFeatures) {
     forDisplay.push(feature)
   }
+  return forDisplay
+})
+
+const displayFeatures = computed((): Feature[] => {
+  const bgColor = '#aaa'
+  const bgOpacity = 0.4
+  const styleRules = styleData.value || []
+  const forDisplay: Feature[] = []
 
   // Gather routes
   for (const rp of props.routeFeatures) {

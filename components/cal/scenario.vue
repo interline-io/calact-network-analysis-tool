@@ -49,12 +49,8 @@ const emit = defineEmits<{
   setStopDepartureProgress: [value: { total: number, queue: number }]
 }>()
 
-const props = defineProps<{
-  bbox: Bbox
-  scheduleEnabled: boolean
-  selectedFeatures: Feature[]
-}>()
-
+const bbox = defineModel<Bbox>('bbox')
+const scheduleEnabled = defineModel<boolean>('scheduleEnabled', { default: true })
 const runCount = defineModel<number>('runCount')
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
@@ -69,6 +65,8 @@ const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
+const selectedFeatures = defineModel<Feature[]>('selectedFeatures', { default: [] })
+const geographyIds = defineModel<number[]>('geographyIds')
 
 const stopLimit = 1000
 const stopDepartureCache = new StopDepartureCache()
@@ -100,14 +98,17 @@ const selectedDateRange = computed((): Date[] => {
 /////////////////////////////
 
 const stopVars = computed(() => {
-  const bbox = {
-    min_lon: props.bbox.sw.lon,
-    min_lat: props.bbox.sw.lat,
-    max_lon: props.bbox.ne.lon,
-    max_lat: props.bbox.ne.lat
-  }
+  const b = bbox.value == null
+    ? null
+    : {
+        min_lon: bbox.value.sw.lon,
+        min_lat: bbox.value.sw.lat,
+        max_lon: bbox.value.ne.lon,
+        max_lat: bbox.value.ne.lat
+      }
+
   // BUG: server only accepts id/geometry properties on features today
-  const fc = props.selectedFeatures.map(s => ({
+  const fc = selectedFeatures.value.map(s => ({
     id: s.id,
     geometry: s.geometry
   }))
@@ -118,7 +119,7 @@ const stopVars = computed(() => {
     limit: stopLimit,
     where: {
       location_type: 0,
-      bbox: fc.length > 0 ? null : bbox,
+      bbox: fc.length > 0 ? null : b,
       within_features: fc.length > 0 ? fc : null,
     }
   }
@@ -274,7 +275,7 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   if (task.ids.length === 0) {
     return
   }
-  if (!props.scheduleEnabled) {
+  if (!scheduleEnabled.value) {
     console.log('schedule loading disabled, skipping departure queue')
     task.ids = [0]
   }
@@ -356,7 +357,8 @@ watch(() => [
   selectedRouteTypes.value,
   startTime.value,
   stopDepartureLoadingComplete.value,
-  props.selectedFeatures,
+  selectedFeatures.value,
+  geographyIds.value,
 ], () => {
   // Check defaults
   const selectedDayOfWeekModeValue = selectedDayOfWeekMode.value || ''
@@ -369,8 +371,6 @@ watch(() => [
   const endTimeValue = endTime.value ? format(endTime.value, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1
   const frequencyOverValue = (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1
-
-  console.log('selectedFeatures', props.selectedFeatures)
 
   /////////////////////////
   // Apply route filters

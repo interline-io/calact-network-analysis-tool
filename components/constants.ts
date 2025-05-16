@@ -51,7 +51,7 @@ export const geomLayers = {
   'tabblock20': 'Census Block',
   'place': 'City',
   'urbanized_area': 'Census Urbanized Area',
-  'fta_urbanized_area': 'FTA Urbanized Area',
+  // 'fta_urbanized_area': 'FTA Urbanized Area',
 }
 
 export const routeColorModes = [

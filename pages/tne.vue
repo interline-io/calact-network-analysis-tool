@@ -76,7 +76,7 @@
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
             @set-bbox="bbox = $event"
-            @set-features="selectedFeatures = $event"
+            @set-selected-features="setSelectedFeatures"
             @explore="runQuery()"
           />
         </div>
@@ -117,6 +117,7 @@
         <div v-if="activeTab.tab === 'report'" class="cal-overlay">
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
+            v-model:aggregate-mode="geomLayer"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
@@ -130,24 +131,25 @@
 
       <!-- This is a component for handling data flow -->
       <cal-scenario
-        v-model:frequency-under-enabled="frequencyUnderEnabled"
-        v-model:frequency-under="frequencyUnder"
-        v-model:frequency-over-enabled="frequencyOverEnabled"
-        v-model:frequency-over="frequencyOver"
-        :run-count="runCount"
         :bbox="bbox"
-        :start-date="startDate"
         :end-date="endDate"
-        :selected-days="selectedDays"
-        :selected-route-types="selectedRouteTypes"
-        :selected-agencies="selectedAgencies"
-        :selected-time-of-day-mode="selectedTimeOfDayMode"
-        :selected-day-of-week-mode="selectedDayOfWeekMode"
-        :start-time="startTime"
         :end-time="endTime"
+        :frequency-over-enabled="frequencyOverEnabled"
+        :frequency-over="frequencyOver"
+        :frequency-under-enabled="frequencyUnderEnabled"
+        :frequency-under="frequencyUnder"
+        :geography-ids="geographyIds"
         :geom-source="geomSource"
+        :run-count="runCount"
         :schedule-enabled="scheduleEnabled"
+        :selected-agencies="selectedAgencies"
+        :selected-day-of-week-mode="selectedDayOfWeekMode"
+        :selected-days="selectedDays"
         :selected-features="selectedFeatures"
+        :selected-route-types="selectedRouteTypes"
+        :selected-time-of-day-mode="selectedTimeOfDayMode"
+        :start-date="startDate"
+        :start-time="startTime"
         @set-stop-departure-progress="stopDepartureProgress = $event"
         @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
         @set-stop-features="stopFeatures = $event"
@@ -200,6 +202,11 @@ const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
 const selectedFeatures = ref<Feature[]>([]) // for now
 
+function setSelectedFeatures (features: Feature[]) {
+  selectedFeatures.value = features
+  geographyIds.value = features.map(f => parseInt(f.id))
+}
+
 // Loading and error handling
 const loading = ref(false)
 const hasError = ref(false)
@@ -237,10 +244,19 @@ const geomSource = computed({
 
 const geomLayer = computed({
   get () {
-    return route.query.geomLayer?.toString() || ''
+    return route.query.geomLayer?.toString() || 'place'
   },
   set (v: string) {
     setQuery({ ...route.query, geomLayer: v })
+  }
+})
+
+const geographyIds = computed({
+  get () {
+    return route.query.geographyIds?.toString().split(',').map(parseInt) || []
+  },
+  set (v: number[]) {
+    setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
   }
 })
 

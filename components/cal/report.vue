@@ -25,7 +25,6 @@
 
       <div class="cal-report-option-section">
         Showing data by:
-
         <section>
           <o-field>
             <o-radio
@@ -62,6 +61,7 @@
           <o-select
             v-model="aggregateMode"
             :options="aggregateOptions"
+            :disabled="!(dataDisplayMode === 'Stop')"
           />
         </o-field>
       </div>
@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <div v-if="aggregateMode">
+    <div v-if="geoReportData.columns.length > 0">
       <cal-datagrid
         :table-report="geoReportData"
         :loading="!stopDepartureLoadingComplete"
@@ -107,14 +107,14 @@ const props = defineProps<{
 }>()
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
-const aggregateMode = defineModel<string>('aggregateMode', { default: 'county' })
+const aggregateMode = defineModel<string>('aggregateMode', { default: '' })
 
 const emit = defineEmits([
   'clickFilterLink'
 ])
 
 // Copy the geometry layers, and add a 'None' option
-const aggregateOptions: Record<string, string> = Object.assign({ none: '' }, geomLayers)
+const aggregateOptions: Record<string, string> = Object.assign({ none: 'None' }, geomLayers)
 
 // TODO: For when we switch to datagrid
 const routeColumns: TableColumn[] = [
@@ -167,6 +167,9 @@ const agencyColumns: TableColumn[] = [
 // ]
 
 const geoReportData = computed((): TableReport => {
+  if (aggregateMode.value === '' || aggregateMode.value === 'none') {
+    return { data: [], columns: [] }
+  }
   // Handle aggregation
   if (dataDisplayMode.value === 'Stop') {
     return {
