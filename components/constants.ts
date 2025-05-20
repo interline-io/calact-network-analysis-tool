@@ -50,7 +50,7 @@ export const geomLayers = {
   'bg': 'Census Block Group',
   'tabblock20': 'Census Block',
   'place': 'City',
-  'urbanized_area': 'Census Urbanized Area',
+  'uac20': 'Census Urbanized Area',
   // 'fta_urbanized_area': 'FTA Urbanized Area',
 }
 

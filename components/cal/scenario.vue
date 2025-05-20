@@ -68,7 +68,7 @@ const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 const selectedFeatures = defineModel<Feature[]>('selectedFeatures', { default: [] })
 const geographyIds = defineModel<number[]>('geographyIds')
 
-const stopLimit = 1000
+const stopLimit = 100
 const stopDepartureCache = new StopDepartureCache()
 const stopDepartureLoadingComplete = ref(false)
 watch(stopDepartureLoadingComplete, (v) => {
@@ -119,8 +119,10 @@ const stopVars = computed(() => {
     limit: stopLimit,
     where: {
       location_type: 0,
-      bbox: fc.length > 0 ? null : b,
-      within_features: fc.length > 0 ? fc : null,
+      location: {
+        bbox: fc.length > 0 ? null : b,
+        features: fc.length > 0 ? fc : null,
+      }
     }
   }
 })
