@@ -60,7 +60,7 @@
         <o-field>
           <o-select
             v-model="aggregateMode"
-            :options="aggregateOptions"
+            :options="geomDatasetLayerOptions"
             :disabled="!(dataDisplayMode === 'Stop')"
           />
         </o-field>
@@ -104,6 +104,7 @@ const props = defineProps<{
   exportFeatures: Feature[]
   filterSummary: string[]
   stopDepartureLoadingComplete: boolean
+  geomDatasetLayerOptions: { label: string, value: string }[]
 }>()
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
@@ -112,9 +113,6 @@ const aggregateMode = defineModel<string>('aggregateMode', { default: '' })
 const emit = defineEmits([
   'clickFilterLink'
 ])
-
-// Copy the geometry layers, and add a 'None' option
-const aggregateOptions: Record<string, string> = Object.assign({ none: 'None' }, geomLayers)
 
 // TODO: For when we switch to datagrid
 const routeColumns: TableColumn[] = [
