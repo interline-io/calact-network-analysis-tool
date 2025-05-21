@@ -139,15 +139,18 @@ const toggleSelectSingleDay = useToggle(selectSingleDay)
 const debugMenu = useDebugMenu()
 
 const geographyQuery = gql`
-query($dataset_name: String, $search: String, $layer: String, $focus: FocusPoint, $limit: Int=100){
+query($dataset_name: String, $search: String, $layer: String, $focus: FocusPoint, $limit: Int){
   census_datasets(where:{dataset_name:$dataset_name}) {
     dataset_name
+    layers
     geographies(limit: $limit, where:{layer:$layer, search:$search, location:{focus:$focus}}) {
       id
       geoid
       layer_name
       name
       geometry
+      adm1_name
+      adm1_iso
     }
   }
 }
@@ -159,6 +162,8 @@ interface CensusGeography {
   layer_name: string
   name: string
   geometry: Geometry
+  adm1_name: string
+  adm1_iso: string
 }
 
 interface CensusDataset {
@@ -208,8 +213,11 @@ const geomOptions = computed(() => {
   const results = []
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
-    const id = geo.geoid.replace(/^.*US/, '')
-    results.push({ value: geo, label: `${geo.name} (${id})` })
+    let label = geo.name
+    if (geo.layer_name !== 'state' && geo.adm1_name) {
+      label = `${geo.name} (${geo.adm1_name})`
+    }
+    results.push({ value: geo, label })
   }
   return results
 })
