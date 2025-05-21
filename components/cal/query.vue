@@ -66,7 +66,6 @@
               <o-select
                 v-model="geomSource"
                 :options="geomSources"
-                @input="changeGeomSource"
               />
             </o-field>
           </div>
@@ -78,8 +77,7 @@
               </template>
               <o-select
                 v-model="geomLayer"
-                :options="geomLayers"
-                @input="changeGeomLayer"
+                :options="geomDatasetLayerOptions"
               />
             </o-field>
           </div>
@@ -93,7 +91,7 @@
             <o-taginput
               v-model="geomSelected"
               v-model:input="geomSearch"
-              :options="geomOptions"
+              :options="geomSelectedOptions"
               :filter="geomFilter"
               close-icon=""
               icon="magnify"
@@ -168,6 +166,7 @@ interface CensusGeography {
 
 interface CensusDataset {
   dataset_name: string
+  layers: string[]
   geographies: [CensusGeography]
 }
 
@@ -189,7 +188,18 @@ const {
   }
 )
 
-const geomOptions = computed(() => {
+const geomDatasetLayerOptions = computed(() => {
+  const v = new Map<string, string>()
+  for (const dataset of geomResult?.value?.census_datasets || []) {
+    for (const layer of (dataset.layers || [])) {
+      const label = geomLayers[layer] || `(${layer})`
+      v.set(layer, label)
+    }
+  }
+  return [...v.entries().map(([value, label]) => ({ value, label }))]
+})
+
+const geomSelectedOptions = computed(() => {
   // "options" must include the already selected geographies, otherwise the label will not work
   const options = new Map<string, CensusGeography>() // geoid, Geography
   const selected = geomSelected.value || []
@@ -271,17 +281,6 @@ watch(geomSelected, () => {
 const validQueryParams = computed(() => {
   return startDate.value && bbox?.value?.valid
 })
-
-function changeGeomSource () {
-  // geomLayer.value = ''
-  geomSearch.value = ''
-  geomSelected.value = []
-}
-
-function changeGeomLayer () {
-  geomSearch.value = ''
-  geomSelected.value = []
-}
 
 </script>
 

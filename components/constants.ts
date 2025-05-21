@@ -43,7 +43,7 @@ export const geomSources = {
   'adminBoundary': 'Administrative Boundary',
 }
 
-export const geomLayers = {
+export const geomLayers: Record<string, string> = {
   'county': 'County',
   'state': 'State',
   'tract': 'Census Tract',
