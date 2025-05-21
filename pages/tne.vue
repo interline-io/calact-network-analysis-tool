@@ -184,7 +184,7 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, geographyQuery } from '../components/geog'
+import { type CensusDataset, geographyQuery } from '../components/census'
 import { computed } from 'vue'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'

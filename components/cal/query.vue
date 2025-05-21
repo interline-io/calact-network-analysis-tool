@@ -112,7 +112,7 @@
 <script setup lang="ts">
 import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '../geom'
 import { cannedBboxes, geomSources, geomLayers } from '../constants'
-import { type CensusDataset, type CensusGeography, geographyQuery } from '../geog'
+import { type CensusDataset, type CensusGeography, geographyQuery } from '../census'
 import { useToggle } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
 
