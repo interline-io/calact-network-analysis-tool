@@ -126,6 +126,7 @@ const bboxMarkers = computed(() => {
     element: swElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
+        valid: true,
         ne: props.bbox.ne,
         sw: {
           lon: c.target.getLngLat().lng,
@@ -149,6 +150,7 @@ const bboxMarkers = computed(() => {
     element: neElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
+        valid: true,
         sw: props.bbox.sw,
         ne: {
           lon: c.target.getLngLat().lng,

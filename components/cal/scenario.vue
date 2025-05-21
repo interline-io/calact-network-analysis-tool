@@ -163,7 +163,8 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
   })
   check?.then((v) => {
     console.log('stopQueue: resolved')
-    const stopData: StopGql[] = v?.data?.stops || v?.stops || []
+    const responseAny = v as any
+    const stopData: StopGql[] = responseAny?.data?.stops || responseAny?.stops || []
     const routeIds: Set<number> = new Set()
     for (const stop of stopData) {
       for (const rs of stop.route_stops || []) {
@@ -223,7 +224,8 @@ const routeQueue = useTask(function* (_, task: { ids: number[] }) {
   })
   check?.then((v) => {
     console.log('routeQueue: resolved')
-    const routeData: RouteGql[] = v?.data?.routes || v?.routes || []
+    const responseAny = v as any
+    const routeData: RouteGql[] = responseAny?.data?.routes || responseAny?.routes || []
     const routeIdx = new Map<number, RouteGql>()
     for (const route of routeResultFixed.value || []) {
       routeIdx.set(route.id, route)
@@ -293,7 +295,8 @@ const stopDepartureQueue = useTask(function* (_, task: StopDepartureQueryVars) {
   check?.then((v) => {
     // Update cache
     activeStopDepartureQueryCount.value -= 1
-    const stopData: StopDeparture[] = v?.data?.stops || v?.stops || []
+    const responseAny = v as any
+    const stopData: StopDeparture[] = responseAny.data?.stops || responseAny.stops || []
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
