@@ -239,6 +239,14 @@ function fitFeatures (features: Feature[]) {
           coords.push(b)
         }
       }
+    } else if (g.type === 'MultiPolygon') {
+      for (const a of g.coordinates) {
+        for (const b of a) {
+          for (const c of b) {
+            coords.push(c)
+          }
+        }
+      }
     } else if (g.type === 'MultiLineString') {
       for (const a of g.coordinates) {
         for (const b of a) {

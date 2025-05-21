@@ -75,6 +75,7 @@
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
             :bbox="bbox"
+            :map-extent-center="mapExtentCenter"
             @set-bbox="bbox = $event"
             @set-selected-features="setSelectedFeatures"
             @explore="runQuery()"
@@ -181,7 +182,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Bbox, type Feature, parseBbox, bboxString } from '../components/geom'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
 import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
@@ -615,6 +616,17 @@ function setTab (v: Tab) {
 
 // We need to keep reference to the map extent
 const mapExtent = ref<Bbox | null>(null)
+
+const mapExtentCenter = computed((): Point | null => {
+  const bbox = mapExtent.value
+  if (bbox?.valid) {
+    return {
+      lon: (bbox.ne.lon + bbox.sw.lon) / 2,
+      lat: (bbox.ne.lat + bbox.sw.lat) / 2
+    }
+  }
+  return null
+})
 
 watch(geomSource, () => {
   if (geomSource.value === 'mapExtent' && mapExtent.value) {

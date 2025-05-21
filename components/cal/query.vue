@@ -112,15 +112,11 @@
 </template>
 
 <script setup lang="ts">
-import { type Bbox, type Feature, type Geometry, parseBbox } from '../geom'
+import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '../geom'
 import { cannedBboxes, geomSources, geomLayers } from '../constants'
 import { gql } from 'graphql-tag'
 import { useToggle } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
-
-const props = defineProps<{
-  bbox: Bbox
-}>()
 
 const emit = defineEmits([
   'setBbox',
@@ -137,14 +133,16 @@ const geomSearch = defineModel<string>('geomSearch') // the user's search string
 const geomSelected = defineModel<CensusGeography[]>('geomSelected') // selected geometries
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
+const mapExtentCenter = defineModel<Point | null>('mapExtentCenter', { default: null })
+const bbox = defineModel<Bbox>('bbox', { default: null })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 const debugMenu = useDebugMenu()
 
 const geographyQuery = gql`
-query($dataset_name: String, $search: String, $layer: String, $limit: Int=100){
+query($dataset_name: String, $search: String, $layer: String, $focus: FocusPoint, $limit: Int=100){
   census_datasets(where:{dataset_name:$dataset_name}) {
     dataset_name
-    geographies(limit: $limit, where:{layer:$layer, search:$search}) {
+    geographies(limit: $limit, where:{layer:$layer, search:$search, location:{focus:$focus}}) {
       id
       geoid
       layer_name
@@ -178,7 +176,8 @@ const {
     dataset_name: 'tiger2024',
     layer: geomLayer.value,
     search: geomSearch.value,
-    limit: 100,
+    limit: 10,
+    focus: mapExtentCenter.value,
   }), {
     debounce: 50,
     keepPreviousResult: true
@@ -262,7 +261,7 @@ watch(geomSelected, () => {
 })
 
 const validQueryParams = computed(() => {
-  return startDate.value && props.bbox?.valid
+  return startDate.value && bbox?.value?.valid
 })
 
 function changeGeomSource () {
