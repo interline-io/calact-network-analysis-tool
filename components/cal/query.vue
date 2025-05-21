@@ -176,7 +176,7 @@ const {
     dataset_name: 'tiger2024',
     layer: geomLayer.value,
     search: geomSearch.value,
-    limit: 100,
+    limit: 10,
     focus: mapExtentCenter.value,
   }), {
     debounce: 50,
