@@ -74,6 +74,8 @@
             v-model:geom-source="geomSource"
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
+            :geom-current-dataset="geomCurrentDataset"
+            :geom-dataset-layer-options="geomDatasetLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             @set-bbox="bbox = $event"
@@ -119,6 +121,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-mode="geomLayer"
+            :geom-dataset-layer-options="geomDatasetLayerOptions"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
@@ -181,6 +184,7 @@
 </template>
 
 <script lang="ts" setup>
+import { type CensusDataset, geographyQuery } from '../components/census'
 import { computed } from 'vue'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
@@ -188,7 +192,8 @@ import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
 import { type Route } from '../components/route'
 import { type Agency } from '../components/agency'
-import { type dow, dowValues, routeTypes } from '../components/constants'
+import { type dow, dowValues, routeTypes, geomLayers } from '../components/constants'
+import { useQuery } from '@vue/apollo-composable'
 
 definePageMeta({
   layout: false
@@ -196,11 +201,15 @@ definePageMeta({
 
 const route = useRoute()
 
-// const defaultBbox = '-121.30929,44.05620,-121.31381,44.05980'
-// const defaultBbox = `-122.66450,45.52167,-122.66035,45.52420`
+/////////////////
+
 const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
+
+/////////////////
+// Geography selected features
+
 const selectedFeatures = ref<Feature[]>([]) // for now
 
 function setSelectedFeatures (features: Feature[]) {
@@ -208,6 +217,39 @@ function setSelectedFeatures (features: Feature[]) {
   geographyIds.value = features.map(f => parseInt(f.id))
 }
 
+/////////////////
+// Geography datasets
+
+const geomSelectedDataset = ref<string>('tiger2024')
+
+const {
+  result: geomResult,
+} = useQuery<{ census_datasets: CensusDataset[] }>(
+  geographyQuery,
+  () => ({
+    dataset_name: geomSelectedDataset.value,
+    limit: 0,
+  })
+)
+
+const geomCurrentDataset = computed((): CensusDataset => {
+  const dataset = geomResult.value?.census_datasets[0]
+  if (dataset) {
+    return dataset
+  }
+  return { dataset_name: '', layers: [], geographies: [] }
+})
+
+const geomDatasetLayerOptions = computed(() => {
+  const options = []
+  for (const layer of geomCurrentDataset?.value?.layers || []) {
+    const label = geomLayers[layer] || `(${layer})`
+    options.push({ value: layer, label })
+  }
+  return options
+})
+
+/////////////////
 // Loading and error handling
 const loading = ref(false)
 const hasError = ref(false)

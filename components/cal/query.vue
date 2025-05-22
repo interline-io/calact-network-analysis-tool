@@ -66,7 +66,6 @@
               <o-select
                 v-model="geomSource"
                 :options="geomSources"
-                @input="changeGeomSource"
               />
             </o-field>
           </div>
@@ -78,8 +77,7 @@
               </template>
               <o-select
                 v-model="geomLayer"
-                :options="geomLayers"
-                @input="changeGeomLayer"
+                :options="props.geomDatasetLayerOptions"
               />
             </o-field>
           </div>
@@ -93,7 +91,7 @@
             <o-taginput
               v-model="geomSelected"
               v-model:input="geomSearch"
-              :options="geomOptions"
+              :options="geomSelectedOptions"
               :filter="geomFilter"
               close-icon=""
               icon="magnify"
@@ -114,7 +112,7 @@
 <script setup lang="ts">
 import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '../geom'
 import { cannedBboxes, geomSources, geomLayers } from '../constants'
-import { gql } from 'graphql-tag'
+import { type CensusDataset, type CensusGeography, geographyQuery } from '../census'
 import { useToggle } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
 
@@ -124,72 +122,43 @@ const emit = defineEmits([
   'explore'
 ])
 
+const props = defineProps<{
+  geomCurrentDataset: CensusDataset
+  geomDatasetLayerOptions: { label: string, value: string }[]
+  mapExtentCenter: Point | null
+}>()
+
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
 const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const geomSource = defineModel<string>('geomSource')
 const geomLayer = defineModel<string>('geomLayer')
-const geomSearch = defineModel<string>('geomSearch') // the user's search string
-const geomSelected = defineModel<CensusGeography[]>('geomSelected') // selected geometries
+const bbox = defineModel<Bbox>('bbox', { default: null })
+
+const geomSelected = ref<CensusGeography[]>([])
 const cannedBbox = ref('')
 const selectSingleDay = ref(true)
-const mapExtentCenter = defineModel<Point | null>('mapExtentCenter', { default: null })
-const bbox = defineModel<Bbox>('bbox', { default: null })
-const toggleSelectSingleDay = useToggle(selectSingleDay)
 const debugMenu = useDebugMenu()
-
-const geographyQuery = gql`
-query($dataset_name: String, $search: String, $layer: String, $focus: FocusPoint, $limit: Int){
-  census_datasets(where:{dataset_name:$dataset_name}) {
-    dataset_name
-    layers
-    geographies(limit: $limit, where:{layer:$layer, search:$search, location:{focus:$focus}}) {
-      id
-      geoid
-      layer_name
-      name
-      geometry
-      adm1_name
-      adm1_iso
-    }
-  }
-}
-`
-
-interface CensusGeography {
-  id: number
-  geoid: string
-  layer_name: string
-  name: string
-  geometry: Geometry
-  adm1_name: string
-  adm1_iso: string
-}
-
-interface CensusDataset {
-  dataset_name: string
-  geographies: [CensusGeography]
-}
+const toggleSelectSingleDay = useToggle(selectSingleDay)
+const geomSearch = ref('')
 
 const {
   result: geomResult,
-  loading: geomLoading,
-  error: geomError
 } = useQuery<{ census_datasets: CensusDataset[] }>(
   geographyQuery,
   () => ({
-    dataset_name: 'tiger2024',
+    dataset_name: props.geomCurrentDataset?.dataset_name,
     layer: geomLayer.value,
     search: geomSearch.value,
     limit: 10,
-    focus: mapExtentCenter.value,
+    focus: props.mapExtentCenter,
   }), {
     debounce: 50,
     keepPreviousResult: true
   }
 )
 
-const geomOptions = computed(() => {
+const geomSelectedOptions = computed(() => {
   // "options" must include the already selected geographies, otherwise the label will not work
   const options = new Map<string, CensusGeography>() // geoid, Geography
   const selected = geomSelected.value || []
@@ -271,17 +240,6 @@ watch(geomSelected, () => {
 const validQueryParams = computed(() => {
   return startDate.value && bbox?.value?.valid
 })
-
-function changeGeomSource () {
-  // geomLayer.value = ''
-  geomSearch.value = ''
-  geomSelected.value = []
-}
-
-function changeGeomLayer () {
-  geomSearch.value = ''
-  geomSelected.value = []
-}
 
 </script>
 
