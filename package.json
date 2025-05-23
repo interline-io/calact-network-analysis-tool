@@ -10,6 +10,7 @@
     "build": "nuxt build",
     "start": "nuxt start",
     "generate": "nuxt generate",
+    "test": "nuxt --envName test",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -19,5 +20,9 @@
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2",
     "vue-concurrency": "^5.0.3"
   },
-  "packageManager": "yarn@4.3.0"
+  "packageManager": "yarn@4.3.0",
+  "devDependencies": {
+    "@nuxt/test-utils": "^3.19.0",
+    "happy-dom": "^17.4.7"
+  }
 }
