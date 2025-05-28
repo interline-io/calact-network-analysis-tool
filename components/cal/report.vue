@@ -95,7 +95,6 @@ import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '../agency'
 import { type Feature } from '../geom'
 import { type TableReport, type TableColumn } from './datagrid.vue'
-import { geomLayers } from '../constants'
 
 const props = defineProps<{
   stopFeatures: Stop[]

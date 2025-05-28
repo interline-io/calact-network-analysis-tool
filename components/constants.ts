@@ -43,17 +43,6 @@ export const geomSources = {
   'adminBoundary': 'Administrative Boundary',
 }
 
-export const geomLayers: Record<string, string> = {
-  'county': 'County',
-  'state': 'State',
-  'tract': 'Census Tract',
-  'bg': 'Census Block Group',
-  'tabblock20': 'Census Block',
-  'place': 'City',
-  'uac20': 'Census Urbanized Area',
-  // 'fta_urbanized_area': 'FTA Urbanized Area',
-}
-
 export const routeColorModes = [
   'Mode',
   'Frequency',

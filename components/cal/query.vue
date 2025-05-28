@@ -111,8 +111,8 @@
 
 <script setup lang="ts">
 import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '../geom'
-import { cannedBboxes, geomSources, geomLayers } from '../constants'
-import { type CensusDataset, type CensusGeography, geographyQuery } from '../census'
+import { cannedBboxes, geomSources } from '../constants'
+import { type CensusDataset, type CensusGeography, geographySearchQuery } from '../census'
 import { useToggle } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
 
@@ -123,7 +123,6 @@ const emit = defineEmits([
 ])
 
 const props = defineProps<{
-  geomCurrentDataset: CensusDataset
   geomDatasetLayerOptions: { label: string, value: string }[]
   mapExtentCenter: Point | null
 }>()
@@ -145,9 +144,8 @@ const geomSearch = ref('')
 const {
   result: geomResult,
 } = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyQuery,
+  geographySearchQuery,
   () => ({
-    dataset_name: props.geomCurrentDataset?.dataset_name,
     layer: geomLayer.value,
     search: geomSearch.value,
     limit: 10,
@@ -159,33 +157,38 @@ const {
 )
 
 const geomSelectedOptions = computed(() => {
+  // Add dataset_name, dataset_desc
+  const geogs: CensusGeography[] = []
+  for (const ds of geomResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      geogs.push({
+        ...geo,
+        dataset_name: ds.name,
+        dataset_description: ds.description,
+      })
+    }
+  }
+
   // "options" must include the already selected geographies, otherwise the label will not work
-  const options = new Map<string, CensusGeography>() // geoid, Geography
+  const options = new Map<number, CensusGeography>()
   const selected = geomSelected.value || []
   for (const geo of selected) {
-    options.set(geo.geoid, geo)
+    options.set(geo.id, geo)
   }
 
   // Add the search query results
-  const datasets = geomResult?.value?.census_datasets || []
-  if (datasets.length) { // should be 1 dataset 'tiger2024'
-    const geographies = datasets[0].geographies || []
-    for (const geo of geographies) {
-      if (options.has(geo.geoid)) {
-        continue // already selected
-      }
-      options.set(geo.geoid, geo)
+  for (const geo of geogs || []) {
+    if (options.has(geo.id)) {
+      continue // already selected
     }
+    options.set(geo.id, geo)
   }
 
   // Convert `options` into Array with `value` and `label` props
   const results = []
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
-    let label = geo.name
-    if (geo.layer_name !== 'state' && geo.adm1_name) {
-      label = `${geo.name} (${geo.adm1_name})`
-    }
+    let label = `${geo.adm1_name}: ${geo.name} (${geo.dataset_description || geo.dataset_name}: ${geo.layer.description || geo.layer.name})`
     results.push({ value: geo, label })
   }
   return results
@@ -197,7 +200,7 @@ const geomSelectedOptions = computed(() => {
 function geomFilter (option: any, value: string): boolean {
   const selected = geomSelected.value || []
   for (const geo of selected) {
-    if (geo.geoid === option?.geoid) {
+    if (geo.id === option?.id) {
       return true // value was already selected, exclude it from dropdown
     }
   }
