@@ -67,7 +67,7 @@ const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 const geographyIds = defineModel<number[]>('geographyIds')
 
-const stopLimit = 1000
+const stopLimit = 100
 const stopTimeBatchSize = 100
 const stopDepartureCache = new StopDepartureCache()
 const stopDepartureLoadingComplete = ref(false)
