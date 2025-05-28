@@ -4,7 +4,9 @@ import { type Geometry } from '../components/geom'
 export const geographyLayerQuery = gql`
 query {
   census_datasets {
+    id
     name
+    description
     layers {
       id
       name
@@ -16,7 +18,9 @@ query {
 export const geographySearchQuery = gql`
 query($search: String, $layer: String, $focus: FocusPoint, $limit: Int){
   census_datasets {
+    id
     name
+    description
     geographies(limit: $limit, where:{layer:$layer, search:$search, location:{focus:$focus}}) {
       id
       geoid

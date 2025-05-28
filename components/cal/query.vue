@@ -188,7 +188,8 @@ const geomSelectedOptions = computed(() => {
   const results = []
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
-    let label = `${geo.adm1_name}: ${geo.name} (${geo.dataset_description || geo.dataset_name}: ${geo.layer.description || geo.layer.name})`
+    const stateDesc = geo.adm1_name ? ` (${geo.adm1_name})` : ''
+    let label = `${geo.name} ${stateDesc} (${geo.dataset_description || geo.dataset_name}: ${geo.layer.description || geo.layer.name})`
     results.push({ value: geo, label })
   }
   return results
