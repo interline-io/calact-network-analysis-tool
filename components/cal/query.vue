@@ -91,13 +91,22 @@
             <o-taginput
               v-model="geomSelected"
               v-model:input="geomSearch"
+              :open-on-focus="true"
               :options="geomSelectedOptions"
-              :filter="geomFilter"
               close-icon=""
               icon="magnify"
               placeholder="Search..."
               expanded
-            />
+            >
+              <template #header>
+                <strong>
+                  <span v-if="geomSearch.length < 2">Type to search...</span>
+                  <span v-else-if="geomResultLoading">Loading...</span>
+                  <span v-else-if="geomSelectedOptions.length === 0">No results found</span>
+                  <span v-else>{{ geomSelectedOptions.length }} results found</span>
+                </strong>
+              </template>
+            </o-taginput>
           </o-field>
         </div>
       </tl-msg-box>
@@ -114,7 +123,7 @@ import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '.
 import { cannedBboxes, geomSources } from '../constants'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '../census'
 import { useToggle } from '@vueuse/core'
-import { useQuery } from '@vue/apollo-composable'
+import { useLazyQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setBbox',
@@ -141,20 +150,40 @@ const debugMenu = useDebugMenu()
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 const geomSearch = ref('')
 
-const {
-  result: geomResult,
-} = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographySearchQuery,
-  () => ({
+const geomSearchVars = computed(() => {
+  return {
     layer: geomLayer.value,
     search: geomSearch.value,
     limit: 10,
     focus: props.mapExtentCenter,
-  }), {
+  }
+})
+
+const {
+  result: geomResult,
+  loading: geomResultLoading,
+  load: geomLoad,
+  refetch: geomRefetch,
+} = useLazyQuery<{ census_datasets: CensusDataset[] }>(
+  geographySearchQuery,
+  geomSearchVars,
+  {
     debounce: 50,
     keepPreviousResult: true
   }
 )
+
+// Watch for changes
+const loadReady = computed(() => {
+  return geomLayer.value && geomSearch.value
+})
+
+watch(geomSearchVars, () => {
+  console.log('geomSearchVars changed:', geomSearchVars)
+  if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
+    geomLoad(geographySearchQuery) || geomRefetch()
+  }
+})
 
 const geomSelectedOptions = computed(() => {
   // Add dataset_name, dataset_desc
@@ -233,7 +262,6 @@ watch(geomSelected, () => {
       properties: {
         id: geo.geoid,
         name: geo.name,
-        layer_name: geo.layer_name,
         geoid: geo.geoid
       }
     })

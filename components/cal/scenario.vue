@@ -65,10 +65,10 @@ const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
-const selectedFeatures = defineModel<Feature[]>('selectedFeatures', { default: [] })
 const geographyIds = defineModel<number[]>('geographyIds')
 
-const stopLimit = 100
+const stopLimit = 1000
+const stopTimeBatchSize = 100
 const stopDepartureCache = new StopDepartureCache()
 const stopDepartureLoadingComplete = ref(false)
 watch(stopDepartureLoadingComplete, (v) => {
@@ -107,21 +107,16 @@ const stopVars = computed(() => {
         max_lat: bbox.value.ne.lat
       }
 
-  // BUG: server only accepts id/geometry properties on features today
-  const fc = selectedFeatures.value.map(s => ({
-    id: s.id,
-    geometry: s.geometry
-  }))
-
   //  Allow bbox OR features
+  const geoIds = geographyIds.value || []
   return {
     after: 0,
     limit: stopLimit,
     where: {
       location_type: 0,
       location: {
-        bbox: fc.length > 0 ? null : b,
-        features: fc.length > 0 ? fc : null,
+        bbox: geoIds.length > 0 ? null : b,
+        geography_ids: geoIds.length > 0 ? geoIds : null,
       }
     }
   }
@@ -327,12 +322,11 @@ function enqueueStopDepartureFetch (stopIds: number[]) {
     return
   }
   const dates = selectedDateRange.value
-  const batchSize = 100
   const weekSize = 7
-  for (let sid = 0; sid < stopIds.length; sid += batchSize) {
+  for (let sid = 0; sid < stopIds.length; sid += stopTimeBatchSize) {
     for (let i = 0; i < dates.length; i += weekSize) {
       const w = new StopDepartureQueryVars()
-      w.ids = stopIds.slice(sid, sid + batchSize)
+      w.ids = stopIds.slice(sid, sid + stopTimeBatchSize)
       for (const d of dates.slice(i, i + weekSize)) {
         w.setDay(d)
       }
@@ -362,7 +356,6 @@ watch(() => [
   selectedRouteTypes.value,
   startTime.value,
   stopDepartureLoadingComplete.value,
-  selectedFeatures.value,
   geographyIds.value,
 ], () => {
   // Check defaults

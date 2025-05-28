@@ -148,7 +148,6 @@
         :selected-agencies="selectedAgencies"
         :selected-day-of-week-mode="selectedDayOfWeekMode"
         :selected-days="selectedDays"
-        :selected-features="selectedFeatures"
         :selected-route-types="selectedRouteTypes"
         :selected-time-of-day-mode="selectedTimeOfDayMode"
         :start-date="startDate"
@@ -205,40 +204,6 @@ const route = useRoute()
 const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
-
-/////////////////
-// Geography selected features
-
-const selectedFeatures = ref<Feature[]>([]) // for now
-
-function setSelectedFeatures (features: Feature[]) {
-  selectedFeatures.value = features
-  geographyIds.value = features.map(f => parseInt(f.id))
-}
-
-/////////////////
-// Geography datasets
-
-const geomSelectedDataset = ref<string>('tiger2024')
-
-const {
-  result: geomResult,
-} = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyLayerQuery,
-  () => ({ })
-)
-
-const geomDatasetLayerOptions = computed(() => {
-  const geomDatasets = geomResult.value?.census_datasets || []
-  const options = []
-  for (const ds of geomDatasets || []) {
-    for (const layer of ds.layers || []) {
-      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-      options.push({ value: layer.name, label: label })
-    }
-  }
-  return options
-})
 
 /////////////////
 // Loading and error handling
@@ -527,6 +492,39 @@ const minFare = computed({
     setQuery({ ...route.query, minFare: v.toString() })
   }
 })
+
+/////////////////
+// Geography datasets
+
+const selectedFeatures = ref<Feature[]>([]) // for now
+
+function setSelectedFeatures (features: Feature[]) {
+  selectedFeatures.value = features
+  geographyIds.value = features.map(f => parseInt(f.id))
+}
+const {
+  result: geomResult,
+} = useQuery<{ census_datasets: CensusDataset[] }>(
+  geographyLayerQuery,
+  () => ({
+    geography_ids: geographyIds.value,
+    include_geographies: geographyIds.value.length > 0,
+  })
+)
+
+const geomDatasetLayerOptions = computed(() => {
+  const geomDatasets = geomResult.value?.census_datasets || []
+  const options = []
+  for (const ds of geomDatasets || []) {
+    for (const layer of ds.layers || []) {
+      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
+      options.push({ value: layer.name, label: label })
+    }
+  }
+  return options
+})
+
+/////////////////
 
 // Each result in the filter summary will be a string to be used as a bullet point.
 // We will only include results if the filter is set to something interesting (not default)
