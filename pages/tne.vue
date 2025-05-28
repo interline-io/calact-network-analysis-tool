@@ -74,7 +74,6 @@
             v-model:geom-source="geomSource"
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
-            :geom-current-dataset="geomCurrentDataset"
             :geom-dataset-layer-options="geomDatasetLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -184,7 +183,7 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, geographyQuery } from '../components/census'
+import { type CensusDataset, geographyLayerQuery } from '../components/census'
 import { computed } from 'vue'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
@@ -192,7 +191,7 @@ import { navigateTo } from '#imports'
 import { type Stop } from '../components/stop'
 import { type Route } from '../components/route'
 import { type Agency } from '../components/agency'
-import { type dow, dowValues, routeTypes, geomLayers } from '../components/constants'
+import { type dow, dowValues, routeTypes } from '../components/constants'
 import { useQuery } from '@vue/apollo-composable'
 
 definePageMeta({
@@ -225,26 +224,18 @@ const geomSelectedDataset = ref<string>('tiger2024')
 const {
   result: geomResult,
 } = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyQuery,
-  () => ({
-    dataset_name: geomSelectedDataset.value,
-    limit: 0,
-  })
+  geographyLayerQuery,
+  () => ({ })
 )
 
-const geomCurrentDataset = computed((): CensusDataset => {
-  const dataset = geomResult.value?.census_datasets[0]
-  if (dataset) {
-    return dataset
-  }
-  return { dataset_name: '', layers: [], geographies: [] }
-})
-
 const geomDatasetLayerOptions = computed(() => {
+  const geomDatasets = geomResult.value?.census_datasets || []
   const options = []
-  for (const layer of geomCurrentDataset?.value?.layers || []) {
-    const label = geomLayers[layer] || `(${layer})`
-    options.push({ value: layer, label })
+  for (const ds of geomDatasets || []) {
+    for (const layer of ds.layers || []) {
+      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
+      options.push({ value: layer.name, label: label })
+    }
   }
   return options
 })
@@ -287,7 +278,7 @@ const geomSource = computed({
 
 const geomLayer = computed({
   get () {
-    return route.query.geomLayer?.toString() || 'place'
+    return route.query.geomLayer ? route.query.geomLayer?.toString() : null
   },
   set (v: string) {
     setQuery({ ...route.query, geomLayer: v })
