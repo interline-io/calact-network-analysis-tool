@@ -131,10 +131,11 @@ interface StopGeoAggregateCsv {
   geoid: string
   layer_name: string
   name: string
-  routes_count: number,
+  routes_count: number
   routes_modes: string
   stops_count: number
   agencies_count: number
+  visit_count_daily_average: number | null
 }
 
 export type Stop = StopGql & StopDerived
@@ -347,12 +348,14 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
     geoid: string
     layer_name: string
     name: string
+    visits_count?: number
     stops_count: Set<number>
     routes_count: Set<number>
     routes_modes: Set<number>
     agencies_count: Set<number>
   }>()
 
+  const dateCount = stops[0]?.visits?.total?.date_count || 0
   for (const stop of stops) {
     const geogs = (stop.census_geographies || []).filter((g) => g.layer_name === aggregationKey)
     for (const geog of geogs) {
@@ -360,12 +363,14 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
         geoid: geog.geoid,
         layer_name: geog.layer_name,
         name: geog.name,
+        visits_count: 0,
         stops_count: new Set<number>(),
         routes_count: new Set<number>(),
         routes_modes: new Set<number>(),
         agencies_count: new Set<number>(),
       }
       a.stops_count.add(stop.id)
+      a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {
         a.agencies_count.add(rstop.route.agency.id)
         a.routes_count.add(rstop.route.id)
@@ -384,6 +389,7 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
       routes_count: a.routes_count.size,
       routes_modes: [...rmodes].join(', '),
       agencies_count: a.agencies_count.size,
+      visit_count_daily_average: roundOr(checkDiv(a.visits_count || 0, dateCount)),
     }
   })
   return [...result]

@@ -278,7 +278,7 @@ const geomSource = computed({
 
 const geomLayer = computed({
   get () {
-    return route.query.geomLayer ? route.query.geomLayer?.toString() : null
+    return route.query.geomLayer ? route.query.geomLayer?.toString() : 'place'
   },
   set (v: string) {
     setQuery({ ...route.query, geomLayer: v })
