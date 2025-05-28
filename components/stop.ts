@@ -389,7 +389,7 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
       routes_count: a.routes_count.size,
       routes_modes: [...rmodes].join(', '),
       agencies_count: a.agencies_count.size,
-      visit_count_daily_average: checkDiv(a.visits_count || 0, dateCount),
+      visit_count_daily_average: roundOr(checkDiv(a.visits_count || 0, dateCount)),
     }
   })
   return [...result]
