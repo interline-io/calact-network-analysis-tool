@@ -74,11 +74,12 @@
             v-model:geom-source="geomSource"
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
-            :geom-dataset-layer-options="geomDatasetLayerOptions"
+            v-model:geography-ids="geographyIds"
+            :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
+            :census-geographies-selected="censusGeographiesSelected"
             @set-bbox="bbox = $event"
-            @set-selected-features="setSelectedFeatures"
             @explore="runQuery()"
           />
         </div>
@@ -120,7 +121,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-mode="geomLayer"
-            :geom-dataset-layer-options="geomDatasetLayerOptions"
+            :census-geography-layer-options="censusGeographyLayerOptions"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
@@ -164,7 +165,7 @@
       <!-- This is a component for displaying the map and legend -->
       <cal-map
         :bbox="bbox"
-        :selected-features="selectedFeatures"
+        :census-geographies-selected="censusGeographiesSelected"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :agency-features="agencyFeatures"
@@ -182,7 +183,7 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, geographyLayerQuery } from '../components/census'
+import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '../components/census'
 import { computed } from 'vue'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
@@ -252,7 +253,7 @@ const geomLayer = computed({
 
 const geographyIds = computed({
   get () {
-    return route.query.geographyIds?.toString().split(',').map(parseInt) || []
+    return route.query.geographyIds?.toString().split(',').map(p => (parseInt(p))) || []
   },
   set (v: number[]) {
     setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
@@ -496,14 +497,8 @@ const minFare = computed({
 /////////////////
 // Geography datasets
 
-const selectedFeatures = ref<Feature[]>([]) // for now
-
-function setSelectedFeatures (features: Feature[]) {
-  selectedFeatures.value = features
-  geographyIds.value = features.map(f => parseInt(f.id))
-}
 const {
-  result: geomResult,
+  result: censusGeographyResult,
 } = useQuery<{ census_datasets: CensusDataset[] }>(
   geographyLayerQuery,
   () => ({
@@ -512,8 +507,8 @@ const {
   })
 )
 
-const geomDatasetLayerOptions = computed(() => {
-  const geomDatasets = geomResult.value?.census_datasets || []
+const censusGeographyLayerOptions = computed(() => {
+  const geomDatasets = censusGeographyResult.value?.census_datasets || []
   const options = []
   for (const ds of geomDatasets || []) {
     for (const layer of ds.layers || []) {
@@ -522,6 +517,16 @@ const geomDatasetLayerOptions = computed(() => {
     }
   }
   return options
+})
+
+const censusGeographiesSelected = computed((): CensusGeography[] => {
+  const ret: CensusGeography[] = []
+  for (const ds of censusGeographyResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      ret.push(geo)
+    }
+  }
+  return ret
 })
 
 /////////////////

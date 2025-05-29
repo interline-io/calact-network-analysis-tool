@@ -15,6 +15,11 @@ query($geography_ids: [Int!], $include_geographies: Boolean = false) {
       adm1_name
       adm1_iso
       geometry
+      layer {
+        id
+        name
+        description
+      }      
     }
     layers {
       id

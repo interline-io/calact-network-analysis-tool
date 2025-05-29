@@ -60,7 +60,7 @@
         <o-field>
           <o-select
             v-model="aggregateMode"
-            :options="geomDatasetLayerOptions"
+            :options="censusGeographyLayerOptions"
             :disabled="!(dataDisplayMode === 'Stop')"
           />
         </o-field>
@@ -103,7 +103,7 @@ const props = defineProps<{
   exportFeatures: Feature[]
   filterSummary: string[]
   stopDepartureLoadingComplete: boolean
-  geomDatasetLayerOptions: { label: string, value: string }[]
+  censusGeographyLayerOptions: { label: string, value: string }[]
 }>()
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })

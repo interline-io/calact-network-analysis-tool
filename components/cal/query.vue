@@ -77,7 +77,7 @@
               </template>
               <o-select
                 v-model="geomLayer"
-                :options="props.geomDatasetLayerOptions"
+                :options="props.censusGeographyLayerOptions"
               />
             </o-field>
           </div>
@@ -89,10 +89,10 @@
               Include Boundaries
             </template>
             <o-taginput
-              v-model="geomSelected"
+              v-model="geographyIds"
               v-model:input="geomSearch"
               :open-on-focus="true"
-              :options="geomSelectedOptions"
+              :options="selectedGeographyTagOptions"
               close-icon=""
               icon="magnify"
               placeholder="Search..."
@@ -102,8 +102,8 @@
                 <strong>
                   <span v-if="geomSearch.length < 2">Type to search...</span>
                   <span v-else-if="geomResultLoading">Loading...</span>
-                  <span v-else-if="geomSelectedOptions.length === 0">No results found</span>
-                  <span v-else>{{ geomSelectedOptions.length }} results found</span>
+                  <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
+                  <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
                 </strong>
               </template>
             </o-taginput>
@@ -119,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { type Bbox, type Point, type Feature, type Geometry, parseBbox } from '../geom'
+import { type Bbox, type Point, type Feature, parseBbox } from '../geom'
 import { cannedBboxes, geomSources } from '../constants'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '../census'
 import { useToggle } from '@vueuse/core'
@@ -127,28 +127,27 @@ import { useLazyQuery } from '@vue/apollo-composable'
 
 const emit = defineEmits([
   'setBbox',
-  'setSelectedFeatures',
   'explore'
 ])
 
 const props = defineProps<{
-  geomDatasetLayerOptions: { label: string, value: string }[]
+  censusGeographyLayerOptions: { label: string, value: string }[]
   mapExtentCenter: Point | null
 }>()
 
-const startDate = defineModel<Date>('startDate')
-const endDate = defineModel<Date>('endDate')
-const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
-const geomSource = defineModel<string>('geomSource')
-const geomLayer = defineModel<string>('geomLayer')
 const bbox = defineModel<Bbox>('bbox', { default: null })
-
-const geomSelected = ref<CensusGeography[]>([])
+const geographyIds = defineModel<number[]>('geographyIds')
+const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const cannedBbox = ref('')
-const selectSingleDay = ref(true)
 const debugMenu = useDebugMenu()
-const toggleSelectSingleDay = useToggle(selectSingleDay)
+const endDate = defineModel<Date>('endDate')
+const geomLayer = defineModel<string>('geomLayer')
 const geomSearch = ref('')
+const geomSource = defineModel<string>('geomSource')
+const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
+const selectSingleDay = ref(true)
+const startDate = defineModel<Date>('startDate')
+const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 const geomSearchVars = computed(() => {
   return {
@@ -173,37 +172,30 @@ const {
   }
 )
 
-// Watch for changes
-const loadReady = computed(() => {
-  return geomLayer.value && geomSearch.value
-})
-
 watch(geomSearchVars, () => {
-  console.log('geomSearchVars changed:', geomSearchVars)
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
     geomLoad(geographySearchQuery) || geomRefetch()
   }
 })
 
-const geomSelectedOptions = computed(() => {
-  // Add dataset_name, dataset_desc
+const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
+  // Combine both the selected geographies and the search results
   const geogs: CensusGeography[] = []
-  for (const ds of geomResult.value?.census_datasets || []) {
-    for (const geo of ds.geographies || []) {
+  for (const geo of censusGeographiesSelected.value || []) {
+    geogs.push({
+      ...geo,
+    })
+  }
+  for (const geo of geomResult.value?.census_datasets || []) {
+    for (const g of geo.geographies || []) {
       geogs.push({
-        ...geo,
-        dataset_name: ds.name,
-        dataset_description: ds.description,
+        ...g,
       })
     }
   }
 
   // "options" must include the already selected geographies, otherwise the label will not work
   const options = new Map<number, CensusGeography>()
-  const selected = geomSelected.value || []
-  for (const geo of selected) {
-    options.set(geo.id, geo)
-  }
 
   // Add the search query results
   for (const geo of geogs || []) {
@@ -217,29 +209,12 @@ const geomSelectedOptions = computed(() => {
   const results = []
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
-    const stateDesc = geo.adm1_name ? ` (${geo.adm1_name})` : ''
-    let label = `${geo.name} ${stateDesc} (${geo.dataset_description || geo.dataset_name}: ${geo.layer.description || geo.layer.name})`
-    results.push({ value: geo, label })
+    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
+    let label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
+    results.push({ value: geo.id, label })
   }
   return results
 })
-
-// Which options to include in the select dropdown
-// @param  option - the option to test (items in the options array)
-// @param  value  - the value to test (what the user typed)
-function geomFilter (option: any, value: string): boolean {
-  const selected = geomSelected.value || []
-  for (const geo of selected) {
-    if (geo.id === option?.id) {
-      return true // value was already selected, exclude it from dropdown
-    }
-  }
-  return false
-}
-
-// end goal: have an array of geojson features selected by the user
-//    to pass into the scenario
-//    and have each stop returned by the query to include the matching geography ids
 
 /////////////////////////////////////////
 /////////////////////////////////////////
@@ -248,25 +223,6 @@ watch(() => cannedBbox.value, (cannedBboxName) => {
   if (cannedBboxName) {
     emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName) || null))
   }
-})
-
-watch(geomSelected, () => {
-  const selected = geomSelected.value || []
-  const features = []
-
-  for (const geo of selected) {
-    features.push({
-      type: 'Feature',
-      geometry: geo.geometry,
-      id: geo.id,
-      properties: {
-        id: geo.geoid,
-        name: geo.name,
-        geoid: geo.geoid
-      }
-    })
-  }
-  emit('setSelectedFeatures', features)
 })
 
 const validQueryParams = computed(() => {
