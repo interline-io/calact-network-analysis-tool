@@ -74,11 +74,12 @@
             v-model:geom-source="geomSource"
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
-            :geom-dataset-layer-options="geomDatasetLayerOptions"
+            v-model:geography-ids="geographyIds"
+            :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
+            :census-geographies-selected="censusGeographiesSelected"
             @set-bbox="bbox = $event"
-            @set-selected-features="setSelectedFeatures"
             @explore="runQuery()"
           />
         </div>
@@ -120,7 +121,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-mode="geomLayer"
-            :geom-dataset-layer-options="geomDatasetLayerOptions"
+            :census-geography-layer-options="censusGeographyLayerOptions"
             :stop-features="stopFeatures"
             :route-features="routeFeatures"
             :agency-features="agencyFeatures"
@@ -148,7 +149,6 @@
         :selected-agencies="selectedAgencies"
         :selected-day-of-week-mode="selectedDayOfWeekMode"
         :selected-days="selectedDays"
-        :selected-features="selectedFeatures"
         :selected-route-types="selectedRouteTypes"
         :selected-time-of-day-mode="selectedTimeOfDayMode"
         :start-date="startDate"
@@ -165,7 +165,7 @@
       <!-- This is a component for displaying the map and legend -->
       <cal-map
         :bbox="bbox"
-        :selected-features="selectedFeatures"
+        :census-geographies-selected="censusGeographiesSelected"
         :stop-features="stopFeatures"
         :route-features="routeFeatures"
         :agency-features="agencyFeatures"
@@ -183,7 +183,7 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, geographyLayerQuery } from '../components/census'
+import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '../components/census'
 import { computed } from 'vue'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
@@ -205,40 +205,6 @@ const route = useRoute()
 const scheduleEnabled = ref(true)
 const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
-
-/////////////////
-// Geography selected features
-
-const selectedFeatures = ref<Feature[]>([]) // for now
-
-function setSelectedFeatures (features: Feature[]) {
-  selectedFeatures.value = features
-  geographyIds.value = features.map(f => parseInt(f.id))
-}
-
-/////////////////
-// Geography datasets
-
-const geomSelectedDataset = ref<string>('tiger2024')
-
-const {
-  result: geomResult,
-} = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyLayerQuery,
-  () => ({ })
-)
-
-const geomDatasetLayerOptions = computed(() => {
-  const geomDatasets = geomResult.value?.census_datasets || []
-  const options = []
-  for (const ds of geomDatasets || []) {
-    for (const layer of ds.layers || []) {
-      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-      options.push({ value: layer.name, label: label })
-    }
-  }
-  return options
-})
 
 /////////////////
 // Loading and error handling
@@ -287,7 +253,7 @@ const geomLayer = computed({
 
 const geographyIds = computed({
   get () {
-    return route.query.geographyIds?.toString().split(',').map(parseInt) || []
+    return route.query.geographyIds?.toString().split(',').map(p => (parseInt(p))) || []
   },
   set (v: number[]) {
     setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
@@ -527,6 +493,43 @@ const minFare = computed({
     setQuery({ ...route.query, minFare: v.toString() })
   }
 })
+
+/////////////////
+// Geography datasets
+
+const {
+  result: censusGeographyResult,
+} = useQuery<{ census_datasets: CensusDataset[] }>(
+  geographyLayerQuery,
+  () => ({
+    geography_ids: geographyIds.value,
+    include_geographies: geographyIds.value.length > 0,
+  })
+)
+
+const censusGeographyLayerOptions = computed(() => {
+  const geomDatasets = censusGeographyResult.value?.census_datasets || []
+  const options = []
+  for (const ds of geomDatasets || []) {
+    for (const layer of ds.layers || []) {
+      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
+      options.push({ value: layer.name, label: label })
+    }
+  }
+  return options
+})
+
+const censusGeographiesSelected = computed((): CensusGeography[] => {
+  const ret: CensusGeography[] = []
+  for (const ds of censusGeographyResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      ret.push(geo)
+    }
+  }
+  return ret
+})
+
+/////////////////
 
 // Each result in the filter summary will be a string to be used as a bullet point.
 // We will only include results if the filter is set to something interesting (not default)

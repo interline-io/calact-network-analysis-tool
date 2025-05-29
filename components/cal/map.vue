@@ -46,6 +46,7 @@ import { colors, routeTypes } from '../constants'
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
 import { type Agency } from '../agency'
+import type { CensusGeography } from '../census'
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]
@@ -59,12 +60,12 @@ const props = defineProps<{
   stopFeatures: Stop[]
   routeFeatures: Route[]
   agencyFeatures: Agency[]
-  selectedFeatures: Feature[]
   dataDisplayMode: string
   colorKey: string
   displayEditBboxMode?: boolean
   hideUnmarked: boolean
   stopDepartureLoadingComplete: boolean
+  censusGeographiesSelected: CensusGeography[]
 }>()
 
 const showShareMenu = ref(false)
@@ -392,8 +393,13 @@ const overlayFeatures = computed((): Feature[] => {
   }
 
   // Include selected features in display features
-  for (const feature of props.selectedFeatures) {
-    forDisplay.push(feature)
+  for (const feature of props.censusGeographiesSelected) {
+    forDisplay.push({
+      type: 'Feature',
+      id: feature.id.toString(),
+      geometry: feature.geometry,
+      properties: {}
+    })
   }
   return forDisplay
 })

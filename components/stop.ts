@@ -12,7 +12,6 @@ export const stopQuery = gql`
 query ($limit: Int, $after: Int, $where: StopFilter) {
   stops(limit: $limit, after: $after, where: $where) {
     id
-    within_features
     location_type
     stop_id
     stop_name
@@ -88,7 +87,6 @@ export interface StopVisitSummary {
 export type StopGql = {
   id: number
   geometry: GeoJSON.Point
-  within_features: string[]
   census_geographies: [{
     id: number
     name: string

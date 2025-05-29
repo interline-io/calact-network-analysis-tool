@@ -2,11 +2,25 @@ import { gql } from 'graphql-tag'
 import { type Geometry } from '../components/geom'
 
 export const geographyLayerQuery = gql`
-query {
+query($geography_ids: [Int!], $include_geographies: Boolean = false) {
   census_datasets {
     id
     name
     description
+    geographies(where:{ids: $geography_ids}) @include(if: $include_geographies) {
+      id
+      geoid
+      name
+      geometry
+      adm1_name
+      adm1_iso
+      geometry
+      layer {
+        id
+        name
+        description
+      }      
+    }
     layers {
       id
       name
