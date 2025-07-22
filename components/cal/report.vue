@@ -6,14 +6,8 @@
 
     <div class="cal-report-options block">
       <div class="filter-detail">
-        <div v-if="dataDisplayMode === 'Agency'">
-          Showing agencies:
-        </div>
-        <div v-if="dataDisplayMode === 'Route'">
-          Showing routes:
-        </div>
-        <div v-if="dataDisplayMode === 'Stop'">
-          Showing stops:
+        <div class="has-text-weight-semibold mb-3">
+          Report showing {{ reportTitle }}:
         </div>
 
         <ul style="list-style: disc inside">
@@ -24,23 +18,32 @@
       </div>
 
       <div class="cal-report-option-section">
-        Showing data by:
+        <div class="has-text-weight-semibold mb-3 is-flex is-justify-content-space-between is-align-items-center">
+          <span>Showing data by:</span>
+          <o-tooltip multiline label="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
+            <o-icon icon="information" />
+          </o-tooltip>
+        </div>
         <section>
-          <o-field>
+          <o-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Route"
               label="Route"
             />
+          </o-field>
 
+          <o-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Stop"
               label="Stop"
             />
+          </o-field>
 
+          <o-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
@@ -49,14 +52,15 @@
             />
           </o-field>
         </section>
-
-        <div><a title="Filter" role="button" @click="emit('clickFilterLink')">(change)</a></div>
       </div>
 
       <div class="cal-report-option-section">
-        Aggregate data by:
-        <br>
-        <br>
+        <div class="has-text-weight-semibold mb-3 is-flex is-justify-content-space-between is-align-items-center">
+          <span>Aggregate data by:</span>
+          <o-tooltip multiline label="Group data within the report by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view. To change the analysis area, return to the Query tab.">
+            <o-icon icon="information" />
+          </o-tooltip>
+        </div>
         <o-field>
           <o-select
             v-model="aggregateMode"
@@ -198,6 +202,17 @@ const reportData = computed((): TableReport => {
   return { data: [], columns: [] }
 })
 
+const reportTitle = computed(() => {
+  if (dataDisplayMode.value === 'Route') {
+    return 'routes'
+  } else if (dataDisplayMode.value === 'Stop') {
+    return 'stops'
+  } else if (dataDisplayMode.value === 'Agency') {
+    return 'agencies'
+  }
+  return ''
+})
+
 </script>
 
 <style scoped lang="scss">
@@ -225,17 +240,22 @@ const reportData = computed((): TableReport => {
     > .filter-detail {
       flex: 1 1 25%;
       align-self: stretch;
-      background-color: #ddd;
+      background-color: #f8f9fa;
       border: 1px solid #333;
-      padding: 5px;
+      padding: 1rem;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     > .cal-report-option-section {
       flex: 1;
       align-self: stretch;
       border: 1px solid #333;
-      padding: 5px;
+      padding: 1rem;
       margin-left: 15px;
+      background-color: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 
       > .which-report {
         font-size: larger;
