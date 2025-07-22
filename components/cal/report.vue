@@ -31,14 +31,7 @@
               name="dataDisplayMode"
               native-value="Route"
               label="Route"
-            >
-              <template #default>
-                <span class="ml-2">
-                  <i class="mdi mdi-routes mr-1"></i>
-                  Route
-                </span>
-              </template>
-            </o-radio>
+            />
           </o-field>
 
           <o-field class="mb-0">
@@ -47,14 +40,7 @@
               name="dataDisplayMode"
               native-value="Stop"
               label="Stop"
-            >
-              <template #default>
-                <span class="ml-2">
-                  <i class="mdi mdi-map-marker mr-1"></i>
-                  Stop
-                </span>
-              </template>
-            </o-radio>
+            />
           </o-field>
 
           <o-field class="mb-0">
@@ -63,14 +49,7 @@
               name="dataDisplayMode"
               native-value="Agency"
               label="Agency"
-            >
-              <template #default>
-                <span class="ml-2">
-                  <i class="mdi mdi-office-building mr-1"></i>
-                  Agency
-                </span>
-              </template>
-            </o-radio>
+            />
           </o-field>
         </section>
       </div>
