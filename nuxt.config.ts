@@ -74,5 +74,13 @@ export default defineNuxtConfig({
     }
   },
 
-  compatibilityDate: '2025-02-18'
+  compatibilityDate: '2025-02-18',
+
+  // Environment overrides:
+  $test: {
+    modules: [
+      '@nuxt/test-utils/module'
+    ]
+
+  }
 })
