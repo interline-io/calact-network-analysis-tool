@@ -17,7 +17,7 @@ export function setupPolly (recordingName: string) {
       },
     },
     recordIfMissing: !isCI, // Record in non-CI environments
-    recordFailedRequests: false, // Never update recordings even on failure
+    recordFailedRequests: true, // Record failed requests for testing error scenarios
     matchRequestsBy: {
       headers: false,
       body: true,

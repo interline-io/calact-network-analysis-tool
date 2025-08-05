@@ -10,16 +10,28 @@
     "build": "nuxt build",
     "start": "nuxt start",
     "generate": "nuxt generate",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "cli-example": "tsx docs/examples/cli-example.ts",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "^1.3.0",
     "@pollyjs/adapter-fetch": "^6.0.7",
     "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6",
     "csv-stringify": "^6.5.2",
     "nuxt": "^3.16.0",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2",
     "vue-concurrency": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "commander": "^12.0.0",
+    "graphql": "^16.8.0",
+    "graphql-tag": "^2.12.6",
+    "tsx": "^4.20.3",
+    "vitest": "^1.3.0"
   },
   "packageManager": "yarn@4.3.0"
 }
