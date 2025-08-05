@@ -385,14 +385,14 @@
 </template>
 
 <script lang="ts">
-import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
+import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, baseMapStyles } from '../../src/constants'
 </script>
 
 <script setup lang="ts">
 import { eachDayOfInterval } from 'date-fns'
-import { fmtDate } from '../datetime'
+import { fmtDate } from '../../src/datetime'
 import { defineEmits } from 'vue'
-import { type Stop } from '../stop'
+import { type Stop } from '../../src/stop'
 
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },

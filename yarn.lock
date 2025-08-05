@@ -2261,6 +2261,53 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@pollyjs/adapter-fetch@npm:^6.0.7":
+  version: 6.0.7
+  resolution: "@pollyjs/adapter-fetch@npm:6.0.7"
+  dependencies:
+    "@pollyjs/adapter": "npm:^6.0.6"
+    "@pollyjs/utils": "npm:^6.0.6"
+    to-arraybuffer: "npm:^1.0.1"
+  checksum: 10/ba4f80c837fa8583469fa0e76f89fe7267ef04c20ac461d76adeea5c962dfcdef3e1476e16745b6ed4b8d2fcc36e1a0e896ea1875f86efe03ae9254296136531
+  languageName: node
+  linkType: hard
+
+"@pollyjs/adapter@npm:^6.0.6":
+  version: 6.0.6
+  resolution: "@pollyjs/adapter@npm:6.0.6"
+  dependencies:
+    "@pollyjs/utils": "npm:^6.0.6"
+  checksum: 10/4f9157c335e9ad67e8c07ec227770df73be1c2a60f6bf19b97eb3490919209964c61a06fa20b30d4fe379dba43a0f94ed4fe8b88896f3eccca47c17f3eedf262
+  languageName: node
+  linkType: hard
+
+"@pollyjs/core@npm:^6.0.6":
+  version: 6.0.6
+  resolution: "@pollyjs/core@npm:6.0.6"
+  dependencies:
+    "@pollyjs/utils": "npm:^6.0.6"
+    "@sindresorhus/fnv1a": "npm:^2.0.1"
+    blueimp-md5: "npm:^2.19.0"
+    fast-json-stable-stringify: "npm:^2.1.0"
+    is-absolute-url: "npm:^3.0.3"
+    lodash-es: "npm:^4.17.21"
+    loglevel: "npm:^1.8.0"
+    route-recognizer: "npm:^0.3.4"
+    slugify: "npm:^1.6.3"
+  checksum: 10/9fb20942fc520f9f7dbce5c009ff2ae2a3c0914f17186099082a8245f66e1ee3bd6a55faa9bb70586cf659f5c16f41358fa88ef01712862e5a3464737d34a020
+  languageName: node
+  linkType: hard
+
+"@pollyjs/utils@npm:^6.0.6":
+  version: 6.0.6
+  resolution: "@pollyjs/utils@npm:6.0.6"
+  dependencies:
+    qs: "npm:^6.10.1"
+    url-parse: "npm:^1.5.3"
+  checksum: 10/90b7077b5ca11940972d864a7824569431ce082421e7092a99feb74b45548bfe7b8ead7ad442099e5fcaca2d007f345e53b560a3e6a28e94c0b3f7f3b3daadb0
+  languageName: node
+  linkType: hard
+
 "@poppinss/colors@npm:^4.1.4":
   version: 4.1.4
   resolution: "@poppinss/colors@npm:4.1.4"
@@ -2787,6 +2834,13 @@ __metadata:
   version: 0.4.1
   resolution: "@sec-ant/readable-stream@npm:0.4.1"
   checksum: 10/aac89581652ac85debe7c5303451c2ebf8bf25ca25db680e4b9b73168f6940616d9a4bbe3348981827b1159b14e2f2e6af4b7bd5735cac898c12d5c51909c102
+  languageName: node
+  linkType: hard
+
+"@sindresorhus/fnv1a@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@sindresorhus/fnv1a@npm:2.0.1"
+  checksum: 10/1b1c6e4c8acbdb92e39e04be869de7b7d079e03a46d8e8739cd5425ddd9dc7b154b50a37e50594eea2e26d0671529ce7e9aaa01ce1b96eb4e2c043cb3dd4d7ab
   languageName: node
   linkType: hard
 
@@ -4493,6 +4547,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"blueimp-md5@npm:^2.19.0":
+  version: 2.19.0
+  resolution: "blueimp-md5@npm:2.19.0"
+  checksum: 10/84dc5f86e0d890e50c067a52b85654ec02e56d019c6af88f5a2810b1353adfd37b09ae34f540ef5cd1f19fe0023cb69d0dd68877123044cc49fbf6e7ff4c9a18
+  languageName: node
+  linkType: hard
+
 "boolbase@npm:^1.0.0":
   version: 1.0.0
   resolution: "boolbase@npm:1.0.0"
@@ -4705,6 +4766,8 @@ __metadata:
   resolution: "calact-network-analysis-tool@workspace:."
   dependencies:
     "@aitodotai/json-stringify-pretty-compact": "npm:^1.3.0"
+    "@pollyjs/adapter-fetch": "npm:^6.0.7"
+    "@pollyjs/core": "npm:^6.0.6"
     csv-stringify: "npm:^6.5.2"
     nuxt: "npm:^3.16.0"
     tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2"
@@ -6908,7 +6971,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-json-stable-stringify@npm:^2.0.0":
+"fast-json-stable-stringify@npm:^2.0.0, fast-json-stable-stringify@npm:^2.1.0":
   version: 2.1.0
   resolution: "fast-json-stable-stringify@npm:2.1.0"
   checksum: 10/2c20055c1fa43c922428f16ca8bb29f2807de63e5c851f665f7ac9790176c01c3b40335257736b299764a8d383388dabc73c8083b8e1bc3d99f0a941444ec60e
@@ -7944,6 +8007,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"is-absolute-url@npm:^3.0.3":
+  version: 3.0.3
+  resolution: "is-absolute-url@npm:3.0.3"
+  checksum: 10/5159b51d065d9ad29e16a2f78d6c0e41c43227caf90a45e659c54ea6fd50ef0595b1871ce392e84b1df7cfdcad9a8e66eec0813a029112188435abf115accb16
+  languageName: node
+  linkType: hard
+
 "is-array-buffer@npm:^3.0.4, is-array-buffer@npm:^3.0.5":
   version: 3.0.5
   resolution: "is-array-buffer@npm:3.0.5"
@@ -8786,6 +8856,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lodash-es@npm:^4.17.21":
+  version: 4.17.21
+  resolution: "lodash-es@npm:4.17.21"
+  checksum: 10/03f39878ea1e42b3199bd3f478150ab723f93cc8730ad86fec1f2804f4a07c6e30deaac73cad53a88e9c3db33348bb8ceeb274552390e7a75d7849021c02df43
+  languageName: node
+  linkType: hard
+
 "lodash.defaults@npm:^4.2.0":
   version: 4.2.0
   resolution: "lodash.defaults@npm:4.2.0"
@@ -8832,6 +8909,13 @@ __metadata:
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
   checksum: 10/c08619c038846ea6ac754abd6dd29d2568aa705feb69339e836dfa8d8b09abbb2f859371e86863eda41848221f9af43714491467b5b0299122431e202bb0c532
+  languageName: node
+  linkType: hard
+
+"loglevel@npm:^1.8.0":
+  version: 1.9.2
+  resolution: "loglevel@npm:1.9.2"
+  checksum: 10/6153d8db308323f7ee20130bc40309e7a976c30a10379d8666b596d9c6441965c3e074c8d7ee3347fe5cfc059c0375b6f3e8a10b93d5b813cc5547f5aa412a29
   languageName: node
   linkType: hard
 
@@ -10821,10 +10905,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"qs@npm:^6.10.1":
+  version: 6.14.0
+  resolution: "qs@npm:6.14.0"
+  dependencies:
+    side-channel: "npm:^1.1.0"
+  checksum: 10/a60e49bbd51c935a8a4759e7505677b122e23bf392d6535b8fc31c1e447acba2c901235ecb192764013cd2781723dc1f61978b5fdd93cc31d7043d31cdc01974
+  languageName: node
+  linkType: hard
+
 "quansync@npm:^0.2.8":
   version: 0.2.8
   resolution: "quansync@npm:0.2.8"
   checksum: 10/d8c545b1096f130cdf81d8c17844336b73314f8d42ed226b9a2af7380992386d006e320c9c4f15130385da6d5ba665272c1d347c30a80c183cdcd6fcec9d2d7a
+  languageName: node
+  linkType: hard
+
+"querystringify@npm:^2.1.1":
+  version: 2.2.0
+  resolution: "querystringify@npm:2.2.0"
+  checksum: 10/46ab16f252fd892fc29d6af60966d338cdfeea68a231e9457631ffd22d67cec1e00141e0a5236a2eb16c0d7d74175d9ec1d6f963660c6f2b1c2fc85b194c5680
   languageName: node
   linkType: hard
 
@@ -11102,6 +11202,13 @@ __metadata:
   version: 2.0.2
   resolution: "require-from-string@npm:2.0.2"
   checksum: 10/839a3a890102a658f4cb3e7b2aa13a1f80a3a976b512020c3d1efc418491c48a886b6e481ea56afc6c4cb5eef678f23b2a4e70575e7534eccadf5e30ed2e56eb
+  languageName: node
+  linkType: hard
+
+"requires-port@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "requires-port@npm:1.0.0"
+  checksum: 10/878880ee78ccdce372784f62f52a272048e2d0827c29ae31e7f99da18b62a2b9463ea03a75f277352f4697c100183debb0532371ad515a2d49d4bfe596dd4c20
   languageName: node
   linkType: hard
 
@@ -11386,6 +11493,13 @@ __metadata:
   bin:
     rollup: dist/bin/rollup
   checksum: 10/151b1c6e41f6bcd89aa63cd1cd96be8664aaa64dbf9eb4fe26d9a921731b2bd7650fecbc39fe8c8ac94ff84d8d4bf36028be1532aafd48ef2654f75a6356f26c
+  languageName: node
+  linkType: hard
+
+"route-recognizer@npm:^0.3.4":
+  version: 0.3.4
+  resolution: "route-recognizer@npm:0.3.4"
+  checksum: 10/cf1b83378bfe17d945afc087fc10082545cc19d1a5d13f9c1321117780caec40934a7cd5ace69558fadeb17475ac3963d1b59a2f75d144d51082e1964318959a
   languageName: node
   linkType: hard
 
@@ -11811,6 +11925,13 @@ __metadata:
   version: 3.0.12
   resolution: "slashes@npm:3.0.12"
   checksum: 10/c221d73765013db64f3eaf49dacc6b99a5d5477e63720c1bb71d1af647965dda23ab100ca1eb622e080f11ffe68e1e0a233b7b908073260bed4ec819ff1d3e42
+  languageName: node
+  linkType: hard
+
+"slugify@npm:^1.6.3":
+  version: 1.6.6
+  resolution: "slugify@npm:1.6.6"
+  checksum: 10/d0737cdedc834c50f74227bc1a1cf4f449f3575893f031b0e8c59f501c73526c866a23e47261b262c7acdaaaaf30d6f9e8aaae22772b3f56e858ac84c35efa7b
   languageName: node
   linkType: hard
 
@@ -12488,6 +12609,13 @@ __metadata:
     vitest: "npm:^3.0.9"
     vue: "npm:^3.5.13"
   checksum: 10/881f6c896cc192b40c65af52fa6e822c1cb4ee4da28f980ca588a4e54e5fd5a035daf89899f507f65be208de8ae3610c5940f50ad2f53dfd470d49f3372ac491
+  languageName: node
+  linkType: hard
+
+"to-arraybuffer@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "to-arraybuffer@npm:1.0.1"
+  checksum: 10/31433c10b388722729f5da04c6b2a06f40dc84f797bb802a5a171ced1e599454099c6c5bc5118f4b9105e7d049d3ad9d0f71182b77650e4fdb04539695489941
   languageName: node
   linkType: hard
 
@@ -13198,6 +13326,16 @@ __metadata:
   dependencies:
     punycode: "npm:^2.1.0"
   checksum: 10/b271ca7e3d46b7160222e3afa3e531505161c9a4e097febae9664e4b59912f4cbe94861361a4175edac3a03fee99d91e44b6a58c17a634bc5a664b19fc76fbcb
+  languageName: node
+  linkType: hard
+
+"url-parse@npm:^1.5.3":
+  version: 1.5.10
+  resolution: "url-parse@npm:1.5.10"
+  dependencies:
+    querystringify: "npm:^2.1.1"
+    requires-port: "npm:^1.0.0"
+  checksum: 10/c9e96bc8c5b34e9f05ddfeffc12f6aadecbb0d971b3cc26015b58d5b44676a99f50d5aeb1e5c9e61fa4d49961ae3ab1ae997369ed44da51b2f5ac010d188e6ad
   languageName: node
   linkType: hard
 
