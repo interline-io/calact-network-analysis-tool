@@ -43,6 +43,7 @@ export interface ScenarioConfig {
   frequencyUnderEnabled: boolean
   frequencyOverEnabled: boolean
   geographyIds?: number[]
+  stopLimit?: number
 }
 
 /**
@@ -111,6 +112,7 @@ export class ScenarioFetcher {
     this.config = config
     this.callbacks = callbacks
     this.client = client
+    this.stopLimit = config.stopLimit ?? 100
   }
 
   /**
@@ -130,13 +132,15 @@ export class ScenarioFetcher {
       
       // Start fetching stops
       await this.fetchStops({ after: 0 })
-      
+      console.log('fetchStops: completed with', this.stopResultFixed.length, 'stops')
+
       // Validate that we found some stops
       if (this.stopResultFixed.length === 0) {
         throw new Error('No transit stops found in the specified geographic area. Please check your bounding box or geography IDs.')
       }
       
       // Wait for all stop departure queries to complete
+      console.log('Starting stop departure queries...')
       await this.waitForStopDeparturesComplete()
       console.log('All stop departure queries completed')
       
@@ -268,6 +272,7 @@ export class ScenarioFetcher {
     
     if (!this.config.scheduleEnabled) {
       console.log('schedule loading disabled, skipping departure queue')
+      this.activeStopDepartureQueryCount -= 1
       return
     }
 
@@ -356,11 +361,14 @@ export class ScenarioFetcher {
    */
   private async waitForStopDeparturesComplete(): Promise<void> {
     return new Promise((resolve) => {
+      console.log('Waiting for stop departure queries to complete...')
       const checkComplete = () => {
         if (this.activeStopDepartureQueryCount === 0) {
           this.stopDepartureLoadingComplete = true
+          console.log('All stop departure queries completed')
           resolve()
         } else {
+          console.log('Active stop departure queries:', this.activeStopDepartureQueryCount)
           setTimeout(checkComplete, 100)
         }
       }

@@ -4,7 +4,7 @@
  * Simple CLI example showing how to use ScenarioFetcher
  * 
  * Usage: 
- *   npm run cli-example -- --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-01-01" --end-date "2024-01-07"
+ *   npm run cli-example -- --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-07-03" --end-date "2024-07-10"
  */
 
 import { Command } from 'commander'
@@ -95,8 +95,8 @@ async function main() {
     .description('Fetch transit scenario data via CLI')
     .version('1.0.0')
     .option('-b, --bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"', cannedBboxes.get('Downtown Portland, OR'))
-    .option('-s, --start-date <date>', 'Start date (YYYY-MM-DD)', '2024-01-01')
-    .option('-e, --end-date <date>', 'End date (YYYY-MM-DD)', '2024-01-07')
+    .option('-s, --start-date <date>', 'Start date (YYYY-MM-DD)', '2024-07-03')
+    .option('-e, --end-date <date>', 'End date (YYYY-MM-DD)', '2024-07-10')
     .option('-st, --start-time <time>', 'Start time (HH:MM)', '06:00')
     .option('-et, --end-time <time>', 'End time (HH:MM)', '22:00')
     .option('-rt, --route-types <types>', 'Route types (comma-separated)', '3')

@@ -56,8 +56,8 @@ const config: ScenarioConfig = {
     valid: true
   },
   scheduleEnabled: true,
-  startDate: new Date('2024-01-01'),
-  endDate: new Date('2024-01-07'),
+  startDate: new Date('2024-07-03'),
+  endDate: new Date('2024-07-10'),
   selectedRouteTypes: [3], // Bus
   selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   selectedAgencies: [],
@@ -83,16 +83,16 @@ const result = await fetcher.fetch()
 ```bash
 # Basic usage with bounding box (requires API key)
 export TRANSITLAND_API_KEY="your_api_key_here"
-npm run cli-example -- --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-01-01"
+npm run cli-example -- --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-07-03"
 
 # Or provide API key directly
-npm run cli-example -- --api-key "your_api_key" --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-01-01"
+npm run cli-example -- --api-key "your_api_key" --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-07-03"
 
 # Advanced usage with filters
 npm run cli-example -- \
   --bbox "-122.8,45.4,-122.5,45.7" \
-  --start-date "2024-01-01" \
-  --end-date "2024-01-07" \
+  --start-date "2024-07-03" \
+  --end-date "2024-07-10" \
   --route-types "3,1" \
   --days "monday,wednesday,friday" \
   --output json

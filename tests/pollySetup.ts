@@ -28,7 +28,7 @@ export function setupPolly (recordingName: string) {
 
   // Passthrough requests to localhost and 127.0.0.1
   polly.server.any().filter((req) => {
-    console.warn(`Polly checking filter: ${req.url}`)
+    console.warn(`Polly checking filter: ${req.url} body: ${req.body}`)
     return (req.url.startsWith('http://localhost') || req.url.startsWith('http://127.0.0.1'))
   })
     .passthrough()

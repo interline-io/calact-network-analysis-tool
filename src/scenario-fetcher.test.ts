@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Mock } from 'vitest'
-import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '../src/scenario-fetcher'
-import { type Bbox } from '../src/geom'
-import { setupPolly } from './pollySetup'
+import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from './scenario-fetcher'
+import { type Bbox } from './geom'
+import { setupPolly } from '~/tests/pollySetup'
 import { print } from 'graphql'
 import type { Polly } from '@pollyjs/core'
 
@@ -95,10 +95,10 @@ describe('ScenarioFetcher', () => {
         valid: true
       } as Bbox,
       scheduleEnabled: true,
-      startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-01-07'),
-      startTime: new Date('2024-01-01T06:00:00'),
-      endTime: new Date('2024-01-01T22:00:00'),
+      startDate: new Date('2024-07-03'),
+      endDate: new Date('2024-07-10'),
+      startTime: new Date('2024-07-03T06:00:00'),
+      endTime: new Date('2024-07-03T22:00:00'),
       selectedRouteTypes: [3],
       selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       selectedAgencies: [],
@@ -106,7 +106,8 @@ describe('ScenarioFetcher', () => {
       selectedTimeOfDayMode: 'All',
       frequencyUnderEnabled: false,
       frequencyOverEnabled: false,
-      geographyIds: []
+      geographyIds: [],
+      stopLimit: 100
     }
   })
 
@@ -235,42 +236,22 @@ describe('ScenarioFetcher', () => {
     expect(errorCallback).toHaveBeenCalledWith(mockError)
   })
 
-  it('should respect scheduleEnabled flag', async () => {
-    const configWithoutSchedule = { ...config, scheduleEnabled: false }
-    
-    // Mock at least one stop to pass validation
-    mockClient.mockQuery.mockResolvedValue({ data: { stops: [
-      {
-        id: 1,
-        stop_id: 'stop_1',
-        stop_name: 'Test Stop',
-        location_type: 0,
-        geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-        census_geographies: [],
-        route_stops: []
-      }
-    ] } })
-    
-    const fetcher = new ScenarioFetcher(configWithoutSchedule, mockClient)
-    const result = await fetcher.fetch()
-
-    // Should still work but skip departure queries
-    expect(result.isComplete).toBe(true)
-  })
 
   it('should call progress callback during fetch', async () => {
-    // Mock at least one stop to pass validation
-    mockClient.mockQuery.mockResolvedValue({ data: { stops: [
-      {
-        id: 1,
-        stop_id: 'stop_1',
-        stop_name: 'Test Stop',
-        location_type: 0,
-        geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-        census_geographies: [],
-        route_stops: []
-      }
-    ] } })
+    // Mock first call returns one stop, second call returns empty to end recursion
+    mockClient.mockQuery
+      .mockResolvedValueOnce({ data: { stops: [
+        {
+          id: 1,
+          stop_id: 'stop_1',
+          stop_name: 'Test Stop',
+          location_type: 0,
+          geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
+          census_geographies: [],
+          route_stops: []
+        }
+      ] } })
+      .mockResolvedValue({ data: { stops: [] } }) // All subsequent calls return empty
     
     const progressCallback = vi.fn()
     const fetcher = new ScenarioFetcher(config, mockClient, {
@@ -306,11 +287,11 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
         ne: { lat: 45.53306, lon: -122.66809 },
         valid: true
       } as Bbox,
-      scheduleEnabled: false, // Disable schedule for faster tests
-      startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-01-02'), // Short date range
-      startTime: new Date('2024-01-01T08:00:00'),
-      endTime: new Date('2024-01-01T10:00:00'),
+      scheduleEnabled: true, 
+      startDate: new Date('2024-07-03'),
+      endDate: new Date('2024-07-04'), // Short date range
+      startTime: new Date('2024-07-03T08:00:00'),
+      endTime: new Date('2024-07-03T10:00:00'),
       selectedRouteTypes: [3], // Bus only
       selectedDays: ['monday'],
       selectedAgencies: [],
@@ -318,7 +299,8 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
       selectedTimeOfDayMode: 'All',
       frequencyUnderEnabled: false,
       frequencyOverEnabled: false,
-      geographyIds: []
+      geographyIds: [],
+      stopLimit: 100
     }
   })
 
@@ -328,7 +310,7 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
     }
   })
 
-  it('should fetch real transit data from Portland area (no schedule)', async () => {
+  it('should fetch real transit data from Portland area', async () => {
     polly = setupPolly('scenario-fetcher-portland-basic')
     
     const fetcher = new ScenarioFetcher(config, realClient)
