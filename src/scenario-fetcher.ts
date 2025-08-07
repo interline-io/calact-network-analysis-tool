@@ -1,7 +1,7 @@
 import { type Bbox } from './geom'
 import { type dow, routeTypes } from './constants'
-import { format } from 'date-fns'
 import { gql } from 'graphql-tag'
+import { format } from 'date-fns'
 import {
   type StopDeparture,
   type StopTime,
@@ -137,12 +137,12 @@ export class ScenarioFetcher {
   private activeStopDepartureQueryCount = 0
   private stopLimit = 100
   private stopTimeBatchSize = 100
+  private feedVersionProgress = { total: 0, completed: 0 }
   
   // Results
-  private stopResultFixed: StopGql[] = []
-  private routeResultFixed: RouteGql[] = []
+  private stopResults: StopGql[] = []
+  private routeResults: RouteGql[] = []
   private feedVersions: FeedVersion[] = []
-  private feedVersionProgress = { total: 0, completed: 0 }
   
   constructor(
     config: ScenarioConfig,
@@ -165,7 +165,7 @@ export class ScenarioFetcher {
   }
 
   // Start the scenario fetching process
-  async fetchInner(): Promise<ScenarioResult> {
+  private async fetchInner(): Promise<ScenarioResult> {
     this.emitProgress({ 
       isLoading: true, 
       stopDepartureProgress: { total: 0, queue: 0 },
@@ -174,8 +174,8 @@ export class ScenarioFetcher {
     })
     
     // Reset state
-    this.stopResultFixed = []
-    this.routeResultFixed = []
+    this.stopResults = []
+    this.routeResults = []
     this.feedVersions = []
     this.stopDepartureCache = new StopDepartureCache()
     this.stopDepartureLoadingComplete = false
@@ -183,91 +183,65 @@ export class ScenarioFetcher {
     
     // FIRST STAGE: Fetch active feed versions in the area
     console.log('Starting feed version discovery...')
-    await this.fetchFeedVersions()
-    console.log('Feed version discovery completed:', this.feedVersions.length, 'feed versions')
-    
-    // SECOND STAGE: Fetch stops for each feed version
+    await this.fetchFeedVersions()    
     this.emitProgress({ 
       isLoading: true, 
       stopDepartureProgress: { total: 0, queue: 0 },
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'stops'
     })
+    console.log('Feed version discovery completed:', this.feedVersions.length, 'feed versions')
     
+    // SECOND STAGE: Fetch stops for all feed versions
     console.log('Starting stop fetching for', this.feedVersions.length, 'feed versions...')
-    await this.fetchStopsForAllFeedVersions()
-    console.log('Stop fetching completed with', this.stopResultFixed.length, 'stops')
-    
-    // THIRD STAGE: Wait for all stop departure queries to complete
+    await Promise.all(this.feedVersions.map(feedVersion => 
+      this.fetchStopsForFeedVersion(feedVersion)
+    ))
     this.emitProgress({ 
       isLoading: true, 
       stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'schedules'
     })
+    console.log('Stop fetching completed with', this.stopResults.length, 'stops')
     
+    // THIRD STAGE: Wait for all stop departure queries to complete    
     console.log('Starting stop departure queries...')
     await this.waitForStopDeparturesComplete()
-    console.log('All stop departure queries completed')
-    
-    // FINAL STAGE: Apply filters and build final result
     this.emitProgress({ 
       isLoading: true, 
       stopDepartureProgress: { total: 0, queue: 0 },
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'complete'
     })
+    console.log('All stop departure queries completed')
     
-    const result = this.buildResult()
+    // FINAL STAGE: Apply filters and build final result    
     console.log('Scenario fetch complete')
-
+    const result = this.buildResult()
+    this.callbacks.onComplete?.(result)
     this.emitProgress({ 
       isLoading: false, 
       stopDepartureProgress: { total: 0, queue: 0 },
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'complete'
     })
-    this.callbacks.onComplete?.(result)
-    
     return result
   }
 
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions(): Promise<void> {
-    console.log('fetchFeedVersions: starting')
-    const bbox = this.config.bbox
-    const variables = {
-      where: {bbox:{
-        min_lon: bbox ? bbox.sw.lon : null,
-        min_lat: bbox ? bbox.sw.lat : null,
-        max_lon: bbox ? bbox.ne.lon : null,
-        max_lat: bbox ? bbox.ne.lat : null  
-      }}
-    }
+    const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
-    const feedData: FeedGql[] = response.data?.feeds || []
-    
-    // Filter by selected feed versions if specified
+    const feedData: FeedGql[] = response.data?.feeds || []    
     this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)  
     this.feedVersionProgress = { total: this.feedVersions.length, completed: 0 }
-    console.log('fetchFeedVersions: completed with', this.feedVersions.length, 'feed versions')
-  }
-
-  // Fetch stops for all feed versions
-  private async fetchStopsForAllFeedVersions(): Promise<void> {
-    const promises = this.feedVersions.map(feedVersion => 
-      this.fetchStopsForFeedVersion(feedVersion)
-    )
-    await Promise.all(promises)
   }
 
   // Fetch stops for a specific feed version
   private async fetchStopsForFeedVersion(feedVersion: FeedVersion): Promise<void> {
     console.log('fetchStopsForFeedVersion: starting for', feedVersion.sha1)
-    await this.fetchStops({ 
-      after: 0, 
-      feedVersionSha1: feedVersion.sha1 
-    })
+    await this.fetchStops({ after: 0, feedVersionSha1: feedVersion.sha1 })
     this.feedVersionProgress.completed += 1
     this.emitProgress({ 
       isLoading: true, 
@@ -281,37 +255,25 @@ export class ScenarioFetcher {
   // Fetch stops from GraphQL API
   private async fetchStops(task: { after: number, feedVersionSha1?: string }): Promise<void> {
     console.log('fetchStops: run', task)
-    
-    const bbox = this.config.bbox
-    const b = bbox == null
-      ? null
-      : {
-          min_lon: bbox.sw.lon,
-          min_lat: bbox.sw.lat,
-          max_lon: bbox.ne.lon,
-          max_lat: bbox.ne.lat
-        }
+    const b = (this.config.bbox == null ? null : convertBbox(this.config.bbox))
     const geoIds = this.config.geographyIds || []
     const variables = {
       after: task.after,
       limit: this.stopLimit,
       where: {
         location_type: 0,
-        // Add feed version filtering
         feed_version_sha1: task.feedVersionSha1,
         location: {
           bbox: geoIds.length > 0 ? null : b,
           geography_ids: geoIds.length > 0 ? geoIds : null,
         }
       }
-    }
+    }    
     const response = await this.client.query<{ stops: StopGql[] }>(stopQuery, variables)
     
-    console.log('fetchStops: resolved')
-    const stopData: StopGql[] = response.data?.stops || []
-    
     // Add to results
-    this.stopResultFixed.push(...stopData)
+    const stopData: StopGql[] = response.data?.stops || []
+    this.stopResults.push(...stopData)
     
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -320,77 +282,64 @@ export class ScenarioFetcher {
         routeIds.add(rs.route?.id)
       }
     }
-    
+
+    // Fetch routes syncronously
     if (routeIds.size > 0) {
       await this.fetchRoutes({ ids: [...routeIds] })
     }
 
     // Enqueue stop departure fetching
-    const ids = stopData.map(s => s.id)
-    this.enqueueStopDepartureFetch(ids)
+    const stopIds = stopData.map(s => s.id)
+    this.enqueueStopDepartureFetch(stopIds)
     
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
-    if (stopData.length >= this.stopLimit && ids.length > 0) {
+    if (stopData.length >= this.stopLimit && stopIds.length > 0) {
       await this.fetchStops({ 
-        after: ids[ids.length - 1], 
+        after: stopIds[stopIds.length - 1], 
         feedVersionSha1: task.feedVersionSha1 
       })
-    } else {
-      console.log('fetchStops: completed for feed version', task.feedVersionSha1)
+      return
     }
+    console.log('fetchStops: completed for feed version', task.feedVersionSha1)
   }
 
   // Fetch routes from GraphQL API
   private async fetchRoutes(task: { ids: number[] }): Promise<void> {
     console.log('fetchRoutes: run', task)
-    
-    const currentRouteIds = new Set<number>(this.routeResultFixed.map(r => r.id))
+    const currentRouteIds = new Set<number>(this.routeResults.map(r => r.id))
     const fetchRouteIds = task.ids.filter(id => !currentRouteIds.has(id))
     if (fetchRouteIds.length === 0) {
       return
-    }
-    
-    const response = await this.client.query<{ routes: RouteGql[] }>(routeQuery, { ids: fetchRouteIds })
-    
-    console.log('fetchRoutes: resolved')
-    const routeData: RouteGql[] = response.data?.routes || []
+    }    
+    const response = await this.client.query<{ routes: RouteGql[] }>(routeQuery, { ids: fetchRouteIds })    
     
     // Merge with existing routes
+    const routeData: RouteGql[] = response.data?.routes || []
     const routeIdx = new Map<number, RouteGql>()
-    for (const route of this.routeResultFixed) {
+    for (const route of this.routeResults) {
       routeIdx.set(route.id, route)
     }
     for (const route of routeData) {
       routeIdx.set(route.id, route)
     }
-    
+    this.routeResults = [...routeIdx.values()]
     console.log('fetchRoutes: resolved')
-    this.routeResultFixed = [...routeIdx.values()]
   }
 
   // Fetch stop departures from GraphQL API
   private async fetchStopDepartures(task: StopDepartureQueryVars): Promise<void> {
-    if (task.ids.length === 0) {
-      return
-    }
-    
-    if (!this.config.scheduleEnabled) {
-      console.log('schedule loading disabled, skipping departure queue')
+    console.log('fetchStopDepartures: run', task)    
+    if (!this.config.scheduleEnabled || task.ids.length === 0) {
       this.activeStopDepartureQueryCount -= 1
       return
     }
-
-    console.log('fetchStopDepartures: run', task)
-    
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
+    this.activeStopDepartureQueryCount -= 1
     
     // Update cache
-    this.activeStopDepartureQueryCount -= 1
     const stopData: StopDeparture[] = response.data?.stops || []
-    
-    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    
+    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']    
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {
@@ -407,8 +356,7 @@ export class ScenarioFetcher {
         if (dow === 'sunday') { r = stop.sunday || [] }
         this.stopDepartureCache.add(stop.id, dowDate, r)
       }
-    }
-    
+    }    
     this.stopDepartureCache.debugStats()
     
     // Update progress
@@ -424,11 +372,9 @@ export class ScenarioFetcher {
   private enqueueStopDepartureFetch(stopIds: number[]): void {
     if (stopIds.length === 0) {
       return
-    }
-    
+    }    
     const dates = this.getSelectedDateRange()
     const weekSize = 7
-    
     for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
       for (let i = 0; i < dates.length; i += weekSize) {
         const w = new StopDepartureQueryVars()
@@ -436,9 +382,8 @@ export class ScenarioFetcher {
         for (const d of dates.slice(i, i + weekSize)) {
           w.setDay(d)
         }
-        this.activeStopDepartureQueryCount += 1
-        
         // Execute the stop departure fetch
+        this.activeStopDepartureQueryCount += 1        
         this.fetchStopDepartures(w).catch(error => {
           this.callbacks.onError?.(error)
         })
@@ -478,81 +423,38 @@ export class ScenarioFetcher {
 
   // Build the final result with filtered data
   private buildResult(): ScenarioResult {
-    const selectedDayOfWeekModeValue = this.config.selectedDayOfWeekMode || ''
-    const selectedDateRangeValue = this.getSelectedDateRange()
-    const selectedDaysValue = this.config.selectedDays || []
-    const selectedRouteTypesValue = this.config.selectedRouteTypes || []
-    const selectedAgenciesValue = this.config.selectedAgencies || []
-    const sdCache = this.stopDepartureLoadingComplete ? this.stopDepartureCache : null
-    const startTimeValue = this.config.startTime ? format(this.config.startTime, 'HH:mm:ss') : '00:00:00'
-    const endTimeValue = this.config.endTime ? format(this.config.endTime, 'HH:mm:ss') : '24:00:00'
-    const frequencyUnderValue = (this.config.frequencyUnderEnabled ? this.config.frequencyUnder : -1) || -1
-    const frequencyOverValue = (this.config.frequencyOverEnabled ? this.config.frequencyOver : -1) || -1
-
-    // Apply route filters
-    const routeFeatures: Route[] = []
-    for (const routeGql of this.routeResultFixed || []) {
-      const route: Route = {
+     const routes: Route[] = this.routeResults.map((routeGql): Route => {
+      return {
         ...routeGql,
         route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
         agency_name: routeGql.agency?.agency_name || 'Unknown',
-        route_mode: this.getRouteMode(routeGql.route_type),
+        route_mode: getRouteMode(routeGql.route_type),
         marked: true,
         average_frequency: null,
         fastest_frequency: null,
         slowest_frequency: null,
         headways: newRouteHeadwaySummary(),
-      }
-      routeSetDerived(
-        route,
-        selectedDateRangeValue,
-        startTimeValue,
-        endTimeValue,
-        selectedRouteTypesValue,
-        selectedAgenciesValue,
-        frequencyUnderValue,
-        frequencyOverValue,
-        sdCache,
-      )
-      routeFeatures.push(route)
-    }
-    const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
+      }    
+    })
 
-    // Apply stop filters
-    const stopFeatures: Stop[] = []
-    for (const stopGql of this.stopResultFixed) {
-      const stop: Stop = {
+    const stops: Stop[] = this.stopResults.map((stopGql): Stop => {
+      return {
         ...stopGql,
         marked: true,
         visits: null,
-      }
-      stopSetDerived(
-        stop,
-        selectedDaysValue,
-        selectedDayOfWeekModeValue,
-        selectedDateRangeValue,
-        startTimeValue,
-        endTimeValue,
-        selectedRouteTypesValue,
-        selectedAgenciesValue,
-        frequencyUnderValue,
-        frequencyOverValue,
-        markedRoutes,
-        sdCache
-      )
-      stopFeatures.push(stop)
-    }
+      }    
+    })
 
     // Apply agency filters
-    const agencyFeatures = this.buildAgencyFeatures(stopFeatures, routeFeatures)
+    const agencies = this.buildAgencyFeatures(stops, routes)
 
     return {
-      routes: routeFeatures,
-      stops: stopFeatures,
-      agencies: agencyFeatures,
+      routes,
+      stops,
+      agencies,
+      feedVersions: this.feedVersions,
       stopDepartureCache: this.stopDepartureCache,
       isComplete: this.stopDepartureLoadingComplete,
-      feedVersions: this.feedVersions
     }
   }
 
@@ -580,23 +482,13 @@ export class ScenarioFetcher {
       }
     }
     
-    const markedAgencies: Set<number> = new Set()
-    stopFeatures.filter(s => s.marked).forEach((s) => {
-      for (const rstop of s.route_stops || []) {
-        markedAgencies.add(rstop.route.agency?.id)
-      }
-    })
-    routeFeatures.filter(s => s.marked).forEach((s) => {
-      markedAgencies.add(s.agency?.id)
-    })
-    
     const agencyDataValues = [...agencyData.values()]
     return agencyDataValues.map((adata): Agency => {
       const agency = adata.agency as Agency
       return {
-        marked: markedAgencies.has(agency.id),
+        marked: true,
         routes_count: adata.routes.size,
-        routes_modes: [...adata.routes_modes].map((r: number) => this.getRouteMode(r)).join(', '),
+        routes_modes: [...adata.routes_modes].map((r: number) => getRouteMode(r)).join(', '),
         stops_count: adata.stops.size,
         id: agency.id,
         agency_id: agency.agency_id,
@@ -610,23 +502,52 @@ export class ScenarioFetcher {
     })
   }
 
-  // Get route mode from route type
-  private getRouteMode(routeType: number): string {
-    return routeTypes.get(routeType) || 'Unknown'
-  }
-
   // Emit progress updates
   private emitProgress(progress: ScenarioProgress): void {
     this.callbacks.onProgress?.(progress)
   }
+}
 
-  // Update configuration
-  updateConfig(config: Partial<ScenarioConfig>): void {
-    this.config = { ...this.config, ...config }
-  }
+function getRouteMode(routeType: number): string {
+  return routeTypes.get(routeType) || 'Unknown'
+}
 
-  // Get current configuration
-  getConfig(): ScenarioConfig {
-    return { ...this.config }
+function convertBbox(bbox: Bbox | undefined): any {
+  return {
+    min_lon: bbox ? bbox.sw.lon : null,
+    min_lat: bbox ? bbox.sw.lat : null,
+    max_lon: bbox ? bbox.ne.lon : null,
+    max_lat: bbox ? bbox.ne.lat : null  
   }
+}
+
+export function applyScenarioResultFilter(
+  result: ScenarioResult,
+  filter: ScenarioFilter
+): ScenarioResult {
+  // Currently a placeholder - implement filtering logic as needed
+  
+  // const selectedDateRangeValue = this.getSelectedDateRange()
+  // const sdCache = this.stopDepartureLoadingComplete ? this.stopDepartureCache : null
+
+  const selectedDayOfWeekModeValue = filter.selectedDayOfWeekMode || ''
+  const selectedDaysValue = filter.selectedDays || []
+  const selectedRouteTypesValue = filter.selectedRouteTypes || []
+  const selectedAgenciesValue = filter.selectedAgencies || []
+  const startTimeValue = filter.startTime ? format(filter.startTime, 'HH:mm:ss') : '00:00:00'
+  const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
+  const frequencyUnderValue = (filter.frequencyUnderEnabled ? filter.frequencyUnder : -1) || -1
+  const frequencyOverValue = (filter.frequencyOverEnabled ? filter.frequencyOver : -1) || -1
+  
+  const markedRoutes = new Set(result.routes.filter(r => r.marked).map(r => r.id))
+  const markedAgencies: Set<number> = new Set()
+  result.routes.filter(s => s.marked).forEach((s) => {
+    for (const rstop of s.route_stops || []) {
+      markedAgencies.add(rstop.route.agency?.id)
+    }
+  })
+  result.routes.filter(s => s.marked).forEach((s) => {
+    markedAgencies.add(s.agency?.id)
+  })
+  return result
 }
