@@ -9,9 +9,9 @@
 
 import { Command } from 'commander'
 import { print } from 'graphql'
-import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '../../src/scenario-fetcher'
-import { parseBbox } from '../../src/geom'
-import { cannedBboxes } from '../../src/constants'
+import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '~/src/scenario-fetcher'
+import { parseBbox } from '~/src/geom'
+import { cannedBboxes } from '~/src/constants'
 
 /**
  * Simple GraphQL client using fetch

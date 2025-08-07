@@ -183,16 +183,17 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '../src/census'
-import { computed } from 'vue'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../src/geom'
-import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../src/datetime'
 import { navigateTo } from '#imports'
-import { type Stop } from '../src/stop'
-import { type Route } from '../src/route'
-import { type Agency } from '../src/agency'
-import { type dow, dowValues, routeTypes } from '../src/constants'
+import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
+
+import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
+import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
+import { type Stop } from '~/src/stop'
+import { type Route } from '~/src/route'
+import { type Agency } from '~/src/agency'
+import { type dow, dowValues, routeTypes } from '~/src/constants'
 
 definePageMeta({
   layout: false

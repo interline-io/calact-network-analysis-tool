@@ -41,12 +41,12 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../../src/geom'
-import { colors, routeTypes } from '../../src/constants'
-import { type Stop, type StopCsv, stopToStopCsv } from '../../src/stop'
-import { type Route, type RouteCsv, routeToRouteCsv } from '../../src/route'
-import { type Agency } from '../../src/agency'
-import type { CensusGeography } from '../../src/census'
+import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '~/src/geom'
+import { colors, routeTypes } from '~/src/constants'
+import { type Stop, type StopCsv, stopToStopCsv } from '~/src/stop'
+import { type Route, type RouteCsv, routeToRouteCsv } from '~/src/route'
+import { type Agency } from '~/src/agency'
+import type { CensusGeography } from '~/src/census'
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]
