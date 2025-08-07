@@ -76,11 +76,11 @@ export interface ScenarioCallbacks {
 }
 
 /**
- * Abstract base class for GraphQL client interface
+ * Interface for GraphQL client
  * Implementations should provide the actual GraphQL query execution
  */
-export abstract class GraphQLClient {
-  abstract query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
+export interface GraphQLClient {
+  query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
 }
 
 /**
@@ -115,9 +115,7 @@ export class ScenarioFetcher {
     this.stopLimit = config.stopLimit ?? 100
   }
 
-  /**
-   * Start the scenario fetching process
-   */
+  // Start the scenario fetching process
   async fetch(): Promise<ScenarioResult> {
     try {
       this.emitProgress({ isLoading: true, stopDepartureProgress: { total: 0, queue: 0 } })
@@ -158,9 +156,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Get the computed stop variables for GraphQL query
-   */
+  // Get the computed stop variables for GraphQL query
   private getStopVars(after: number = 0) {
     const bbox = this.config.bbox
     const b = bbox == null
@@ -186,9 +182,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Fetch stops from GraphQL API
-   */
+  // Fetch stops from GraphQL API
   private async fetchStops(task: { after: number }): Promise<void> {
     console.log('fetchStops: run', task)
     this.checkQueryLimit()
@@ -227,9 +221,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Fetch routes from GraphQL API
-   */
+  // Fetch routes from GraphQL API
   private async fetchRoutes(task: { ids: number[] }): Promise<void> {
     console.log('fetchRoutes: run', task)
     this.checkQueryLimit()
@@ -262,9 +254,7 @@ export class ScenarioFetcher {
     this.routeResultFixed = [...routeIdx.values()]
   }
 
-  /**
-   * Fetch stop departures from GraphQL API
-   */
+  // Fetch stop departures from GraphQL API
   private async fetchStopDepartures(task: StopDepartureQueryVars): Promise<void> {
     if (task.ids.length === 0) {
       return
@@ -314,9 +304,7 @@ export class ScenarioFetcher {
     })
   }
 
-  /**
-   * Enqueue stop departure fetching tasks
-   */
+  // Enqueue stop departure fetching tasks
   private enqueueStopDepartureFetch(stopIds: number[]): void {
     if (stopIds.length === 0) {
       return
@@ -342,9 +330,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Get the selected date range
-   */
+  // Get the selected date range
   private getSelectedDateRange(): Date[] {
     const sd = new Date((this.config.startDate || new Date()).valueOf())
     const ed = new Date((this.config.endDate || new Date()).valueOf())
@@ -356,9 +342,7 @@ export class ScenarioFetcher {
     return dates
   }
 
-  /**
-   * Wait for all stop departure queries to complete
-   */
+  // Wait for all stop departure queries to complete
   private async waitForStopDeparturesComplete(): Promise<void> {
     return new Promise((resolve) => {
       console.log('Waiting for stop departure queries to complete...')
@@ -376,9 +360,7 @@ export class ScenarioFetcher {
     })
   }
 
-  /**
-   * Build the final result with filtered data
-   */
+  // Build the final result with filtered data
   private buildResult(): ScenarioResult {
     const selectedDayOfWeekModeValue = this.config.selectedDayOfWeekMode || ''
     const selectedDateRangeValue = this.getSelectedDateRange()
@@ -457,9 +439,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Build agency features from stops and routes
-   */
+  // Build agency features from stops and routes
   private buildAgencyFeatures(stopFeatures: Stop[], routeFeatures: Route[]): Agency[] {
     const agencyData = new Map()
     for (const stop of stopFeatures) {
@@ -513,16 +493,12 @@ export class ScenarioFetcher {
     })
   }
 
-  /**
-   * Get route mode from route type
-   */
+  // Get route mode from route type
   private getRouteMode(routeType: number): string {
     return routeTypes.get(routeType) || 'Unknown'
   }
 
-  /**
-   * Check query limits
-   */
+  // Check query limits
   private checkQueryLimit(): void {
     this.queryCount += 1
     if (this.queryCount > this.maxQueryLimit) {
@@ -531,23 +507,17 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Emit progress updates
-   */
+  // Emit progress updates
   private emitProgress(progress: ScenarioProgress): void {
     this.callbacks.onProgress?.(progress)
   }
 
-  /**
-   * Update configuration
-   */
+  // Update configuration
   updateConfig(config: Partial<ScenarioConfig>): void {
     this.config = { ...this.config, ...config }
   }
 
-  /**
-   * Get current configuration
-   */
+  // Get current configuration
   getConfig(): ScenarioConfig {
     return { ...this.config }
   }
