@@ -133,35 +133,6 @@
         </div>
       </div>
 
-      <!-- This is a component for handling data flow -->
-      <cal-scenario
-        :bbox="bbox"
-        :end-date="endDate"
-        :end-time="endTime"
-        :frequency-over-enabled="frequencyOverEnabled"
-        :frequency-over="frequencyOver"
-        :frequency-under-enabled="frequencyUnderEnabled"
-        :frequency-under="frequencyUnder"
-        :geography-ids="geographyIds"
-        :geom-source="geomSource"
-        :run-count="runCount"
-        :schedule-enabled="scheduleEnabled"
-        :selected-agencies="selectedAgencies"
-        :selected-day-of-week-mode="selectedDayOfWeekMode"
-        :selected-days="selectedDays"
-        :selected-route-types="selectedRouteTypes"
-        :selected-time-of-day-mode="selectedTimeOfDayMode"
-        :start-date="startDate"
-        :start-time="startTime"
-        @set-stop-departure-progress="stopDepartureProgress = $event"
-        @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
-        @set-stop-features="stopFeatures = $event"
-        @set-agency-features="agencyFeatures = $event"
-        @set-route-features="routeFeatures = $event"
-        @set-loading="loading = $event"
-        @set-error="setError"
-      />
-
       <!-- This is a component for displaying the map and legend -->
       <cal-map
         :bbox="bbox"
@@ -194,6 +165,8 @@ import { type Stop } from '~/src/stop'
 import { type Route } from '~/src/route'
 import { type Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes } from '~/src/constants'
+import { applyScenarioResultFilter, type ScenarioConfig, type ScenarioFilter } from '~/src/scenario-fetcher'
+import { StopDepartureCache } from '~/src/departure-cache'
 
 definePageMeta({
   layout: false
@@ -496,6 +469,33 @@ const minFare = computed({
 })
 
 /////////////////
+// Computed config and filters
+
+const scenarioConfig = computed((): ScenarioConfig => ({
+  bbox: bbox.value,
+  scheduleEnabled: scheduleEnabled.value,
+  startDate: startDate.value,
+  endDate: endDate.value,
+  geographyIds: geographyIds.value,
+}))
+
+const scenarioFilter = computed((): ScenarioFilter => {
+  return {
+    selectedRouteTypes: selectedRouteTypes.value || [],
+    selectedDays: selectedDays.value || [],
+    selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
+    selectedAgencies: selectedAgencies.value || [],
+    startTime: startTime.value,
+    endTime: endTime.value,
+    frequencyUnder: (frequencyUnderEnabled.value ? frequencyUnder.value : -1) || -1,
+    frequencyOver: (frequencyOverEnabled.value ? frequencyOver.value : -1) || -1,
+    selectedTimeOfDayMode: selectedTimeOfDayMode.value || '',
+    frequencyUnderEnabled: frequencyUnderEnabled.value || false,
+    frequencyOverEnabled: frequencyOverEnabled.value || false,
+  }
+})
+
+/////////////////
 // Geography datasets
 
 const {
@@ -716,6 +716,35 @@ async function resetFilters () {
 
   await navigateTo({ replace: true, query: p })
 }
+
+//////////////////////
+// Data fetching and filtering
+
+watch(() => [scenarioConfig], () => {
+  console.log('Running scenario fetcher', scenarioConfig.value)
+}, { deep: true })
+
+// Apply filters to routes and stops
+watch(() => [
+  scenarioConfig,
+  scenarioFilter
+], () => {
+  console.log('Applying scenario filter', scenarioConfig.value, scenarioFilter.value)
+  // Check defaults
+  // const selectedDateRangeValue = selectedDateRange.value || []
+  const filterResult = applyScenarioResultFilter(
+    {
+      routes: [],
+      stops: [],
+      feedVersions: [],
+      stopDepartureCache: new StopDepartureCache(),
+      isComplete: true,
+    },
+    scenarioConfig.value,
+    scenarioFilter.value,
+  )
+  console.log('Filter result', filterResult)
+}, { deep: true })
 
 //////////////////////
 // Helpers

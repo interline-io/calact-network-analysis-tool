@@ -20,6 +20,7 @@
     "@pollyjs/adapter-fetch": "^6.0.7",
     "@pollyjs/core": "^6.0.6",
     "@pollyjs/persister-fs": "^6.0.6",
+    "@vue/apollo-composable": "^4.2.2",
     "csv-stringify": "^6.5.2",
     "nuxt": "^3.16.0",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=a146ee22b869d229890de2e398e51c05681412f2",
