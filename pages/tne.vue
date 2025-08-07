@@ -510,30 +510,32 @@ const scenarioFilter = computed((): ScenarioFilter => {
 //   })
 // )
 
-// const censusGeographyLayerOptions = computed(() => {
-//   const geomDatasets = censusGeographyResult.value?.census_datasets || []
-//   const options = []
-//   for (const ds of geomDatasets || []) {
-//     for (const layer of ds.layers || []) {
-//       const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-//       options.push({ value: layer.name, label: label })
-//     }
-//   }
-//   return options
-// })
+const censusGeographyResult = ref<{ census_datasets: CensusDataset[] } | null>(null)
 
-const censusGeographyLayerOptions = ref<CensusDataset[]>([])
-const censusGeographiesSelected = ref([])
+const censusGeographyLayerOptions = computed(() => {
+  const geomDatasets = censusGeographyResult.value?.census_datasets || []
+  const options = []
+  for (const ds of geomDatasets || []) {
+    for (const layer of ds.layers || []) {
+      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
+      options.push({ value: layer.name, label: label })
+    }
+  }
+  return options
+})
 
-// const censusGeographiesSelected = computed((): CensusGeography[] => {
-//   const ret: CensusGeography[] = []
-//   for (const ds of censusGeographyResult.value?.census_datasets || []) {
-//     for (const geo of ds.geographies || []) {
-//       ret.push(geo)
-//     }
-//   }
-//   return ret
-// })
+const censusGeographiesSelected = computed((): CensusGeography[] => {
+  const ret: CensusGeography[] = []
+  for (const ds of censusGeographyResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      ret.push(geo)
+    }
+  }
+  return ret
+})
+
+// const censusGeographyLayerOptions = ref<CensusDataset[]>([])
+// const censusGeographiesSelected = ref([])
 
 /////////////////
 
