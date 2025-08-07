@@ -471,13 +471,15 @@ const minFare = computed({
 /////////////////
 // Computed config and filters
 
-const scenarioConfig = computed((): ScenarioConfig => ({
-  bbox: bbox.value,
-  scheduleEnabled: scheduleEnabled.value,
-  startDate: startDate.value,
-  endDate: endDate.value,
-  geographyIds: geographyIds.value,
-}))
+const scenarioConfig = computed((): ScenarioConfig => {
+  return {
+    bbox: bbox.value,
+    scheduleEnabled: scheduleEnabled.value,
+    startDate: startDate.value,
+    endDate: endDate.value,
+    geographyIds: geographyIds.value,
+  }
+})
 
 const scenarioFilter = computed((): ScenarioFilter => {
   return {
@@ -498,37 +500,40 @@ const scenarioFilter = computed((): ScenarioFilter => {
 /////////////////
 // Geography datasets
 
-const {
-  result: censusGeographyResult,
-} = useQuery<{ census_datasets: CensusDataset[] }>(
-  geographyLayerQuery,
-  () => ({
-    geography_ids: geographyIds.value,
-    include_geographies: geographyIds.value.length > 0,
-  })
-)
+// const {
+//   result: censusGeographyResult,
+// } = useQuery<{ census_datasets: CensusDataset[] }>(
+//   geographyLayerQuery,
+//   () => ({
+//     geography_ids: geographyIds.value,
+//     include_geographies: geographyIds.value.length > 0,
+//   })
+// )
 
-const censusGeographyLayerOptions = computed(() => {
-  const geomDatasets = censusGeographyResult.value?.census_datasets || []
-  const options = []
-  for (const ds of geomDatasets || []) {
-    for (const layer of ds.layers || []) {
-      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-      options.push({ value: layer.name, label: label })
-    }
-  }
-  return options
-})
+// const censusGeographyLayerOptions = computed(() => {
+//   const geomDatasets = censusGeographyResult.value?.census_datasets || []
+//   const options = []
+//   for (const ds of geomDatasets || []) {
+//     for (const layer of ds.layers || []) {
+//       const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
+//       options.push({ value: layer.name, label: label })
+//     }
+//   }
+//   return options
+// })
 
-const censusGeographiesSelected = computed((): CensusGeography[] => {
-  const ret: CensusGeography[] = []
-  for (const ds of censusGeographyResult.value?.census_datasets || []) {
-    for (const geo of ds.geographies || []) {
-      ret.push(geo)
-    }
-  }
-  return ret
-})
+const censusGeographyLayerOptions = ref<CensusDataset[]>([])
+const censusGeographiesSelected = ref([])
+
+// const censusGeographiesSelected = computed((): CensusGeography[] => {
+//   const ret: CensusGeography[] = []
+//   for (const ds of censusGeographyResult.value?.census_datasets || []) {
+//     for (const geo of ds.geographies || []) {
+//       ret.push(geo)
+//     }
+//   }
+//   return ret
+// })
 
 /////////////////
 
