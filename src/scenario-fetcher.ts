@@ -1,6 +1,7 @@
 import { type Bbox } from './geom'
 import { type dow, routeTypes } from './constants'
 import { format } from 'date-fns'
+import { gql } from 'graphql-tag'
 import {
   type StopDeparture,
   type StopTime,
@@ -24,6 +25,39 @@ import {
 } from './route'
 
 /**
+ * Feed data from GraphQL
+ */
+export interface FeedVersion {
+  id: string
+  sha1: string
+}
+
+export interface FeedGql {
+  id: string
+  onestop_id: string
+  feed_state: {
+    feed_version: FeedVersion
+  }
+}
+
+/**
+ * GraphQL query for feed versions
+ */
+export const feedVersionQuery = gql`
+query ($where: FeedFilter) {
+  feeds(where: $where) {
+    id
+    onestop_id
+    feed_state {
+      feed_version {
+        id
+        sha1
+      }
+    }
+  }
+}`
+
+/**
  * Configuration for scenario fetching
  */
 export interface ScenarioConfig {
@@ -31,6 +65,11 @@ export interface ScenarioConfig {
   scheduleEnabled: boolean
   startDate?: Date
   endDate?: Date
+  geographyIds?: number[]
+  stopLimit?: number
+}
+
+export interface ScenarioFilter {
   startTime?: Date
   endTime?: Date
   selectedRouteTypes: number[]
@@ -42,8 +81,6 @@ export interface ScenarioConfig {
   frequencyOver?: number
   frequencyUnderEnabled: boolean
   frequencyOverEnabled: boolean
-  geographyIds?: number[]
-  stopLimit?: number
 }
 
 /**
@@ -55,6 +92,7 @@ export interface ScenarioResult {
   agencies: Agency[]
   stopDepartureCache: StopDepartureCache
   isComplete: boolean
+  feedVersions: FeedVersion[]
 }
 
 /**
@@ -63,6 +101,8 @@ export interface ScenarioResult {
 export interface ScenarioProgress {
   isLoading: boolean
   stopDepartureProgress: { total: number, queue: number }
+  feedVersionProgress: { total: number, completed: number }
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete'
   error?: any
 }
 
@@ -97,12 +137,12 @@ export class ScenarioFetcher {
   private activeStopDepartureQueryCount = 0
   private stopLimit = 100
   private stopTimeBatchSize = 100
-  private queryCount = 0
-  private maxQueryLimit = 10000
   
   // Results
   private stopResultFixed: StopGql[] = []
   private routeResultFixed: RouteGql[] = []
+  private feedVersions: FeedVersion[] = []
+  private feedVersionProgress = { total: 0, completed: 0 }
   
   constructor(
     config: ScenarioConfig,
@@ -115,49 +155,133 @@ export class ScenarioFetcher {
     this.stopLimit = config.stopLimit ?? 100
   }
 
-  // Start the scenario fetching process
   async fetch(): Promise<ScenarioResult> {
     try {
-      this.emitProgress({ isLoading: true, stopDepartureProgress: { total: 0, queue: 0 } })
-      
-      // Reset state
-      this.stopResultFixed = []
-      this.routeResultFixed = []
-      this.stopDepartureCache = new StopDepartureCache()
-      this.stopDepartureLoadingComplete = false
-      this.activeStopDepartureQueryCount = 0
-      this.queryCount = 0
-      
-      // Start fetching stops
-      await this.fetchStops({ after: 0 })
-      console.log('fetchStops: completed with', this.stopResultFixed.length, 'stops')
-
-      // Validate that we found some stops
-      if (this.stopResultFixed.length === 0) {
-        throw new Error('No transit stops found in the specified geographic area. Please check your bounding box or geography IDs.')
-      }
-      
-      // Wait for all stop departure queries to complete
-      console.log('Starting stop departure queries...')
-      await this.waitForStopDeparturesComplete()
-      console.log('All stop departure queries completed')
-      
-      // Apply filters and build final result
-      const result = this.buildResult()
-      console.log('Scenario fetch complete:', result)
-
-      this.emitProgress({ isLoading: false, stopDepartureProgress: { total: 0, queue: 0 } })
-      this.callbacks.onComplete?.(result)
-      
-      return result
+      return await this.fetchInner()
     } catch (error) {
       this.callbacks.onError?.(error)
       throw error
     }
   }
 
-  // Get the computed stop variables for GraphQL query
-  private getStopVars(after: number = 0) {
+  // Start the scenario fetching process
+  async fetchInner(): Promise<ScenarioResult> {
+    this.emitProgress({ 
+      isLoading: true, 
+      stopDepartureProgress: { total: 0, queue: 0 },
+      feedVersionProgress: { total: 0, completed: 0 },
+      currentStage: 'feed-versions'
+    })
+    
+    // Reset state
+    this.stopResultFixed = []
+    this.routeResultFixed = []
+    this.feedVersions = []
+    this.stopDepartureCache = new StopDepartureCache()
+    this.stopDepartureLoadingComplete = false
+    this.activeStopDepartureQueryCount = 0
+    
+    // FIRST STAGE: Fetch active feed versions in the area
+    console.log('Starting feed version discovery...')
+    await this.fetchFeedVersions()
+    console.log('Feed version discovery completed:', this.feedVersions.length, 'feed versions')
+    
+    // SECOND STAGE: Fetch stops for each feed version
+    this.emitProgress({ 
+      isLoading: true, 
+      stopDepartureProgress: { total: 0, queue: 0 },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'stops'
+    })
+    
+    console.log('Starting stop fetching for', this.feedVersions.length, 'feed versions...')
+    await this.fetchStopsForAllFeedVersions()
+    console.log('Stop fetching completed with', this.stopResultFixed.length, 'stops')
+    
+    // THIRD STAGE: Wait for all stop departure queries to complete
+    this.emitProgress({ 
+      isLoading: true, 
+      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'schedules'
+    })
+    
+    console.log('Starting stop departure queries...')
+    await this.waitForStopDeparturesComplete()
+    console.log('All stop departure queries completed')
+    
+    // FINAL STAGE: Apply filters and build final result
+    this.emitProgress({ 
+      isLoading: true, 
+      stopDepartureProgress: { total: 0, queue: 0 },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'complete'
+    })
+    
+    const result = this.buildResult()
+    console.log('Scenario fetch complete')
+
+    this.emitProgress({ 
+      isLoading: false, 
+      stopDepartureProgress: { total: 0, queue: 0 },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'complete'
+    })
+    this.callbacks.onComplete?.(result)
+    
+    return result
+  }
+
+  // Fetch active feed versions in the specified area
+  private async fetchFeedVersions(): Promise<void> {
+    console.log('fetchFeedVersions: starting')
+    const bbox = this.config.bbox
+    const variables = {
+      where: {bbox:{
+        min_lon: bbox ? bbox.sw.lon : null,
+        min_lat: bbox ? bbox.sw.lat : null,
+        max_lon: bbox ? bbox.ne.lon : null,
+        max_lat: bbox ? bbox.ne.lat : null  
+      }}
+    }
+    const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
+    const feedData: FeedGql[] = response.data?.feeds || []
+    
+    // Filter by selected feed versions if specified
+    this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)  
+    this.feedVersionProgress = { total: this.feedVersions.length, completed: 0 }
+    console.log('fetchFeedVersions: completed with', this.feedVersions.length, 'feed versions')
+  }
+
+  // Fetch stops for all feed versions
+  private async fetchStopsForAllFeedVersions(): Promise<void> {
+    const promises = this.feedVersions.map(feedVersion => 
+      this.fetchStopsForFeedVersion(feedVersion)
+    )
+    await Promise.all(promises)
+  }
+
+  // Fetch stops for a specific feed version
+  private async fetchStopsForFeedVersion(feedVersion: FeedVersion): Promise<void> {
+    console.log('fetchStopsForFeedVersion: starting for', feedVersion.sha1)
+    await this.fetchStops({ 
+      after: 0, 
+      feedVersionSha1: feedVersion.sha1 
+    })
+    this.feedVersionProgress.completed += 1
+    this.emitProgress({ 
+      isLoading: true, 
+      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'stops'
+    })
+    console.log('fetchStopsForFeedVersion: completed for', feedVersion.sha1)
+  }
+
+  // Fetch stops from GraphQL API
+  private async fetchStops(task: { after: number, feedVersionSha1?: string }): Promise<void> {
+    console.log('fetchStops: run', task)
+    
     const bbox = this.config.bbox
     const b = bbox == null
       ? null
@@ -167,27 +291,20 @@ export class ScenarioFetcher {
           max_lon: bbox.ne.lon,
           max_lat: bbox.ne.lat
         }
-
     const geoIds = this.config.geographyIds || []
-    return {
-      after,
+    const variables = {
+      after: task.after,
       limit: this.stopLimit,
       where: {
         location_type: 0,
+        // Add feed version filtering
+        feed_version_sha1: task.feedVersionSha1,
         location: {
           bbox: geoIds.length > 0 ? null : b,
           geography_ids: geoIds.length > 0 ? geoIds : null,
         }
       }
     }
-  }
-
-  // Fetch stops from GraphQL API
-  private async fetchStops(task: { after: number }): Promise<void> {
-    console.log('fetchStops: run', task)
-    this.checkQueryLimit()
-    
-    const variables = this.getStopVars(task.after)
     const response = await this.client.query<{ stops: StopGql[] }>(stopQuery, variables)
     
     console.log('fetchStops: resolved')
@@ -215,23 +332,21 @@ export class ScenarioFetcher {
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
     if (stopData.length >= this.stopLimit && ids.length > 0) {
-      await this.fetchStops({ after: ids[ids.length - 1] })
+      await this.fetchStops({ 
+        after: ids[ids.length - 1], 
+        feedVersionSha1: task.feedVersionSha1 
+      })
     } else {
-      console.log('fetchStops: completed - no more stops to fetch')
+      console.log('fetchStops: completed for feed version', task.feedVersionSha1)
     }
   }
 
   // Fetch routes from GraphQL API
   private async fetchRoutes(task: { ids: number[] }): Promise<void> {
     console.log('fetchRoutes: run', task)
-    this.checkQueryLimit()
     
     const currentRouteIds = new Set<number>(this.routeResultFixed.map(r => r.id))
-    const taskRouteIds = new Set<number>(task.ids)
     const fetchRouteIds = task.ids.filter(id => !currentRouteIds.has(id))
-    
-    console.log('fetchRoutes: currentRouteIds:', currentRouteIds, 'taskIds:', taskRouteIds, 'fetchRouteIds', fetchRouteIds)
-    
     if (fetchRouteIds.length === 0) {
       return
     }
@@ -250,7 +365,7 @@ export class ScenarioFetcher {
       routeIdx.set(route.id, route)
     }
     
-    console.log('fetchRoutes: resolved', '\nallRouteIds:', [...routeIdx.keys()])
+    console.log('fetchRoutes: resolved')
     this.routeResultFixed = [...routeIdx.values()]
   }
 
@@ -266,7 +381,6 @@ export class ScenarioFetcher {
       return
     }
 
-    this.checkQueryLimit()
     console.log('fetchStopDepartures: run', task)
     
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
@@ -300,7 +414,9 @@ export class ScenarioFetcher {
     // Update progress
     this.emitProgress({
       isLoading: this.activeStopDepartureQueryCount > 0,
-      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount }
+      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'schedules'
     })
   }
 
@@ -435,7 +551,8 @@ export class ScenarioFetcher {
       stops: stopFeatures,
       agencies: agencyFeatures,
       stopDepartureCache: this.stopDepartureCache,
-      isComplete: this.stopDepartureLoadingComplete
+      isComplete: this.stopDepartureLoadingComplete,
+      feedVersions: this.feedVersions
     }
   }
 
@@ -496,15 +613,6 @@ export class ScenarioFetcher {
   // Get route mode from route type
   private getRouteMode(routeType: number): string {
     return routeTypes.get(routeType) || 'Unknown'
-  }
-
-  // Check query limits
-  private checkQueryLimit(): void {
-    this.queryCount += 1
-    if (this.queryCount > this.maxQueryLimit) {
-      console.log('Query limit exceeded')
-      throw new Error('Query limit exceeded')
-    }
   }
 
   // Emit progress updates

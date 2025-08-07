@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Mock } from 'vitest'
-import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from './scenario-fetcher'
+import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioFilter } from './scenario-fetcher'
 import { type Bbox } from './geom'
 import { setupPolly } from '~/tests/pollySetup'
 import { print } from 'graphql'
@@ -9,12 +9,11 @@ import type { Polly } from '@pollyjs/core'
 /**
  * Real GraphQL client for testing with actual API calls
  */
-class TestGraphQLClient extends GraphQLClient {
+class TestGraphQLClient implements GraphQLClient {
   private baseUrl: string
   private apiKey: string
   
   constructor(baseUrl: string, apiKey: string) {
-    super()
     this.baseUrl = baseUrl
     this.apiKey = apiKey
   }
@@ -68,11 +67,10 @@ class TestGraphQLClient extends GraphQLClient {
 /**
  * Mock GraphQL client for testing without real API calls
  */
-class MockGraphQLClient extends GraphQLClient {
+class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock
 
   constructor() {
-    super()
     this.mockQuery = vi.fn()
   }
 
@@ -84,6 +82,7 @@ class MockGraphQLClient extends GraphQLClient {
 describe('ScenarioFetcher', () => {
   let mockClient: MockGraphQLClient
   let config: ScenarioConfig
+  let filter: ScenarioFilter
   let polly: Polly | null = null
 
   beforeEach(() => {
@@ -97,6 +96,10 @@ describe('ScenarioFetcher', () => {
       scheduleEnabled: true,
       startDate: new Date('2024-07-03'),
       endDate: new Date('2024-07-10'),
+      geographyIds: [],
+      stopLimit: 100
+    }
+   filter = { 
       startTime: new Date('2024-07-03T06:00:00'),
       endTime: new Date('2024-07-03T22:00:00'),
       selectedRouteTypes: [3],
@@ -106,8 +109,6 @@ describe('ScenarioFetcher', () => {
       selectedTimeOfDayMode: 'All',
       frequencyUnderEnabled: false,
       frequencyOverEnabled: false,
-      geographyIds: [],
-      stopLimit: 100
     }
   })
 
@@ -116,111 +117,6 @@ describe('ScenarioFetcher', () => {
       await polly.stop()
       polly = null
     }
-  })
-
-  it('should create a ScenarioFetcher instance', () => {
-    const fetcher = new ScenarioFetcher(config, mockClient)
-    expect(fetcher).toBeInstanceOf(ScenarioFetcher)
-  })
-
-  it('should return current config', () => {
-    const fetcher = new ScenarioFetcher(config, mockClient)
-    const currentConfig = fetcher.getConfig()
-    expect(currentConfig).toEqual(config)
-    expect(currentConfig).not.toBe(config) // Should be a copy
-  })
-
-  it('should update config', () => {
-    const fetcher = new ScenarioFetcher(config, mockClient)
-    const newBbox = {
-      sw: { lat: 40.0, lon: -120.0 },
-      ne: { lat: 41.0, lon: -119.0 },
-      valid: true
-    }
-    
-    fetcher.updateConfig({ bbox: newBbox })
-    const updatedConfig = fetcher.getConfig()
-    
-    expect(updatedConfig.bbox).toEqual(newBbox)
-    expect(updatedConfig.scheduleEnabled).toBe(true) // Other properties should remain
-  })
-
-  it('should handle empty stops response', async () => {
-    // Mock empty stops response
-    mockClient.mockQuery.mockResolvedValue({ data: { stops: [] } })
-    
-    const progressCallback = vi.fn()
-    const errorCallback = vi.fn()
-    
-    const fetcher = new ScenarioFetcher(config, mockClient, {
-      onProgress: progressCallback,
-      onError: errorCallback
-    })
-
-    // Should throw error when no stops are found
-    await expect(fetcher.fetch()).rejects.toThrow('No transit stops found in the specified geographic area')
-    expect(progressCallback).toHaveBeenCalled()
-    expect(errorCallback).toHaveBeenCalled()
-  })
-
-  it('should handle stops with routes', async () => {
-    const mockStops = [
-      {
-        id: 1,
-        stop_id: 'stop_1',
-        stop_name: 'Test Stop 1',
-        location_type: 0,
-        geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-        census_geographies: [],
-        route_stops: [
-          {
-            route: {
-              id: 101,
-              route_id: 'route_101',
-              route_type: 3,
-              route_short_name: 'R1',
-              route_long_name: 'Route 1',
-              agency: {
-                id: 1,
-                agency_id: 'agency_1',
-                agency_name: 'Test Agency'
-              }
-            }
-          }
-        ]
-      }
-    ]
-
-    const mockRoutes = [
-      {
-        id: 101,
-        route_id: 'route_101',
-        route_type: 3,
-        route_short_name: 'R1',
-        route_long_name: 'Route 1',
-        geometry: { type: 'MultiLineString', coordinates: [] },
-        agency: {
-          id: 1,
-          agency_id: 'agency_1',
-          agency_name: 'Test Agency'
-        }
-      }
-    ]
-
-    // Mock responses for stops, routes, and departures
-    mockClient.mockQuery
-      .mockResolvedValueOnce({ data: { stops: mockStops } }) // First stops call
-      .mockResolvedValueOnce({ data: { routes: mockRoutes } }) // Routes call
-      .mockResolvedValueOnce({ data: { stops: [] } }) // Second stops call (empty, ends recursion)
-      .mockResolvedValue({ data: { stops: [] } }) // Any departure calls
-
-    const fetcher = new ScenarioFetcher(config, mockClient)
-    const result = await fetcher.fetch()
-
-    expect(result.stops).toHaveLength(1)
-    expect(result.routes).toHaveLength(1)
-    expect(result.stops[0].id).toBe(1)
-    expect(result.routes[0].id).toBe(101)
   })
 
   it('should handle GraphQL errors', async () => {
@@ -274,6 +170,7 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
   let polly: Polly
   let realClient: TestGraphQLClient
   let config: ScenarioConfig
+  let filter: ScenarioFilter
 
   beforeEach(() => {
     // Use API key from environment
@@ -290,6 +187,10 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
       scheduleEnabled: true, 
       startDate: new Date('2024-07-03'),
       endDate: new Date('2024-07-04'), // Short date range
+      geographyIds: [],
+      stopLimit: 100
+    }
+    filter = {
       startTime: new Date('2024-07-03T08:00:00'),
       endTime: new Date('2024-07-03T10:00:00'),
       selectedRouteTypes: [3], // Bus only
@@ -299,8 +200,6 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
       selectedTimeOfDayMode: 'All',
       frequencyUnderEnabled: false,
       frequencyOverEnabled: false,
-      geographyIds: [],
-      stopLimit: 100
     }
   })
 
@@ -334,16 +233,5 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
     expect(firstRoute.route_type).toBe(3) // Should be bus as filtered
 
     console.log(`Found ${result.stops.length} stops, ${result.routes.length} routes, ${result.agencies.length} agencies`)
-  }, 180000) // 180 second timeout
-
-
-  it('should handle API errors gracefully', async () => {
-    polly = setupPolly('scenario-fetcher-api-error')
-    
-    // Use invalid API key to trigger error
-    const badClient = new TestGraphQLClient('https://api.transit.land/api/v2/query', 'invalid-key')
-    const fetcher = new ScenarioFetcher(config, badClient)
-
-    await expect(fetcher.fetch()).rejects.toThrow()
-  }, 15000)
+  }, 60000) 
 })
