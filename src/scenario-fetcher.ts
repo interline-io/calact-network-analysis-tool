@@ -83,16 +83,24 @@ export interface ScenarioFilter {
   frequencyOverEnabled: boolean
 }
 
-/**
- * Result of scenario fetching
- */
-export interface ScenarioResult {
+export interface ScenarioFilterResult {
   routes: Route[]
   stops: Stop[]
   agencies: Agency[]
   stopDepartureCache: StopDepartureCache
   isComplete: boolean
   feedVersions: FeedVersion[]
+}
+
+/**
+ * Result of scenario fetching
+ */
+export interface ScenarioData {
+  routes: RouteGql[]
+  stops: StopGql[]
+  feedVersions: FeedVersion[]
+  stopDepartureCache: StopDepartureCache
+  isComplete: boolean
 }
 
 /**
@@ -111,7 +119,7 @@ export interface ScenarioProgress {
  */
 export interface ScenarioCallbacks {
   onProgress?: (progress: ScenarioProgress) => void
-  onComplete?: (result: ScenarioResult) => void
+  onComplete?: (result: ScenarioData) => void
   onError?: (error: any) => void
 }
 
@@ -155,7 +163,7 @@ export class ScenarioFetcher {
     this.stopLimit = config.stopLimit ?? 100
   }
 
-  async fetch(): Promise<ScenarioResult> {
+  async fetch(): Promise<ScenarioData> {
     try {
       return await this.fetchInner()
     } catch (error) {
@@ -165,7 +173,7 @@ export class ScenarioFetcher {
   }
 
   // Start the scenario fetching process
-  private async fetchInner(): Promise<ScenarioResult> {
+  private async fetchInner(): Promise<ScenarioData> {
     this.emitProgress({ 
       isLoading: true, 
       stopDepartureProgress: { total: 0, queue: 0 },
@@ -218,7 +226,13 @@ export class ScenarioFetcher {
     
     // FINAL STAGE: Apply filters and build final result    
     console.log('Scenario fetch complete')
-    const result = this.buildResult()
+    const result: ScenarioData = {
+      routes: this.routeResults,
+      stops: this.stopResults,
+      feedVersions: this.feedVersions,
+      stopDepartureCache: this.stopDepartureCache,
+      isComplete: true
+    }
     this.callbacks.onComplete?.(result)
     this.emitProgress({ 
       isLoading: false, 
@@ -373,7 +387,7 @@ export class ScenarioFetcher {
     if (stopIds.length === 0) {
       return
     }    
-    const dates = this.getSelectedDateRange()
+    const dates = getSelectedDateRange(this.config)
     const weekSize = 7
     for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
       for (let i = 0; i < dates.length; i += weekSize) {
@@ -389,18 +403,6 @@ export class ScenarioFetcher {
         })
       }
     }
-  }
-
-  // Get the selected date range
-  private getSelectedDateRange(): Date[] {
-    const sd = new Date((this.config.startDate || new Date()).valueOf())
-    const ed = new Date((this.config.endDate || new Date()).valueOf())
-    const dates = []
-    while (sd <= ed) {
-      dates.push(new Date(sd.valueOf()))
-      sd.setDate(sd.getDate() + 1)
-    }
-    return dates
   }
 
   // Wait for all stop departure queries to complete
@@ -420,88 +422,6 @@ export class ScenarioFetcher {
       checkComplete()
     })
   }
-
-  // Build the final result with filtered data
-  private buildResult(): ScenarioResult {
-     const routes: Route[] = this.routeResults.map((routeGql): Route => {
-      return {
-        ...routeGql,
-        route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
-        agency_name: routeGql.agency?.agency_name || 'Unknown',
-        route_mode: getRouteMode(routeGql.route_type),
-        marked: true,
-        average_frequency: null,
-        fastest_frequency: null,
-        slowest_frequency: null,
-        headways: newRouteHeadwaySummary(),
-      }    
-    })
-
-    const stops: Stop[] = this.stopResults.map((stopGql): Stop => {
-      return {
-        ...stopGql,
-        marked: true,
-        visits: null,
-      }    
-    })
-
-    // Apply agency filters
-    const agencies = this.buildAgencyFeatures(stops, routes)
-
-    return {
-      routes,
-      stops,
-      agencies,
-      feedVersions: this.feedVersions,
-      stopDepartureCache: this.stopDepartureCache,
-      isComplete: this.stopDepartureLoadingComplete,
-    }
-  }
-
-  // Build agency features from stops and routes
-  private buildAgencyFeatures(stopFeatures: Stop[], routeFeatures: Route[]): Agency[] {
-    const agencyData = new Map()
-    for (const stop of stopFeatures) {
-      for (const rstop of stop.route_stops || []) {
-        const agency = rstop.route.agency
-        const aid = agency?.agency_id
-        if (!aid) {
-          continue
-        }
-        let adata = agencyData.get(aid) || {
-          id: aid,
-          routes: new Set(),
-          routes_modes: new Set(),
-          stops: new Set(),
-          agency: agency
-        }
-        adata.routes.add(rstop.route.id)
-        adata.routes_modes.add(rstop.route.route_type)
-        adata.stops.add(stop.id)
-        agencyData.set(aid, adata)
-      }
-    }
-    
-    const agencyDataValues = [...agencyData.values()]
-    return agencyDataValues.map((adata): Agency => {
-      const agency = adata.agency as Agency
-      return {
-        marked: true,
-        routes_count: adata.routes.size,
-        routes_modes: [...adata.routes_modes].map((r: number) => getRouteMode(r)).join(', '),
-        stops_count: adata.stops.size,
-        id: agency.id,
-        agency_id: agency.agency_id,
-        agency_name: agency.agency_name,
-        agency_email: agency.agency_email,
-        agency_fare_url: agency.agency_fare_url,
-        agency_lang: agency.agency_lang,
-        agency_phone: agency.agency_phone,
-        agency_timezone: agency.agency_timezone,
-      }
-    })
-  }
-
   // Emit progress updates
   private emitProgress(progress: ScenarioProgress): void {
     this.callbacks.onProgress?.(progress)
@@ -521,15 +441,24 @@ function convertBbox(bbox: Bbox | undefined): any {
   }
 }
 
-export function applyScenarioResultFilter(
-  result: ScenarioResult,
-  filter: ScenarioFilter
-): ScenarioResult {
-  // Currently a placeholder - implement filtering logic as needed
-  
-  // const selectedDateRangeValue = this.getSelectedDateRange()
-  // const sdCache = this.stopDepartureLoadingComplete ? this.stopDepartureCache : null
+function getSelectedDateRange(config: ScenarioConfig): Date[] {
+  const sd = new Date((config.startDate || new Date()).valueOf())
+  const ed = new Date((config.endDate || new Date()).valueOf())
+  const dates = []
+  while (sd <= ed) {
+    dates.push(new Date(sd.valueOf()))
+    sd.setDate(sd.getDate() + 1)
+  }
+  return dates
+}
 
+export function applyScenarioResultFilter(
+  data: ScenarioData,
+  config: ScenarioConfig,
+  filter: ScenarioFilter
+): ScenarioFilterResult {
+  const sdCache = data.stopDepartureCache
+  const selectedDateRangeValue = getSelectedDateRange(config)
   const selectedDayOfWeekModeValue = filter.selectedDayOfWeekMode || ''
   const selectedDaysValue = filter.selectedDays || []
   const selectedRouteTypesValue = filter.selectedRouteTypes || []
@@ -538,16 +467,119 @@ export function applyScenarioResultFilter(
   const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = (filter.frequencyUnderEnabled ? filter.frequencyUnder : -1) || -1
   const frequencyOverValue = (filter.frequencyOverEnabled ? filter.frequencyOver : -1) || -1
-  
-  const markedRoutes = new Set(result.routes.filter(r => r.marked).map(r => r.id))
+  ///////////
+
+  // Apply route filters
+  const routeFeatures = data.routes.map((routeGql): Route => {
+    const route: Route = {
+      ...routeGql,
+      route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
+      agency_name: routeGql.agency?.agency_name || 'Unknown',
+      route_mode: routeTypes.get(routeGql.route_type) || 'Unknown',
+      marked: true,
+      average_frequency: null,
+      fastest_frequency: null,
+      slowest_frequency: null,
+      headways: newRouteHeadwaySummary(),
+    }
+    routeSetDerived(
+      route,
+      selectedDateRangeValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
+      sdCache,
+    )
+    return route
+  })
+  const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
+
+  // Apply stop filters
+  const stopFeatures = data.stops.map((stopGql): Stop => {
+    const stop: Stop = {
+      ...stopGql,
+      marked: true,
+      visits: null,
+    }
+    stopSetDerived(
+      stop,
+      selectedDaysValue,
+      selectedDayOfWeekModeValue,
+      selectedDateRangeValue,
+      startTimeValue,
+      endTimeValue,
+      selectedRouteTypesValue,
+      selectedAgenciesValue,
+      frequencyUnderValue,
+      frequencyOverValue,
+      markedRoutes,
+      sdCache
+    )
+    return stop
+  })
+  const markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
+
+  // Apply agency filters
+  const agencyData = new Map()
+  for (const stop of stopFeatures) {
+    for (const rstop of stop.route_stops || []) {
+      const agency = rstop.route.agency
+      const aid = agency?.agency_id
+      if (!aid) {
+        continue // no valid agency listed for this stop?
+      }
+      let adata = agencyData.get(aid) || {
+        id: aid,
+        routes: new Set(),
+        routes_modes: new Set(),
+        stops: new Set(),
+        agency: agency
+      }
+      adata.routes.add(rstop.route.id)
+      adata.routes_modes.add(rstop.route.route_type)
+      adata.stops.add(stop.id)
+      agencyData.set(aid, adata)
+    }
+  }
   const markedAgencies: Set<number> = new Set()
-  result.routes.filter(s => s.marked).forEach((s) => {
+  stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
       markedAgencies.add(rstop.route.agency?.id)
     }
   })
-  result.routes.filter(s => s.marked).forEach((s) => {
+  routeFeatures.filter(s => s.marked).forEach((s) => {
     markedAgencies.add(s.agency?.id)
   })
+  const agencyDataValues = [...agencyData.values()]
+  const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
+    const agency = adata.agency as Agency
+    return {
+      marked: markedAgencies.has(agency.id),
+      routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
+      routes_modes: [...adata.routes_modes].map(r => (routeTypes.get(r) || 'Unknown')).join(', '),
+      stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
+      id: agency.id,
+      agency_id: agency.agency_id,
+      agency_name: agency.agency_name,
+      agency_email: agency.agency_email,
+      agency_fare_url: agency.agency_fare_url,
+      agency_lang: agency.agency_lang,
+      agency_phone: agency.agency_phone,
+      agency_timezone: agency.agency_timezone,
+    }
+  })
+
+  ///////////
+  const result: ScenarioFilterResult = {
+    routes: routeFeatures,
+    stops: stopFeatures,
+    agencies: agencyFeatures,
+    feedVersions: [],
+    stopDepartureCache: sdCache,
+    isComplete: true
+  }
   return result
 }

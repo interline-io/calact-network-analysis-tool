@@ -218,7 +218,6 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
     // Should have found some stops and routes in downtown Portland
     expect(result.stops.length).toBeGreaterThan(0)
     expect(result.routes.length).toBeGreaterThan(0)
-    expect(result.agencies.length).toBeGreaterThan(0)
     expect(result.isComplete).toBe(true)
 
     // Check that we have realistic data
@@ -228,10 +227,9 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
     expect(firstStop.geometry.coordinates).toHaveLength(2)
     
     const firstRoute = result.routes[0]
-    expect(firstRoute).toHaveProperty('route_name')
-    expect(firstRoute).toHaveProperty('agency_name')
+    expect(firstRoute).toHaveProperty('route_short_name')
     expect(firstRoute.route_type).toBe(3) // Should be bus as filtered
 
-    console.log(`Found ${result.stops.length} stops, ${result.routes.length} routes, ${result.agencies.length} agencies`)
+    console.log(`Found ${result.stops.length} stops, ${result.routes.length} routes`)
   }, 60000) 
 })
