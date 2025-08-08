@@ -1,21 +1,21 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import 'dotenv/config'
+import { stylisticConfig } from './node_modules/tlv2-ui/dist/runtime/config/eslint.js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
-  ssr: false,
 
   modules: [
     'tlv2-ui',
-    '@nuxt/devtools'
+    '@nuxt/devtools',
+    // '@nuxt/test-utils/module',
+    '@nuxt/eslint',
   ],
+  ssr: false,
 
   devtools: {
     enabled: isDev
-  },
-
-  tlv2: {
-    bulma: '~/assets/main.scss',
   },
 
   runtimeConfig: {
@@ -46,6 +46,8 @@ export default defineNuxtConfig({
     ]
   },
 
+  compatibilityDate: '2025-02-18',
+
   vite: {
     // https://github.com/nuxt/nuxt/issues/20001
     resolve: {
@@ -74,5 +76,13 @@ export default defineNuxtConfig({
     }
   },
 
-  compatibilityDate: '2025-02-18'
+  eslint: {
+    config: {
+      stylistic: stylisticConfig,
+    },
+  },
+  tlv2: {
+    useProxy: false,
+    bulma: '~/assets/main.scss',
+  },
 })
