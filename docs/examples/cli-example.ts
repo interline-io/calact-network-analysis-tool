@@ -9,7 +9,7 @@
 
 import { Command } from 'commander'
 import { print } from 'graphql'
-import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '~/src/scenario-fetcher'
+import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '~/src/scenario'
 import { parseBbox } from '~/src/geom'
 import { cannedBboxes } from '~/src/constants'
 
@@ -91,7 +91,7 @@ async function main () {
   const program = new Command()
 
   program
-    .name('scenario-fetcher-cli')
+    .name('scenario-cli')
     .description('Fetch transit scenario data via CLI')
     .version('1.0.0')
     .option('-b, --bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"', cannedBboxes.get('Downtown Portland, OR'))

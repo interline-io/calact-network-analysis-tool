@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Mock } from 'vitest'
 import { print } from 'graphql'
 import type { Polly } from '@pollyjs/core'
-import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioFilter } from './scenario-fetcher'
+import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioFilter } from './scenario'
 import type { Bbox } from './geom'
 import { setupPolly } from '~/tests/pollySetup'
 
