@@ -41,11 +41,11 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import type { Bbox, Feature, PopupFeature, MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
 import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
-import { type Agency } from '../agency'
+import type { Agency } from '../agency'
 import type { CensusGeography } from '../census'
 
 const emit = defineEmits<{

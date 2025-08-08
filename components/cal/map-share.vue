@@ -22,11 +22,11 @@
 
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
-import { useToastNotification } from '#imports'
 import { type Stop, stopToStopCsv } from '../stop'
 import { type Route, routeToRouteCsv } from '../route'
 import { type Agency, agencyToAgencyCsv } from '../agency'
-import { type Feature } from '../geom'
+import type { Feature } from '../geom'
+import { useToastNotification } from '#imports'
 
 const props = defineProps<{
   stopFeatures: Stop[]

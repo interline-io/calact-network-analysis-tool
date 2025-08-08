@@ -385,14 +385,14 @@
 </template>
 
 <script lang="ts">
+import { eachDayOfInterval } from 'date-fns'
+import { defineEmits } from 'vue'
 import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
 </script>
 
 <script setup lang="ts">
-import { eachDayOfInterval } from 'date-fns'
 import { fmtDate } from '../datetime'
-import { defineEmits } from 'vue'
-import { type Stop } from '../stop'
+import type { Stop } from '../stop'
 
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
@@ -487,7 +487,6 @@ const dowAvailable = computed((): Set<string> => {
   }
   return result
 })
-
 </script>
 
 <style scoped lang="scss">
@@ -560,5 +559,4 @@ const dowAvailable = computed((): Set<string> => {
   margin-top:10px;
   margin-bottom:40px;
 }
-
 </style>

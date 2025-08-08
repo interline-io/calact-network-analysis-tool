@@ -99,7 +99,7 @@ export class StopDepartureQueryVars {
   include_saturday: boolean = false
   include_sunday: boolean = false
 
-  get(dow: string): string {
+  get (dow: string): string {
     switch (dow) {
       case 'monday':
         return this.monday
@@ -119,7 +119,7 @@ export class StopDepartureQueryVars {
     return ''
   }
 
-  setDay(d: Date) {
+  setDay (d: Date) {
     const dateFmt = 'yyyy-MM-dd'
     switch (d.getDay()) {
       case 0:

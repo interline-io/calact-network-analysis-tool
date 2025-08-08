@@ -1,7 +1,7 @@
 <template>
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
-      <nuxt-link :to="{name:'index'}" class="ca-main-item" title="Home" role="button">
+      <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" role="button">
         <o-icon icon="home" size="large" class="is-fullwidth" />
       </nuxt-link>
       <aside class="menu">
@@ -81,7 +81,6 @@ function itemHelper (p: string): string {
   }
   return 'is-secondary'
 }
-
 </script>
 
 <style lang="scss">

@@ -2,7 +2,7 @@
   <footer class="footer">
     <div class="columns content is-small">
       <div class="column">
-        <!-- optional logos-->
+        <!-- optional logos -->
       </div>
       <div class="column is-6 has-text-right">
         <p>Created by <a target="_blank" href="https://www.interline.io">Interline Technologies</a> for the <a target="_blank" href="https://calact.org/">California Association for Coordinated Transportation</a>.</p>
