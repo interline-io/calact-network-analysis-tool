@@ -387,7 +387,7 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypes, routeColorModes, dataDisplayModes, baseMapStyles } from '../constants'
+import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '../constants'
 </script>
 
 <script setup lang="ts">

@@ -280,7 +280,21 @@ function stopMarked (
     for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | null = null
-      if (sd === 'sunday') { r = stop.visits?.sunday || null } else if (sd === 'monday') { r = stop.visits?.monday || null } else if (sd === 'tuesday') { r = stop.visits?.tuesday || null } else if (sd === 'wednesday') { r = stop.visits?.wednesday || null } else if (sd === 'thursday') { r = stop.visits?.thursday || null } else if (sd === 'friday') { r = stop.visits?.friday || null } else if (sd === 'saturday') { r = stop.visits?.saturday || null }
+      if (sd === 'sunday') {
+        r = stop.visits?.sunday || null
+      } else if (sd === 'monday') {
+        r = stop.visits?.monday || null
+      } else if (sd === 'tuesday') {
+        r = stop.visits?.tuesday || null
+      } else if (sd === 'wednesday') {
+        r = stop.visits?.wednesday || null
+      } else if (sd === 'thursday') {
+        r = stop.visits?.thursday || null
+      } else if (sd === 'friday') {
+        r = stop.visits?.friday || null
+      } else if (sd === 'saturday') {
+        r = stop.visits?.saturday || null
+      }
       if (!r) { continue }
       if (r.visit_count > 0) {
         hasAny = true

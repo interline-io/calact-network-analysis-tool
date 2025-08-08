@@ -398,7 +398,7 @@ const selectedAgencies = computed({
 
 const selectedDays = computed({
   get (): dow[] {
-    if (!route.query.hasOwnProperty('selectedDays')) {
+    if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
       // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
@@ -534,7 +534,7 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Each result in the filter summary will be a string to be used as a bullet point.
 // We will only include results if the filter is set to something interesting (not default)
 const filterSummary = computed((): string[] => {
-  const mode = dataDisplayMode.value
+  // const mode = dataDisplayMode.value
   const results: string[] = []
 
   // route types

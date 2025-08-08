@@ -8,7 +8,7 @@ import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { format } from 'date-fns'
 import { type dow, routeTypes } from '../constants'
-import type { Bbox, Feature } from '../geom'
+import type { Bbox } from '../geom'
 
 import {
   type StopDeparture,
@@ -60,7 +60,7 @@ const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
 const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
+// const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
 const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
@@ -184,8 +184,8 @@ const stopQueue = useTask(function* (_, task: { after: number }) {
 
 const {
   load: routeLoad,
-  result: routeResult,
-  loading: routeLoading,
+  // result: routeResult,
+  // loading: routeLoading,
   error: routeError,
   fetchMore: routeFetchMore
 } = useLazyQuery<{ routes: RouteGql[] }>(
@@ -245,7 +245,7 @@ const {
   error: stopDepartureError,
   load: stopDepartureLoad,
   fetchMore: stopDepartureFetchMore,
-  loading: stopDepartureLoading
+  // loading: stopDepartureLoading
 } = useLazyQuery<{ stops: StopDeparture[] }>(
   stopDepartureQuery,
   new StopDepartureQueryVars(),
@@ -426,7 +426,7 @@ watch(() => [
     )
     stopFeatures.push(stop)
   }
-  const markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
+  // const markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
   emit('setStopFeatures', stopFeatures)
 
   /////////////////////////

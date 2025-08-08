@@ -21,5 +21,4 @@
 </template>
 
 <script setup lang="ts">
-const loading = true
 </script>

@@ -36,13 +36,9 @@ const props = defineProps<{
   stopDepartureLoadingComplete: boolean
 }>()
 
-const route = useRoute()
-
 const windowUrl = computed(() => {
   return window.location.href
 })
-
-const reportData = ref([])
 
 const routeCsvData = computed(() => {
   return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)

@@ -73,8 +73,6 @@ const toggleDarkMode = useToggle(isDark)
 const debugMenu = useDebugMenu()
 const debugMenuToggle = useToggle(debugMenu)
 
-const loggedIn = useUser()?.loggedIn
-
 function itemHelper (p: string): string {
   if (route.path.startsWith(p)) {
     return 'is-active'
