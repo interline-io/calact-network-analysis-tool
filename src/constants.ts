@@ -7,7 +7,6 @@ export const cannedBboxes = new Map<string, string>(Object.entries({
   'Salem, OR': '-123.04563,44.93167,-123.01971,44.94815',
 }))
 
-
 export const routeTypes = new Map<number, string>([
   [0, 'Light rail'],
   [1, 'Subway'],
@@ -22,7 +21,7 @@ export const colors = [
   '#fee08b', // yellow
   '#1f78b4', // blue
   '#984ea3', // purple
-  '#333333'  // black
+  '#333333' // black
 ]
 
 export type dow = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
@@ -38,9 +37,9 @@ export const dowValues: dow[] = [
 ]
 
 export const geomSources = {
-  'mapExtent': 'Covering extent of map',
-  'bbox': 'Dragging bounding box',
-  'adminBoundary': 'Administrative Boundary',
+  mapExtent: 'Covering extent of map',
+  bbox: 'Dragging bounding box',
+  adminBoundary: 'Administrative Boundary',
 }
 
 export const routeColorModes = [
@@ -56,8 +55,8 @@ export const dataDisplayModes = [
 ]
 
 export const baseMapStyles = [
-  {name: 'Streets', icon: 'map-search', available: true},
-  {name: 'Satellite', icon: 'satellite', available: false},
+  { name: 'Streets', icon: 'map-search', available: true },
+  { name: 'Satellite', icon: 'satellite', available: false },
 ]
 
 export const selectedDayOfWeekModes = [
@@ -69,4 +68,3 @@ export const selectedTimeOfDayModes = [
   'All',
   'Partial',
 ]
-

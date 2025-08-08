@@ -1,10 +1,10 @@
-import { type StopTime } from './departure'
+import type { StopTime } from './departure'
 
 // TODO: faster representation than formatted string
 // (route, date) : stop = count
 class stopRouteCache {
   cache: Map<string, Map<number, StopTime[]>> = new Map()
-  add(routeId: number, stopId: number, date: string, stopTime: StopTime) {
+  add (routeId: number, stopId: number, date: string, stopTime: StopTime) {
     const key = `${routeId}|${date}`
     const a = this.cache.get(key) || new Map()
     const b = a.get(stopId) || []
@@ -12,7 +12,8 @@ class stopRouteCache {
     a.set(stopId, b)
     this.cache.set(key, a)
   }
-  get(routeId: number, date: string): Map<number, StopTime[]> {
+
+  get (routeId: number, date: string): Map<number, StopTime[]> {
     const key = `${routeId}|${date}`
     return this.cache.get(key) || new Map<number, StopTime[]>()
   }
@@ -24,12 +25,12 @@ export class StopDepartureCache {
   routeCache0: stopRouteCache = new stopRouteCache()
   routeCache1: stopRouteCache = new stopRouteCache()
 
-  get(id: number, date: string): StopTime[] {
+  get (id: number, date: string): StopTime[] {
     const a = this.cache.get(id) || new Map()
     return a.get(date) || []
   }
 
-  add(id: number, date: string, value: StopTime[]) {
+  add (id: number, date: string, value: StopTime[]) {
     // TODO: Ensure it's kept sorted
     // By default StopTimes are sorted by time but should not be assumed
     if (value.length === 0) {
@@ -48,7 +49,7 @@ export class StopDepartureCache {
     }
   }
 
-  hasService(id: number, date: string): boolean {
+  hasService (id: number, date: string): boolean {
     const a = this.cache.get(id)
     if (!a) {
       return false
@@ -56,14 +57,14 @@ export class StopDepartureCache {
     return (a.get(date) || []).length > 0
   }
 
-  getRouteDate(routeId: number, dir: number, date: string): Map<number, StopTime[]> {
+  getRouteDate (routeId: number, dir: number, date: string): Map<number, StopTime[]> {
     const dirCache = dir ? this.routeCache1 : this.routeCache0
     return dirCache.get(routeId, date)
   }
 
-  debugStats() {
+  debugStats () {
     let total = 0
-    let dates = new Set()
+    const dates = new Set()
     for (const [_, stopDates] of this.cache) {
       for (const [d, departures] of stopDates) {
         dates.add(d)

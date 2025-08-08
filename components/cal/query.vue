@@ -210,7 +210,7 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
     const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
-    let label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
+    const label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
     results.push({ value: geo.id, label })
   }
   return results
@@ -228,7 +228,6 @@ watch(() => cannedBbox.value, (cannedBboxName) => {
 const validQueryParams = computed(() => {
   return startDate.value && bbox?.value?.valid
 })
-
 </script>
 
 <style scoped lang="scss">

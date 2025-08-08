@@ -53,7 +53,6 @@ export interface TableReport {
 </script>
 
 <script setup lang="ts">
-
 const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
@@ -66,7 +65,6 @@ const currentRows = computed(() => {
 const total = computed(() => {
   return (tableReport?.value?.data || []).length
 })
-
 </script>
 
 <style scoped lang="scss">

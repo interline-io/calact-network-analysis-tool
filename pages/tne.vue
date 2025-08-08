@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({tab:'query', sub:''})">
+          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({tab:'filter', sub:''})">
+          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({ tab: 'filter', sub: '' })">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({tab:'map', sub:''})">
+          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({ tab: 'map', sub: '' })">
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -32,7 +32,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({tab:'report', sub:''})">
+          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({ tab: 'report', sub: '' })">
             <o-icon
               icon="file-chart"
               class="is-fullwidth"
@@ -128,7 +128,7 @@
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
             :stop-departure-loading-complete="stopDepartureLoadingComplete"
-            @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
+            @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
       </div>
@@ -161,9 +161,9 @@ import { useQuery } from '@vue/apollo-composable'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
-import { type Stop } from '~/src/stop'
-import { type Route } from '~/src/route'
-import { type Agency } from '~/src/agency'
+import type { Stop } from '~/src/stop'
+import type { Route } from '~/src/route'
+import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes } from '~/src/constants'
 import { applyScenarioResultFilter, type ScenarioConfig, type ScenarioFilter } from '~/src/scenario-fetcher'
 import { StopDepartureCache } from '~/src/departure-cache'
@@ -789,7 +789,6 @@ function toTitleCase (str: string): string {
     text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
   )
 }
-
 </script>
 
 <style scoped lang="scss">

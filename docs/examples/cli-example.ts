@@ -2,8 +2,8 @@
 
 /**
  * Simple CLI example showing how to use ScenarioFetcher
- * 
- * Usage: 
+ *
+ * Usage:
  *   npm run cli-example -- --bbox "-122.8,45.4,-122.5,45.7" --start-date "2024-07-03" --end-date "2024-07-10"
  */
 
@@ -19,13 +19,13 @@ import { cannedBboxes } from '~/src/constants'
 class FetchGraphQLClient extends GraphQLClient {
   private baseUrl: string
   private apiKey?: string
-  
-  constructor(baseUrl: string, apiKey?: string) {
+
+  constructor (baseUrl: string, apiKey?: string) {
     super()
     this.baseUrl = baseUrl
     this.apiKey = apiKey
   }
-  
+
   async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
     // Extract query string from DocumentNode or use as-is if string
     let queryString: string
@@ -35,47 +35,47 @@ class FetchGraphQLClient extends GraphQLClient {
       // Use graphql print function to convert DocumentNode to string
       queryString = print(query)
     }
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     }
-    
+
     // Add API key if provided
     if (this.apiKey) {
       headers['apikey'] = this.apiKey
     }
-    
+
     const requestBody = {
       query: queryString,
       variables,
     }
-    
+
     // Debug logging (reduced)
     console.log('🔍 Making GraphQL request to:', this.baseUrl)
     console.log('📦 Variables:', JSON.stringify(variables, null, 2))
-    
+
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
       })
-      
+
       const responseText = await response.text()
       console.log('✅ Response Status:', response.status, response.statusText)
-      
+
       if (!response.ok) {
         console.log('❌ Response Body:', responseText.substring(0, 300) + (responseText.length > 300 ? '...' : ''))
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       const result = JSON.parse(responseText)
-      
+
       if (result.errors) {
         throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
       }
-      
+
       return result
     } catch (error) {
       console.error('GraphQL request failed:', error)
@@ -87,9 +87,9 @@ class FetchGraphQLClient extends GraphQLClient {
 /**
  * Main CLI function
  */
-async function main() {
+async function main () {
   const program = new Command()
-  
+
   program
     .name('scenario-fetcher-cli')
     .description('Fetch transit scenario data via CLI')
@@ -109,13 +109,13 @@ async function main() {
     .option('--no-schedule', 'Disable schedule fetching')
 
   program.parse(process.argv)
-  
+
   const options = program.opts()
-  
+
   try {
     console.log('🚌 Starting transit scenario fetch...')
     console.log('Options:', options)
-    
+
     // Parse configuration from CLI options
     const config: ScenarioConfig = {
       bbox: options.bbox ? parseBbox(options.bbox) : undefined,
@@ -133,13 +133,13 @@ async function main() {
       frequencyOverEnabled: false,
       geographyIds: []
     }
-    
+
     // Validate configuration
     if (!config.bbox?.valid && !config.geographyIds?.length) {
       console.error('❌ Error: Must provide either --bbox or --geography-ids')
       process.exit(1)
     }
-    
+
     // Create GraphQL client
     const apiKey = options.apiKey || process.env.TRANSITLAND_API_KEY
     if (!apiKey) {
@@ -148,7 +148,7 @@ async function main() {
       console.warn('   Get your API key from https://www.transit.land/')
     }
     const client = new FetchGraphQLClient(options.apiUrl, apiKey)
-    
+
     // Create scenario fetcher with progress reporting
     const fetcher = new ScenarioFetcher(config, client, {
       onProgress: (progress) => {
@@ -165,31 +165,30 @@ async function main() {
         console.error('\n❌ Error during fetch:', error.message)
       }
     })
-    
+
     // Execute the fetch
     const startTime = Date.now()
     const result = await fetcher.fetch()
     const duration = Date.now() - startTime
-    
+
     console.log('\n✅ Fetch completed!')
     console.log(`⏱️  Duration: ${duration}ms`)
-    
+
     // Output results based on format
     switch (options.output) {
       case 'json':
         console.log(JSON.stringify(result, null, 2))
         break
-        
+
       case 'csv':
         outputCSV(result)
         break
-        
+
       case 'summary':
       default:
         outputSummary(result)
         break
     }
-    
   } catch (error) {
     console.error('\n❌ Fatal error:', error)
     process.exit(1)
@@ -199,7 +198,7 @@ async function main() {
 /**
  * Parse time string HH:MM to Date object
  */
-function parseTime(timeStr: string): Date {
+function parseTime (timeStr: string): Date {
   const [hours, minutes] = timeStr.split(':').map(Number)
   const date = new Date()
   date.setHours(hours, minutes, 0, 0)
@@ -209,27 +208,27 @@ function parseTime(timeStr: string): Date {
 /**
  * Output summary of results
  */
-function outputSummary(result: any) {
+function outputSummary (result: any) {
   console.log('\n📊 Results Summary:')
   console.log(`🚏 Total Stops: ${result.stops.length}`)
   console.log(`🚌 Total Routes: ${result.routes.length}`)
   console.log(`🏢 Total Agencies: ${result.agencies.length}`)
-  
+
   const markedStops = result.stops.filter((s: any) => s.marked)
   const markedRoutes = result.routes.filter((r: any) => r.marked)
   const markedAgencies = result.agencies.filter((a: any) => a.marked)
-  
+
   console.log(`✅ Filtered Stops: ${markedStops.length}`)
   console.log(`✅ Filtered Routes: ${markedRoutes.length}`)
   console.log(`✅ Filtered Agencies: ${markedAgencies.length}`)
-  
+
   if (markedRoutes.length > 0) {
     console.log('\n🚌 Sample Routes:')
     markedRoutes.slice(0, 5).forEach((route: any) => {
       console.log(`  - ${route.route_name} (${route.route_mode}) - ${route.agency_name}`)
     })
   }
-  
+
   if (markedAgencies.length > 0) {
     console.log('\n🏢 Agencies:')
     markedAgencies.forEach((agency: any) => {
@@ -241,13 +240,13 @@ function outputSummary(result: any) {
 /**
  * Output CSV format (simplified)
  */
-function outputCSV(result: any) {
+function outputCSV (result: any) {
   console.log('\n📄 Routes CSV:')
   console.log('id,route_name,route_mode,agency_name,marked')
   result.routes.forEach((route: any) => {
     console.log(`${route.id},"${route.route_name}","${route.route_mode}","${route.agency_name}",${route.marked}`)
   })
-  
+
   console.log('\n📄 Stops CSV:')
   console.log('id,stop_name,marked,routes_count')
   result.stops.forEach((stop: any) => {

@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { type Bbox, type Feature } from '~/src/geom'
+import type { Bbox, Feature } from '~/src/geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { type dow, routeTypes } from '~/src/constants'
@@ -27,8 +27,8 @@ import {
   stopSetDerived
 } from '~/src/stop'
 
-import {
-  type Agency
+import type {
+  Agency
 } from '~/src/agency'
 
 import {
@@ -84,7 +84,7 @@ watch(runCount, (v) => {
 const selectedDateRange = computed((): Date[] => {
   // Get inclusive date range
   const sd = new Date((startDate.value || new Date()).valueOf())
-  let ed = new Date((endDate.value || new Date()).valueOf())
+  const ed = new Date((endDate.value || new Date()).valueOf())
   const dates = []
   while (sd <= ed) {
     dates.push(new Date(sd.valueOf()))
@@ -439,7 +439,7 @@ watch(() => [
       if (!aid) {
         continue // no valid agency listed for this stop?
       }
-      let adata = agencyData.get(aid) || {
+      const adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),
         routes_modes: new Set(),
@@ -494,5 +494,4 @@ function checkQueryLimit () {
     console.log('Query limit exceeded')
   }
 }
-
 </script>

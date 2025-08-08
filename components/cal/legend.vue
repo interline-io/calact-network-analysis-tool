@@ -76,7 +76,7 @@
             Fares:
           </div>
           <div v-for="s of styleData" :key="s.color">
-            <div class="legend-item legend-marker-square" :style="{background: s.color}" />
+            <div class="legend-item legend-marker-square" :style="{ background: s.color }" />
             <div>{{ s.label }}</div>
           </div>
         </div>
@@ -95,7 +95,6 @@
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps<{
   dataDisplayMode: string
   colorKey: string
@@ -103,7 +102,6 @@ const props = defineProps<{
   hasData: boolean
   displayEditBboxMode?: boolean
 }>()
-
 </script>
 
 <style scoped lang="scss">
@@ -199,5 +197,4 @@ const props = defineProps<{
   position: relative;
   height: 40px;
 }
-
 </style>

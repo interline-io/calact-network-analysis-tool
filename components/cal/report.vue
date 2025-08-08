@@ -97,8 +97,8 @@
 import { type Stop, type StopCsv, stopToStopCsv, stopGeoAggregateCsv } from '~/src/stop'
 import { type Route, type RouteCsv, routeToRouteCsv } from '~/src/route'
 import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '~/src/agency'
-import { type Feature } from '~/src/geom'
-import { type TableReport, type TableColumn } from './datagrid.vue'
+import type { Feature } from '~/src/geom'
+import type { TableReport, TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
@@ -212,7 +212,6 @@ const reportTitle = computed(() => {
   }
   return ''
 })
-
 </script>
 
 <style scoped lang="scss">

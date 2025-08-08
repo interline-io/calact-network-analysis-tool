@@ -3,12 +3,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick } from 'vue'
+import { nextTick, ref, watch, onMounted } from 'vue'
 import maplibre from 'maplibre-gl'
 
-import { ref, watch, onMounted } from 'vue'
 import { useRuntimeConfig } from '#imports'
-import { type Feature, type PopupFeature, type Point, type MarkerFeature } from '~/src/geom'
+import type { Feature, PopupFeature, Point, MarkerFeature } from '~/src/geom'
 import { noLabels, labels } from 'protomaps-themes-base'
 
 //////////////////////

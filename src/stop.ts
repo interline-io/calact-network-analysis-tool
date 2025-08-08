@@ -1,6 +1,6 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import { StopDepartureCache } from './departure-cache'
+import type { StopDepartureCache } from './departure-cache'
 import { type dow, routeTypes } from './constants'
 import { parseHMS } from './datetime'
 
@@ -67,7 +67,7 @@ export interface StopDerived {
 }
 
 export interface StopVisitCounts {
-  date_count: number,
+  date_count: number
   visit_count: number
   visit_average: number | null
   all_date_service: boolean
@@ -113,7 +113,7 @@ export type StopCsv = StopGtfs & {
   id: number
   routes_modes: string
   routes_count: number
-  agencies_count: number,
+  agencies_count: number
   marked: boolean
   visit_count_daily_average: number | null
   visit_count_monday_average: number | null
@@ -145,7 +145,7 @@ const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thurs
 //////////////////////////////////////
 
 // Mutates calculated fields on Stop
-export function stopSetDerived(
+export function stopSetDerived (
   stop: Stop,
   selectedDays: dow[],
   selectedDayMode: string,
@@ -181,7 +181,7 @@ export function stopSetDerived(
   )
 }
 
-export function newStopVisitSummary(): StopVisitSummary {
+export function newStopVisitSummary (): StopVisitSummary {
   return {
     total: newStopVisitCounts(),
     monday: newStopVisitCounts(),
@@ -194,8 +194,7 @@ export function newStopVisitSummary(): StopVisitSummary {
   }
 }
 
-
-function stopVisits(
+function stopVisits (
   stop: StopGql,
   selectedDays: dow[],
   selectedDateRange: Date[],
@@ -203,7 +202,7 @@ function stopVisits(
   selectedEndTime: string,
   sdCache: StopDepartureCache | null,
 ): StopVisitSummary {
-  let result = newStopVisitSummary()
+  const result = newStopVisitSummary()
   if (!sdCache) {
     return result
   }
@@ -215,7 +214,7 @@ function stopVisits(
       continue
     }
     // TODO: memoize formatted date
-    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map((st) => {return parseHMS(st.departure_time)})
+    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map((st) => { return parseHMS(st.departure_time) })
     let count = 0
     for (const depTime of stopDepTimes) {
       if (depTime >= startTime && depTime <= endTime) {
@@ -261,7 +260,7 @@ function stopVisits(
 }
 
 // Filter stops
-function stopMarked(
+function stopMarked (
   stop: Stop,
   selectedDays: dow[],
   selectedDayMode: string,
@@ -281,13 +280,7 @@ function stopMarked(
     for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | null = null
-      if (sd === 'sunday') { r = stop.visits?.sunday || null }
-      else if (sd === 'monday') { r = stop.visits?.monday || null}
-      else if (sd === 'tuesday') { r = stop.visits?.tuesday || null}
-      else if (sd === 'wednesday') { r = stop.visits?.wednesday || null}
-      else if (sd === 'thursday') { r = stop.visits?.thursday || null}
-      else if (sd === 'friday') { r = stop.visits?.friday || null}
-      else if (sd === 'saturday') { r = stop.visits?.saturday || null}
+      if (sd === 'sunday') { r = stop.visits?.sunday || null } else if (sd === 'monday') { r = stop.visits?.monday || null } else if (sd === 'tuesday') { r = stop.visits?.tuesday || null } else if (sd === 'wednesday') { r = stop.visits?.wednesday || null } else if (sd === 'thursday') { r = stop.visits?.thursday || null } else if (sd === 'friday') { r = stop.visits?.friday || null } else if (sd === 'saturday') { r = stop.visits?.saturday || null }
       if (!r) { continue }
       if (r.visit_count > 0) {
         hasAny = true
@@ -312,7 +305,7 @@ function stopMarked(
   // Check marked routes
   // Must match at least one marked route
   if (selectedAgencies.length > 0 || selectedRouteTypes.length > 0 || frequencyUnder > 0 || frequencyOver > 0) {
-    const hasMarkedRoute = stop.route_stops.some((rs) => markedRoutes.has(rs.route.id))
+    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
     if (!hasMarkedRoute) {
       console.log('no marked route', stop.id)
       return false
@@ -323,7 +316,7 @@ function stopMarked(
   return true
 }
 
-function newStopVisitCounts(): StopVisitCounts {
+function newStopVisitCounts (): StopVisitCounts {
   return {
     visit_count: 0,
     date_count: 0,
@@ -332,7 +325,7 @@ function newStopVisitCounts(): StopVisitCounts {
   }
 }
 
-function checkDiv(a: number, b: number): number {
+function checkDiv (a: number, b: number): number {
   return b === 0 ? 0 : a / b
 }
 
@@ -340,8 +333,7 @@ function checkDiv(a: number, b: number): number {
 // Stop csv
 ///////////////////////////
 
-
-export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): StopGeoAggregateCsv[] {  
+export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): StopGeoAggregateCsv[] {
   const stopAgg = new Map<string, {
     geoid: string
     layer_name: string
@@ -355,7 +347,7 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
 
   const dateCount = stops[0]?.visits?.total?.date_count || 0
   for (const stop of stops) {
-    const geogs = (stop.census_geographies || []).filter((g) => g.layer_name === aggregationKey)
+    const geogs = (stop.census_geographies || []).filter(g => g.layer_name === aggregationKey)
     for (const geog of geogs) {
       const a = stopAgg.get(geog.geoid) || {
         geoid: geog.geoid,
@@ -374,11 +366,11 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
         a.routes_count.add(rstop.route.id)
         a.routes_modes.add(rstop.route.route_type)
       }
-      stopAgg.set(geog.geoid, a)  
+      stopAgg.set(geog.geoid, a)
     }
   }
-  const result = stopAgg.values().map((a):StopGeoAggregateCsv => {
-    const rmodes = a.routes_modes.values().map((r):string => routeTypes.get(r) || 'Unknown')
+  const result = stopAgg.values().map((a): StopGeoAggregateCsv => {
+    const rmodes = a.routes_modes.values().map((r): string => routeTypes.get(r) || 'Unknown')
     return {
       geoid: a.geoid,
       layer_name: a.layer_name,
@@ -393,7 +385,7 @@ export function stopGeoAggregateCsv(stops: Stop[], aggregationKey: string): Stop
   return [...result]
 }
 
-export function stopToStopCsv(stop: Stop): StopCsv {
+export function stopToStopCsv (stop: Stop): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
@@ -434,7 +426,7 @@ export function stopToStopCsv(stop: Stop): StopCsv {
   }
 }
 
-function roundOr(value: number | null | undefined): number | null {
+function roundOr (value: number | null | undefined): number | null {
   const digits = 2
   if (value == null) {
     return null
