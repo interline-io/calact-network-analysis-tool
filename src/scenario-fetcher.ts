@@ -1,7 +1,7 @@
-import type { Bbox } from './geom'
-import { type dow, routeTypes } from './constants'
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
+import type { Bbox } from './geom'
+import { type dow, routeTypes } from './constants'
 import {
   type StopDeparture,
   type StopTime,

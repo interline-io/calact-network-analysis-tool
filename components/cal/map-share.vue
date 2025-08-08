@@ -21,7 +21,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useToastNotification } from '#imports'
 import { type Stop, stopToStopCsv } from '~/src/stop'
 import { type Route, routeToRouteCsv } from '~/src/route'
@@ -36,13 +36,9 @@ const props = defineProps<{
   stopDepartureLoadingComplete: boolean
 }>()
 
-const route = useRoute()
-
 const windowUrl = computed(() => {
   return window.location.href
 })
-
-const reportData = ref([])
 
 const routeCsvData = computed(() => {
   return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)

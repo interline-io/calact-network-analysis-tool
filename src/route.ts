@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag'
+import { format } from 'date-fns'
 import type { StopTime } from './departure'
 import type { StopDepartureCache } from './departure-cache'
-import { format } from 'date-fns'
 import { parseHMS } from './datetime'
 
 //////////
