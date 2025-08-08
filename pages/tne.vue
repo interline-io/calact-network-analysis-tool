@@ -5,7 +5,7 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({tab:'query', sub:''})">
+          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
             <o-icon
               icon="magnify"
               class="is-fullwidth"
@@ -14,7 +14,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({tab:'filter', sub:''})">
+          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({ tab: 'filter', sub: '' })">
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +23,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({tab:'map', sub:''})">
+          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({ tab: 'map', sub: '' })">
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -32,7 +32,7 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({tab:'report', sub:''})">
+          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({ tab: 'report', sub: '' })">
             <o-icon
               icon="file-chart"
               class="is-fullwidth"
@@ -128,7 +128,7 @@
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
             :stop-departure-loading-complete="stopDepartureLoadingComplete"
-            @click-filter-link="setTab({tab: 'filter', sub: 'data-display'})"
+            @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
       </div>
@@ -183,16 +183,16 @@
 </template>
 
 <script lang="ts" setup>
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '../components/census'
 import { computed } from 'vue'
+import { useQuery } from '@vue/apollo-composable'
+import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '../components/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '../components/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '../components/datetime'
-import { navigateTo } from '#imports'
-import { type Stop } from '../components/stop'
-import { type Route } from '../components/route'
-import { type Agency } from '../components/agency'
+import type { Stop } from '../components/stop'
+import type { Route } from '../components/route'
+import type { Agency } from '../components/agency'
 import { type dow, dowValues, routeTypes } from '../components/constants'
-import { useQuery } from '@vue/apollo-composable'
+import { navigateTo } from '#imports'
 
 definePageMeta({
   layout: false
@@ -398,7 +398,7 @@ const selectedAgencies = computed({
 
 const selectedDays = computed({
   get (): dow[] {
-    if (!route.query.hasOwnProperty('selectedDays')) {
+    if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
       // if no `selectedDays` param present, check them all
       return dowValues.slice()
     } else {
@@ -534,7 +534,7 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Each result in the filter summary will be a string to be used as a bullet point.
 // We will only include results if the filter is set to something interesting (not default)
 const filterSummary = computed((): string[] => {
-  const mode = dataDisplayMode.value
+  // const mode = dataDisplayMode.value
   const results: string[] = []
 
   // route types
@@ -752,7 +752,6 @@ function toTitleCase (str: string): string {
     text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
   )
 }
-
 </script>
 
 <style scoped lang="scss">

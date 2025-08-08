@@ -94,11 +94,11 @@
 </template>
 
 <script setup lang="ts">
-import { type Stop, type StopCsv, stopToStopCsv, stopGeoAggregateCsv } from '../stop'
-import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
-import { type Agency, type AgencyCsv, agencyToAgencyCsv } from '../agency'
-import { type Feature } from '../geom'
-import { type TableReport, type TableColumn } from './datagrid.vue'
+import { type Stop, stopToStopCsv, stopGeoAggregateCsv } from '../stop'
+import { type Route, routeToRouteCsv } from '../route'
+import { type Agency, agencyToAgencyCsv } from '../agency'
+import type { Feature } from '../geom'
+import type { TableReport, TableColumn } from './datagrid.vue'
 
 const props = defineProps<{
   stopFeatures: Stop[]
@@ -112,10 +112,6 @@ const props = defineProps<{
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
 const aggregateMode = defineModel<string>('aggregateMode', { default: '' })
-
-const emit = defineEmits([
-  'clickFilterLink'
-])
 
 // TODO: For when we switch to datagrid
 const routeColumns: TableColumn[] = [
@@ -212,7 +208,6 @@ const reportTitle = computed(() => {
   }
   return ''
 })
-
 </script>
 
 <style scoped lang="scss">

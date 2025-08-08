@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { type Geometry } from '../components/geom'
+import type { Geometry } from '../components/geom'
 
 export const geographyLayerQuery = gql`
 query($geography_ids: [Int!], $include_geographies: Boolean = false) {
@@ -64,7 +64,7 @@ export interface CensusLayer {
   name: string
   description: string
 }
-  
+
 export interface CensusGeography {
   id: number
   geoid: string

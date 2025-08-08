@@ -119,11 +119,11 @@
 </template>
 
 <script setup lang="ts">
-import { type Bbox, type Point, type Feature, parseBbox } from '../geom'
-import { cannedBboxes, geomSources } from '../constants'
-import { type CensusDataset, type CensusGeography, geographySearchQuery } from '../census'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
+import { type Bbox, type Point, parseBbox } from '../geom'
+import { cannedBboxes, geomSources } from '../constants'
+import { type CensusDataset, type CensusGeography, geographySearchQuery } from '../census'
 
 const emit = defineEmits([
   'setBbox',
@@ -174,7 +174,11 @@ const {
 
 watch(geomSearchVars, () => {
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
-    geomLoad(geographySearchQuery) || geomRefetch()
+    if (geomSearch.value && geomLayer.value) {
+      geomLoad(geographySearchQuery)
+    } else {
+      geomRefetch()
+    }
   }
 })
 
@@ -210,7 +214,7 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
   for (const geo of options.values()) {
     // for now, generate a id to put after the name
     const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
-    let label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
+    const label = `${geo.name}${stateDesc} (${geo.layer.description || geo.layer.name})`
     results.push({ value: geo.id, label })
   }
   return results
@@ -228,7 +232,6 @@ watch(() => cannedBbox.value, (cannedBboxName) => {
 const validQueryParams = computed(() => {
   return startDate.value && bbox?.value?.valid
 })
-
 </script>
 
 <style scoped lang="scss">

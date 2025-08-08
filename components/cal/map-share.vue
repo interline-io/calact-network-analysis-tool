@@ -21,12 +21,12 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue'
-import { useToastNotification } from '#imports'
+import { computed } from 'vue'
 import { type Stop, stopToStopCsv } from '../stop'
 import { type Route, routeToRouteCsv } from '../route'
 import { type Agency, agencyToAgencyCsv } from '../agency'
-import { type Feature } from '../geom'
+import type { Feature } from '../geom'
+import { useToastNotification } from '#imports'
 
 const props = defineProps<{
   stopFeatures: Stop[]
@@ -36,13 +36,9 @@ const props = defineProps<{
   stopDepartureLoadingComplete: boolean
 }>()
 
-const route = useRoute()
-
 const windowUrl = computed(() => {
   return window.location.href
 })
-
-const reportData = ref([])
 
 const routeCsvData = computed(() => {
   return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)

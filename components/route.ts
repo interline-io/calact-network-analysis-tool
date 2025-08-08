@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag'
-import { type StopTime } from './departure'
-import { StopDepartureCache } from './departure-cache'
 import { format } from 'date-fns'
+import type { StopTime } from './departure'
+import type { StopDepartureCache } from './departure-cache'
 import { parseHMS } from './datetime'
 
 //////////
@@ -113,7 +113,7 @@ export type Route = RouteGql & RouteDerived
 // Route filtering
 ////////////////////
 
-export function routeSetDerived(
+export function routeSetDerived (
   route: Route,
   selectedDateRange: Date[],
   selectedStartTime: string,
@@ -150,19 +150,19 @@ export function routeSetDerived(
   }
   // Mark after setting frequency values
   route.marked = routeMarked(
-    route, 
-    selectedRouteTypes, 
-    selectedAgencies, 
-    frequencyUnder, 
+    route,
+    selectedRouteTypes,
+    selectedAgencies,
+    frequencyUnder,
     frequencyOver,
     sdCache,
   )
 }
 
 // Filter routes
-function routeMarked(
-  route: Route, 
-  selectedRouteTypes: number[], 
+function routeMarked (
+  route: Route,
+  selectedRouteTypes: number[],
   selectedAgencies: string[],
   frequencyUnder: number,
   frequencyOver: number,
@@ -183,13 +183,13 @@ function routeMarked(
   }
 
   if (sdCache && frequencyOver >= 0) {
-    if (!route.average_frequency || route.average_frequency < frequencyOver*60) {
+    if (!route.average_frequency || route.average_frequency < frequencyOver * 60) {
       return false
     }
   }
 
   if (sdCache && frequencyUnder >= 0) {
-    if (!route.average_frequency || route.average_frequency > frequencyUnder*60) {
+    if (!route.average_frequency || route.average_frequency > frequencyUnder * 60) {
       return false
     }
   }
@@ -198,7 +198,7 @@ function routeMarked(
   return true
 }
 
-export function routeHeadways(
+export function routeHeadways (
   route: Route,
   selectedDateRange: Date[],
   selectedStartTime: string,
@@ -225,9 +225,9 @@ export function routeHeadways(
       }
 
       // Convert HH:MM:SS to seconds and calculate headways
-      const stSecs = stopDepartures.
-        map((st) => { return parseHMS(st.departure_time) }).
-        filter((depTime) => { return depTime >= startTime && depTime <= endTime })
+      const stSecs = stopDepartures
+        .map((st) => { return parseHMS(st.departure_time) })
+        .filter((depTime) => { return depTime >= startTime && depTime <= endTime })
       stSecs.sort((a, b) => a - b)
 
       const headways: number[] = []
@@ -258,9 +258,9 @@ export function routeHeadways(
         case 4:
           resultDay = result.thursday
           break
-        case 5:   
+        case 5:
           resultDay = result.friday
-          break 
+          break
         case 6:
           resultDay = result.saturday
           break
@@ -275,7 +275,7 @@ export function routeHeadways(
   return result
 }
 
-export function newRouteHeadwaySummary(): RouteHeadwaySummary {
+export function newRouteHeadwaySummary (): RouteHeadwaySummary {
   return {
     total: newRouteHeadwayDirections(),
     sunday: newRouteHeadwayDirections(),
@@ -288,7 +288,7 @@ export function newRouteHeadwaySummary(): RouteHeadwaySummary {
   }
 }
 
-function newRouteHeadwayDirections() {
+function newRouteHeadwayDirections () {
   return {
     dir0: { stop_id: 0, headways_seconds: [] },
     dir1: { stop_id: 0, headways_seconds: [] }
@@ -299,8 +299,7 @@ function newRouteHeadwayDirections() {
 // Route csv
 ////////////////////
 
-
-export function routeToRouteCsv(route: Route): RouteCsv {
+export function routeToRouteCsv (route: Route): RouteCsv {
   return {
     id: route.id,
     marked: route.marked,
@@ -324,4 +323,3 @@ export function routeToRouteCsv(route: Route): RouteCsv {
     continuous_pickup: route.continuous_pickup,
   }
 }
-

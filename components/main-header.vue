@@ -1,7 +1,7 @@
 <template>
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
-      <nuxt-link :to="{name:'index'}" class="ca-main-item" title="Home" role="button">
+      <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" role="button">
         <o-icon icon="home" size="large" class="is-fullwidth" />
       </nuxt-link>
       <aside class="menu">
@@ -73,15 +73,12 @@ const toggleDarkMode = useToggle(isDark)
 const debugMenu = useDebugMenu()
 const debugMenuToggle = useToggle(debugMenu)
 
-const loggedIn = useUser()?.loggedIn
-
 function itemHelper (p: string): string {
   if (route.path.startsWith(p)) {
     return 'is-active'
   }
   return 'is-secondary'
 }
-
 </script>
 
 <style lang="scss">

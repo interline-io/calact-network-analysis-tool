@@ -41,11 +41,11 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Bbox, type Feature, type PopupFeature, type MarkerFeature } from '../geom'
+import type { Bbox, Feature, PopupFeature, MarkerFeature } from '../geom'
 import { colors, routeTypes } from '../constants'
-import { type Stop, type StopCsv, stopToStopCsv } from '../stop'
-import { type Route, type RouteCsv, routeToRouteCsv } from '../route'
-import { type Agency } from '../agency'
+import { type Stop, stopToStopCsv } from '../stop'
+import { type Route, routeToRouteCsv } from '../route'
+import type { Agency } from '../agency'
 import type { CensusGeography } from '../census'
 
 const emit = defineEmits<{
@@ -188,7 +188,7 @@ const agencyData = computed((): AgencyData[] => {
     const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
-      const rid = rstop.route.route_id
+      // const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
       const aname = rstop.route.agency?.agency_name
       if (!aid || !aname) {
@@ -333,7 +333,7 @@ const styleData = computed((): Matcher[] => {
     rules.push({ label: '20-29 mins', color: colors[2], match: getRouteFrequencyMatcher(20) })
     rules.push({ label: '10-19 mins', color: colors[3], match: getRouteFrequencyMatcher(10) })
     rules.push({ label: '0-9 mins', color: colors[4], match: getRouteFrequencyMatcher(0) })
-    rules.push({ label: 'Unknown', color: '#000', match: x => true })
+    rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
 
@@ -345,7 +345,7 @@ const styleData = computed((): Matcher[] => {
     rules.push({ label: '20-50 visits', color: colors[2], match: getStopVisitMatcher(20) })
     rules.push({ label: '10-20 visits', color: colors[3], match: getStopVisitMatcher(10) })
     rules.push({ label: '0-9 visits', color: colors[4], match: getStopVisitMatcher(0) })
-    rules.push({ label: 'Unknown', color: '#000', match: x => true })
+    rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
 
@@ -376,7 +376,7 @@ const styleData = computed((): Matcher[] => {
 
   // If we used all colors (or no colors), add a catchall "other" rule
   if (rules.length >= maxColor || rules.length === 0) {
-    rules.push({ label: 'Other', color: '#000', match: v => true })
+    rules.push({ label: 'Other', color: '#000', match: _ => true })
   }
 
   return rules
