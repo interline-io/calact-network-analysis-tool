@@ -158,8 +158,8 @@ import { computed } from 'vue'
 import { navigateTo } from '#imports'
 
 import type { CensusDataset, CensusGeography } from '~/src/census'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
-import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
+import { type Bbox, type Point, type Feature, bboxString } from '~/src/geom'
+import { fmtDate, fmtTime, parseDate, getLocalDateNoTime } from '~/src/datetime'
 import type { Stop } from '~/src/stop'
 import type { Route } from '~/src/route'
 import type { Agency } from '~/src/agency'
@@ -180,6 +180,105 @@ const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
 
 /////////////////
+// Query parameters using the composable
+const {
+  stringParam,
+  booleanParam,
+  numberParam,
+  arrayParam,
+  dateParam,
+  timeParam,
+  bboxParam,
+  setQuery
+} = useQueryParams()
+
+// Configuration parameters
+const geomSource = stringParam('geomSource', 'bbox')
+const geomLayer = stringParam('geomLayer', 'place')
+const geographyIds = computed({
+  get (): number[] {
+    return route.query.geographyIds?.toString().split(',').map(p => parseInt(p)).filter(Boolean) || []
+  },
+  set (v: number[]) {
+    setQuery({ geographyIds: v.map(String).join(',') })
+  }
+})
+const startDate = dateParam('startDate', getLocalDateNoTime())
+const endDate = computed({
+  get () {
+    if (route.query?.endDate) {
+      return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
+    }
+    const n = new Date(startDate.value.valueOf())
+    n.setDate(n.getDate() + 6)
+    return n
+  },
+  set (v: Date) {
+    setQuery({ endDate: fmtDate(v) })
+  }
+})
+const bbox = bboxParam('bbox', defaultBbox)
+
+// Filter parameters
+const startTime = timeParam('startTime', new Date(0, 0, 0, 0, 0))
+const endTime = timeParam('endTime', new Date(0, 0, 0, 23, 59))
+const unitSystem = stringParam('unitSystem', 'us')
+const hideUnmarked = booleanParam('hideUnmarked', false)
+const dataDisplayMode = stringParam('dataDisplayMode', 'Route')
+const colorKey = stringParam('colorKey', 'Mode')
+const baseMap = stringParam('baseMap', 'Streets')
+const selectedDayOfWeekMode = stringParam('selectedDayOfWeekMode', 'Any')
+const selectedTimeOfDayMode = stringParam('selectedTimeOfDayMode', 'All')
+
+// Route type selection with default to all route types
+const selectedRouteTypes = computed({
+  get (): number[] {
+    const param = route.query.selectedRouteTypes?.toString()
+    if (param) {
+      return param.split(',').map(p => parseInt(p)).filter(Boolean)
+    }
+    return Array.from(routeTypes.keys())
+  },
+  set (v: number[]) {
+    setQuery({ selectedRouteTypes: v.join(',') })
+  }
+})
+
+const selectedAgencies = arrayParam('selectedAgencies', [])
+
+// Days selection with special handling
+const selectedDays = computed({
+  get (): dow[] {
+    if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
+      // if no `selectedDays` param present, check them all
+      return dowValues.slice()
+    } else {
+      const param = route.query.selectedDays?.toString()
+      return param ? param.split(',').filter(Boolean) as dow[] : []
+    }
+  },
+  set (v: dow[]) {
+    // if all days are checked, just omit the param
+    const days = new Set(v)
+    const omit = dowValues.every(day => days.has(day))
+    setQuery({ selectedDays: omit ? '' : v.join(',') })
+  }
+})
+
+// Frequency parameters
+const frequencyUnderEnabled = booleanParam('frequencyUnderEnabled', false)
+const frequencyUnder = numberParam('frequencyUnder', 15)
+const frequencyOverEnabled = booleanParam('frequencyOverEnabled', false)
+const frequencyOver = numberParam('frequencyOver', 15)
+const calculateFrequencyMode = booleanParam('calculateFrequencyMode', false)
+
+// Fare parameters
+const maxFareEnabled = booleanParam('maxFareEnabled', false)
+const maxFare = numberParam('maxFare', 0)
+const minFareEnabled = booleanParam('minFareEnabled', false)
+const minFare = numberParam('minFare', 0)
+
+/////////////////
 // Loading and error handling
 const loading = ref(false)
 const hasError = ref(false)
@@ -187,7 +286,7 @@ const error = ref(null)
 const stopDepartureProgress = ref({ queue: 0, total: 0 })
 const stopDepartureLoadingComplete = ref(false)
 
-function setError (err: any) {
+function _setError (err: any) {
   error.value = err
   hasError.value = true
 }
@@ -200,272 +299,6 @@ function runQuery () {
   routeFeatures.value = []
   agencyFeatures.value = []
 }
-
-// Handle query parameters
-async function setQuery (params: Record<string, any>) {
-  await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
-}
-
-const geomSource = computed({
-  get () {
-    return route.query.geomSource?.toString() || 'bbox'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, geomSource: v })
-  }
-})
-
-const geomLayer = computed({
-  get () {
-    return route.query.geomLayer ? route.query.geomLayer?.toString() : 'place'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, geomLayer: v })
-  }
-})
-
-const geographyIds = computed({
-  get () {
-    return route.query.geographyIds?.toString().split(',').map(p => (parseInt(p))) || []
-  },
-  set (v: number[]) {
-    setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
-  }
-})
-
-const startDate = computed({
-  get () {
-    return parseDate(route.query.startDate?.toString() || '') || getLocalDateNoTime()
-  },
-  set (v: Date) {
-    setQuery({ ...route.query, startDate: fmtDate(v) })
-  }
-})
-
-const endDate = computed({
-  get () {
-    if (route.query?.endDate) {
-      return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
-    }
-    const n = new Date(startDate.value.valueOf())
-    n.setDate(n.getDate() + 6)
-    return n
-  },
-  set (v: Date) {
-    setQuery({ ...route.query, endDate: fmtDate(v) })
-  }
-})
-
-const startTime = computed({
-  get () {
-    return parseTime(route.query.startTime?.toString() || '') || new Date(0, 0, 0, 0, 0)
-  },
-  set (v: Date | null) {
-    setQuery({ ...route.query, startTime: fmtTime(v) })
-  }
-})
-
-const endTime = computed({
-  get () {
-    return parseTime(route.query.endTime?.toString() || '') || new Date(0, 0, 0, 23, 59)
-  },
-  set (v: Date | null) {
-    setQuery({ ...route.query, endTime: fmtTime(v) })
-  }
-})
-
-const bbox = computed({
-  get () {
-    const bbox = route.query.bbox?.toString() ?? defaultBbox
-    return parseBbox(bbox)
-  },
-  set (v: Bbox) {
-    setQuery({ ...route.query, bbox: bboxString(v) })
-  }
-})
-
-const unitSystem = computed({
-  get () {
-    return route.query.unitSystem?.toString() || 'us'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, unitSystem: v })
-  }
-})
-
-const hideUnmarked = computed({
-  get () {
-    return route.query.hideUnmarked?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
-  }
-})
-
-const dataDisplayMode = computed({
-  get () {
-    return route.query.dataDisplayMode?.toString() || 'Route'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, dataDisplayMode: v })
-  }
-})
-
-const colorKey = computed({
-  get () {
-    return route.query.colorKey?.toString() || 'Mode'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, colorKey: v })
-  }
-})
-
-const baseMap = computed({
-  get () {
-    return route.query.baseMap?.toString() || 'Streets'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, baseMap: v })
-  }
-})
-
-const selectedDayOfWeekMode = computed({
-  get () {
-    return route.query.selectedDayOfWeekMode?.toString() || 'Any'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
-  }
-})
-
-const selectedTimeOfDayMode = computed({
-  get () {
-    return route.query.selectedTimeOfDayMode?.toString() || 'All'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, selectedTimeOfDayMode: v === 'All' ? '' : v })
-  }
-})
-
-const selectedRouteTypes = computed({
-  get (): number[] {
-    const d = arrayParam('selectedRouteTypes', [])
-    if (d.length) {
-      return d.map(p => parseInt(p))
-    }
-    return Array.from(routeTypes.keys())
-  },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
-  }
-})
-
-const selectedAgencies = computed({
-  get (): string[] {
-    return arrayParam('selectedAgencies', [])
-  },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedAgencies: v.join(',') })
-  }
-})
-
-const selectedDays = computed({
-  get (): dow[] {
-    if (!route.query.hasOwnProperty('selectedDays')) {
-      // if no `selectedDays` param present, check them all
-      return dowValues.slice()
-    } else {
-      return arrayParam('selectedDays', []) as dow[]
-    }
-  },
-  set (v: string[]) {
-    // if all days are checked, just omit the param
-    const days = new Set(v)
-    const omit = dowValues.every(day => days.has(day))
-    setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })
-  }
-})
-
-const frequencyUnderEnabled = computed({
-  get () {
-    return route.query.frequencyUnderEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyUnderEnabled: v ? 'true' : '' })
-  }
-})
-
-const frequencyUnder = computed({
-  get () {
-    return parseInt(route.query.frequencyUnder?.toString() || '') || 15
-  },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyUnder: v.toString() })
-  }
-})
-
-const frequencyOverEnabled = computed({
-  get () {
-    return route.query.frequencyOverEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyOverEnabled: v ? 'true' : '' })
-  }
-})
-
-const frequencyOver = computed({
-  get () {
-    return parseInt(route.query.frequencyOver?.toString() || '') || 15
-  },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyOver: v.toString() })
-  }
-})
-
-const calculateFrequencyMode = computed({
-  get () {
-    return route.query.calculateFrequencyMode?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, calculateFrequencyMode: v ? 'true' : '' })
-  }
-})
-
-const maxFareEnabled = computed({
-  get () {
-    return route.query.maxFareEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, maxFareEnabled: v ? 'true' : '' })
-  }
-})
-
-const maxFare = computed({
-  get () {
-    return parseInt(route.query.maxFare?.toString() || '') || 0
-  },
-  set (v: number) {
-    setQuery({ ...route.query, maxFare: v.toString() })
-  }
-})
-
-const minFareEnabled = computed({
-  get () {
-    return route.query.minFareEnabled?.toString() === 'true'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, minFareEnabled: v ? 'true' : '' })
-  }
-})
-
-const minFare = computed({
-  get () {
-    return parseInt(route.query.minFare?.toString() || '') || 0
-  },
-  set (v: string) {
-    setQuery({ ...route.query, minFare: v.toString() })
-  }
-})
 
 /////////////////
 // Computed config and filters
@@ -541,7 +374,6 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Each result in the filter summary will be a string to be used as a bullet point.
 // We will only include results if the filter is set to something interesting (not default)
 const filterSummary = computed((): string[] => {
-  const mode = dataDisplayMode.value
   const results: string[] = []
 
   // route types
@@ -673,7 +505,9 @@ const mapExtentCenter = computed((): Point | null => {
 
 watch(geomSource, () => {
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
-    bbox.value = mapExtent.value
+    // Can't directly assign to bbox.value since it's computed
+    // Need to trigger the setter by calling setQuery
+    setQuery({ bbox: bboxString(mapExtent.value) })
   }
 })
 
@@ -688,7 +522,9 @@ watch([activeTab, geomSource], () => {
 async function setMapExtent (v: Bbox) {
   mapExtent.value = v
   if (geomSource.value === 'mapExtent') {
-    bbox.value = mapExtent.value
+    // Can't directly assign to bbox.value since it's computed
+    // Need to trigger the setter by calling setQuery
+    setQuery({ bbox: bboxString(mapExtent.value) })
   }
 }
 
@@ -775,11 +611,6 @@ function itemHelper (p: string): string {
     return 'is-active'
   }
   return 'is-secondary'
-}
-
-function arrayParam (p: string, def: string[]): string[] {
-  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
-  return a.length > 0 ? a : def
 }
 
 function toTitleCase (str: string): string {
