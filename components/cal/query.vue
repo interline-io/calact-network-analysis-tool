@@ -174,7 +174,11 @@ const {
 
 watch(geomSearchVars, () => {
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
-    geomLoad(geographySearchQuery) || geomRefetch()
+    if (geomSearch.value && geomLayer.value) {
+      geomLoad(geographySearchQuery)
+    } else {
+      geomRefetch()
+    }
   }
 })
 
