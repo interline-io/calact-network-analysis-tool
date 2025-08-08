@@ -154,11 +154,10 @@
 </template>
 
 <script lang="ts" setup>
-import { navigateTo } from '#imports'
 import { computed } from 'vue'
-import { useQuery } from '@vue/apollo-composable'
+import { navigateTo } from '#imports'
 
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
+import type { CensusDataset, CensusGeography } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Stop } from '~/src/stop'

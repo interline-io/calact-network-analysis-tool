@@ -4,11 +4,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import type { Bbox, Feature } from '~/src/geom'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
-import { type dow, routeTypes } from '~/src/constants'
 import { format } from 'date-fns'
+import { type dow, routeTypes } from '~/src/constants'
+import type { Bbox } from '~/src/geom'
 
 import {
   type StopDeparture,
