@@ -211,7 +211,7 @@ export class ScenarioFetcher {
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'schedules'
     })
-    console.log('Stop fetching completed with', this.stopResults?.length, 'stops')
+    console.log('Stop fetching completed with', this.stopResults.length, 'stops')
 
     // THIRD STAGE: Wait for all stop departure queries to complete
     console.log('Starting stop departure queries...')

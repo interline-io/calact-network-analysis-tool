@@ -9,7 +9,7 @@
 
 import { Command } from 'commander'
 import { print } from 'graphql'
-import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig } from '~/src/scenario'
+import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioData, type ScenarioFilter } from '~/src/scenario'
 import { parseBbox } from '~/src/geom'
 import { cannedBboxes } from '~/src/constants'
 
@@ -121,6 +121,9 @@ async function main () {
       scheduleEnabled: options.schedule,
       startDate: new Date(options.startDate),
       endDate: new Date(options.endDate),
+      geographyIds: []
+    }
+    const filter: ScenarioFilter = {
       startTime: parseTime(options.startTime),
       endTime: parseTime(options.endTime),
       selectedRouteTypes: options.routeTypes.split(',').map(Number),
@@ -130,8 +133,8 @@ async function main () {
       selectedTimeOfDayMode: 'All',
       frequencyUnderEnabled: false,
       frequencyOverEnabled: false,
-      geographyIds: []
     }
+    console.log('filter:', filter)
 
     // Validate configuration
     if (!config.bbox?.valid && !config.geographyIds?.length) {
@@ -207,19 +210,19 @@ function parseTime (timeStr: string): Date {
 /**
  * Output summary of results
  */
-function outputSummary (result: any) {
+function outputSummary (result: ScenarioData) {
   console.log('\n📊 Results Summary:')
   console.log(`🚏 Total Stops: ${result.stops.length}`)
   console.log(`🚌 Total Routes: ${result.routes.length}`)
-  console.log(`🏢 Total Agencies: ${result.agencies.length}`)
+  // console.log(`🏢 Total Agencies: ${result.agencies.length}`)
 
   const markedStops = result.stops.filter((s: any) => s.marked)
   const markedRoutes = result.routes.filter((r: any) => r.marked)
-  const markedAgencies = result.agencies.filter((a: any) => a.marked)
+  // const markedAgencies = result.agencies.filter((a: any) => a.marked)
 
   console.log(`✅ Filtered Stops: ${markedStops.length}`)
   console.log(`✅ Filtered Routes: ${markedRoutes.length}`)
-  console.log(`✅ Filtered Agencies: ${markedAgencies.length}`)
+  // console.log(`✅ Filtered Agencies: ${markedAgencies.length}`)
 
   if (markedRoutes.length > 0) {
     console.log('\n🚌 Sample Routes:')
@@ -228,12 +231,12 @@ function outputSummary (result: any) {
     })
   }
 
-  if (markedAgencies.length > 0) {
-    console.log('\n🏢 Agencies:')
-    markedAgencies.forEach((agency: any) => {
-      console.log(`  - ${agency.agency_name}: ${agency.routes_count} routes, ${agency.stops_count} stops`)
-    })
-  }
+  // if (markedAgencies.length > 0) {
+  //   console.log('\n🏢 Agencies:')
+  //   markedAgencies.forEach((agency: any) => {
+  //     console.log(`  - ${agency.agency_name}: ${agency.routes_count} routes, ${agency.stops_count} stops`)
+  //   })
+  // }
 }
 
 /**
