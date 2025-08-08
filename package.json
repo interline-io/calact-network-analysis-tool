@@ -12,7 +12,8 @@
     "generate": "nuxt generate",
     "lint": "eslint .",
     "test": "vitest",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "cli-example": "tsx docs/examples/cli-example.ts"
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",
@@ -20,6 +21,7 @@
     "eslint": "9.31.0",
     "nuxt": "3.16.0",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=3274fc736cb189b4adbeef728dd77ba629c266ad",
+    "tsx": "4.20.3",
     "vue-concurrency": "5.0.3"
   },
   "packageManager": "yarn@4.3.0"

@@ -9,19 +9,18 @@
 
 import { Command } from 'commander'
 import { print } from 'graphql'
-import { ScenarioFetcher, GraphQLClient, type ScenarioConfig } from '~/src/scenario'
+import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig } from '~/src/scenario'
 import { parseBbox } from '~/src/geom'
 import { cannedBboxes } from '~/src/constants'
 
 /**
  * Simple GraphQL client using fetch
  */
-class FetchGraphQLClient extends GraphQLClient {
+class FetchGraphQLClient implements GraphQLClient {
   private baseUrl: string
   private apiKey?: string
 
   constructor (baseUrl: string, apiKey?: string) {
-    super()
     this.baseUrl = baseUrl
     this.apiKey = apiKey
   }
