@@ -7,30 +7,12 @@ import { ref, watch, computed } from 'vue'
 import { useLazyQuery } from '@vue/apollo-composable'
 import { useTask } from 'vue-concurrency'
 import { format } from 'date-fns'
-import { type dow, routeTypes } from '../constants'
-import type { Bbox } from '../geom'
-
-import {
-  type StopDeparture,
-  type StopTime,
-  StopDepartureQueryVars,
-  stopDepartureQuery
-} from '../departure'
-import {
-  StopDepartureCache
-} from '../departure-cache'
-
 import {
   type Stop,
   type StopGql,
   stopQuery,
   stopSetDerived
 } from '../stop'
-
-import type {
-  Agency
-} from '../agency'
-
 import {
   type Route,
   type RouteGql,
@@ -38,6 +20,22 @@ import {
   routeQuery,
   newRouteHeadwaySummary
 } from '../route'
+import { type dow, routeTypes } from '~/src/constants'
+import type { Bbox } from '~/src/geom'
+
+import {
+  type StopDeparture,
+  type StopTime,
+  StopDepartureQueryVars,
+  stopDepartureQuery
+} from '~/src/departure'
+import {
+  StopDepartureCache
+} from '~/src/departure-cache'
+
+import type {
+  Agency
+} from '~/src/agency'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]

@@ -387,12 +387,12 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '../constants'
+import type { Stop } from '../stop'
+import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '~/src/constants'
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '../datetime'
-import type { Stop } from '../stop'
+import { fmtDate } from '~/src/datetime'
 
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },

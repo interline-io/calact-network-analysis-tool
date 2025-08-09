@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import type { Geometry } from '../components/geom'
+import type { Geometry } from './geom'
 
 export const geographyLayerQuery = gql`
 query($geography_ids: [Int!], $include_geographies: Boolean = false) {

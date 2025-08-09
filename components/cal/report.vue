@@ -96,9 +96,9 @@
 <script setup lang="ts">
 import { type Stop, stopToStopCsv, stopGeoAggregateCsv } from '../stop'
 import { type Route, routeToRouteCsv } from '../route'
-import { type Agency, agencyToAgencyCsv } from '../agency'
-import type { Feature } from '../geom'
 import type { TableReport, TableColumn } from './datagrid.vue'
+import { type Agency, agencyToAgencyCsv } from '~/src/agency'
+import type { Feature } from '~/src/geom'
 
 const props = defineProps<{
   stopFeatures: Stop[]
