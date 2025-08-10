@@ -116,9 +116,9 @@ export interface ScenarioData {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  stopDepartureProgress: { total: number, queue: number }
+  stopDepartureProgress: { total: number, completed: number }
   feedVersionProgress: { total: number, completed: number }
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete' | 'ready'
   error?: any
   // Partial data available during progress
   partialData?: {
@@ -155,26 +155,15 @@ export class ScenarioFetcher {
 
   // Internal state
   private stopDepartureCache = new StopDepartureCache()
-  private stopDepartureLoadingComplete = false
-  private activeStopDepartureQueryCount = 0
   private stopLimit = 100
   private stopTimeBatchSize = 100
   private feedVersionProgress = { total: 0, completed: 0 }
+  private stopDepartureProgress = { total: 0, completed: 0 }
 
   // Results
   private stopResults: StopGql[] = []
   private routeResults: RouteGql[] = []
   private feedVersions: FeedVersion[] = []
-
-  // Timing helper
-  private startTimer (operation: string): () => void {
-    const startTime = performance.now()
-    console.log(`⏱️  Starting ${operation}...`)
-    return () => {
-      const duration = performance.now() - startTime
-      console.log(`✅ Completed ${operation} in ${duration.toFixed(2)}ms`)
-    }
-  }
 
   constructor (
     config: ScenarioConfig,
@@ -184,7 +173,7 @@ export class ScenarioFetcher {
     this.config = config
     this.callbacks = callbacks
     this.client = client
-    this.stopLimit = config.stopLimit ?? 100
+    this.stopLimit = config.stopLimit ?? 1000
   }
 
   async fetch (): Promise<ScenarioData> {
@@ -198,68 +187,42 @@ export class ScenarioFetcher {
 
   // Start the scenario fetching process
   private async fetchInner (): Promise<ScenarioData> {
-    const overallTimer = this.startTimer('complete scenario fetch')
-
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: 0 },
-      feedVersionProgress: { total: 0, completed: 0 },
-      currentStage: 'feed-versions',
-      partialData: {
-        stops: [],
-        routes: [],
-        feedVersions: []
-      }
-    })
+    const overallTimer = startTimer('complete scenario fetch')
 
     // Reset state
     this.stopResults = []
     this.routeResults = []
     this.feedVersions = []
     this.stopDepartureCache = new StopDepartureCache()
-    this.activeStopDepartureQueryCount = 0
 
     // FIRST STAGE: Fetch active feed versions in the area
+    const feedVersionsTimer = startTimer('feed versions discovery')
+    this.updateProgress('feed-versions', true)
     await this.fetchFeedVersions()
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: 0 },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'stops'
-    })
-    console.log(`📍 Found ${this.feedVersions.length} feed versions`)
+    console.log(`Found ${this.feedVersions.length} feed versions`)
     for (const fv of this.feedVersions) {
       console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
     }
+    this.updateProgress('feed-versions', true)
+    feedVersionsTimer()
 
     // SECOND STAGE: Fetch stops for all feed versions
-    const stopsTimer = this.startTimer(`all stops for ${this.feedVersions.length} feed versions`)
-    await Promise.all(this.feedVersions.map(feedVersion =>
-      this.fetchStopsForFeedVersion(feedVersion)
-    ))
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'schedules',
-      partialData: {
-        stops: this.stopResults,
-        routes: this.routeResults,
-        feedVersions: this.feedVersions
-      }
-    })
+    const stopsTimer = startTimer(`stops for ${this.feedVersions.length} feed versions`)
+    this.updateProgress('stops', true)
+    await Promise.all(this.feedVersions.map((feedVersion) => {
+      const endTimer = startTimer(`stops for ${feedVersion.feed?.onestop_id}:${feedVersion.sha1}`)
+      this.fetchFeedVersionStops(feedVersion)
+      endTimer()
+    }))
+    console.log(`Fetched ${this.stopResults.length} stops and ${this.routeResults.length} routes`)
+    this.updateProgress('stops', true)
     stopsTimer()
-    console.log(`🚏 Fetched ${this.stopResults.length} stops and ${this.routeResults.length} routes`)
 
     // THIRD STAGE: Wait for all stop departure queries to complete
-    const schedulesTimer = this.startTimer(`all schedule queries`)
+    const schedulesTimer = startTimer(`all schedule queries`)
+    this.updateProgress('schedules', true)
     await this.waitForStopDeparturesComplete()
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: 0 },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'complete'
-    })
+    this.updateProgress('schedules', true)
     schedulesTimer()
 
     // FINAL STAGE: Apply filters and build final result
@@ -271,50 +234,27 @@ export class ScenarioFetcher {
       isComplete: true
     }
     this.callbacks.onComplete?.(result)
-    this.emitProgress({
-      isLoading: false,
-      stopDepartureProgress: { total: 0, queue: 0 },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'complete',
-      partialData: {
-        stops: this.stopResults,
-        routes: this.routeResults,
-        feedVersions: this.feedVersions
-      }
-    })
+    this.updateProgress('complete', false)
     overallTimer()
+
     console.log(`🎉 Scenario complete: ${this.stopResults.length} stops, ${this.routeResults.length} routes`)
     return result
   }
 
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<void> {
-    const endTimer = this.startTimer('feed versions discovery')
     const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedData: FeedGql[] = response.data?.feeds || []
     this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)
     this.feedVersionProgress = { total: this.feedVersions.length, completed: 0 }
-    endTimer()
   }
 
   // Fetch stops for a specific feed version
-  private async fetchStopsForFeedVersion (feedVersion: FeedVersion): Promise<void> {
-    const endTimer = this.startTimer(`stops for ${feedVersion.feed?.onestop_id}:${feedVersion.sha1}`)
+  private async fetchFeedVersionStops (feedVersion: FeedVersion): Promise<void> {
     await this.fetchStops({ after: 0, feedOnestopId: feedVersion.feed.onestop_id, feedVersionSha1: feedVersion.sha1 })
     this.feedVersionProgress.completed += 1
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'stops',
-      partialData: {
-        stops: this.stopResults,
-        routes: this.routeResults,
-        feedVersions: this.feedVersions
-      }
-    })
-    endTimer()
+    this.updateProgress('stops', true)
   }
 
   // Fetch stops from GraphQL API
@@ -334,12 +274,11 @@ export class ScenarioFetcher {
       }
     }
     const response = await this.client.query<{ stops: StopGql[] }>(stopQuery, variables)
+    const stopData: StopGql[] = response.data?.stops || []
 
     // Add to results
-    const stopData: StopGql[] = response.data?.stops || []
     this.stopResults.push(...stopData)
-
-    console.log(`📍 Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
+    console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -358,6 +297,9 @@ export class ScenarioFetcher {
     const stopIds = stopData.map(s => s.id)
     this.enqueueStopDepartureFetch(stopIds)
 
+    // Update incremental progress
+    this.updateProgress('stops', true)
+
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
     if (stopData.length >= this.stopLimit && stopIds.length > 0) {
@@ -372,8 +314,6 @@ export class ScenarioFetcher {
 
   // Fetch routes from GraphQL API
   private async fetchRoutes (task: { feedOnestopId: string, feedVersionSha1: string, ids: number[] }): Promise<void> {
-    const endTimer = this.startTimer(`route batch for ${task.feedOnestopId}:${task.feedVersionSha1} (${task.ids.length} routes)`)
-
     // fetch dummy routes if empty to simplify control flow
     const currentRouteIds = new Set<number>(this.routeResults.map(r => r.id))
     const fetchRouteIds = task.ids.filter(id => !currentRouteIds.has(id))
@@ -389,33 +329,16 @@ export class ScenarioFetcher {
       routeIdx.set(route.id, route)
     }
     this.routeResults = [...routeIdx.values()]
-    console.log('routeResults.length:', this.routeResults.length, routeIdx.keys())
-
-    // Emit progress with updated partial data
-    this.emitProgress({
-      isLoading: true,
-      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'routes',
-      partialData: {
-        stops: this.stopResults,
-        routes: this.routeResults,
-        feedVersions: this.feedVersions
-      }
-    })
-    endTimer()
   }
 
   // Fetch stop departures from GraphQL API
   private async fetchStopDepartures (task: StopDepartureQueryVars): Promise<void> {
-    const endTimer = this.startTimer(`schedules for ${task.ids.length} stops`)
     if (!this.config.scheduleEnabled || task.ids.length === 0) {
-      this.activeStopDepartureQueryCount -= 1
-      endTimer()
+      this.stopDepartureProgress.completed += 1
+      this.updateProgress('schedules', true)
       return
     }
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
-    this.activeStopDepartureQueryCount -= 1
 
     // Update cache
     const stopData: StopDeparture[] = response.data?.stops || []
@@ -440,13 +363,8 @@ export class ScenarioFetcher {
     // this.stopDepartureCache.debugStats()
 
     // Update progress
-    this.emitProgress({
-      isLoading: this.activeStopDepartureQueryCount > 0,
-      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'schedules'
-    })
-    endTimer()
+    this.stopDepartureProgress.completed += 1
+    this.updateProgress('schedules', true)
   }
 
   // Enqueue stop departure fetching tasks
@@ -464,7 +382,7 @@ export class ScenarioFetcher {
           w.setDay(d)
         }
         // Execute the stop departure fetch
-        this.activeStopDepartureQueryCount += 1
+        this.stopDepartureProgress.total += 1
         this.fetchStopDepartures(w).catch((error) => {
           this.callbacks.onError?.(error)
         })
@@ -477,12 +395,11 @@ export class ScenarioFetcher {
     return new Promise((resolve) => {
       console.log('Waiting for stop departure queries to complete...')
       const checkComplete = () => {
-        if (this.activeStopDepartureQueryCount === 0) {
-          this.stopDepartureLoadingComplete = true
+        if (this.stopDepartureProgress.total === this.stopDepartureProgress.completed) {
           console.log('All stop departure queries completed')
           resolve()
         } else {
-          console.log('Active stop departure queries:', this.activeStopDepartureQueryCount)
+          console.log('Remaining stop departure queries:', this.stopDepartureProgress.total - this.stopDepartureProgress.completed)
           setTimeout(checkComplete, 100)
         }
       }
@@ -493,6 +410,30 @@ export class ScenarioFetcher {
   // Emit progress updates
   private emitProgress (progress: ScenarioProgress): void {
     this.callbacks.onProgress?.(progress)
+  }
+
+  private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean) {
+    this.emitProgress({
+      isLoading: loading,
+      stopDepartureProgress: this.stopDepartureProgress,
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: stage,
+      partialData: {
+        stops: this.stopResults,
+        routes: this.routeResults,
+        feedVersions: this.feedVersions
+      }
+    })
+  }
+}
+
+// Timing helper
+function startTimer (operation: string): () => void {
+  const startTime = performance.now()
+  console.log(`⏱️  Starting ${operation}...`)
+  return () => {
+    const duration = performance.now() - startTime
+    console.log(`✅ Completed ${operation} in ${duration.toFixed(2)}ms`)
   }
 }
 
