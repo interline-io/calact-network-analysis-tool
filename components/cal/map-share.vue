@@ -22,8 +22,8 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Stop, stopToStopCsv } from '../stop'
-import { type Route, routeToRouteCsv } from '../route'
+import { type Stop, stopToStopCsv } from '~/src/stop'
+import { type Route, routeToRouteCsv } from '~/src/route'
 import { type Agency, agencyToAgencyCsv } from '~/src/agency'
 import type { Feature } from '~/src/geom'
 import { useToastNotification } from '#imports'

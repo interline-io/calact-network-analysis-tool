@@ -12,14 +12,14 @@ import {
   type StopGql,
   stopQuery,
   stopSetDerived
-} from '../stop'
+} from '~/src/stop'
 import {
   type Route,
   type RouteGql,
   routeSetDerived,
   routeQuery,
   newRouteHeadwaySummary
-} from '../route'
+} from '~/src/route'
 import { type dow, routeTypes } from '~/src/constants'
 import type { Bbox } from '~/src/geom'
 
