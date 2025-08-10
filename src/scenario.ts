@@ -228,6 +228,9 @@ export class ScenarioFetcher {
       currentStage: 'stops'
     })
     console.log(`📍 Found ${this.feedVersions.length} feed versions`)
+    for (const fv of this.feedVersions) {
+      console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
+    }
 
     // SECOND STAGE: Fetch stops for all feed versions
     const stopsTimer = this.startTimer(`all stops for ${this.feedVersions.length} feed versions`)
