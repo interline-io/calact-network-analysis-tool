@@ -61,11 +61,12 @@ const createGraphQLClientAdapter = (): GraphQLClient => {
         clientId: 'transitland'
       })
       const result = await load()
-      console.log('got result:', result)
-      if (result && typeof result === 'object' && 'data' in result) {
-        return { data: result.data as T }
+      console.log('createGraphQLClientAdapter result:', result)
+      if (!result) {
+        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
+        return { data: undefined }
       }
-      return { data: undefined }
+      return { data: result as T }
     }
   }
 }
