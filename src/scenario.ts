@@ -155,6 +155,7 @@ export class ScenarioFetcher {
 
   // Internal state
   private stopDepartureCache = new StopDepartureCache()
+  private stopDepartureLoadingComplete = false
   private activeStopDepartureQueryCount = 0
   private stopLimit = 100
   private stopTimeBatchSize = 100
@@ -164,6 +165,16 @@ export class ScenarioFetcher {
   private stopResults: StopGql[] = []
   private routeResults: RouteGql[] = []
   private feedVersions: FeedVersion[] = []
+
+  // Timing helper
+  private startTimer (operation: string): () => void {
+    const startTime = performance.now()
+    console.log(`⏱️  Starting ${operation}...`)
+    return () => {
+      const duration = performance.now() - startTime
+      console.log(`✅ Completed ${operation} in ${duration.toFixed(2)}ms`)
+    }
+  }
 
   constructor (
     config: ScenarioConfig,
@@ -187,6 +198,8 @@ export class ScenarioFetcher {
 
   // Start the scenario fetching process
   private async fetchInner (): Promise<ScenarioData> {
+    const overallTimer = this.startTimer('complete scenario fetch')
+
     this.emitProgress({
       isLoading: true,
       stopDepartureProgress: { total: 0, queue: 0 },
@@ -207,7 +220,6 @@ export class ScenarioFetcher {
     this.activeStopDepartureQueryCount = 0
 
     // FIRST STAGE: Fetch active feed versions in the area
-    console.log('Starting feed version discovery...')
     await this.fetchFeedVersions()
     this.emitProgress({
       isLoading: true,
@@ -215,10 +227,10 @@ export class ScenarioFetcher {
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'stops'
     })
-    console.log('Feed version discovery completed:', this.feedVersions.length, 'feed versions')
+    console.log(`📍 Found ${this.feedVersions.length} feed versions`)
 
     // SECOND STAGE: Fetch stops for all feed versions
-    console.log('Starting stop fetching for', this.feedVersions.length, 'feed versions...')
+    const stopsTimer = this.startTimer(`all stops for ${this.feedVersions.length} feed versions`)
     await Promise.all(this.feedVersions.map(feedVersion =>
       this.fetchStopsForFeedVersion(feedVersion)
     ))
@@ -233,10 +245,11 @@ export class ScenarioFetcher {
         feedVersions: this.feedVersions
       }
     })
-    console.log('Stop fetching completed with', this.stopResults.length, 'stops')
+    stopsTimer()
+    console.log(`🚏 Fetched ${this.stopResults.length} stops and ${this.routeResults.length} routes`)
 
     // THIRD STAGE: Wait for all stop departure queries to complete
-    console.log('Starting stop departure queries...')
+    const schedulesTimer = this.startTimer(`all schedule queries`)
     await this.waitForStopDeparturesComplete()
     this.emitProgress({
       isLoading: true,
@@ -244,10 +257,9 @@ export class ScenarioFetcher {
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'complete'
     })
-    console.log('All stop departure queries completed')
+    schedulesTimer()
 
     // FINAL STAGE: Apply filters and build final result
-    console.log('Scenario fetch complete')
     const result: ScenarioData = {
       routes: this.routeResults,
       stops: this.stopResults,
@@ -267,22 +279,25 @@ export class ScenarioFetcher {
         feedVersions: this.feedVersions
       }
     })
+    overallTimer()
+    console.log(`🎉 Scenario complete: ${this.stopResults.length} stops, ${this.routeResults.length} routes`)
     return result
   }
 
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<void> {
+    const endTimer = this.startTimer('feed versions discovery')
     const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
-    console.log('fetchFeedVersions: response', response)
     const feedData: FeedGql[] = response.data?.feeds || []
     this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)
     this.feedVersionProgress = { total: this.feedVersions.length, completed: 0 }
+    endTimer()
   }
 
   // Fetch stops for a specific feed version
   private async fetchStopsForFeedVersion (feedVersion: FeedVersion): Promise<void> {
-    console.log('fetchStopsForFeedVersion: starting for', feedVersion.feed?.onestop_id, feedVersion.sha1)
+    const endTimer = this.startTimer(`stops for ${feedVersion.feed?.onestop_id}:${feedVersion.sha1}`)
     await this.fetchStops({ after: 0, feedOnestopId: feedVersion.feed.onestop_id, feedVersionSha1: feedVersion.sha1 })
     this.feedVersionProgress.completed += 1
     this.emitProgress({
@@ -296,12 +311,11 @@ export class ScenarioFetcher {
         feedVersions: this.feedVersions
       }
     })
-    console.log('fetchStopsForFeedVersion: completed for', feedVersion.feed?.onestop_id, feedVersion.sha1)
+    endTimer()
   }
 
   // Fetch stops from GraphQL API
-  private async fetchStops (task: { after: number, feedOnestopId: string, feedVersionSha1?: string }): Promise<void> {
-    console.log('fetchStops: run', task.feedOnestopId, task.feedVersionSha1)
+  private async fetchStops (task: { after: number, feedOnestopId: string, feedVersionSha1: string }): Promise<void> {
     const b = (this.config.bbox == null ? null : convertBbox(this.config.bbox))
     const geoIds = this.config.geographyIds || []
     const variables = {
@@ -322,6 +336,8 @@ export class ScenarioFetcher {
     const stopData: StopGql[] = response.data?.stops || []
     this.stopResults.push(...stopData)
 
+    console.log(`📍 Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
+
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
     for (const stop of stopData) {
@@ -332,7 +348,7 @@ export class ScenarioFetcher {
 
     // Fetch routes syncronously
     if (routeIds.size > 0) {
-      await this.fetchRoutes({ ids: [...routeIds] })
+      await this.fetchRoutes({ feedOnestopId: task.feedOnestopId, feedVersionSha1: task.feedVersionSha1, ids: [...routeIds] })
     }
 
     // Enqueue stop departure fetching
@@ -349,18 +365,16 @@ export class ScenarioFetcher {
       })
       return
     }
-    console.log('fetchStops: completed for feed version', task.feedOnestopId, task.feedVersionSha1)
   }
 
   // Fetch routes from GraphQL API
-  private async fetchRoutes (task: { ids: number[] }): Promise<void> {
-    console.log('fetchRoutes: run', task)
+  private async fetchRoutes (task: { feedOnestopId: string, feedVersionSha1: string, ids: number[] }): Promise<void> {
+    const endTimer = this.startTimer(`route batch for ${task.feedOnestopId}:${task.feedVersionSha1} (${task.ids.length} routes)`)
+
+    // fetch dummy routes if empty to simplify control flow
     const currentRouteIds = new Set<number>(this.routeResults.map(r => r.id))
     const fetchRouteIds = task.ids.filter(id => !currentRouteIds.has(id))
-    if (fetchRouteIds.length === 0) {
-      return
-    }
-    const response = await this.client.query<{ routes: RouteGql[] }>(routeQuery, { ids: fetchRouteIds })
+    const response = await this.client.query<{ routes: RouteGql[] }>(routeQuery, { ids: fetchRouteIds.length > 0 ? fetchRouteIds : [0] })
 
     // Merge with existing routes
     const routeData: RouteGql[] = response.data?.routes || []
@@ -372,7 +386,7 @@ export class ScenarioFetcher {
       routeIdx.set(route.id, route)
     }
     this.routeResults = [...routeIdx.values()]
-    console.log('fetchRoutes: resolved')
+    console.log('routeResults.length:', this.routeResults.length, routeIdx.keys())
 
     // Emit progress with updated partial data
     this.emitProgress({
@@ -386,13 +400,15 @@ export class ScenarioFetcher {
         feedVersions: this.feedVersions
       }
     })
+    endTimer()
   }
 
   // Fetch stop departures from GraphQL API
   private async fetchStopDepartures (task: StopDepartureQueryVars): Promise<void> {
-    console.log('fetchStopDepartures: run', task)
+    const endTimer = this.startTimer(`schedules for ${task.ids.length} stops`)
     if (!this.config.scheduleEnabled || task.ids.length === 0) {
       this.activeStopDepartureQueryCount -= 1
+      endTimer()
       return
     }
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
@@ -418,7 +434,7 @@ export class ScenarioFetcher {
         this.stopDepartureCache.add(stop.id, dowDate, r)
       }
     }
-    this.stopDepartureCache.debugStats()
+    // this.stopDepartureCache.debugStats()
 
     // Update progress
     this.emitProgress({
@@ -427,6 +443,7 @@ export class ScenarioFetcher {
       feedVersionProgress: this.feedVersionProgress,
       currentStage: 'schedules'
     })
+    endTimer()
   }
 
   // Enqueue stop departure fetching tasks
