@@ -247,6 +247,7 @@ export class ScenarioFetcher {
   private async fetchFeedVersions (): Promise<void> {
     const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
+    console.log('fetchFeedVersions: response', response)
     const feedData: FeedGql[] = response.data?.feeds || []
     this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)
     this.feedVersionProgress = { total: this.feedVersions.length, completed: 0 }
@@ -429,7 +430,7 @@ export class ScenarioFetcher {
   }
 }
 
-function getRouteMode (routeType: number): string {
+function _getRouteMode (routeType: number): string {
   return routeTypes.get(routeType) || 'Unknown'
 }
 
@@ -521,7 +522,7 @@ export function applyScenarioResultFilter (
     )
     return stop
   })
-  const markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
+  const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
   // Apply agency filters
   const agencyData = new Map()
