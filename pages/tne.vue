@@ -185,13 +185,13 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { type dow, dowValues, routeTypes } from '~/src/constants'
-import type { Route } from '~/src/route'
-import type { Agency } from '~/src/agency'
 import type { Stop } from '~/src/stop'
-import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
+import type { Route } from '~/src/route'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
+import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
+import type { Agency } from '~/src/agency'
+import { type dow, dowValues, routeTypes } from '~/src/constants'
 import { navigateTo } from '#imports'
 
 definePageMeta({

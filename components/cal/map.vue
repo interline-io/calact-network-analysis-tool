@@ -41,10 +41,10 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
-import { colors, routeTypes } from '~/src/constants'
 import { type Stop, stopToStopCsv } from '~/src/stop'
 import { type Route, routeToRouteCsv } from '~/src/route'
+import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
+import { colors, routeTypes } from '~/src/constants'
 import type { Agency } from '~/src/agency'
 import type { CensusGeography } from '~/src/census'
 
