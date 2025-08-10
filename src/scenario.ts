@@ -30,6 +30,10 @@ import {
 export interface FeedVersion {
   id: string
   sha1: string
+  feed: {
+    id: number
+    onestop_id: string
+  }
 }
 
 export interface FeedGql {
@@ -52,6 +56,10 @@ query ($where: FeedFilter) {
       feed_version {
         id
         sha1
+        feed {
+          id
+          onestop_id
+        }
       }
     }
   }
@@ -112,6 +120,12 @@ export interface ScenarioProgress {
   feedVersionProgress: { total: number, completed: number }
   currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete'
   error?: any
+  // Partial data available during progress
+  partialData?: {
+    stops: StopGql[]
+    routes: RouteGql[]
+    feedVersions: FeedVersion[]
+  }
 }
 
 /**
@@ -141,7 +155,6 @@ export class ScenarioFetcher {
 
   // Internal state
   private stopDepartureCache = new StopDepartureCache()
-  private stopDepartureLoadingComplete = false
   private activeStopDepartureQueryCount = 0
   private stopLimit = 100
   private stopTimeBatchSize = 100
@@ -178,7 +191,12 @@ export class ScenarioFetcher {
       isLoading: true,
       stopDepartureProgress: { total: 0, queue: 0 },
       feedVersionProgress: { total: 0, completed: 0 },
-      currentStage: 'feed-versions'
+      currentStage: 'feed-versions',
+      partialData: {
+        stops: [],
+        routes: [],
+        feedVersions: []
+      }
     })
 
     // Reset state
@@ -186,7 +204,6 @@ export class ScenarioFetcher {
     this.routeResults = []
     this.feedVersions = []
     this.stopDepartureCache = new StopDepartureCache()
-    this.stopDepartureLoadingComplete = false
     this.activeStopDepartureQueryCount = 0
 
     // FIRST STAGE: Fetch active feed versions in the area
@@ -209,7 +226,12 @@ export class ScenarioFetcher {
       isLoading: true,
       stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
       feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'schedules'
+      currentStage: 'schedules',
+      partialData: {
+        stops: this.stopResults,
+        routes: this.routeResults,
+        feedVersions: this.feedVersions
+      }
     })
     console.log('Stop fetching completed with', this.stopResults.length, 'stops')
 
@@ -238,7 +260,12 @@ export class ScenarioFetcher {
       isLoading: false,
       stopDepartureProgress: { total: 0, queue: 0 },
       feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'complete'
+      currentStage: 'complete',
+      partialData: {
+        stops: this.stopResults,
+        routes: this.routeResults,
+        feedVersions: this.feedVersions
+      }
     })
     return result
   }
@@ -255,21 +282,26 @@ export class ScenarioFetcher {
 
   // Fetch stops for a specific feed version
   private async fetchStopsForFeedVersion (feedVersion: FeedVersion): Promise<void> {
-    console.log('fetchStopsForFeedVersion: starting for', feedVersion.sha1)
-    await this.fetchStops({ after: 0, feedVersionSha1: feedVersion.sha1 })
+    console.log('fetchStopsForFeedVersion: starting for', feedVersion.feed?.onestop_id, feedVersion.sha1)
+    await this.fetchStops({ after: 0, feedOnestopId: feedVersion.feed.onestop_id, feedVersionSha1: feedVersion.sha1 })
     this.feedVersionProgress.completed += 1
     this.emitProgress({
       isLoading: true,
       stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
       feedVersionProgress: this.feedVersionProgress,
-      currentStage: 'stops'
+      currentStage: 'stops',
+      partialData: {
+        stops: this.stopResults,
+        routes: this.routeResults,
+        feedVersions: this.feedVersions
+      }
     })
-    console.log('fetchStopsForFeedVersion: completed for', feedVersion.sha1)
+    console.log('fetchStopsForFeedVersion: completed for', feedVersion.feed?.onestop_id, feedVersion.sha1)
   }
 
   // Fetch stops from GraphQL API
-  private async fetchStops (task: { after: number, feedVersionSha1?: string }): Promise<void> {
-    console.log('fetchStops: run', task)
+  private async fetchStops (task: { after: number, feedOnestopId: string, feedVersionSha1?: string }): Promise<void> {
+    console.log('fetchStops: run', task.feedOnestopId, task.feedVersionSha1)
     const b = (this.config.bbox == null ? null : convertBbox(this.config.bbox))
     const geoIds = this.config.geographyIds || []
     const variables = {
@@ -312,11 +344,12 @@ export class ScenarioFetcher {
     if (stopData.length >= this.stopLimit && stopIds.length > 0) {
       await this.fetchStops({
         after: stopIds[stopIds.length - 1],
+        feedOnestopId: task.feedOnestopId,
         feedVersionSha1: task.feedVersionSha1
       })
       return
     }
-    console.log('fetchStops: completed for feed version', task.feedVersionSha1)
+    console.log('fetchStops: completed for feed version', task.feedOnestopId, task.feedVersionSha1)
   }
 
   // Fetch routes from GraphQL API
@@ -340,6 +373,19 @@ export class ScenarioFetcher {
     }
     this.routeResults = [...routeIdx.values()]
     console.log('fetchRoutes: resolved')
+
+    // Emit progress with updated partial data
+    this.emitProgress({
+      isLoading: true,
+      stopDepartureProgress: { total: 0, queue: this.activeStopDepartureQueryCount },
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: 'routes',
+      partialData: {
+        stops: this.stopResults,
+        routes: this.routeResults,
+        feedVersions: this.feedVersions
+      }
+    })
   }
 
   // Fetch stop departures from GraphQL API

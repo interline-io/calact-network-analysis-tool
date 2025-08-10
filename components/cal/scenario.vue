@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useLazyQuery } from '@vue/apollo-composable'
 import {
   ScenarioFetcher,
@@ -14,6 +14,7 @@ import {
   type ScenarioProgress,
   type GraphQLClient
 } from '~/src/scenario'
+import { StopDepartureCache } from '~/src/departure-cache'
 import type { Stop } from '~/src/stop'
 import type { Route } from '~/src/route'
 import type { dow } from '~/src/constants'
@@ -47,6 +48,30 @@ const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 const geographyIds = defineModel<number[]>('geographyIds')
 
+// Computed properties for config and filter to avoid duplication
+const scenarioConfig = computed((): ScenarioConfig => ({
+  bbox: bbox.value,
+  scheduleEnabled: scheduleEnabled.value,
+  startDate: startDate.value,
+  endDate: endDate.value,
+  geographyIds: geographyIds.value,
+  stopLimit: 100
+}))
+
+const scenarioFilter = computed((): ScenarioFilter => ({
+  startTime: startTime.value,
+  endTime: endTime.value,
+  selectedRouteTypes: selectedRouteTypes.value || [],
+  selectedDays: selectedDays.value || [],
+  selectedAgencies: selectedAgencies.value || [],
+  selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
+  selectedTimeOfDayMode: '', // Not used in the original component
+  frequencyUnder: frequencyUnder.value,
+  frequencyOver: frequencyOver.value,
+  frequencyUnderEnabled: frequencyUnderEnabled.value || false,
+  frequencyOverEnabled: frequencyOverEnabled.value || false
+}))
+
 // Internal state for ScenarioFetcher
 const scenarioData = ref<ScenarioData | null>(null)
 const isLoading = ref(false)
@@ -61,7 +86,6 @@ const createGraphQLClientAdapter = (): GraphQLClient => {
         clientId: 'transitland'
       })
       const result = await load()
-      console.log('createGraphQLClientAdapter result:', result)
       if (!result) {
         console.log('createGraphQLClientAdapter: no result returned from Apollo query')
         return { data: undefined }
@@ -80,7 +104,8 @@ watch(runCount, (v) => {
 
 // Scenario fetching logic
 const fetchScenario = async () => {
-  if (!bbox.value && (!geographyIds.value || geographyIds.value.length === 0)) {
+  const config = scenarioConfig.value
+  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs
   }
 
@@ -90,21 +115,31 @@ const fetchScenario = async () => {
     stopDepartureLoadingComplete.value = false
     emit('setStopDepartureLoadingComplete', false)
 
-    const config: ScenarioConfig = {
-      bbox: bbox.value,
-      scheduleEnabled: scheduleEnabled.value,
-      startDate: startDate.value,
-      endDate: endDate.value,
-      geographyIds: geographyIds.value,
-      stopLimit: 100
-    }
-
     const client = createGraphQLClientAdapter()
 
     const callbacks = {
       onProgress: (progress: ScenarioProgress) => {
         emit('setLoading', progress.isLoading)
         emit('setStopDepartureProgress', progress.stopDepartureProgress)
+
+        // Emit features early when partial data is available
+        if (progress.partialData && progress.partialData.stops.length > 0) {
+          // Create partial scenario data for filtering
+          const partialScenarioData: ScenarioData = {
+            routes: progress.partialData.routes,
+            stops: progress.partialData.stops,
+            feedVersions: progress.partialData.feedVersions,
+            stopDepartureCache: new StopDepartureCache(),
+            isComplete: false
+          }
+
+          // Apply filters to partial data and emit (without schedule-dependent features)
+          const partialResult = applyScenarioResultFilter(partialScenarioData, scenarioConfig.value, scenarioFilter.value)
+          emit('setRouteFeatures', partialResult.routes)
+          emit('setStopFeatures', partialResult.stops)
+          emit('setAgencyFeatures', partialResult.agencies)
+        }
+
         if (progress.currentStage === 'complete') {
           stopDepartureLoadingComplete.value = true
           emit('setStopDepartureLoadingComplete', true)
@@ -152,30 +187,7 @@ watch(() => [
     return
   }
 
-  const config: ScenarioConfig = {
-    bbox: bbox.value,
-    scheduleEnabled: scheduleEnabled.value,
-    startDate: startDate.value,
-    endDate: endDate.value,
-    geographyIds: geographyIds.value,
-    stopLimit: 100
-  }
-
-  const filter: ScenarioFilter = {
-    startTime: startTime.value,
-    endTime: endTime.value,
-    selectedRouteTypes: selectedRouteTypes.value || [],
-    selectedDays: selectedDays.value || [],
-    selectedAgencies: selectedAgencies.value || [],
-    selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
-    selectedTimeOfDayMode: '', // Not used in the original component
-    frequencyUnder: frequencyUnder.value,
-    frequencyOver: frequencyOver.value,
-    frequencyUnderEnabled: frequencyUnderEnabled.value || false,
-    frequencyOverEnabled: frequencyOverEnabled.value || false
-  }
-
-  const result = applyScenarioResultFilter(scenarioData.value, config, filter)
+  const result = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
 
   emit('setRouteFeatures', result.routes)
   emit('setStopFeatures', result.stops)
