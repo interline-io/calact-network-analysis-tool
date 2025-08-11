@@ -1,116 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { Mock } from 'vitest'
-import { print } from 'graphql'
 import type { Polly } from '@pollyjs/core'
-import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioFilter } from './scenario'
+import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './scenario'
 import type { Bbox } from './geom'
+import { MockGraphQLClient, TestGraphQLClient } from './testutil'
 import { setupPolly } from '~/tests/pollySetup'
 
-/**
- * Real GraphQL client for testing with actual API calls
- */
-class TestGraphQLClient implements GraphQLClient {
-  private baseUrl: string
-  private apiKey: string
-
-  constructor (baseUrl: string, apiKey: string) {
-    this.baseUrl = baseUrl
-    this.apiKey = apiKey
-  }
-
-  async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-    // Extract query string from DocumentNode or use as-is if string
-    let queryString: string
-    if (typeof query === 'string') {
-      queryString = query
-    } else {
-      // Use graphql print function to convert DocumentNode to string
-      queryString = print(query)
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'apikey': this.apiKey
-    }
-
-    const requestBody = {
-      query: queryString,
-      variables,
-    }
-
-    try {
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (result.errors) {
-        throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
-      }
-
-      return result
-    } catch (error) {
-      console.error('GraphQL request failed:', error)
-      throw error
-    }
-  }
-}
-
-/**
- * Mock GraphQL client for testing without real API calls
- */
-class MockGraphQLClient implements GraphQLClient {
-  public mockQuery: Mock
-
-  constructor () {
-    this.mockQuery = vi.fn()
-  }
-
-  async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-    return this.mockQuery(query, variables)
-  }
-}
-
 describe('ScenarioFetcher', () => {
-  let mockClient: MockGraphQLClient
-  let config: ScenarioConfig
-  let filter: ScenarioFilter
+  const mockClient: MockGraphQLClient = new MockGraphQLClient()
   let polly: Polly | null = null
-
-  beforeEach(() => {
-    mockClient = new MockGraphQLClient()
-    config = {
-      bbox: {
-        sw: { lat: 45.4, lon: -122.8 },
-        ne: { lat: 45.7, lon: -122.5 },
-        valid: true
-      } as Bbox,
-      scheduleEnabled: true,
-      startDate: new Date('2024-07-03'),
-      endDate: new Date('2024-07-10'),
-      geographyIds: [],
-      stopLimit: 100
-    }
-    filter = {
-      startTime: new Date('2024-07-03T06:00:00'),
-      endTime: new Date('2024-07-03T22:00:00'),
-      selectedRouteTypes: [3],
-      selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-      selectedAgencies: [],
-      selectedDayOfWeekMode: 'Any',
-      selectedTimeOfDayMode: 'All',
-      frequencyUnderEnabled: false,
-      frequencyOverEnabled: false,
-    }
-  })
+  const config: ScenarioConfig = {
+    bbox: {
+      sw: { lat: 45.4, lon: -122.8 },
+      ne: { lat: 45.7, lon: -122.5 },
+      valid: true
+    } as Bbox,
+    scheduleEnabled: true,
+    startDate: new Date('2024-07-03'),
+    endDate: new Date('2024-07-10'),
+    geographyIds: [],
+    stopLimit: 100
+  }
+  const filter: ScenarioFilter = {
+    startTime: new Date('2024-07-03T06:00:00'),
+    endTime: new Date('2024-07-03T22:00:00'),
+    selectedRouteTypes: [3],
+    selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    selectedAgencies: [],
+    selectedDayOfWeekMode: 'Any',
+    selectedTimeOfDayMode: 'All',
+    frequencyUnderEnabled: false,
+    frequencyOverEnabled: false,
+  }
+  console.log(config, filter)
 
   afterEach(async () => {
     if (polly) {
@@ -167,40 +88,34 @@ describe('ScenarioFetcher', () => {
 
 describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
   let polly: Polly
-  let realClient: TestGraphQLClient
-  let config: ScenarioConfig
-  let filter: ScenarioFilter
-
-  beforeEach(() => {
-    // Use API key from environment
-    const apiKey = process.env.TRANSITLAND_API_KEY || 'test-api-key'
-    realClient = new TestGraphQLClient('https://api.transit.land/api/v2/query', apiKey)
-
-    // Use a small, well-known area for consistent test data - Downtown Portland
-    config = {
-      bbox: {
-        sw: { lat: 45.51358, lon: -122.69075 },
-        ne: { lat: 45.53306, lon: -122.66809 },
-        valid: true
-      } as Bbox,
-      scheduleEnabled: true,
-      startDate: new Date('2024-07-03'),
-      endDate: new Date('2024-07-04'), // Short date range
-      geographyIds: [],
-      stopLimit: 100
-    }
-    filter = {
-      startTime: new Date('2024-07-03T08:00:00'),
-      endTime: new Date('2024-07-03T10:00:00'),
-      selectedRouteTypes: [3], // Bus only
-      selectedDays: ['monday'],
-      selectedAgencies: [],
-      selectedDayOfWeekMode: 'Any',
-      selectedTimeOfDayMode: 'All',
-      frequencyUnderEnabled: false,
-      frequencyOverEnabled: false,
-    }
-  })
+  const realClient: TestGraphQLClient = new TestGraphQLClient(
+    process.env.TLSERVER_TEST_ENDPOINT || '',
+    process.env.TRANSITLAND_API_KEY || '',
+  )
+  const config: ScenarioConfig = {
+    bbox: {
+      sw: { lat: 45.51358, lon: -122.69075 },
+      ne: { lat: 45.53306, lon: -122.66809 },
+      valid: true
+    } as Bbox,
+    scheduleEnabled: true,
+    startDate: new Date('2024-07-03'),
+    endDate: new Date('2024-07-04'), // Short date range
+    geographyIds: [],
+    stopLimit: 100
+  }
+  const filter: ScenarioFilter = {
+    startTime: new Date('2024-07-03T08:00:00'),
+    endTime: new Date('2024-07-03T10:00:00'),
+    selectedRouteTypes: [3], // Bus only
+    selectedDays: ['monday'],
+    selectedAgencies: [],
+    selectedDayOfWeekMode: 'Any',
+    selectedTimeOfDayMode: 'All',
+    frequencyUnderEnabled: false,
+    frequencyOverEnabled: false,
+  }
+  console.log(config, filter)
 
   afterEach(async () => {
     if (polly) {

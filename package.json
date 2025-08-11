@@ -22,6 +22,7 @@
     "nuxt": "3.16.0",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=3274fc736cb189b4adbeef728dd77ba629c266ad",
     "tsx": "4.20.3",
+    "vitest": "3.2.4",
     "vue-concurrency": "5.0.3"
   },
   "packageManager": "yarn@4.3.0"
