@@ -20,14 +20,14 @@ describe('wsdot', () => {
       valid: true
     } as Bbox,
     scheduleEnabled: true,
-    startDate: new Date('2024-07-03'),
-    endDate: new Date('2024-07-10'),
+    startDate: new Date('2025-07-03'),
+    endDate: new Date('2025-07-10'),
     geographyIds: [],
     stopLimit: 100
   }
   const filter: ScenarioFilter = {
-    startTime: new Date('2024-07-03T06:00:00'),
-    endTime: new Date('2024-07-03T22:00:00'),
+    // startTime: new Date('2025-07-03T06:00:00'),
+    // endTime: new Date('2025-07-03T22:00:00'),
     selectedRouteTypes: [3],
     selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     selectedAgencies: [],
@@ -49,7 +49,7 @@ describe('wsdot', () => {
     polly = setupPolly('scenario-wsdot-1')
     const fetcher = new ScenarioFetcher(config, realClient)
     const result = await fetcher.fetch()
-    const report = wsdotReport(result)
+    const report = wsdotReport(result, '2025-07-03')
     console.log(report)
   })
 })
