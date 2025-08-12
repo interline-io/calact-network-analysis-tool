@@ -11,7 +11,7 @@
     "start": "nuxt start",
     "generate": "nuxt generate",
     "lint": "eslint .",
-    "test": "vitest",
+    "test": "vitest run --reporter=basic",
     "test:watch": "vitest --watch",
     "cli-example": "tsx docs/examples/cli-example.ts"
   },

@@ -324,6 +324,9 @@ export class ScenarioFetcher {
       this.updateProgress('schedules', true)
       return
     }
+
+    const fetchDates = `sunday:${task.get('sunday')}, monday:${task.get('monday')}, tuesday:${task.get('tuesday')}, wednesday:${task.get('wednesday')}, thursday:${task.get('thursday')}, friday:${task.get('friday')}, saturday:${task.get('saturday')}`
+    console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
 
     // Update cache
@@ -440,6 +443,7 @@ function getSelectedDateRange (config: ScenarioConfig): Date[] {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
+  console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
   return dates
 }
 
