@@ -1,11 +1,29 @@
 #!/bin/sh
+set -ex
 
 # fix gtfs
 rm -rf tmp-fixed; mkdir tmp-fixed
-transitland extract --allow-entity-errors --allow-reference-errors monday-3.zip tmp-fixed/monday-3.zip
-transitland extract --allow-entity-errors --allow-reference-errors sunday-3.zip tmp-fixed/sunday-3.zip
+for day in monday-3 sunday-3; do
+  mkdir -p tmp-fixed/$day
+  transitland extract \
+    --allow-entity-errors \
+    --allow-reference-errors \
+    --set "stops.txt,*,parent_station," \
+    --set "routes.txt,*,route_color," \
+    --set "routes.txt,*,route_text_color," \
+    --set "agency.txt,*,agency_timezone,America/Los_Angeles" \
+    --normalize-service-ids \
+    --prefix "$day:" \
+    --prefix-files-exclude agency.txt \
+    --prefix-files-exclude stops.txt \
+    --prefix-files-exclude routes.txt \
+    $day.zip tmp-fixed/$day
+done
 
-# migrate
+# merge results together
+transitland merge tmp-fixed/wsdot-merged.zip tmp-fixed/monday-3 tmp-fixed/sunday-3
+
+# # migrate
 createdb tlv2
 transitland dbmigrate up
 transitland dbmigrate natural-earth

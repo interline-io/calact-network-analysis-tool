@@ -18,8 +18,10 @@ describe('wsdot', () => {
   const endDate = '2024-08-25' // FIXME: must be one day past window
   const config: ScenarioConfig = {
     bbox: {
-      sw: { lon: -122.375034, lat: 47.586920 },
-      ne: { lon: -122.265815, lat: 47.625345 },
+      sw: { lon: -127.300423, lat: 44.772916 },
+      ne: { lon: -113.320321, lat: 47.625345 },
+      // sw: { lon: -122.375034, lat: 47.586920 },
+      // ne: { lon: -122.265815, lat: 47.625345 },
       valid: true
     } as Bbox,
     scheduleEnabled: true,
