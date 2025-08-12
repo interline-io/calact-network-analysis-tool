@@ -13,13 +13,13 @@ import {
   type ScenarioData,
   type ScenarioProgress,
   type GraphQLClient
-} from '~/src/scenario'
-import { StopDepartureCache } from '~/src/departure-cache'
-import type { Stop } from '~/src/stop'
-import type { Route } from '~/src/route'
+} from '~/src/scenario/scenario'
+import { StopDepartureCache } from '~/src/scenario/departure-cache'
+import type { Stop } from '~/src/scenario/stop'
+import type { Route } from '~/src/scenario/route'
 import type { dow } from '~/src/constants'
 import type { Bbox } from '~/src/geom'
-import type { Agency } from '~/src/agency'
+import type { Agency } from '~/src/scenario/agency'
 
 const emit = defineEmits<{
   setRouteFeatures: [value: Route[]]

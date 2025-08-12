@@ -1,7 +1,5 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import type { Bbox } from './geom'
-import { type dow, routeTypes } from './constants'
 import {
   type StopDeparture,
   type StopTime,
@@ -23,6 +21,8 @@ import {
   routeQuery,
   newRouteHeadwaySummary
 } from './route'
+import { type dow, routeTypes } from '~/src/constants'
+import type { Bbox } from '~/src/geom'
 
 /**
  * Feed data from GraphQL

@@ -9,7 +9,7 @@
 
 import { Command } from 'commander'
 import { print } from 'graphql'
-import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioData, type ScenarioFilter } from '~/src/scenario'
+import { ScenarioFetcher, type GraphQLClient, type ScenarioConfig, type ScenarioData, type ScenarioFilter } from '~/src/scenario/scenario'
 import { parseBbox } from '~/src/geom'
 import { cannedBboxes } from '~/src/constants'
 
