@@ -2,7 +2,8 @@
 // Run with: yarn calact <subcommand>
 
 import { Command } from 'commander'
-import { configureScenarioCli } from './scenario-cli'
+import { configureScenarioCli } from './scenario'
+import { configureWsdotReportCli } from './wsdot-report'
 
 const program = new Command()
 
@@ -12,11 +13,18 @@ program
   .version('1.0.0')
   .allowUnknownOption(false)
 
-// Create scenario-cli subcommand
-const scenarioCliCommand = program
-  .command('scenario-cli')
+// Create scenario subcommand
+const scenarioCommand = program
+  .command('scenario')
   .description('Fetch transit scenario data via CLI')
 
-configureScenarioCli(scenarioCliCommand)
+configureScenarioCli(scenarioCommand)
+
+// Create WSDOT report subcommand
+const wsdotCommand = program
+  .command('wsdot')
+  .description('Generate WSDOT network analysis report')
+
+configureWsdotReportCli(wsdotCommand)
 
 program.parse(process.argv)

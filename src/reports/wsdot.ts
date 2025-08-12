@@ -1,5 +1,5 @@
+import { promises as fs } from 'fs'
 import type { ScenarioData } from '~/src/scenario'
-
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
   peak?: TimeConfig
@@ -395,4 +395,14 @@ function intersection<T> (set1: Set<T>, set2: Set<T>): Set<T> {
     }
   }
   return result
+}
+
+export function wsdotReportSave (report: WSDOTReport, filename: string) {
+  const data = JSON.stringify(report, null, 2)
+  fs.writeFile(filename, data)
+}
+
+export async function wsdotReportLoad (filename: string): Promise<WSDOTReport> {
+  const data = await fs.readFile(filename, 'utf-8')
+  return JSON.parse(data)
 }
