@@ -191,7 +191,7 @@ function updateOverlayFeatures (features: Feature[]) {
   // Update sources
   const polygonSource = map.getSource('overlayPolygons') as maplibre.GeoJSONSource
   if (polygonSource) {
-    const polygons = features.filter((s) => { return s.geometry.type === 'MultiPolygon' || s.geometry.type === 'Polygon' })
+    const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
     polygonSource.setData({ type: 'FeatureCollection', features: polygons })
   }
   fitFeatures(features)
@@ -210,8 +210,8 @@ function updateFeatures (features: Feature[]) {
     return
   }
   // Update sources
-  const points = features.filter((s) => { return s.geometry.type === 'Point' })
-  const lines = features.filter((s) => { return s.geometry.type === 'LineString' || s.geometry.type === 'MultiLineString' })
+  const points = features.filter((s) => { return s.geometry?.type === 'Point' })
+  const lines = features.filter((s) => { return s.geometry?.type === 'LineString' || s.geometry?.type === 'MultiLineString' })
   const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
   const pointSource = map.getSource('points') as maplibre.GeoJSONSource
   if (lineSource) {
