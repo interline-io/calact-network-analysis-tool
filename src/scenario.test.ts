@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
 import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './scenario'
+import { BasicGraphQLClient } from './graphql'
+import { MockGraphQLClient } from './scenario-fixtures.test'
 import type { Bbox } from '~/src/geom'
-import { MockGraphQLClient, TestGraphQLClient } from '~/src/graphql-fixtures'
 import { setupPolly } from '~/tests/pollySetup'
 
 describe('ScenarioFetcher', () => {
@@ -88,10 +89,6 @@ describe('ScenarioFetcher', () => {
 
 describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
   let polly: Polly
-  const realClient: TestGraphQLClient = new TestGraphQLClient(
-    process.env.TLSERVER_TEST_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || '',
-  )
   const config: ScenarioConfig = {
     bbox: {
       sw: { lat: 45.51358, lon: -122.69075 },
@@ -125,7 +122,10 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
 
   it('should fetch real transit data from Portland area', async () => {
     polly = setupPolly('scenario-fetcher-portland-basic')
-
+    const realClient: BasicGraphQLClient = new BasicGraphQLClient(
+      process.env.TLSERVER_TEST_ENDPOINT || '',
+      process.env.TRANSITLAND_API_KEY || '',
+    )
     const fetcher = new ScenarioFetcher(config, realClient)
     const result = await fetcher.fetch()
 

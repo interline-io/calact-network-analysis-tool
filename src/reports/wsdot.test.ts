@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
-import { TestGraphQLClient } from '~/src/graphql-fixtures'
+import { BasicGraphQLClient } from '~/src/graphql'
 import type { ScenarioConfig } from '~/src/scenario'
 import { ScenarioFetcher } from '~/src/scenario'
 import type { Bbox } from '~/src/geom'
@@ -12,7 +12,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     return
   }
   let polly: Polly | null = null
-  const realClient: TestGraphQLClient = new TestGraphQLClient(
+  const realClient: BasicGraphQLClient = new BasicGraphQLClient(
     process.env.TLSERVER_TEST_ENDPOINT || '',
     process.env.TRANSITLAND_API_KEY || '',
   )

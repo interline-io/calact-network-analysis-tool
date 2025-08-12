@@ -1,11 +1,10 @@
-import { vi, type Mock } from 'vitest'
 import { print } from 'graphql'
 import type { GraphQLClient } from './scenario'
 
 /**
  * Real GraphQL client for testing with actual API calls
  */
-export class TestGraphQLClient implements GraphQLClient {
+export class BasicGraphQLClient implements GraphQLClient {
   private baseUrl: string
   private apiKey: string
 
@@ -57,20 +56,5 @@ export class TestGraphQLClient implements GraphQLClient {
       console.error('GraphQL request failed:', error)
       throw error
     }
-  }
-}
-
-/**
- * Mock GraphQL client for testing without real API calls
- */
-export class MockGraphQLClient implements GraphQLClient {
-  public mockQuery: Mock
-
-  constructor () {
-    this.mockQuery = vi.fn()
-  }
-
-  async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-    return this.mockQuery(query, variables)
   }
 }

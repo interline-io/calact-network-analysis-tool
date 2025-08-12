@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run --reporter=basic",
     "test:watch": "vitest --watch",
-    "cli-example": "tsx docs/examples/cli-example.ts"
+    "calact": "tsx scripts/calact.ts"
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",

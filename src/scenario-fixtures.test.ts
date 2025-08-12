@@ -1,7 +1,8 @@
 import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { describe, it, expect } from 'vitest'
-import type { ScenarioConfig, ScenarioFilter, ScenarioData } from './scenario'
+import { vi, type Mock } from 'vitest'
+import type { ScenarioConfig, ScenarioFilter, ScenarioData, GraphQLClient } from './scenario'
 import { StopDepartureCache } from './departure-cache'
 import {
   saveScenarioTestFixtureToFile,
@@ -9,6 +10,21 @@ import {
   type ScenarioTestFixture
 } from './scenario-fixtures'
 import type { Bbox } from '~/src/geom'
+
+/**
+ * Mock GraphQL client for testing without real API calls
+ */
+export class MockGraphQLClient implements GraphQLClient {
+  public mockQuery: Mock
+
+  constructor () {
+    this.mockQuery = vi.fn()
+  }
+
+  async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
+    return this.mockQuery(query, variables)
+  }
+}
 
 describe('Scenario Fixtures', () => {
   const testFilePath = join(process.cwd(), 'tmp', 'test-scenario-fixture.json')

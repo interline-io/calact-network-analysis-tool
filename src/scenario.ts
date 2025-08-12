@@ -443,7 +443,7 @@ function getSelectedDateRange (config: ScenarioConfig): Date[] {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
-  console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
+  // console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
   return dates
 }
 
