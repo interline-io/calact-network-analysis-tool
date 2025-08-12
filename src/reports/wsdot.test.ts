@@ -6,7 +6,11 @@ import { ScenarioFetcher } from '~/src/scenario'
 import type { Bbox } from '~/src/geom'
 import { wsdotReport } from '~/src/reports/wsdot'
 
-describe('wsdot', () => {
+describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
+  if (process.env.TEST_WSDOT !== 'true') {
+    // Skip test if TEST_WSDOT is not set to 'true'
+    return
+  }
   let polly: Polly | null = null
   const realClient: TestGraphQLClient = new TestGraphQLClient(
     process.env.TLSERVER_TEST_ENDPOINT || '',
@@ -50,7 +54,7 @@ describe('wsdot', () => {
   })
 
   it('tlv2-prod', async () => {
-    // polly = setupPolly('scenario-wsdot-1')
+    // polly = setupPolly('scenario-wsdot-2')
     const startDate = '2025-08-11'
     const endDate = '2025-08-18'
     const config: ScenarioConfig = {
