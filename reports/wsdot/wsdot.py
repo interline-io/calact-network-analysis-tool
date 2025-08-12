@@ -7,34 +7,6 @@
 ## accept statewide GTFS feeds as input (one feed for weekdays, current reference date Monday 8/15/22, one feed for weekends, current reference Sunday 8/21/22)
 ## return a spreadsheet that contains all stops from those feeds, with lat/lon and binary values for each of the 6 levels of frequency designed for the Frequent Transit Service Study: https://engage.wsdot.wa.gov/frequent-transit-service-study/
 
-# METHODOLOGY OVERVIEW:
-# This script analyzes transit service frequency to classify stops into different service levels based on
-# trips per hour (TPH) thresholds across various time periods. The analysis combines both stop-level
-# and route-level frequency analysis to ensure comprehensive coverage.
-#
-# For each service level, the methodology involves:
-# 1. STOP-LEVEL ANALYSIS: Filter stops based on minimum TPH requirements during specific time windows
-#    - Peak hours (typically 9am-5pm): High frequency requirements
-#    - Extended hours (early morning/evening): Moderate frequency requirements  
-#    - Night segments: Minimal service requirements for 24-hour service levels
-#
-# 2. ROUTE-LEVEL ANALYSIS: Identify routes meeting frequency thresholds, then include all stops on those routes
-#    - Aggregates trip frequencies by route and direction
-#    - Applies same TPH thresholds as stop-level analysis
-#    - Captures stops that may not individually meet thresholds but are on frequent routes
-#
-# 3. WEEKEND ANALYSIS: For applicable levels, repeat analysis on weekend service and require stops to
-#    meet criteria on both weekdays and weekends
-#
-# 4. INTERSECTION LOGIC: Results from different time periods and analysis methods are merged using
-#    inner joins, meaning stops must meet ALL criteria for their assigned level
-#
-# 5. NIGHT SERVICE SEGMENTATION: 24-hour service levels require coverage across multiple night time
-#    segments (11pm-1am, 1am-3am, 3am-5am) to ensure continuous service
-#
-# The final output contains binary indicators (1/0) for each service level, allowing stops to qualify
-# for multiple levels. Higher frequency levels are more restrictive and nested within lower levels.
-
 import pandas as pd
 import numpy as np
 import transit_service_analyst as tsa
