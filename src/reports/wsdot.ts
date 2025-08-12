@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
-import type { ScenarioData } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
   peak?: TimeConfig
@@ -79,14 +80,14 @@ const SERVICE_LEVELS: Record<string, ServiceLevelConfig> = {
   }
 }
 
-interface StopFrequencyData {
+export interface StopFrequencyData {
   stopId: number
   hourlyTrips: Record<number, number> // hour -> trip count
   totalTrips: number
   routeIds: Set<number>
 }
 
-interface RouteFrequencyData {
+export interface RouteFrequencyData {
   routeId: number
   directionId: number
   hourlyTrips: Record<number, number>
@@ -94,14 +95,15 @@ interface RouteFrequencyData {
   stopIds: Set<number>
 }
 
-interface WSDOTReport {
+export interface WSDOTReport {
   stops: WSDOTStopResult[]
   totalStops: number
   levelCounts: Record<string, number>
 }
 
-interface WSDOTStopResult {
-  stopId: number
+export interface WSDOTStopResult {
+  stopId: string
+  stopName: string
   stopLat: number
   stopLon: number
   level6: boolean
@@ -111,6 +113,11 @@ interface WSDOTStopResult {
   level2: boolean
   level1: boolean
   levelNights: boolean
+}
+
+export interface WSDOTReportConfig extends ScenarioConfig {
+  weekdayDate: Date
+  weekendDate: Date
 }
 
 export function wsdotReport (data: ScenarioData, weekdayDate: string, weekendDate: string): WSDOTReport {
@@ -143,7 +150,8 @@ export function wsdotReport (data: ScenarioData, weekdayDate: string, weekendDat
     if (!stop?.geometry) continue
 
     const result: WSDOTStopResult = {
-      stopId,
+      stopId: stop.stop_id,
+      stopName: stop.stop_name || '',
       stopLat: stop.geometry.coordinates[1],
       stopLon: stop.geometry.coordinates[0],
       level6: results.level6?.has(stopId) || false,

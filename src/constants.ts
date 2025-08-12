@@ -5,6 +5,7 @@ export const cannedBboxes = new Map<string, string>(Object.entries({
   'Bend, OR': '-121.32895,44.04474,-121.29887,44.06547',
   'Eugene, OR': '-123.11829,44.02712,-123.07870,44.05676',
   'Salem, OR': '-123.04563,44.93167,-123.01971,44.94815',
+  'WA+OR': '-127.300423,44.772916,-113.320321,47.625345',
 }))
 
 export const routeTypes = new Map<number, string>([

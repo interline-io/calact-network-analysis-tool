@@ -17,6 +17,8 @@ import { wsdotReport, wsdotReportSave } from '~/src/reports/wsdot'
 export function configureWsdotReportCli (program: Command) {
   scenarioOptionsAdd(program)
     .option('--save-wsdot-report <file>', 'Path to save WSDOT report')
+    .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
+    .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
     .allowUnknownOption(false)
     .action(async (options) => {
       await runWsdotReportScli(options as WSDOTReportOptions)
@@ -35,6 +37,7 @@ interface WSDOTReportOptions extends ScenarioCliOptions {
 async function runWsdotReportScli (options: WSDOTReportOptions) {
   scenarioOptionsCheck(options)
   const result = await runScenarioData(options)
+  console.log('result?', result)
 
   // Process WSDOT Report
   const report = wsdotReport(result, options.weekdayDate, options.weekendDate)
