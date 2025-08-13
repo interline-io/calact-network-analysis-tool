@@ -4,7 +4,7 @@ import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './sce
 import { BasicGraphQLClient } from './graphql'
 import { MockGraphQLClient } from './scenario-fixtures.test'
 import type { Bbox } from '~/src/geom'
-import { setupPolly } from '~/tests/pollySetup'
+import { setupPolly } from '~/src/pollySetup'
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
