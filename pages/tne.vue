@@ -274,7 +274,7 @@ const startTime = computed({
   get () {
     return parseTime(route.query.startTime?.toString() || '') || new Date(0, 0, 0, 0, 0)
   },
-  set (v: Date | null) {
+  set (v: Date | undefined) {
     setQuery({ ...route.query, startTime: fmtTime(v) })
   }
 })
@@ -283,7 +283,7 @@ const endTime = computed({
   get () {
     return parseTime(route.query.endTime?.toString() || '') || new Date(0, 0, 0, 23, 59)
   },
-  set (v: Date | null) {
+  set (v: Date | undefined) {
     setQuery({ ...route.query, endTime: fmtTime(v) })
   }
 })

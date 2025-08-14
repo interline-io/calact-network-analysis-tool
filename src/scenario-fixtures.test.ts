@@ -2,14 +2,15 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import { describe, it, expect } from 'vitest'
 import { vi, type Mock } from 'vitest'
-import type { ScenarioConfig, ScenarioFilter, ScenarioData, GraphQLClient } from './scenario'
+import type { ScenarioConfig, ScenarioFilter, ScenarioData } from './scenario'
 import { StopDepartureCache } from './departure-cache'
 import {
-  saveScenarioTestFixtureToFile,
-  loadScenarioTestFixtureFromFile,
+  deserializeScenarioTestFixture,
+  serializeScenarioTestFixture,
   type ScenarioTestFixture
 } from './scenario-fixtures'
-import { parseDate } from './datetime'
+import { parseDate, parseTime } from './datetime'
+import type { GraphQLClient } from './graphql'
 import type { Bbox } from '~/src/geom'
 
 /**
@@ -39,7 +40,7 @@ describe('Scenario Fixtures', () => {
     }
   }
 
-  it('should save and load complete ScenarioTestFixture with all components', async () => {
+  it('should serialize and deserialize test fixture', async () => {
     // Create test config with dates
     const testConfig: ScenarioConfig = {
       bbox: {
@@ -48,14 +49,16 @@ describe('Scenario Fixtures', () => {
         valid: true
       } as Bbox,
       scheduleEnabled: true,
-      startDate: parseDate('2024-07-03')!,
-      endDate: parseDate('2024-07-10')!,
+      startDate: parseDate('2024-07-03'),
+      endDate: parseDate('2024-07-10'),
       geographyIds: [12345],
       stopLimit: 500
     }
 
     // Create test filter with dates and complex settings
     const testFilter: ScenarioFilter = {
+      startTime: parseTime('06:00:00'),
+      endTime: parseTime('22:00:00'),
       selectedRouteTypes: [3, 1],
       selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       selectedAgencies: ['agency-1', 'agency-2'],
@@ -150,17 +153,17 @@ describe('Scenario Fixtures', () => {
 
     try {
       // Save complete fixture
-      await saveScenarioTestFixtureToFile(testFixture, testFilePath)
+      const outputData = serializeScenarioTestFixture(testFixture)
 
       // Load complete fixture
-      const loadedFixture = await loadScenarioTestFixtureFromFile(testFilePath)
+      const loadedFixture = deserializeScenarioTestFixture(outputData)
 
       // Verify config was preserved including dates
       expect(loadedFixture.config.scheduleEnabled).toBe(true)
       expect(loadedFixture.config.stopLimit).toBe(500)
       expect(loadedFixture.config.geographyIds).toEqual([12345])
-      expect(loadedFixture.config.startDate).toEqual(new Date('2024-07-03'))
-      expect(loadedFixture.config.endDate).toEqual(new Date('2024-07-10'))
+      expect(loadedFixture.config.startDate).toEqual(parseDate('2024-07-03'))
+      expect(loadedFixture.config.endDate).toEqual(parseDate('2024-07-10'))
       expect(loadedFixture.config.bbox?.sw.lat).toBe(45.4)
 
       // Verify filter was preserved including dates and complex settings
@@ -173,8 +176,8 @@ describe('Scenario Fixtures', () => {
       expect(loadedFixture.filter.frequencyOver).toBe(10)
       expect(loadedFixture.filter.frequencyUnderEnabled).toBe(true)
       expect(loadedFixture.filter.frequencyOverEnabled).toBe(false)
-      expect(loadedFixture.filter.startTime).toEqual(new Date('2024-07-03T06:00:00'))
-      expect(loadedFixture.filter.endTime).toEqual(new Date('2024-07-03T22:00:00'))
+      expect(loadedFixture.filter.startTime).toEqual(parseTime('06:00:00'))
+      expect(loadedFixture.filter.endTime).toEqual(parseTime('22:00:00'))
 
       // Verify data was preserved including complex structures
       expect(loadedFixture.data.routes).toHaveLength(1)
