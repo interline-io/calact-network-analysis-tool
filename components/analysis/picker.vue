@@ -21,7 +21,9 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+// import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+// const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+// const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 
 const reportTypes: Record<string, string> = {
   '': 'Pick a report',
@@ -29,8 +31,6 @@ const reportTypes: Record<string, string> = {
   'another': 'Another Report',
 }
 const selectedReportType = ref<string>('')
-const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
-const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 </script>
 
 <style scoped lang="scss">
