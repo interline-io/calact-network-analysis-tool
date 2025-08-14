@@ -1,7 +1,5 @@
 <template>
   <div>
-    <tl-title title="WSDOT Frequent Transit Service Study" />
-
     <div class="columns">
       <div class="column is-one-quarter">
         <table class="wsdot-level-details">
@@ -65,13 +63,14 @@ import { bboxString } from '~/src/geom'
 import { fmtDate } from '~/src/datetime'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
+// Define models for props
+const config = defineModel<WSDOTReportConfig>('config', { required: true })
+const report = defineModel<WSDOTReport>('report', { required: true })
+
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
 const stopBufferRadius = ref(800) // in meters
 const showStopBuffers = ref(false)
-// const aggLevel = ref<'tract' | 'county' | 'state'>('tract')
-
-//////////////
 
 // TEMPORARY
 const StatePopulations: Record<string, number> = {
@@ -82,19 +81,10 @@ const StatePopulations: Record<string, number> = {
 //////////////
 
 const zoom = 10
-const scenarioName = 'Portland, OR'
-const reportFile = `/examples/${scenarioName}.wsdot.json`
-
-// Fetch report
-const data: { config: WSDOTReportConfig, report: WSDOTReport } = await fetch(reportFile)
-  .then(res => res.json())
-
-const { config, report } = data
-
 const bboxCenter = computed(() => {
   const pt = {
-    lat: (config.bbox!.ne.lat + config.bbox!.sw.lat) / 2,
-    lon: (config.bbox!.ne.lon + config.bbox!.sw.lon) / 2,
+    lat: (config.value.bbox!.ne.lat + config.value.bbox!.sw.lat) / 2,
+    lon: (config.value.bbox!.ne.lon + config.value.bbox!.sw.lon) / 2,
   }
   return pt
 })
@@ -108,7 +98,7 @@ interface LayerDetail {
 const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
   return levelKeys.reduce((acc, levelName) => {
     // GROUP BY STATE
-    const layerFeatures = (report.levelLayers[levelName] || {})['tract']
+    const layerFeatures = (report.value.levelLayers[levelName] || {})['tract']
     const layerAdminKey = 'adm1_name'
     const layerPops: Record<string, { intersection: number, total: number }> = {}
     const layerAdminGroups: Record<string, Feature[]> = {}
@@ -127,7 +117,7 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
     console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
 
     // Save level details
-    const stopCount = report.stops.filter(stop => stop[levelName]).length
+    const stopCount = report.value.stops.filter(stop => stop[levelName]).length
     acc[levelName] = {
       label: SERVICE_LEVELS[levelName].name,
       color: levelColors[levelName],
@@ -139,7 +129,7 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
 })
 
 const displayStopFeatures = computed(() => {
-  const features: Feature[] = report.stops.map((stop) => {
+  const features: Feature[] = report.value.stops.map((stop) => {
     const highestLevel = levelKeys.find(key => stop[key]) || 'levelNights'
     const highestLevelColor = levelColors[highestLevel]
     const props: Record<string, any> = {
@@ -176,7 +166,7 @@ const displayFeatures = computed(() => {
       if (!selectedLevels.value.includes(levelName)) {
         continue
       }
-      const layerFeatures = (report.levelLayers[levelName] || {})['tract']
+      const layerFeatures = (report.value.levelLayers[levelName] || {})['tract']
       for (const feature of layerFeatures || []) {
         features.push({
           id: feature.id,

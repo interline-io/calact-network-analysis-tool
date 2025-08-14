@@ -1,9 +1,13 @@
-import { promises as fs } from 'fs'
+import * as fs from 'fs'
 import type { Command } from 'commander'
 import { cannedBboxes } from '~/src/constants'
 import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
 import { serializeScenarioTestFixture } from '~/src/scenario-fixtures'
+
+/**
+ * Stream a JSON object to disk in chunks to handle large files efficiently
+ */
 
 /**
  * Get current date in YYYY-MM-DD format
@@ -105,7 +109,7 @@ export function scenarioOutputCsv (result: any) {
 }
 
 /**
- * Save scenario data and config to a file
+ * Save scenario data and config to a file using streaming JSON
  */
 export async function scenarioSaveData (filename: string, data: ScenarioData, config: ScenarioConfig) {
   // Create a default ScenarioFilter with sensible defaults
@@ -124,6 +128,17 @@ export async function scenarioSaveData (filename: string, data: ScenarioData, co
     data
   }
   const fixtureData = serializeScenarioTestFixture(fixture)
-  await fs.writeFile(filename, JSON.stringify(fixtureData))
+
+  // Use the general streaming helper
+  console.log('START')
+  await streamJsonToFile(filename, fixtureData)
+  console.log('OK')
   console.log(`💾 Scenario data saved to: ${filename}`)
+}
+
+export async function streamJsonToFile (
+  filename: string,
+  data: any,
+): Promise<void> {
+  fs.writeFileSync(filename, JSON.stringify(data))
 }

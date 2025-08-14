@@ -66,19 +66,6 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
   // Save WSDOT report
   if (options.saveWsdotReport) {
     wsdotReportSave(options.saveWsdotReport, config, report)
-  //   for (const [levelColumn, levelLayer] of Object.entries(report.levelLayers)) {
-  //     const levelColor = levelColors[levelColumn] || '#000000'
-  //     console.log(`Level Layer: ${levelColumn} color: ${levelColor}`)
-  //     for (const [geogLayer, geogFeatures] of Object.entries(levelLayer)) {
-  //       for (const feature of geogFeatures) {
-  //         feature.properties['stroke'] = levelColor
-  //         feature.properties['fill'] = levelColor
-  //       }
-  //       const layerFc = { type: 'FeatureCollection', features: geogFeatures }
-  //       const fn = `${options.saveWsdotReport.split('.')[0]}_${levelColumn}_${geogLayer}.geojson`
-  //       await fs.writeFile(fn, JSON.stringify(layerFc, null, '  '))
-  //     }
-  //   }
   }
 }
 

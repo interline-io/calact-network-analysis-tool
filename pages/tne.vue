@@ -41,6 +41,15 @@
           </a>
         </li>
         <li>
+          <a :class="itemHelper('report')" title="WSDOT Frequent Transit" role="button" @click="setTab({ tab: 'wsdot', sub: '' })">
+            <o-icon
+              icon="file-chart"
+              class="is-fullwidth"
+              size="large"
+            />
+          </a>
+        </li>
+        <li>
           <a v-if="isLoading" class="menu-item" style="color:white;text-align:center">
             <img src="~assets/spinner.svg" alt="Loading">
           </a>
@@ -75,6 +84,7 @@
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
+            v-model:canned-bbox="cannedBbox"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -132,24 +142,33 @@
             @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
-      </div>
 
-      <!-- This is a component for displaying the map and legend -->
-      <cal-map
-        :bbox="bbox"
-        :census-geographies-selected="censusGeographiesSelected"
-        :stop-features="stopFeatures"
-        :route-features="routeFeatures"
-        :agency-features="agencyFeatures"
-        :display-edit-bbox-mode="displayEditBboxMode"
-        :data-display-mode="dataDisplayMode"
-        :color-key="colorKey"
-        :hide-unmarked="hideUnmarked"
-        :stop-departure-loading-complete="stopDepartureLoadingComplete"
-        @set-bbox="bbox = $event"
-        @set-map-extent="setMapExtent"
-        @set-export-features="exportFeatures = $event"
-      />
+        <div v-if="activeTab.tab === 'wsdot'" class="cal-overlay">
+          <div style="background:white;width:100%">
+            <reports-wsdot
+              :scenario-data="scenarioData"
+              :scenario-config="scenarioConfig"
+            />
+          </div>
+        </div>
+
+        <!-- This is a component for displaying the map and legend -->
+        <cal-map
+          :bbox="bbox"
+          :census-geographies-selected="censusGeographiesSelected"
+          :stop-features="stopFeatures"
+          :route-features="routeFeatures"
+          :agency-features="agencyFeatures"
+          :display-edit-bbox-mode="displayEditBboxMode"
+          :data-display-mode="dataDisplayMode"
+          :color-key="colorKey"
+          :hide-unmarked="hideUnmarked"
+          :stop-departure-loading-complete="stopDepartureLoadingComplete"
+          @set-bbox="bbox = $event"
+          @set-map-extent="setMapExtent"
+          @set-export-features="exportFeatures = $event"
+        />
+      </div>
     </template>
   </NuxtLayout>
 </template>
@@ -157,14 +176,14 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
+import { navigateTo } from '#imports'
 import type { Stop } from '~/src/stop'
 import type { Route } from '~/src/route'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Agency } from '~/src/agency'
-import { type dow, dowValues, routeTypes } from '~/src/constants'
-import { navigateTo } from '#imports'
+import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
 import type { ScenarioConfig, ScenarioFilter, ScenarioData, ScenarioProgress } from '~/src/scenario'
 import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario'
 import type { GraphQLClient } from '~/src/graphql'
@@ -177,9 +196,9 @@ definePageMeta({
 
 const route = useRoute()
 
-const scheduleEnabled = ref(true)
-const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
+const scheduleEnabled = ref(true)
+const cannedBbox = ref('downtown-portland')
 
 /////////////////
 // Loading and error handling
@@ -271,6 +290,7 @@ const endTime = computed({
 
 const bbox = computed({
   get () {
+    const defaultBbox = cannedBboxes.get(cannedBbox.value)?.bboxString || ''
     const bbox = route.query.bbox?.toString() ?? defaultBbox
     return parseBbox(bbox)
   },
@@ -713,7 +733,6 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 // Internal state for ScenarioFetcher
 const scenarioData = ref<ScenarioData | null>(null)
 const isLoading = ref(false)
-
 const stopFeatures = shallowRef<Stop[]>([])
 const routeFeatures = shallowRef<Route[]>([])
 const agencyFeatures = shallowRef<Agency[]>([])
@@ -748,6 +767,7 @@ const loadExampleData = async (exampleName: string) => {
   stopFeatures.value = finalResult.stops
   agencyFeatures.value = finalResult.agencies
   stopDepartureLoadingComplete.value = true
+  activeTab.value = { tab: 'map', sub: '' }
 }
 
 // Scenario fetching logic

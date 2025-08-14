@@ -124,7 +124,7 @@
 <script setup lang="ts">
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
-import { type Bbox, type Point, parseBbox } from '~/src/geom'
+import type { Bbox, Point } from '~/src/geom'
 import { cannedBboxes, geomSources } from '~/src/constants'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~/src/census'
 
@@ -146,7 +146,7 @@ const props = defineProps<{
 const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
-const cannedBbox = ref('downtown-portland-zoomed')
+const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')
 const geomLayer = defineModel<string>('geomLayer')
@@ -230,12 +230,6 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 
 /////////////////////////////////////////
 /////////////////////////////////////////
-
-watch(() => cannedBbox.value, (cannedBboxName) => {
-  if (cannedBboxName) {
-    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName)?.bboxString || null))
-  }
-})
 
 const validQueryParams = computed(() => {
   return startDate.value && bbox?.value?.valid
