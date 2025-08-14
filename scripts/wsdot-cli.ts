@@ -6,6 +6,7 @@ import type { Command } from 'commander'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
+  streamJsonToFile,
   type ScenarioCliOptions
 } from './scenario-cli-util'
 import { runScenarioData } from './scenario-cli'
@@ -70,6 +71,7 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
 }
 
 async function wsdotReportSave (filename: string, config: WSDOTReportConfig, report: WSDOTReport) {
-  const data = JSON.stringify({ config, report }, null, '  ')
-  await fs.writeFile(filename, data)
+  await streamJsonToFile(filename, { config, report })
+  // const data = JSON.stringify({ config, report }, null, '  ')
+  // await fs.writeFile(filename, data)
 }
