@@ -533,7 +533,7 @@ export function applyScenarioResultFilter (
       agency_lang: agency.agency_lang,
       agency_phone: agency.agency_phone,
       agency_timezone: agency.agency_timezone,
-      __typename: 'Stop', // backwards compat
+      __typename: 'Agency', // backwards compat
     }
   })
 

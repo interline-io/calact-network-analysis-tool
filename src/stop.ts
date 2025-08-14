@@ -24,7 +24,7 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     platform_code
     tts_stop_name
     geometry
-    census_geographies(where:{radius:1.0}) {
+    census_geographies(where:{radius:0.0}) {
       id
       geoid
       layer_name
@@ -85,6 +85,7 @@ export interface StopVisitSummary {
 }
 
 export type StopGql = {
+  __typename?: string // GraphQL compatibility
   id: number
   geometry: GeoJSON.Point
   census_geographies: [{
@@ -280,7 +281,21 @@ function stopMarked (
     for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | null = null
-      if (sd === 'sunday') { r = stop.visits?.sunday || null } else if (sd === 'monday') { r = stop.visits?.monday || null } else if (sd === 'tuesday') { r = stop.visits?.tuesday || null } else if (sd === 'wednesday') { r = stop.visits?.wednesday || null } else if (sd === 'thursday') { r = stop.visits?.thursday || null } else if (sd === 'friday') { r = stop.visits?.friday || null } else if (sd === 'saturday') { r = stop.visits?.saturday || null }
+      if (sd === 'sunday') {
+        r = stop.visits?.sunday || null
+      } else if (sd === 'monday') {
+        r = stop.visits?.monday || null
+      } else if (sd === 'tuesday') {
+        r = stop.visits?.tuesday || null
+      } else if (sd === 'wednesday') {
+        r = stop.visits?.wednesday || null
+      } else if (sd === 'thursday') {
+        r = stop.visits?.thursday || null
+      } else if (sd === 'friday') {
+        r = stop.visits?.friday || null
+      } else if (sd === 'saturday') {
+        r = stop.visits?.saturday || null
+      }
       if (!r) { continue }
       if (r.visit_count > 0) {
         hasAny = true

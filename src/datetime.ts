@@ -3,28 +3,28 @@ import { parse, format } from 'date-fns'
 const dateFmt = 'yyyy-MM-dd'
 const timeFmt = 'HH:mm:ss'
 
-export function parseDate (d: string): Date | null {
+export function parseDate (d: string): Date | undefined {
   if (d) {
     return parse(d, dateFmt, getLocalDateNoTime())
   }
-  return null
+  return undefined
 }
 
-export function fmtDate (d: Date | null, fmt: string = dateFmt): string {
+export function fmtDate (d: Date | undefined, fmt: string = dateFmt): string {
   if (!d) {
     return ''
   }
   return format(d, fmt)
 }
 
-export function parseTime (d: string): Date | null {
+export function parseTime (d: string): Date | undefined {
   if (d) {
     return parse(d, timeFmt, getLocalDateNoTime())
   }
-  return null
+  return undefined
 }
 
-export function fmtTime (d: Date | null, fmt: string = timeFmt): string {
+export function fmtTime (d: Date | undefined, fmt: string = timeFmt): string {
   if (!d) {
     return ''
   }

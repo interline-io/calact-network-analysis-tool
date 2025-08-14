@@ -17,17 +17,14 @@
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",
-    "big-json": "^3.2.0",
+    "@types/big-json": "3.2.0",
+    "big-json": "3.2.0",
     "csv-stringify": "6.5.2",
     "eslint": "9.31.0",
     "nuxt": "3.16.0",
     "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=4b61022684fb558a4336e214e4c084614162805d",
     "tsx": "4.20.3",
-    "vitest": "3.2.4",
-    "vue-concurrency": "5.0.3"
+    "vitest": "3.2.4"
   },
-  "packageManager": "yarn@4.3.0",
-  "devDependencies": {
-    "@types/big-json": "^3"
-  }
+  "packageManager": "yarn@4.3.0"
 }

@@ -1,6 +1,6 @@
-import * as fs from 'fs'
-import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
+import { createWriteStream } from 'fs'
+import type { Readable } from 'stream'
 import type { Command } from 'commander'
 import bigJson from 'big-json'
 import { cannedBboxes } from '~/src/constants'
@@ -133,9 +133,9 @@ export async function scenarioSaveData (filename: string, data: ScenarioData, co
   const fixtureData = serializeScenarioTestFixture(fixture)
 
   // Use the general streaming helper
-  console.log('START')
+  console.log('Start writing file....')
   await streamJsonToFile(filename, fixtureData)
-  console.log('OK')
+  console.log('...done')
   console.log(`💾 Scenario data saved to: ${filename}`)
 }
 
@@ -146,8 +146,6 @@ export async function streamJsonToFile (
   const writeStream = createWriteStream(filename)
   const stringifyStream = bigJson.createStringifyStream({
     body: data
-  })
-  // Use pipeline for proper backpressure handling
+  }) as Readable // Type assertion to tell TypeScript this is a Readable stream
   await pipeline(stringifyStream, writeStream)
-  console.log('DONE WRITING FILE')
 }

@@ -3,7 +3,6 @@
 
 import { Command } from 'commander'
 import { configureScenarioCli } from './scenario-cli'
-import { configureWsdotReportCli } from './wsdot-cli'
 
 const program = new Command()
 
@@ -19,12 +18,5 @@ const scenarioCommand = program
   .description('Fetch transit scenario data via CLI')
 
 configureScenarioCli(scenarioCommand)
-
-// Create WSDOT report subcommand
-const wsdotCommand = program
-  .command('wsdot')
-  .description('Generate WSDOT network analysis report')
-
-configureWsdotReportCli(wsdotCommand)
 
 program.parse(process.argv)

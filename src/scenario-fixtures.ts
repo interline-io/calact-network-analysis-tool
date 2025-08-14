@@ -1,6 +1,7 @@
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import { StopDepartureCache } from './departure-cache'
 import type { StopTime } from './departure'
+import { fmtTime, parseDate, fmtDate, parseTime } from '~/src/datetime'
 
 /**
  * Serializable representation of StopDepartureCache for JSON storage
@@ -46,8 +47,8 @@ export interface SerializableScenarioTestFixture {
 interface SerializableScenarioConfig {
   bbox?: any
   scheduleEnabled: boolean
-  startDate?: string // ISO string instead of Date
-  endDate?: string // ISO string instead of Date
+  startDate?: string
+  endDate?: string
   geographyIds?: number[]
   stopLimit?: number
 }
@@ -56,8 +57,8 @@ interface SerializableScenarioConfig {
  * Serializable representation of ScenarioFilter (handles Date serialization)
  */
 interface SerializableScenarioFilter {
-  startTime?: string // ISO string instead of Date
-  endTime?: string // ISO string instead of Date
+  startTime?: string
+  endTime?: string
   selectedRouteTypes: number[]
   selectedDays: string[]
   selectedAgencies: string[]
@@ -176,8 +177,8 @@ function serializeScenarioConfig (config: ScenarioConfig): SerializableScenarioC
   return {
     bbox: config.bbox,
     scheduleEnabled: config.scheduleEnabled,
-    startDate: config.startDate?.toISOString(),
-    endDate: config.endDate?.toISOString(),
+    startDate: fmtDate(config.startDate),
+    endDate: fmtDate(config.endDate),
     geographyIds: config.geographyIds,
     stopLimit: config.stopLimit
   }
@@ -190,8 +191,8 @@ function deserializeScenarioConfig (serializable: SerializableScenarioConfig): S
   return {
     bbox: serializable.bbox,
     scheduleEnabled: serializable.scheduleEnabled,
-    startDate: serializable.startDate ? new Date(serializable.startDate) : undefined,
-    endDate: serializable.endDate ? new Date(serializable.endDate) : undefined,
+    startDate: parseDate(serializable.startDate || ''),
+    endDate: parseDate(serializable.endDate || ''),
     geographyIds: serializable.geographyIds,
     stopLimit: serializable.stopLimit
   }
@@ -202,8 +203,8 @@ function deserializeScenarioConfig (serializable: SerializableScenarioConfig): S
  */
 function serializeScenarioFilter (filter: ScenarioFilter): SerializableScenarioFilter {
   return {
-    startTime: filter.startTime?.toISOString(),
-    endTime: filter.endTime?.toISOString(),
+    startTime: fmtTime(filter.startTime),
+    endTime: fmtTime(filter.endTime),
     selectedRouteTypes: filter.selectedRouteTypes,
     selectedDays: filter.selectedDays,
     selectedAgencies: filter.selectedAgencies,
@@ -221,8 +222,8 @@ function serializeScenarioFilter (filter: ScenarioFilter): SerializableScenarioF
  */
 function deserializeScenarioFilter (serializable: SerializableScenarioFilter): ScenarioFilter {
   return {
-    startTime: serializable.startTime ? new Date(serializable.startTime) : undefined,
-    endTime: serializable.endTime ? new Date(serializable.endTime) : undefined,
+    startTime: parseTime(serializable.startTime || ''),
+    endTime: parseTime(serializable.endTime || ''),
     selectedRouteTypes: serializable.selectedRouteTypes,
     selectedDays: serializable.selectedDays as any, // dow[] type
     selectedAgencies: serializable.selectedAgencies,
