@@ -1,27 +1,19 @@
 import { gql } from 'graphql-tag'
-import type { ScenarioData, ScenarioConfig, GraphQLClient } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import type { GraphQLClient } from '~/src/graphql'
 import { fmtDate } from '~/src/datetime'
 import type { Geometry } from '~/src/geom'
 
-export const levelColors: Record<string, string> = {
-  level1: '#00ffff',
-  level2: '#00ff80',
-  level3: '#80ff00',
-  level4: '#ffff00',
-  level5: '#ff8000',
-  level6: '#ff0000',
-  levelNights: '#5c5cff',
-}
-
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
+  name: string
+  description: string
   peak?: TimeConfig
   extended?: TimeConfig
   weekend?: TimeConfig
   night_segments?: NightSegmentConfig[]
   total_trips_threshold?: number
   weekend_required: boolean
-  level_column: string
 }
 
 interface TimeConfig {
@@ -36,19 +28,12 @@ interface NightSegmentConfig {
 }
 
 // WSDOT service levels configuration
-const SERVICE_LEVELS: Record<string, ServiceLevelConfig> = {
-  night: {
-    peak: { hours: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4], min_tph: 0, min_total: 4 },
-    night_segments: [
-      { hours: [23, 0], min_total: 1 },
-      { hours: [1, 2], min_total: 1 },
-      { hours: [3, 4], min_total: 1 },
-      { hours: [2, 3], min_total: 1 }
-    ],
-    weekend_required: true,
-    level_column: 'levelNights'
-  },
+export type LevelKey = 'level1' | 'level2' | 'level3' | 'level4' | 'level5' | 'level6' | 'levelNights'
+
+export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
   level1: {
+    name: 'Level 1',
+    description: 'Level 1',
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 4, min_total: 40 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 3, min_total: 32 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 3, min_total: 32 },
@@ -59,37 +44,63 @@ const SERVICE_LEVELS: Record<string, ServiceLevelConfig> = {
       { hours: [2, 3], min_total: 0 }
     ],
     weekend_required: true,
-    level_column: 'level1'
   },
   level2: {
+    name: 'Level 2',
+    description: 'Level 2',
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 3, min_total: 32 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 1, min_total: 16 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 1, min_total: 16 },
     weekend_required: true,
-    level_column: 'level2'
   },
   level3: {
+    name: 'Level 3',
+    description: 'Level 3',
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 1, min_total: 16 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 0, min_total: 8 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 0, min_total: 8 },
     weekend_required: true,
-    level_column: 'level3'
   },
   level4: {
+    name: 'Level 4',
+    description: 'Level 4',
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 0, min_total: 8 },
     weekend_required: false,
-    level_column: 'level4'
   },
   level5: {
+    name: 'Level 5',
+    description: 'Level 5',
     total_trips_threshold: 6,
     weekend_required: false,
-    level_column: 'level5'
   },
   level6: {
+    name: 'Level 6',
+    description: 'Level 6',
     total_trips_threshold: 2,
     weekend_required: false,
-    level_column: 'level6'
-  }
+  },
+  levelNights: {
+    name: 'Night',
+    description: 'Night service',
+    peak: { hours: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4], min_tph: 0, min_total: 4 },
+    night_segments: [
+      { hours: [23, 0], min_total: 1 },
+      { hours: [1, 2], min_total: 1 },
+      { hours: [3, 4], min_total: 1 },
+      { hours: [2, 3], min_total: 1 }
+    ],
+    weekend_required: true,
+  },
+}
+
+export const levelColors: Record<LevelKey, string> = {
+  level1: '#00ffff',
+  level2: '#00ff80',
+  level3: '#80ff00',
+  level4: '#ffff00',
+  level5: '#ff8000',
+  level6: '#ff0000',
+  levelNights: '#5c5cff',
 }
 
 interface StopFrequencyData {
@@ -162,13 +173,12 @@ export class WSDOTReportFetcher {
     const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
     const getGeographyLayers = ['tract'] // 'state', 'county',
 
-    for (const [_, config] of Object.entries(SERVICE_LEVELS)) {
-      const levelColumn = config.level_column
-      console.log(`\n====== ${levelColumn} ======`)
+    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
+      console.log(`\n====== ${levelKey} ======`)
       const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
-      levelStops[config.level_column] = Array.from(qualifyingStops)
-      results[levelColumn] = qualifyingStops
-      console.log(`${levelColumn}: ${qualifyingStops.size} qualifying stops`)
+      levelStops[levelKey] = Array.from(qualifyingStops)
+      results[levelKey] = qualifyingStops
+      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
       const geogLayers: Record<string, GeographyDataFeature[]> = {}
       for (const geoDatasetLayer of getGeographyLayers) {
         const geoConfig: getGeographyDataConfig = {
@@ -185,7 +195,7 @@ export class WSDOTReportFetcher {
         const data = await getGeographyData(geoConfig)
         geogLayers[geoDatasetLayer] = data
       }
-      levelLayers[levelColumn] = geogLayers
+      levelLayers[levelKey] = geogLayers
     }
 
     // Build final result
@@ -207,7 +217,7 @@ export class WSDOTReportFetcher {
         level3: results.level3?.has(stopId) || false,
         level2: results.level2?.has(stopId) || false,
         level1: results.level1?.has(stopId) || false,
-        levelNights: results.night?.has(stopId) || false
+        levelNights: results.levelNights?.has(stopId) || false
       }
       stops.push(result)
     }

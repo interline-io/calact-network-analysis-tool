@@ -1,5 +1,12 @@
 import { print } from 'graphql'
-import type { GraphQLClient } from './scenario'
+
+/**
+ * Interface for GraphQL client
+ * Implementations should provide the actual GraphQL query execution
+ */
+export interface GraphQLClient {
+  query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
+}
 
 /**
  * Real GraphQL client for testing with actual API calls
@@ -34,11 +41,15 @@ export class BasicGraphQLClient implements GraphQLClient {
       variables,
     }
 
+    // Set up timeout using AbortController
+    const controller = new AbortController()
+
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
+        signal: controller.signal
       })
 
       if (!response.ok) {
@@ -50,7 +61,6 @@ export class BasicGraphQLClient implements GraphQLClient {
       if (result.errors) {
         throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
       }
-
       return result
     } catch (error) {
       console.error('GraphQL request failed:', error)

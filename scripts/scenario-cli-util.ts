@@ -1,8 +1,9 @@
+import { promises as fs } from 'fs'
 import type { Command } from 'commander'
 import { cannedBboxes } from '~/src/constants'
 import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
-import { saveScenarioTestFixtureToFile } from '~/src/scenario-fixtures'
+import { serializeScenarioTestFixture } from '~/src/scenario-fixtures'
 
 /**
  * Get current date in YYYY-MM-DD format
@@ -33,13 +34,13 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--endpoint <url>', 'GraphQL API URL', 'https://api.transit.land/api/v2/query')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
-    .option('--bbox-name <name>', 'Use canned bounding box', 'Downtown Portland, OR')
+    .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
     .option('--no-schedule', 'Disable schedule fetching')
 }
 
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
-    options.bbox = cannedBboxes.get(options.bboxName)
+    options.bbox = cannedBboxes.get(options.bboxName)?.bboxString
   }
   if (!options.bbox) {
     console.error('❌ Error: Must provide --bbox')
@@ -117,13 +118,12 @@ export async function scenarioSaveData (filename: string, data: ScenarioData, co
     frequencyUnderEnabled: false,
     frequencyOverEnabled: false
   }
-
   const fixture = {
     config,
     filter,
     data
   }
-
-  await saveScenarioTestFixtureToFile(fixture, filename)
+  const fixtureData = serializeScenarioTestFixture(fixture)
+  await fs.writeFile(filename, JSON.stringify(fixtureData))
   console.log(`💾 Scenario data saved to: ${filename}`)
 }

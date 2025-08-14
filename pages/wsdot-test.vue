@@ -9,24 +9,32 @@
             <tr>
               <td :style="{ backgroundColor: levelDetail.color }" colspan="5">
                 <o-checkbox v-model="selectedLevels" :native-value="levelKey">
-                  Frequency Level: {{ levelKey }}
+                  Frequency: {{ levelDetail.label }}
                 </o-checkbox>
               </td>
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
               <td style="width:50px" />
               <td>{{ adminKey }}</td>
-              <td>{{ Math.round(pop).toLocaleString() }}</td>
+              <td>{{ Math.round(pop.intersection).toLocaleString() }}</td>
+              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}%)</td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="column">
         <cal-map-viewer-ts
-          :features="stopFeatures"
+          :features="displayFeatures"
           :center="bboxCenter"
           :zoom="zoom"
         />
+        <br>
+        <o-field label="Stop buffer radius (m)" style="width:300px">
+          <o-slider v-model="stopBufferRadius" :min="1" :max="1000" />
+          <o-checkbox v-model="showStopBuffers">
+            Show stop buffers
+          </o-checkbox>
+        </o-field>
       </div>
     </div>
 
@@ -50,20 +58,31 @@
 
 <script lang="ts" setup>
 import type { ComputedRef } from 'vue'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { levelColors } from '~/src/reports/wsdot'
+import type { WSDOTReport, WSDOTReportConfig, LevelKey } from '~/src/reports/wsdot'
+import { SERVICE_LEVELS, levelColors } from '~/src/reports/wsdot'
 import type { Feature } from '~/src/geom'
 import { bboxString } from '~/src/geom'
 import { fmtDate } from '~/src/datetime'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
-const levelKeys = ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'levelNights'] as const
-type LevelKey = typeof levelKeys[number]
+const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
+const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
+const stopBufferRadius = ref(800) // in meters
+const showStopBuffers = ref(false)
+// const aggLevel = ref<'tract' | 'county' | 'state'>('tract')
 
 //////////////
 
-const zoom = 13
-const scenarioName = 'Downtown Portland, OR'
+// TEMPORARY
+const StatePopulations: Record<string, number> = {
+  Washington: 7693612, // 2020 Census
+  Oregon: 4237256, // 2020 Census
+}
+
+//////////////
+
+const zoom = 10
+const scenarioName = 'Portland, OR'
 const reportFile = `/examples/${scenarioName}.wsdot.json`
 
 // Fetch report
@@ -80,19 +99,18 @@ const bboxCenter = computed(() => {
   return pt
 })
 
-const selectedLevels = ref<LevelKey[]>(Array.from(levelKeys))
-
 interface LayerDetail {
+  label: string
   color: string
   count: number
-  layerPops: Record<string, number>
+  layerPops: Record<string, { intersection: number, total: number }>
 }
 const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
   return levelKeys.reduce((acc, levelName) => {
     // GROUP BY STATE
     const layerFeatures = (report.levelLayers[levelName] || {})['tract']
     const layerAdminKey = 'adm1_name'
-    const layerPops: Record<string, number> = {}
+    const layerPops: Record<string, { intersection: number, total: number }> = {}
     const layerAdminGroups: Record<string, Feature[]> = {}
     for (const feature of layerFeatures || []) {
       const state = feature.properties[layerAdminKey] || 'Unknown'
@@ -101,13 +119,17 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
       }
       layerAdminGroups[state].push(feature)
       const pop = feature.properties.intersection_population || 0
-      layerPops[state] = (layerPops[state] || 0) + pop
+      const layerPopState = layerPops[state] || { intersection: 0, total: 0 }
+      layerPopState.intersection += pop
+      layerPopState.total = StatePopulations[state] || 0
+      layerPops[state] = layerPopState
     }
     console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
 
     // Save level details
     const stopCount = report.stops.filter(stop => stop[levelName]).length
     acc[levelName] = {
+      label: SERVICE_LEVELS[levelName].name,
       color: levelColors[levelName],
       layerPops: layerPops,
       count: stopCount
@@ -116,27 +138,25 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
   }, {} as Record<string, LayerDetail>)
 })
 
-const stopFeatures = computed(() => {
+const displayStopFeatures = computed(() => {
   const features: Feature[] = report.stops.map((stop) => {
-    const highestLevel = levelKeys.find(key => (stop as Record<LevelKey, boolean>)[key]) || 'levelNights'
+    const highestLevel = levelKeys.find(key => stop[key]) || 'levelNights'
     const highestLevelColor = levelColors[highestLevel]
+    const props: Record<string, any> = {
+      highestLevel,
+      'stopId': stop.stopId,
+      'stopName': stop.stopName || '',
+      'levelNights': stop.levelNights,
+      'marker-color': highestLevelColor,
+      'marker-radius': 3,
+    }
+    for (const levelKey of levelKeys) {
+      props[levelKey] = stop[levelKey] ? 1 : 0
+    }
     return {
       id: `stop_${stop.stopId}`,
       type: 'Feature',
-      properties: {
-        highestLevel,
-        'stopId': stop.stopId,
-        'stopName': stop.stopName || '',
-        'level6': stop.level6,
-        'level5': stop.level5,
-        'level4': stop.level4,
-        'level3': stop.level3,
-        'level2': stop.level2,
-        'level1': stop.level1,
-        'levelNights': stop.levelNights,
-        'marker-color': highestLevelColor,
-        'marker-radius': 3,
-      },
+      properties: props,
       geometry: {
         type: 'Point',
         coordinates: [stop.stopLon, stop.stopLat]
@@ -149,8 +169,31 @@ const stopFeatures = computed(() => {
   return features
 })
 
+const displayFeatures = computed(() => {
+  const features: Feature[] = [...displayStopFeatures.value]
+  if (showStopBuffers.value) {
+    for (const levelName of levelKeys) {
+      if (!selectedLevels.value.includes(levelName)) {
+        continue
+      }
+      const layerFeatures = (report.levelLayers[levelName] || {})['tract']
+      for (const feature of layerFeatures || []) {
+        features.push({
+          id: feature.id,
+          type: 'Feature',
+          properties: {
+            stroke: levelColors[levelName],
+          },
+          geometry: feature.geometry
+        })
+      }
+    }
+  }
+  return features
+})
+
 const stopDatagrid = computed((): TableReport => {
-  const data = stopFeatures.value.map((feature) => {
+  const data = displayStopFeatures.value.map((feature) => {
     return {
       id: feature.id,
       stopId: feature.properties.stopId,
@@ -171,14 +214,11 @@ const stopDatagrid = computed((): TableReport => {
     { key: 'stopId', label: 'Stop ID', sortable: true },
     { key: 'stopName', label: 'Stop Name', sortable: true },
     { key: 'highestLevel', label: 'Highest Level', sortable: true },
-    { key: 'level1', label: 'Level 1', sortable: true },
-    { key: 'level2', label: 'Level 2', sortable: true },
-    { key: 'level3', label: 'Level 3', sortable: true },
-    { key: 'level4', label: 'Level 4', sortable: true },
-    { key: 'level5', label: 'Level 5', sortable: true },
-    { key: 'level6', label: 'Level 6', sortable: true },
-    { key: 'levelNights', label: 'Level Nights', sortable: true },
   ]
+  for (const levelKey of levelKeys) {
+    columns.push({ key: levelKey, label: SERVICE_LEVELS[levelKey].name, sortable: true })
+  }
+
   return {
     data,
     columns

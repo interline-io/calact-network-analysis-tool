@@ -72,7 +72,7 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   // Output results based on format
   switch (options.output) {
     case 'json':
-      console.log(JSON.stringify(result, null, 2))
+      console.log(JSON.stringify(result, null, '  '))
       break
 
     case 'csv':

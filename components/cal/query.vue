@@ -37,10 +37,13 @@
         <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
             <o-select v-model="cannedBbox">
-              <option v-for="cannedBboxName of cannedBboxes.keys()" :key="cannedBboxName" :value="cannedBboxName">
-                {{ cannedBboxName }}
+              <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+                {{ cannedBboxDetails.label }}
               </option>
             </o-select>
+            <o-button @click="loadExampleData">
+              Load example
+            </o-button>
           </o-field>
           <br>
           <o-field label="Data options">
@@ -127,8 +130,13 @@ import { type CensusDataset, type CensusGeography, geographySearchQuery } from '
 
 const emit = defineEmits([
   'setBbox',
-  'explore'
+  'explore',
+  'loadExampleData'
 ])
+
+const loadExampleData = async () => {
+  emit('loadExampleData', cannedBbox.value)
+}
 
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
@@ -138,7 +146,7 @@ const props = defineProps<{
 const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
-const cannedBbox = ref('')
+const cannedBbox = ref('downtown-portland-zoomed')
 const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')
 const geomLayer = defineModel<string>('geomLayer')
@@ -225,7 +233,7 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 
 watch(() => cannedBbox.value, (cannedBboxName) => {
   if (cannedBboxName) {
-    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName) || null))
+    emit('setBbox', parseBbox(cannedBboxes.get(cannedBboxName)?.bboxString || null))
   }
 })
 
