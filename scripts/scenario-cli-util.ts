@@ -1,5 +1,8 @@
 import * as fs from 'fs'
+import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
 import type { Command } from 'commander'
+import bigJson from 'big-json'
 import { cannedBboxes } from '~/src/constants'
 import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
@@ -140,5 +143,11 @@ export async function streamJsonToFile (
   filename: string,
   data: any,
 ): Promise<void> {
-  fs.writeFileSync(filename, JSON.stringify(data))
+  const writeStream = createWriteStream(filename)
+  const stringifyStream = bigJson.createStringifyStream({
+    body: data
+  })
+  // Use pipeline for proper backpressure handling
+  await pipeline(stringifyStream, writeStream)
+  console.log('DONE WRITING FILE')
 }

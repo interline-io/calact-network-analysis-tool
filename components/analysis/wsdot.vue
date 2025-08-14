@@ -1,20 +1,20 @@
 <template>
   <div class="cal-report">
     <tl-title title="WSDOT Frequent Transit Service Study" />
-
     <div v-if="loading">
       Loading...
     </div>
-    <div v-else-if="config && report">
-      <reports-wsdot-viewer
-        :report="report"
-        :config="config"
+    <div v-else-if="wsdotReportConfig && wsdotReport">
+      <analysis-wsdot-viewer
+        :report="wsdotReport"
+        :config="wsdotReportConfig"
       />
     </div>
     <div v-else>
       <strong>Configure report</strong>
+
       <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
-        <o-field label="Preset bounding box">
+        <o-field label="Example regions">
           <o-select v-model="cannedBbox">
             <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
               {{ cannedBboxDetails.label }}
@@ -26,6 +26,14 @@
         </o-field>
         <br>
       </tl-msg-warning>
+
+      <o-field label="Weekday date">
+        <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+      </o-field>
+
+      <o-field label="Weekend date">
+        <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
+      </o-field>
 
       <o-button variant="primary" @click="runWsdotReport">
         Run Report
@@ -45,10 +53,14 @@ import type { GraphQLClient } from '~/src/graphql'
 const loading = ref(false)
 const debugMenu = useDebugMenu()
 const cannedBbox = ref('portland')
-const report = ref<WSDOTReport | null>(null)
-const config = ref<WSDOTReportConfig | null>(null)
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
+const wsdotReport = ref<WSDOTReport | null>(null)
+const wsdotReportConfig = ref<WSDOTReportConfig>({
+  weekdayDate: scenarioConfig.value!.startDate!,
+  weekendDate: scenarioConfig.value!.endDate!,
+  scheduleEnabled: true,
+})
 
 // Create GraphQL client adapter for Vue Apollo
 const createGraphQLClientAdapter = (): GraphQLClient => {
@@ -73,8 +85,8 @@ const loadExampleWsdotReport = async () => {
   const reportFile = `/examples/${cannedBbox.value}.wsdot.json`
   const data: { config: WSDOTReportConfig, report: WSDOTReport } = await fetch(reportFile)
     .then(res => res.json())
-  config.value = data.config
-  report.value = data.report
+  wsdotReportConfig.value = data.config
+  wsdotReport.value = data.report
   loading.value = false
 }
 
@@ -93,9 +105,9 @@ const runWsdotReport = async () => {
     scheduleEnabled: true,
   }
   const wsdotFetcher = new WSDOTReportFetcher(wsdotConfig, scenarioData.value!, client)
-  const wsdotReport = await wsdotFetcher.fetch()
-  report.value = wsdotReport
-  config.value = wsdotConfig
+  const wsdotResult = await wsdotFetcher.fetch()
+  wsdotReport.value = wsdotResult
+  wsdotReportConfig.value = wsdotConfig
   loading.value = false
 }
 </script>

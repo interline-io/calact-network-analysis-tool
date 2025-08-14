@@ -41,9 +41,9 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('report')" title="WSDOT Frequent Transit" role="button" @click="setTab({ tab: 'wsdot', sub: '' })">
+          <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
             <o-icon
-              icon="file-chart"
+              icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
             />
@@ -143,9 +143,9 @@
           />
         </div>
 
-        <div v-if="activeTab.tab === 'wsdot'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'analysis'" class="cal-overlay">
           <div style="background:white;width:100%">
-            <reports-wsdot
+            <analysis-picker
               :scenario-data="scenarioData"
               :scenario-config="scenarioConfig"
             />
@@ -767,6 +767,12 @@ const loadExampleData = async (exampleName: string) => {
   stopFeatures.value = finalResult.stops
   agencyFeatures.value = finalResult.agencies
   stopDepartureLoadingComplete.value = true
+  // startDate.value = fixture.config.startDate!
+  // endDate.value = fixture.config.endDate!
+  setQuery({ ...route.query,
+    startDate: fmtDate(fixture.config.startDate!),
+    endDate: fmtDate(fixture.config.endDate!),
+  })
   activeTab.value = { tab: 'map', sub: '' }
 }
 

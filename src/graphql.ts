@@ -41,15 +41,11 @@ export class BasicGraphQLClient implements GraphQLClient {
       variables,
     }
 
-    // Set up timeout using AbortController
-    const controller = new AbortController()
-
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
-        signal: controller.signal
       })
 
       if (!response.ok) {
