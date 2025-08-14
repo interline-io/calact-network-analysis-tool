@@ -85,6 +85,7 @@ export interface StopVisitSummary {
 }
 
 export type StopGql = {
+  __typename?: string // GraphQL compatibility
   id: number
   geometry: GeoJSON.Point
   census_geographies: [{

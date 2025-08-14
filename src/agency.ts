@@ -11,6 +11,7 @@ export interface AgencyGtfs {
   agency_lang?: string
   agency_phone?: string
   agency_fare_url?: string
+  __typename?: string // GraphQL compatibility
 }
 
 export type AgencyGql = {
