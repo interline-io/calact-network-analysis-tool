@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs'
 import { gql } from 'graphql-tag'
 import type { ScenarioData, ScenarioConfig, GraphQLClient } from '~/src/scenario'
 import { fmtDate } from '~/src/datetime'
@@ -110,9 +109,8 @@ interface RouteFrequencyData {
 
 export interface WSDOTReport {
   stops: WSDOTStopResult[]
-  totalStops: number
-  levelStops: Record<string, Set<number>>
-  levelLayers: Record<string, GeographyDataFeature[]>
+  levelStops: Record<string, number[]>
+  levelLayers: Record<string, Record<string, GeographyDataFeature[]>>
 }
 
 export interface WSDOTStopResult {
@@ -155,29 +153,49 @@ export class WSDOTReportFetcher {
     // Extract frequency data for weekday and weekend
     const weekdayFreq = extractFrequencyData(this.scenarioData, this.config.weekdayDate)
     const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
-
     console.log(`Analyzed ${weekdayFreq.stops.size} stops and ${weekdayFreq.routes.size} routes for weekday`)
     console.log(`Analyzed ${weekendFreq.stops.size} stops and ${weekendFreq.routes.size} routes for weekend`)
 
     // Process each service level
     const results: Record<string, Set<number>> = {}
-    const levelStops: Record<string, Set<number>> = {}
+    const levelStops: Record<string, number[]> = {}
+    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
+    const getGeographyLayers = ['tract'] // 'state', 'county',
 
-    for (const [levelName, config] of Object.entries(SERVICE_LEVELS)) {
-      const qualifyingStops = processServiceLevel(levelName, config, weekdayFreq, weekendFreq)
-      results[levelName] = qualifyingStops
-      levelStops[config.level_column] = qualifyingStops
-      console.log(`${levelName}: ${qualifyingStops.size} qualifying stops`)
+    for (const [_, config] of Object.entries(SERVICE_LEVELS)) {
+      const levelColumn = config.level_column
+      console.log(`\n====== ${levelColumn} ======`)
+      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
+      levelStops[config.level_column] = Array.from(qualifyingStops)
+      results[levelColumn] = qualifyingStops
+      console.log(`${levelColumn}: ${qualifyingStops.size} qualifying stops`)
+      const geogLayers: Record<string, GeographyDataFeature[]> = {}
+      for (const geoDatasetLayer of getGeographyLayers) {
+        const geoConfig: getGeographyDataConfig = {
+          client: this.client,
+          stopIds: qualifyingStops,
+          tableDatasetName: 'acsdt5y2022',
+          tableDatasetTable: `b01001`,
+          tableDatasetTableCol: 'b01001_001',
+          geoDatasetName: 'tiger2024',
+          geoDatasetLayer: geoDatasetLayer,
+          stopBufferRadius: 1000 // 1km buffer
+        }
+        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
+        const data = await getGeographyData(geoConfig)
+        geogLayers[geoDatasetLayer] = data
+      }
+      levelLayers[levelColumn] = geogLayers
     }
 
     // Build final result
     const stops: WSDOTStopResult[] = []
     const allStopIds = new Set([...weekdayFreq.stops.keys(), ...weekendFreq.stops.keys()])
-
     for (const stopId of allStopIds) {
       const stop = this.scenarioData.stops.find(s => s.id === stopId)
-      if (!stop?.geometry) continue
-
+      if (!stop?.geometry) {
+        continue
+      }
       const result: WSDOTStopResult = {
         stopId: stop.stop_id,
         stopName: stop.stop_name || '',
@@ -193,20 +211,8 @@ export class WSDOTReportFetcher {
       }
       stops.push(result)
     }
-
-    const levelLayers: Record<string, GeographyDataFeature[]> = {}
-    const getGeographyLayers = ['county']
-    for (const layer of getGeographyLayers) {
-      for (const [level, stopIds] of Object.entries(levelStops)) {
-        console.log(`Analyzing level ${level} with ${stopIds.size} stops`)
-        const data = await getGeographyData(this.client, layer, stopIds)
-        levelLayers[level] = data
-      }
-      levelLayers['any'] = await getGeographyData(this.client, layer, allStopIds)
-    }
     return {
       stops,
-      totalStops: stops.length,
       levelStops,
       levelLayers
     }
@@ -282,12 +288,10 @@ function parseHour (timeString: string): number {
 }
 
 function processServiceLevel (
-  levelName: string,
   config: ServiceLevelConfig,
   weekdayFreq: { stops: Map<number, StopFrequencyData>, routes: Map<string, RouteFrequencyData> },
   weekendFreq: { stops: Map<number, StopFrequencyData>, routes: Map<string, RouteFrequencyData> }
 ): Set<number> {
-  console.log(`\n====== ${levelName} ======`)
   // Handle total trips threshold levels (level5 and level6)
   if (config.total_trips_threshold !== undefined) {
     return analyzeRouteFrequencyByTotalTrips(weekdayFreq.routes, config.total_trips_threshold)
@@ -329,16 +333,14 @@ function processServiceLevel (
 
   // Weekend analysis if required
   if (config.weekend_required && config.weekend) {
-    console.log(`Before weekend: ${[...mergedStops].join(', ')}`)
     const weekendStops = analyzeStopFrequency(weekendFreq.stops, config.weekend)
     const weekendRouteStops = analyzeRouteFrequency(weekendFreq.routes, config.weekend)
     const weekendMerged = intersection(weekendStops, weekendRouteStops)
-    console.log(`Weekend stops: ${weekendMerged.size} matching stops: ${[...weekendMerged].join(', ')}`)
-    console.log(`Weekend route stops: ${weekendRouteStops.size} matching routes: ${[...weekendRouteStops].join(', ')}`)
-    console.log(`Weekend merged stops: ${weekendMerged.size} matching stops after intersection: ${[...weekendMerged].join(', ')}`)
+    console.log(`Weekend stops: ${weekendMerged.size}`)
+    console.log(`Weekend route stops: ${weekendRouteStops.size}`)
+    console.log(`Weekend merged stops: ${weekendMerged.size}`)
     mergedStops = intersection(mergedStops, weekendMerged)
     console.log(`Final merged stops after weekend intersection: ${mergedStops.size}`)
-    console.log(`mergedStops after weekend intersection: ${[...mergedStops].join(', ')}`)
   }
 
   return mergedStops
@@ -446,16 +448,6 @@ function intersection<T> (set1: Set<T>, set2: Set<T>): Set<T> {
   return result
 }
 
-export function wsdotReportSave (report: WSDOTReport, filename: string) {
-  const data = JSON.stringify(report, null, 2)
-  fs.writeFile(filename, data)
-}
-
-export async function wsdotReportLoad (filename: string): Promise<WSDOTReport> {
-  const data = await fs.readFile(filename, 'utf-8')
-  return JSON.parse(data)
-}
-
 ////////////////
 // Fetch geography data for a set of stop IDs
 ////////////////
@@ -475,31 +467,46 @@ interface GeographyDataFeature {
   geometry: Geometry
 }
 
-async function getGeographyData (client: GraphQLClient, layer: string, stopIds: Set<number>): Promise<GeographyDataFeature[]> {
-  if (stopIds.size === 0) {
+interface getGeographyDataConfig {
+  client: GraphQLClient
+  stopIds: Set<number>
+  tableDatasetName: string
+  tableDatasetTable: string
+  tableDatasetTableCol: string
+  geoDatasetName: string
+  geoDatasetLayer: string
+  stopBufferRadius: number
+}
+
+async function getGeographyData (
+  config: getGeographyDataConfig,
+): Promise<GeographyDataFeature[]> {
+  if (config.stopIds.size === 0) {
     return []
   }
-  console.log('Fetching geography data...', layer, stopIds)
   const variables = {
-    geoDatasetName: 'tiger2024',
-    tableDatasetName: 'acsdt5y2022',
-    tableNames: ['b01001'],
-    layer: layer,
+    geoDatasetName: config.geoDatasetName,
+    tableDatasetName: config.tableDatasetName,
+    tableNames: [config.tableDatasetTable],
+    layer: config.geoDatasetLayer,
     stopBufferRadius: 1000, // 1km buffer
-    stopIds: Array.from(stopIds)
+    stopIds: Array.from(config.stopIds)
   }
-  const result = await client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
+  const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
   for (const geoDataset of result.data?.census_datasets || []) {
     for (const geography of geoDataset.geographies || []) {
       console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
       const totalArea = geography.geometry_area || 0
       const intersectionArea = geography.intersection_area || 0
-      if (!geography.intersection_geometry || totalArea === 0) {
+      if (totalArea === 0) {
         continue
       }
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
-      const totalPop = geography.values.find(v => v.dataset_name === 'acsdt5y2022')?.values['b01001_001'] || 0
+      const totalPop = geography.values
+        .find(v => v.dataset_name === config.tableDatasetName)
+        ?.values[config.tableDatasetTableCol]
+        || 0
       console.log(`\tPopulation: ${totalPop}`)
       console.log(`\tArea: ${totalArea}`)
       console.log(`\tIntersection area: ${intersectionArea}`)
@@ -514,6 +521,10 @@ async function getGeographyData (client: GraphQLClient, layer: string, stopIds: 
           intersection_population: totalPop * intersectionRatio,
           layer_name: geography.layer_name,
           dataset_name: geoDataset.name,
+          adm1_iso: geography.adm1_iso,
+          adm1_name: geography.adm1_name,
+          adm0_iso: geography.adm0_iso,
+          adm0_name: geography.adm0_name,
           geoid: geography.geoid,
         },
         geometry: geography.intersection_geometry
@@ -535,6 +546,10 @@ interface geographyIntersectionResult {
     geoid: string
     layer_name: string
     geometry_area: number
+    adm0_name: string
+    adm0_iso: string
+    adm1_name: string
+    adm1_iso: string
     intersection_area: number
     intersection_geometry: Geometry
     values: {
@@ -547,16 +562,20 @@ interface geographyIntersectionResult {
 
 const geographyIntersectionQuery = gql`
 query ($geoDatasetName: String, $layer: String!, $stopIds: [Int!], $tableNames: [String!]!, $tableDatasetName: String, $stopBufferRadius: Float) {
-  census_datasets(where: {name: $geoDatasetName}) {
+  census_datasets(limit: 1000, where: {name: $geoDatasetName}) {
     id
     name
     url
-    geographies(where: {layer: $layer, location: {stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
+    geographies(limit: 1000, where: {layer: $layer, location: {stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
       id
       name
       aland
       awater
       geoid
+      adm1_iso
+      adm1_name
+      adm0_iso
+      adm0_name
       layer_name
       geometry_area
       intersection_area

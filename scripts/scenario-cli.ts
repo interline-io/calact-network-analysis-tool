@@ -55,16 +55,6 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create scenario fetcher with progress reporting
   const fetcher = new ScenarioFetcher(config, client, {
-    onProgress: (progress) => {
-      if (progress.isLoading) {
-        const { completed, total } = progress.stopDepartureProgress
-        if (total > 0) {
-          console.log(`⏳ Loading... (${completed}/${total} completed)`)
-        } else {
-          console.log('⏳ Loading...')
-        }
-      }
-    },
     onError: (error) => {
       console.error('❌ Error during fetch:', error.message)
     }

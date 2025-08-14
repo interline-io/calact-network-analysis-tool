@@ -282,7 +282,7 @@ export class ScenarioFetcher {
 
     // Enqueue stop departure fetching
     const stopIds = stopData.map(s => s.id)
-    this.enqueueStopDepartureFetch(stopIds)
+    await this.enqueueStopDepartureFetch(stopIds)
 
     // Update incremental progress
     this.updateProgress('stops', true)
@@ -358,7 +358,7 @@ export class ScenarioFetcher {
   }
 
   // Enqueue stop departure fetching tasks
-  private enqueueStopDepartureFetch (stopIds: number[]): void {
+  private async enqueueStopDepartureFetch (stopIds: number[]): Promise<void> {
     if (stopIds.length === 0) {
       return
     }
@@ -373,7 +373,7 @@ export class ScenarioFetcher {
         }
         // Execute the stop departure fetch
         this.stopDepartureProgress.total += 1
-        this.fetchStopDepartures(w).catch((error) => {
+        await this.fetchStopDepartures(w).catch((error) => {
           this.callbacks.onError?.(error)
         })
       }

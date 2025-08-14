@@ -1,14 +1,25 @@
 <template>
   <div>
-    <tl-title title="WSDOT Report Viewer" />
+    <tl-title title="WSDOT Frequent Transit Service Study" />
 
     <div class="columns">
       <div class="column is-one-quarter">
-        <o-field v-for="[levelKey, levelColor] of Object.entries(levelColors)" :key="levelKey" :style="{ backgroundColor: levelColor }">
-          <o-checkbox v-model="selectedLevels" :native-value="levelKey">
-            {{ levelKey }}: {{ levelCounts[levelKey] }}
-          </o-checkbox>
-        </o-field>
+        <table class="wsdot-level-details">
+          <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
+            <tr>
+              <td :style="{ backgroundColor: levelDetail.color }" colspan="5">
+                <o-checkbox v-model="selectedLevels" :native-value="levelKey">
+                  Frequency Level: {{ levelKey }}
+                </o-checkbox>
+              </td>
+            </tr>
+            <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
+              <td style="width:50px" />
+              <td>{{ adminKey }}</td>
+              <td>{{ Math.round(pop).toLocaleString() }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -42,31 +53,24 @@ import type { ComputedRef } from 'vue'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import { levelColors } from '~/src/reports/wsdot'
 import type { Feature } from '~/src/geom'
-import { parseBbox, bboxString } from '~/src/geom'
-import { cannedBboxes } from '~/src/constants'
+import { bboxString } from '~/src/geom'
+import { fmtDate } from '~/src/datetime'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
-import { parseDate, fmtDate } from '~/src/datetime'
 
 const levelKeys = ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'levelNights'] as const
 type LevelKey = typeof levelKeys[number]
 
 //////////////
 
-const zoom = 6
-const scenarioName = 'WA+OR' //  'Downtown Portland, OR'
+const zoom = 13
+const scenarioName = 'Downtown Portland, OR'
 const reportFile = `/examples/${scenarioName}.wsdot.json`
-const startDate = parseDate('2025-08-11')
-const endDate = parseDate('2025-08-18')
-const config: WSDOTReportConfig = {
-  bbox: parseBbox(cannedBboxes.get(scenarioName) || ''),
-  scheduleEnabled: true,
-  startDate: startDate!,
-  endDate: endDate!,
-  geographyIds: [],
-  stopLimit: 1000,
-  weekdayDate: startDate!,
-  weekendDate: endDate!,
-}
+
+// Fetch report
+const data: { config: WSDOTReportConfig, report: WSDOTReport } = await fetch(reportFile)
+  .then(res => res.json())
+
+const { config, report } = data
 
 const bboxCenter = computed(() => {
   const pt = {
@@ -76,21 +80,44 @@ const bboxCenter = computed(() => {
   return pt
 })
 
-// Fetch report
-const data: WSDOTReport = await fetch(reportFile)
-  .then(res => res.json())
-
 const selectedLevels = ref<LevelKey[]>(Array.from(levelKeys))
 
-const levelCounts: ComputedRef<Record<string, number>> = computed(() => {
-  return levelKeys.reduce((acc, key) => {
-    acc[key] = data.stops.filter(stop => stop[key]).length
+interface LayerDetail {
+  color: string
+  count: number
+  layerPops: Record<string, number>
+}
+const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
+  return levelKeys.reduce((acc, levelName) => {
+    // GROUP BY STATE
+    const layerFeatures = (report.levelLayers[levelName] || {})['tract']
+    const layerAdminKey = 'adm1_name'
+    const layerPops: Record<string, number> = {}
+    const layerAdminGroups: Record<string, Feature[]> = {}
+    for (const feature of layerFeatures || []) {
+      const state = feature.properties[layerAdminKey] || 'Unknown'
+      if (!layerAdminGroups[state]) {
+        layerAdminGroups[state] = []
+      }
+      layerAdminGroups[state].push(feature)
+      const pop = feature.properties.intersection_population || 0
+      layerPops[state] = (layerPops[state] || 0) + pop
+    }
+    console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
+
+    // Save level details
+    const stopCount = report.stops.filter(stop => stop[levelName]).length
+    acc[levelName] = {
+      color: levelColors[levelName],
+      layerPops: layerPops,
+      count: stopCount
+    }
     return acc
-  }, {} as Record<LevelKey, number>)
+  }, {} as Record<string, LayerDetail>)
 })
 
 const stopFeatures = computed(() => {
-  const features: Feature[] = data.stops.map((stop) => {
+  const features: Feature[] = report.stops.map((stop) => {
     const highestLevel = levelKeys.find(key => (stop as Record<LevelKey, boolean>)[key]) || 'levelNights'
     const highestLevelColor = levelColors[highestLevel]
     return {
@@ -158,3 +185,15 @@ const stopDatagrid = computed((): TableReport => {
   }
 })
 </script>
+
+<style scoped>
+.wsdot-level-details {
+  width: 100%;
+}
+.wsdot-level-details th {
+  padding: 0px;
+}
+.wsdot-level-details td {
+  padding: 4px;
+}
+</style>
