@@ -272,7 +272,7 @@ const endDate = computed({
 
 const startTime = computed({
   get () {
-    return parseTime(route.query.startTime?.toString() || '') || new Date(0, 0, 0, 0, 0)
+    return parseTime(route.query.startTime?.toString() || '') || parseTime('00:00:00')
   },
   set (v: Date | undefined) {
     setQuery({ ...route.query, startTime: fmtTime(v) })
@@ -281,7 +281,7 @@ const startTime = computed({
 
 const endTime = computed({
   get () {
-    return parseTime(route.query.endTime?.toString() || '') || new Date(0, 0, 0, 23, 59)
+    return parseTime(route.query.endTime?.toString() || '') || parseTime('23:59:00')
   },
   set (v: Date | undefined) {
     setQuery({ ...route.query, endTime: fmtTime(v) })

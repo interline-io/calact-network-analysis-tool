@@ -1,5 +1,6 @@
 import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
+import { parseDate } from '../datetime'
 import { BasicGraphQLClient } from '~/src/graphql'
 import type { ScenarioConfig } from '~/src/scenario'
 import { ScenarioFetcher } from '~/src/scenario'
@@ -42,8 +43,8 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const config: ScenarioConfig = {
       bbox: bigBbox,
       scheduleEnabled: true,
-      startDate: new Date(startDate),
-      endDate: new Date('2024-08-26'), // FIXME: must be one day past window
+      startDate: parseDate(startDate),
+      endDate: parseDate(endDate),
       geographyIds: [],
       stopLimit: 1000
     }
@@ -60,8 +61,8 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const config: ScenarioConfig = {
       bbox: smallBbox,
       scheduleEnabled: true,
-      startDate: new Date(startDate),
-      endDate: new Date('2025-08-19'), // FIXME: must be one day past window
+      startDate: parseDate(startDate),
+      endDate: parseDate(endDate),
       geographyIds: [],
       stopLimit: 1000
     }
