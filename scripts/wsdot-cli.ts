@@ -1,7 +1,6 @@
 /**
  * Simple CLI example showing how to use WSDOT Report
  */
-import { promises as fs } from 'fs'
 import type { Command } from 'commander'
 import {
   scenarioOptionsAdd,
@@ -72,6 +71,4 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
 
 async function wsdotReportSave (filename: string, config: WSDOTReportConfig, report: WSDOTReport) {
   await streamJsonToFile(filename, { config, report })
-  // const data = JSON.stringify({ config, report }, null, '  ')
-  // await fs.writeFile(filename, data)
 }
