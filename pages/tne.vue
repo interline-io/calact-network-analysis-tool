@@ -41,7 +41,16 @@
           </a>
         </li>
         <li>
-          <a v-if="stopDepartureProgress.queue > 0 || loading" class="menu-item" style="color:white;text-align:center">
+          <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
+            <o-icon
+              icon="chart-scatter-plot"
+              class="is-fullwidth"
+              size="large"
+            />
+          </a>
+        </li>
+        <li>
+          <a v-if="isLoading" class="menu-item" style="color:white;text-align:center">
             <img src="~assets/spinner.svg" alt="Loading">
           </a>
         </li>
@@ -75,12 +84,14 @@
             v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
+            v-model:canned-bbox="cannedBbox"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
+            @load-example-data="loadExampleData"
           />
         </div>
 
@@ -131,68 +142,53 @@
             @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
+
+        <div v-if="activeTab.tab === 'analysis'" class="cal-overlay">
+          <div style="background:white;width:100%">
+            <analysis-picker
+              :scenario-data="scenarioData"
+              :scenario-config="scenarioConfig"
+            />
+          </div>
+        </div>
+
+        <!-- This is a component for displaying the map and legend -->
+        <cal-map
+          :bbox="bbox"
+          :census-geographies-selected="censusGeographiesSelected"
+          :stop-features="stopFeatures"
+          :route-features="routeFeatures"
+          :agency-features="agencyFeatures"
+          :display-edit-bbox-mode="displayEditBboxMode"
+          :data-display-mode="dataDisplayMode"
+          :color-key="colorKey"
+          :hide-unmarked="hideUnmarked"
+          :stop-departure-loading-complete="stopDepartureLoadingComplete"
+          @set-bbox="bbox = $event"
+          @set-map-extent="setMapExtent"
+          @set-export-features="exportFeatures = $event"
+        />
       </div>
-
-      <!-- This is a component for handling data flow -->
-      <cal-scenario
-        :bbox="bbox"
-        :end-date="endDate"
-        :end-time="endTime"
-        :frequency-over-enabled="frequencyOverEnabled"
-        :frequency-over="frequencyOver"
-        :frequency-under-enabled="frequencyUnderEnabled"
-        :frequency-under="frequencyUnder"
-        :geography-ids="geographyIds"
-        :geom-source="geomSource"
-        :run-count="runCount"
-        :schedule-enabled="scheduleEnabled"
-        :selected-agencies="selectedAgencies"
-        :selected-day-of-week-mode="selectedDayOfWeekMode"
-        :selected-days="selectedDays"
-        :selected-route-types="selectedRouteTypes"
-        :selected-time-of-day-mode="selectedTimeOfDayMode"
-        :start-date="startDate"
-        :start-time="startTime"
-        @set-stop-departure-progress="stopDepartureProgress = $event"
-        @set-stop-departure-loading-complete="stopDepartureLoadingComplete = $event"
-        @set-stop-features="stopFeatures = $event"
-        @set-agency-features="agencyFeatures = $event"
-        @set-route-features="routeFeatures = $event"
-        @set-loading="loading = $event"
-        @set-error="setError"
-      />
-
-      <!-- This is a component for displaying the map and legend -->
-      <cal-map
-        :bbox="bbox"
-        :census-geographies-selected="censusGeographiesSelected"
-        :stop-features="stopFeatures"
-        :route-features="routeFeatures"
-        :agency-features="agencyFeatures"
-        :display-edit-bbox-mode="displayEditBboxMode"
-        :data-display-mode="dataDisplayMode"
-        :color-key="colorKey"
-        :hide-unmarked="hideUnmarked"
-        :stop-departure-loading-complete="stopDepartureLoadingComplete"
-        @set-bbox="bbox = $event"
-        @set-map-extent="setMapExtent"
-        @set-export-features="exportFeatures = $event"
-      />
     </template>
   </NuxtLayout>
 </template>
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { useQuery } from '@vue/apollo-composable'
+import { useQuery, useLazyQuery } from '@vue/apollo-composable'
+import { navigateTo } from '#imports'
 import type { Stop } from '~/src/stop'
 import type { Route } from '~/src/route'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Agency } from '~/src/agency'
-import { type dow, dowValues, routeTypes } from '~/src/constants'
-import { navigateTo } from '#imports'
+import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
+import type { ScenarioConfig, ScenarioFilter, ScenarioData, ScenarioProgress } from '~/src/scenario'
+import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario'
+import type { GraphQLClient } from '~/src/graphql'
+import { deserializeScenarioTestFixture, type SerializableScenarioTestFixture } from '~/src/scenario-fixtures'
+import { StopDepartureCache } from '~/src/departure-cache'
 
 definePageMeta({
   layout: false
@@ -200,32 +196,23 @@ definePageMeta({
 
 const route = useRoute()
 
-/////////////////
-
-const scheduleEnabled = ref(true)
-const defaultBbox = '-122.69075,45.51358,-122.66809,45.53306'
 const runCount = ref(0)
+const scheduleEnabled = ref(true)
+const cannedBbox = ref('downtown-portland')
 
 /////////////////
 // Loading and error handling
-const loading = ref(false)
+/////////////////
+
 const hasError = ref(false)
 const error = ref(null)
-const stopDepartureProgress = ref({ queue: 0, total: 0 })
 const stopDepartureLoadingComplete = ref(false)
-
-function setError (err: any) {
-  error.value = err
-  hasError.value = true
-}
 
 // Runs on explore event from query (when user clicks "Run Query")
 function runQuery () {
   runCount.value++
   activeTab.value = { tab: 'map', sub: '' }
-  stopFeatures.value = []
-  routeFeatures.value = []
-  agencyFeatures.value = []
+  fetchScenario()
 }
 
 // Handle query parameters
@@ -303,6 +290,7 @@ const endTime = computed({
 
 const bbox = computed({
   get () {
+    const defaultBbox = cannedBboxes.get(cannedBbox.value)?.bboxString || ''
     const bbox = route.query.bbox?.toString() ?? defaultBbox
     return parseBbox(bbox)
   },
@@ -496,6 +484,7 @@ const minFare = computed({
 
 /////////////////
 // Geography datasets
+/////////////////
 
 const {
   result: censusGeographyResult,
@@ -529,6 +518,8 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
   return ret
 })
 
+/////////////////
+// Filter summary
 /////////////////
 
 // Each result in the filter summary will be a string to be used as a bullet point.
@@ -622,13 +613,16 @@ const filterSummary = computed((): string[] => {
 // Event passing
 /////////////////////////
 
-const stopFeatures = shallowRef<Stop[]>([])
-const routeFeatures = shallowRef<Route[]>([])
-const agencyFeatures = shallowRef<Agency[]>([])
-const exportFeatures = shallowRef<Feature[]>([])
-
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
+
+watch([activeTab, geomSource], () => {
+  if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
+    displayEditBboxMode.value = true
+  } else {
+    displayEditBboxMode.value = false
+  }
+})
 
 // Initialize displayEditBboxMode based on initial values
 const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
@@ -670,14 +664,6 @@ watch(geomSource, () => {
   }
 })
 
-watch([activeTab, geomSource], () => {
-  if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
-    displayEditBboxMode.value = true
-  } else {
-    displayEditBboxMode.value = false
-  }
-})
-
 async function setMapExtent (v: Bbox) {
   mapExtent.value = v
   if (geomSource.value === 'mapExtent') {
@@ -715,6 +701,157 @@ async function resetFilters () {
 
   await navigateTo({ replace: true, query: p })
 }
+
+////////////////////////////
+// Scenario
+////////////////////////////
+
+// Computed properties for config and filter to avoid duplication
+const scenarioConfig = computed((): ScenarioConfig => ({
+  bbox: bbox.value,
+  scheduleEnabled: scheduleEnabled.value,
+  startDate: startDate.value,
+  endDate: endDate.value,
+  geographyIds: geographyIds.value,
+  stopLimit: 1000
+}))
+
+const scenarioFilter = computed((): ScenarioFilter => ({
+  startTime: startTime.value,
+  endTime: endTime.value,
+  selectedRouteTypes: selectedRouteTypes.value || [],
+  selectedDays: selectedDays.value || [],
+  selectedAgencies: selectedAgencies.value || [],
+  selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
+  selectedTimeOfDayMode: '', // Not used in the original component
+  frequencyUnder: frequencyUnder.value,
+  frequencyOver: frequencyOver.value,
+  frequencyUnderEnabled: frequencyUnderEnabled.value || false,
+  frequencyOverEnabled: frequencyOverEnabled.value || false
+}))
+
+// Internal state for ScenarioFetcher
+const scenarioData = ref<ScenarioData | null>(null)
+const isLoading = ref(false)
+const stopFeatures = shallowRef<Stop[]>([])
+const routeFeatures = shallowRef<Route[]>([])
+const agencyFeatures = shallowRef<Agency[]>([])
+const exportFeatures = shallowRef<Feature[]>([])
+
+// Create GraphQL client adapter for Vue Apollo
+const createGraphQLClientAdapter = (): GraphQLClient => {
+  return {
+    async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
+      const { load } = useLazyQuery<T>(query, variables, {
+        fetchPolicy: 'no-cache',
+        clientId: 'transitland'
+      })
+      const result = await load()
+      if (!result) {
+        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
+        return { data: undefined }
+      }
+      return { data: result as T }
+    }
+  }
+}
+
+const loadExampleData = async (exampleName: string) => {
+  console.log('current bbox', exampleName)
+  const data: SerializableScenarioTestFixture = await fetch(`/examples/${exampleName}.json`)
+    .then(res => res.json())
+  const fixture = deserializeScenarioTestFixture(data)
+  scenarioData.value = fixture.data
+  const finalResult = applyScenarioResultFilter(fixture.data, fixture.config, fixture.filter)
+  routeFeatures.value = finalResult.routes
+  stopFeatures.value = finalResult.stops
+  agencyFeatures.value = finalResult.agencies
+  stopDepartureLoadingComplete.value = true
+  // startDate.value = fixture.config.startDate!
+  // endDate.value = fixture.config.endDate!
+  setQuery({ ...route.query,
+    startDate: fmtDate(fixture.config.startDate!),
+    endDate: fmtDate(fixture.config.endDate!),
+  })
+  activeTab.value = { tab: 'map', sub: '' }
+}
+
+// Scenario fetching logic
+const fetchScenario = async () => {
+  const config = scenarioConfig.value
+  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+    return // Need either bbox or geography IDs
+  }
+  try {
+    isLoading.value = true
+    stopDepartureLoadingComplete.value = false
+    const client = createGraphQLClientAdapter()
+    const callbacks = {
+      onProgress: (progress: ScenarioProgress) => {
+        // Emit features early when partial data is available
+        if (progress.partialData && progress.partialData.stops.length > 0) {
+          // Create partial scenario data for filtering
+          const partialScenarioData: ScenarioData = {
+            routes: progress.partialData.routes,
+            stops: progress.partialData.stops,
+            feedVersions: progress.partialData.feedVersions,
+            stopDepartureCache: new StopDepartureCache(),
+            isComplete: false
+          }
+          // Apply filters to partial data and emit (without schedule-dependent features)
+          const partialResult = applyScenarioResultFilter(partialScenarioData, scenarioConfig.value, scenarioFilter.value)
+          routeFeatures.value = partialResult.routes
+          stopFeatures.value = partialResult.stops
+          agencyFeatures.value = partialResult.agencies
+        }
+      },
+      onComplete: (result: ScenarioData) => {
+        scenarioData.value = result
+        isLoading.value = false
+      },
+      onError: (err: any) => {
+        console.error('Scenario fetch error:', err)
+        error.value = err
+        isLoading.value = false
+      }
+    }
+    const fetcher = new ScenarioFetcher(config, client, callbacks)
+    const finalData = await fetcher.fetch()
+    const finalResult = applyScenarioResultFilter(finalData, scenarioConfig.value, scenarioFilter.value)
+    routeFeatures.value = finalResult.routes
+    stopFeatures.value = finalResult.stops
+    agencyFeatures.value = finalResult.agencies
+    stopDepartureLoadingComplete.value = true
+  } catch (err: any) {
+    console.error('Scenario fetch error:', err)
+    error.value = err
+    isLoading.value = false
+  }
+}
+
+// Apply filters and emit results when data or filters change
+watch(() => [
+  scenarioData.value,
+  endTime.value,
+  frequencyOver.value,
+  frequencyOverEnabled.value,
+  frequencyUnder.value,
+  frequencyUnderEnabled.value,
+  selectedAgencies.value,
+  selectedDayOfWeekMode.value,
+  selectedDays.value,
+  selectedRouteTypes.value,
+  startTime.value,
+  stopDepartureLoadingComplete.value,
+], () => {
+  if (!scenarioData.value || !stopDepartureLoadingComplete.value) {
+    return
+  }
+  const result = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
+  routeFeatures.value = result.routes
+  stopFeatures.value = result.stops
+  agencyFeatures.value = result.agencies
+})
 
 //////////////////////
 // Helpers

@@ -9,6 +9,7 @@ import {
   loadScenarioTestFixtureFromFile,
   type ScenarioTestFixture
 } from './scenario-fixtures'
+import { parseDate } from './datetime'
 import type { Bbox } from '~/src/geom'
 
 /**
@@ -47,16 +48,14 @@ describe('Scenario Fixtures', () => {
         valid: true
       } as Bbox,
       scheduleEnabled: true,
-      startDate: new Date('2024-07-03'),
-      endDate: new Date('2024-07-10'),
+      startDate: parseDate('2024-07-03')!,
+      endDate: parseDate('2024-07-10')!,
       geographyIds: [12345],
       stopLimit: 500
     }
 
     // Create test filter with dates and complex settings
     const testFilter: ScenarioFilter = {
-      startTime: new Date('2024-07-03T06:00:00'),
-      endTime: new Date('2024-07-03T22:00:00'),
       selectedRouteTypes: [3, 1],
       selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
       selectedAgencies: ['agency-1', 'agency-2'],

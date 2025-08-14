@@ -10,7 +10,7 @@ export function parseDate (d: string): Date | null {
   return null
 }
 
-export function fmtDate (d: Date | null, fmt?: string = dateFmt): string {
+export function fmtDate (d: Date | null, fmt: string = dateFmt): string {
   if (!d) {
     return ''
   }
@@ -24,7 +24,7 @@ export function parseTime (d: string): Date | null {
   return null
 }
 
-export function fmtTime (d: Date | null, fmt?: string = timeFmt): string {
+export function fmtTime (d: Date | null, fmt: string = timeFmt): string {
   if (!d) {
     return ''
   }

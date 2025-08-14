@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import { StopDepartureCache } from './departure-cache'
 import type { StopTime } from './departure'
@@ -35,7 +34,7 @@ export interface ScenarioTestFixture {
 /**
  * Serializable representation of complete scenario fixture
  */
-interface SerializableScenarioTestFixture {
+export interface SerializableScenarioTestFixture {
   config: SerializableScenarioConfig
   filter: SerializableScenarioFilter
   data: SerializableScenarioData
@@ -68,27 +67,6 @@ interface SerializableScenarioFilter {
   frequencyOver?: number
   frequencyUnderEnabled: boolean
   frequencyOverEnabled: boolean
-}
-
-/**
- * Save a complete scenario test fixture (config + filter + data) to a JSON file
- * @param fixture The complete test fixture to save
- * @param filePath The path where to save the JSON file
- */
-export async function saveScenarioTestFixtureToFile (fixture: ScenarioTestFixture, filePath: string): Promise<void> {
-  const serializable = serializeScenarioTestFixture(fixture)
-  await fs.writeFile(filePath, JSON.stringify(serializable, null, 2), 'utf8')
-}
-
-/**
- * Load a complete scenario test fixture from a JSON file
- * @param filePath The path to the JSON file to load
- * @returns The deserialized test fixture
- */
-export async function loadScenarioTestFixtureFromFile (filePath: string): Promise<ScenarioTestFixture> {
-  const content = await fs.readFile(filePath, 'utf8')
-  const serializable: SerializableScenarioTestFixture = JSON.parse(content)
-  return deserializeScenarioTestFixture(serializable)
 }
 
 /**
@@ -172,7 +150,7 @@ function deserializeStopDepartureCache (serializable: SerializableStopDepartureC
 /**
  * Convert complete test fixture to a JSON-serializable format
  */
-function serializeScenarioTestFixture (fixture: ScenarioTestFixture): SerializableScenarioTestFixture {
+export function serializeScenarioTestFixture (fixture: ScenarioTestFixture): SerializableScenarioTestFixture {
   return {
     config: serializeScenarioConfig(fixture.config),
     filter: serializeScenarioFilter(fixture.filter),
@@ -183,7 +161,7 @@ function serializeScenarioTestFixture (fixture: ScenarioTestFixture): Serializab
 /**
  * Convert JSON-serializable format back to complete test fixture
  */
-function deserializeScenarioTestFixture (serializable: SerializableScenarioTestFixture): ScenarioTestFixture {
+export function deserializeScenarioTestFixture (serializable: SerializableScenarioTestFixture): ScenarioTestFixture {
   return {
     config: deserializeScenarioConfig(serializable.config),
     filter: deserializeScenarioFilter(serializable.filter),
