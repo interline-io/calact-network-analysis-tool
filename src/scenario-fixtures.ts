@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import { StopDepartureCache } from './departure-cache'
 import type { StopTime } from './departure'
+import { fmtTime, parseDate, fmtDate, parseTime } from '~/src/datetime'
 
 /**
  * Serializable representation of StopDepartureCache for JSON storage
@@ -35,7 +35,7 @@ export interface ScenarioTestFixture {
 /**
  * Serializable representation of complete scenario fixture
  */
-interface SerializableScenarioTestFixture {
+export interface SerializableScenarioTestFixture {
   config: SerializableScenarioConfig
   filter: SerializableScenarioFilter
   data: SerializableScenarioData
@@ -47,8 +47,8 @@ interface SerializableScenarioTestFixture {
 interface SerializableScenarioConfig {
   bbox?: any
   scheduleEnabled: boolean
-  startDate?: string // ISO string instead of Date
-  endDate?: string // ISO string instead of Date
+  startDate?: string
+  endDate?: string
   geographyIds?: number[]
   stopLimit?: number
 }
@@ -57,8 +57,8 @@ interface SerializableScenarioConfig {
  * Serializable representation of ScenarioFilter (handles Date serialization)
  */
 interface SerializableScenarioFilter {
-  startTime?: string // ISO string instead of Date
-  endTime?: string // ISO string instead of Date
+  startTime?: string
+  endTime?: string
   selectedRouteTypes: number[]
   selectedDays: string[]
   selectedAgencies: string[]
@@ -68,27 +68,6 @@ interface SerializableScenarioFilter {
   frequencyOver?: number
   frequencyUnderEnabled: boolean
   frequencyOverEnabled: boolean
-}
-
-/**
- * Save a complete scenario test fixture (config + filter + data) to a JSON file
- * @param fixture The complete test fixture to save
- * @param filePath The path where to save the JSON file
- */
-export async function saveScenarioTestFixtureToFile (fixture: ScenarioTestFixture, filePath: string): Promise<void> {
-  const serializable = serializeScenarioTestFixture(fixture)
-  await fs.writeFile(filePath, JSON.stringify(serializable, null, 2), 'utf8')
-}
-
-/**
- * Load a complete scenario test fixture from a JSON file
- * @param filePath The path to the JSON file to load
- * @returns The deserialized test fixture
- */
-export async function loadScenarioTestFixtureFromFile (filePath: string): Promise<ScenarioTestFixture> {
-  const content = await fs.readFile(filePath, 'utf8')
-  const serializable: SerializableScenarioTestFixture = JSON.parse(content)
-  return deserializeScenarioTestFixture(serializable)
 }
 
 /**
@@ -172,7 +151,7 @@ function deserializeStopDepartureCache (serializable: SerializableStopDepartureC
 /**
  * Convert complete test fixture to a JSON-serializable format
  */
-function serializeScenarioTestFixture (fixture: ScenarioTestFixture): SerializableScenarioTestFixture {
+export function serializeScenarioTestFixture (fixture: ScenarioTestFixture): SerializableScenarioTestFixture {
   return {
     config: serializeScenarioConfig(fixture.config),
     filter: serializeScenarioFilter(fixture.filter),
@@ -183,7 +162,7 @@ function serializeScenarioTestFixture (fixture: ScenarioTestFixture): Serializab
 /**
  * Convert JSON-serializable format back to complete test fixture
  */
-function deserializeScenarioTestFixture (serializable: SerializableScenarioTestFixture): ScenarioTestFixture {
+export function deserializeScenarioTestFixture (serializable: SerializableScenarioTestFixture): ScenarioTestFixture {
   return {
     config: deserializeScenarioConfig(serializable.config),
     filter: deserializeScenarioFilter(serializable.filter),
@@ -198,8 +177,8 @@ function serializeScenarioConfig (config: ScenarioConfig): SerializableScenarioC
   return {
     bbox: config.bbox,
     scheduleEnabled: config.scheduleEnabled,
-    startDate: config.startDate?.toISOString(),
-    endDate: config.endDate?.toISOString(),
+    startDate: fmtDate(config.startDate),
+    endDate: fmtDate(config.endDate),
     geographyIds: config.geographyIds,
     stopLimit: config.stopLimit
   }
@@ -212,8 +191,8 @@ function deserializeScenarioConfig (serializable: SerializableScenarioConfig): S
   return {
     bbox: serializable.bbox,
     scheduleEnabled: serializable.scheduleEnabled,
-    startDate: serializable.startDate ? new Date(serializable.startDate) : undefined,
-    endDate: serializable.endDate ? new Date(serializable.endDate) : undefined,
+    startDate: parseDate(serializable.startDate || ''),
+    endDate: parseDate(serializable.endDate || ''),
     geographyIds: serializable.geographyIds,
     stopLimit: serializable.stopLimit
   }
@@ -224,8 +203,8 @@ function deserializeScenarioConfig (serializable: SerializableScenarioConfig): S
  */
 function serializeScenarioFilter (filter: ScenarioFilter): SerializableScenarioFilter {
   return {
-    startTime: filter.startTime?.toISOString(),
-    endTime: filter.endTime?.toISOString(),
+    startTime: fmtTime(filter.startTime),
+    endTime: fmtTime(filter.endTime),
     selectedRouteTypes: filter.selectedRouteTypes,
     selectedDays: filter.selectedDays,
     selectedAgencies: filter.selectedAgencies,
@@ -243,8 +222,8 @@ function serializeScenarioFilter (filter: ScenarioFilter): SerializableScenarioF
  */
 function deserializeScenarioFilter (serializable: SerializableScenarioFilter): ScenarioFilter {
   return {
-    startTime: serializable.startTime ? new Date(serializable.startTime) : undefined,
-    endTime: serializable.endTime ? new Date(serializable.endTime) : undefined,
+    startTime: parseTime(serializable.startTime || ''),
+    endTime: parseTime(serializable.endTime || ''),
     selectedRouteTypes: serializable.selectedRouteTypes,
     selectedDays: serializable.selectedDays as any, // dow[] type
     selectedAgencies: serializable.selectedAgencies,

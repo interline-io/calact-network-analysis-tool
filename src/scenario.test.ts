@@ -3,6 +3,7 @@ import type { Polly } from '@pollyjs/core'
 import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './scenario'
 import { BasicGraphQLClient } from './graphql'
 import { MockGraphQLClient } from './scenario-fixtures.test'
+import { parseDate, parseTime } from './datetime'
 import type { Bbox } from '~/src/geom'
 import { setupPolly } from '~/tests/pollySetup'
 
@@ -16,14 +17,14 @@ describe('ScenarioFetcher', () => {
       valid: true
     } as Bbox,
     scheduleEnabled: true,
-    startDate: new Date('2024-07-03'),
-    endDate: new Date('2024-07-10'),
+    startDate: parseDate('2024-07-03'),
+    endDate: parseDate('2024-07-10'),
     geographyIds: [],
     stopLimit: 100
   }
   const filter: ScenarioFilter = {
-    startTime: new Date('2024-07-03T06:00:00'),
-    endTime: new Date('2024-07-03T22:00:00'),
+    startTime: parseTime('06:00:00'),
+    endTime: parseTime('22:00:00'),
     selectedRouteTypes: [3],
     selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     selectedAgencies: [],
@@ -96,14 +97,14 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
       valid: true
     } as Bbox,
     scheduleEnabled: true,
-    startDate: new Date('2024-07-03'),
-    endDate: new Date('2024-07-04'), // Short date range
+    startDate: parseDate('2024-07-03'),
+    endDate: parseDate('2024-07-04'), // Short date range
     geographyIds: [],
     stopLimit: 100
   }
   const filter: ScenarioFilter = {
-    startTime: new Date('2024-07-03T08:00:00'),
-    endTime: new Date('2024-07-03T10:00:00'),
+    startTime: parseTime('08:00:00'),
+    endTime: parseTime('10:00:00'),
     selectedRouteTypes: [3], // Bus only
     selectedDays: ['monday'],
     selectedAgencies: [],

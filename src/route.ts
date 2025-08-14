@@ -61,6 +61,7 @@ export type RouteGql = {
     agency_id: string
     agency_name: string
   }
+  __typename?: string // GraphQL compatibility
 } & RouteGtfs
 
 export interface RouteDerived {
