@@ -2,7 +2,9 @@
 set -x
 export OUTDIR="public/examples"
 export NODE_OPTIONS="--max-old-space-size=16384"
-for scenario in downtown-portland downtown-portland-zoomed bend eugene salem; do
+
+# Save scenario and WSDOT data
+for scenario in downtown-portland downtown-portland-zoomed bend eugene salem portland; do
     rm $OUTDIR/$scenario.*
     /usr/bin/time yarn calact wsdot \
         --endpoint http://localhost:8080/query \
@@ -15,7 +17,8 @@ for scenario in downtown-portland downtown-portland-zoomed bend eugene salem; do
         --save-wsdot-report "$OUTDIR/$scenario.wsdot.json"
 done;
 
-for scenario in portland greater-seattle; do
+# Do not save scenario data - issues with JSON size
+for scenario in greater-seattle greater-portland; do
     rm $OUTDIR/$scenario.*
     /usr/bin/time yarn calact wsdot \
         --endpoint http://localhost:8080/query \

@@ -7,6 +7,7 @@ export const cannedBboxes = new Map<string, CannedBbox>(Object.entries({
   'downtown-portland-zoomed': { label: 'Downtown Portland, OR (zoomed)', bboxString: '-122.68308,45.52780,-122.68077,45.52932' },
   'greater-seattle': { label: 'Greater Seattle, WA', bboxString: '-124.876557,46.704561,-120.899506,49.018513' },
   'portland': { label: 'Portland, OR', bboxString: '-122.8,45.4,-122.5,45.7' },
+  'greater-portland': { label: 'Greater Portland, OR', bboxString: '-124.545672,43.529645,-120.135723,46.549779' },
   'bend': { label: 'Bend, OR', bboxString: '-121.32895,44.04474,-121.29887,44.06547' },
   'eugene': { label: 'Eugene, OR', bboxString: '-123.11829,44.02712,-123.07870,44.05676' },
   'salem': { label: 'Salem, OR', bboxString: '-123.04563,44.93167,-123.01971,44.94815' },
