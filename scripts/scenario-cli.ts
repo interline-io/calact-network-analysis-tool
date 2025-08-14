@@ -10,10 +10,11 @@ import {
   scenarioOutputSummary,
   scenarioSaveData,
   type ScenarioCliOptions
-} from './util'
+} from './scenario-cli-util'
 import { ScenarioFetcher, type ScenarioData, type ScenarioConfig } from '~/src/scenario'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
+import { parseDate } from '~/src/datetime'
 
 /**
  * Configure scenario CLI command
@@ -40,9 +41,9 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   // Parse configuration from CLI options
   const config: ScenarioConfig = {
     bbox: options.bbox ? parseBbox(options.bbox) : undefined,
-    scheduleEnabled: options.schedule,
-    startDate: new Date(options.startDate),
-    endDate: new Date(options.endDate),
+    scheduleEnabled: !options.noSchedule,
+    startDate: parseDate(options.startDate)!,
+    endDate: parseDate(options.endDate)!,
     geographyIds: []
   }
 

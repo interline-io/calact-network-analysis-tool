@@ -24,10 +24,10 @@
         Report bbox: {{ bboxString(config.bbox!) }}
       </div>
       <div>
-        Weekday: {{ formatDate(config.weekdayDate) }}
+        Weekday: {{ fmtDate(config.weekdayDate) }}
       </div>
       <div>
-        Weekend: {{ formatDate(config.weekendDate) }}
+        Weekend: {{ fmtDate(config.weekendDate) }}
       </div>
     </tl-msg-info>
 
@@ -38,46 +38,34 @@
 </template>
 
 <script lang="ts" setup>
-import { format } from 'date-fns'
+import type { ComputedRef } from 'vue'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
+import { levelColors } from '~/src/reports/wsdot'
 import type { Feature } from '~/src/geom'
 import { parseBbox, bboxString } from '~/src/geom'
 import { cannedBboxes } from '~/src/constants'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
+import { parseDate, fmtDate } from '~/src/datetime'
 
 const levelKeys = ['level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'levelNights'] as const
 type LevelKey = typeof levelKeys[number]
 
-const levelColors: Record<string, string> = {
-  level1: '#00ffff',
-  level2: '#00ff80',
-  level3: '#80ff00',
-  level4: '#ffff00',
-  level5: '#ff8000',
-  level6: '#ff0000',
-  levelNights: '#5c5cff',
-}
-
 //////////////
-
-const formatDate = (d: Date): string => {
-  return format(d, 'MMMM dd, yyyy')
-}
 
 const zoom = 6
 const scenarioName = 'WA+OR' //  'Downtown Portland, OR'
 const reportFile = `/examples/${scenarioName}.wsdot.json`
-const startDate = new Date('2025-08-11')
-const endDate = new Date('2025-08-18')
+const startDate = parseDate('2025-08-11')
+const endDate = parseDate('2025-08-18')
 const config: WSDOTReportConfig = {
   bbox: parseBbox(cannedBboxes.get(scenarioName) || ''),
   scheduleEnabled: true,
-  startDate: startDate,
-  endDate: endDate,
+  startDate: startDate!,
+  endDate: endDate!,
   geographyIds: [],
   stopLimit: 1000,
-  weekdayDate: startDate,
-  weekendDate: endDate,
+  weekdayDate: startDate!,
+  weekendDate: endDate!,
 }
 
 const bboxCenter = computed(() => {
@@ -94,7 +82,7 @@ const data: WSDOTReport = await fetch(reportFile)
 
 const selectedLevels = ref<LevelKey[]>(Array.from(levelKeys))
 
-const levelCounts: Record<string, number> = computed(() => {
+const levelCounts: ComputedRef<Record<string, number>> = computed(() => {
   return levelKeys.reduce((acc, key) => {
     acc[key] = data.stops.filter(stop => stop[key]).length
     return acc

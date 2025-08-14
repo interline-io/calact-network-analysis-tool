@@ -212,6 +212,7 @@ export class ScenarioFetcher {
     await this.wrapTimer('Schedule queries', 'schedules', async () => {
       await this.waitForStopDeparturesComplete()
     })
+    this.stopDepartureCache.debugStats()
 
     // FINAL STAGE: Apply filters and build final result
     const result: ScenarioData = {
@@ -349,9 +350,9 @@ export class ScenarioFetcher {
         this.stopDepartureCache.add(stop.id, dowDate, r)
       }
     }
-    // this.stopDepartureCache.debugStats()
 
     // Update progress
+    // this.stopDepartureCache.debugStats()
     this.stopDepartureProgress.completed += 1
     this.updateProgress('schedules', true)
   }
@@ -396,7 +397,7 @@ export class ScenarioFetcher {
     })
   }
 
-  private async wrapTimer (operation: string, stage: ScenarioProgress['currentStage'], fn: () => Promise<void>): Promise<() => Promise<void>> {
+  private async wrapTimer (operation: string, stage: ScenarioProgress['currentStage'], fn: () => Promise<void>) {
     this.updateProgress(stage, true)
     const startTime = performance.now()
     console.log(`⏱️ Starting ${operation}...`)

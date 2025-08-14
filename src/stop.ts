@@ -24,7 +24,7 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     platform_code
     tts_stop_name
     geometry
-    census_geographies(where:{radius:0.1}) {
+    census_geographies(where:{radius:1.0}) {
       id
       geoid
       layer_name

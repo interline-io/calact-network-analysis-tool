@@ -2,8 +2,8 @@
 // Run with: yarn calact <subcommand>
 
 import { Command } from 'commander'
-import { configureScenarioCli } from './scenario'
-import { configureWsdotReportCli } from './wsdot-report'
+import { configureScenarioCli } from './scenario-cli'
+import { configureWsdotReportCli } from './wsdot-cli'
 
 const program = new Command()
 

@@ -1,5 +1,6 @@
 import type { Command } from 'commander'
 import { cannedBboxes } from '~/src/constants'
+import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
 import { saveScenarioTestFixtureToFile } from '~/src/scenario-fixtures'
 
@@ -7,16 +8,16 @@ import { saveScenarioTestFixtureToFile } from '~/src/scenario-fixtures'
  * Get current date in YYYY-MM-DD format
  */
 export function getCurrentDate (): string {
-  return new Date().toISOString().split('T')[0]
+  return fmtDate(getLocalDateNoTime())
 }
 
 /**
  * Get date one week from now in YYYY-MM-DD format
  */
 export function getDateOneWeekLater (): string {
-  const date = new Date()
+  const date = getLocalDateNoTime()
   date.setDate(date.getDate() + 7)
-  return date.toISOString().split('T')[0]
+  return fmtDate(date)
 }
 
 /**
@@ -24,7 +25,7 @@ export function getDateOneWeekLater (): string {
  */
 export function scenarioOptionsAdd (program: Command): Command {
   return program
-    .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"', cannedBboxes.get('Downtown Portland, OR'))
+    .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
     .option('--start-date <date>', 'Start date (YYYY-MM-DD)', getCurrentDate())
     .option('--end-date <date>', 'End date (YYYY-MM-DD)', getDateOneWeekLater())
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
@@ -32,11 +33,14 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--endpoint <url>', 'GraphQL API URL', 'https://api.transit.land/api/v2/query')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
-    .option('--schedule', 'Enable schedule fetching', true)
+    .option('--bbox-name <name>', 'Use canned bounding box', 'Downtown Portland, OR')
     .option('--no-schedule', 'Disable schedule fetching')
 }
 
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
+  if (options.bboxName) {
+    options.bbox = cannedBboxes.get(options.bboxName)
+  }
   if (!options.bbox) {
     console.error('❌ Error: Must provide --bbox')
     process.exit(1)
@@ -48,6 +52,7 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
  */
 export interface ScenarioCliOptions {
   bbox?: string
+  bboxName: string
   startDate: string
   endDate: string
   startTime: string
@@ -55,7 +60,7 @@ export interface ScenarioCliOptions {
   endpoint: string
   output: string
   saveScenarioData?: string
-  schedule: boolean
+  noSchedule: boolean
 }
 
 /**
@@ -65,15 +70,12 @@ export function scenarioOutputSummary (result: ScenarioData) {
   console.log('\n📊 Results Summary:')
   console.log(`🚏 Total Stops: ${result.stops.length}`)
   console.log(`🚌 Total Routes: ${result.routes.length}`)
-  // console.log(`🏢 Total Agencies: ${result.agencies.length}`)
 
   const markedStops = result.stops.filter((s: any) => s.marked)
   const markedRoutes = result.routes.filter((r: any) => r.marked)
-  // const markedAgencies = result.agencies.filter((a: any) => a.marked)
 
   console.log(`✅ Filtered Stops: ${markedStops.length}`)
   console.log(`✅ Filtered Routes: ${markedRoutes.length}`)
-  // console.log(`✅ Filtered Agencies: ${markedAgencies.length}`)
 
   if (markedRoutes.length > 0) {
     console.log('\n🚌 Sample Routes:')

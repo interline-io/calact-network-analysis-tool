@@ -5,6 +5,7 @@ import { BasicGraphQLClient } from './graphql'
 import { MockGraphQLClient } from './scenario-fixtures.test'
 import type { Bbox } from '~/src/geom'
 import { setupPolly } from '~/src/pollySetup'
+import { parseDate } from '~/src/datetime'
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
@@ -16,14 +17,14 @@ describe('ScenarioFetcher', () => {
       valid: true
     } as Bbox,
     scheduleEnabled: true,
-    startDate: new Date('2024-07-03'),
-    endDate: new Date('2024-07-10'),
+    startDate: parseDate('2024-07-03')!,
+    endDate: parseDate('2024-07-10')!,
     geographyIds: [],
     stopLimit: 100
   }
   const filter: ScenarioFilter = {
-    startTime: new Date('2024-07-03T06:00:00'),
-    endTime: new Date('2024-07-03T22:00:00'),
+    startTime: parseDate('2024-07-03T06:00:00')!,
+    endTime: parseDate('2024-07-03T22:00:00')!,
     selectedRouteTypes: [3],
     selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     selectedAgencies: [],
@@ -96,14 +97,14 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
       valid: true
     } as Bbox,
     scheduleEnabled: true,
-    startDate: new Date('2024-07-03'),
-    endDate: new Date('2024-07-04'), // Short date range
+    startDate: parseDate('2024-07-03'),
+    endDate: parseDate('2024-07-04'), // Short date range
     geographyIds: [],
     stopLimit: 100
   }
   const filter: ScenarioFilter = {
-    startTime: new Date('2024-07-03T08:00:00'),
-    endTime: new Date('2024-07-03T10:00:00'),
+    startTime: parseDate('2024-07-03T08:00:00'),
+    endTime: parseDate('2024-07-03T10:00:00'),
     selectedRouteTypes: [3], // Bus only
     selectedDays: ['monday'],
     selectedAgencies: [],
