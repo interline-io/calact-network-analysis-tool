@@ -46,6 +46,13 @@ export default defineNuxtConfig({
     ]
   },
 
+  // Disable CSRF
+  routeRules: {
+    '/api/**': {
+      csurf: false,
+    },
+  },
+
   compatibilityDate: '2025-02-18',
 
   vite: {
@@ -75,7 +82,6 @@ export default defineNuxtConfig({
       }
     }
   },
-
   eslint: {
     config: {
       stylistic: stylisticConfig,
