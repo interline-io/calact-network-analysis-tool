@@ -101,8 +101,8 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { ScenarioConfigFromBboxName } from '~/src/scenario'
-import type { ScenarioProgress, ScenarioData, StopGql, RouteGql, AgencyGql } from '~/src/scenario-streaming'
-import { StreamingScenarioClient } from '~/src/scenario-streaming'
+import type { ScenarioProgress, StopGql, RouteGql, AgencyGql } from '~/src/scenario-streaming'
+import { ScenarioClient } from '~/src/scenario-streaming'
 import { cannedBboxes } from '~/src/constants'
 
 // Reactive state - directly in component
@@ -115,7 +115,7 @@ const agencies = ref<AgencyGql[]>([])
 const isComplete = ref(false)
 
 // Client instance
-const client = new StreamingScenarioClient()
+const client = new ScenarioClient()
 
 const cannedBbox = ref('downtown-portland')
 
@@ -142,11 +142,7 @@ const testStreaming = async () => {
           }
         }
       },
-      onComplete: (result: ScenarioData) => {
-        // Final data is available in result
-        stops.value = result.stops
-        routes.value = result.routes
-
+      onComplete: () => {
         // Extract agencies from routes (since ScenarioData doesn't have agencies directly)
         const agencyMap = new Map<string, AgencyGql>()
         result.routes.forEach((route) => {
@@ -155,7 +151,6 @@ const testStreaming = async () => {
           }
         })
         agencies.value = Array.from(agencyMap.values())
-
         isComplete.value = true
         isLoading.value = false
       },

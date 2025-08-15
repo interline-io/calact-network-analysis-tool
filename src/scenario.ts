@@ -123,7 +123,7 @@ export interface ScenarioProgress {
  */
 export interface ScenarioCallbacks {
   onProgress?: (progress: ScenarioProgress) => void
-  onComplete?: (result: ScenarioData) => void
+  onComplete?: () => void
   onError?: (error: any) => void
 }
 
@@ -263,7 +263,7 @@ export class ScenarioFetcher {
       stopDepartureCache: this.stopDepartureCache,
       isComplete: true
     }
-    this.callbacks.onComplete?.(result)
+    this.callbacks.onComplete?.()
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete: ${this.stopResults.length} stops, ${this.routeResults.length} routes`)
     return result

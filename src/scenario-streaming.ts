@@ -64,14 +64,10 @@ export class ScenarioDataReceiver {
   /**
    * Handle completion from ScenarioFetcher
    */
-  onComplete (finalData: ScenarioData): void {
-    // Use the final data if provided, otherwise use accumulated data
-    this.accumulatedData = {
-      ...finalData,
-      isComplete: true
-    }
-
-    this.callbacks.onComplete?.(this.accumulatedData)
+  onComplete (): void {
+    // Mark data as complete
+    this.accumulatedData.isComplete = true
+    this.callbacks.onComplete?.()
   }
 
   /**
@@ -116,12 +112,13 @@ export async function fetchScenario (
   // Create fetcher with receiver callbacks
   const fetcher = new ScenarioFetcher(config, client, {
     onProgress: progress => receiver.onProgress(progress),
-    onComplete: result => receiver.onComplete(result),
+    onComplete: () => receiver.onComplete(),
     onError: error => receiver.onError(error)
   })
 
   // Fetch and return result
-  return await fetcher.fetch()
+  const result = await fetcher.fetch()
+  return result
 }
 
 // ============================================================================
@@ -147,13 +144,99 @@ interface StreamingErrorMessage {
 type StreamingMessage = StreamingProgressMessage | StreamingCompleteMessage | StreamingErrorMessage
 
 // ============================================================================
+// STREAMING SERVER IMPLEMENTATION
+// ============================================================================
+
+/**
+ * Server-side streaming sender
+ * Converts ScenarioFetcher progress events to JSON messages over the wire
+ */
+export class ScenarioDataSender {
+  private sendMessage: (message: StreamingMessage) => void
+
+  constructor (sendMessage: (message: StreamingMessage) => void) {
+    this.sendMessage = sendMessage
+  }
+
+  /**
+   * Send scenario data using ScenarioFetcher with streaming callbacks
+   */
+  async sendScenario (config: ScenarioConfig): Promise<void> {
+    try {
+      // Import ScenarioFetcher and GraphQLClient here to avoid circular dependencies
+      const { ScenarioFetcher } = await import('~/src/scenario')
+      const { BasicGraphQLClient } = await import('~/src/graphql')
+
+      // Create GraphQL client
+      const client = new BasicGraphQLClient(
+        process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
+        process.env.TRANSITLAND_API_KEY || 'test-key'
+      )
+
+      // Create ScenarioFetcher with streaming message sender
+      const scenarioFetcher = new ScenarioFetcher(config, client, {
+        onProgress: (progress) => {
+          const message: StreamingProgressMessage = {
+            type: 'progress',
+            data: progress
+          }
+          this.sendMessage(message)
+        },
+        onComplete: () => {
+          // onComplete is called but the result is returned from fetch()
+          // We'll send the complete message after fetch() returns
+        },
+        onError: (error) => {
+          console.error('ScenarioFetcher error:', error)
+          const message: StreamingErrorMessage = {
+            type: 'error',
+            data: { message: error.message || 'Unknown error in ScenarioFetcher' }
+          }
+          this.sendMessage(message)
+        }
+      })
+
+      // Start the scenario fetching process and get the final result
+      const result = await scenarioFetcher.fetch()
+
+      // Send the complete message with the final result
+      const message: StreamingCompleteMessage = {
+        type: 'complete',
+        data: result
+      }
+      this.sendMessage(message)
+    } catch (error) {
+      console.error('Error in ScenarioDataSender:', error)
+      const message: StreamingErrorMessage = {
+        type: 'error',
+        data: { message: error instanceof Error ? error.message : 'Unknown error' }
+      }
+      this.sendMessage(message)
+      throw error
+    }
+  }
+}
+
+/**
+ * Convenience function for sending scenario data
+ * Creates a ScenarioDataSender and calls sendScenario
+ */
+export async function sendScenario (
+  config: ScenarioConfig,
+  sendMessage: (message: StreamingMessage) => void
+): Promise<void> {
+  const sender = new ScenarioDataSender(sendMessage)
+  return await sender.sendScenario(config)
+}
+
+// ============================================================================
 // STREAMING CLIENT IMPLEMENTATION
 // ============================================================================
 
 /**
  * Streaming client receives messages from server and uses ScenarioDataReceiver
  */
-export class StreamingScenarioClient {
+export class ScenarioClient {
   private abortController: AbortController | null = null
 
   /**
@@ -217,7 +300,7 @@ export class StreamingScenarioClient {
             if (message.type === 'progress') {
               receiver.onProgress(message.data)
             } else if (message.type === 'complete') {
-              receiver.onComplete(message.data)
+              receiver.onComplete()
               return receiver.getCurrentData()
             } else if (message.type === 'error') {
               const error = new Error(message.data.message)
@@ -258,81 +341,4 @@ export class StreamingScenarioClient {
   get isLoading (): boolean {
     return this.abortController !== null
   }
-}
-
-// ============================================================================
-// STREAMING SERVER IMPLEMENTATION
-// ============================================================================
-
-/**
- * Server-side streaming sender
- * Converts ScenarioFetcher progress events to JSON messages over the wire
- */
-export async function processStreamingScenario (
-  config: ScenarioConfig,
-  sendMessage: (message: StreamingMessage) => void
-): Promise<void> {
-  try {
-    // Import ScenarioFetcher and GraphQLClient here to avoid circular dependencies
-    const { ScenarioFetcher } = await import('~/src/scenario')
-    const { BasicGraphQLClient } = await import('~/src/graphql')
-
-    // Create GraphQL client
-    const client = new BasicGraphQLClient(
-      process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-      process.env.TRANSITLAND_API_KEY || 'test-key'
-    )
-
-    // Create ScenarioFetcher with streaming message sender
-    const scenarioFetcher = new ScenarioFetcher(config, client, {
-      onProgress: (progress) => {
-        const message: StreamingProgressMessage = {
-          type: 'progress',
-          data: progress
-        }
-        sendMessage(message)
-      },
-      onComplete: (result) => {
-        const message: StreamingCompleteMessage = {
-          type: 'complete',
-          data: result
-        }
-        sendMessage(message)
-      },
-      onError: (error) => {
-        console.error('ScenarioFetcher error:', error)
-        const message: StreamingErrorMessage = {
-          type: 'error',
-          data: { message: error.message || 'Unknown error in ScenarioFetcher' }
-        }
-        sendMessage(message)
-      }
-    })
-
-    // Start the scenario fetching process
-    await scenarioFetcher.fetch()
-  } catch (error) {
-    console.error('Error in processStreamingScenario:', error)
-    const message: StreamingErrorMessage = {
-      type: 'error',
-      data: { message: error instanceof Error ? error.message : 'Unknown error' }
-    }
-    sendMessage(message)
-    throw error
-  }
-}
-
-// ============================================================================
-// CONVENIENCE FUNCTIONS
-// ============================================================================
-
-/**
- * Convenience function to create a new streaming client and fetch scenario
- */
-export async function fetchStreamingScenario (
-  config: ScenarioConfig,
-  callbacks: ScenarioCallbacks = {}
-): Promise<ScenarioData> {
-  const client = new StreamingScenarioClient()
-  return await client.fetchScenario(config, callbacks)
 }

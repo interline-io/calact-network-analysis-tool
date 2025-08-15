@@ -1,10 +1,10 @@
 /**
  * Server-side streaming scenario endpoint
- * Uses new simplified streaming implementation with ScenarioDataReceiver pattern
+ * Uses new ScenarioDataSender class for streaming implementation
  */
 
 import type { ScenarioConfig } from '~/src/scenario'
-import { processStreamingScenario } from '~/src/scenario-streaming'
+import { ScenarioDataSender } from '~/src/scenario-streaming'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -36,8 +36,11 @@ export default defineEventHandler(async (event) => {
           }
         }
 
-        // Use the new simplified streaming processor
-        processStreamingScenario(config, sendMessage)
+        // Create ScenarioDataSender instance
+        const sender = new ScenarioDataSender(sendMessage)
+
+        // Use the new ScenarioDataSender to process the scenario
+        sender.sendScenario(config)
           .then(() => {
             controller.close()
           })

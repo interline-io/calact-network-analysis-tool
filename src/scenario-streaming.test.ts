@@ -6,7 +6,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { ScenarioDataReceiver, fetchScenario } from './scenario-streaming'
 import type { ScenarioConfig, ScenarioCallbacks } from '~/src/scenario'
-import { StopDepartureCache } from '~/src/departure-cache'
 
 describe('ScenarioDataReceiver', () => {
   it('should accumulate data from progress events', () => {
@@ -47,17 +46,23 @@ describe('ScenarioDataReceiver', () => {
     const mockComplete = vi.fn()
     const receiver = new ScenarioDataReceiver({ onComplete: mockComplete })
 
-    const finalData = {
-      stops: [{ id: 1, stop_name: 'Final Stop' } as any],
-      routes: [{ id: 1, route_short_name: 'Final Route' } as any],
-      feedVersions: [],
-      stopDepartureCache: new StopDepartureCache(),
-      isComplete: true
-    }
+    // First add some data through progress
+    receiver.onProgress({
+      isLoading: true,
+      stopDepartureProgress: { total: 0, completed: 0 },
+      feedVersionProgress: { total: 100, completed: 100 },
+      currentStage: 'complete',
+      partialData: {
+        stops: [{ id: 1, stop_name: 'Final Stop' } as any],
+        routes: [{ id: 1, route_short_name: 'Final Route' } as any],
+        feedVersions: []
+      }
+    })
 
-    receiver.onComplete(finalData)
+    // Call onComplete (no parameters, matching ScenarioCallbacks interface)
+    receiver.onComplete()
 
-    expect(mockComplete).toHaveBeenCalledWith(finalData)
+    expect(mockComplete).toHaveBeenCalledWith()
     expect(receiver.getCurrentData().isComplete).toBe(true)
   })
 
