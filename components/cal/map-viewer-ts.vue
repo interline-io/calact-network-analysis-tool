@@ -125,12 +125,37 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
+  map?.addSource('polygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
 }
 
 function createLayers () {
   for (const labelLayer of labels('protomaps-base', 'grayscale')) {
     map?.addLayer(labelLayer)
   }
+  map?.addLayer({
+    id: 'polygons',
+    type: 'fill',
+    source: 'polygons',
+    layout: {},
+    paint: {
+      'fill-color': ['coalesce', ['get', 'fill'], '#000000'],
+      'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.1],
+    }
+  })
+  map?.addLayer({
+    id: 'polygons-outline',
+    type: 'line',
+    source: 'polygons',
+    layout: {},
+    paint: {
+      'line-width': ['coalesce', ['get', 'stroke-width'], 2],
+      'line-color': ['coalesce', ['get', 'stroke'], '#000000'],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0],
+    }
+  })
   map?.addLayer({
     id: 'overlay-polygons',
     type: 'fill',
@@ -176,7 +201,6 @@ function createLayers () {
 }
 
 function updateOverlayFeatures (features: Feature[]) {
-  console.log('updateOverlayFeatures', features)
   if (!map) {
     return
   }
@@ -212,13 +236,18 @@ function updateFeatures (features: Feature[]) {
   // Update sources
   const points = features.filter((s) => { return s.geometry?.type === 'Point' })
   const lines = features.filter((s) => { return s.geometry?.type === 'LineString' || s.geometry?.type === 'MultiLineString' })
+  const polygons = features.filter((s) => { return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon' })
   const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
   const pointSource = map.getSource('points') as maplibre.GeoJSONSource
+  const polygonSource = map.getSource('polygons') as maplibre.GeoJSONSource
   if (lineSource) {
     lineSource.setData({ type: 'FeatureCollection', features: lines })
   }
   if (pointSource) {
     pointSource.setData({ type: 'FeatureCollection', features: points })
+  }
+  if (polygonSource) {
+    polygonSource.setData({ type: 'FeatureCollection', features: polygons })
   }
 }
 

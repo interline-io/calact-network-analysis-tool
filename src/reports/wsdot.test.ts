@@ -1,11 +1,10 @@
 import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
-import { parseDate } from '../datetime'
+import { parseDate } from '~/src/datetime'
 import { BasicGraphQLClient } from '~/src/graphql'
-import type { ScenarioConfig } from '~/src/scenario'
 import { ScenarioFetcher } from '~/src/scenario'
 import type { Bbox } from '~/src/geom'
-import { wsdotReport } from '~/src/reports/wsdot'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {
@@ -40,35 +39,41 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     // polly = setupPolly('scenario-wsdot-1')
     const startDate = '2024-08-19'
     const endDate = '2024-08-25'
-    const config: ScenarioConfig = {
+    const config: WSDOTReportConfig = {
       bbox: bigBbox,
       scheduleEnabled: true,
-      startDate: parseDate(startDate),
-      endDate: parseDate(endDate),
+      startDate: parseDate(startDate)!,
+      endDate: parseDate('2024-08-26')!, // FIXME: must be one day past window
+      weekdayDate: parseDate(startDate)!,
+      weekendDate: parseDate(endDate)!,
       geographyIds: [],
       stopLimit: 1000
     }
     const fetcher = new ScenarioFetcher(config, realClient)
     const result = await fetcher.fetch()
-    const report = wsdotReport(result, startDate, endDate)
-    console.log(report.levelCounts)
+    const wsdotFetcher = new WSDOTReportFetcher(config, result, realClient)
+    const report = await wsdotFetcher.fetch()
+    console.log(report.levelStops)
   })
 
   it('tlv2-prod', async () => {
     // polly = setupPolly('scenario-wsdot-2')
     const startDate = '2025-08-11'
     const endDate = '2025-08-18'
-    const config: ScenarioConfig = {
+    const config: WSDOTReportConfig = {
       bbox: smallBbox,
       scheduleEnabled: true,
-      startDate: parseDate(startDate),
-      endDate: parseDate(endDate),
+      startDate: parseDate(startDate)!,
+      endDate: parseDate('2025-08-19')!, // FIXME: must be one day past window
+      weekdayDate: parseDate(startDate)!,
+      weekendDate: parseDate(endDate)!,
       geographyIds: [],
       stopLimit: 1000
     }
     const fetcher = new ScenarioFetcher(config, realClient)
     const result = await fetcher.fetch()
-    const report = wsdotReport(result, startDate, endDate)
-    console.log(report.levelCounts)
+    const wsdotFetcher = new WSDOTReportFetcher(config, result, realClient)
+    const report = await wsdotFetcher.fetch()
+    console.log(report.levelStops)
   })
 }, 600000)

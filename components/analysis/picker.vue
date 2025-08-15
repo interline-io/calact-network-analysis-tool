@@ -1,10 +1,10 @@
 <template>
   <div class="cal-report">
     <div v-if="selectedReportType === 'wsdot'">
-      <!-- <analysis-wsdot
+      <analysis-wsdot
         :scenario-config="scenarioConfig"
         :scenario-data="scenarioData"
-      /> -->
+      />
     </div>
     <div v-else>
       <tl-title title="Analysis" />
@@ -21,9 +21,10 @@
 </template>
 
 <script lang="ts" setup>
-// import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
-// const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
-// const scenarioData = defineModel<ScenarioData | null>('scenarioData')
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+
+const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 
 const reportTypes: Record<string, string> = {
   '': 'Pick a report',
