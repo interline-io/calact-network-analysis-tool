@@ -4,29 +4,13 @@ import type { Readable } from 'stream'
 import type { Command } from 'commander'
 import bigJson from 'big-json'
 import { cannedBboxes } from '~/src/constants'
-import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
+import { getCurrentDate, getDateOneWeekLater } from '~/src/datetime'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
 import { serializeScenarioTestFixture } from '~/src/scenario-fixtures'
 
 /**
  * Stream a JSON object to disk in chunks to handle large files efficiently
  */
-
-/**
- * Get current date in YYYY-MM-DD format
- */
-export function getCurrentDate (): string {
-  return fmtDate(getLocalDateNoTime())
-}
-
-/**
- * Get date one week from now in YYYY-MM-DD format
- */
-export function getDateOneWeekLater (): string {
-  const date = getLocalDateNoTime()
-  date.setDate(date.getDate() + 7)
-  return fmtDate(date)
-}
 
 /**
  * Add common scenario configuration options to a Commander.js program

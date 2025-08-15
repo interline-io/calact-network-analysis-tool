@@ -23,8 +23,21 @@ import {
 } from './route'
 import { TaskQueue } from './task-queue'
 import type { GraphQLClient } from './graphql'
-import { type dow, routeTypes } from '~/src/constants'
-import type { Bbox } from '~/src/geom'
+import { getCurrentDate, parseDate, getDateOneWeekLater } from './datetime'
+import { cannedBboxes, type dow, routeTypes } from '~/src/constants'
+import { parseBbox, type Bbox } from '~/src/geom'
+
+export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
+  return {
+    bbox: parseBbox(cannedBboxes.get(bboxname)!.bboxString),
+    scheduleEnabled: true,
+    startDate: parseDate(getCurrentDate()),
+    endDate: parseDate(getDateOneWeekLater()),
+    geographyIds: [],
+    stopLimit: 1000,
+    maxConcurrentDepartures: 8
+  }
+}
 
 /**
  * Task definitions for the scenario fetcher
@@ -226,9 +239,14 @@ export class ScenarioFetcher {
       }
       // Wait for all stop fetching to complete
       await this.stopFetchQueue.wait()
+      console.log(`Fetched ${this.stopResults.length} stops`)
+    })
+
+    // SECOND and a HALF STAGE: Send route updates
+    await this.wrapTimer('Route updates', 'routes', async () => {
       // Wait for all route fetching to complete
       await this.routeFetchQueue.wait()
-      console.log(`Fetched ${this.stopResults.length} stops and ${this.routeResults.length} routes`)
+      console.log(`Fetched ${this.routeResults.length} routes`)
     })
 
     // THIRD STAGE: Wait for all stop departure queries to complete

@@ -199,6 +199,7 @@ export class StreamingScenarioClient {
               callbacks.onProgress?.(progressMessage.data)
             } else if (message.type === 'stops_complete') {
               const stopsMessage = message as StopsCompleteMessage
+              console.log('stops?', stopsMessage.data.stops)
               accumulatedStops = stopsMessage.data.stops
               callbacks.onStopsComplete?.(accumulatedStops)
             } else if (message.type === 'routes_complete') {
@@ -335,7 +336,7 @@ export async function processStreamingScenario (
     // Create GraphQL client - in a real server environment, these would come from config
     // For now, using the same endpoint as the test files
     const client = new BasicGraphQLClient(
-      'https://transit.land/api/v2/query',
+      process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
       process.env.TRANSITLAND_API_KEY || 'test-key'
     )
 
@@ -351,6 +352,8 @@ export async function processStreamingScenario (
           'complete': 'departures',
           'ready': 'stops'
         } as const
+
+        console.log('progress?', progress)
 
         const phase = phaseMap[progress.currentStage] || 'stops'
 
@@ -372,7 +375,7 @@ export async function processStreamingScenario (
 
         // Send intermediate data updates if available
         if (progress.partialData) {
-          if (progress.partialData.stops.length > 0 && progress.currentStage === 'routes') {
+          if (progress.partialData.stops.length > 0 && progress.currentStage === 'stops') {
             // Send stops complete when we start processing routes
             const stopsMessage: StopsCompleteMessage = {
               type: 'stops_complete',
@@ -382,9 +385,10 @@ export async function processStreamingScenario (
               }
             }
             sendMessage(stopsMessage)
+            console.log('send stops_complete')
           }
 
-          if (progress.partialData.routes.length > 0 && progress.currentStage === 'schedules') {
+          if (progress.partialData.routes.length > 0 && progress.currentStage === 'routes') {
             // Send routes complete when we start processing schedules
             // Extract unique agencies from routes
             const agencyMap = new Map()

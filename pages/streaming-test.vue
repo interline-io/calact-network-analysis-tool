@@ -1,32 +1,40 @@
 <!-- Test page for streaming scenario implementation -->
 <template>
   <div class="streaming-test">
-    <h1>Streaming Scenario Test</h1>
+    <tl-title>Streaming Scenario Test</tl-title>
 
-    <div class="controls">
-      <button
+    <o-field label="Preset bounding box">
+      <o-select v-model="cannedBbox">
+        <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+          {{ cannedBboxDetails.label }}
+        </option>
+      </o-select>
+    </o-field>
+
+    <o-field label="Actions" grouped>
+      <o-button
         class="btn btn-primary"
         :disabled="isLoading"
         @click="testStreaming"
       >
         {{ isLoading ? 'Loading...' : 'Test Streaming Scenario' }}
-      </button>
+      </o-button>
 
-      <button
+      <o-button
         class="btn btn-secondary"
         :disabled="!isLoading"
         @click="cancel"
       >
         Cancel
-      </button>
+      </o-button>
 
-      <button
+      <o-button
         class="btn btn-outline"
         @click="clear"
       >
         Clear
-      </button>
-    </div>
+      </o-button>
+    </o-field>
 
     <!-- Progress Display -->
     <div v-if="progress" class="progress-section">
@@ -92,6 +100,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
+import { ScenarioConfigFromBboxName } from '~/src/scenario'
 import {
   StreamingScenarioClient,
   type ScenarioStreamingProgress,
@@ -99,6 +108,7 @@ import {
   type RouteGql,
   type AgencyGql
 } from '~/src/streaming/scenario'
+import { cannedBboxes } from '~/src/constants'
 
 // Reactive state - directly in component
 const isLoading = ref(false)
@@ -112,18 +122,11 @@ const isComplete = ref(false)
 // Client instance
 const client = new StreamingScenarioClient()
 
+const cannedBbox = ref('downtown-portland')
+
 // Test function
 const testStreaming = async () => {
-  const testConfig = {
-    bbox: {
-      sw: { lon: -122.5, lat: 37.7 },
-      ne: { lon: -122.3, lat: 37.8 },
-      valid: true
-    },
-    scheduleEnabled: true,
-    startDate: new Date('2024-01-01'),
-    endDate: new Date('2024-01-07')
-  }
+  const testConfig = ScenarioConfigFromBboxName(cannedBbox.value)
 
   try {
     // Reset state
@@ -141,6 +144,7 @@ const testStreaming = async () => {
         progress.value = progressData
       },
       onStopsComplete: (stopsData) => {
+        console.log('stopsData?', stopsData)
         stops.value = stopsData
       },
       onRoutesComplete: (routesData, agenciesData) => {
