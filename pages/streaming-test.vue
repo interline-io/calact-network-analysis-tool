@@ -143,14 +143,6 @@ const testStreaming = async () => {
       onProgress: (progressData) => {
         progress.value = progressData
       },
-      onStopsComplete: (stopsData) => {
-        console.log('stopsData?', stopsData)
-        stops.value = stopsData
-      },
-      onRoutesComplete: (routesData, agenciesData) => {
-        routes.value = routesData
-        agencies.value = agenciesData
-      },
       onDeparturesComplete: (_result) => {
         isComplete.value = true
         isLoading.value = false

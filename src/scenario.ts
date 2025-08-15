@@ -180,7 +180,6 @@ export class ScenarioFetcher {
     this.stopFetchQueue = new TaskQueue<StopFetchTask>(
       this.maxConcurrentDepartures,
       task => this.fetchStops(task), {
-        onProgress: () => { this.updateProgress('stops', true) },
         onError: error => this.callbacks.onError?.(error)
       }
     )
@@ -276,6 +275,8 @@ export class ScenarioFetcher {
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedData: FeedGql[] = response.data?.feeds || []
     this.feedVersions = feedData.map(feed => feed.feed_state.feed_version)
+    // Send progress update with the new feed versions
+    this.updateProgressWithNewData('feed-versions', true, { stops: [], routes: [], feedVersions: this.feedVersions })
   }
 
   // Fetch stops from GraphQL API
@@ -300,6 +301,9 @@ export class ScenarioFetcher {
     // Add to results
     this.stopResults.push(...stopData)
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
+
+    // Send progress update with only the NEW stops
+    this.updateProgressWithNewData('stops', true, { stops: stopData, routes: [], feedVersions: [] })
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -346,6 +350,9 @@ export class ScenarioFetcher {
       routeIdx.set(route.id, route)
     }
     this.routeResults = [...routeIdx.values()]
+
+    // Send progress update with only the NEW routes
+    this.updateProgressWithNewData('routes', true, { stops: [], routes: routeData, feedVersions: [] })
   }
 
   // Fetch stop departures from GraphQL API
@@ -417,18 +424,22 @@ export class ScenarioFetcher {
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean) {
-    const progress: ScenarioProgress = {
+    this.callbacks.onProgress?.({
+      isLoading: loading,
+      stopDepartureProgress: this.stopDepartureProgress,
+      feedVersionProgress: this.feedVersionProgress,
+      currentStage: stage
+    })
+  }
+
+  private async updateProgressWithNewData (stage: ScenarioProgress['currentStage'], loading: boolean, newData: { stops: StopGql[], routes: RouteGql[], feedVersions: FeedVersion[] }) {
+    this.callbacks.onProgress?.({
       isLoading: loading,
       stopDepartureProgress: this.stopDepartureProgress,
       feedVersionProgress: this.feedVersionProgress,
       currentStage: stage,
-      partialData: {
-        stops: this.stopResults,
-        routes: this.routeResults,
-        feedVersions: this.feedVersions
-      }
-    }
-    this.callbacks.onProgress?.(progress)
+      partialData: newData
+    })
   }
 }
 

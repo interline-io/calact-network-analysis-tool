@@ -6,8 +6,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type {
   ScenarioStreamingMessage,
-  StopsCompleteMessage,
-  RoutesCompleteMessage,
   DeparturesCompleteMessage,
   ErrorMessage,
   SimpleDeparture
@@ -53,16 +51,6 @@ export async function mockProcessStreamingScenario (
     sendProgress('stops', 50, 100, 'Processing stops...')
     await new Promise(resolve => setTimeout(resolve, 50))
 
-    // Send stops complete
-    const stopsMessage: StopsCompleteMessage = {
-      type: 'stops_complete',
-      data: {
-        stops: mockStops,
-        feedVersions: []
-      }
-    }
-    sendMessage(stopsMessage)
-
     // Mock routes phase
     sendProgress('routes', 0, 50, 'Starting to fetch routes...')
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -95,16 +83,6 @@ export async function mockProcessStreamingScenario (
 
     sendProgress('routes', 25, 50, 'Processing routes...')
     await new Promise(resolve => setTimeout(resolve, 50))
-
-    // Send routes complete
-    const routesMessage: RoutesCompleteMessage = {
-      type: 'routes_complete',
-      data: {
-        routes: mockRoutes,
-        agencies: mockAgencies
-      }
-    }
-    sendMessage(routesMessage)
 
     // Mock departures phase
     sendProgress('departures', 0, 200, 'Starting to fetch departures...')
@@ -204,13 +182,13 @@ describe('StreamingScenario', () => {
     expect(progressUpdates.some(p => p.phase === 'departures')).toBe(true)
 
     // Verify data structure
-    const stopsMessage = messages[0] as StopsCompleteMessage
-    expect(stopsMessage.data.stops).toHaveLength(2)
-    expect(stopsMessage.data.stops[0].stop_name).toBe('Mock Stop 1')
+    // const stopsMessage = messages[0] as StopsCompleteMessage
+    // expect(stopsMessage.data.stops).toHaveLength(2)
+    // expect(stopsMessage.data.stops[0].stop_name).toBe('Mock Stop 1')
 
-    const routesMessage = messages[1] as RoutesCompleteMessage
-    expect(routesMessage.data.routes).toHaveLength(1)
-    expect(routesMessage.data.agencies).toHaveLength(1)
+    // const routesMessage = messages[1] as RoutesCompleteMessage
+    // expect(routesMessage.data.routes).toHaveLength(1)
+    // expect(routesMessage.data.agencies).toHaveLength(1)
 
     const departuresMessage = messages[2] as DeparturesCompleteMessage
     expect(departuresMessage.data.departures).toHaveLength(2)

@@ -18,15 +18,17 @@ export type { StopGql, RouteGql, AgencyGql, ScenarioConfig }
 
 // Base streaming message interface
 export interface StreamingMessage {
-  type: 'progress' | 'stops_complete' | 'routes_complete' | 'departures_complete' | 'error'
+  type: 'progress' | 'departures_complete' | 'error'
   data: any
 }
 
 // Progress message during processing
 export interface ProgressMessage extends StreamingMessage {
   type: 'progress'
+  phase: 'stops' | 'routes' | 'departures'
   data: {
-    phase: 'stops' | 'routes' | 'departures'
+    stops: StopGql[]
+    routes: RouteGql[]
     current: number
     total: number
     message: string
@@ -43,23 +45,6 @@ export interface SimpleDeparture {
   frequency?: number
   agencyId: number
   routeType: number
-}
-
-// Phase completion messages - using direct types without compression
-export interface StopsCompleteMessage extends StreamingMessage {
-  type: 'stops_complete'
-  data: {
-    stops: StopGql[]
-    feedVersions: any[]
-  }
-}
-
-export interface RoutesCompleteMessage extends StreamingMessage {
-  type: 'routes_complete'
-  data: {
-    routes: RouteGql[]
-    agencies: AgencyGql[]
-  }
 }
 
 export interface DeparturesCompleteMessage extends StreamingMessage {
@@ -85,8 +70,6 @@ export interface ErrorMessage extends StreamingMessage {
 // Union type for all possible messages
 export type ScenarioStreamingMessage =
   | ProgressMessage
-  | StopsCompleteMessage
-  | RoutesCompleteMessage
   | DeparturesCompleteMessage
   | ErrorMessage
 
@@ -120,8 +103,6 @@ export interface ScenarioStreamingResult {
  */
 export interface ScenarioStreamingCallbacks {
   onProgress?: (progress: ScenarioStreamingProgress) => void
-  onStopsComplete?: (stops: StopGql[]) => void
-  onRoutesComplete?: (routes: RouteGql[], agencies: AgencyGql[]) => void
   onDeparturesComplete?: (result: ScenarioStreamingResult) => void
   onError?: (error: Error) => void
 }
@@ -152,9 +133,9 @@ export class StreamingScenarioClient {
     }
 
     // Initialize accumulators
-    let accumulatedStops: StopGql[] = []
-    let accumulatedRoutes: RouteGql[] = []
-    let accumulatedAgencies: AgencyGql[] = []
+    const accumulatedStops: StopGql[] = []
+    const accumulatedRoutes: RouteGql[] = []
+    const accumulatedAgencies: AgencyGql[] = []
     let departureCache = new StopDepartureCache()
     let finalScenarioData: ScenarioData | null = null
 
@@ -193,20 +174,11 @@ export class StreamingScenarioClient {
 
           try {
             const message = JSON.parse(line) as ScenarioStreamingMessage
+            console.log('got message:', message)
 
             if (message.type === 'progress') {
               const progressMessage = message as ProgressMessage
               callbacks.onProgress?.(progressMessage.data)
-            } else if (message.type === 'stops_complete') {
-              const stopsMessage = message as StopsCompleteMessage
-              console.log('stops?', stopsMessage.data.stops)
-              accumulatedStops = stopsMessage.data.stops
-              callbacks.onStopsComplete?.(accumulatedStops)
-            } else if (message.type === 'routes_complete') {
-              const routesMessage = message as RoutesCompleteMessage
-              accumulatedRoutes = routesMessage.data.routes
-              accumulatedAgencies = routesMessage.data.agencies
-              callbacks.onRoutesComplete?.(accumulatedRoutes, accumulatedAgencies)
             } else if (message.type === 'departures_complete') {
               const departuresMessage = message as DeparturesCompleteMessage
 
@@ -375,39 +347,17 @@ export async function processStreamingScenario (
 
         // Send intermediate data updates if available
         if (progress.partialData) {
-          if (progress.partialData.stops.length > 0 && progress.currentStage === 'stops') {
-            // Send stops complete when we start processing routes
-            const stopsMessage: StopsCompleteMessage = {
-              type: 'stops_complete',
-              data: {
-                stops: progress.partialData.stops,
-                feedVersions: progress.partialData.feedVersions
-              }
+          sendMessage({
+            type: 'progress',
+            phase: phase,
+            data: {
+              stops: progress.partialData.stops,
+              routes: progress.partialData.routes,
+              current: progress.feedVersionProgress?.completed ?? 0,
+              total: progress.feedVersionProgress?.total ?? 0,
+              message: `Processing ${progress.currentStage}...`
             }
-            sendMessage(stopsMessage)
-            console.log('send stops_complete')
-          }
-
-          if (progress.partialData.routes.length > 0 && progress.currentStage === 'routes') {
-            // Send routes complete when we start processing schedules
-            // Extract unique agencies from routes
-            const agencyMap = new Map()
-            for (const route of progress.partialData.routes) {
-              if (route.agency) {
-                agencyMap.set(route.agency.id, route.agency)
-              }
-            }
-            const agencies = Array.from(agencyMap.values())
-
-            const routesMessage: RoutesCompleteMessage = {
-              type: 'routes_complete',
-              data: {
-                routes: progress.partialData.routes,
-                agencies
-              }
-            }
-            sendMessage(routesMessage)
-          }
+          })
         }
       },
       onComplete: (result) => {

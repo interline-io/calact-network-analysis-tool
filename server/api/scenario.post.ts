@@ -43,7 +43,11 @@ export default defineEventHandler(async (event) => {
         const sendProgress = (phase: string, current: number, total: number, message: string) => {
           const progressMessage: ProgressMessage = {
             type: 'progress',
-            data: { phase: phase as any, current, total, message }
+            phase: phase as any,
+            data: {
+              current,
+              total, message
+            }
           }
           sendMessage(progressMessage)
         }
