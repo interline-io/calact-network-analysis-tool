@@ -575,7 +575,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       text = `
         Route ID: ${rp.route_id}<br>
         <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
-        Type: ${routeTypes.get(rp.route_type.toString())}<br>
+        Type: ${routeTypes.get(rp.route_type)}<br>
         Agency: ${rp.agency_name}`
     }
 
