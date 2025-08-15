@@ -4,8 +4,8 @@ import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './sce
 import { BasicGraphQLClient } from './graphql'
 import { MockGraphQLClient } from './scenario-fixtures.test'
 import { parseDate, parseTime } from './datetime'
+import { setupPolly } from '~/src/pollySetup'
 import type { Bbox } from '~/src/geom'
-import { setupPolly } from '~/tests/pollySetup'
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
@@ -124,7 +124,7 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
   it('should fetch real transit data from Portland area', async () => {
     polly = setupPolly('scenario-fetcher-portland-basic')
     const realClient: BasicGraphQLClient = new BasicGraphQLClient(
-      process.env.TLSERVER_TEST_ENDPOINT || '',
+      process.env.TRANSITLAND_API_ENDPOINT || '',
       process.env.TRANSITLAND_API_KEY || '',
     )
     const fetcher = new ScenarioFetcher(config, realClient)

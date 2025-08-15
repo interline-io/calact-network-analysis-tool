@@ -50,3 +50,19 @@ export function parseHMS (value: string): number {
   }
   return a[0] * 3600 + a[1] * 60 + a[2]
 }
+
+/**
+ * Get current date in YYYY-MM-DD format
+ */
+export function getCurrentDate (): string {
+  return fmtDate(getLocalDateNoTime())
+}
+
+/**
+ * Get date one week from now in YYYY-MM-DD format
+ */
+export function getDateOneWeekLater (): string {
+  const date = getLocalDateNoTime()
+  date.setDate(date.getDate() + 7)
+  return fmtDate(date)
+}
