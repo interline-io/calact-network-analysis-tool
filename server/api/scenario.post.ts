@@ -1,15 +1,10 @@
 /**
  * Server-side streaming scenario endpoint
- * Uses unified streaming implementation
+ * Uses new simplified streaming implementation with ScenarioDataReceiver pattern
  */
 
 import type { ScenarioConfig } from '~/src/scenario'
-import type {
-  ScenarioStreamingMessage,
-  ProgressMessage,
-  ErrorMessage
-} from '~/src/streaming/scenario'
-import { processStreamingScenario } from '~/src/streaming/scenario'
+import { processStreamingScenario } from '~/src/scenario-streaming'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -31,7 +26,8 @@ export default defineEventHandler(async (event) => {
       start (controller) {
         const encoder = new TextEncoder()
 
-        const sendMessage = (message: ScenarioStreamingMessage) => {
+        // Simple message sender - just serializes internal StreamingMessage to JSON
+        const sendMessage = (message: any) => {
           try {
             const jsonLine = JSON.stringify(message) + '\n'
             controller.enqueue(encoder.encode(jsonLine))
@@ -40,35 +36,20 @@ export default defineEventHandler(async (event) => {
           }
         }
 
-        const sendProgress = (phase: string, current: number, total: number, message: string) => {
-          const progressMessage: ProgressMessage = {
-            type: 'progress',
-            phase: phase as any,
-            data: {
-              current,
-              total, message
-            }
-          }
-          sendMessage(progressMessage)
-        }
-
-        const sendError = (error: any) => {
-          const errorMessage: ErrorMessage = {
-            type: 'error',
-            data: { message: error.message || 'Unknown error' }
-          }
-          sendMessage(errorMessage)
-          controller.close()
-        }
-
-        // Process scenario using unified implementation
-        processStreamingScenario(config, sendMessage, sendProgress)
+        // Use the new simplified streaming processor
+        processStreamingScenario(config, sendMessage)
           .then(() => {
             controller.close()
           })
           .catch((error) => {
             console.error('Scenario processing error:', error)
-            sendError(error)
+            // Send error message and close
+            const errorMessage = {
+              type: 'error',
+              data: { message: error.message || 'Unknown error' }
+            }
+            sendMessage(errorMessage)
+            controller.close()
           })
       }
     })

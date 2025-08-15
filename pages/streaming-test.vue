@@ -45,7 +45,7 @@
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
-      <p>{{ progress.message }} ({{ progress.current }}/{{ progress.total }})</p>
+      <p>{{ progress.currentStage }} ({{ progress.feedVersionProgress.completed }}/{{ progress.feedVersionProgress.total }})</p>
     </div>
 
     <!-- Error Display -->
@@ -101,18 +101,13 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { ScenarioConfigFromBboxName } from '~/src/scenario'
-import {
-  StreamingScenarioClient,
-  type ScenarioStreamingProgress,
-  type StopGql,
-  type RouteGql,
-  type AgencyGql
-} from '~/src/streaming/scenario'
+import type { ScenarioProgress, ScenarioData, StopGql, RouteGql, AgencyGql } from '~/src/scenario-streaming'
+import { StreamingScenarioClient } from '~/src/scenario-streaming'
 import { cannedBboxes } from '~/src/constants'
 
 // Reactive state - directly in component
 const isLoading = ref(false)
-const progress = ref<ScenarioStreamingProgress | null>(null)
+const progress = ref<ScenarioProgress | null>(null)
 const error = ref<Error | null>(null)
 const stops = ref<StopGql[]>([])
 const routes = ref<RouteGql[]>([])
@@ -130,28 +125,48 @@ const testStreaming = async () => {
 
   try {
     // Reset state
-    isLoading.value = true
-    error.value = null
-    progress.value = null
-    stops.value = []
-    routes.value = []
-    agencies.value = []
-    isComplete.value = false
+    clear()
 
-    // Call fetchScenario directly with callbacks
-    await client.fetchScenario(testConfig, {
-      onProgress: (progressData) => {
+    // Call fetchScenario with the new simplified callbacks
+    const result = await client.fetchScenario(testConfig, {
+      onProgress: (progressData: ScenarioProgress) => {
         progress.value = progressData
+
+        // Accumulate incremental data from progress events
+        if (progressData.partialData) {
+          if (progressData.partialData.stops.length > 0) {
+            stops.value.push(...progressData.partialData.stops)
+          }
+          if (progressData.partialData.routes.length > 0) {
+            routes.value.push(...progressData.partialData.routes)
+          }
+        }
       },
-      onDeparturesComplete: (_result) => {
+      onComplete: (result: ScenarioData) => {
+        // Final data is available in result
+        stops.value = result.stops
+        routes.value = result.routes
+
+        // Extract agencies from routes (since ScenarioData doesn't have agencies directly)
+        const agencyMap = new Map<string, AgencyGql>()
+        result.routes.forEach((route) => {
+          if (route.agency) {
+            agencyMap.set(route.agency.agency_id, route.agency)
+          }
+        })
+        agencies.value = Array.from(agencyMap.values())
+
         isComplete.value = true
         isLoading.value = false
       },
-      onError: (err) => {
+      onError: (err: any) => {
         error.value = err
         isLoading.value = false
       }
     })
+
+    // Note: result is also returned from fetchScenario if needed
+    console.log('Final scenario result:', result)
   } catch (err: any) {
     error.value = err
     isLoading.value = false
@@ -177,8 +192,13 @@ const clear = () => {
 
 // Computed progress percentage
 const progressPercentage = computed(() => {
-  if (!progress.value || progress.value.total === 0) return 0
-  return Math.round((progress.value.current / progress.value.total) * 100)
+  if (!progress.value) return 0
+
+  // Use feedVersionProgress for overall progress since it tracks stops + routes
+  const feedProgress = progress.value.feedVersionProgress
+  if (feedProgress.total === 0) return 0
+
+  return Math.round((feedProgress.completed / feedProgress.total) * 100)
 })
 </script>
 
