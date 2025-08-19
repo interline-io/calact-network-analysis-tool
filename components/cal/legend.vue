@@ -188,7 +188,7 @@ const props = defineProps<{
   width: 10px;
   height: 10px;
   margin: 5px;
-  background-color: #888888; // default color for stops that don't match filters or are unstyled
+  background-color: #888888; /* default color for stops that don't match filters or are unstyled */
   border-radius: 50%;
 }
 
