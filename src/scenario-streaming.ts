@@ -13,6 +13,28 @@ import { StopDepartureCache } from '~/src/departure-cache'
 export type { StopGql, RouteGql, AgencyGql, ScenarioConfig, ScenarioProgress, ScenarioData }
 
 // ============================================================================
+// STREAMING MESSAGE TYPES (Internal to streaming implementation)
+// ============================================================================
+
+// Internal message types that mirror ScenarioProgress events
+interface StreamingProgressMessage {
+  type: 'progress'
+  data: ScenarioProgress
+}
+
+interface StreamingCompleteMessage {
+  type: 'complete'
+  data: ScenarioData
+}
+
+interface StreamingErrorMessage {
+  type: 'error'
+  data: { message: string, phase?: string }
+}
+
+type StreamingMessage = StreamingProgressMessage | StreamingCompleteMessage | StreamingErrorMessage
+
+// ============================================================================
 // SCENARIO DATA RECEIVER - Core accumulation logic
 // ============================================================================
 
@@ -86,64 +108,6 @@ export class ScenarioDataReceiver {
 }
 
 // ============================================================================
-// IN-PROCESS SCENARIO FETCHER
-// ============================================================================
-
-/**
- * Fetch scenario data in-process using ScenarioFetcher + ScenarioDataReceiver
- */
-export async function fetchScenario (
-  config: ScenarioConfig,
-  callbacks: ScenarioCallbacks = {}
-): Promise<ScenarioData> {
-  // Import ScenarioFetcher here to avoid circular dependencies
-  const { ScenarioFetcher } = await import('~/src/scenario')
-  const { BasicGraphQLClient } = await import('~/src/graphql')
-
-  // Create GraphQL client
-  const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-    process.env.TRANSITLAND_API_KEY || 'test-key'
-  )
-
-  // Create receiver to accumulate data
-  const receiver = new ScenarioDataReceiver(callbacks)
-
-  // Create fetcher with receiver callbacks
-  const fetcher = new ScenarioFetcher(config, client, {
-    onProgress: progress => receiver.onProgress(progress),
-    onComplete: () => receiver.onComplete(),
-    onError: error => receiver.onError(error)
-  })
-
-  // Fetch and return result
-  const result = await fetcher.fetch()
-  return result
-}
-
-// ============================================================================
-// STREAMING MESSAGE TYPES (Internal to streaming implementation)
-// ============================================================================
-
-// Internal message types that mirror ScenarioProgress events
-interface StreamingProgressMessage {
-  type: 'progress'
-  data: ScenarioProgress
-}
-
-interface StreamingCompleteMessage {
-  type: 'complete'
-  data: ScenarioData
-}
-
-interface StreamingErrorMessage {
-  type: 'error'
-  data: { message: string, phase?: string }
-}
-
-type StreamingMessage = StreamingProgressMessage | StreamingCompleteMessage | StreamingErrorMessage
-
-// ============================================================================
 // STREAMING SERVER IMPLEMENTATION
 // ============================================================================
 
@@ -197,14 +161,10 @@ export class ScenarioDataSender {
       })
 
       // Start the scenario fetching process and get the final result
-      const result = await scenarioFetcher.fetch()
+      await scenarioFetcher.fetch()
 
       // Send the complete message with the final result
-      const message: StreamingCompleteMessage = {
-        type: 'complete',
-        data: result
-      }
-      this.sendMessage(message)
+      // this.sendMessage({ type: 'complete' })
     } catch (error) {
       console.error('Error in ScenarioDataSender:', error)
       const message: StreamingErrorMessage = {
@@ -215,18 +175,6 @@ export class ScenarioDataSender {
       throw error
     }
   }
-}
-
-/**
- * Convenience function for sending scenario data
- * Creates a ScenarioDataSender and calls sendScenario
- */
-export async function sendScenario (
-  config: ScenarioConfig,
-  sendMessage: (message: StreamingMessage) => void
-): Promise<void> {
-  const sender = new ScenarioDataSender(sendMessage)
-  return await sender.sendScenario(config)
 }
 
 // ============================================================================

@@ -11,7 +11,8 @@ import {
   scenarioSaveData,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import { ScenarioFetcher, type ScenarioData, type ScenarioConfig } from '~/src/scenario'
+import { ScenarioFetcher, type ScenarioData, type ScenarioConfig, type ScenarioCallbacks } from '~/src/scenario'
+import { ScenarioDataReceiver } from '~/src/scenario-streaming'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
@@ -53,15 +54,26 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
     process.env.TRANSITLAND_API_KEY || ''
   )
 
-  // Create scenario fetcher with progress reporting
-  const fetcher = new ScenarioFetcher(config, client, {
+  // Create callback functions for progress reporting
+  const callbacks: ScenarioCallbacks = {
     onError: (error) => {
       console.error('❌ Error during fetch:', error.message)
     }
+  }
+
+  // Create receiver to accumulate data
+  const receiver = new ScenarioDataReceiver(callbacks)
+
+  // Create scenario fetcher with receiver callbacks
+  const fetcher = new ScenarioFetcher(config, client, {
+    onProgress: progress => receiver.onProgress(progress),
+    onComplete: () => receiver.onComplete(),
+    onError: error => receiver.onError(error)
   })
 
   // Execute the fetch
-  const result = await fetcher.fetch()
+  await fetcher.fetch()
+  const result = receiver.getCurrentData()
 
   console.log('✅ Fetch completed!')
   // Save scenario data if requested

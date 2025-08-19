@@ -4,8 +4,44 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { ScenarioDataReceiver, fetchScenario } from './scenario-streaming'
-import type { ScenarioConfig, ScenarioCallbacks } from '~/src/scenario'
+import { ScenarioDataReceiver } from './scenario-streaming'
+import type { ScenarioConfig, ScenarioCallbacks, ScenarioData } from '~/src/scenario'
+
+// ============================================================================
+// IN-PROCESS SCENARIO FETCHER
+// ============================================================================
+
+/**
+ * Fetch scenario data in-process using ScenarioFetcher + ScenarioDataReceiver
+ */
+export async function scenarioFetchHelper (
+  config: ScenarioConfig,
+  callbacks: ScenarioCallbacks = {}
+): Promise<ScenarioData> {
+  // Import ScenarioFetcher here to avoid circular dependencies
+  const { ScenarioFetcher } = await import('~/src/scenario')
+  const { BasicGraphQLClient } = await import('~/src/graphql')
+
+  // Create GraphQL client
+  const client = new BasicGraphQLClient(
+    process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
+    process.env.TRANSITLAND_API_KEY || 'test-key'
+  )
+
+  // Create receiver to accumulate data
+  const receiver = new ScenarioDataReceiver(callbacks)
+
+  // Create fetcher with receiver callbacks
+  const fetcher = new ScenarioFetcher(config, client, {
+    onProgress: progress => receiver.onProgress(progress),
+    onComplete: () => receiver.onComplete(),
+    onError: error => receiver.onError(error)
+  })
+
+  // Fetch and return result
+  await fetcher.fetch()
+  return receiver.getCurrentData()
+}
 
 describe('ScenarioDataReceiver', () => {
   it('should accumulate data from progress events', () => {
@@ -93,8 +129,8 @@ describe('fetchScenario integration', () => {
     }
 
     // Since we don't have full mocking set up, we'll just verify the interface
-    expect(fetchScenario).toBeDefined()
-    expect(typeof fetchScenario).toBe('function')
+    expect(scenarioFetchHelper).toBeDefined()
+    expect(typeof scenarioFetchHelper).toBe('function')
 
     // Test that it accepts the right parameters
     const callbacks: ScenarioCallbacks = {
@@ -104,6 +140,6 @@ describe('fetchScenario integration', () => {
     }
 
     // We can't actually run this without proper mocking, but we can verify types
-    expect(() => fetchScenario(config, callbacks)).not.toThrow()
+    expect(() => scenarioFetchHelper(config, callbacks)).not.toThrow()
   })
 })

@@ -200,7 +200,7 @@ export class ScenarioFetcher {
     )
   }
 
-  async fetch (): Promise<ScenarioData> {
+  async fetch () {
     try {
       return await this.fetchMain()
     } catch (error) {
@@ -210,7 +210,7 @@ export class ScenarioFetcher {
   }
 
   // Start the scenario fetching process
-  private async fetchMain (): Promise<ScenarioData> {
+  private async fetchMain () {
     // Reset state
     this.stopResults = []
     this.routeResults = []
@@ -256,17 +256,9 @@ export class ScenarioFetcher {
     console.log(`Completed fetching schedules`)
 
     // FINAL STAGE: Apply filters and build final result
-    const result: ScenarioData = {
-      routes: this.routeResults,
-      stops: this.stopResults,
-      feedVersions: this.feedVersions,
-      stopDepartureCache: this.stopDepartureCache,
-      isComplete: true
-    }
     this.callbacks.onComplete?.()
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete: ${this.stopResults.length} stops, ${this.routeResults.length} routes`)
-    return result
   }
 
   // Fetch active feed versions in the specified area
