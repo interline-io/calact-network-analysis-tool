@@ -3,6 +3,7 @@
  * Separates fetching from accumulation for better architecture
  */
 
+import { createWriteStream, type WriteStream } from 'fs'
 import type { StopGql } from '~/src/stop'
 import type { RouteGql } from '~/src/route'
 import type { AgencyGql } from '~/src/agency'
@@ -24,7 +25,7 @@ interface StreamingProgressMessage {
 
 interface StreamingCompleteMessage {
   type: 'complete'
-  data: ScenarioData
+  data?: { isComplete: boolean }
 }
 
 interface StreamingErrorMessage {
@@ -45,6 +46,7 @@ type StreamingMessage = StreamingProgressMessage | StreamingCompleteMessage | St
 export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
+  private fileStream: WriteStream | null = null
 
   constructor (callbacks: ScenarioCallbacks = {}) {
     this.callbacks = callbacks
@@ -55,6 +57,17 @@ export class ScenarioDataReceiver {
       stopDepartureCache: new StopDepartureCache(),
       isComplete: false
     }
+  }
+
+  saveStream (filename: string) {
+    // Open a file stream for writing newline-delimited JSON
+    this.fileStream = createWriteStream(filename, { encoding: 'utf8' })
+
+    // Handle stream errors
+    this.fileStream.on('error', (error) => {
+      console.error('File stream error:', error)
+      this.callbacks.onError?.(error)
+    })
   }
 
   /**
@@ -79,6 +92,17 @@ export class ScenarioDataReceiver {
       }
     }
 
+    // Write progress to file stream if streaming to file
+    if (this.fileStream) {
+      const message: StreamingProgressMessage = {
+        type: 'progress',
+        data: progress
+      }
+      this.fileStream.write(JSON.stringify(message) + '\n')
+      // Immediately flush to ensure data is written
+      this.fileStream.uncork()
+    }
+
     // Forward progress to callback
     this.callbacks.onProgress?.(progress)
   }
@@ -89,6 +113,22 @@ export class ScenarioDataReceiver {
   onComplete (): void {
     // Mark data as complete
     this.accumulatedData.isComplete = true
+
+    // Write completion to file stream if streaming to file
+    if (this.fileStream) {
+      const message: StreamingCompleteMessage = {
+        type: 'complete',
+        data: { isComplete: true }
+      }
+      this.fileStream.write(JSON.stringify(message) + '\n', () => {
+        // Close stream after write completes
+        if (this.fileStream) {
+          this.fileStream.end()
+          this.fileStream = null
+        }
+      })
+    }
+
     this.callbacks.onComplete?.()
   }
 
@@ -96,6 +136,24 @@ export class ScenarioDataReceiver {
    * Handle error from ScenarioFetcher
    */
   onError (error: any): void {
+    // Write error to file stream if streaming to file
+    if (this.fileStream) {
+      const message: StreamingErrorMessage = {
+        type: 'error',
+        data: {
+          message: error.message || error.toString(),
+          phase: error.phase
+        }
+      }
+      this.fileStream.write(JSON.stringify(message) + '\n', () => {
+        // Close stream after write completes
+        if (this.fileStream) {
+          this.fileStream.end()
+          this.fileStream = null
+        }
+      })
+    }
+
     this.callbacks.onError?.(error)
   }
 
@@ -104,6 +162,16 @@ export class ScenarioDataReceiver {
    */
   getCurrentData (): ScenarioData {
     return { ...this.accumulatedData }
+  }
+
+  /**
+   * Close the file stream if it's open
+   */
+  closeStream (): void {
+    if (this.fileStream) {
+      this.fileStream.end()
+      this.fileStream = null
+    }
   }
 }
 

@@ -63,6 +63,10 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create receiver to accumulate data
   const receiver = new ScenarioDataReceiver(callbacks)
+  // Save scenario data if requested
+  if (options.saveScenarioData) {
+    receiver.saveStream(options.saveScenarioData)
+  }
 
   // Create scenario fetcher with receiver callbacks
   const fetcher = new ScenarioFetcher(config, client, {
@@ -76,10 +80,6 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   const result = receiver.getCurrentData()
 
   console.log('✅ Fetch completed!')
-  // Save scenario data if requested
-  if (options.saveScenarioData) {
-    await scenarioSaveData(options.saveScenarioData, result, config)
-  }
 
   // Output results based on format
   switch (options.output) {
