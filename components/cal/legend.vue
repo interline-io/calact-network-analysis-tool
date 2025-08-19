@@ -37,24 +37,22 @@
         </div>
 
         <!-- Geometry Style -->
-        <div v-if="props.hasData && props.dataDisplayMode === 'Route'" class="cal-map-legend-section">
+        <div v-if="props.hasData && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
           </div>
-          <div>
+          <div v-if="!props.hideUnmarked">
             <div class="legend-item legend-thin-line" />
-            <div>Routes not satisfying all filters</div>
+            <div>Routes <em>not</em> satisfying all filters</div>
           </div>
-        </div>
-        <div v-else-if="props.dataDisplayMode === 'Stop'" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-large-circle" />
             <div>Stops satisfying all filters</div>
           </div>
-          <div>
+          <div v-if="!props.hideUnmarked">
             <div class="legend-item legend-small-circle" />
-            <div>Stops not satisfying all filters</div>
+            <div>Stops <em>not</em> satisfying all filters</div>
           </div>
         </div>
 
@@ -101,6 +99,7 @@ const props = defineProps<{
   styleData: any
   hasData: boolean
   displayEditBboxMode?: boolean
+  hideUnmarked?: boolean
 }>()
 </script>
 
@@ -189,7 +188,7 @@ const props = defineProps<{
   width: 10px;
   height: 10px;
   margin: 5px;
-  background-color: #aaa8;
+  background-color: #888888; // default color for stops that don't match filters or are unstyled
   border-radius: 50%;
 }
 
