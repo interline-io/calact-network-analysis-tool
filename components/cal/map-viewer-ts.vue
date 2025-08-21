@@ -193,7 +193,7 @@ function createLayers () {
     type: 'circle',
     source: 'points',
     paint: {
-      'circle-color': ['coalesce', ['get', 'marker-color'], '#ff0000'],
+      'circle-color': ['coalesce', ['get', 'marker-color'], '#888888'], // gray is the fallback color for stop points while routes or other data that may be needed for styling logic is still loading
       'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
       'circle-opacity': ['coalesce', ['get', 'marker-opacity'], 1.0],
     }

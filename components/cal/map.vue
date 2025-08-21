@@ -22,6 +22,7 @@
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
+      :hide-unmarked="hideUnmarked"
     />
 
     <cal-map-viewer-ts
@@ -258,8 +259,23 @@ const styleData = computed((): Matcher[] => {
   function getModeMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.every((rs: any) => rs.route.route_type === val)
+        // Filter out routes with null/undefined route_type to avoid false matches
+        // Also check that route data exists (may still be loading)
+        const validRoutes = (v as Stop).route_stops.filter((rs: any) =>
+          rs.route
+          && rs.route.route_type !== null
+          && rs.route.route_type !== undefined
+        )
+        // If no valid routes, don't match any mode (routes may still be loading)
+        if (validRoutes.length === 0) {
+          return false
+        }
+        return validRoutes.every((rs: any) => rs.route.route_type === val)
       } else if (v.__typename === 'Route') {
+        // For routes, also check for null/undefined
+        if ((v as Route).route_type === null || (v as Route).route_type === undefined) {
+          return false
+        }
         return (v as Route).route_type === val
       }
       return false
