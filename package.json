@@ -11,7 +11,7 @@
     "start": "nuxt start",
     "generate": "nuxt generate",
     "lint": "eslint .",
-    "test": "vitest run --reporter=basic",
+    "test": "vitest run",
     "test:watch": "vitest --watch",
     "calact": "tsx scripts/calact.ts"
   },

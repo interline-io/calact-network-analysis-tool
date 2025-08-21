@@ -187,7 +187,6 @@ import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
 import type { ScenarioConfig, ScenarioFilter, ScenarioData, ScenarioProgress } from '~/src/scenario'
 import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario'
 import type { GraphQLClient } from '~/src/graphql'
-import { deserializeScenarioTestFixture, type SerializableScenarioTestFixture } from '~/src/scenario-fixtures'
 import { StopDepartureCache } from '~/src/departure-cache'
 
 definePageMeta({
@@ -757,22 +756,7 @@ const createGraphQLClientAdapter = (): GraphQLClient => {
 }
 
 const loadExampleData = async (exampleName: string) => {
-  console.log('current bbox', exampleName)
-  const data: SerializableScenarioTestFixture = await fetch(`/examples/${exampleName}.json`)
-    .then(res => res.json())
-  const fixture = deserializeScenarioTestFixture(data)
-  scenarioData.value = fixture.data
-  const finalResult = applyScenarioResultFilter(fixture.data, fixture.config, fixture.filter)
-  routeFeatures.value = finalResult.routes
-  stopFeatures.value = finalResult.stops
-  agencyFeatures.value = finalResult.agencies
-  stopDepartureLoadingComplete.value = true
-  // startDate.value = fixture.config.startDate!
-  // endDate.value = fixture.config.endDate!
-  setQuery({ ...route.query,
-    startDate: fmtDate(fixture.config.startDate!),
-    endDate: fmtDate(fixture.config.endDate!),
-  })
+  console.log('loading:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
 }
 

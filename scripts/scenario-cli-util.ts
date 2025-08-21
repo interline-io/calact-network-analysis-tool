@@ -1,12 +1,7 @@
-import { pipeline } from 'stream/promises'
-import { createWriteStream } from 'fs'
-import type { Readable } from 'stream'
 import type { Command } from 'commander'
-import bigJson from 'big-json'
 import { cannedBboxes } from '~/src/constants'
 import { getCurrentDate, getDateOneWeekLater } from '~/src/datetime'
-import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
-import { serializeScenarioTestFixture } from '~/src/scenario-fixtures'
+import type { ScenarioData } from '~/src/scenario'
 
 /**
  * Stream a JSON object to disk in chunks to handle large files efficiently
@@ -93,43 +88,4 @@ export function scenarioOutputCsv (result: any) {
     const routeCount = stop.route_stops?.length || 0
     console.log(`${stop.id},"${stop.stop_name || 'Unnamed'}",${stop.marked},${routeCount}`)
   })
-}
-
-/**
- * Save scenario data and config to a file using streaming JSON
- */
-export async function scenarioSaveData (filename: string, data: ScenarioData, config: ScenarioConfig) {
-  // Create a default ScenarioFilter with sensible defaults
-  const filter: ScenarioFilter = {
-    selectedRouteTypes: [],
-    selectedDays: [],
-    selectedAgencies: [],
-    selectedDayOfWeekMode: 'Any',
-    selectedTimeOfDayMode: 'All',
-    frequencyUnderEnabled: false,
-    frequencyOverEnabled: false
-  }
-  const fixture = {
-    config,
-    filter,
-    data
-  }
-  const fixtureData = serializeScenarioTestFixture(fixture)
-
-  // Use the general streaming helper
-  console.log('Start writing file....')
-  await streamJsonToFile(filename, fixtureData)
-  console.log('...done')
-  console.log(`💾 Scenario data saved to: ${filename}`)
-}
-
-export async function streamJsonToFile (
-  filename: string,
-  data: any,
-): Promise<void> {
-  const writeStream = createWriteStream(filename)
-  const stringifyStream = bigJson.createStringifyStream({
-    body: data
-  }) as Readable // Type assertion to tell TypeScript this is a Readable stream
-  await pipeline(stringifyStream, writeStream)
 }

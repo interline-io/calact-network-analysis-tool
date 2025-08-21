@@ -1,3 +1,4 @@
+import { createWriteStream, type WriteStream } from 'fs'
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
 import {
@@ -6,7 +7,6 @@ import {
   StopDepartureQueryVars,
   stopDepartureQuery
 } from './departure'
-import { StopDepartureCache } from './departure-cache'
 import {
   type Stop,
   type StopGql,
@@ -22,8 +22,9 @@ import {
   newRouteHeadwaySummary
 } from './route'
 import { TaskQueue } from './task-queue'
-import type { GraphQLClient } from './graphql'
+import { BasicGraphQLClient, type GraphQLClient } from './graphql'
 import { getCurrentDate, parseDate, getDateOneWeekLater } from './datetime'
+import { StopDepartureCache } from '~/src/departure-cache'
 import { cannedBboxes, type dow, routeTypes } from '~/src/constants'
 import { parseBbox, type Bbox } from '~/src/geom'
 
@@ -106,9 +107,9 @@ export interface ScenarioFilterResult {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  stopDepartureProgress: { total: number, completed: number }
-  feedVersionProgress: { total: number, completed: number }
   currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete' | 'ready'
+  stopDepartureProgress?: { total: number, completed: number }
+  feedVersionProgress?: { total: number, completed: number }
   error?: any
   // Partial data available during progress
   partialData?: {
@@ -127,9 +128,10 @@ export interface ScenarioCallbacks {
   onError?: (error: any) => void
 }
 
-/**
- * Main class for fetching scenario data
- */
+// ============================================================================
+// SCENARIO MAIN CLASS
+// ============================================================================
+
 export class ScenarioFetcher {
   private config: ScenarioConfig
   private callbacks: ScenarioCallbacks
@@ -434,6 +436,266 @@ export class ScenarioFetcher {
     })
   }
 }
+
+// ============================================================================
+// SCENARIO DATA RECEIVER - Core accumulation logic
+// ============================================================================
+
+/**
+ * Receives progress events and accumulates ScenarioData
+ * This is the core logic used by both in-process and streaming scenarios
+ */
+export class ScenarioDataReceiver {
+  private accumulatedData: ScenarioData
+  private callbacks: ScenarioCallbacks
+  private fileStream: WriteStream | null = null
+
+  constructor (callbacks: ScenarioCallbacks = {}) {
+    this.callbacks = callbacks
+    this.accumulatedData = {
+      stops: [],
+      routes: [],
+      feedVersions: [],
+      stopDepartureCache: new StopDepartureCache(),
+      isComplete: false
+    }
+  }
+
+  saveStream (filename: string) {
+    // Open a file stream for writing newline-delimited JSON
+    this.fileStream = createWriteStream(filename, { encoding: 'utf8' })
+
+    // Handle stream errors
+    this.fileStream.on('error', (error) => {
+      console.error('File stream error:', error)
+      this.callbacks.onError?.(error)
+    })
+  }
+
+  /**
+   * Handle a progress event from ScenarioFetcher
+   */
+  onProgress (progress: ScenarioProgress): void {
+    // If progress contains partial data, accumulate it
+    if (progress.partialData) {
+      // Append new stops
+      if (progress.partialData.stops.length > 0) {
+        this.accumulatedData.stops.push(...progress.partialData.stops)
+      }
+
+      // Append new routes
+      if (progress.partialData.routes.length > 0) {
+        this.accumulatedData.routes.push(...progress.partialData.routes)
+      }
+
+      // Append new feed versions
+      if (progress.partialData.feedVersions.length > 0) {
+        this.accumulatedData.feedVersions.push(...progress.partialData.feedVersions)
+      }
+    }
+
+    // Write progress to file stream if streaming to file
+    if (this.fileStream) {
+      this.fileStream.write(JSON.stringify(progress) + '\n')
+      // Immediately flush to ensure data is written
+      this.fileStream.uncork()
+    }
+
+    // Forward progress to callback
+    this.callbacks.onProgress?.(progress)
+  }
+
+  /**
+   * Handle completion from ScenarioFetcher
+   */
+  onComplete (): void {
+    // Mark data as complete
+    this.accumulatedData.isComplete = true
+
+    // Write completion to file stream if streaming to file
+    if (this.fileStream) {
+      const completionMessage: ScenarioProgress = { isLoading: false, currentStage: 'complete' }
+      this.fileStream.write(JSON.stringify(completionMessage) + '\n', () => {
+        // Close stream after write completes
+        if (this.fileStream) {
+          this.fileStream.end()
+          this.fileStream = null
+        }
+      })
+    }
+
+    this.callbacks.onComplete?.()
+  }
+
+  /**
+   * Handle error from ScenarioFetcher
+   */
+  onError (error: any): void {
+    // Write error to file stream if streaming to file
+    if (this.fileStream) {
+      const errorMessage: ScenarioProgress = {
+        isLoading: false,
+        currentStage: 'complete',
+        error: {
+          message: error.message || error.toString(),
+        }
+      }
+      this.fileStream.write(JSON.stringify(errorMessage) + '\n', () => {
+        // Close stream after write completes
+        if (this.fileStream) {
+          this.fileStream.end()
+          this.fileStream = null
+        }
+      })
+    }
+
+    this.callbacks.onError?.(error)
+  }
+
+  /**
+   * Get the current accumulated data
+   */
+  getCurrentData (): ScenarioData {
+    return { ...this.accumulatedData }
+  }
+
+  /**
+   * Close the file stream if it's open
+   */
+  closeStream (): void {
+    if (this.fileStream) {
+      this.fileStream.end()
+      this.fileStream = null
+    }
+  }
+}
+
+// ============================================================================
+// STREAMING SERVER IMPLEMENTATION
+// ============================================================================
+
+/**
+ * Server-side streaming sender
+ * Converts ScenarioFetcher progress events to JSON messages over the wire
+ */
+export class ScenarioDataSender {
+  private sendMessage: (message: ScenarioProgress) => void
+
+  constructor (sendMessage: (message: ScenarioProgress) => void) {
+    this.sendMessage = sendMessage
+  }
+
+  /**
+   * Send scenario data using ScenarioFetcher with streaming callbacks
+   */
+  async sendScenario (config: ScenarioConfig): Promise<void> {
+    try {
+      // Create GraphQL client
+      const client = new BasicGraphQLClient(
+        process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
+        process.env.TRANSITLAND_API_KEY || 'test-key'
+      )
+
+      // Create ScenarioFetcher with streaming message sender
+      const scenarioFetcher = new ScenarioFetcher(config, client, {
+        onProgress: (progress) => {
+          this.sendMessage(progress)
+        },
+        onComplete: () => {
+          // onComplete is called but the result is returned from fetch()
+          // We'll send the complete message after fetch() returns
+        },
+        onError: (error) => {
+          console.error('ScenarioFetcher error:', error)
+          this.sendMessage({
+            isLoading: false,
+            currentStage: 'complete',
+            error: { message: error.message || 'Unknown error in ScenarioFetcher' }
+          })
+        }
+      })
+
+      // Start the scenario fetching process and get the final result
+      await scenarioFetcher.fetch()
+
+      // Send the complete message with the final result
+      // this.sendMessage({ type: 'complete' })
+    } catch (error) {
+      console.error('Error in ScenarioDataSender:', error)
+      this.sendMessage({
+        isLoading: false,
+        currentStage: 'complete',
+        error: { message: error instanceof Error ? error.message : 'Unknown error in ScenarioDataSender' }
+      })
+      throw error
+    }
+  }
+}
+
+// ============================================================================
+// STREAMING CLIENT IMPLEMENTATION
+// ============================================================================
+
+/**
+ * Streaming client receives messages from server and uses ScenarioDataReceiver
+ */
+export class ScenarioClient {
+  /**
+   * Fetch scenario data using streaming from server
+   */
+  async fetchScenario (
+    config: ScenarioConfig,
+    callbacks: ScenarioCallbacks = {}
+  ): Promise<ScenarioData> {
+    // Validate config
+    if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+      throw new Error('Either bbox or geographyIds must be provided')
+    }
+
+    // Create receiver to accumulate data from streaming messages
+    const receiver = new ScenarioDataReceiver(callbacks)
+    const response = await fetch('/api/scenario', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(config),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('Response body is not readable')
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue
+        receiver.onProgress(JSON.parse(line) as ScenarioProgress)
+      }
+    }
+
+    // Return current accumulated data if stream ended without completion
+    return receiver.getCurrentData()
+  }
+}
+
+/*****************
+ * Apply filters to the scenario result data based on the provided configuration and filter criteria.
+ */
 
 export function applyScenarioResultFilter (
   data: ScenarioData,
