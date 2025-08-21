@@ -122,7 +122,9 @@ describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
   })
 
   it('should fetch real transit data from Portland area', async () => {
-    polly = setupPolly('scenario-fetcher-portland-basic')
+    polly = setupPolly('scenario-fetcher-portland-basic', {
+      recordPatterns: ['http://localhost:8080/*'],
+    })
     const realClient: BasicGraphQLClient = new BasicGraphQLClient(
       process.env.TRANSITLAND_API_ENDPOINT || '',
       process.env.TRANSITLAND_API_KEY || '',
