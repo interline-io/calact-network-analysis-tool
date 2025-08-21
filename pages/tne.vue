@@ -184,7 +184,7 @@ import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/sr
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
-import type { ScenarioConfig, ScenarioFilter, ScenarioData, ScenarioProgress } from '~/src/scenario'
+import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioProgress } from '~/src/scenario'
 import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario'
 import type { GraphQLClient } from '~/src/graphql'
 import { StopDepartureCache } from '~/src/departure-cache'
@@ -789,8 +789,7 @@ const fetchScenario = async () => {
           agencyFeatures.value = partialResult.agencies
         }
       },
-      onComplete: (result: ScenarioData) => {
-        scenarioData.value = result
+      onComplete: () => {
         isLoading.value = false
       },
       onError: (err: any) => {
@@ -800,8 +799,8 @@ const fetchScenario = async () => {
       }
     }
     const fetcher = new ScenarioFetcher(config, client, callbacks)
-    const finalData = await fetcher.fetch()
-    const finalResult = applyScenarioResultFilter(finalData, scenarioConfig.value, scenarioFilter.value)
+    await fetcher.fetch()
+    const finalResult = applyScenarioResultFilter(scenarioData.value!, scenarioConfig.value, scenarioFilter.value)
     routeFeatures.value = finalResult.routes
     stopFeatures.value = finalResult.stops
     agencyFeatures.value = finalResult.agencies
