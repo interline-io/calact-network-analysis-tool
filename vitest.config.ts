@@ -1,18 +1,18 @@
-import 'dotenv/config'
-import path from 'path'
-import { defineConfig } from 'vitest/config'
+import { defineVitestConfig } from '@nuxt/test-utils/config'
 
-export default defineConfig({
+export default defineVitestConfig({
   test: {
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    exclude: ['node_modules', 'dist', '.nuxt']
-  },
-  resolve: {
-    alias: {
-      '~': path.resolve(__dirname, '.'),
-      '@': './src'
-    }
+    exclude: ['node_modules', 'dist', '.nuxt'],
+    reporters: [
+      [
+        'default',
+        {
+          summary: false
+        }
+      ]
+    ]
   }
 })
