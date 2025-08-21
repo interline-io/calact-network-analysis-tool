@@ -45,7 +45,7 @@
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
-      <p>{{ progress.currentStage }} ({{ progress.feedVersionProgress.completed }}/{{ progress.feedVersionProgress.total }})</p>
+      <p>{{ progress.currentStage }} ({{ progress.feedVersionProgress?.completed }}/{{ progress.feedVersionProgress?.total }})</p>
     </div>
 
     <!-- Error Display -->
@@ -100,9 +100,11 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import { ScenarioConfigFromBboxName } from '~/src/scenario'
-import type { ScenarioProgress, StopGql, RouteGql, AgencyGql } from '~/src/scenario-streaming'
-import { ScenarioClient } from '~/src/scenario-streaming'
+import type { ScenarioProgress } from '~/src/scenario'
+import { ScenarioConfigFromBboxName, ScenarioClient } from '~/src/scenario'
+import type { StopGql } from '~/src/stop'
+import type { RouteGql } from '~/src/route'
+import type { AgencyGql } from '~/src/agency'
 import { cannedBboxes } from '~/src/constants'
 
 // Reactive state - directly in component
@@ -170,7 +172,7 @@ const testStreaming = async () => {
 
 // Cancel current request
 const cancel = () => {
-  client.cancel()
+  // client.cancel()
   isLoading.value = false
 }
 
@@ -191,7 +193,7 @@ const progressPercentage = computed(() => {
 
   // Use feedVersionProgress for overall progress since it tracks stops + routes
   const feedProgress = progress.value.feedVersionProgress
-  if (feedProgress.total === 0) return 0
+  if (!feedProgress || feedProgress.total === 0) return 0
 
   return Math.round((feedProgress.completed / feedProgress.total) * 100)
 })
