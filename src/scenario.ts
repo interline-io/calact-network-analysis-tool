@@ -355,13 +355,14 @@ export class ScenarioFetcher {
       return
     }
 
-    const fetchDates = `sunday:${task.get('sunday')}, monday:${task.get('monday')}, tuesday:${task.get('tuesday')}, wednesday:${task.get('wednesday')}, thursday:${task.get('thursday')}, friday:${task.get('friday')}, saturday:${task.get('saturday')}`
+    
+    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const fetchDates = dowDateStringLower.filter((s) => task.get(s)).map((s) => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
     console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
 
     // Update cache
     const stopData: StopDeparture[] = response.data?.stops || []
-    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     for (const dow of dowDateStringLower) {
       const dowDate = task.get(dow)
       if (!dowDate) {

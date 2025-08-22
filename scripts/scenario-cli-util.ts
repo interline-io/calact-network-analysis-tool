@@ -17,7 +17,6 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--end-date <date>', 'End date (YYYY-MM-DD)', getDateOneWeekLater())
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
     .option('--end-time <time>', 'End time (HH:MM)', '22:00')
-    .option('--endpoint <url>', 'GraphQL API URL', 'https://api.transit.land/api/v2/query')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
@@ -44,7 +43,6 @@ export interface ScenarioCliOptions {
   endDate: string
   startTime: string
   endTime: string
-  endpoint: string
   output: string
   saveScenarioData?: string
   noSchedule: boolean

@@ -7,7 +7,6 @@ export NODE_OPTIONS="--max-old-space-size=16384"
 for scenario in downtown-portland downtown-portland-zoomed bend eugene salem portland; do
     rm $OUTDIR/$scenario.*
     /usr/bin/time yarn calact wsdot \
-        --endpoint http://localhost:8080/query \
         --start-date=2025-08-11 \
         --end-date=2025-08-17 \
         --weekday-date=2025-08-11 \
@@ -21,7 +20,6 @@ done;
 for scenario in greater-seattle greater-portland; do
     rm $OUTDIR/$scenario.*
     /usr/bin/time yarn calact wsdot \
-        --endpoint http://localhost:8080/query \
         --start-date=2025-08-11 \
         --end-date=2025-08-17 \
         --weekday-date=2025-08-11 \

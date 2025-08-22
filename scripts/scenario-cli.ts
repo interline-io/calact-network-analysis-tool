@@ -48,9 +48,10 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create GraphQL client
   const client = new BasicGraphQLClient(
-    options.endpoint,
+    process.env.TRANSITLAND_API_ENDPOINT,
     process.env.TRANSITLAND_API_KEY || ''
   )
+
 
   // Create callback functions for progress reporting
   const callbacks: ScenarioCallbacks = {
