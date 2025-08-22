@@ -3,12 +3,15 @@
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
     <tl-msg-info>
-      <h4 class="title is-5">
+      <h5 class="title is-5">
         About this Analysis
-      </h4>
+      </h5>
       <p class="mb-3">
         The Washington State Department of Transportation (WSDOT) Frequent Transit Service Study analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
         This study defines seven levels of transit frequency based on headway, span, and days of service.
+      </p>
+      <p>
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
     </tl-msg-info>
 
