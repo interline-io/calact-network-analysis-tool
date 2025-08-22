@@ -4,13 +4,23 @@
       <analysis-wsdot
         :scenario-config="scenarioConfig"
         :scenario-data="scenarioData"
+        @cancel="handleCancel"
+      />
+    </div>
+    <div v-else-if="selectedReportType === 'wsdot-stops-routes'">
+      <analysis-wsdot-stops-routes
+        :scenario-config="scenarioConfig"
+        :scenario-data="scenarioData"
+        @cancel="handleCancel"
       />
     </div>
     <div v-else>
       <tl-title title="Analysis" />
 
-      <o-field label="Select analysis">
-        <o-select v-model="selectedReportType">
+      <tl-msg-info>For richer metrics than included in the Report tab by default, run an analysis. Additional analyses can be added and customized for stakeholders by the project team.</tl-msg-info>
+
+      <o-field label="Start an analysis">
+        <o-select v-model="selectedReportType" placeholder="Select an analysis to run">
           <option v-for="[reportType, reportLabel] of Object.entries(reportTypes)" :key="reportType" :value="reportType">
             {{ reportLabel }}
           </option>
@@ -27,11 +37,14 @@ const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 
 const reportTypes: Record<string, string> = {
-  '': 'Pick a report',
-  'wsdot': 'WSDOT Report',
-  'another': 'Another Report',
+  'wsdot': 'WSDOT Frequent Transit Service Study',
+  'wsdot-stops-routes': 'WSDOT Transit Stops and Transit Routes',
 }
 const selectedReportType = ref<string>('')
+
+const handleCancel = () => {
+  selectedReportType.value = ''
+}
 </script>
 
 <style scoped lang="scss">
