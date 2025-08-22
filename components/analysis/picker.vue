@@ -17,7 +17,10 @@
     <div v-else>
       <tl-title title="Analysis" />
 
-      <tl-msg-info>For richer metrics than included in the Report tab by default, run an analysis. Additional analyses can be added and customized for stakeholders by the project team.</tl-msg-info>
+      <tl-msg-info>
+        <p>For richer metrics than included in the <o-icon icon="file-chart" style="vertical-align:middle;" /> <strong>Report tab</strong> by default, run an analysis.</p>
+        <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
+      </tl-msg-info>
 
       <o-field label="Start an analysis">
         <o-select v-model="selectedReportType" placeholder="Select an analysis to run">
