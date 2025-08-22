@@ -141,6 +141,7 @@ export interface WSDOTStopResult {
 export interface WSDOTReportConfig extends ScenarioConfig {
   weekdayDate: Date
   weekendDate: Date
+  stopBufferRadius?: number
 }
 
 export class WSDOTReportFetcher {

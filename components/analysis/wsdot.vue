@@ -1,6 +1,17 @@
 <template>
   <div class="cal-report">
     <tl-title title="WSDOT Frequent Transit Service Study" />
+
+    <tl-msg-info>
+      <h4 class="title is-5">
+        About this Analysis
+      </h4>
+      <p class="mb-3">
+        The Washington State Department of Transportation (WSDOT) Frequent Transit Service Study analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
+        This study defines seven levels of transit frequency based on headway, span, and days of service.
+      </p>
+    </tl-msg-info>
+
     <div v-if="loading">
       Loading...
     </div>
@@ -11,33 +22,72 @@
       />
     </div>
     <div v-else>
-      <strong>Configure report</strong>
+      <div class="card">
+        <header class="card-header">
+          <p class="card-header-title">
+            Configure Report
+          </p>
+        </header>
+        <div class="card-content">
+          <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+            <o-field label="Example regions">
+              <o-select v-model="cannedBbox">
+                <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+                  {{ cannedBboxDetails.label }}
+                </option>
+              </o-select>
+              <o-button @click="loadExampleWsdotReport">
+                Load example
+              </o-button>
+            </o-field>
+            <br>
+          </tl-msg-warning>
 
-      <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
-        <o-field label="Example regions">
-          <o-select v-model="cannedBbox">
-            <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
-              {{ cannedBboxDetails.label }}
-            </option>
-          </o-select>
-          <o-button @click="loadExampleWsdotReport">
-            Load example
-          </o-button>
-        </o-field>
-        <br>
-      </tl-msg-warning>
+          <o-field>
+            <template #label>
+              <o-tooltip multiline label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
+                Weekday date
+                <o-icon icon="information" />
+              </o-tooltip>
+            </template>
+            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </o-field>
 
-      <o-field label="Weekday date">
-        <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-      </o-field>
+          <o-field>
+            <template #label>
+              <o-tooltip multiline label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
+                Weekend date
+                <o-icon icon="information" />
+              </o-tooltip>
+            </template>
+            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </o-field>
 
-      <o-field label="Weekend date">
-        <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
-      </o-field>
-
-      <o-button variant="primary" @click="runWsdotReport">
-        Run Report
-      </o-button>
+          <o-field label="Stop buffer radius (m)">
+            <template #label>
+              <o-tooltip multiline label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
+                Stop buffer radius (meters)
+                <o-icon icon="information" />
+              </o-tooltip>
+            </template>
+            <o-slider v-model="wsdotReportConfig!.stopBufferRadius" :min="1" :max="1000" />
+          </o-field>
+        </div>
+        <footer class="card-footer">
+          <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
+            <div class="control">
+              <o-button variant="outlined" @click="handleCancel">
+                Cancel
+              </o-button>
+            </div>
+            <div class="control">
+              <o-button variant="primary" @click="runWsdotReport">
+                Run Report
+              </o-button>
+            </div>
+          </div>
+        </footer>
+      </div>
     </div>
   </div>
 </template>
@@ -60,7 +110,12 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
+  stopBufferRadius: 800,
 })
+
+const emit = defineEmits<{
+  cancel: []
+}>()
 
 // Create GraphQL client adapter for Vue Apollo
 const createGraphQLClientAdapter = (): GraphQLClient => {
@@ -103,12 +158,17 @@ const runWsdotReport = async () => {
     weekdayDate: scenarioConfig.value?.startDate || new Date(),
     weekendDate: scenarioConfig.value?.endDate || new Date(),
     scheduleEnabled: true,
+    stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
   }
   const wsdotFetcher = new WSDOTReportFetcher(wsdotConfig, scenarioData.value!, client)
   const wsdotResult = await wsdotFetcher.fetch()
   wsdotReport.value = wsdotResult
   wsdotReportConfig.value = wsdotConfig
   loading.value = false
+}
+
+const handleCancel = () => {
+  emit('cancel')
 }
 </script>
 
