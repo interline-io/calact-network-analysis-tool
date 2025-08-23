@@ -100,8 +100,9 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import type { ScenarioProgress } from '~/src/scenario/scenario'
-import { ScenarioConfigFromBboxName, ScenarioClient } from '~/src/scenario/scenario'
+import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { ScenarioConfigFromBboxName } from '~/src/scenario/scenario'
+import { ScenarioClient } from '~/src/scenario/scenario-streamer'
 import type { StopGql } from '~/src/stop'
 import type { RouteGql } from '~/src/route'
 import type { AgencyGql } from '~/src/agency'
@@ -124,6 +125,7 @@ const cannedBbox = ref('downtown-portland')
 // Test function
 const testStreaming = async () => {
   const testConfig = ScenarioConfigFromBboxName(cannedBbox.value)
+  testConfig.stopLimit = 100
 
   try {
     // Reset state

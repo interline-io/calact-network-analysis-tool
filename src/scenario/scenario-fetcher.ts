@@ -1,4 +1,4 @@
-import { createWriteStream, type WriteStream } from 'fs'
+// import { createWriteStream, type WriteStream } from 'fs'
 import {
   StopDepartureQueryVars,
   stopDepartureQuery,
@@ -155,26 +155,28 @@ export class ScenarioFetcher {
   // Start the scenario fetching process
   private async fetchMain () {
     // FIRST STAGE: Fetch active feed versions in the area
-    const feedVersions: FeedVersion[] = []
-    await this.wrapTimer('Feed version discovery', 'feed-versions', async () => {
-      feedVersions.push(...await this.fetchFeedVersions())
-      console.log(`Found ${feedVersions.length} feed versions`)
-      for (const fv of feedVersions) {
-        console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
-        this.stopFetchQueue.enqueueOne({
-          after: 0,
-          feedOnestopId: fv.feed.onestop_id,
-          feedVersionSha1: fv.sha1
-        })
-      }
-    })
+    const feedVersions = await this.fetchFeedVersions()
+    console.log(`Found ${feedVersions.length} feed versions`)
+    for (const fv of feedVersions) {
+      console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
+    }
+    for (const fv of feedVersions) {
+      this.stopFetchQueue.enqueueOne({
+        after: 0,
+        feedOnestopId: fv.feed.onestop_id,
+        feedVersionSha1: fv.sha1
+      })
+    }
 
     // Wait for all stop fetching to complete
+    this.stopFetchQueue.run()
+    this.routeFetchQueue.run()
+    this.stopDepartureQueue.run()
     await this.stopFetchQueue.wait()
     await this.routeFetchQueue.wait()
     await this.stopDepartureQueue.wait()
 
-    // FINAL STAGE: Apply filters and build final result
+    // Done
     this.callbacks.onComplete?.()
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete`)
@@ -262,6 +264,7 @@ export class ScenarioFetcher {
       this.fetchedRouteIds.add(route.id)
     }
     this.updateProgressWithNewData('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartureEvents: [] })
+    console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
   }
 
   // Fetch stop departures from GraphQL API
@@ -314,23 +317,6 @@ export class ScenarioFetcher {
       }
     }
     this.updateProgressWithNewData('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartureEvents })
-  }
-
-  // Enqueue stop departure fetching tasks
-  private enqueueStopDepartureFetch (stopIds: number[]) {
-    if (stopIds.length === 0) {
-      return
-    }
-  }
-
-  private async wrapTimer (operation: string, stage: ScenarioProgress['currentStage'], fn: () => Promise<void>) {
-    this.updateProgress(stage, true)
-    const startTime = performance.now()
-    console.log(`⏱️ Starting ${operation}...`)
-    await fn()
-    const duration = performance.now() - startTime
-    console.log(`✅ Completed ${operation} in ${duration.toFixed(2)}ms`)
-    this.updateProgress(stage, true)
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean) {
