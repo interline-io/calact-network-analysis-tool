@@ -10,7 +10,8 @@ import {
   scenarioOutputSummary,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioData, type ScenarioConfig, type ScenarioCallbacks } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig, } from '~/src/scenario'
+import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks } from '~/src/scenario-fetcher'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
@@ -48,10 +49,9 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create GraphQL client
   const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT,
+    process.env.TRANSITLAND_API_ENDPOINT || '',
     process.env.TRANSITLAND_API_KEY || ''
   )
-
 
   // Create callback functions for progress reporting
   const callbacks: ScenarioCallbacks = {
