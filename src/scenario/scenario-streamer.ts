@@ -1,4 +1,4 @@
-import { BasicGraphQLClient } from './graphql'
+import { BasicGraphQLClient } from '../graphql'
 import type {
   ScenarioConfig,
   ScenarioData

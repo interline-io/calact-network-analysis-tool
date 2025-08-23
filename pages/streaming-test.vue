@@ -100,8 +100,8 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import type { ScenarioProgress } from '~/src/scenario'
-import { ScenarioConfigFromBboxName, ScenarioClient } from '~/src/scenario'
+import type { ScenarioProgress } from '~/src/scenario/scenario'
+import { ScenarioConfigFromBboxName, ScenarioClient } from '~/src/scenario/scenario'
 import type { StopGql } from '~/src/stop'
 import type { RouteGql } from '~/src/route'
 import type { AgencyGql } from '~/src/agency'

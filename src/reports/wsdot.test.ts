@@ -2,7 +2,7 @@ import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
 import { parseDate } from '~/src/datetime'
 import { BasicGraphQLClient } from '~/src/graphql'
-import { ScenarioFetcher } from '~/src/scenario'
+import { ScenarioFetcher } from '~/src/scenario/scenario'
 import type { Bbox } from '~/src/geom'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
 

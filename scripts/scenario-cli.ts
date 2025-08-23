@@ -10,8 +10,8 @@ import {
   scenarioOutputSummary,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import type { ScenarioData, ScenarioConfig, } from '~/src/scenario'
-import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks } from '~/src/scenario-fetcher'
+import type { ScenarioData, ScenarioConfig, } from '~/src/scenario/scenario'
+import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks } from '~/src/scenario/scenario-fetcher'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'

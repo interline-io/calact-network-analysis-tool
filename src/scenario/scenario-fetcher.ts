@@ -3,23 +3,23 @@ import {
   StopDepartureQueryVars,
   stopDepartureQuery,
   type StopDeparture,
-  type StopTime } from './departure'
+  type StopTime } from '../departure'
 import {
   type StopGql,
   stopQuery,
-} from './stop'
-import { feedVersionQuery, type FeedGql, type FeedVersion } from './feed-version'
+} from '../stop'
+import { feedVersionQuery, type FeedGql, type FeedVersion } from '../feed-version'
 import {
   type RouteGql,
   routeQuery,
-} from './route'
-import { TaskQueue } from './task-queue'
-import type { GraphQLClient } from './graphql'
+} from '../route'
+import { TaskQueue } from '../task-queue'
+import type { GraphQLClient } from '../graphql'
+import type { Bbox } from '../geom'
 import type {
   ScenarioData,
   ScenarioConfig
 } from './scenario'
-import type { Bbox } from './geom'
 import { StopDepartureCache } from '~/src/departure-cache'
 
 /**

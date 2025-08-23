@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
+import { MockGraphQLClient } from '../graphql.test'
+import { parseDate, parseTime } from '../datetime'
 import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './scenario'
-import { MockGraphQLClient } from './graphql.test'
-import { parseDate, parseTime } from './datetime'
 import type { Bbox } from '~/src/geom'
 
 describe('ScenarioFetcher', () => {

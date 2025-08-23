@@ -3,7 +3,7 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
-import { type ScenarioConfig, ScenarioDataSender } from '~/src/scenario'
+import { type ScenarioConfig, ScenarioDataSender } from '~/src/scenario/scenario'
 
 export default defineEventHandler(async (event) => {
   try {
