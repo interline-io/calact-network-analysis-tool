@@ -27,8 +27,7 @@
           :zoom="zoom"
         />
         <br>
-        <o-field label="Stop buffer radius (m)" style="width:300px">
-          <o-slider v-model="stopBufferRadius" :min="1" :max="1000" />
+        <o-field label="Display options" style="width:300px">
           <o-checkbox v-model="showStopBuffers">
             Show stop buffers
           </o-checkbox>
@@ -69,7 +68,6 @@ const wsdotReport = defineModel<WSDOTReport>('report', { required: true })
 
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
-const stopBufferRadius = ref(800) // in meters
 const showStopBuffers = ref(false)
 
 // TEMPORARY
