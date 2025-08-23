@@ -14683,7 +14683,7 @@ __metadata:
     vue: "npm:3.5.13"
     vue-eslint-parser: "npm:10.2.0"
     vue-json-pretty: "npm:2.5.0"
-  checksum: 10/82be585ffc4ccf477e0e6ed0989f082fe959807c01a19ed53d330cca6d5b744d680ba5b617b0a49e4379f3c35ae0030eb1fe0d6bbb61787b12ca0f53db59da29
+  checksum: 10/0e5dbcb511eceab8b52e9fa12c25bf4c499aca0755656bb8cb840000054ff844cc3c5cf806b14648ad95b10b0829e43b6e5040ab74cb2b2173802e1e0c411884
   languageName: node
   linkType: hard
 
