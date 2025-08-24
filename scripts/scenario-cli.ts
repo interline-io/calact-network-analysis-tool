@@ -8,10 +8,10 @@ import {
   scenarioOptionsCheck,
   scenarioOutputCsv,
   scenarioOutputSummary,
-  scenarioSaveData,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import { ScenarioFetcher, type ScenarioData, type ScenarioConfig } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig, } from '~/src/scenario/scenario'
+import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks } from '~/src/scenario/scenario-fetcher'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
@@ -49,25 +49,36 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create GraphQL client
   const client = new BasicGraphQLClient(
-    options.endpoint,
+    process.env.TRANSITLAND_API_ENDPOINT || '',
     process.env.TRANSITLAND_API_KEY || ''
   )
 
-  // Create scenario fetcher with progress reporting
-  const fetcher = new ScenarioFetcher(config, client, {
+  // Create callback functions for progress reporting
+  const callbacks: ScenarioCallbacks = {
     onError: (error) => {
       console.error('❌ Error during fetch:', error.message)
     }
+  }
+
+  // Create receiver to accumulate data
+  const receiver = new ScenarioDataReceiver(callbacks)
+  // Save scenario data if requested
+  if (options.saveScenarioData) {
+    receiver.saveStream(options.saveScenarioData)
+  }
+
+  // Create scenario fetcher with receiver callbacks
+  const fetcher = new ScenarioFetcher(config, client, {
+    onProgress: progress => receiver.onProgress(progress),
+    onComplete: () => receiver.onComplete(),
+    onError: error => receiver.onError(error)
   })
 
   // Execute the fetch
-  const result = await fetcher.fetch()
+  await fetcher.fetch()
+  const result = receiver.getCurrentData()
 
   console.log('✅ Fetch completed!')
-  // Save scenario data if requested
-  if (options.saveScenarioData) {
-    await scenarioSaveData(options.saveScenarioData, result, config)
-  }
 
   // Output results based on format
   switch (options.output) {

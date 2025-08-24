@@ -21,7 +21,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
 
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')

@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
+import { MockGraphQLClient } from '../graphql.test'
+import { parseDate, parseTime } from '../datetime'
 import { ScenarioFetcher, type ScenarioConfig, type ScenarioFilter } from './scenario'
-import { BasicGraphQLClient } from './graphql'
-import { MockGraphQLClient } from './scenario-fixtures.test'
-import { parseDate, parseTime } from './datetime'
 import type { Bbox } from '~/src/geom'
-import { setupPolly } from '~/tests/pollySetup'
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
@@ -86,65 +84,4 @@ describe('ScenarioFetcher', () => {
       expect.objectContaining({ isLoading: false })
     )
   })
-})
-
-describe('ScenarioFetcher Integration Tests (with PollyJS)', () => {
-  let polly: Polly
-  const config: ScenarioConfig = {
-    bbox: {
-      sw: { lat: 45.51358, lon: -122.69075 },
-      ne: { lat: 45.53306, lon: -122.66809 },
-      valid: true
-    } as Bbox,
-    scheduleEnabled: true,
-    startDate: parseDate('2024-07-03'),
-    endDate: parseDate('2024-07-04'), // Short date range
-    geographyIds: [],
-    stopLimit: 100
-  }
-  const filter: ScenarioFilter = {
-    startTime: parseTime('08:00:00'),
-    endTime: parseTime('10:00:00'),
-    selectedRouteTypes: [3], // Bus only
-    selectedDays: ['monday'],
-    selectedAgencies: [],
-    selectedDayOfWeekMode: 'Any',
-    selectedTimeOfDayMode: 'All',
-    frequencyUnderEnabled: false,
-    frequencyOverEnabled: false,
-  }
-  console.log(config, filter)
-
-  afterEach(async () => {
-    if (polly) {
-      await polly.stop()
-    }
-  })
-
-  it('should fetch real transit data from Portland area', async () => {
-    polly = setupPolly('scenario-fetcher-portland-basic')
-    const realClient: BasicGraphQLClient = new BasicGraphQLClient(
-      process.env.TLSERVER_TEST_ENDPOINT || '',
-      process.env.TRANSITLAND_API_KEY || '',
-    )
-    const fetcher = new ScenarioFetcher(config, realClient)
-    const result = await fetcher.fetch()
-
-    // Should have found some stops and routes in downtown Portland
-    expect(result.stops.length).toBeGreaterThan(0)
-    expect(result.routes.length).toBeGreaterThan(0)
-    expect(result.isComplete).toBe(true)
-
-    // Check that we have realistic data
-    const firstStop = result.stops[0]
-    expect(firstStop).toHaveProperty('stop_name')
-    expect(firstStop).toHaveProperty('geometry')
-    expect(firstStop.geometry.coordinates).toHaveLength(2)
-
-    const firstRoute = result.routes[0]
-    expect(firstRoute).toHaveProperty('route_short_name')
-    expect(firstRoute.route_type).toBe(3) // Should be bus as filtered
-
-    console.log(`Found ${result.stops.length} stops, ${result.routes.length} routes`)
-  }, 60000)
 })

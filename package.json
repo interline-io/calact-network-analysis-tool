@@ -11,7 +11,7 @@
     "start": "nuxt start",
     "generate": "nuxt generate",
     "lint": "eslint .",
-    "test": "vitest run --reporter=basic",
+    "test": "vitest run",
     "test:watch": "vitest --watch",
     "calact": "tsx scripts/calact.ts"
   },
@@ -22,7 +22,7 @@
     "csv-stringify": "6.5.2",
     "eslint": "9.31.0",
     "nuxt": "3.16.0",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=4b61022684fb558a4336e214e4c084614162805d",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=c88b9629f3c7a371d8222f729c5e39a53ba62f87",
     "tsx": "4.20.3",
     "vitest": "3.2.4"
   },

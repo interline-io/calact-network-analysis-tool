@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Run with: yarn calact <subcommand>
+import 'dotenv/config'
 
 import { Command } from 'commander'
 import { configureScenarioCli } from './scenario-cli'

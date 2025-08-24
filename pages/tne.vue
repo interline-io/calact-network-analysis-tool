@@ -184,10 +184,9 @@ import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/sr
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
-import type { ScenarioConfig, ScenarioFilter, ScenarioData, ScenarioProgress } from '~/src/scenario'
-import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario'
+import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioProgress } from '~/src/scenario/scenario'
+import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario/scenario'
 import type { GraphQLClient } from '~/src/graphql'
-import { deserializeScenarioTestFixture, type SerializableScenarioTestFixture } from '~/src/scenario-fixtures'
 import { StopDepartureCache } from '~/src/departure-cache'
 
 definePageMeta({
@@ -757,22 +756,7 @@ const createGraphQLClientAdapter = (): GraphQLClient => {
 }
 
 const loadExampleData = async (exampleName: string) => {
-  console.log('current bbox', exampleName)
-  const data: SerializableScenarioTestFixture = await fetch(`/examples/${exampleName}.json`)
-    .then(res => res.json())
-  const fixture = deserializeScenarioTestFixture(data)
-  scenarioData.value = fixture.data
-  const finalResult = applyScenarioResultFilter(fixture.data, fixture.config, fixture.filter)
-  routeFeatures.value = finalResult.routes
-  stopFeatures.value = finalResult.stops
-  agencyFeatures.value = finalResult.agencies
-  stopDepartureLoadingComplete.value = true
-  // startDate.value = fixture.config.startDate!
-  // endDate.value = fixture.config.endDate!
-  setQuery({ ...route.query,
-    startDate: fmtDate(fixture.config.startDate!),
-    endDate: fmtDate(fixture.config.endDate!),
-  })
+  console.log('loading:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
 }
 
@@ -805,8 +789,7 @@ const fetchScenario = async () => {
           agencyFeatures.value = partialResult.agencies
         }
       },
-      onComplete: (result: ScenarioData) => {
-        scenarioData.value = result
+      onComplete: () => {
         isLoading.value = false
       },
       onError: (err: any) => {
@@ -816,8 +799,8 @@ const fetchScenario = async () => {
       }
     }
     const fetcher = new ScenarioFetcher(config, client, callbacks)
-    const finalData = await fetcher.fetch()
-    const finalResult = applyScenarioResultFilter(finalData, scenarioConfig.value, scenarioFilter.value)
+    await fetcher.fetch()
+    const finalResult = applyScenarioResultFilter(scenarioData.value!, scenarioConfig.value, scenarioFilter.value)
     routeFeatures.value = finalResult.routes
     stopFeatures.value = finalResult.stops
     agencyFeatures.value = finalResult.agencies

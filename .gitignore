@@ -1,7 +1,7 @@
 tmp**
 **/tmp**
 .output
-testdata/gtfs
+testdata/gtfs/data/*.zip
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Node template
