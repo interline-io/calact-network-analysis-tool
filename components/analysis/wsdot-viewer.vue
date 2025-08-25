@@ -34,6 +34,7 @@
     </div>
     <div class="columns">
       <div class="column is-one-quarter">
+        <o-field label="Frequency level selection and stats" class="mt-4" />
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
@@ -45,12 +46,19 @@
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
               <td style="width:50px" />
-              <td>{{ adminKey }}</td>
+              <td v-if="Object.keys(levelDetail.layerPops).length > 1">
+                {{ adminKey }}
+              </td>
               <td>{{ Math.round(pop.intersection).toLocaleString() }}</td>
-              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}%)</td>
+              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}% of total population)</td>
             </tr>
           </tbody>
         </table>
+        <o-field label="Map display options" class="mt-4">
+          <o-checkbox v-model="showStopBuffers">
+            Show stop buffers
+          </o-checkbox>
+        </o-field>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -58,12 +66,6 @@
           :center="bboxCenter"
           :zoom="zoom"
         />
-        <br>
-        <o-field label="Display options" style="width:300px">
-          <o-checkbox v-model="showStopBuffers">
-            Show stop buffers
-          </o-checkbox>
-        </o-field>
       </div>
     </div>
 
