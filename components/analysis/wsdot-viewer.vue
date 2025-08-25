@@ -1,11 +1,43 @@
 <template>
   <div>
+    <div class="box level">
+      <div class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Analysis Period: Weekday Date
+          </p>
+          <p class="title is-6">
+            {{ fmtDate(wsdotReportConfig.weekdayDate) }}
+          </p>
+        </div>
+      </div>
+      <div class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Analysis Period: Weekend Date
+          </p>
+          <p class="title is-6">
+            {{ fmtDate(wsdotReportConfig.weekendDate) }}
+          </p>
+        </div>
+      </div>
+      <div v-if="wsdotReportConfig.stopBufferRadius" class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Stop Buffer Radius
+          </p>
+          <p class="title is-6">
+            {{ wsdotReportConfig.stopBufferRadius }} meters
+          </p>
+        </div>
+      </div>
+    </div>
     <div class="columns">
       <div class="column is-one-quarter">
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
-              <td :style="{ backgroundColor: levelDetail.color }" colspan="5">
+              <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
                 <o-checkbox v-model="selectedLevels" :native-value="levelKey">
                   Frequency: {{ levelDetail.label }}
                 </o-checkbox>
@@ -35,21 +67,18 @@
       </div>
     </div>
 
-    <tl-msg-info>
-      <div>
-        Report bbox: {{ bboxString(wsdotReportConfig.bbox!) }}
-      </div>
-      <div>
-        Weekday: {{ fmtDate(wsdotReportConfig.weekdayDate) }}
-      </div>
-      <div>
-        Weekend: {{ fmtDate(wsdotReportConfig.weekendDate) }}
-      </div>
-    </tl-msg-info>
-
     <cal-datagrid
       :table-report="stopDatagrid"
-    />
+    >
+      <template #column-highestLevel="{ value }">
+        <span
+          :class="getFrequencyLevelClass(value)"
+          class="tag"
+        >
+          {{ formatHighestLevel(value) }}
+        </span>
+      </template>
+    </cal-datagrid>
   </div>
 </template>
 
@@ -58,7 +87,6 @@ import type { ComputedRef } from 'vue'
 import type { WSDOTReport, WSDOTReportConfig, LevelKey } from '~/src/reports/wsdot'
 import { SERVICE_LEVELS, levelColors } from '~/src/reports/wsdot'
 import type { Feature } from '~/src/geom'
-import { bboxString } from '~/src/geom'
 import { fmtDate } from '~/src/datetime'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
@@ -69,6 +97,17 @@ const wsdotReport = defineModel<WSDOTReport>('report', { required: true })
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
 const showStopBuffers = ref(false)
+
+// Helper functions for Highest Level column rendering
+const getFrequencyLevelClass = (level: string) => {
+  if (level === 'levelNights') return 'frequency-level-nights'
+  return `frequency-level-${level.replace('level', '')}`
+}
+
+const formatHighestLevel = (level: string) => {
+  if (level === 'levelNights') return 'Night'
+  return level.replace('level', 'Level ')
+}
 
 // TEMPORARY
 const StatePopulations: Record<string, number> = {
@@ -223,5 +262,35 @@ const stopDatagrid = computed((): TableReport => {
 }
 .wsdot-level-details td {
   padding: 4px;
+}
+
+/* Frequency level color classes - extending Bulma's tag component */
+.frequency-level-1 {
+  background-color: #00ffff !important;
+}
+
+.frequency-level-2 {
+  background-color: #00ff80 !important;
+}
+
+.frequency-level-3 {
+  background-color: #80ff00 !important;
+}
+
+.frequency-level-4 {
+  background-color: #ffff00 !important;
+}
+
+.frequency-level-5 {
+  background-color: #ff8000 !important;
+}
+
+.frequency-level-6 {
+  background-color: #ff0000 !important;
+}
+
+.frequency-level-nights {
+  background-color: #5c5cff !important;
+  color: #ffffff !important;
 }
 </style>
