@@ -53,7 +53,7 @@
       </div>
       <div class="column">
         <tl-msg-info title="Departures" no-icon>
-          <p><strong>{{ stopDepartureEventCount || 0 }}</strong> loaded</p>
+          <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
         </tl-msg-info>
       </div>
     </div>
@@ -69,7 +69,7 @@ const props = withDefaults(defineProps<{
   progress?: ScenarioProgress | null
   error?: Error | string | null
   scenarioData?: ScenarioData | null
-  stopDepartureEventCount?: number
+  stopDepartureCount?: number
 }>(), {
   progress: null,
   error: null,

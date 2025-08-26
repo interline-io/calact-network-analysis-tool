@@ -614,7 +614,7 @@ const fetchScenario = async (loadExample: string) => {
       onProgress: (progress: ScenarioProgress) => {
         // Update progress for modal
         loadingProgress.value = progress
-        loadingScheduleProgress.value += progress.partialData?.stopDepartureEvents.length || 0
+        loadingScheduleProgress.value += progress.partialData?.stopDepartures.length || 0
 
         // Apply filters to partial data and emit (without schedule-dependent features)
         // Skip if no route/stop data

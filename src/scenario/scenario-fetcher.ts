@@ -59,12 +59,12 @@ export interface ScenarioProgress {
     stops: StopGql[]
     routes: RouteGql[]
     feedVersions: FeedVersion[]
-    stopDepartureEvents: StopDepartureEventTuple[]
+    stopDepartures: StopDepartureTuple[]
   }
 }
 
 // Define the tuple type with named fields
-export type StopDepartureEventTuple = readonly [
+export type StopDepartureTuple = readonly [
   stop_id: number,
   departure_date: string,
   departure_time: string,
@@ -74,7 +74,7 @@ export type StopDepartureEventTuple = readonly [
 ]
 
 // Helper functions for working with the tuple
-export const StopDepartureEventTuple = {
+export const StopDepartureTuple = {
   create: (
     stop_id: number,
     departure_date: string,
@@ -82,13 +82,13 @@ export const StopDepartureEventTuple = {
     trip_id: number,
     trip_direction_id: number,
     trip_route_id: number
-  ): StopDepartureEventTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
-  stopId: (tuple: StopDepartureEventTuple) => tuple[0],
-  departureDate: (tuple: StopDepartureEventTuple) => tuple[1],
-  departureTime: (tuple: StopDepartureEventTuple) => tuple[2],
-  tripId: (tuple: StopDepartureEventTuple) => tuple[3],
-  tripDirectionId: (tuple: StopDepartureEventTuple) => tuple[4],
-  tripRouteId: (tuple: StopDepartureEventTuple) => tuple[5]
+  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
+  stopId: (tuple: StopDepartureTuple) => tuple[0],
+  departureDate: (tuple: StopDepartureTuple) => tuple[1],
+  departureTime: (tuple: StopDepartureTuple) => tuple[2],
+  tripId: (tuple: StopDepartureTuple) => tuple[3],
+  tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
+  tripRouteId: (tuple: StopDepartureTuple) => tuple[5]
 }
 
 // ============================================================================
@@ -205,7 +205,7 @@ export class ScenarioFetcher {
     const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
-    this.updateProgressWithNewData('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartureEvents: [] })
+    this.updateProgressWithNewData('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartures: [] })
     return feedVersions
   }
 
@@ -230,7 +230,7 @@ export class ScenarioFetcher {
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
     // Send progress update with only the NEW stops
-    this.updateProgressWithNewData('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartureEvents: [] })
+    this.updateProgressWithNewData('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartures: [] })
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -282,7 +282,7 @@ export class ScenarioFetcher {
     for (const route of routeData) {
       this.fetchedRouteIds.add(route.id)
     }
-    this.updateProgressWithNewData('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartureEvents: [] })
+    this.updateProgressWithNewData('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartures: [] })
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
   }
 
@@ -296,7 +296,7 @@ export class ScenarioFetcher {
     console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
     // Map into simpler format for wire format
-    const stopDepartureEvents: StopDepartureEventTuple[] = []
+    const stopDepartures: StopDepartureTuple[] = []
     for (const stop of response.data?.stops || []) {
       for (const dow of dowDateStringLower) {
         const dowDate = task.get(dow)
@@ -324,7 +324,7 @@ export class ScenarioFetcher {
           }
         })()
         stopTimes.forEach((st: StopTime) => {
-          stopDepartureEvents.push([
+          stopDepartures.push([
             stop.id,
             dowDate,
             st.departure_time,
@@ -335,7 +335,7 @@ export class ScenarioFetcher {
         })
       }
     }
-    this.updateProgressWithNewData('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartureEvents })
+    this.updateProgressWithNewData('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean) {
@@ -397,21 +397,20 @@ export class ScenarioDataReceiver {
       this.accumulatedData.feedVersions.push(...progress.partialData.feedVersions)
 
       // Append new stop departure events
-      for (const event of progress.partialData.stopDepartureEvents) {
-        const st: StopTime[] = [{
-          departure_time: StopDepartureEventTuple.departureTime(event),
-          trip: {
-            id: StopDepartureEventTuple.tripId(event),
-            direction_id: StopDepartureEventTuple.tripDirectionId(event),
-            route: {
-              id: StopDepartureEventTuple.tripRouteId(event)
-            }
-          }
-        }]
+      for (const event of progress.partialData.stopDepartures) {
         this.accumulatedData.stopDepartureCache.add(
-          StopDepartureEventTuple.stopId(event),
-          StopDepartureEventTuple.departureDate(event),
-          st,
+          StopDepartureTuple.stopId(event),
+          StopDepartureTuple.departureDate(event),
+          [{
+            departure_time: StopDepartureTuple.departureTime(event),
+            trip: {
+              id: StopDepartureTuple.tripId(event),
+              direction_id: StopDepartureTuple.tripDirectionId(event),
+              route: {
+                id: StopDepartureTuple.tripRouteId(event)
+              }
+            }
+          }],
         )
       }
     }
