@@ -223,6 +223,7 @@ const displayStopFeatures = computed(() => {
   }).filter((stop) => {
     const highestLevel = stop.properties.highestLevel
     return selectedLevels.value.includes(highestLevel)
+    // this will filter out stops that have no highest level set
   })
   return features
 })
