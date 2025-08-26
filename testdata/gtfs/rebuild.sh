@@ -12,3 +12,4 @@ tlserver import --activate --storage="tmp" --activate --workers=8
 psql -c "update feed_states set public = true"
 
 TL_LOG=trace tlserver server --max-radius 100_000_000 --loader-stop-time-batch-size 1000
+

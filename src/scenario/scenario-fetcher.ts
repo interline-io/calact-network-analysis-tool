@@ -1,4 +1,3 @@
-// import { createWriteStream, type WriteStream } from 'fs'
 import {
   StopDepartureQueryVars,
   stopDepartureQuery,
@@ -84,7 +83,7 @@ export class ScenarioFetcher {
   // Internal state
   private stopLimit = 1000
   private stopTimeBatchSize = 100
-  private maxConcurrentDepartures = 8
+  private maxConcurrentRequests = 8
 
   // Dynamic progress getters
   private get feedVersionProgress (): { total: number, completed: number } {
@@ -105,7 +104,7 @@ export class ScenarioFetcher {
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
 
-  // Results
+  // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
 
   constructor (
@@ -117,25 +116,25 @@ export class ScenarioFetcher {
     this.callbacks = callbacks
     this.client = client
     this.stopLimit = config.stopLimit ?? 1000
-    this.maxConcurrentDepartures = config.maxConcurrentDepartures ?? 8
+    this.maxConcurrentRequests = config.maxConcurrentDepartures ?? 8
 
     // Initialize task queues
     this.stopFetchQueue = new TaskQueue<StopFetchTask>(
-      this.maxConcurrentDepartures,
+      this.maxConcurrentRequests,
       task => this.fetchStops(task), {
         onError: error => this.callbacks.onError?.(error)
       }
     )
 
     this.routeFetchQueue = new TaskQueue<RouteFetchTask>(
-      this.maxConcurrentDepartures,
+      this.maxConcurrentRequests,
       task => this.fetchRoutes(task), {
         onError: error => this.callbacks.onError?.(error)
       }
     )
 
     this.stopDepartureQueue = new TaskQueue<StopDepartureQueryVars>(
-      this.maxConcurrentDepartures,
+      this.maxConcurrentRequests,
       task => this.fetchStopDepartures(task), {
         onProgress: () => { this.updateProgress('schedules', true) },
         onError: error => this.callbacks.onError?.(error)
@@ -350,7 +349,6 @@ export class ScenarioFetcher {
 export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
-  private fileStream: WriteStream | null = null
 
   constructor (callbacks: ScenarioCallbacks = {}) {
     this.callbacks = callbacks
@@ -361,17 +359,6 @@ export class ScenarioDataReceiver {
       stopDepartureCache: new StopDepartureCache(),
       isComplete: false
     }
-  }
-
-  saveStream (filename: string) {
-    // Open a file stream for writing newline-delimited JSON
-    this.fileStream = createWriteStream(filename, { encoding: 'utf8' })
-
-    // Handle stream errors
-    this.fileStream.on('error', (error) => {
-      console.error('File stream error:', error)
-      this.callbacks.onError?.(error)
-    })
   }
 
   /**
@@ -405,13 +392,6 @@ export class ScenarioDataReceiver {
       }
     }
 
-    // Write progress to file stream if streaming to file
-    if (this.fileStream) {
-      this.fileStream.write(JSON.stringify(progress) + '\n')
-      // Immediately flush to ensure data is written
-      this.fileStream.uncork()
-    }
-
     // Forward progress to callback
     this.callbacks.onProgress?.(progress)
   }
@@ -422,19 +402,6 @@ export class ScenarioDataReceiver {
   onComplete (): void {
     // Mark data as complete
     this.accumulatedData.isComplete = true
-
-    // Write completion to file stream if streaming to file
-    if (this.fileStream) {
-      const completionMessage: ScenarioProgress = { isLoading: false, currentStage: 'complete' }
-      this.fileStream.write(JSON.stringify(completionMessage) + '\n', () => {
-        // Close stream after write completes
-        if (this.fileStream) {
-          this.fileStream.end()
-          this.fileStream = null
-        }
-      })
-    }
-
     this.callbacks.onComplete?.()
   }
 
@@ -442,24 +409,6 @@ export class ScenarioDataReceiver {
    * Handle error from ScenarioFetcher
    */
   onError (error: any): void {
-    // Write error to file stream if streaming to file
-    if (this.fileStream) {
-      const errorMessage: ScenarioProgress = {
-        isLoading: false,
-        currentStage: 'complete',
-        error: {
-          message: error.message || error.toString(),
-        }
-      }
-      this.fileStream.write(JSON.stringify(errorMessage) + '\n', () => {
-        // Close stream after write completes
-        if (this.fileStream) {
-          this.fileStream.end()
-          this.fileStream = null
-        }
-      })
-    }
-
     this.callbacks.onError?.(error)
   }
 
@@ -468,16 +417,6 @@ export class ScenarioDataReceiver {
    */
   getCurrentData (): ScenarioData {
     return { ...this.accumulatedData }
-  }
-
-  /**
-   * Close the file stream if it's open
-   */
-  closeStream (): void {
-    if (this.fileStream) {
-      this.fileStream.end()
-      this.fileStream = null
-    }
   }
 }
 

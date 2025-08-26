@@ -81,13 +81,8 @@
         </div>
 
         <div class="result-card">
-          <h4>Agencies</h4>
-          <p>{{ agencies.length }} agencies loaded</p>
-          <div v-if="agencies.length > 0" class="preview">
-            <div v-for="agency in agencies.slice(0, 3)" :key="agency.id" class="preview-item">
-              {{ agency.agency_name }} ({{ agency.agency_id }})
-            </div>
-          </div>
+          <h4>Stop Departure Events</h4>
+          <p>{{ stopDepartureEventCount }} events loaded</p>
         </div>
       </div>
 
@@ -100,12 +95,11 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
 import { ScenarioConfigFromBboxName } from '~/src/scenario/scenario'
-import { ScenarioClient } from '~/src/scenario/scenario-streamer'
 import type { StopGql } from '~/src/stop'
 import type { RouteGql } from '~/src/route'
-import type { AgencyGql } from '~/src/agency'
 import { cannedBboxes } from '~/src/constants'
 
 // Reactive state - directly in component
@@ -114,15 +108,12 @@ const progress = ref<ScenarioProgress | null>(null)
 const error = ref<Error | null>(null)
 const stops = ref<StopGql[]>([])
 const routes = ref<RouteGql[]>([])
-const agencies = ref<AgencyGql[]>([])
+const stopDepartureEventCount = ref(0)
 const isComplete = ref(false)
-
-// Client instance
-const client = new ScenarioClient()
 
 const cannedBbox = ref('downtown-portland')
 
-// Test function
+// Test function using new streaming setup
 const testStreaming = async () => {
   const testConfig = ScenarioConfigFromBboxName(cannedBbox.value)
   testConfig.stopLimit = 100
@@ -130,31 +121,20 @@ const testStreaming = async () => {
   try {
     // Reset state
     clear()
+    isLoading.value = true
 
-    // Call fetchScenario with the new simplified callbacks
-    const result = await client.fetchScenario(testConfig, {
+    // Create receiver with callbacks to update the UI
+    const scenarioDataReceiver = new ScenarioDataReceiver({
       onProgress: (progressData: ScenarioProgress) => {
         progress.value = progressData
-
         // Accumulate incremental data from progress events
         if (progressData.partialData) {
-          if (progressData.partialData.stops.length > 0) {
-            stops.value.push(...progressData.partialData.stops)
-          }
-          if (progressData.partialData.routes.length > 0) {
-            routes.value.push(...progressData.partialData.routes)
-          }
+          stops.value.push(...progressData.partialData.stops)
+          routes.value.push(...progressData.partialData.routes)
+          stopDepartureEventCount.value += progressData.partialData.stopDepartureEvents.length
         }
       },
       onComplete: () => {
-        // Extract agencies from routes (since ScenarioData doesn't have agencies directly)
-        const agencyMap = new Map<string, AgencyGql>()
-        result.routes.forEach((route) => {
-          if (route.agency) {
-            agencyMap.set(route.agency.agency_id, route.agency)
-          }
-        })
-        agencies.value = Array.from(agencyMap.values())
         isComplete.value = true
         isLoading.value = false
       },
@@ -164,8 +144,31 @@ const testStreaming = async () => {
       }
     })
 
-    // Note: result is also returned from fetchScenario if needed
-    console.log('Final scenario result:', result)
+    // Make request to streaming endpoint
+    const response = await fetch('/api/scenario', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(testConfig)
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is not readable')
+    }
+
+    // Use ScenarioDataClient to process the stream
+    const scenarioStreamReceiver = new ScenarioStreamReceiver()
+    // await
+    await Promise.all([
+      response,
+      scenarioStreamReceiver.processStream(response.body, scenarioDataReceiver)
+    ])
+    console.log('Streaming scenario test complete')
   } catch (err: any) {
     error.value = err
     isLoading.value = false
@@ -174,7 +177,7 @@ const testStreaming = async () => {
 
 // Cancel current request
 const cancel = () => {
-  // client.cancel()
+  // TODO: Implement cancellation (could abort fetch request)
   isLoading.value = false
 }
 
@@ -182,7 +185,6 @@ const cancel = () => {
 const clear = () => {
   stops.value = []
   routes.value = []
-  agencies.value = []
   progress.value = null
   error.value = null
   isComplete.value = false

@@ -3,6 +3,8 @@
  */
 
 import type { Command } from 'commander'
+
+// Local utilities
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
@@ -10,8 +12,13 @@ import {
   scenarioOutputSummary,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import type { ScenarioData, ScenarioConfig, } from '~/src/scenario/scenario'
-import { ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks } from '~/src/scenario/scenario-fetcher'
+
+// Core scenario functionality
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
+import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
+
+// Utilities
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
@@ -53,31 +60,38 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
     process.env.TRANSITLAND_API_KEY || ''
   )
 
-  // Create callback functions for progress reporting
-  const callbacks: ScenarioCallbacks = {
-    onError: (error) => {
-      console.error('❌ Error during fetch:', error.message)
-    }
-  }
-
-  // Create receiver to accumulate data
-  const receiver = new ScenarioDataReceiver(callbacks)
-  // Save scenario data if requested
+  // Create a transform stream that optionally multiplexes to file
+  let fileStream: import('fs').WriteStream | undefined
   if (options.saveScenarioData) {
-    receiver.saveStream(options.saveScenarioData)
+    fileStream = await import('fs').then(fs => fs.createWriteStream(options.saveScenarioData!))
+    console.log(`📝 Logging scenario data to: ${options.saveScenarioData}`)
   }
-
-  // Create scenario fetcher with receiver callbacks
-  const fetcher = new ScenarioFetcher(config, client, {
-    onProgress: progress => receiver.onProgress(progress),
-    onComplete: () => receiver.onComplete(),
-    onError: error => receiver.onError(error)
+  const { writable, readable } = new TransformStream({
+    transform (chunk, controller) {
+      controller.enqueue(chunk)
+      fileStream?.write(chunk)
+    },
+    flush () {
+      fileStream?.end()
+    }
   })
+  const writer = writable.getWriter()
 
-  // Execute the fetch
-  await fetcher.fetch()
+  // Configure fetcher/sender
+  const scenarioDataSender = new ScenarioStreamSender(writer)
+  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+
+  // Configure client/receiver
+  const receiver = new ScenarioDataReceiver()
+  const scenarioDataClient = new ScenarioStreamReceiver()
+
+  // Await data - start both concurrently and wait for both to complete
+  await Promise.all([
+    fetcher.fetch(),
+    scenarioDataClient.processStream(readable, receiver)
+  ])
+
   const result = receiver.getCurrentData()
-
   console.log('✅ Fetch completed!')
 
   // Output results based on format

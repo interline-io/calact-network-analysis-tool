@@ -1,13 +1,10 @@
-import { BasicGraphQLClient } from '../graphql'
 import type {
-  ScenarioConfig,
   ScenarioData
 } from './scenario'
-import {
-  type ScenarioCallbacks,
-  type ScenarioProgress,
+import type {
   ScenarioDataReceiver,
-  ScenarioFetcher
+  ScenarioCallbacks,
+  ScenarioProgress
 } from './scenario-fetcher'
 
 // ============================================================================
@@ -15,60 +12,30 @@ import {
 // ============================================================================
 
 /**
- * Server-side streaming sender
- * Converts ScenarioFetcher progress events to JSON messages over the wire
+ * ScenarioCallbacks that write progress data to a stream
  */
-export class ScenarioDataSender {
-  private sendMessage: (message: ScenarioProgress) => void
+export class ScenarioStreamSender implements ScenarioCallbacks {
+  private encoder = new TextEncoder()
 
-  constructor (sendMessage: (message: ScenarioProgress) => void) {
-    this.sendMessage = sendMessage
+  constructor (private writer: WritableStreamDefaultWriter<Uint8Array>) {}
+
+  send (progress: ScenarioProgress): void {
+    const data = JSON.stringify(progress) + '\n'
+    // console.log(`wrote ${data.length} bytes`)
+    this.writer.write(this.encoder.encode(data)).catch(console.error)
   }
 
-  /**
-   * Send scenario data using ScenarioFetcher with streaming callbacks
-   */
-  async sendScenario (config: ScenarioConfig): Promise<void> {
-    try {
-      // Create GraphQL client
-      const client = new BasicGraphQLClient(
-        process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-        process.env.TRANSITLAND_API_KEY || 'test-key'
-      )
+  onProgress (progress: ScenarioProgress): void {
+    this.send(progress)
+  }
 
-      // Create ScenarioFetcher with streaming message sender
-      const scenarioFetcher = new ScenarioFetcher(config, client, {
-        onProgress: (progress) => {
-          this.sendMessage(progress)
-        },
-        onComplete: () => {
-          // onComplete is called but the result is returned from fetch()
-          // We'll send the complete message after fetch() returns
-        },
-        onError: (error) => {
-          console.error('ScenarioFetcher error:', error)
-          this.sendMessage({
-            isLoading: false,
-            currentStage: 'complete',
-            error: { message: error.message || 'Unknown error in ScenarioFetcher' }
-          })
-        }
-      })
+  onComplete (): void {
+    this.send({ isLoading: false, currentStage: 'complete' })
+  }
 
-      // Start the scenario fetching process and get the final result
-      await scenarioFetcher.fetch()
-
-      // Send the complete message with the final result
-      // this.sendMessage({ type: 'complete' })
-    } catch (error) {
-      console.error('Error in ScenarioDataSender:', error)
-      this.sendMessage({
-        isLoading: false,
-        currentStage: 'complete',
-        error: { message: error instanceof Error ? error.message : 'Unknown error in ScenarioDataSender' }
-      })
-      throw error
-    }
+  onError (error: any): void {
+    const errMsg = { message: error.message || 'Unknown error' }
+    this.send({ isLoading: false, currentStage: 'complete', error: errMsg })
   }
 }
 
@@ -77,55 +44,43 @@ export class ScenarioDataSender {
 // ============================================================================
 
 /**
- * Streaming client receives messages from server and uses ScenarioDataReceiver
+ * Streaming client processes readable streams and uses ScenarioDataReceiver
  */
-export class ScenarioClient {
+export class ScenarioStreamReceiver {
   /**
-   * Fetch scenario data using streaming from server
+   * Process a readable stream of scenario data
    */
-  async fetchScenario (
-    config: ScenarioConfig,
-    callbacks: ScenarioCallbacks = {}
+  async processStream (
+    stream: ReadableStream<Uint8Array>,
+    receiver: ScenarioDataReceiver
   ): Promise<ScenarioData> {
-    // Validate config
-    if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-      throw new Error('Either bbox or geographyIds must be provided')
-    }
-
-    // Create receiver to accumulate data from streaming messages
-    const receiver = new ScenarioDataReceiver(callbacks)
-    const response = await fetch('/api/scenario', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(config),
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw new Error('Response body is not readable')
-    }
-
+    const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // Keep incomplete line in buffer
+        buffer += decoder.decode(value, { stream: true })
+        // console.log(`...read ${buffer.length} bytes`)
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
 
-      for (const line of lines) {
-        if (!line.trim()) continue
-        receiver.onProgress(JSON.parse(line) as ScenarioProgress)
+        for (const line of lines) {
+          if (!line.trim()) { continue }
+          const scenarioProgress = JSON.parse(line) as ScenarioProgress
+          receiver.onProgress(scenarioProgress)
+          if (scenarioProgress.currentStage === 'complete') {
+            receiver.onComplete()
+          }
+        }
       }
+    } catch (error) {
+      receiver.onError(error)
+    } finally {
+      reader.releaseLock()
     }
 
     // Return current accumulated data if stream ended without completion

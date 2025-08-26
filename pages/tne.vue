@@ -184,8 +184,8 @@ import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/sr
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
-import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioProgress } from '~/src/scenario/scenario'
-import { ScenarioFetcher, applyScenarioResultFilter } from '~/src/scenario/scenario'
+import type { ScenarioConfig, ScenarioData, ScenarioFilter } from '~/src/scenario/scenario'
+import { applyScenarioResultFilter } from '~/src/scenario/scenario'
 import type { GraphQLClient } from '~/src/graphql'
 import { StopDepartureCache } from '~/src/departure-cache'
 
