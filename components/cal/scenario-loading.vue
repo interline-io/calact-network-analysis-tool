@@ -1,207 +1,144 @@
-<!-- Test page for streaming scenario implementation -->
+<!-- Loading progress widget for modal dialogs -->
 <template>
-  <div class="streaming-test">
-    <tl-title>Streaming Loading Progress</tl-title>
-
+  <div class="scenario-loading">
     <!-- Progress Display -->
     <div v-if="progress" class="progress-section">
-      <h3>Progress</h3>
+      <h4>Loading Progress</h4>
       <div class="progress-bar">
         <div
           class="progress-fill"
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
-      <p>{{ progress.currentStage }} ({{ progress.feedVersionProgress?.completed }}/{{ progress.feedVersionProgress?.total }})</p>
-    </div>
-
-    <!-- Error Display -->
-    <div v-if="error" class="error-section">
-      <h3>Error</h3>
-      <p class="error-message">
-        {{ error.message }}
+      <p class="progress-text">
+        {{ formatStage(progress.currentStage) }}
+        <span v-if="progress.feedVersionProgress">
+          ({{ progress.feedVersionProgress.completed }}/{{ progress.feedVersionProgress.total }})
+        </span>
       </p>
     </div>
 
+    <!-- Error Display -->
+    <tl-msg-error v-if="error">
+      {{ typeof error === 'string' ? error : error?.message }}
+    </tl-msg-error>
+
     <!-- Results Display -->
-    <div class="results-section">
-      <h3>Results</h3>
-      <div class="results-grid">
-        <div class="result-card">
-          <h4>Stops</h4>
-          <p>{{ stops.length }} stops loaded</p>
-          <div v-if="stops.length > 0" class="preview">
-            <div v-for="stop in stops.slice(0, 3)" :key="stop.id" class="preview-item">
-              {{ stop.stop_name }} ({{ stop.stop_id }})
-            </div>
-          </div>
-        </div>
-
-        <div class="result-card">
-          <h4>Routes</h4>
-          <p>{{ routes.length }} routes loaded</p>
-          <div v-if="routes.length > 0" class="preview">
-            <div v-for="route in routes.slice(0, 3)" :key="route.id" class="preview-item">
-              {{ route.route_short_name }} - {{ route.route_long_name }}
-            </div>
-          </div>
-        </div>
-
-        <div class="result-card">
-          <h4>Stop Departure Events</h4>
-          <p>{{ stopDepartureEventCount }} events loaded</p>
-        </div>
+    <div class="columns">
+      <div class="column">
+        <tl-msg-info title="Stops" />
       </div>
-
-      <div v-if="isComplete" class="completion-status">
-        ✅ Scenario loading complete!
+      <div class="column">
+        <tl-msg-info title="Routes">
+          Routes
+        </tl-msg-info>
+      </div>
+      <div class="column">
+        <tl-msg-info title="Departures">
+          Departures
+        </tl-msg-info>
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
-import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
-import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
-import { ScenarioConfigFromBboxName } from '~/src/scenario/scenario'
+import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
 import type { StopGql } from '~/src/stop'
 import type { RouteGql } from '~/src/route'
 
-// Reactive state - directly in component
-const isLoading = ref(false)
-const progress = ref<ScenarioProgress | null>(null)
-const error = ref<Error | null>(null)
-const stops = ref<StopGql[]>([])
-const routes = ref<RouteGql[]>([])
-const stopDepartureEventCount = ref(0)
-const isComplete = ref(false)
+// Props
+interface Props {
+  progress?: ScenarioProgress | null
+  error?: Error | string | null
+  stops?: StopGql[]
+  routes?: RouteGql[]
+  stopDepartureEventCount?: number
+}
 
-// Computed progress percentage
+const props = withDefaults(defineProps<Props>(), {
+  progress: null,
+  error: null,
+  stops: () => [],
+  routes: () => []
+})
+
+// Computed values
 const progressPercentage = computed(() => {
-  if (!progress.value) return 0
+  if (!props.progress) return 0
 
   // Use feedVersionProgress for overall progress since it tracks stops + routes
-  const feedProgress = progress.value.feedVersionProgress
+  const feedProgress = props.progress.feedVersionProgress
   if (!feedProgress || feedProgress.total === 0) return 0
 
   return Math.round((feedProgress.completed / feedProgress.total) * 100)
 })
+
+const isComplete = computed(() => {
+  return props.progress?.currentStage === 'complete' || props.progress?.currentStage === 'ready'
+})
+
+// Helper functions
+function formatStage (stage: ScenarioProgress['currentStage']): string {
+  const stageLabels = {
+    'feed-versions': 'Loading feed versions...',
+    'stops': 'Loading stops...',
+    'routes': 'Loading routes...',
+    'schedules': 'Loading schedules...',
+    'complete': 'Complete',
+    'ready': 'Ready'
+  }
+  return stageLabels[stage] || stage
+}
 </script>
 
 <style scoped>
-.streaming-test {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.controls {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-secondary {
-  background-color: #6c757d;
-  color: white;
-}
-
-.btn-outline {
-  background-color: transparent;
-  color: #007bff;
-  border: 1px solid #007bff;
-}
-
 .progress-section {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.progress-section h4 {
+  margin: 0 0 0.75rem 0;
+  color: #495057;
+  font-size: 1.1rem;
 }
 
 .progress-bar {
   width: 100%;
-  height: 20px;
+  height: 16px;
   background-color: #e9ecef;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   margin-bottom: 0.5rem;
 }
 
 .progress-fill {
   height: 100%;
-  background-color: #28a745;
+  background: linear-gradient(90deg, #28a745, #20c997);
   transition: width 0.3s ease;
 }
 
-.error-section {
-  margin-bottom: 2rem;
-}
-
-.error-message {
-  color: #dc3545;
-  background-color: #f8d7da;
-  padding: 1rem;
-  border-radius: 4px;
-  border: 1px solid #f5c6cb;
-}
-
-.results-section {
-  margin-bottom: 2rem;
-}
-
-.results-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.result-card {
-  background-color: #f8f9fa;
-  padding: 1rem;
-  border-radius: 4px;
-  border: 1px solid #dee2e6;
-}
-
-.result-card h4 {
-  margin: 0 0 0.5rem 0;
-  color: #495057;
-}
-
-.preview {
-  margin-top: 0.5rem;
-}
-
-.preview-item {
-  font-size: 0.875rem;
+.progress-text {
+  font-size: 0.9rem;
   color: #6c757d;
-  margin-bottom: 0.25rem;
+  margin: 0;
 }
 
 .completion-status {
   background-color: #d4edda;
   color: #155724;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 4px;
   border: 1px solid #c3e6cb;
   text-align: center;
-  font-weight: bold;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Responsive adjustments for smaller modals */
+@media (max-width: 600px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
