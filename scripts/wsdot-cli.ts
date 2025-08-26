@@ -5,11 +5,10 @@ import type { Command } from 'commander'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
-  streamJsonToFile,
   type ScenarioCliOptions
 } from './scenario-cli-util'
 import { runScenarioData } from './scenario-cli'
-import { WSDOTReportFetcher, type WSDOTReportConfig, type WSDOTReport } from '~/src/reports/wsdot'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseBbox } from '~/src/geom'
 import { parseDate } from '~/src/datetime'
@@ -52,7 +51,7 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
   }
   // Create GraphQL client
   const client = new BasicGraphQLClient(
-    options.endpoint,
+    process.env.TRANSITLAND_API_ENDPOINT || '',
     process.env.TRANSITLAND_API_KEY || ''
   )
 
@@ -60,15 +59,6 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
 
   // Process WSDOT Report
   const wsdotFetcher = new WSDOTReportFetcher(config, result, client)
-  const report = await wsdotFetcher.fetch()
+  await wsdotFetcher.fetch()
   console.log('✅ WSDOT Report generated!')
-
-  // Save WSDOT report
-  if (options.saveWsdotReport) {
-    wsdotReportSave(options.saveWsdotReport, config, report)
-  }
-}
-
-async function wsdotReportSave (filename: string, config: WSDOTReportConfig, report: WSDOTReport) {
-  await streamJsonToFile(filename, { config, report })
 }

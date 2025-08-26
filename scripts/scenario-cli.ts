@@ -3,15 +3,22 @@
  */
 
 import type { Command } from 'commander'
+
+// Local utilities
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
   scenarioOutputCsv,
   scenarioOutputSummary,
-  scenarioSaveData,
   type ScenarioCliOptions
 } from './scenario-cli-util'
-import { ScenarioFetcher, type ScenarioData, type ScenarioConfig } from '~/src/scenario'
+
+// Core scenario functionality
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
+import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
+
+// Utilities
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
@@ -49,25 +56,43 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
 
   // Create GraphQL client
   const client = new BasicGraphQLClient(
-    options.endpoint,
+    process.env.TRANSITLAND_API_ENDPOINT || '',
     process.env.TRANSITLAND_API_KEY || ''
   )
 
-  // Create scenario fetcher with progress reporting
-  const fetcher = new ScenarioFetcher(config, client, {
-    onError: (error) => {
-      console.error('❌ Error during fetch:', error.message)
+  // Create a transform stream that optionally multiplexes to file
+  let fileStream: import('fs').WriteStream | undefined
+  if (options.saveScenarioData) {
+    fileStream = await import('fs').then(fs => fs.createWriteStream(options.saveScenarioData!))
+    console.log(`📝 Logging scenario data to: ${options.saveScenarioData}`)
+  }
+  const { writable, readable } = new TransformStream({
+    transform (chunk, controller) {
+      controller.enqueue(chunk)
+      fileStream?.write(chunk)
+    },
+    flush () {
+      fileStream?.end()
     }
   })
+  const writer = writable.getWriter()
 
-  // Execute the fetch
-  const result = await fetcher.fetch()
+  // Configure fetcher/sender
+  const scenarioDataSender = new ScenarioStreamSender(writer)
+  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
 
+  // Configure client/receiver
+  const receiver = new ScenarioDataReceiver()
+  const scenarioDataClient = new ScenarioStreamReceiver()
+
+  // Await data - start both concurrently and wait for both to complete
+  await Promise.all([
+    fetcher.fetch(),
+    scenarioDataClient.processStream(readable, receiver)
+  ])
+
+  const result = receiver.getCurrentData()
   console.log('✅ Fetch completed!')
-  // Save scenario data if requested
-  if (options.saveScenarioData) {
-    await scenarioSaveData(options.saveScenarioData, result, config)
-  }
 
   // Output results based on format
   switch (options.output) {

@@ -100,7 +100,7 @@ import { useLazyQuery } from '@vue/apollo-composable'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import { cannedBboxes } from '~/src/constants'
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
 import type { GraphQLClient } from '~/src/graphql'
 
 const loading = ref(false)

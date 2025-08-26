@@ -8,13 +8,13 @@
         Copy URL to Clipboard
       </o-button>
       <br><br>
-      <cal-geojson-download :data="exportFeatures" :disabled="!stopDepartureLoadingComplete" />
+      <cal-geojson-download :data="exportFeatures" />
       <br>
-      <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" filename="routes" :disabled="!stopDepartureLoadingComplete" />
+      <cal-csv-download :data="routeCsvData" button-text="Download routes as CSV" filename="routes" />
       <br>
-      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops" :disabled="!stopDepartureLoadingComplete" />
+      <cal-csv-download :data="stopCsvData" button-text="Download stops as CSV" filename="stops" />
       <br>
-      <cal-csv-download :data="agencyCsvData" button-text="Download agencies as CSV" filename="agencies" :disabled="!stopDepartureLoadingComplete" />
+      <cal-csv-download :data="agencyCsvData" button-text="Download agencies as CSV" filename="agencies" />
       <br>
     </div>
   </article>
@@ -22,34 +22,35 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { type Stop, stopToStopCsv } from '~/src/stop'
-import { type Route, routeToRouteCsv } from '~/src/route'
-import { type Agency, agencyToAgencyCsv } from '~/src/agency'
+import { stopToStopCsv } from '~/src/stop'
+import { routeToRouteCsv } from '~/src/route'
+import { agencyToAgencyCsv } from '~/src/agency'
 import type { Feature } from '~/src/geom'
 import { useToastNotification } from '#imports'
+import type { CensusGeography } from '~/src/census'
+import type { ScenarioFilterResult } from '~/src/scenario/scenario'
 
 const props = defineProps<{
-  stopFeatures: Stop[]
-  routeFeatures: Route[]
-  agencyFeatures: Agency[]
-  exportFeatures: Feature[]
-  stopDepartureLoadingComplete: boolean
+  scenarioFilterResult?: ScenarioFilterResult
+  censusGeographiesSelected: CensusGeography[]
 }>()
+
+const exportFeatures = ref<Feature[]>([])
 
 const windowUrl = computed(() => {
   return window.location.href
 })
 
 const routeCsvData = computed(() => {
-  return props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv)
+  return props.scenarioFilterResult?.routes.filter(s => (s.marked)).map(routeToRouteCsv)
 })
 
 const stopCsvData = computed(() => {
-  return props.stopFeatures.filter(s => s.marked).map(stopToStopCsv)
+  return props.scenarioFilterResult?.stops.filter(s => s.marked).map(stopToStopCsv)
 })
 
 const agencyCsvData = computed(() => {
-  return props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv)
+  return props.scenarioFilterResult?.agencies.filter(s => s.marked).map(agencyToAgencyCsv)
 })
 
 function copyUrlToClipboard () {

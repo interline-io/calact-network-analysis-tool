@@ -27,7 +27,7 @@
       <div class="cal-filter-summary">
         <p>
           Showing data for:<br>
-          {{ fmtDate(startDate || null) }}
+          {{ fmtDate(startDate) }}
           <span v-if="endDate">
             - {{ fmtDate(endDate) }}
           </span>
@@ -65,7 +65,6 @@
                 name="selectedDayOfWeekMode"
                 native-value="Any"
                 label="Any of the following days"
-                :disabled="!stopDepartureLoadingComplete"
               />
             </o-field>
             <o-field>
@@ -74,7 +73,6 @@
                 name="selectedDayOfWeekMode"
                 native-value="All"
                 label="All of the following days"
-                :disabled="!stopDepartureLoadingComplete"
               />
             </o-field>
           </section>
@@ -85,14 +83,10 @@
                 v-model="selectedDays"
                 :native-value="dowValue"
                 :label="dowValue"
-                :disabled="!stopDepartureLoadingComplete || !dowAvailable.has(dowValue)"
+                :disabled="!dowAvailable.has(dowValue)"
               />
             </li>
           </ul>
-
-          <p v-if="!stopDepartureLoadingComplete">
-            Loading...
-          </p>
         </aside>
 
         <aside class="cal-filter-times menu block">
@@ -106,7 +100,6 @@
               label="All Day"
               true-value="All"
               false-value="Partial"
-              :disabled="!stopDepartureLoadingComplete"
             />
           </o-field>
 
@@ -121,7 +114,7 @@
               size="small"
               icon="clock"
               hour-format="24"
-              :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
+              :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
           </o-field>
 
@@ -136,7 +129,7 @@
               size="small"
               icon="clock"
               hour-format="24"
-              :disabled="!stopDepartureLoadingComplete || selectedTimeOfDayMode !== 'Partial'"
+              :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
           </o-field>
         </aside>
@@ -153,7 +146,6 @@
             <o-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
-              :disabled="!stopDepartureLoadingComplete"
             />
             <div class="cal-input-width-80">
               <o-input
@@ -161,7 +153,7 @@
                 number
                 type="number"
                 min="0"
-                :disabled="!stopDepartureLoadingComplete || !frequencyUnderEnabled"
+                :disabled="!frequencyUnderEnabled"
               />
             </div>
             <div>
@@ -173,7 +165,6 @@
             <o-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
-              :disabled="!stopDepartureLoadingComplete"
             />
             <div class="cal-input-width-80">
               <o-input
@@ -181,7 +172,7 @@
                 number
                 type="number"
                 min="0"
-                :disabled="!stopDepartureLoadingComplete || !frequencyOverEnabled"
+                :disabled="!frequencyOverEnabled"
               />
             </div>
             <div>
@@ -387,8 +378,8 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import type { Stop } from '~/src/stop'
 import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '~/src/constants'
+import type { ScenarioFilterResult } from '~/src/scenario/scenario'
 </script>
 
 <script setup lang="ts">
@@ -403,13 +394,13 @@ const menuItems = [
 ]
 
 const props = defineProps<{
-  stopFeatures: Stop[]
-  stopDepartureLoadingComplete: boolean
+  scenarioFilterResult?: ScenarioFilterResult
 }>()
 
 const emit = defineEmits([
   'resetFilters'
 ])
+const activeTab = defineModel<string>('activeTab')
 
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
@@ -434,7 +425,6 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
-const activeTab = defineModel<string>('activeTab')
 
 ///////////////////
 // Tab
@@ -464,7 +454,7 @@ function agencySelectAll () {
 
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
-  for (const feature of props.stopFeatures) {
+  for (const feature of props.scenarioFilterResult?.stops || []) {
     for (const rs of feature.route_stops) {
       agencies.add(rs.route.agency.agency_name)
     }

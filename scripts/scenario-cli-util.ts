@@ -1,32 +1,11 @@
-import { pipeline } from 'stream/promises'
-import { createWriteStream } from 'fs'
-import type { Readable } from 'stream'
 import type { Command } from 'commander'
-import bigJson from 'big-json'
 import { cannedBboxes } from '~/src/constants'
-import { fmtDate, getLocalDateNoTime } from '~/src/datetime'
-import type { ScenarioData, ScenarioConfig, ScenarioFilter } from '~/src/scenario'
-import { serializeScenarioTestFixture } from '~/src/scenario-fixtures'
+import { getCurrentDate, getDateOneWeekLater } from '~/src/datetime'
+import type { ScenarioData } from '~/src/scenario/scenario'
 
 /**
  * Stream a JSON object to disk in chunks to handle large files efficiently
  */
-
-/**
- * Get current date in YYYY-MM-DD format
- */
-export function getCurrentDate (): string {
-  return fmtDate(getLocalDateNoTime())
-}
-
-/**
- * Get date one week from now in YYYY-MM-DD format
- */
-export function getDateOneWeekLater (): string {
-  const date = getLocalDateNoTime()
-  date.setDate(date.getDate() + 7)
-  return fmtDate(date)
-}
 
 /**
  * Add common scenario configuration options to a Commander.js program
@@ -38,7 +17,6 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--end-date <date>', 'End date (YYYY-MM-DD)', getDateOneWeekLater())
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
     .option('--end-time <time>', 'End time (HH:MM)', '22:00')
-    .option('--endpoint <url>', 'GraphQL API URL', 'https://api.transit.land/api/v2/query')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
@@ -65,7 +43,6 @@ export interface ScenarioCliOptions {
   endDate: string
   startTime: string
   endTime: string
-  endpoint: string
   output: string
   saveScenarioData?: string
   noSchedule: boolean
@@ -109,43 +86,4 @@ export function scenarioOutputCsv (result: any) {
     const routeCount = stop.route_stops?.length || 0
     console.log(`${stop.id},"${stop.stop_name || 'Unnamed'}",${stop.marked},${routeCount}`)
   })
-}
-
-/**
- * Save scenario data and config to a file using streaming JSON
- */
-export async function scenarioSaveData (filename: string, data: ScenarioData, config: ScenarioConfig) {
-  // Create a default ScenarioFilter with sensible defaults
-  const filter: ScenarioFilter = {
-    selectedRouteTypes: [],
-    selectedDays: [],
-    selectedAgencies: [],
-    selectedDayOfWeekMode: 'Any',
-    selectedTimeOfDayMode: 'All',
-    frequencyUnderEnabled: false,
-    frequencyOverEnabled: false
-  }
-  const fixture = {
-    config,
-    filter,
-    data
-  }
-  const fixtureData = serializeScenarioTestFixture(fixture)
-
-  // Use the general streaming helper
-  console.log('Start writing file....')
-  await streamJsonToFile(filename, fixtureData)
-  console.log('...done')
-  console.log(`💾 Scenario data saved to: ${filename}`)
-}
-
-export async function streamJsonToFile (
-  filename: string,
-  data: any,
-): Promise<void> {
-  const writeStream = createWriteStream(filename)
-  const stringifyStream = bigJson.createStringifyStream({
-    body: data
-  }) as Readable // Type assertion to tell TypeScript this is a Readable stream
-  await pipeline(stringifyStream, writeStream)
 }
