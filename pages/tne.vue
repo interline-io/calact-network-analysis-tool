@@ -595,14 +595,15 @@ const showLoadingModal = ref(false)
 const loadExampleData = async (exampleName: string) => {
   console.log('loading:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
+  fetchScenario(exampleName)
 }
 
 // Scenario fetching logic
 const fetchScenario = async (loadExample: string) => {
   console.log('fetchScenario:', loadExample)
   const config = scenarioConfig.value
-  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    return // Need either bbox or geography IDs
+  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+    return // Need either bbox or geography IDs, unless loading example
   }
   try {
     showLoadingModal.value = true
@@ -637,14 +638,21 @@ const fetchScenario = async (loadExample: string) => {
       }
     })
 
-    // Make request to streaming scenario endpoint
-    const response = await fetch('/api/scenario', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(config)
-    })
+    let response: Response
+
+    if (loadExample) {
+      // Load example data from public JSON file
+      response = await fetch(`/examples/${loadExample}.json`)
+    } else {
+      // Make request to streaming scenario endpoint
+      response = await fetch('/api/scenario', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config)
+      })
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
