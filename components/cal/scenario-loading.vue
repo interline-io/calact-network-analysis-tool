@@ -26,7 +26,17 @@
     <!-- Results Display -->
     <div class="columns">
       <div class="column">
-        <tl-msg-info title="Stops" />
+        <tl-msg-info title="Stops">
+          <p><strong>{{ stops.length }}</strong> loaded</p>
+          <div v-if="stops.length > 0" class="stop-list">
+            <div v-for="stop in stops.slice(0, 5)" :key="stop.id" class="stop-item">
+              {{ stop.stop_name }}
+            </div>
+            <div v-if="stops.length > 5" class="more-label">
+              ... and {{ stops.length - 5 }} more
+            </div>
+          </div>
+        </tl-msg-info>
       </div>
       <div class="column">
         <tl-msg-info title="Routes">
