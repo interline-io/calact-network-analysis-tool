@@ -80,6 +80,34 @@
           {{ formatHighestLevel(value) }}
         </span>
       </template>
+      <template #column-level1="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level2="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level3="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level4="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level5="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level6="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-levelNights="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
     </cal-datagrid>
   </div>
 </template>
