@@ -2,7 +2,7 @@
 <template>
   <div class="scenario-loading">
     <!-- Progress Display -->
-    <div v-if="progress" class="progress-section">
+    <div class="progress-section">
       <h4>Loading Progress</h4>
       <div class="progress-bar">
         <div
@@ -10,7 +10,7 @@
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
-      <p class="progress-text">
+      <p v-if="progress" class="progress-text">
         {{ formatStage(progress.currentStage) }}
         <span v-if="progress.feedVersionProgress">
           ({{ progress.feedVersionProgress.completed }}/{{ progress.feedVersionProgress.total }})
@@ -26,7 +26,7 @@
     <!-- Results Display -->
     <div class="columns">
       <div class="column">
-        <tl-msg-info title="Stops">
+        <tl-msg-info title="Stops" no-icon>
           <p><strong>{{ stops.length }}</strong> loaded</p>
           <div v-if="stops.length > 0" class="stop-list">
             <div v-for="stop in stops.slice(0, 5)" :key="stop.id" class="stop-item">
@@ -39,13 +39,21 @@
         </tl-msg-info>
       </div>
       <div class="column">
-        <tl-msg-info title="Routes">
-          Routes
+        <tl-msg-info title="Routes" no-icon>
+          <p><strong>{{ routes.length }}</strong> loaded</p>
+          <div v-if="routes.length > 0" class="route-list">
+            <div v-for="route in routes.slice(0, 5)" :key="route.id" class="route-item">
+              {{ route.route_short_name || route.route_long_name }}
+            </div>
+            <div v-if="routes.length > 5" class="more-label">
+              ... and {{ routes.length - 5 }} more
+            </div>
+          </div>
         </tl-msg-info>
       </div>
       <div class="column">
-        <tl-msg-info title="Departures">
-          Departures
+        <tl-msg-info title="Departures" no-icon>
+          <p><strong>{{ stopDepartureEventCount || 0 }}</strong> loaded</p>
         </tl-msg-info>
       </div>
     </div>
@@ -82,10 +90,6 @@ const progressPercentage = computed(() => {
   if (!feedProgress || feedProgress.total === 0) return 0
 
   return Math.round((feedProgress.completed / feedProgress.total) * 100)
-})
-
-const isComplete = computed(() => {
-  return props.progress?.currentStage === 'complete' || props.progress?.currentStage === 'ready'
 })
 
 // Helper functions
@@ -132,6 +136,26 @@ function formatStage (stage: ScenarioProgress['currentStage']): string {
   font-size: 0.9rem;
   color: #6c757d;
   margin: 0;
+}
+
+.stop-list, .route-list {
+  margin-top: 0.5rem;
+}
+
+.stop-item, .route-item {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.more-label {
+  font-size: 0.8rem;
+  color: #adb5bd;
+  font-style: italic;
+  margin-top: 0.3rem;
 }
 
 .completion-status {
