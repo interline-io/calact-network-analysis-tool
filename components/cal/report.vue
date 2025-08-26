@@ -73,7 +73,6 @@
       <div class="cal-report-download">
         <cal-geojson-download
           :data="exportFeatures"
-          :disabled="!stopDepartureLoadingComplete"
         />
       </div>
     </div>
@@ -81,34 +80,31 @@
     <div v-if="geoReportData.columns.length > 0">
       <cal-datagrid
         :table-report="geoReportData"
-        :loading="!stopDepartureLoadingComplete"
       />
       <hr>
     </div>
 
     <cal-datagrid
       :table-report="reportData"
-      :loading="!stopDepartureLoadingComplete"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { type Stop, stopToStopCsv, stopGeoAggregateCsv } from '~/src/stop'
-import { type Route, routeToRouteCsv } from '~/src/route'
-import { type Agency, agencyToAgencyCsv } from '~/src/agency'
+import { stopToStopCsv, stopGeoAggregateCsv } from '~/src/stop'
+import { routeToRouteCsv } from '~/src/route'
+import { agencyToAgencyCsv } from '~/src/agency'
+import type { ScenarioFilterResult } from '~/src/scenario/scenario'
 import type { Feature } from '~/src/geom'
 
 const props = defineProps<{
-  stopFeatures: Stop[]
-  routeFeatures: Route[]
-  agencyFeatures: Agency[]
-  exportFeatures: Feature[]
   filterSummary: string[]
-  stopDepartureLoadingComplete: boolean
   censusGeographyLayerOptions: { label: string, value: string }[]
+  scenarioFilterResult?: ScenarioFilterResult
 }>()
+
+const exportFeatures = ref<Feature[]>([])
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
 const aggregateMode = defineModel<string>('aggregateMode', { default: '' })
@@ -170,7 +166,7 @@ const geoReportData = computed((): TableReport => {
   // Handle aggregation
   if (dataDisplayMode.value === 'Stop') {
     return {
-      data: stopGeoAggregateCsv(props.stopFeatures.filter(s => (s.marked)), aggregateMode.value),
+      data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateMode.value),
       columns: stopGeoAggregateColumns
     }
   }
@@ -181,17 +177,17 @@ const reportData = computed((): TableReport => {
   // Non-aggregated data
   if (dataDisplayMode.value === 'Route') {
     return {
-      data: props.routeFeatures.filter(s => (s.marked)).map(routeToRouteCsv),
+      data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
       columns: routeColumns
     }
   } else if (dataDisplayMode.value === 'Stop') {
     return {
-      data: props.stopFeatures.filter(s => s.marked).map(stopToStopCsv), columns:
-         stopColumns
+      data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
+      columns: stopColumns
     }
   } else if (dataDisplayMode.value === 'Agency') {
     return {
-      data: props.agencyFeatures.filter(s => s.marked).map(agencyToAgencyCsv),
+      data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
   }

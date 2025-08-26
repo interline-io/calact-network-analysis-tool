@@ -3,17 +3,17 @@
   <div class="scenario-loading">
     <!-- Progress Display -->
     <div class="progress-section">
-      <h4>Loading Progress</h4>
+      <h4>Progress</h4>
       <div class="progress-bar">
         <div
           class="progress-fill"
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
-      <p v-if="progress" class="progress-text">
-        {{ formatStage(progress.currentStage) }}
-        <span v-if="progress.feedVersionProgress">
-          ({{ progress.feedVersionProgress.completed }}/{{ progress.feedVersionProgress.total }})
+      <p>
+        {{ formatStage(progress?.currentStage || 'ready') }}
+        <span v-if="progress?.feedVersionProgress">
+          ({{ progress?.feedVersionProgress?.completed || 0 }}/{{ progress?.feedVersionProgress?.total || 0 }})
         </span>
       </p>
     </div>
@@ -27,26 +27,26 @@
     <div class="columns">
       <div class="column">
         <tl-msg-info title="Stops" no-icon>
-          <p><strong>{{ stops.length }}</strong> loaded</p>
-          <div v-if="stops.length > 0" class="stop-list">
-            <div v-for="stop in stops.slice(0, 5)" :key="stop.id" class="stop-item">
+          <p><strong>{{ scenarioData?.stops.length }}</strong> loaded</p>
+          <div v-if="scenarioData?.stops.length" class="stop-list">
+            <div v-for="stop in scenarioData?.stops.slice(0, 5)" :key="stop.id" class="stop-item">
               {{ stop.stop_name }}
             </div>
-            <div v-if="stops.length > 5" class="more-label">
-              ... and {{ stops.length - 5 }} more
+            <div v-if="scenarioData?.stops.length > 5" class="more-label">
+              ... and {{ scenarioData.stops.length - 5 }} more
             </div>
           </div>
         </tl-msg-info>
       </div>
       <div class="column">
         <tl-msg-info title="Routes" no-icon>
-          <p><strong>{{ routes.length }}</strong> loaded</p>
-          <div v-if="routes.length > 0" class="route-list">
-            <div v-for="route in routes.slice(0, 5)" :key="route.id" class="route-item">
+          <p><strong>{{ scenarioData?.routes.length }}</strong> loaded</p>
+          <div v-if="scenarioData?.routes.length" class="route-list">
+            <div v-for="route in scenarioData?.routes.slice(0, 5)" :key="route.id" class="route-item">
               {{ route.route_short_name || route.route_long_name }}
             </div>
-            <div v-if="routes.length > 5" class="more-label">
-              ... and {{ routes.length - 5 }} more
+            <div v-if="scenarioData?.routes.length > 5" class="more-label">
+              ... and {{ scenarioData.routes.length - 5 }} more
             </div>
           </div>
         </tl-msg-info>
@@ -62,23 +62,18 @@
 
 <script lang="ts" setup>
 import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
-import type { StopGql } from '~/src/stop'
-import type { RouteGql } from '~/src/route'
+import type { ScenarioData } from '~/src/scenario/scenario'
 
 // Props
-interface Props {
+const props = withDefaults(defineProps<{
   progress?: ScenarioProgress | null
   error?: Error | string | null
-  stops?: StopGql[]
-  routes?: RouteGql[]
+  scenarioData?: ScenarioData | null
   stopDepartureEventCount?: number
-}
-
-const props = withDefaults(defineProps<Props>(), {
+}>(), {
   progress: null,
   error: null,
-  stops: () => [],
-  routes: () => []
+  scenarioData: null,
 })
 
 // Computed values

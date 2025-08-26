@@ -8,11 +8,8 @@
 
     <div v-if="showShareMenu" class="cal-map-share">
       <cal-map-share
-        :export-features="exportFeatures"
-        :stop-features="stopFeatures"
-        :route-features="routeFeatures"
-        :agency-features="agencyFeatures"
-        :stop-departure-loading-complete="stopDepartureLoadingComplete"
+        :scenario-filter-result="scenarioFilterResult"
+        :census-geographies-selected="censusGeographiesSelected"
       />
     </div>
 
@@ -46,8 +43,8 @@ import { type Stop, stopToStopCsv } from '~/src/stop'
 import { type Route, routeToRouteCsv } from '~/src/route'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
 import { colors, routeTypes } from '~/src/constants'
-import type { Agency } from '~/src/agency'
 import type { CensusGeography } from '~/src/census'
+import type { ScenarioFilterResult } from '~/src/scenario/scenario'
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]
@@ -58,15 +55,12 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   bbox: Bbox
-  stopFeatures: Stop[]
-  routeFeatures: Route[]
-  agencyFeatures: Agency[]
   dataDisplayMode: string
   colorKey: string
   displayEditBboxMode?: boolean
   hideUnmarked: boolean
-  stopDepartureLoadingComplete: boolean
   censusGeographiesSelected: CensusGeography[]
+  scenarioFilterResult?: ScenarioFilterResult
 }>()
 
 const showShareMenu = ref(false)
@@ -168,7 +162,7 @@ const bboxMarkers = computed(() => {
 // This is necessary because the geojson properties are stringified
 const stopFeatureLookup = computed(() => {
   const lookup = new Map<string, Stop>()
-  for (const feature of props.stopFeatures) {
+  for (const feature of props.scenarioFilterResult?.stops || []) {
     lookup.set(feature.id.toString(), toRaw(feature))
   }
   return lookup
@@ -184,7 +178,7 @@ interface AgencyData {
 const agencyData = computed((): AgencyData[] => {
   // Collect agency data from the stop data.
   const data = new Map()
-  for (const stop of props.stopFeatures) {
+  for (const stop of props.scenarioFilterResult?.stops || []) {
     const props = stop
     const route_stops = props.route_stops || []
 
@@ -224,17 +218,17 @@ interface Matcher {
 }
 const styleData = computed((): Matcher[] => {
   const routeLookup = new Map<number, Route>()
-  for (const route of props.routeFeatures) {
+  for (const route of props.scenarioFilterResult?.routes || []) {
     routeLookup.set(route.id, route)
   }
 
   const stopLookup = new Map<number, Stop>()
-  for (const stop of props.stopFeatures) {
+  for (const stop of props.scenarioFilterResult?.stops || []) {
     stopLookup.set(stop.id, stop)
   }
 
   const routeStopLookup = new Map<number, number[]>()
-  for (const stop of props.stopFeatures) {
+  for (const stop of props.scenarioFilterResult?.stops || []) {
     for (const rs of stop.route_stops) {
       const rid = rs.route.id
       const stops = routeStopLookup.get(rid) || []
@@ -427,7 +421,7 @@ const displayFeatures = computed((): Feature[] => {
   const forDisplay: Feature[] = []
 
   // Gather routes
-  for (const rp of props.routeFeatures) {
+  for (const rp of props.scenarioFilterResult?.routes || []) {
     if (props.hideUnmarked && !rp.marked) {
       continue
     }
@@ -455,7 +449,7 @@ const displayFeatures = computed((): Feature[] => {
   }
 
   // Gather stops
-  for (const sp of props.stopFeatures) {
+  for (const sp of props.scenarioFilterResult?.stops || []) {
     if (props.hideUnmarked && !sp.marked) {
       continue
     }
@@ -487,7 +481,7 @@ const exportFeatures = computed((): Feature[] => {
   const forExport: Feature[] = []
 
   // Gather routes
-  for (const rp of props.routeFeatures) {
+  for (const rp of props.scenarioFilterResult?.routes || []) {
     if (!rp.marked) {
       continue
     }
@@ -511,7 +505,7 @@ const exportFeatures = computed((): Feature[] => {
   }
 
   // Gather stops
-  for (const sp of props.stopFeatures) {
+  for (const sp of props.scenarioFilterResult?.stops || []) {
     if (!sp.marked) {
       continue
     }
@@ -545,7 +539,7 @@ watch(exportFeatures, () => {
 
 // Is there data to display?
 const hasData = computed((): boolean => {
-  return !!(props.stopFeatures.length || props.routeFeatures.length)
+  return !!(props.scenarioFilterResult?.stops.length || props.scenarioFilterResult?.routes.length)
 })
 
 /////////////////

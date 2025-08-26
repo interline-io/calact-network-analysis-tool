@@ -98,8 +98,7 @@
             v-model:max-fare="maxFare"
             v-model:min-fare-enabled="minFareEnabled"
             v-model:min-fare="minFare"
-            :stop-features="stopFeatures"
-            :agency-features="agencyFeatures"
+            :scenario-filter-result="scenarioFilterResult"
             :active-tab="activeTab.sub"
             :stop-departure-loading-complete="true"
             @reset-filters="resetFilters"
@@ -111,12 +110,9 @@
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-mode="geomLayer"
             :census-geography-layer-options="censusGeographyLayerOptions"
-            :stop-features="stopFeatures"
-            :route-features="routeFeatures"
-            :agency-features="agencyFeatures"
+            :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
-            :stop-departure-loading-complete="true"
             @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
@@ -134,14 +130,11 @@
         <cal-map
           :bbox="bbox"
           :census-geographies-selected="censusGeographiesSelected"
-          :stop-features="stopFeatures"
-          :route-features="routeFeatures"
-          :agency-features="agencyFeatures"
+          :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
-          :stop-departure-loading-complete="true"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -151,16 +144,15 @@
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
       <tl-modal
         v-model="showLoadingModal"
-        title="Loading Transit Data"
+        title="Loading Scenario Data"
         :closable="false"
         :active="showLoadingModal"
       >
         <cal-scenario-loading
           :progress="loadingProgress"
           :error="error"
-          :stops="stopFeatures"
-          :routes="routeFeatures"
           :stop-departure-event-count="loadingScheduleProgress"
+          :scenario-data="scenarioData"
         />
       </tl-modal>
     </template>
@@ -171,14 +163,11 @@
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { navigateTo } from '#imports'
-import type { Stop } from '~/src/stop'
-import type { Route } from '~/src/route'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
-import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
-import type { ScenarioConfig, ScenarioData, ScenarioFilter } from '~/src/scenario/scenario'
+import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioFilterResult } from '~/src/scenario/scenario'
 import { applyScenarioResultFilter } from '~/src/scenario/scenario'
 import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
 import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
@@ -576,7 +565,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
-  stopLimit: 1000
+  stopLimit: 100
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -595,15 +584,13 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 
 // Internal state for streaming scenario data
 const scenarioData = ref<ScenarioData | null>(null)
-const stopFeatures = shallowRef<Stop[]>([])
-const routeFeatures = shallowRef<Route[]>([])
-const agencyFeatures = shallowRef<Agency[]>([])
+const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress | null>(null)
 const loadingScheduleProgress = ref<number>(0)
-const showLoadingModal = ref(true)
+const showLoadingModal = ref(false)
 
 const loadExampleData = async (exampleName: string) => {
   console.log('loading:', exampleName)
@@ -634,21 +621,13 @@ const fetchScenario = async (loadExample: string) => {
         if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
           return
         }
-        const partialScenarioData = receiver.getCurrentData()
-        const partialResult = applyScenarioResultFilter(partialScenarioData, scenarioConfig.value, scenarioFilter.value)
-        routeFeatures.value = partialResult.routes
-        stopFeatures.value = partialResult.stops
-        agencyFeatures.value = partialResult.agencies
+        scenarioData.value = receiver.getCurrentData()
       },
       onComplete: () => {
         // Get final accumulated data and apply filters
         showLoadingModal.value = false
         loadingProgress.value = null
         scenarioData.value = receiver.getCurrentData()
-        const finalResult = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
-        routeFeatures.value = finalResult.routes
-        stopFeatures.value = finalResult.stops
-        agencyFeatures.value = finalResult.agencies
       },
       onError: (err: any) => {
         showLoadingModal.value = false
@@ -694,10 +673,7 @@ watch(() => [
   if (!scenarioData.value) {
     return
   }
-  const result = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
-  routeFeatures.value = result.routes
-  stopFeatures.value = result.stops
-  agencyFeatures.value = result.agencies
+  scenarioFilterResult.value = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
 })
 
 /////////////////
