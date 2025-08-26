@@ -368,7 +368,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   <style scss>
   @import 'maplibre-gl/dist/maplibre-gl';
   .short {
-    height: 600px;
+    height: 700px;
   }
   .tall {
     height: 100vh;

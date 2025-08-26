@@ -1,11 +1,44 @@
 <template>
   <div>
+    <div class="box level">
+      <div class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Analysis Period: Weekday Date
+          </p>
+          <p class="title is-6">
+            {{ fmtDate(wsdotReportConfig.weekdayDate) }}
+          </p>
+        </div>
+      </div>
+      <div class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Analysis Period: Weekend Date
+          </p>
+          <p class="title is-6">
+            {{ fmtDate(wsdotReportConfig.weekendDate) }}
+          </p>
+        </div>
+      </div>
+      <div v-if="wsdotReportConfig.stopBufferRadius" class="level-item has-text-centered">
+        <div>
+          <p class="heading">
+            Stop Buffer Radius
+          </p>
+          <p class="title is-6">
+            {{ wsdotReportConfig.stopBufferRadius }} meters
+          </p>
+        </div>
+      </div>
+    </div>
     <div class="columns">
       <div class="column is-one-quarter">
+        <o-field label="Frequency level selection and stats" class="mt-4" />
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
-              <td :style="{ backgroundColor: levelDetail.color }" colspan="5">
+              <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
                 <o-checkbox v-model="selectedLevels" :native-value="levelKey">
                   Frequency: {{ levelDetail.label }}
                 </o-checkbox>
@@ -13,12 +46,19 @@
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
               <td style="width:50px" />
-              <td>{{ adminKey }}</td>
+              <td v-if="Object.keys(levelDetail.layerPops).length > 1">
+                {{ adminKey }}
+              </td>
               <td>{{ Math.round(pop.intersection).toLocaleString() }}</td>
-              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}%)</td>
+              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}% of total population)</td>
             </tr>
           </tbody>
         </table>
+        <o-field label="Map display options" class="mt-4">
+          <o-checkbox v-model="showStopBuffers">
+            Show stop buffers
+          </o-checkbox>
+        </o-field>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -26,31 +66,49 @@
           :center="bboxCenter"
           :zoom="zoom"
         />
-        <br>
-        <o-field label="Stop buffer radius (m)" style="width:300px">
-          <o-slider v-model="stopBufferRadius" :min="1" :max="1000" />
-          <o-checkbox v-model="showStopBuffers">
-            Show stop buffers
-          </o-checkbox>
-        </o-field>
       </div>
     </div>
 
-    <tl-msg-info>
-      <div>
-        Report bbox: {{ bboxString(wsdotReportConfig.bbox!) }}
-      </div>
-      <div>
-        Weekday: {{ fmtDate(wsdotReportConfig.weekdayDate) }}
-      </div>
-      <div>
-        Weekend: {{ fmtDate(wsdotReportConfig.weekendDate) }}
-      </div>
-    </tl-msg-info>
-
     <cal-datagrid
       :table-report="stopDatagrid"
-    />
+    >
+      <template #column-highestLevel="{ value }">
+        <span
+          :class="getFrequencyLevelClass(value)"
+          class="tag"
+        >
+          {{ formatHighestLevel(value) }}
+        </span>
+      </template>
+      <template #column-level1="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level2="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level3="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level4="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level5="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-level6="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+      <template #column-levelNights="{ value }">
+        <o-icon v-if="value == 1" icon="check" />
+        <span v-else />
+      </template>
+    </cal-datagrid>
   </div>
 </template>
 
@@ -59,7 +117,6 @@ import type { ComputedRef } from 'vue'
 import type { WSDOTReport, WSDOTReportConfig, LevelKey } from '~/src/reports/wsdot'
 import { SERVICE_LEVELS, levelColors } from '~/src/reports/wsdot'
 import type { Feature } from '~/src/geom'
-import { bboxString } from '~/src/geom'
 import { fmtDate } from '~/src/datetime'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
@@ -69,8 +126,18 @@ const wsdotReport = defineModel<WSDOTReport>('report', { required: true })
 
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
-const stopBufferRadius = ref(800) // in meters
 const showStopBuffers = ref(false)
+
+// Helper functions for Highest Level column rendering
+const getFrequencyLevelClass = (level: string) => {
+  if (level === 'levelNights') return 'frequency-level-nights'
+  return `frequency-level-${level.replace('level', '')}`
+}
+
+const formatHighestLevel = (level: string) => {
+  if (level === 'levelNights') return 'Night'
+  return level.replace('level', 'Level ')
+}
 
 // TEMPORARY
 const StatePopulations: Record<string, number> = {
@@ -225,5 +292,35 @@ const stopDatagrid = computed((): TableReport => {
 }
 .wsdot-level-details td {
   padding: 4px;
+}
+
+/* Frequency level color classes - extending Bulma's tag component */
+.frequency-level-1 {
+  background-color: #00ffff !important;
+}
+
+.frequency-level-2 {
+  background-color: #00ff80 !important;
+}
+
+.frequency-level-3 {
+  background-color: #80ff00 !important;
+}
+
+.frequency-level-4 {
+  background-color: #ffff00 !important;
+}
+
+.frequency-level-5 {
+  background-color: #ff8000 !important;
+}
+
+.frequency-level-6 {
+  background-color: #ff0000 !important;
+}
+
+.frequency-level-nights {
+  background-color: #5c5cff !important;
+  color: #ffffff !important;
 }
 </style>

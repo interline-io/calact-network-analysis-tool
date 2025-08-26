@@ -31,7 +31,14 @@
       <tbody>
         <tr v-for="row in currentRows" :key="row.id">
           <td v-for="column in tableReport.columns" :key="column.key">
-            {{ row[column.key] }}
+            <slot
+              :name="`column-${column.key}`"
+              :row="row"
+              :column="column"
+              :value="row[column.key]"
+            >
+              {{ row[column.key] }}
+            </slot>
           </td>
         </tr>
       </tbody>
