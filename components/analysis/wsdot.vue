@@ -96,12 +96,10 @@
 </template>
 
 <script lang="ts" setup>
-import { useLazyQuery } from '@vue/apollo-composable'
+import { useAuthenticatedFetchToBackend } from '#imports'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import { cannedBboxes } from '~/src/constants'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
 
 const loading = ref(false)
 const debugMenu = useDebugMenu()
@@ -120,24 +118,6 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// Create GraphQL client adapter for Vue Apollo
-const createGraphQLClientAdapter = (): GraphQLClient => {
-  return {
-    async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-      const { load } = useLazyQuery<T>(query, variables, {
-        fetchPolicy: 'no-cache',
-        clientId: 'transitland'
-      })
-      const result = await load()
-      if (!result) {
-        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
-        return { data: undefined }
-      }
-      return { data: result as T }
-    }
-  }
-}
-
 const loadExampleWsdotReport = async () => {
   loading.value = true
   const reportFile = `/examples/${cannedBbox.value}.wsdot.json`
@@ -155,19 +135,31 @@ const runWsdotReport = async () => {
     return
   }
   loading.value = true
-  const client = createGraphQLClientAdapter()
-  const wsdotConfig: WSDOTReportConfig = {
-    ...scenarioConfig.value,
-    weekdayDate: scenarioConfig.value?.startDate || new Date(),
-    weekendDate: scenarioConfig.value?.endDate || new Date(),
-    scheduleEnabled: true,
-    stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
+
+  try {
+    const wsdotConfig: WSDOTReportConfig = {
+      ...scenarioConfig.value,
+      weekdayDate: scenarioConfig.value?.startDate || new Date(),
+      weekendDate: scenarioConfig.value?.endDate || new Date(),
+      scheduleEnabled: true,
+      stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
+    }
+
+    // Use authenticated fetch to automatically include JWT token
+    const authFetch = useAuthenticatedFetchToBackend()
+    const response = await authFetch.post('/api/wsdot', {
+      config: wsdotConfig,
+      scenarioData: scenarioData.value
+    })
+
+    wsdotReport.value = response as WSDOTReport
+    wsdotReportConfig.value = wsdotConfig
+  } catch (error) {
+    console.error('WSDOT analysis failed:', error)
+    // You might want to show an error message to the user here
+  } finally {
+    loading.value = false
   }
-  const wsdotFetcher = new WSDOTReportFetcher(wsdotConfig, scenarioData.value!, client)
-  const wsdotResult = await wsdotFetcher.fetch()
-  wsdotReport.value = wsdotResult
-  wsdotReportConfig.value = wsdotConfig
-  loading.value = false
 }
 
 const handleCancel = () => {
