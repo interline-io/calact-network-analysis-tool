@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
-import { stylisticConfig } from './node_modules/tlv2-ui/dist/runtime/config/eslint.js'
+import { stylisticConfig } from 'tlv2-ui/config'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -19,11 +19,11 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    proxyBase: '',
+    proxyBase: '', // can be overridden by NUXT_PROXY_BASE environment variable
     allowedReferer: '',
     graphqlApikey: '',
     public: {
-      apiBase: '',
+      apiBase: '', // can be overridden by NUXT_PUBLIC_API_BASE environment variable
       protomapsApikey: '',
       nearmapsApikey: '',
       auth0Domain: '',
@@ -42,7 +42,9 @@ export default defineNuxtConfig({
       'tslib', // https://github.com/nuxt/nuxt/issues/19265#issuecomment-1702014262
       '@vue/apollo-composable',
       '@apollo/client',
-      'protomaps-themes-base'
+      'protomaps-themes-base',
+      'tlv2-ui', // Required for yarn link development + ESM compatibility
+      'h3' // Required for type safety + ESM compatibility with H3Event, getHeader, createError
     ]
   },
 
@@ -88,7 +90,7 @@ export default defineNuxtConfig({
     },
   },
   tlv2: {
-    useProxy: false,
+    useProxy: true,
     bulma: '~/assets/main.scss',
   },
 })

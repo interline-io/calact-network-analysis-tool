@@ -159,6 +159,7 @@
 </template>
 
 <script lang="ts" setup>
+import { useAuthenticatedFetchToBackend } from '#imports'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { navigateTo } from '#imports'
@@ -644,13 +645,8 @@ const fetchScenario = async (loadExample: string) => {
       response = await fetch(`/examples/${loadExample}.json`)
     } else {
       // Make request to streaming scenario endpoint
-      response = await fetch('/api/scenario', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(config)
-      })
+      const authFetch = useAuthenticatedFetchToBackend()
+      response = await authFetch.post('/api/scenario', config)
     }
 
     if (!response.ok) {
