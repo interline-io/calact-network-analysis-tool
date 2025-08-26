@@ -59,17 +59,36 @@ export interface ScenarioProgress {
     stops: StopGql[]
     routes: RouteGql[]
     feedVersions: FeedVersion[]
-    stopDepartureEvents: StopDepartureEvent[]
+    stopDepartureEvents: StopDepartureEventTuple[]
   }
 }
 
-export interface StopDepartureEvent {
-  stop_id: number
-  departure_date: string
-  departure_time: string
-  trip_id: number
-  trip_direction_id: number
+// Define the tuple type with named fields
+export type StopDepartureEventTuple = readonly [
+  stop_id: number,
+  departure_date: string,
+  departure_time: string,
+  trip_id: number,
+  trip_direction_id: number,
   trip_route_id: number
+]
+
+// Helper functions for working with the tuple
+export const StopDepartureEventTuple = {
+  create: (
+    stop_id: number,
+    departure_date: string,
+    departure_time: string,
+    trip_id: number,
+    trip_direction_id: number,
+    trip_route_id: number
+  ): StopDepartureEventTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
+  stopId: (tuple: StopDepartureEventTuple) => tuple[0],
+  departureDate: (tuple: StopDepartureEventTuple) => tuple[1],
+  departureTime: (tuple: StopDepartureEventTuple) => tuple[2],
+  tripId: (tuple: StopDepartureEventTuple) => tuple[3],
+  tripDirectionId: (tuple: StopDepartureEventTuple) => tuple[4],
+  tripRouteId: (tuple: StopDepartureEventTuple) => tuple[5]
 }
 
 // ============================================================================
@@ -277,7 +296,7 @@ export class ScenarioFetcher {
     console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
     const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
     // Map into simpler format for wire format
-    const stopDepartureEvents: StopDepartureEvent[] = []
+    const stopDepartureEvents: StopDepartureEventTuple[] = []
     for (const stop of response.data?.stops || []) {
       for (const dow of dowDateStringLower) {
         const dowDate = task.get(dow)
@@ -305,14 +324,14 @@ export class ScenarioFetcher {
           }
         })()
         stopTimes.forEach((st: StopTime) => {
-          stopDepartureEvents.push({
-            stop_id: stop.id,
-            departure_date: dowDate,
-            departure_time: st.departure_time,
-            trip_id: st.trip.id,
-            trip_direction_id: st.trip.direction_id,
-            trip_route_id: st.trip.route.id
-          })
+          stopDepartureEvents.push([
+            stop.id,
+            dowDate,
+            st.departure_time,
+            st.trip.id,
+            st.trip.direction_id,
+            st.trip.route.id
+          ])
         })
       }
     }
@@ -380,16 +399,20 @@ export class ScenarioDataReceiver {
       // Append new stop departure events
       for (const event of progress.partialData.stopDepartureEvents) {
         const st: StopTime[] = [{
-          departure_time: event.departure_time,
+          departure_time: StopDepartureEventTuple.departureTime(event),
           trip: {
-            id: event.trip_id,
-            direction_id: event.trip_direction_id,
+            id: StopDepartureEventTuple.tripId(event),
+            direction_id: StopDepartureEventTuple.tripDirectionId(event),
             route: {
-              id: event.trip_route_id
+              id: StopDepartureEventTuple.tripRouteId(event)
             }
           }
         }]
-        this.accumulatedData.stopDepartureCache.add(event.stop_id, event.departure_date, st)
+        this.accumulatedData.stopDepartureCache.add(
+          StopDepartureEventTuple.stopId(event),
+          StopDepartureEventTuple.departureDate(event),
+          st,
+        )
       }
     }
 
