@@ -197,7 +197,8 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
 
 const displayStopFeatures = computed(() => {
   const features: Feature[] = wsdotReport.value.stops.map((stop) => {
-    const highestLevel = levelKeys.find(key => stop[key]) || 'levelNights'
+    const highestLevel = levelKeys.find(key => stop[key])
+    // if there is no highest level to set, then it will be filtered out below
     const highestLevelColor = levelColors[highestLevel]
     const props: Record<string, any> = {
       highestLevel,
