@@ -49,32 +49,10 @@
             />
           </a>
         </li>
-        <li>
-          <a v-if="isLoading" class="menu-item" style="color:white;text-align:center">
-            <img src="~assets/spinner.svg" alt="Loading">
-          </a>
-        </li>
       </ul>
     </template>
 
     <template #main>
-      <!-- Loading and error handling -->
-      <!-- <o-loading
-        :active="loading"
-        :full-page="true"
-      >
-        <img src="~assets/spinner.svg" alt="Loading">
-      </o-loading> -->
-
-      <tl-modal
-        v-model="hasError"
-        title="Error"
-      >
-        <tl-msg-error title="There was an error :(">
-          {{ error }}
-        </tl-msg-error>
-      </tl-modal>
-
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-overlay">
           <cal-query
@@ -120,10 +98,10 @@
             v-model:max-fare="maxFare"
             v-model:min-fare-enabled="minFareEnabled"
             v-model:min-fare="minFare"
-            :stop-departure-loading-complete="stopDepartureLoadingComplete"
             :stop-features="stopFeatures"
             :agency-features="agencyFeatures"
             :active-tab="activeTab.sub"
+            :stop-departure-loading-complete="true"
             @reset-filters="resetFilters"
           />
         </div>
@@ -138,7 +116,7 @@
             :agency-features="agencyFeatures"
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
-            :stop-departure-loading-complete="stopDepartureLoadingComplete"
+            :stop-departure-loading-complete="true"
             @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
@@ -163,19 +141,35 @@
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
-          :stop-departure-loading-complete="stopDepartureLoadingComplete"
+          :stop-departure-loading-complete="true"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
         />
       </div>
+
+      <!-- Loading Progress Modal - positioned at the end for highest z-index -->
+      <tl-modal
+        v-model="showLoadingModal"
+        title="Loading Transit Data"
+        :closable="false"
+        :active="showLoadingModal"
+      >
+        <cal-scenario-loading
+          :progress="loadingProgress"
+          :error="error"
+          :stops="stopFeatures"
+          :routes="routeFeatures"
+          :stop-departure-event-count="loadingScheduleProgress"
+        />
+      </tl-modal>
     </template>
   </NuxtLayout>
 </template>
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { useQuery, useLazyQuery } from '@vue/apollo-composable'
+import { useQuery } from '@vue/apollo-composable'
 import { navigateTo } from '#imports'
 import type { Stop } from '~/src/stop'
 import type { Route } from '~/src/route'
@@ -186,8 +180,8 @@ import type { Agency } from '~/src/agency'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
 import type { ScenarioConfig, ScenarioData, ScenarioFilter } from '~/src/scenario/scenario'
 import { applyScenarioResultFilter } from '~/src/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
-import { StopDepartureCache } from '~/src/departure-cache'
+import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
+import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
 
 definePageMeta({
   layout: false
@@ -195,28 +189,20 @@ definePageMeta({
 
 const route = useRoute()
 
-const runCount = ref(0)
-const scheduleEnabled = ref(true)
-const cannedBbox = ref('downtown-portland')
-
 /////////////////
 // Loading and error handling
 /////////////////
 
-const hasError = ref(false)
+const runCount = ref(0)
+const scheduleEnabled = ref(true)
+const cannedBbox = ref('downtown-portland')
 const error = ref(null)
-const stopDepartureLoadingComplete = ref(false)
 
 // Runs on explore event from query (when user clicks "Run Query")
 function runQuery () {
   runCount.value++
   activeTab.value = { tab: 'map', sub: '' }
-  fetchScenario()
-}
-
-// Handle query parameters
-async function setQuery (params: Record<string, any>) {
-  await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
+  fetchScenario('')
 }
 
 const geomSource = computed({
@@ -517,97 +503,6 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
   return ret
 })
 
-/////////////////
-// Filter summary
-/////////////////
-
-// Each result in the filter summary will be a string to be used as a bullet point.
-// We will only include results if the filter is set to something interesting (not default)
-const filterSummary = computed((): string[] => {
-  // const mode = dataDisplayMode.value
-  const results: string[] = []
-
-  // route types
-  const rtypes = selectedRouteTypes.value.map(val => toTitleCase(routeTypes.get(val) || '')).filter(Boolean)
-  if (rtypes.length !== routeTypes.size) {
-    results.push('with route types ' + rtypes.join(', '))
-  }
-
-  // agencies
-  const agencies = selectedAgencies.value
-  if (agencies.length) {
-    results.push('operated by ' + agencies.join(', '))
-  }
-
-  // date range
-  const today = fmtDate(getLocalDateNoTime(), 'P')
-  const sdate = fmtDate(startDate.value, 'P') || today
-  const edate = fmtDate(endDate.value, 'P') || today
-  if (sdate !== today && edate !== today && sdate !== edate) {
-    results.push('operating between ' + sdate + ' and ' + edate)
-  } else if (sdate !== today && edate !== today && sdate === edate) {
-    results.push('operating on ' + sdate)
-  } else if (sdate !== today && edate === today) {
-    results.push('operating after ' + sdate)
-  }
-
-  // days of week  (always show something here)
-  const days = selectedDays.value.map(val => toTitleCase(val))
-  const dowMode = selectedDayOfWeekMode.value
-  if (dowMode === 'All' /* && days.length !== 7 */) {
-    results.push('operating all of ' + days.join(', '))
-  } else if (dowMode === 'Any') {
-    results.push('operating any of ' + days.join(', '))
-  }
-
-  // time range
-  if (selectedTimeOfDayMode.value !== 'All') {
-    const stime = fmtTime(startTime.value, 'p')
-    const etime = fmtTime(endTime.value, 'p')
-    if (stime && etime && stime !== etime) {
-      results.push('operating between ' + stime + ' and ' + etime)
-    } else if (stime && etime && stime === etime) {
-      results.push('operating at ' + stime)
-    } else if (stime && !etime) {
-      results.push('operating after ' + stime)
-    } else if (etime && !stime) {
-      results.push('operating before ' + etime)
-    }
-  }
-
-  // frequencies
-  const hasMinFreq = frequencyOverEnabled.value
-  const minFreq = frequencyOver.value
-  const hasMaxFreq = frequencyUnderEnabled.value
-  const maxFreq = frequencyUnder.value
-  if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
-    results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
-  } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
-    results.push('with frequency exactly ' + minFreq + ' minutes')
-  } else if (hasMinFreq && !hasMaxFreq) {
-    results.push('with frequency at least ' + minFreq + ' minutes')
-  } else if (hasMaxFreq && !hasMinFreq) {
-    results.push('with frequency less than ' + maxFreq + ' minutes')
-  }
-
-  // fares
-  const hasMinFare = minFareEnabled.value
-  const minDollar = minFare.value
-  const hasMaxFare = maxFareEnabled.value
-  const maxDollar = maxFare.value
-  if (hasMinFare && hasMaxFare && minDollar !== maxDollar) {
-    results.push('with fare between $' + minDollar + ' and $' + maxDollar)
-  } else if (hasMinFare && hasMaxFare && minDollar === maxDollar) {
-    results.push('with fare exactly $' + minDollar)
-  } else if (hasMinFare && !hasMaxFare) {
-    results.push('with fare at least $' + minDollar)
-  } else if (hasMaxFare && !hasMinFare) {
-    results.push('with fare less than $' + maxDollar)
-  }
-
-  return results
-})
-
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -670,37 +565,6 @@ async function setMapExtent (v: Bbox) {
   }
 }
 
-async function resetFilters () {
-  const p = removeEmpty({
-    ...route.query,
-    startTime: '',
-    endTime: '',
-    selectedAgencies: '',
-    // selectedDays: '',
-    selectedRouteTypes: '',
-    selectedDayOfWeekMode: '',
-    selectedTimeOfDayMode: '',
-    frequencyUnderEnabled: '',
-    frequencyUnder: '',
-    frequencyOverEnabled: '',
-    frequencyOver: '',
-    calculateFrequencyMode: '',
-    maxFareEnabled: '',
-    maxFare: '',
-    minFareEnabled: '',
-    minFare: '',
-    colorKey: '',
-    unitSystem: '',
-    hideUnmarked: '',
-    baseMap: '',
-  })
-  // Note, `selectedDays` is special, see note below.
-  // When clearing filters, it should removed, not set to ''
-  delete p.selectedDays
-
-  await navigateTo({ replace: true, query: p })
-}
-
 ////////////////////////////
 // Scenario
 ////////////////////////////
@@ -729,31 +593,17 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   frequencyOverEnabled: frequencyOverEnabled.value || false
 }))
 
-// Internal state for ScenarioFetcher
+// Internal state for streaming scenario data
 const scenarioData = ref<ScenarioData | null>(null)
-const isLoading = ref(false)
 const stopFeatures = shallowRef<Stop[]>([])
 const routeFeatures = shallowRef<Route[]>([])
 const agencyFeatures = shallowRef<Agency[]>([])
 const exportFeatures = shallowRef<Feature[]>([])
 
-// Create GraphQL client adapter for Vue Apollo
-const createGraphQLClientAdapter = (): GraphQLClient => {
-  return {
-    async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-      const { load } = useLazyQuery<T>(query, variables, {
-        fetchPolicy: 'no-cache',
-        clientId: 'transitland'
-      })
-      const result = await load()
-      if (!result) {
-        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
-        return { data: undefined }
-      }
-      return { data: result as T }
-    }
-  }
-}
+// Loading progress tracking for modal
+const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingScheduleProgress = ref<number>(0)
+const showLoadingModal = ref(true)
 
 const loadExampleData = async (exampleName: string) => {
   console.log('loading:', exampleName)
@@ -761,73 +611,87 @@ const loadExampleData = async (exampleName: string) => {
 }
 
 // Scenario fetching logic
-const fetchScenario = async () => {
+const fetchScenario = async (loadExample: string) => {
+  console.log('fetchScenario:', loadExample)
   const config = scenarioConfig.value
   if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs
   }
   try {
-    isLoading.value = true
-    stopDepartureLoadingComplete.value = false
-    const client = createGraphQLClientAdapter()
-    const callbacks = {
+    showLoadingModal.value = true
+    loadingProgress.value = null
+    loadingScheduleProgress.value = 0
+
+    // Create receiver to accumulate scenario data
+    const receiver = new ScenarioDataReceiver({
       onProgress: (progress: ScenarioProgress) => {
-        // Emit features early when partial data is available
-        if (progress.partialData && progress.partialData.stops.length > 0) {
-          // Create partial scenario data for filtering
-          const partialScenarioData: ScenarioData = {
-            routes: progress.partialData.routes,
-            stops: progress.partialData.stops,
-            feedVersions: progress.partialData.feedVersions,
-            stopDepartureCache: new StopDepartureCache(),
-            isComplete: false
-          }
-          // Apply filters to partial data and emit (without schedule-dependent features)
-          const partialResult = applyScenarioResultFilter(partialScenarioData, scenarioConfig.value, scenarioFilter.value)
-          routeFeatures.value = partialResult.routes
-          stopFeatures.value = partialResult.stops
-          agencyFeatures.value = partialResult.agencies
+        // Update progress for modal
+        loadingProgress.value = progress
+        loadingScheduleProgress.value += progress.partialData?.stopDepartureEvents.length || 0
+
+        // Apply filters to partial data and emit (without schedule-dependent features)
+        // Skip if no route/stop data
+        if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+          return
         }
+        const partialScenarioData = receiver.getCurrentData()
+        const partialResult = applyScenarioResultFilter(partialScenarioData, scenarioConfig.value, scenarioFilter.value)
+        routeFeatures.value = partialResult.routes
+        stopFeatures.value = partialResult.stops
+        agencyFeatures.value = partialResult.agencies
       },
       onComplete: () => {
-        isLoading.value = false
+        // Get final accumulated data and apply filters
+        showLoadingModal.value = false
+        loadingProgress.value = null
+        scenarioData.value = receiver.getCurrentData()
+        const finalResult = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
+        routeFeatures.value = finalResult.routes
+        stopFeatures.value = finalResult.stops
+        agencyFeatures.value = finalResult.agencies
       },
       onError: (err: any) => {
-        console.error('Scenario fetch error:', err)
+        showLoadingModal.value = false
+        loadingProgress.value = null
         error.value = err
-        isLoading.value = false
+        console.error('Scenario fetch error:', err)
       }
+    })
+
+    // Make request to streaming scenario endpoint
+    const response = await fetch('/api/scenario', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config)
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    const fetcher = new ScenarioFetcher(config, client, callbacks)
-    await fetcher.fetch()
-    const finalResult = applyScenarioResultFilter(scenarioData.value!, scenarioConfig.value, scenarioFilter.value)
-    routeFeatures.value = finalResult.routes
-    stopFeatures.value = finalResult.stops
-    agencyFeatures.value = finalResult.agencies
-    stopDepartureLoadingComplete.value = true
+
+    if (!response.body) {
+      throw new Error('No response body received')
+    }
+
+    // Process the streaming response
+    const streamer = new ScenarioStreamReceiver()
+    await streamer.processStream(response.body, receiver)
   } catch (err: any) {
     console.error('Scenario fetch error:', err)
     error.value = err
-    isLoading.value = false
+    showLoadingModal.value = false
+    loadingProgress.value = null
   }
 }
 
 // Apply filters and emit results when data or filters change
 watch(() => [
   scenarioData.value,
-  endTime.value,
-  frequencyOver.value,
-  frequencyOverEnabled.value,
-  frequencyUnder.value,
-  frequencyUnderEnabled.value,
-  selectedAgencies.value,
-  selectedDayOfWeekMode.value,
-  selectedDays.value,
-  selectedRouteTypes.value,
-  startTime.value,
-  stopDepartureLoadingComplete.value,
+  scenarioFilter.value,
 ], () => {
-  if (!scenarioData.value || !stopDepartureLoadingComplete.value) {
+  if (!scenarioData.value) {
     return
   }
   const result = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
@@ -836,9 +700,135 @@ watch(() => [
   agencyFeatures.value = result.agencies
 })
 
+/////////////////
+// Filter summary
+/////////////////
+
+// Each result in the filter summary will be a string to be used as a bullet point.
+// We will only include results if the filter is set to something interesting (not default)
+const filterSummary = computed((): string[] => {
+  // const mode = dataDisplayMode.value
+  const results: string[] = []
+
+  // route types
+  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypes.get(val) || '')).filter(Boolean)
+  if (rtypes.length !== routeTypes.size) {
+    results.push('with route types ' + rtypes.join(', '))
+  }
+
+  // agencies
+  const agencies = scenarioFilter.value.selectedAgencies
+  if (agencies.length) {
+    results.push('operated by ' + agencies.join(', '))
+  }
+
+  // date range
+  const today = fmtDate(getLocalDateNoTime(), 'P')
+  const sdate = fmtDate(scenarioConfig.value.startDate, 'P') || today
+  const edate = fmtDate(scenarioConfig.value.endDate, 'P') || today
+  if (sdate !== today && edate !== today && sdate !== edate) {
+    results.push('operating between ' + sdate + ' and ' + edate)
+  } else if (sdate !== today && edate !== today && sdate === edate) {
+    results.push('operating on ' + sdate)
+  } else if (sdate !== today && edate === today) {
+    results.push('operating after ' + sdate)
+  }
+
+  // days of week  (always show something here)
+  const days = scenarioFilter.value.selectedDays.map(val => toTitleCase(val))
+  const dowMode = scenarioFilter.value.selectedDayOfWeekMode
+  if (dowMode === 'All' /* && days.length !== 7 */) {
+    results.push('operating all of ' + days.join(', '))
+  } else if (dowMode === 'Any') {
+    results.push('operating any of ' + days.join(', '))
+  }
+
+  // time range
+  if (scenarioFilter.value.selectedTimeOfDayMode !== 'All') {
+    const stime = fmtTime(scenarioFilter.value.startTime, 'p')
+    const etime = fmtTime(scenarioFilter.value.endTime, 'p')
+    if (stime && etime && stime !== etime) {
+      results.push('operating between ' + stime + ' and ' + etime)
+    } else if (stime && etime && stime === etime) {
+      results.push('operating at ' + stime)
+    } else if (stime && !etime) {
+      results.push('operating after ' + stime)
+    } else if (etime && !stime) {
+      results.push('operating before ' + etime)
+    }
+  }
+
+  // frequencies
+  const hasMinFreq = scenarioFilter.value.frequencyOverEnabled
+  const minFreq = scenarioFilter.value.frequencyOver
+  const hasMaxFreq = scenarioFilter.value.frequencyUnderEnabled
+  const maxFreq = scenarioFilter.value.frequencyUnder
+  if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
+    results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
+  } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
+    results.push('with frequency exactly ' + minFreq + ' minutes')
+  } else if (hasMinFreq && !hasMaxFreq) {
+    results.push('with frequency at least ' + minFreq + ' minutes')
+  } else if (hasMaxFreq && !hasMinFreq) {
+    results.push('with frequency less than ' + maxFreq + ' minutes')
+  }
+
+  // fares
+  const hasMinFare = minFareEnabled.value
+  const minDollar = minFare.value
+  const hasMaxFare = maxFareEnabled.value
+  const maxDollar = maxFare.value
+  if (hasMinFare && hasMaxFare && minDollar !== maxDollar) {
+    results.push('with fare between $' + minDollar + ' and $' + maxDollar)
+  } else if (hasMinFare && hasMaxFare && minDollar === maxDollar) {
+    results.push('with fare exactly $' + minDollar)
+  } else if (hasMinFare && !hasMaxFare) {
+    results.push('with fare at least $' + minDollar)
+  } else if (hasMaxFare && !hasMinFare) {
+    results.push('with fare less than $' + maxDollar)
+  }
+
+  return results
+})
+
 //////////////////////
 // Helpers
 //////////////////////
+
+// Handle query parameters
+async function setQuery (params: Record<string, any>) {
+  await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
+}
+
+async function resetFilters () {
+  const p = removeEmpty({
+    ...route.query,
+    startTime: '',
+    endTime: '',
+    selectedAgencies: '',
+    // selectedDays: '',
+    selectedRouteTypes: '',
+    selectedDayOfWeekMode: '',
+    selectedTimeOfDayMode: '',
+    frequencyUnderEnabled: '',
+    frequencyUnder: '',
+    frequencyOverEnabled: '',
+    frequencyOver: '',
+    calculateFrequencyMode: '',
+    maxFareEnabled: '',
+    maxFare: '',
+    minFareEnabled: '',
+    minFare: '',
+    colorKey: '',
+    unitSystem: '',
+    hideUnmarked: '',
+    baseMap: '',
+  })
+  // Note, `selectedDays` is special, see note below.
+  // When clearing filters, it should removed, not set to ''
+  delete p.selectedDays
+  await navigateTo({ replace: true, query: p })
+}
 
 function removeEmpty (v: Record<string, any>): Record<string, any> {
   // Note, `selectedDays` is special - we want to allow it to be empty string ''.
@@ -881,5 +871,24 @@ function toTitleCase (str: string): string {
   left:0px;
   height:100vh;
   z-index:1000;
+}
+</style>
+
+<style>
+.modal-card {
+  z-index: 99999 !important;
+}
+
+.modal-background {
+  z-index: 99998 !important;
+}
+
+.modal {
+  z-index: 99999 !important;
+}
+
+/* Ensure modal is always on top */
+.tl-modal {
+  z-index: 99999 !important;
 }
 </style>
