@@ -221,6 +221,7 @@ export class ScenarioFetcher {
           continue
         }
         routeIds.add(rs.route?.id)
+        this.fetchedRouteIds.add(rs.route?.id) // add pre-emptively...
       }
     }
     this.routeFetchQueue.enqueueOne({ feedOnestopId: task.feedOnestopId, feedVersionSha1: task.feedVersionSha1, ids: [...routeIds] })
