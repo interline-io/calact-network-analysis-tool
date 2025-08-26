@@ -100,7 +100,6 @@
             v-model:min-fare="minFare"
             :scenario-filter-result="scenarioFilterResult"
             :active-tab="activeTab.sub"
-            :stop-departure-loading-complete="true"
             @reset-filters="resetFilters"
           />
         </div>
@@ -151,7 +150,7 @@
         <cal-scenario-loading
           :progress="loadingProgress"
           :error="error"
-          :stop-departure-event-count="loadingScheduleProgress"
+          :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
         />
       </tl-modal>
@@ -589,7 +588,7 @@ const exportFeatures = shallowRef<Feature[]>([])
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress | null>(null)
-const loadingScheduleProgress = ref<number>(0)
+const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
 const loadExampleData = async (exampleName: string) => {
@@ -608,14 +607,15 @@ const fetchScenario = async (loadExample: string) => {
   try {
     showLoadingModal.value = true
     loadingProgress.value = null
-    loadingScheduleProgress.value = 0
+    stopDepartureCount.value = 0
 
     // Create receiver to accumulate scenario data
     const receiver = new ScenarioDataReceiver({
       onProgress: (progress: ScenarioProgress) => {
         // Update progress for modal
         loadingProgress.value = progress
-        loadingScheduleProgress.value += progress.partialData?.stopDepartures.length || 0
+        stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+        console.log(`Stop departures loaded: ${stopDepartureCount.value}`)
 
         // Apply filters to partial data and emit (without schedule-dependent features)
         // Skip if no route/stop data
@@ -626,7 +626,7 @@ const fetchScenario = async (loadExample: string) => {
       },
       onComplete: () => {
         // Get final accumulated data and apply filters
-        showLoadingModal.value = false
+        // showLoadingModal.value = false
         loadingProgress.value = null
         scenarioData.value = receiver.getCurrentData()
       },
@@ -634,7 +634,6 @@ const fetchScenario = async (loadExample: string) => {
         showLoadingModal.value = false
         loadingProgress.value = null
         error.value = err
-        console.error('Scenario fetch error:', err)
       }
     })
 
@@ -859,18 +858,6 @@ function toTitleCase (str: string): string {
 </style>
 
 <style>
-.modal-card {
-  z-index: 99999 !important;
-}
-
-.modal-background {
-  z-index: 99998 !important;
-}
-
-.modal {
-  z-index: 99999 !important;
-}
-
 /* Ensure modal is always on top */
 .tl-modal {
   z-index: 99999 !important;

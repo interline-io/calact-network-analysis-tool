@@ -83,6 +83,14 @@ export const StopDepartureTuple = {
     trip_direction_id: number,
     trip_route_id: number
   ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
+  fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
+    stopId,
+    departureDate,
+    stopDeparture.departure_time,
+    stopDeparture.trip.id,
+    stopDeparture.trip.direction_id,
+    stopDeparture.trip.route.id
+  ),
   stopId: (tuple: StopDepartureTuple) => tuple[0],
   departureDate: (tuple: StopDepartureTuple) => tuple[1],
   departureTime: (tuple: StopDepartureTuple) => tuple[2],
@@ -323,16 +331,9 @@ export class ScenarioFetcher {
               return []
           }
         })()
-        stopTimes.forEach((st: StopTime) => {
-          stopDepartures.push([
-            stop.id,
-            dowDate,
-            st.departure_time,
-            st.trip.id,
-            st.trip.direction_id,
-            st.trip.route.id
-          ])
-        })
+        stopDepartures.push(
+          ...stopTimes.map((st: StopTime) => StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
+        )
       }
     }
     this.updateProgressWithNewData('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
@@ -377,7 +378,6 @@ export class ScenarioDataReceiver {
       routes: [],
       feedVersions: [],
       stopDepartureCache: new StopDepartureCache(),
-      isComplete: false
     }
   }
 
@@ -398,19 +398,23 @@ export class ScenarioDataReceiver {
 
       // Append new stop departure events
       for (const event of progress.partialData.stopDepartures) {
+        const st: StopTime = {
+          departure_time: StopDepartureTuple.departureTime(event),
+          trip: {
+            id: StopDepartureTuple.tripId(event),
+            direction_id: StopDepartureTuple.tripDirectionId(event),
+            route: {
+              id: StopDepartureTuple.tripRouteId(event)
+            }
+          }
+        }
+        const stopId = StopDepartureTuple.stopId(event)
+        const departureDate = StopDepartureTuple.departureDate(event)
+        console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),
-          [{
-            departure_time: StopDepartureTuple.departureTime(event),
-            trip: {
-              id: StopDepartureTuple.tripId(event),
-              direction_id: StopDepartureTuple.tripDirectionId(event),
-              route: {
-                id: StopDepartureTuple.tripRouteId(event)
-              }
-            }
-          }],
+          [st],
         )
       }
     }
@@ -423,8 +427,6 @@ export class ScenarioDataReceiver {
    * Handle completion from ScenarioFetcher
    */
   onComplete (): void {
-    // Mark data as complete
-    this.accumulatedData.isComplete = true
     this.callbacks.onComplete?.()
   }
 

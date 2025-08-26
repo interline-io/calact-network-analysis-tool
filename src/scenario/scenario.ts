@@ -64,7 +64,6 @@ export interface ScenarioData {
   stops: StopGql[]
   feedVersions: FeedVersion[]
   stopDepartureCache: StopDepartureCache
-  isComplete: boolean
 }
 
 export interface ScenarioFilterResult {
@@ -72,7 +71,6 @@ export interface ScenarioFilterResult {
   stops: Stop[]
   agencies: Agency[]
   stopDepartureCache: StopDepartureCache
-  isComplete: boolean
   feedVersions: FeedVersion[]
 }
 
@@ -206,7 +204,6 @@ export function applyScenarioResultFilter (
     agencies: agencyFeatures,
     feedVersions: [],
     stopDepartureCache: sdCache,
-    isComplete: true
   }
   return result
 }

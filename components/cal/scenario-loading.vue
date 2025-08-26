@@ -25,7 +25,7 @@
 
     <!-- Results Display -->
     <div class="columns">
-      <div class="column">
+      <div class="column is-one-third">
         <tl-msg-info title="Stops" no-icon>
           <p><strong>{{ scenarioData?.stops.length }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
@@ -38,7 +38,7 @@
           </div>
         </tl-msg-info>
       </div>
-      <div class="column">
+      <div class="column is-one-third">
         <tl-msg-info title="Routes" no-icon>
           <p><strong>{{ scenarioData?.routes.length }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
@@ -51,7 +51,7 @@
           </div>
         </tl-msg-info>
       </div>
-      <div class="column">
+      <div class="column is-one-third">
         <tl-msg-info title="Departures" no-icon>
           <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
         </tl-msg-info>
