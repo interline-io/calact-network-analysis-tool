@@ -8,7 +8,7 @@
       Specify your desired date range and geographic bounds. Then click <em>Run Query</em>.
     </tl-msg-info>
 
-    <div class="cal-body">
+    <div v-if="scenarioConfig && uiConfig" class="cal-body">
       <tl-msg-box variant="text" title="Date range">
         <o-field>
           <template #label>
@@ -17,7 +17,7 @@
               <o-icon icon="information" />
             </o-tooltip>
           </template>
-          <o-datepicker v-model="startDate" />
+          <o-datepicker v-model="scenarioConfig.startDate" />
         </o-field>
         <o-field addons>
           <template #label>
@@ -26,7 +26,7 @@
               <o-icon icon="information" />
             </o-tooltip>
           </template>
-          <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <o-datepicker v-if="!selectSingleDay" v-model="scenarioConfig.endDate" />
           <o-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
@@ -36,7 +36,7 @@
       <tl-msg-box variant="text" title="Geographic Bounds">
         <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
-            <o-select v-model="cannedBbox">
+            <o-select v-model="uiConfig.cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
               </option>
@@ -48,7 +48,7 @@
           <br>
           <o-field label="Data options">
             <o-checkbox
-              v-model="scheduleEnabled"
+              v-model="scenarioConfig.scheduleEnabled"
               :true-value="true"
               :false-value="false"
             >
@@ -67,32 +67,32 @@
                 </o-tooltip>
               </template>
               <o-select
-                v-model="geomSource"
+                v-model="uiConfig.geomSource"
                 :options="geomSources"
               />
             </o-field>
           </div>
 
-          <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
+          <div class="column is-half" :class="{ 'is-hidden': uiConfig.geomSource !== 'adminBoundary' }">
             <o-field>
               <template #label>
                 Boundary Type
               </template>
               <o-select
-                v-model="geomLayer"
-                :options="props.censusGeographyLayerOptions"
+                v-model="uiConfig.geomLayer"
+                :options="uiConfig.censusGeographyLayerOptions"
               />
             </o-field>
           </div>
         </div>
 
-        <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
+        <div class="container is-max-tablet" :class="{ 'is-hidden': uiConfig.geomSource !== 'adminBoundary' }">
           <o-field>
             <template #label>
               Include Boundaries
             </template>
             <o-taginput
-              v-model="geographyIds"
+              v-model="scenarioConfig.geographyIds"
               v-model:input="geomSearch"
               :open-on-focus="true"
               :options="selectedGeographyTagOptions"
@@ -124,9 +124,10 @@
 <script setup lang="ts">
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
-import type { Bbox, Point } from '~/src/geom'
+import type { UIConfig } from '~/pages/tne.vue'
 import { cannedBboxes, geomSources } from '~/src/constants'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~/src/census'
+import type { ScenarioConfig } from '~/src/scenario/scenario'
 
 const emit = defineEmits([
   'setBbox',
@@ -135,34 +136,24 @@ const emit = defineEmits([
 ])
 
 const loadExampleData = async () => {
-  emit('loadExampleData', cannedBbox.value)
+  emit('loadExampleData', uiConfig.value?.cannedBbox)
 }
 
-const props = defineProps<{
-  censusGeographyLayerOptions: { label: string, value: string }[]
-  mapExtentCenter: Point | null
-}>()
+const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const uiConfig = defineModel<UIConfig>('uiConfig')
 
-const bbox = defineModel<Bbox>('bbox', { default: null })
-const geographyIds = defineModel<number[]>('geographyIds')
-const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
-const cannedBbox = defineModel<string>('cannedBbox', { default: null })
+// Local state
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date>('endDate')
-const geomLayer = defineModel<string>('geomLayer')
 const geomSearch = ref('')
-const geomSource = defineModel<string>('geomSource')
-const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const selectSingleDay = ref(true)
-const startDate = defineModel<Date>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 const geomSearchVars = computed(() => {
   return {
-    layer: geomLayer.value,
+    layer: uiConfig.value?.geomLayer,
     search: geomSearch.value,
     limit: 10,
-    focus: props.mapExtentCenter,
+    focus: uiConfig.value?.mapExtentCenter,
   }
 })
 
@@ -181,8 +172,8 @@ const {
 )
 
 watch(geomSearchVars, () => {
-  if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
-    if (geomSearch.value && geomLayer.value) {
+  if ((geomSearch.value || '').length >= 2 && uiConfig.value?.geomLayer) {
+    if (geomSearch.value && uiConfig.value.geomLayer) {
       geomLoad(geographySearchQuery)
     } else {
       geomRefetch()
@@ -193,7 +184,7 @@ watch(geomSearchVars, () => {
 const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
   // Combine both the selected geographies and the search results
   const geogs: CensusGeography[] = []
-  for (const geo of censusGeographiesSelected.value || []) {
+  for (const geo of uiConfig.value?.censusGeographiesSelected || []) {
     geogs.push({
       ...geo,
     })
@@ -232,7 +223,7 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 /////////////////////////////////////////
 
 const validQueryParams = computed(() => {
-  return startDate.value && bbox?.value?.valid
+  return scenarioConfig?.value?.startDate && scenarioConfig?.value?.bbox
 })
 </script>
 

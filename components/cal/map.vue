@@ -43,8 +43,8 @@ import { type Stop, stopToStopCsv } from '~/src/stop'
 import { type Route, routeToRouteCsv } from '~/src/route'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
 import { colors, routeTypes } from '~/src/constants'
-import type { CensusGeography } from '~/src/census'
-import type { ScenarioFilterResult } from '~/src/scenario/scenario'
+import type { ScenarioConfig, ScenarioFilterResult } from '~/src/scenario/scenario'
+import type { UIConfig } from '~/pages/tne.vue'
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]
@@ -54,14 +54,36 @@ const emit = defineEmits<{
 }>()
 
 const props = defineProps<{
-  bbox: Bbox
-  dataDisplayMode: string
-  colorKey: string
-  displayEditBboxMode?: boolean
-  hideUnmarked: boolean
-  censusGeographiesSelected: CensusGeography[]
+  // bbox: Bbox
+  // dataDisplayMode: string
+  // colorKey: string
+  // displayEditBboxMode?: boolean
+  // hideUnmarked: boolean
+  // censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
 }>()
+
+const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const uiConfig = defineModel<UIConfig>('uiConfig')
+
+const bbox = computed(() => {
+  return scenarioConfig.value?.bbox || { valid: false, ne: { lon: 0, lat: 0 }, sw: { lon: 0, lat: 0 } }
+})
+const displayEditBboxMode = computed(() => {
+  return uiConfig.value?.displayEditBboxMode || false
+})
+const dataDisplayMode = computed(() => {
+  return uiConfig.value?.dataDisplayMode || 'default'
+})
+const colorKey = computed(() => {
+  return uiConfig.value?.colorKey || 'default'
+})
+const hideUnmarked = computed(() => {
+  return uiConfig.value?.hideUnmarked || false
+})
+const censusGeographiesSelected = computed(() => {
+  return []
+})
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
@@ -71,15 +93,15 @@ const toggleShareMenu = useToggle(showShareMenu)
 
 // Compute initial center point; do not update
 const centerPoint = {
-  lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
-  lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
+  lon: (bbox.value.sw.lon + bbox.value.ne.lon) / 2,
+  lat: (bbox.value.sw.lat + bbox.value.ne.lat) / 2
 }
 
 // Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
-  if (props.bbox.valid && props.displayEditBboxMode) {
-    const p = props.bbox
+  if (bbox.value.valid && displayEditBboxMode.value) {
+    const p = bbox.value
     const coords = [[
       [p.sw.lon, p.sw.lat],
       [p.sw.lon, p.ne.lat],
@@ -104,7 +126,7 @@ const bboxArea = computed(() => {
 const bboxMarkers = computed(() => {
   const ret: MarkerFeature[] = []
 
-  if (!props.displayEditBboxMode) {
+  if (!displayEditBboxMode.value) {
     return ret
   }
 
@@ -116,14 +138,14 @@ const bboxMarkers = computed(() => {
   swElement.appendChild(swIconElement)
 
   ret.push({
-    point: props.bbox.sw,
+    point: bbox.value.sw,
     color: '#ff0000',
     draggable: true,
     element: swElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
         valid: true,
-        ne: props.bbox.ne,
+        ne: bbox.value.ne,
         sw: {
           lon: c.target.getLngLat().lng,
           lat: c.target.getLngLat().lat,
@@ -140,14 +162,14 @@ const bboxMarkers = computed(() => {
   neElement.appendChild(neIconElement)
 
   ret.push({
-    point: props.bbox.ne,
+    point: bbox.value.ne,
     color: '#00ff00',
     draggable: true,
     element: neElement,
     onDragEnd: (c: any) => {
       emit('setBbox', {
         valid: true,
-        sw: props.bbox.sw,
+        sw: bbox.value.sw,
         ne: {
           lon: c.target.getLngLat().lng,
           lat: c.target.getLngLat().lat,
