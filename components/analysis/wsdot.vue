@@ -25,11 +25,6 @@
       />
     </div>
     <div v-else>
-      <!-- Warning when no scenario data is available -->
-      <tl-msg-warning v-if="!scenarioData">
-        You need to load scenario data before starting this analysis. Please go to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit data for your selected area.
-      </tl-msg-warning>
-
       <div class="card">
         <header class="card-header">
           <p class="card-header-title">
