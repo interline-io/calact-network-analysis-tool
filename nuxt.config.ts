@@ -4,12 +4,27 @@ import { stylisticConfig } from './node_modules/tlv2-ui/dist/runtime/config/esli
 
 const isDev = process.env.NODE_ENV === 'development'
 
+function getTlv2UiModule (): [string, { bulma: string, useProxy: boolean, safelinkUtmSource: string }] {
+  const config = {
+    bulma: '~/assets/main.scss',
+    useProxy: true,
+    safelinkUtmSource: 'transitland'
+  }
+
+  if (process.env.TLV2_LINK === 'true') {
+    // Use local tlv2-ui development version
+    return ['../tlv2-ui/src/module.ts', config]
+  } else {
+    // Use package.json version from github.com
+    return ['tlv2-ui', config]
+  }
+}
+
 export default defineNuxtConfig({
 
   modules: [
-    'tlv2-ui',
+    getTlv2UiModule(),
     '@nuxt/devtools',
-    // '@nuxt/test-utils/module',
     '@nuxt/eslint',
   ],
   ssr: false,
@@ -36,16 +51,6 @@ export default defineNuxtConfig({
     }
   },
 
-  // bugs
-  build: {
-    transpile: [
-      'tslib', // https://github.com/nuxt/nuxt/issues/19265#issuecomment-1702014262
-      '@vue/apollo-composable',
-      '@apollo/client',
-      'protomaps-themes-base'
-    ]
-  },
-
   // Disable CSRF
   routeRules: {
     '/api/**': {
@@ -60,22 +65,6 @@ export default defineNuxtConfig({
     resolve: {
       preserveSymlinks: true
     },
-    // bug https://github.com/apollographql/apollo-client/issues/9756
-    define: {
-      __DEV__: isDev.toString()
-    },
-    // bug https://github.com/nuxt/nuxt/issues/13247
-    optimizeDeps: {
-      include: [
-        'zen-observable',
-        'fast-json-stable-stringify',
-        'maplibre-gl',
-        'haversine',
-        '@mapbox/mapbox-gl-draw',
-        'cytoscape',
-        'mixpanel-browser'
-      ]
-    },
     server: {
       fs: {
         allow: ['/Users/irees/src/interline-io', '/Users/drew/code/interline-io']
@@ -86,9 +75,5 @@ export default defineNuxtConfig({
     config: {
       stylistic: stylisticConfig,
     },
-  },
-  tlv2: {
-    useProxy: false,
-    bulma: '~/assets/main.scss',
-  },
+  }
 })

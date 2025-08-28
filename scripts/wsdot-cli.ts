@@ -2,6 +2,7 @@
  * Simple CLI example showing how to use WSDOT Report
  */
 import type { Command } from 'commander'
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
@@ -9,7 +10,6 @@ import {
 } from './scenario-cli-util'
 import { runScenarioData } from './scenario-cli'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
-import { BasicGraphQLClient } from '~/src/graphql'
 import { parseBbox } from '~/src/geom'
 import { parseDate } from '~/src/datetime'
 /**
@@ -49,11 +49,12 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
     weekendDate: parseDate(options.weekendDate)!,
     geographyIds: []
   }
+
   // Create GraphQL client
-  const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || ''
-  )
+  const client = new BasicGraphQLClient('', { fetchHandler: useApiFetch({
+    apiBase: process.env.TRANSITLAND_API_ENDPOINT,
+    apiKey: process.env.TRANSITLAND_API_KEY,
+  }) })
 
   const result = await runScenarioData(options)
 

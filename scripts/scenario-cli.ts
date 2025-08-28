@@ -3,8 +3,7 @@
  */
 
 import type { Command } from 'commander'
-
-// Local utilities
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
@@ -13,6 +12,8 @@ import {
   type ScenarioCliOptions
 } from './scenario-cli-util'
 
+// Local utilities
+
 // Core scenario functionality
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
@@ -20,7 +21,6 @@ import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/sce
 
 // Utilities
 import { parseBbox } from '~/src/geom'
-import { BasicGraphQLClient } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
 
 /**
@@ -55,10 +55,10 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   }
 
   // Create GraphQL client
-  const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || ''
-  )
+  const client = new BasicGraphQLClient('', { fetchHandler: useApiFetch({
+    apiBase: process.env.TRANSITLAND_API_ENDPOINT,
+    apiKey: process.env.TRANSITLAND_API_KEY,
+  }) })
 
   // Create a transform stream that optionally multiplexes to file
   let fileStream: import('fs').WriteStream | undefined
