@@ -3,10 +3,11 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
+import { useApiBase } from 'tlv2-ui/plugins'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
-import { BasicGraphQLClient } from '~/src/graphql'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -23,10 +24,10 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'connection', 'keep-alive')
 
   // Create GraphQL client
-  const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-    process.env.TRANSITLAND_API_KEY || 'test-key'
-  )
+  const client = new BasicGraphQLClient('query', { fetchHandler: useApiFetch({
+    apiBase: useApiBase(),
+    event: event
+  }) })
 
   // Create a readable stream for the response
   const stream = new ReadableStream({

@@ -55,9 +55,9 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   }
 
   // Create GraphQL client
-  const client = new BasicGraphQLClient('', { fetchHandler: useApiFetch({
-    apiBase: process.env.TRANSITLAND_API_ENDPOINT,
-    apiKey: process.env.TRANSITLAND_API_KEY,
+  const client = new BasicGraphQLClient('query', { fetchHandler: useApiFetch({
+    apiBase: options.transitlandApiBase,
+    apiKey: options.transitlandApiKey,
   }) })
 
   // Create a transform stream that optionally multiplexes to file

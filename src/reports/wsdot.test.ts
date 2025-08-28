@@ -1,8 +1,7 @@
 import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
+import { BasicGraphQLClient } from 'tlv2-ui/server-utils'
 import { parseDate } from '~/src/datetime'
-import { BasicGraphQLClient } from '~/src/graphql'
-import { ScenarioFetcher } from '~/src/scenario/scenario'
 import type { Bbox } from '~/src/geom'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
 
@@ -12,10 +11,11 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     return
   }
   let polly: Polly | null = null
-  const realClient: BasicGraphQLClient = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || '',
-  )
+  // const realClient: BasicGraphQLClient = new BasicGraphQLClient(
+  //   process.env.TRANSITLAND_API_ENDPOINT || '',
+  //   process.env.TRANSITLAND_API_KEY || '',
+  // )
+  const realClient = new BasicGraphQLClient('', { })
 
   afterEach(async () => {
     if (polly) {

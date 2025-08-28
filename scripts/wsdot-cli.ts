@@ -52,8 +52,8 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
 
   // Create GraphQL client
   const client = new BasicGraphQLClient('', { fetchHandler: useApiFetch({
-    apiBase: process.env.TRANSITLAND_API_ENDPOINT,
-    apiKey: process.env.TRANSITLAND_API_KEY,
+    apiBase: options.transitlandApiEndpoint,
+    apiKey: options.transitlandApiKey,
   }) })
 
   const result = await runScenarioData(options)

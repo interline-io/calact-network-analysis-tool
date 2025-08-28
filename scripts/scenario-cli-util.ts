@@ -21,6 +21,8 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
     .option('--no-schedule', 'Disable schedule fetching')
+    .option('--transitland-api-base <url>', 'TransitLand API Base URL', 'https://api.transit.land/api/v2')
+    .option('--transitland-api-key <key>', 'TransitLand API key', '')
 }
 
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
@@ -46,6 +48,8 @@ export interface ScenarioCliOptions {
   output: string
   saveScenarioData?: string
   noSchedule: boolean
+  transitlandApiBase: string
+  transitlandApiKey: string
 }
 
 /**
