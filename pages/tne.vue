@@ -170,7 +170,6 @@ import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioFilterResult
 import { applyScenarioResultFilter } from '~/src/scenario/scenario'
 import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
 import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
-import { useDebugMenu } from '~/composables/useDebugMenu'
 
 definePageMeta({
   layout: false
@@ -592,9 +591,6 @@ const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
-// Debug menu state
-const debugMenu = useDebugMenu()
-
 const loadExampleData = async (exampleName: string) => {
   console.log('loading:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
@@ -633,12 +629,9 @@ const fetchScenario = async (loadExample: string) => {
         loadingProgress.value = null
         scenarioData.value = receiver.getCurrentData()
 
-        // Auto-close modal unless debug mode is active
-        if (!debugMenu.value) {
-          showLoadingModal.value = false
-          // Show success toast notification
-          useToastNotification().showToast('Scenario data loaded successfully!', 'success')
-        }
+        // Auto-close modal and show success toast notification
+        showLoadingModal.value = false
+        useToastNotification().showToast('Scenario data loaded successfully!')
       },
       onError: (err: any) => {
         showLoadingModal.value = false
