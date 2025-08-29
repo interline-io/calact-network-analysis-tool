@@ -161,7 +161,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { navigateTo } from '#imports'
+import { navigateTo, useToastNotification } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
@@ -170,6 +170,7 @@ import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioFilterResult
 import { applyScenarioResultFilter } from '~/src/scenario/scenario'
 import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
 import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { useDebugMenu } from '~/composables/useDebugMenu'
 
 definePageMeta({
   layout: false
@@ -591,6 +592,9 @@ const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
+// Debug menu state
+const debugMenu = useDebugMenu()
+
 const loadExampleData = async (exampleName: string) => {
   console.log('loading:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
@@ -626,9 +630,15 @@ const fetchScenario = async (loadExample: string) => {
       },
       onComplete: () => {
         // Get final accumulated data and apply filters
-        // showLoadingModal.value = false
         loadingProgress.value = null
         scenarioData.value = receiver.getCurrentData()
+
+        // Auto-close modal unless debug mode is active
+        if (!debugMenu.value) {
+          showLoadingModal.value = false
+          // Show success toast notification
+          useToastNotification().showToast('Scenario data loaded successfully!', 'success')
+        }
       },
       onError: (err: any) => {
         showLoadingModal.value = false
