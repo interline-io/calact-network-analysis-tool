@@ -60,13 +60,13 @@ export default defineEventHandler(async (event) => {
       // Create ScenarioFetcher with streaming callbacks
       const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
 
-      // Start the fetch process (fire and forget - streams handle the rest)
-      fetcher.fetch().catch((error) => {
+      // Start the fetch process
+      try {
+        await fetcher.fetch()
+      } catch (error) {
         console.error('Scenario fetch error:', error)
         scenarioDataSender.onError(error)
-      })
-
-      await fetcher.fetch()
+      }
     }
   })
 

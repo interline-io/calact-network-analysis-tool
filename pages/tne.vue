@@ -162,7 +162,7 @@
 import { useAuthenticatedFetchToBackend } from '#imports'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { navigateTo } from '#imports'
+import { navigateTo, useToastNotification } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
@@ -627,9 +627,12 @@ const fetchScenario = async (loadExample: string) => {
       },
       onComplete: () => {
         // Get final accumulated data and apply filters
-        // showLoadingModal.value = false
         loadingProgress.value = null
         scenarioData.value = receiver.getCurrentData()
+
+        // Auto-close modal and show success toast notification
+        showLoadingModal.value = false
+        useToastNotification().showToast('Scenario data loaded successfully!')
       },
       onError: (err: any) => {
         showLoadingModal.value = false

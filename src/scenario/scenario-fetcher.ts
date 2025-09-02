@@ -202,8 +202,7 @@ export class ScenarioFetcher {
     await this.routeFetchQueue.wait()
     await this.stopDepartureQueue.wait()
 
-    // Done
-    this.callbacks.onComplete?.()
+    // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete`)
   }
