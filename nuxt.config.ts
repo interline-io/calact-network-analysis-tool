@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
-import { stylisticConfig } from './node_modules/tlv2-ui/dist/runtime/config/eslint.js'
+import { stylisticConfig } from 'tlv2-ui/config'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -38,7 +38,7 @@ export default defineNuxtConfig({
     allowedReferer: '',
     graphqlApikey: '',
     public: {
-      apiBase: '',
+      transitlandApiBase: '',
       protomapsApikey: '',
       nearmapsApikey: '',
       auth0Domain: '',

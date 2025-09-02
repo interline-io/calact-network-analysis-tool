@@ -3,8 +3,7 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
-import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
-import { useApiBase } from 'tlv2-ui/plugins'
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/lib'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
@@ -24,8 +23,8 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'connection', 'keep-alive')
 
   // Create GraphQL client
-  const client = new BasicGraphQLClient('query', { fetchHandler: useApiFetch({
-    apiBase: useApiBase(),
+  const client = new BasicGraphQLClient('/query', { fetchHandler: useApiFetch({
+    apiBase: useRuntimeConfig().public.transitlandApiBase,
     event: event
   }) })
 

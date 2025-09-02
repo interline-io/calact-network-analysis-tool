@@ -2,7 +2,7 @@
  * Simple CLI example showing how to use WSDOT Report
  */
 import type { Command } from 'commander'
-import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/lib'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
@@ -52,7 +52,7 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
 
   // Create GraphQL client
   const client = new BasicGraphQLClient('', { fetchHandler: useApiFetch({
-    apiBase: options.transitlandApiEndpoint,
+    apiBase: options.transitlandApiBase,
     apiKey: options.transitlandApiKey,
   }) })
 

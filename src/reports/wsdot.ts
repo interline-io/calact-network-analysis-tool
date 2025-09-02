@@ -1,6 +1,6 @@
 import { gql } from 'graphql-tag'
+import type { GraphQLClient } from 'tlv2-ui/lib'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
 import { fmtDate } from '~/src/datetime'
 import type { Geometry } from '~/src/geom'
 

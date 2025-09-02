@@ -14785,9 +14785,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=9156a86fda9348ee3dc98a40d8f24eb31bf8f8b9":
-  version: 0.2.0
-  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=9156a86fda9348ee3dc98a40d8f24eb31bf8f8b9"
+"tlv2-ui@portal:/Users/irees/src/interline-io/tlv2-ui::locator=calact-network-analysis-tool%40workspace%3A.":
+  version: 0.0.0-use.local
+  resolution: "tlv2-ui@portal:/Users/irees/src/interline-io/tlv2-ui::locator=calact-network-analysis-tool%40workspace%3A."
   dependencies:
     "@apollo/client": "npm:3.13.4"
     "@auth0/auth0-spa-js": "npm:2.1.3"
@@ -14857,9 +14857,8 @@ __metadata:
     vue: "npm:3.5.13"
     vue-eslint-parser: "npm:10.2.0"
     vue-json-pretty: "npm:2.5.0"
-  checksum: 10/3e131231d97b146d889874afe0cc2508818cfc33da35f7c5bf8a109ebeb5395fa320f4b526bb26dfb8ff87ab0a795a83024947eea7686d304b168771bfe13cfa
   languageName: node
-  linkType: hard
+  linkType: soft
 
 "tmp-promise@npm:^3.0.2":
   version: 3.0.3

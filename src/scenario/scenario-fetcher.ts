@@ -408,9 +408,9 @@ export class ScenarioDataReceiver {
             }
           }
         }
-        const stopId = StopDepartureTuple.stopId(event)
-        const departureDate = StopDepartureTuple.departureDate(event)
-        console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
+        // const stopId = StopDepartureTuple.stopId(event)
+        // const departureDate = StopDepartureTuple.departureDate(event)
+        // console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),

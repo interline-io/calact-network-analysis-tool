@@ -3,7 +3,7 @@
  */
 
 import type { Command } from 'commander'
-import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/server-utils'
+import { BasicGraphQLClient, useApiFetch } from 'tlv2-ui/lib'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,

@@ -161,7 +161,8 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { navigateTo } from '#imports'
+import { useApiFetch } from 'tlv2-ui/lib'
+import { useAuthHeaders, navigateTo } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
@@ -638,7 +639,10 @@ const fetchScenario = async (loadExample: string) => {
     })
 
     let response: Response
-
+    const fetch = useApiFetch({
+      apiBase: window?.location.origin,
+      headers: await useAuthHeaders()
+    })
     if (loadExample) {
       // Load example data from public JSON file
       response = await fetch(`/examples/${loadExample}.json`)
