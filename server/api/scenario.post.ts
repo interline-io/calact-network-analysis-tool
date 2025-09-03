@@ -4,7 +4,7 @@
  */
 
 import { createError } from 'h3'
-import { useApiEndpoint } from '~/composables/useApiEndpoint'
+import { useApiEndpoint2 } from '~/composables/useApiEndpoint'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   // Create a proxy-based GraphQL client using the utility
   const apiFetch = await useApiFetch()
   const client = new BasicGraphQLClient(
-    useApiEndpoint('/query'),
+    useApiEndpoint2('/query'),
     apiFetch,
   )
 

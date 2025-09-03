@@ -1,10 +1,9 @@
-// import { useAuthHeaders } from '#imports'
+import { useAuthHeaders2 } from './useAuthHeaders'
 
 export const useApiFetch = async () => {
-  // const headers = await useAuthHeaders()
-  const headers: Record<string, string> = {}
-  console.log('useApiFetch')
+  const headers = await useAuthHeaders2()
   headers['content-type'] = 'application/json'
+  console.log('useApiFetch', headers)
 
   return (url: string, options: RequestInit = {}) => {
     return fetch(url, {

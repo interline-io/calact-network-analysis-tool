@@ -1,3 +1,7 @@
-export const useApiEndpoint = (path?: string) => {
-    return 'ok'
+export const useApiEndpoint2 = (path?: string) => {
+  const config = useRuntimeConfig()
+  const apiBase = import.meta.server
+    ? (config.tlv2?.proxyBase)
+    : (config.public.tlv2?.apiBase || window?.location?.origin + '/api/v2')
+  return apiBase + (path || '')
 }

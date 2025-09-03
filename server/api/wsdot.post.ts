@@ -1,4 +1,4 @@
-import { useApiEndpoint } from '~/composables/useApiEndpoint'
+import { useApiEndpoint2 } from '~/composables/useApiEndpoint'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import type { WSDOTReportConfig } from '~/src/reports/wsdot'
 import type { ScenarioData } from '~/src/scenario/scenario'
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     // Create a proxy-based GraphQL client using the utility
     const apiFetch = await useApiFetch()
     const client = new BasicGraphQLClient(
-      useApiEndpoint('/query'),
+      useApiEndpoint2('/query'),
       apiFetch,
     )
 

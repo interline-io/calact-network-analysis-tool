@@ -22,7 +22,7 @@
     "csv-stringify": "6.5.2",
     "eslint": "9.31.0",
     "nuxt": "3.16.0",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=4f250cfdbdf63a1ff1c29d0e8b88e2a68d8f3018",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=d01826d6b2b1e42579f24ed820ae5ed676408051",
     "tsx": "4.20.3",
     "vitest": "3.2.4"
   },
