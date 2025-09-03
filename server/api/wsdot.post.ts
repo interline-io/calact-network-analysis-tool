@@ -1,41 +1,40 @@
-import { useApiEndpoint2 } from '~/composables/useApiEndpoint'
+import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import type { WSDOTReportConfig } from '~/src/reports/wsdot'
-import type { ScenarioData } from '~/src/scenario/scenario'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
-    const { config, scenarioData }: { config: WSDOTReportConfig, scenarioData: ScenarioData } = body
+    const { config }: { config: WSDOTReportConfig } = body
 
-    if (!config || !scenarioData) {
+    if (!config) {
       throw createError({
         statusCode: 400,
         statusMessage: 'Missing required config or scenarioData'
       })
     }
 
-    // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
-    // Currently only validates JWT presence, not user permissions
-
     // Create a proxy-based GraphQL client using the utility
-    const apiFetch = await useApiFetch()
     const client = new BasicGraphQLClient(
-      useApiEndpoint2('/query'),
-      apiFetch,
+      useTransitlandApiEndpoint('/query'),
+      await useApiFetch(event),
     )
 
-    // Create WSDOT fetcher and run analysis
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
+    // Run base analysis
+    const scenarioDataReceiver = new ScenarioDataReceiver()
+    const fetcher = new ScenarioFetcher(config, client, scenarioDataReceiver)
+    await fetcher.fetch()
+    const scenarioData = scenarioDataReceiver.getCurrentData()
 
-    // Run the analysis and return results
+    // Run wsdot analysis
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
     const result = await wsdotFetcher.fetch()
 
     return result
   } catch (error) {
-    console.error('WSDOT analysis error:', error)
     throw createError({
       statusCode: 500,
       statusMessage: error instanceof Error ? error.message : 'Internal server error'

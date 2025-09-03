@@ -4,7 +4,7 @@
  */
 
 import { createError } from 'h3'
-import { useApiEndpoint2 } from '~/composables/useApiEndpoint'
+import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
@@ -30,10 +30,9 @@ export default defineEventHandler(async (event) => {
 
   // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
   // Create a proxy-based GraphQL client using the utility
-  const apiFetch = await useApiFetch()
   const client = new BasicGraphQLClient(
-    useApiEndpoint2('/query'),
-    apiFetch,
+    useTransitlandApiEndpoint('/query'),
+    await useApiFetch(event),
   )
 
   // Create a readable stream for the response

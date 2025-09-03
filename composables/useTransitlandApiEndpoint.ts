@@ -1,4 +1,4 @@
-export const useApiEndpoint2 = (path?: string) => {
+export const useTransitlandApiEndpoint = (path?: string) => {
   const config = useRuntimeConfig()
   const apiBase = import.meta.server
     ? (config.tlv2?.proxyBase)
