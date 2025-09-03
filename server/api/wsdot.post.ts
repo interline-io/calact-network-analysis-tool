@@ -1,8 +1,9 @@
+import { useApiEndpoint } from 'tlv2-ui/auth'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import type { WSDOTReportConfig } from '~/src/reports/wsdot'
 import type { ScenarioData } from '~/src/scenario/scenario'
-import { extractJwtFromEvent } from 'tlv2-ui/server-utils'
-import { createGraphQLClientOnBackend } from 'tlv2-ui/server-utils'
+import { BasicGraphQLClient } from '~/src/graphql'
+import { useApiFetch } from '~/composables/useApiFetch'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -16,15 +17,15 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Extract JWT token from the incoming request
-    const { requireJwt } = extractJwtFromEvent(event)
-    const userJwt = requireJwt()
-
     // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
     // Currently only validates JWT presence, not user permissions
 
     // Create a proxy-based GraphQL client using the utility
-    const client = createGraphQLClientOnBackend(event, userJwt)
+    const apiFetch = await useApiFetch()
+    const client = new BasicGraphQLClient(
+      useApiEndpoint('/query'),
+      apiFetch,
+    )
 
     // Create WSDOT fetcher and run analysis
     const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)

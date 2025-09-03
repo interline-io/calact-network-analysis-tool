@@ -9,6 +9,7 @@ export default defineNuxtConfig({
   modules: [
     'tlv2-ui',
     '@nuxt/devtools',
+    'nuxt-csurf',
     // '@nuxt/test-utils/module',
     '@nuxt/eslint',
   ],
@@ -19,20 +20,23 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    proxyBase: '', // can be overridden by NUXT_PROXY_BASE environment variable
-    allowedReferer: '',
-    graphqlApikey: '',
+    tlv2: {
+      proxyBase: '', // can be overridden by NUXT_PROXY_BASE environment variable
+      graphqlApikey: '',
+    },
     public: {
-      apiBase: '', // can be overridden by NUXT_PUBLIC_API_BASE environment variable
-      protomapsApikey: '',
-      nearmapsApikey: '',
-      auth0Domain: '',
-      auth0ClientId: '',
-      auth0RedirectUri: '',
-      auth0Audience: '',
-      auth0Scope: '',
-      loginGate: '',
-      requireLogin: '',
+      tlv2: {
+        apiBase: '', // can be overridden by NUXT_PUBLIC_API_BASE environment variable
+        protomapsApikey: '',
+        nearmapsApikey: '',
+        auth0Domain: '',
+        auth0ClientId: '',
+        auth0RedirectUri: '',
+        auth0Audience: '',
+        auth0Scope: '',
+        loginGate: '',
+        // requireLogin: '',
+      }
     }
   },
 

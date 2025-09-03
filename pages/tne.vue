@@ -159,9 +159,9 @@
 </template>
 
 <script lang="ts" setup>
-import { useAuthenticatedFetchToBackend } from '#imports'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
+import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
@@ -648,8 +648,11 @@ const fetchScenario = async (loadExample: string) => {
       response = await fetch(`/examples/${loadExample}.json`)
     } else {
       // Make request to streaming scenario endpoint
-      const authFetch = useAuthenticatedFetchToBackend()
-      response = await authFetch.post('/api/scenario', config)
+      const apiFetch = await useApiFetch()
+      response = await apiFetch('/api/scenario', {
+        method: 'POST',
+        body: JSON.stringify(config)
+      })
     }
 
     if (!response.ok) {

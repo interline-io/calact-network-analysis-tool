@@ -22,6 +22,8 @@ export interface GraphQLClient {
   query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
 }
 
+type fetcher = (url: string, options?: RequestInit) => Promise<Response>
+
 /**
  * Real GraphQL client for testing with actual API calls
  * Use this for CLI tools, tests, and other non-Nuxt contexts
@@ -29,11 +31,11 @@ export interface GraphQLClient {
  */
 export class BasicGraphQLClient implements GraphQLClient {
   private baseUrl: string
-  private apiKey: string
+  private fetch: fetcher
 
-  constructor (baseUrl: string, apiKey: string) {
+  constructor (baseUrl: string, apiFetch: fetcher) {
     this.baseUrl = baseUrl
-    this.apiKey = apiKey
+    this.fetch = apiFetch || fetch
   }
 
   async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
@@ -46,21 +48,14 @@ export class BasicGraphQLClient implements GraphQLClient {
       queryString = print(query)
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'apikey': this.apiKey
-    }
-
     const requestBody = {
       query: queryString,
       variables,
     }
 
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await this.fetch(this.baseUrl, {
         method: 'POST',
-        headers,
         body: JSON.stringify(requestBody),
       })
 
@@ -79,21 +74,4 @@ export class BasicGraphQLClient implements GraphQLClient {
       throw error
     }
   }
-}
-
-/**
- * Factory function to create a GraphQL client for server-side use
- * Uses environment variables for configuration
- * Use this for CLI tools, tests, and other non-Nuxt contexts
- * For Nuxt server endpoints, use useGraphQLClientOnBackend instead
- */
-export function createGraphQLClient (): GraphQLClient {
-  const baseUrl = process.env.TRANSITLAND_API_URL || 'https://api.transit.land/v2/graphql'
-  const apiKey = process.env.TRANSITLAND_API_KEY || ''
-
-  if (!apiKey) {
-    console.warn('TRANSITLAND_API_KEY environment variable not set')
-  }
-
-  return new BasicGraphQLClient(baseUrl, apiKey)
 }

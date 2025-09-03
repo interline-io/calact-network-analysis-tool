@@ -96,7 +96,7 @@
 </template>
 
 <script lang="ts" setup>
-import { useAuthenticatedFetchToBackend } from '#imports'
+import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import { cannedBboxes } from '~/src/constants'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
@@ -146,13 +146,16 @@ const runWsdotReport = async () => {
     }
 
     // Use authenticated fetch to automatically include JWT token
-    const authFetch = useAuthenticatedFetchToBackend()
-    const response = await authFetch.post('/api/wsdot', {
-      config: wsdotConfig,
-      scenarioData: scenarioData.value
+    const apiFetch = await useApiFetch()
+    const response = await apiFetch('/api/wsdot', {
+      method: 'POST',
+      body: JSON.stringify({
+        config: wsdotConfig,
+        scenarioData: scenarioData.value
+      })
     })
-
-    wsdotReport.value = response as WSDOTReport
+    const responseData = await response.json()
+    wsdotReport.value = responseData as WSDOTReport
     wsdotReportConfig.value = wsdotConfig
   } catch (error) {
     console.error('WSDOT analysis failed:', error)

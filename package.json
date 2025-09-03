@@ -22,9 +22,12 @@
     "csv-stringify": "6.5.2",
     "eslint": "9.31.0",
     "nuxt": "3.16.0",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=d06e8108d237389b571d38f575ee361f7d6c744a",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=4f250cfdbdf63a1ff1c29d0e8b88e2a68d8f3018",
     "tsx": "4.20.3",
     "vitest": "3.2.4"
   },
-  "packageManager": "yarn@4.3.0"
+  "packageManager": "yarn@4.3.0",
+  "resolutions": {
+    "tlv2-ui": "portal:/Users/irees/src/interline-io/tlv2-ui"
+  }
 }
