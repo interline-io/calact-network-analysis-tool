@@ -4,7 +4,7 @@
  */
 
 import { createError } from 'h3'
-import { useApiEndpoint } from 'tlv2-ui/auth'
+import { useApiEndpoint } from '~/composables/useApiEndpoint'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'

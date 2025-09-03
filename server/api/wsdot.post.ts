@@ -1,4 +1,4 @@
-import { useApiEndpoint } from 'tlv2-ui/auth'
+import { useApiEndpoint } from '~/composables/useApiEndpoint'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import type { WSDOTReportConfig } from '~/src/reports/wsdot'
 import type { ScenarioData } from '~/src/scenario/scenario'

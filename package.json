@@ -26,8 +26,5 @@
     "tsx": "4.20.3",
     "vitest": "3.2.4"
   },
-  "packageManager": "yarn@4.3.0",
-  "resolutions": {
-    "tlv2-ui": "portal:/Users/irees/src/interline-io/tlv2-ui"
-  }
+  "packageManager": "yarn@4.3.0"
 }
