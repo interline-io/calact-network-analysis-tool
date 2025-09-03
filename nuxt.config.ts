@@ -1,5 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
+import { resolve } from 'node:path'
+import { defineNuxtConfig } from 'nuxt/config'
 import { stylisticConfig } from 'tlv2-ui/config'
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -7,10 +9,11 @@ const isDev = process.env.NODE_ENV === 'development'
 export default defineNuxtConfig({
 
   modules: [
-    'tlv2-ui',
+    ['tlv2-ui', {
+      useProxy: true,
+      bulma: '~/assets/main.scss',
+    }],
     '@nuxt/devtools',
-    'nuxt-csurf',
-    // '@nuxt/test-utils/module',
     '@nuxt/eslint',
   ],
   ssr: false,
@@ -35,21 +38,9 @@ export default defineNuxtConfig({
         auth0Audience: '',
         auth0Scope: '',
         loginGate: '',
-        // requireLogin: '',
+        requireLogin: '',
       }
     }
-  },
-
-  // bugs
-  build: {
-    transpile: [
-      'tslib', // https://github.com/nuxt/nuxt/issues/19265#issuecomment-1702014262
-      '@vue/apollo-composable',
-      '@apollo/client',
-      'protomaps-themes-base',
-      'tlv2-ui', // Required for yarn link development + ESM compatibility
-      'h3' // Required for type safety + ESM compatibility with H3Event, getHeader, createError
-    ]
   },
 
   // Disable CSRF
@@ -70,31 +61,15 @@ export default defineNuxtConfig({
     define: {
       __DEV__: isDev.toString()
     },
-    // bug https://github.com/nuxt/nuxt/issues/13247
-    optimizeDeps: {
-      include: [
-        'zen-observable',
-        'fast-json-stable-stringify',
-        'maplibre-gl',
-        'haversine',
-        '@mapbox/mapbox-gl-draw',
-        'cytoscape',
-        'mixpanel-browser'
-      ]
-    },
     server: {
       fs: {
-        allow: ['/Users/irees/src/interline-io', '/Users/drew/code/interline-io']
-      }
+        allow: isDev ? [resolve(__dirname, '../tlv2-ui')] : []
+      },
     }
   },
   eslint: {
     config: {
       stylistic: stylisticConfig,
     },
-  },
-  tlv2: {
-    useProxy: true,
-    bulma: '~/assets/main.scss',
   },
 })
