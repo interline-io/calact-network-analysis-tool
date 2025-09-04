@@ -84,7 +84,7 @@
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" :disabled="!scenarioData" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runWsdotReport">
+              <o-button variant="primary" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runWsdotReport">
                 Run Report
               </o-button>
             </div>
@@ -130,10 +130,6 @@ const loadExampleWsdotReport = async () => {
 
 const runWsdotReport = async () => {
   console.log('runWsdotReport')
-  if (!scenarioData.value) {
-    console.log('No scenario data loaded!')
-    return
-  }
   loading.value = true
 
   try {
