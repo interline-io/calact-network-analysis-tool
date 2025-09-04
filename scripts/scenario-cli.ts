@@ -54,7 +54,7 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
   }
 
   const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
+    (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 

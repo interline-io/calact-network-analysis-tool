@@ -72,7 +72,7 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
     stream: ReadableStream<Uint8Array>,
     receiver: StreamDataReceiver<T, TData>
   ): Promise<TData> {
-    console.log('GenericStreamReceiver: Starting to process stream...')
+    // console.log('GenericStreamReceiver: Starting to process stream...')
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -80,9 +80,9 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
     try {
       while (true) {
         const { done, value } = await reader.read()
-        console.log('GenericStreamReceiver: ...read chunk', { done, valueLength: value?.length || 0 })
+        // console.log('GenericStreamReceiver: ...read chunk', { done, valueLength: value?.length || 0 })
         if (done) {
-          console.log('GenericStreamReceiver: Stream fully read')
+          // console.log('GenericStreamReceiver: Stream fully read')
           break
         }
 
@@ -110,55 +110,6 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
     return receiver.getCurrentData()
   }
 }
-
-// ============================================================================
-// EXAMPLE USAGE WITH CUSTOM TYPES
-// ============================================================================
-
-/*
-// Example of using the generic types with custom progress and data types:
-
-interface CustomProgress extends StreamableProgress {
-  isLoading: boolean
-  currentStage: 'init' | 'processing' | 'finalizing' | 'complete'
-  processedItems?: number
-  totalItems?: number
-  customField?: string
-}
-
-interface CustomData {
-  items: any[]
-  metadata: any
-}
-
-class CustomDataReceiver implements StreamDataReceiver<CustomProgress, CustomData> {
-  private data: CustomData = { items: [], metadata: {} }
-
-  onProgress(progress: CustomProgress): void {
-    // Handle custom progress updates
-    console.log(`Progress: ${progress.currentStage}, ${progress.processedItems}/${progress.totalItems}`)
-  }
-
-  onComplete(): void {
-    console.log('Custom processing complete')
-  }
-
-  onError(error: any): void {
-    console.error('Custom processing error:', error)
-  }
-
-  getCurrentData(): CustomData {
-    return this.data
-  }
-}
-
-// Usage:
-const customSender = new GenericStreamSender<CustomProgress>(writer)
-const customReceiver = new GenericStreamReceiver<CustomProgress, CustomData>()
-const customDataReceiver = new CustomDataReceiver()
-
-customReceiver.processStream(stream, customDataReceiver)
-*/
 
 // ============================================================================
 // Utility functions to create and manage streams
