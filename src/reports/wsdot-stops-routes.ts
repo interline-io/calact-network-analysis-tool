@@ -1,6 +1,5 @@
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
 import type { GraphQLClient } from '~/src/graphql'
-import type { Feature } from '~/src/geom'
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
@@ -38,9 +37,7 @@ export interface WSDOTAgencyResult {
   routesCount: number
 }
 
-export interface WSDOTStopsRoutesReportConfig extends ScenarioConfig {
-  // No additional config needed for this analysis
-}
+export type WSDOTStopsRoutesReportConfig = ScenarioConfig
 
 export class WSDOTStopsRoutesReportFetcher {
   private config: WSDOTStopsRoutesReportConfig
@@ -65,12 +62,14 @@ export class WSDOTStopsRoutesReportFetcher {
     for (const stop of this.scenarioData.stops) {
       if (!stop.geometry) continue
 
-      // Extract agency_id from route_stops if available
+      // Extract agency_id and agency_name from route_stops if available
       let agencyId = 'unknown'
+      let _agencyName = 'Unknown'
       if (stop.route_stops && stop.route_stops.length > 0) {
         const firstRoute = stop.route_stops[0].route
         if (firstRoute.agency?.agency_id) {
           agencyId = firstRoute.agency.agency_id
+          _agencyName = firstRoute.agency.agency_name || agencyId
         }
       }
 
@@ -99,8 +98,9 @@ export class WSDOTStopsRoutesReportFetcher {
     for (const route of this.scenarioData.routes) {
       if (!route.geometry) continue
 
-      // Extract agency_id from route
+      // Extract agency_id and agency_name from route
       const agencyId = route.agency?.agency_id || 'unknown'
+      const _agencyName = route.agency?.agency_name || agencyId || 'Unknown'
 
       // Get feed Onestop ID and SHA1 from the route's feed version
       const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
@@ -122,22 +122,62 @@ export class WSDOTStopsRoutesReportFetcher {
       routes.push(result)
     }
 
-    // Process agencies with counts
+    // Process agencies with counts - build from original data to get agency names
     const agencyMap = new Map<string, WSDOTAgencyResult>()
+
+    // Build agency map from stops data
+    for (const stop of this.scenarioData.stops) {
+      if (!stop.geometry) continue
+
+      let agencyId = 'unknown'
+      let agencyName = 'Unknown'
+      if (stop.route_stops && stop.route_stops.length > 0) {
+        const firstRoute = stop.route_stops[0].route
+        if (firstRoute.agency?.agency_id) {
+          agencyId = firstRoute.agency.agency_id
+          agencyName = firstRoute.agency.agency_name || agencyId
+        }
+      }
+
+      const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
+      const uniqueAgencyId = `${feedOnestopId}:${agencyId}`
+
+      if (!agencyMap.has(uniqueAgencyId)) {
+        agencyMap.set(uniqueAgencyId, {
+          agencyId: uniqueAgencyId,
+          agencyName,
+          feedOnestopId,
+          stopsCount: 0,
+          routesCount: 0
+        })
+      }
+    }
+
+    // Build agency map from routes data
+    for (const route of this.scenarioData.routes) {
+      if (!route.geometry) continue
+
+      const agencyId = route.agency?.agency_id || 'unknown'
+      const agencyName = route.agency?.agency_name || agencyId || 'Unknown'
+      const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
+      const uniqueAgencyId = `${feedOnestopId}:${agencyId}`
+
+      if (!agencyMap.has(uniqueAgencyId)) {
+        agencyMap.set(uniqueAgencyId, {
+          agencyId: uniqueAgencyId,
+          agencyName,
+          feedOnestopId,
+          stopsCount: 0,
+          routesCount: 0
+        })
+      }
+    }
 
     // Count stops per agency
     for (const stop of stops) {
       const existing = agencyMap.get(stop.agencyId)
       if (existing) {
         existing.stopsCount++
-      } else {
-        agencyMap.set(stop.agencyId, {
-          agencyId: stop.agencyId,
-          agencyName: stop.agencyId.split(':')[1] || 'Unknown',
-          feedOnestopId: stop.feedOnestopId,
-          stopsCount: 1,
-          routesCount: 0
-        })
       }
     }
 
@@ -146,14 +186,6 @@ export class WSDOTStopsRoutesReportFetcher {
       const existing = agencyMap.get(route.agencyId)
       if (existing) {
         existing.routesCount++
-      } else {
-        agencyMap.set(route.agencyId, {
-          agencyId: route.agencyId,
-          agencyName: route.agencyId.split(':')[1] || 'Unknown',
-          feedOnestopId: route.feedOnestopId,
-          stopsCount: 0,
-          routesCount: 1
-        })
       }
     }
 

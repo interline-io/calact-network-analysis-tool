@@ -33,26 +33,14 @@
       </div>
     </div>
 
-    <div class="columns">
-      <div class="column">
-        <o-field label="Agency Summary" class="mt-4" />
-        <table class="agency-summary-table">
-          <thead>
-            <tr>
-              <th>Agency</th>
-              <th>Stops</th>
-              <th>Routes</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="agency in computedAgencies" :key="agency.agencyId">
-              <td>{{ agency.agencyName }}</td>
-              <td>{{ agency.stopsCount }}</td>
-              <td>{{ agency.routesCount }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="mt-4">
+      <h4 class="title is-4">
+        Agency Summary
+      </h4>
+
+      <cal-datagrid
+        :table-report="agencyDatagrid"
+      />
     </div>
 
     <!-- Stops Table -->
@@ -152,41 +140,18 @@ import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 // Define models for props
 const report = defineModel<WSDOTStopsRoutesReport>('report', { required: true })
 
-// Compute agencies from stops and routes data
+// Create agency lookup map for efficient name resolution
+const agencyLookup = computed(() => {
+  const lookup = new Map<string, string>()
+  for (const agency of report.value.agencies) {
+    lookup.set(agency.agencyId, agency.agencyName)
+  }
+  return lookup
+})
+
+// Use the agencies directly from the report
 const computedAgencies = computed(() => {
-  const agencyMap = new Map<string, { agencyId: string, agencyName: string, stopsCount: number, routesCount: number }>()
-
-  // Count stops per agency
-  for (const stop of report.value.stops) {
-    const existing = agencyMap.get(stop.agencyId)
-    if (existing) {
-      existing.stopsCount++
-    } else {
-      agencyMap.set(stop.agencyId, {
-        agencyId: stop.agencyId,
-        agencyName: stop.agencyId.includes(':') ? stop.agencyId.split(':')[1] : stop.agencyId,
-        stopsCount: 1,
-        routesCount: 0
-      })
-    }
-  }
-
-  // Count routes per agency
-  for (const route of report.value.routes) {
-    const existing = agencyMap.get(route.agencyId)
-    if (existing) {
-      existing.routesCount++
-    } else {
-      agencyMap.set(route.agencyId, {
-        agencyId: route.agencyId,
-        agencyName: route.agencyId.includes(':') ? route.agencyId.split(':')[1] : route.agencyId,
-        stopsCount: 0,
-        routesCount: 1
-      })
-    }
-  }
-
-  return Array.from(agencyMap.values())
+  return report.value.agencies
 })
 
 // Convert stops to GeoJSON features for download
@@ -214,6 +179,7 @@ const _stopTableData = computed(() => {
     stopLat: stop.stopLat,
     stopLon: stop.stopLon,
     agencyId: stop.agencyId,
+    agencyName: agencyLookup.value.get(stop.agencyId) || 'Unknown',
     feedOnestopId: stop.feedOnestopId,
     feedVersionSha1: stop.feedVersionSha1,
   }))
@@ -244,6 +210,7 @@ const _routeTableData = computed(() => {
     routeLongName: route.routeLongName,
     routeType: route.routeType,
     agencyId: route.agencyId,
+    agencyName: agencyLookup.value.get(route.agencyId) || 'Unknown',
     feedOnestopId: route.feedOnestopId,
     feedVersionSha1: route.feedVersionSha1,
   }))
@@ -258,6 +225,7 @@ const stopDatagrid = computed((): TableReport => {
     stopLat: stop.stopLat,
     stopLon: stop.stopLon,
     agencyId: stop.agencyId,
+    agencyName: agencyLookup.value.get(stop.agencyId) || 'Unknown',
     feedOnestopId: stop.feedOnestopId,
     feedVersionSha1: stop.feedVersionSha1,
   }))
@@ -265,9 +233,35 @@ const stopDatagrid = computed((): TableReport => {
   const columns: TableColumn[] = [
     { key: 'stopId', label: 'Stop ID', sortable: true },
     { key: 'stopName', label: 'Stop Name', sortable: true },
+    { key: 'agencyName', label: 'Agency Name', sortable: true },
     { key: 'agencyId', label: 'Agency ID', sortable: true },
     { key: 'feedOnestopId', label: 'Feed Onestop ID', sortable: true },
     { key: 'feedVersionSha1', label: 'Feed Version SHA1', sortable: true },
+  ]
+
+  return {
+    data,
+    columns
+  }
+})
+
+// Agency datagrid
+const agencyDatagrid = computed((): TableReport => {
+  const data = computedAgencies.value.map(agency => ({
+    id: agency.agencyId,
+    agencyName: agency.agencyName,
+    agencyId: agency.agencyId,
+    feedOnestopId: agency.feedOnestopId,
+    stopsCount: agency.stopsCount,
+    routesCount: agency.routesCount,
+  }))
+
+  const columns: TableColumn[] = [
+    { key: 'agencyName', label: 'Agency Name', sortable: true },
+    { key: 'stopsCount', label: 'Stops', sortable: true },
+    { key: 'routesCount', label: 'Routes', sortable: true },
+    { key: 'agencyId', label: 'Agency ID', sortable: true },
+    { key: 'feedOnestopId', label: 'Feed Onestop ID', sortable: true },
   ]
 
   return {
@@ -285,6 +279,7 @@ const routeDatagrid = computed((): TableReport => {
     routeLongName: route.routeLongName,
     routeType: route.routeType,
     agencyId: route.agencyId,
+    agencyName: agencyLookup.value.get(route.agencyId) || 'Unknown',
     feedOnestopId: route.feedOnestopId,
     feedVersionSha1: route.feedVersionSha1,
   }))
@@ -294,6 +289,7 @@ const routeDatagrid = computed((): TableReport => {
     { key: 'routeShortName', label: 'Route Short Name', sortable: true },
     { key: 'routeLongName', label: 'Route Long Name', sortable: true },
     { key: 'routeType', label: 'Route Type', sortable: true },
+    { key: 'agencyName', label: 'Agency Name', sortable: true },
     { key: 'agencyId', label: 'Agency ID', sortable: true },
     { key: 'feedOnestopId', label: 'Feed Onestop ID', sortable: true },
     { key: 'feedVersionSha1', label: 'Feed Version SHA1', sortable: true },
@@ -305,22 +301,3 @@ const routeDatagrid = computed((): TableReport => {
   }
 })
 </script>
-
-<style scoped>
-.agency-summary-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.agency-summary-table th,
-.agency-summary-table td {
-  padding: 8px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-.agency-summary-table th {
-  background-color: #f5f5f5;
-  font-weight: bold;
-}
-</style>

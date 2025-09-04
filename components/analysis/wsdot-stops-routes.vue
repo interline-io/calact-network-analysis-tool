@@ -159,38 +159,120 @@ const fetchScenario = async (loadExample: string) => {
         // Convert WSDOT report to stops/routes format for the viewer
         const currentData = receiver.getCurrentData()
         if (currentData) {
-          wsdotStopsRoutesReport.value = {
-            stops: currentData.stops.map((stop) => {
-              const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id || 'unknown'
+          // Build agency map to avoid duplicates and get proper names
+          const agencyMap = new Map<string, { agencyId: string, agencyName: string, feedOnestopId: string, stopsCount: number, routesCount: number }>()
+
+          // Process stops to build agency map - filter out stops with no routes
+          const stops = currentData.stops
+            .filter(stop => stop.route_stops && stop.route_stops.length > 0)
+            .map((stop) => {
+              const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id || null
+              const agencyName = stop.route_stops?.[0]?.route?.agency?.agency_name
               const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
               const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
+
+              // Handle null agency_id (allowed in GTFS)
+              const effectiveAgencyId = agencyId || 'null'
+              const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
+              const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
+
+              // Debug logging for agency extraction
+              if (!agencyName && !agencyId) {
+                console.log('Stop with no agency info:', {
+                  stopId: stop.stop_id,
+                  routeStops: stop.route_stops?.length || 0,
+                  firstRoute: stop.route_stops?.[0]?.route?.route_id,
+                  agency: stop.route_stops?.[0]?.route?.agency
+                })
+              }
+
+              // Add to agency map
+              if (!agencyMap.has(uniqueAgencyId)) {
+                agencyMap.set(uniqueAgencyId, {
+                  agencyId: uniqueAgencyId,
+                  agencyName: effectiveAgencyName,
+                  feedOnestopId,
+                  stopsCount: 0,
+                  routesCount: 0
+                })
+              }
+              agencyMap.get(uniqueAgencyId)!.stopsCount++
+
               return {
                 stopId: stop.stop_id,
                 stopName: stop.stop_name || '',
                 stopLat: stop.geometry?.coordinates[1] || 0,
                 stopLon: stop.geometry?.coordinates[0] || 0,
-                agencyId: `${feedOnestopId}:${agencyId}`,
+                agencyId: uniqueAgencyId,
                 feedOnestopId,
                 feedVersionSha1,
                 geometry: stop.geometry || { type: 'Point', coordinates: [0, 0] }
               }
-            }),
-            routes: currentData.routes.map((route) => {
-              const agencyId = route.agency?.agency_id || 'unknown'
-              const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
-              const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
-              return {
+            })
+
+          // Process routes to build agency map
+          const routes = currentData.routes.map((route) => {
+            const agencyId = route.agency?.agency_id || null
+            const agencyName = route.agency?.agency_name
+            const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
+            const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
+
+            // Handle null agency_id (allowed in GTFS)
+            const effectiveAgencyId = agencyId || 'null'
+            const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
+            const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
+
+            // Debug logging for agency extraction
+            if (!agencyName && !agencyId) {
+              console.log('Route with no agency info:', {
                 routeId: route.route_id,
-                routeShortName: route.route_short_name || '',
-                routeLongName: route.route_long_name || '',
-                routeType: route.route_type,
-                agencyId: `${feedOnestopId}:${agencyId}`,
+                agency: route.agency
+              })
+            }
+
+            // Add to agency map
+            if (!agencyMap.has(uniqueAgencyId)) {
+              agencyMap.set(uniqueAgencyId, {
+                agencyId: uniqueAgencyId,
+                agencyName: effectiveAgencyName,
                 feedOnestopId,
-                feedVersionSha1,
-                geometry: route.geometry || { type: 'MultiLineString', coordinates: [] }
-              }
-            }),
-            agencies: [] // Agencies will be computed by the viewer from stops and routes
+                stopsCount: 0,
+                routesCount: 0
+              })
+            }
+            agencyMap.get(uniqueAgencyId)!.routesCount++
+
+            return {
+              routeId: route.route_id,
+              routeShortName: route.route_short_name || '',
+              routeLongName: route.route_long_name || '',
+              routeType: route.route_type,
+              agencyId: uniqueAgencyId,
+              feedOnestopId,
+              feedVersionSha1,
+              geometry: route.geometry || { type: 'MultiLineString', coordinates: [] }
+            }
+          })
+
+          // Convert agency map to array
+          const agencies = Array.from(agencyMap.values())
+
+          // Debug logging for final agency data
+          console.log('Final agency data:', {
+            totalAgencies: agencies.length,
+            agencies: agencies.map(a => ({ id: a.agencyId, name: a.agencyName, stops: a.stopsCount, routes: a.routesCount })),
+            totalStops: stops.length,
+            stopsWithoutAgency: stops.filter(s => s.agencyId.includes(':null')).length,
+            totalRoutes: routes.length,
+            routesWithoutAgency: routes.filter(r => r.agencyId.includes(':null')).length,
+            originalStopsCount: currentData.stops.length,
+            filteredOutStops: currentData.stops.length - stops.length
+          })
+
+          wsdotStopsRoutesReport.value = {
+            stops,
+            routes,
+            agencies
           }
         }
       }
