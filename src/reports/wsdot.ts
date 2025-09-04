@@ -190,7 +190,7 @@ export class WSDOTReportFetcher {
           tableDatasetTableCol: 'b01001_001',
           geoDatasetName: 'tiger2024',
           geoDatasetLayer: geoDatasetLayer,
-          stopBufferRadius: 1000 // 1km buffer
+          stopBufferRadius: this.config.stopBufferRadius || 1000,
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
