@@ -5,5 +5,6 @@ export const useTransitlandApiEndpoint = (path?: string) => {
     : (config.public.tlv2?.apiBase || window?.location?.origin + '/api/v2')
   console.log('config?', config)
   console.log('apiBase?', apiBase)
+  console.log('process.env', process.env)
   return apiBase + (path || '')
 }

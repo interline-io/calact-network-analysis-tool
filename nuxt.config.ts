@@ -24,12 +24,12 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     tlv2: {
-      proxyBase: '', // can be overridden by NUXT_PROXY_BASE environment variable
+      proxyBase: '',
       graphqlApikey: '',
     },
     public: {
       tlv2: {
-        apiBase: '', // can be overridden by NUXT_PUBLIC_API_BASE environment variable
+        apiBase: '',
         protomapsApikey: '',
         nearmapsApikey: '',
         auth0Domain: '',
