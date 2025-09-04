@@ -109,6 +109,9 @@
         <template #column-routeId="{ value }">
           <tl-safelink :text="value" max-width="100px" />
         </template>
+        <template #column-routeType="{ value }">
+          <tl-route-icon :route-type="value" />
+        </template>
         <template #column-agencyId="{ value }">
           <tl-safelink :text="value" max-width="150px" />
         </template>
