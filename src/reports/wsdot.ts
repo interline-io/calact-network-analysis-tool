@@ -500,7 +500,7 @@ async function getGeographyData (
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     layer: config.geoDatasetLayer,
-    stopBufferRadius: 1000, // 1km buffer
+    stopBufferRadius: config.stopBufferRadius || 1000, // 1km buffer
     stopIds: Array.from(config.stopIds)
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
