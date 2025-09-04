@@ -24,6 +24,9 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     wheelchair_boarding
     platform_code
     tts_stop_name
+    parent {
+    stop_id
+  }
     geometry
     feed_version {
       sha1
@@ -95,6 +98,9 @@ export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
   geometry: Point
+  parent?: {
+    stop_id: string
+  } | null
   feed_version: {
     sha1: string
     feed: {
