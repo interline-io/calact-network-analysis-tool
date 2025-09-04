@@ -72,6 +72,16 @@
     <cal-datagrid
       :table-report="stopDatagrid"
     >
+      <template #additional-downloads>
+        <o-field>
+          <cal-geojson-download
+            :data="stopFeatures"
+            filename="wsdot-frequent-transit-stops"
+            button-text="Download as GeoJSON"
+          />
+        </o-field>
+      </template>
+
       <template #column-highestLevel="{ value }">
         <span
           :class="getFrequencyLevelClass(value)"
