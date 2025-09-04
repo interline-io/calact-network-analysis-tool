@@ -70,6 +70,7 @@
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
+            @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
           />
         </div>
 
@@ -121,6 +122,7 @@
             <analysis-picker
               :scenario-data="scenarioData"
               :scenario-config="scenarioConfig"
+              @cancel="setTab({ tab: 'query', sub: '' })"
             />
           </div>
         </div>

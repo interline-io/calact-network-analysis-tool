@@ -22,15 +22,15 @@
       </tl-msg-info>
 
       <!-- Warning when no scenario data is available -->
-      <tl-msg-warning v-if="!scenarioData">
-        You need to load data before running analyses. Please go to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
+      <tl-msg-warning v-if="!scenarioConfig">
+        You need to define the geographic extent before running analyses. Please go to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
       </tl-msg-warning>
 
       <o-field label="Start an analysis">
         <o-select
           v-model="selectedReportType"
           placeholder="Select an analysis to run"
-          :disabled="!scenarioData"
+          :disabled="!scenarioConfig"
         >
           <option v-for="[reportType, reportLabel] of Object.entries(reportTypes)" :key="reportType" :value="reportType">
             {{ reportLabel }}
@@ -53,8 +53,13 @@ const reportTypes: Record<string, string> = {
 }
 const selectedReportType = ref<string>('')
 
+const emit = defineEmits<{
+  cancel: []
+}>()
+
 const handleCancel = () => {
   selectedReportType.value = ''
+  emit('cancel')
 }
 </script>
 
