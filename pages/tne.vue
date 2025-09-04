@@ -602,7 +602,7 @@ const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
 const loadExampleData = async (exampleName: string) => {
-  console.log('loading:', exampleName)
+  console.log('loading example data:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
   fetchScenario(exampleName)
 }

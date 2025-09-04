@@ -190,7 +190,7 @@ export class WSDOTReportFetcher {
           tableDatasetTableCol: 'b01001_001',
           geoDatasetName: 'tiger2024',
           geoDatasetLayer: geoDatasetLayer,
-          stopBufferRadius: 1000 // 1km buffer
+          stopBufferRadius: this.config.stopBufferRadius || 1000,
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
@@ -500,7 +500,7 @@ async function getGeographyData (
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     layer: config.geoDatasetLayer,
-    stopBufferRadius: 1000, // 1km buffer
+    stopBufferRadius: config.stopBufferRadius || 1000, // 1km buffer
     stopIds: Array.from(config.stopIds)
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)

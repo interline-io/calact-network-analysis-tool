@@ -378,7 +378,7 @@ export class ScenarioDataReceiver {
    * Handle a progress event from ScenarioFetcher
    */
   onProgress (progress: ScenarioProgress): void {
-    console.log('ScenarioDataReceiver onProgress', progress)
+    // console.log('ScenarioDataReceiver onProgress', progress)
     // If progress contains partial data, accumulate it
     if (progress.partialData) {
       // Append new stops
