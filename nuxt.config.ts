@@ -7,7 +7,6 @@ import { stylisticConfig } from 'tlv2-ui/config'
 const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
-
   modules: [
     ['tlv2-ui', {
       useProxy: true,
@@ -24,11 +23,12 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     tlv2: {
-      proxyBase: '',
       graphqlApikey: '',
+      proxyBase: '',
     },
     public: {
       tlv2: {
+        useProxy: true,
         apiBase: '',
         protomapsApikey: '',
         nearmapsApikey: '',
@@ -37,8 +37,7 @@ export default defineNuxtConfig({
         auth0RedirectUri: '',
         auth0Audience: '',
         auth0Scope: '',
-        loginGate: '',
-        requireLogin: '',
+        loginGate: ''
       }
     }
   },
