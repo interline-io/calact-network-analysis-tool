@@ -61,6 +61,7 @@ export interface ScenarioProgress {
     feedVersions: FeedVersion[]
     stopDepartures: StopDepartureTuple[]
   }
+  extraData?: any
 }
 
 // Define the tuple type with named fields
@@ -353,7 +354,7 @@ export class ScenarioFetcher {
       stopDepartureProgress: this.stopDepartureProgress,
       feedVersionProgress: this.feedVersionProgress,
       currentStage: stage,
-      partialData: newData
+      partialData: newData,
     })
   }
 }
@@ -384,6 +385,7 @@ export class ScenarioDataReceiver {
    * Handle a progress event from ScenarioFetcher
    */
   onProgress (progress: ScenarioProgress): void {
+    console.log('ScenarioDataReceiver onProgress', progress)
     // If progress contains partial data, accumulate it
     if (progress.partialData) {
       // Append new stops

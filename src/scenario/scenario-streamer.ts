@@ -54,6 +54,7 @@ export class ScenarioStreamReceiver {
     stream: ReadableStream<Uint8Array>,
     receiver: ScenarioDataReceiver
   ): Promise<ScenarioData> {
+    console.log('ScenarioStreamReceiver: Starting to process stream...')
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -61,7 +62,11 @@ export class ScenarioStreamReceiver {
     try {
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        console.log('ScenarioStreamReceiver: ...read chunk', { done, valueLength: value?.length || 0 })
+        if (done) {
+          console.log('ScenarioStreamReceiver: Stream fully read')
+          break
+        }
 
         buffer += decoder.decode(value, { stream: true })
         // console.log(`...read ${buffer.length} bytes`)

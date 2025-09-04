@@ -147,7 +147,6 @@ const runWsdotReport = async () => {
       method: 'POST',
       body: JSON.stringify({
         config: wsdotConfig,
-        scenarioData: scenarioData.value
       })
     })
     const responseData = await response.json()
