@@ -11,6 +11,10 @@
           :disabled="loading"
         />
       </o-field>
+
+      <!-- Slot for additional download buttons, such as GeoJSON -->
+      <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
+
       <o-pagination
         v-model:current="current"
         expanded
