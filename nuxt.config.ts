@@ -27,6 +27,7 @@ export default defineNuxtConfig({
       proxyBase: '',
     },
     public: {
+      test: 'ok',
       tlv2: {
         useProxy: true,
         apiBase: '',
