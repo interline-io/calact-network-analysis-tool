@@ -5,44 +5,7 @@ import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
 import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
-
-const requestStream = (controller: ReadableStreamDefaultController): WritableStream => {
-  // Create writable stream writer that writes to the response
-  return new WritableStream({
-    write (chunk) {
-      controller.enqueue(chunk)
-    },
-    close () {
-      controller.close()
-    },
-    abort (error) {
-      controller.error(error)
-    }
-  })
-}
-
-const multiplexStream = (originalStream: WritableStream): { inputStream: WritableStream, outputStream: ReadableStream } => {
-  // Create a transform stream that splits data to two destinations
-  const originalWriter = originalStream.getWriter()
-
-  const { readable, writable } = new TransformStream({
-    async transform (chunk, controller) {
-      // Send chunk to the new output stream
-      controller.enqueue(chunk)
-      // Also write to the original stream
-      await originalWriter.write(chunk)
-    },
-    async flush () {
-      // Close both streams when done
-      await originalWriter.close()
-    }
-  })
-
-  return {
-    inputStream: writable, // Stream to write data into
-    outputStream: readable // New stream that receives the same data
-  }
-}
+import { multiplexStream, requestStream } from '~/src/stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
