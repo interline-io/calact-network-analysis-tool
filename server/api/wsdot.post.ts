@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
     // Create a proxy-based GraphQL client using the utility
     const client = new BasicGraphQLClient(
-      useTransitlandApiEndpoint('/query'),
+      useTransitlandApiEndpoint('/query', event),
       await useApiFetch(event),
     )
 
