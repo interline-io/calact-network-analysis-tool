@@ -158,7 +158,6 @@ const runQuery = async () => {
 }
 
 const fetchScenario = async (loadExample: string) => {
-  console.log('fetchScenario:', loadExample)
   const config = scenarioConfig.value!
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs, unless loading example
@@ -176,7 +175,6 @@ const fetchScenario = async (loadExample: string) => {
       }
       scenarioData.value = receiver.getCurrentData()
       if (progress.extraData) {
-        console.log('extraData?', progress.extraData)
         wsdotReport.value = progress.extraData as WSDOTReport
       }
     },
