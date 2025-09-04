@@ -116,14 +116,6 @@
               :disabled="loading"
             />
           </o-field>
-          <o-field>
-            <cal-geopackage-download
-              :data="stopFeatures"
-              filename="wsdot-stops"
-              button-text="Download as GeoPackage"
-              :disabled="loading"
-            />
-          </o-field>
         </template>
       </cal-datagrid>
     </div>
@@ -158,14 +150,6 @@
               :data="routeFeatures"
               filename="wsdot-routes"
               button-text="Download as GeoJSON"
-              :disabled="loading"
-            />
-          </o-field>
-          <o-field>
-            <cal-geopackage-download
-              :data="routeFeatures"
-              filename="wsdot-routes"
-              button-text="Download as GeoPackage"
               :disabled="loading"
             />
           </o-field>
