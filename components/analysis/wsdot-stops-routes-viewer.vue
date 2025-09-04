@@ -40,7 +40,14 @@
 
       <cal-datagrid
         :table-report="agencyDatagrid"
-      />
+      >
+        <template #column-agencyId="{ value }">
+          <tl-safelink :text="value" max-width="150px" />
+        </template>
+        <template #column-feedOnestopId="{ value }">
+          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+        </template>
+      </cal-datagrid>
     </div>
 
     <!-- Stops Table -->
