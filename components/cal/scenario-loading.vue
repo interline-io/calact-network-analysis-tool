@@ -23,6 +23,12 @@
       {{ typeof error === 'string' ? error : error?.message }}
     </tl-msg-error>
 
+    <!-- Completion Status -->
+    <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
+      <o-icon icon="check-circle" class="mr-2" />
+      Scenario data loading completed successfully!
+    </div>
+
     <!-- Results Display -->
     <div class="columns">
       <div class="column is-one-third">
@@ -61,8 +67,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
-import type { ScenarioData } from '~/src/scenario/scenario'
+import type { ScenarioProgress, ScenarioData } from '~/src/scenario'
 
 // Props
 const props = withDefaults(defineProps<{
@@ -162,6 +167,12 @@ function formatStage (stage: ScenarioProgress['currentStage']): string {
   text-align: center;
   font-weight: 500;
   font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.completion-status .o-icon {
+  color: #28a745;
+  vertical-align: middle;
 }
 
 /* Responsive adjustments for smaller modals */

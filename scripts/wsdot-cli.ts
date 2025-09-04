@@ -9,7 +9,7 @@ import {
 } from './scenario-cli-util'
 import { runScenarioData } from './scenario-cli'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
-import { BasicGraphQLClient } from '~/src/graphql'
+import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
 import { parseBbox } from '~/src/geom'
 import { parseDate } from '~/src/datetime'
 /**
@@ -49,10 +49,11 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
     weekendDate: parseDate(options.weekendDate)!,
     geographyIds: []
   }
+
   // Create GraphQL client
   const client = new BasicGraphQLClient(
     process.env.TRANSITLAND_API_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || ''
+    apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 
   const result = await runScenarioData(options)

@@ -11,7 +11,7 @@
         It then displays visual tables for transit stops and routes, with the ability to download each as GeoJSON.
       </p>
       <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
     </tl-msg-info>
 

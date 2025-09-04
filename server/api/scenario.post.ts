@@ -3,10 +3,13 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
-import type { ScenarioConfig } from '~/src/scenario/scenario'
-import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
-import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
+import { createError } from 'h3'
+import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
+import type { ScenarioConfig } from '~/src/scenario'
+import { ScenarioStreamSender, ScenarioFetcher } from '~/src/scenario'
 import { BasicGraphQLClient } from '~/src/graphql'
+import { useApiFetch } from '~/composables/useApiFetch'
+import { requestStream } from '~/src/stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -14,7 +17,10 @@ export default defineEventHandler(async (event) => {
 
   // Validate the config
   if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    throw new Error('Either bbox or geographyIds must be provided')
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Either bbox or geographyIds must be provided'
+    })
   }
 
   // Set streaming headers
@@ -22,28 +28,18 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
-  // Create GraphQL client
+  // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
+  // Create a proxy-based GraphQL client using the utility
   const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-    process.env.TRANSITLAND_API_KEY || 'test-key'
+    useTransitlandApiEndpoint('/query', event),
+    await useApiFetch(event),
   )
 
   // Create a readable stream for the response
   const stream = new ReadableStream({
     async start (controller) {
       // Create writable stream writer that writes to the response
-      const writableStream = new WritableStream({
-        write (chunk) {
-          controller.enqueue(chunk)
-        },
-        close () {
-          controller.close()
-        },
-        abort (error) {
-          controller.error(error)
-        }
-      })
-      const writer = writableStream.getWriter()
+      const writer = requestStream(controller).getWriter()
 
       // Create ScenarioDataSender that writes to our stream
       const scenarioDataSender = new ScenarioStreamSender(writer)
@@ -51,12 +47,7 @@ export default defineEventHandler(async (event) => {
       // Create ScenarioFetcher with streaming callbacks
       const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
 
-      // Start the fetch process (fire and forget - streams handle the rest)
-      fetcher.fetch().catch((error) => {
-        console.error('Scenario fetch error:', error)
-        scenarioDataSender.onError(error)
-      })
-
+      // Start the fetch process
       await fetcher.fetch()
     }
   })

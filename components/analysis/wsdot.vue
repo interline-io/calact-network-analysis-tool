@@ -11,14 +11,17 @@
         This study defines seven levels of transit frequency based on headway, span, and days of service.
       </p>
       <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
     </tl-msg-info>
 
-    <div v-if="loading">
+    <tl-msg-error v-if="error" class="mt-4" style="width:400px" :title="error.message">
+      An error occurred while running the WSDOT analysis.
+    </tl-msg-error>
+    <div v-else-if="loading">
       Loading...
     </div>
-    <div v-else-if="wsdotReportConfig && wsdotReport">
+    <div v-else-if="wsdotReport">
       <analysis-wsdot-viewer
         :report="wsdotReport"
         :config="wsdotReportConfig"
@@ -32,7 +35,7 @@
           </p>
         </header>
         <div class="card-content">
-          <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+          <!-- <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
             <o-field label="Example regions">
               <o-select v-model="cannedBbox">
                 <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
@@ -44,7 +47,7 @@
               </o-button>
             </o-field>
             <br>
-          </tl-msg-warning>
+          </tl-msg-warning> -->
 
           <o-field>
             <template #label>
@@ -84,7 +87,7 @@
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" :disabled="!scenarioData" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runWsdotReport">
+              <o-button variant="primary" @click="runQuery">
                 Run Report
               </o-button>
             </div>
@@ -92,20 +95,31 @@
         </footer>
       </div>
     </div>
+
+    <!-- Loading Progress Modal - positioned at the end for highest z-index -->
+    <tl-modal
+      v-model="showLoadingModal"
+      title="Loading"
+      :closable="false"
+      :active="showLoadingModal"
+    >
+      <cal-scenario-loading
+        :progress="loadingProgress"
+        :error="error"
+        :stop-departure-count="stopDepartureCount"
+        :scenario-data="scenarioData"
+      />
+    </tl-modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useLazyQuery } from '@vue/apollo-composable'
+import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { WSDOTReportFetcher } from '~/src/reports/wsdot'
-import { cannedBboxes } from '~/src/constants'
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
+import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
 
+const error = ref<Error | null>(null)
 const loading = ref(false)
-const debugMenu = useDebugMenu()
-const cannedBbox = ref('portland')
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
@@ -114,64 +128,92 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
   stopBufferRadius: 800,
+  ...scenarioConfig.value
 })
 
 const emit = defineEmits<{
   cancel: []
 }>()
 
-// Create GraphQL client adapter for Vue Apollo
-const createGraphQLClientAdapter = (): GraphQLClient => {
-  return {
-    async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-      const { load } = useLazyQuery<T>(query, variables, {
-        fetchPolicy: 'no-cache',
-        clientId: 'transitland'
-      })
-      const result = await load()
-      if (!result) {
-        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
-        return { data: undefined }
-      }
-      return { data: result as T }
-    }
-  }
-}
-
-const loadExampleWsdotReport = async () => {
-  loading.value = true
-  const reportFile = `/examples/${cannedBbox.value}.wsdot.json`
-  const data: { config: WSDOTReportConfig, report: WSDOTReport } = await fetch(reportFile)
-    .then(res => res.json())
-  wsdotReportConfig.value = data.config
-  wsdotReport.value = data.report
-  loading.value = false
-}
-
-const runWsdotReport = async () => {
-  console.log('runWsdotReport')
-  if (!scenarioData.value) {
-    console.log('No scenario data loaded!')
-    return
-  }
-  loading.value = true
-  const client = createGraphQLClientAdapter()
-  const wsdotConfig: WSDOTReportConfig = {
-    ...scenarioConfig.value,
-    weekdayDate: scenarioConfig.value?.startDate || new Date(),
-    weekendDate: scenarioConfig.value?.endDate || new Date(),
-    scheduleEnabled: true,
-    stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
-  }
-  const wsdotFetcher = new WSDOTReportFetcher(wsdotConfig, scenarioData.value!, client)
-  const wsdotResult = await wsdotFetcher.fetch()
-  wsdotReport.value = wsdotResult
-  wsdotReportConfig.value = wsdotConfig
-  loading.value = false
-}
+const showLoadingModal = ref(false)
+const loadingProgress = ref<ScenarioProgress | null>(null)
+const stopDepartureCount = ref<number>(0)
 
 const handleCancel = () => {
   emit('cancel')
+}
+
+// Scenario fetching logic
+const runQuery = async () => {
+  showLoadingModal.value = true
+  try {
+    await fetchScenario('')
+    useToastNotification().showToast('Scenario data loaded successfully!')
+  } catch (err: any) {
+    error.value = err
+    loadingProgress.value = null
+    useToastNotification().showToast('Scenario failed to load: ' + err.message)
+  }
+  showLoadingModal.value = false
+}
+
+const fetchScenario = async (loadExample: string) => {
+  console.log('fetchScenario:', loadExample)
+  const config = scenarioConfig.value!
+  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+    return // Need either bbox or geography IDs, unless loading example
+  }
+  loadingProgress.value = null
+  stopDepartureCount.value = 0
+
+  // Create receiver to accumulate scenario data
+  const receiver = new ScenarioDataReceiver({
+    onProgress: (progress: ScenarioProgress) => {
+      loadingProgress.value = progress
+      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+        return
+      }
+      scenarioData.value = receiver.getCurrentData()
+      if (progress.extraData) {
+        console.log('extraData?', progress.extraData)
+        wsdotReport.value = progress.extraData as WSDOTReport
+      }
+    },
+    onComplete: () => {
+      loadingProgress.value = null
+      scenarioData.value = receiver.getCurrentData()
+    },
+    onError: (err: any) => {
+      loadingProgress.value = null
+      error.value = err
+    }
+  })
+
+  let response: Response
+  if (loadExample) {
+    // Load example data from public JSON file
+    response = await fetch(`/examples/${loadExample}.json`)
+  } else {
+    // Make request to streaming scenario endpoint
+    const apiFetch = await useApiFetch()
+    response = await apiFetch('/api/wsdot', {
+      method: 'POST',
+      body: JSON.stringify({ config: wsdotReportConfig.value })
+    })
+  }
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  if (!response.body) {
+    throw new Error('No response body received')
+  }
+
+  // Process the streaming response
+  const streamer = new ScenarioStreamReceiver()
+  await streamer.processStream(response.body, receiver)
 }
 </script>
 

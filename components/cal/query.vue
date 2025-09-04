@@ -5,7 +5,7 @@
     </tl-title>
 
     <tl-msg-info>
-      Specify your desired date range and geographic bounds. Then click <em>Run Query</em>.
+      <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Base Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
     </tl-msg-info>
 
     <div class="cal-body">
@@ -114,9 +114,14 @@
         </div>
       </tl-msg-box>
 
-      <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
-        Run Query
-      </o-button>
+      <div class="field has-addons">
+        <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
+          Run Base Query
+        </o-button>
+        <o-button variant="primary-outline" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
+          Run Advanced Analysis
+        </o-button>
+      </div>
     </div>
   </div>
 </template>
@@ -131,7 +136,8 @@ import { type CensusDataset, type CensusGeography, geographySearchQuery } from '
 const emit = defineEmits([
   'setBbox',
   'explore',
-  'loadExampleData'
+  'loadExampleData',
+  'switchToAnalysisTab'
 ])
 
 const loadExampleData = async () => {
@@ -238,6 +244,7 @@ const validQueryParams = computed(() => {
 
 <style scoped lang="scss">
   .cal-query {
+    max-width: 800px;
     display:flex;
     flex-direction:column;
     background: var(--bulma-scheme-main);

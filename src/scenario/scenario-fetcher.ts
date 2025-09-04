@@ -15,6 +15,8 @@ import {
 import { TaskQueue } from '../task-queue'
 import type { GraphQLClient } from '../graphql'
 import type { Bbox } from '../geom'
+
+import { GenericStreamSender, GenericStreamReceiver } from '../stream'
 import type {
   ScenarioData,
   ScenarioConfig
@@ -61,6 +63,7 @@ export interface ScenarioProgress {
     feedVersions: FeedVersion[]
     stopDepartures: StopDepartureTuple[]
   }
+  extraData?: any
 }
 
 // Define the tuple type with named fields
@@ -202,8 +205,7 @@ export class ScenarioFetcher {
     await this.routeFetchQueue.wait()
     await this.stopDepartureQueue.wait()
 
-    // Done
-    this.callbacks.onComplete?.()
+    // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete`)
   }
@@ -213,7 +215,7 @@ export class ScenarioFetcher {
     const variables = { where: { bbox: convertBbox(this.config.bbox) } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
-    this.updateProgressWithNewData('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartures: [] })
+    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartures: [] })
     return feedVersions
   }
 
@@ -238,7 +240,7 @@ export class ScenarioFetcher {
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
     // Send progress update with only the NEW stops
-    this.updateProgressWithNewData('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartures: [] })
+    this.updateProgress('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartures: [] })
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -290,7 +292,7 @@ export class ScenarioFetcher {
     for (const route of routeData) {
       this.fetchedRouteIds.add(route.id)
     }
-    this.updateProgressWithNewData('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartures: [] })
+    this.updateProgress('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartures: [] })
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
   }
 
@@ -336,25 +338,16 @@ export class ScenarioFetcher {
         )
       }
     }
-    this.updateProgressWithNewData('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
+    this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
   }
 
-  private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean) {
-    this.callbacks.onProgress?.({
-      isLoading: loading,
-      stopDepartureProgress: this.stopDepartureProgress,
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: stage
-    })
-  }
-
-  private async updateProgressWithNewData (stage: ScenarioProgress['currentStage'], loading: boolean, newData: ScenarioProgress['partialData']) {
+  private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {
     this.callbacks.onProgress?.({
       isLoading: loading,
       stopDepartureProgress: this.stopDepartureProgress,
       feedVersionProgress: this.feedVersionProgress,
       currentStage: stage,
-      partialData: newData
+      partialData: newData,
     })
   }
 }
@@ -385,6 +378,7 @@ export class ScenarioDataReceiver {
    * Handle a progress event from ScenarioFetcher
    */
   onProgress (progress: ScenarioProgress): void {
+    console.log('ScenarioDataReceiver onProgress', progress)
     // If progress contains partial data, accumulate it
     if (progress.partialData) {
       // Append new stops
@@ -408,9 +402,9 @@ export class ScenarioDataReceiver {
             }
           }
         }
-        const stopId = StopDepartureTuple.stopId(event)
-        const departureDate = StopDepartureTuple.departureDate(event)
-        console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
+        // const stopId = StopDepartureTuple.stopId(event)
+        // const departureDate = StopDepartureTuple.departureDate(event)
+        // console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),
@@ -464,4 +458,30 @@ function getSelectedDateRange (config: ScenarioConfig): Date[] {
   }
   // console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
   return dates
+}
+
+// ============================================================================
+// SCENARIO-SPECIFIC IMPLEMENTATIONS (backward compatibility)
+// ============================================================================
+
+/**
+ * ScenarioCallbacks that write progress data to a stream
+ */
+export class ScenarioStreamSender extends GenericStreamSender<ScenarioProgress> implements ScenarioCallbacks {}
+
+/**
+ * Streaming client processes readable streams and uses ScenarioDataReceiver
+ */
+export class ScenarioStreamReceiver extends GenericStreamReceiver<ScenarioProgress, ScenarioData> {}
+
+// Helper - run a scenario in-process and return the data
+export async function RunScenario (config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
+  const receiver = new ScenarioDataReceiver()
+  const fetcher = new ScenarioFetcher(config, client, receiver)
+  // Await data - start both concurrently and wait for both to complete
+  await Promise.all([
+    fetcher.fetch(),
+  ])
+  const result = receiver.getCurrentData()
+  return result
 }

@@ -95,7 +95,7 @@ import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv } from '~/src/stop'
 import { routeToRouteCsv } from '~/src/route'
 import { agencyToAgencyCsv } from '~/src/agency'
-import type { ScenarioFilterResult } from '~/src/scenario/scenario'
+import type { ScenarioFilterResult } from '~/src/scenario'
 import type { Feature } from '~/src/geom'
 
 const props = defineProps<{
