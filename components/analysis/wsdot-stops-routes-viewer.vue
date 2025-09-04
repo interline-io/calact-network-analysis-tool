@@ -57,78 +57,86 @@
 
     <!-- Stops Table -->
     <div class="mt-4">
-      <div class="level">
-        <div class="level-left">
-          <div class="level-item">
-            <h4 class="title is-4">
-              Transit Stops
-            </h4>
-          </div>
-        </div>
-        <div class="level-right">
-          <div class="level-item">
-            <div class="buttons">
-              <cal-csv-download
-                :data="stopTableData"
-                filename="wsdot-stops"
-                button-text="Download as CSV"
-              />
-              <cal-geojson-download
-                :data="stopFeatures"
-                filename="wsdot-stops"
-                button-text="Download as GeoJSON"
-              />
-              <cal-geopackage-download
-                :data="stopFeatures"
-                filename="wsdot-stops"
-                button-text="Download as GeoPackage"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <h4 class="title is-4">
+        Transit Stops
+      </h4>
 
       <cal-datagrid
         :table-report="stopDatagrid"
-      />
+      >
+        <template #column-feedOnestopId="{ value }">
+          <a :href="`https://www.transit.land/feeds/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
+            {{ value }}
+            <o-icon icon="open-in-new" size="small" />
+          </a>
+        </template>
+        <template #column-feedVersionSha1="{ value }">
+          <a :href="`https://www.transit.land/feed-versions/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
+            {{ value.substring(0, 8) }}...
+            <o-icon icon="open-in-new" size="small" />
+          </a>
+        </template>
+        <template #additional-downloads="{ loading }">
+          <o-field>
+            <cal-geojson-download
+              :data="stopFeatures"
+              filename="wsdot-stops"
+              button-text="Download as GeoJSON"
+              :disabled="loading"
+            />
+          </o-field>
+          <o-field>
+            <cal-geopackage-download
+              :data="stopFeatures"
+              filename="wsdot-stops"
+              button-text="Download as GeoPackage"
+              :disabled="loading"
+            />
+          </o-field>
+        </template>
+      </cal-datagrid>
     </div>
 
     <!-- Routes Table -->
     <div class="mt-4">
-      <div class="level">
-        <div class="level-left">
-          <div class="level-item">
-            <h4 class="title is-4">
-              Transit Routes
-            </h4>
-          </div>
-        </div>
-        <div class="level-right">
-          <div class="level-item">
-            <div class="buttons">
-              <cal-csv-download
-                :data="routeTableData"
-                filename="wsdot-routes"
-                button-text="Download as CSV"
-              />
-              <cal-geojson-download
-                :data="routeFeatures"
-                filename="wsdot-routes"
-                button-text="Download as GeoJSON"
-              />
-              <cal-geopackage-download
-                :data="routeFeatures"
-                filename="wsdot-routes"
-                button-text="Download as GeoPackage"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <h4 class="title is-4">
+        Transit Routes
+      </h4>
 
       <cal-datagrid
         :table-report="routeDatagrid"
-      />
+      >
+        <template #column-feedOnestopId="{ value }">
+          <a :href="`https://www.transit.land/feeds/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
+            {{ value }}
+            <o-icon icon="open-in-new" size="small" />
+          </a>
+        </template>
+        <template #column-feedVersionSha1="{ value }">
+          <a :href="`https://www.transit.land/feed-versions/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
+            {{ value.substring(0, 8) }}...
+            <o-icon icon="open-in-new" size="small" />
+          </a>
+        </template>
+        <template #additional-downloads="{ loading }">
+          <o-field>
+            <cal-geojson-download
+              :data="routeFeatures"
+              filename="wsdot-routes"
+              button-text="Download as GeoJSON"
+              :disabled="loading"
+            />
+          </o-field>
+          <o-field>
+            <cal-geopackage-download
+              :data="routeFeatures"
+              filename="wsdot-routes"
+              button-text="Download as GeoPackage"
+              :disabled="loading"
+            />
+          </o-field>
+        </template>
+      </cal-datagrid>
     </div>
   </div>
 </template>
@@ -196,7 +204,7 @@ const stopFeatures = computed((): Feature[] => {
 })
 
 // Convert stops to table data for CSV download
-const stopTableData = computed(() => {
+const _stopTableData = computed(() => {
   return report.value.stops.map(stop => ({
     stopId: stop.stopId,
     stopName: stop.stopName,
@@ -204,6 +212,7 @@ const stopTableData = computed(() => {
     stopLon: stop.stopLon,
     agencyId: stop.agencyId,
     feedOnestopId: stop.feedOnestopId,
+    feedVersionSha1: stop.feedVersionSha1,
   }))
 })
 
@@ -233,6 +242,7 @@ const routeTableData = computed(() => {
     routeType: route.routeType,
     agencyId: route.agencyId,
     feedOnestopId: route.feedOnestopId,
+    feedVersionSha1: route.feedVersionSha1,
   }))
 })
 
@@ -246,15 +256,15 @@ const stopDatagrid = computed((): TableReport => {
     stopLon: stop.stopLon,
     agencyId: stop.agencyId,
     feedOnestopId: stop.feedOnestopId,
+    feedVersionSha1: stop.feedVersionSha1,
   }))
 
   const columns: TableColumn[] = [
     { key: 'stopId', label: 'Stop ID', sortable: true },
     { key: 'stopName', label: 'Stop Name', sortable: true },
-    { key: 'stopLat', label: 'Latitude', sortable: true },
-    { key: 'stopLon', label: 'Longitude', sortable: true },
     { key: 'agencyId', label: 'Agency ID', sortable: true },
     { key: 'feedOnestopId', label: 'Feed Onestop ID', sortable: true },
+    { key: 'feedVersionSha1', label: 'Feed Version SHA1', sortable: true },
   ]
 
   return {
@@ -273,6 +283,7 @@ const routeDatagrid = computed((): TableReport => {
     routeType: route.routeType,
     agencyId: route.agencyId,
     feedOnestopId: route.feedOnestopId,
+    feedVersionSha1: route.feedVersionSha1,
   }))
 
   const columns: TableColumn[] = [
@@ -282,6 +293,7 @@ const routeDatagrid = computed((): TableReport => {
     { key: 'routeType', label: 'Route Type', sortable: true },
     { key: 'agencyId', label: 'Agency ID', sortable: true },
     { key: 'feedOnestopId', label: 'Feed Onestop ID', sortable: true },
+    { key: 'feedVersionSha1', label: 'Feed Version SHA1', sortable: true },
   ]
 
   return {

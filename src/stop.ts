@@ -25,6 +25,12 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     platform_code
     tts_stop_name
     geometry
+    feed_version {
+      sha1
+      feed {
+        onestop_id
+      }
+    }
     census_geographies(where:{radius:0.0}) {
       id
       geoid
@@ -89,6 +95,12 @@ export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
   geometry: Point
+  feed_version: {
+    sha1: string
+    feed: {
+      onestop_id: string
+    }
+  }
   census_geographies: [{
     id: number
     name: string

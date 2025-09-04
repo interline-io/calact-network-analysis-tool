@@ -1,11 +1,11 @@
 <template>
-  <div>
-    <button :disabled="disabled || isGenerating" class="button is-fullwidth my-1" @click="saveFile">
-      <o-icon v-if="isGenerating" icon="loading" />
-      <o-icon v-else icon="download" />
-      <span>{{ isGenerating ? 'Generating...' : buttonText }}</span>
-    </button>
-  </div>
+  <o-button
+    :icon-left="isGenerating ? 'loading' : 'download'"
+    :disabled="disabled || isGenerating"
+    @click="saveFile"
+  >
+    {{ isGenerating ? 'Generating...' : buttonText }}
+  </o-button>
 </template>
 
 <script>

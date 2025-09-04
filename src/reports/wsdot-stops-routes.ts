@@ -15,6 +15,7 @@ export interface WSDOTStopResult {
   stopLon: number
   agencyId: string
   feedOnestopId: string
+  feedVersionSha1: string
   geometry: GeoJSON.Point
 }
 
@@ -25,6 +26,7 @@ export interface WSDOTRouteResult {
   routeType: number
   agencyId: string
   feedOnestopId: string
+  feedVersionSha1: string
   geometry: GeoJSON.MultiLineString
 }
 
@@ -72,10 +74,10 @@ export class WSDOTStopsRoutesReportFetcher {
         }
       }
 
-      // For now, we'll use a default feed Onestop ID since the relationship isn't directly accessible
-      // In a future iteration, we could enhance the scenario data to include feed version information
-      const feedOnestopId = 'transitland'
-      
+      // Get feed Onestop ID and SHA1 from the stop's feed version
+      const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
+      const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
+
       // Make agency_id unique by prefixing with feed Onestop ID
       const uniqueAgencyId = `${feedOnestopId}:${agencyId}`
 
@@ -86,6 +88,7 @@ export class WSDOTStopsRoutesReportFetcher {
         stopLon: stop.geometry.coordinates[0],
         agencyId: uniqueAgencyId,
         feedOnestopId,
+        feedVersionSha1,
         geometry: stop.geometry
       }
       stops.push(result)
@@ -99,10 +102,10 @@ export class WSDOTStopsRoutesReportFetcher {
       // Extract agency_id from route
       const agencyId = route.agency?.agency_id || 'unknown'
 
-      // For now, we'll use a default feed Onestop ID since the relationship isn't directly accessible
-      // In a future iteration, we could enhance the scenario data to include feed version information
-      const feedOnestopId = 'transitland'
-      
+      // Get feed Onestop ID and SHA1 from the route's feed version
+      const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
+      const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
+
       // Make agency_id unique by prefixing with feed Onestop ID
       const uniqueAgencyId = `${feedOnestopId}:${agencyId}`
 
@@ -113,6 +116,7 @@ export class WSDOTStopsRoutesReportFetcher {
         routeType: route.route_type,
         agencyId: uniqueAgencyId,
         feedOnestopId,
+        feedVersionSha1,
         geometry: route.geometry
       }
       routes.push(result)
@@ -120,21 +124,21 @@ export class WSDOTStopsRoutesReportFetcher {
 
     // Process agencies with counts
     const agencyMap = new Map<string, WSDOTAgencyResult>()
-    
+
     // Count stops per agency
     for (const stop of stops) {
       const existing = agencyMap.get(stop.agencyId)
       if (existing) {
         existing.stopsCount++
-              } else {
-          agencyMap.set(stop.agencyId, {
-            agencyId: stop.agencyId,
-            agencyName: stop.agencyId.split(':')[1] || 'Unknown',
-            feedOnestopId: 'transitland',
-            stopsCount: 1,
-            routesCount: 0
-          })
-        }
+      } else {
+        agencyMap.set(stop.agencyId, {
+          agencyId: stop.agencyId,
+          agencyName: stop.agencyId.split(':')[1] || 'Unknown',
+          feedOnestopId: stop.feedOnestopId,
+          stopsCount: 1,
+          routesCount: 0
+        })
+      }
     }
 
     // Count routes per agency
@@ -142,15 +146,15 @@ export class WSDOTStopsRoutesReportFetcher {
       const existing = agencyMap.get(route.agencyId)
       if (existing) {
         existing.routesCount++
-              } else {
-          agencyMap.set(route.agencyId, {
-            agencyId: route.agencyId,
-            agencyName: route.agencyId.split(':')[1] || 'Unknown',
-            feedOnestopId: 'transitland',
-            stopsCount: 0,
-            routesCount: 1
-          })
-        }
+      } else {
+        agencyMap.set(route.agencyId, {
+          agencyId: route.agencyId,
+          agencyName: route.agencyId.split(':')[1] || 'Unknown',
+          feedOnestopId: route.feedOnestopId,
+          stopsCount: 0,
+          routesCount: 1
+        })
+      }
     }
 
     const agencies = Array.from(agencyMap.values())

@@ -160,24 +160,36 @@ const fetchScenario = async (loadExample: string) => {
         const currentData = receiver.getCurrentData()
         if (currentData) {
           wsdotStopsRoutesReport.value = {
-            stops: currentData.stops.map(stop => ({
-              stopId: stop.stop_id,
-              stopName: stop.stop_name || '',
-              stopLat: stop.geometry?.coordinates[1] || 0,
-              stopLon: stop.geometry?.coordinates[0] || 0,
-              agencyId: stop.route_stops?.[0]?.route?.agency?.agency_id || 'unknown',
-              feedOnestopId: 'transitland',
-              geometry: stop.geometry || { type: 'Point', coordinates: [0, 0] }
-            })),
-            routes: currentData.routes.map(route => ({
-              routeId: route.route_id,
-              routeShortName: route.route_short_name || '',
-              routeLongName: route.route_long_name || '',
-              routeType: route.route_type,
-              agencyId: route.agency?.agency_id || 'unknown',
-              feedOnestopId: 'transitland',
-              geometry: route.geometry || { type: 'MultiLineString', coordinates: [] }
-            })),
+            stops: currentData.stops.map((stop) => {
+              const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id || 'unknown'
+              const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
+              const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
+              return {
+                stopId: stop.stop_id,
+                stopName: stop.stop_name || '',
+                stopLat: stop.geometry?.coordinates[1] || 0,
+                stopLon: stop.geometry?.coordinates[0] || 0,
+                agencyId: `${feedOnestopId}:${agencyId}`,
+                feedOnestopId,
+                feedVersionSha1,
+                geometry: stop.geometry || { type: 'Point', coordinates: [0, 0] }
+              }
+            }),
+            routes: currentData.routes.map((route) => {
+              const agencyId = route.agency?.agency_id || 'unknown'
+              const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
+              const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
+              return {
+                routeId: route.route_id,
+                routeShortName: route.route_short_name || '',
+                routeLongName: route.route_long_name || '',
+                routeType: route.route_type,
+                agencyId: `${feedOnestopId}:${agencyId}`,
+                feedOnestopId,
+                feedVersionSha1,
+                geometry: route.geometry || { type: 'MultiLineString', coordinates: [] }
+              }
+            }),
             agencies: [] // Agencies will be computed by the viewer from stops and routes
           }
         }
