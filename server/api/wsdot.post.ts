@@ -1,9 +1,9 @@
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import { WSDOTReportFetcher } from '~/src/reports/wsdot'
-import type { WSDOTReportConfig } from '~/src/reports/wsdot'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-fetcher'
+import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
 import { multiplexStream, requestStream } from '~/src/stream'
 
 export default defineEventHandler(async (event) => {
@@ -48,15 +48,24 @@ export default defineEventHandler(async (event) => {
       const scenarioDataClient = new ScenarioStreamReceiver()
       const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
 
-      // Wait for fetcher
-      await fetcher.fetch()
+      // Start the fetch process
+      try {
+        await fetcher.fetch()
+      } catch (error) {
+        scenarioDataSender.onError(error)
+      }
 
       console.log('✅ Scenario fetch completed!')
 
       // Run wsdot analysis
       const scenarioData = receiver.getCurrentData()
       const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-      const wsdotResult = await wsdotFetcher.fetch()
+      let wsdotResult: WSDOTReport | null = null
+      try {
+        wsdotResult = await wsdotFetcher.fetch()
+      } catch (error) {
+        scenarioDataSender.onError(error)
+      }
 
       console.log('✅ WSDOT analysis completed!')
 
@@ -66,6 +75,7 @@ export default defineEventHandler(async (event) => {
         currentStage: 'schedules', // TODO - extraData stage?
         extraData: wsdotResult
       })
+      scenarioDataSender.onComplete()
 
       // Final complete - close the multiplexed stream
       writer.close()

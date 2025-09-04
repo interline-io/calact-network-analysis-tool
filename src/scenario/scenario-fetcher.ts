@@ -473,3 +473,15 @@ export class ScenarioStreamSender extends GenericStreamSender<ScenarioProgress> 
  * Streaming client processes readable streams and uses ScenarioDataReceiver
  */
 export class ScenarioStreamReceiver extends GenericStreamReceiver<ScenarioProgress, ScenarioData> {}
+
+// Helper - run a scenario in-process and return the data
+export async function RunScenario (config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
+  const receiver = new ScenarioDataReceiver()
+  const fetcher = new ScenarioFetcher(config, client, receiver)
+  // Await data - start both concurrently and wait for both to complete
+  await Promise.all([
+    fetcher.fetch(),
+  ])
+  const result = receiver.getCurrentData()
+  return result
+}

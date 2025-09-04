@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
+import type { Point } from 'geojson'
 import type { StopDepartureCache } from '~/src/departure-cache'
 import { type dow, routeTypes } from '~/src/constants'
 import { parseHMS } from '~/src/datetime'
@@ -87,7 +88,7 @@ export interface StopVisitSummary {
 export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
-  geometry: GeoJSON.Point
+  geometry: Point
   census_geographies: [{
     id: number
     name: string

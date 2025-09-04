@@ -14,8 +14,8 @@ import {
 } from './scenario-cli-util'
 
 // Core scenario functionality
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-fetcher'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
 
 // Utilities
 import { parseBbox } from '~/src/geom'

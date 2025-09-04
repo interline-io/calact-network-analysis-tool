@@ -5,10 +5,11 @@
 
 import { createError } from 'h3'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import type { ScenarioConfig } from '~/src/scenario/scenario'
-import { ScenarioStreamSender, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
+import type { ScenarioConfig } from '~/src/scenario'
+import { ScenarioStreamSender, ScenarioFetcher } from '~/src/scenario'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { requestStream } from '~/src/stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -38,18 +39,7 @@ export default defineEventHandler(async (event) => {
   const stream = new ReadableStream({
     async start (controller) {
       // Create writable stream writer that writes to the response
-      const writableStream = new WritableStream({
-        write (chunk) {
-          controller.enqueue(chunk)
-        },
-        close () {
-          controller.close()
-        },
-        abort (error) {
-          controller.error(error)
-        }
-      })
-      const writer = writableStream.getWriter()
+      const writer = requestStream(controller).getWriter()
 
       // Create ScenarioDataSender that writes to our stream
       const scenarioDataSender = new ScenarioStreamSender(writer)
