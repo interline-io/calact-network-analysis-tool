@@ -64,17 +64,17 @@
       <cal-datagrid
         :table-report="stopDatagrid"
       >
+        <template #column-stopId="{ value }">
+          <tl-safelink :text="value" max-width="100px" />
+        </template>
+        <template #column-agencyId="{ value }">
+          <tl-safelink :text="value" max-width="150px" />
+        </template>
         <template #column-feedOnestopId="{ value }">
-          <a :href="`https://www.transit.land/feeds/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
-            {{ value }}
-            <o-icon icon="open-in-new" size="small" />
-          </a>
+          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
         </template>
         <template #column-feedVersionSha1="{ value }">
-          <a :href="`https://www.transit.land/feed-versions/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
-            {{ value.substring(0, 8) }}...
-            <o-icon icon="open-in-new" size="small" />
-          </a>
+          <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
         </template>
         <template #additional-downloads="{ loading }">
           <o-field>
@@ -106,17 +106,17 @@
       <cal-datagrid
         :table-report="routeDatagrid"
       >
+        <template #column-routeId="{ value }">
+          <tl-safelink :text="value" max-width="100px" />
+        </template>
+        <template #column-agencyId="{ value }">
+          <tl-safelink :text="value" max-width="150px" />
+        </template>
         <template #column-feedOnestopId="{ value }">
-          <a :href="`https://www.transit.land/feeds/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
-            {{ value }}
-            <o-icon icon="open-in-new" size="small" />
-          </a>
+          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
         </template>
         <template #column-feedVersionSha1="{ value }">
-          <a :href="`https://www.transit.land/feed-versions/${value}`" target="_blank" rel="noopener noreferrer" class="is-link">
-            {{ value.substring(0, 8) }}...
-            <o-icon icon="open-in-new" size="small" />
-          </a>
+          <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
         </template>
         <template #additional-downloads="{ loading }">
           <o-field>
@@ -234,7 +234,7 @@ const routeFeatures = computed((): Feature[] => {
 })
 
 // Convert routes to table data for CSV download
-const routeTableData = computed(() => {
+const _routeTableData = computed(() => {
   return report.value.routes.map(route => ({
     routeId: route.routeId,
     routeShortName: route.routeShortName,
