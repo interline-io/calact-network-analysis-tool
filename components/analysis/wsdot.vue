@@ -11,7 +11,7 @@
         This study defines seven levels of transit frequency based on headway, span, and days of service.
       </p>
       <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
     </tl-msg-info>
 
@@ -84,7 +84,7 @@
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" :disabled="!scenarioData" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runWsdotReport">
+              <o-button variant="primary" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runWsdotReport">
                 Run Report
               </o-button>
             </div>
@@ -96,12 +96,10 @@
 </template>
 
 <script lang="ts" setup>
-import { useLazyQuery } from '@vue/apollo-composable'
+import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import { cannedBboxes } from '~/src/constants'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
 
 const loading = ref(false)
 const debugMenu = useDebugMenu()
@@ -120,24 +118,6 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// Create GraphQL client adapter for Vue Apollo
-const createGraphQLClientAdapter = (): GraphQLClient => {
-  return {
-    async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
-      const { load } = useLazyQuery<T>(query, variables, {
-        fetchPolicy: 'no-cache',
-        clientId: 'transitland'
-      })
-      const result = await load()
-      if (!result) {
-        console.log('createGraphQLClientAdapter: no result returned from Apollo query')
-        return { data: undefined }
-      }
-      return { data: result as T }
-    }
-  }
-}
-
 const loadExampleWsdotReport = async () => {
   loading.value = true
   const reportFile = `/examples/${cannedBbox.value}.wsdot.json`
@@ -150,24 +130,35 @@ const loadExampleWsdotReport = async () => {
 
 const runWsdotReport = async () => {
   console.log('runWsdotReport')
-  if (!scenarioData.value) {
-    console.log('No scenario data loaded!')
-    return
-  }
   loading.value = true
-  const client = createGraphQLClientAdapter()
-  const wsdotConfig: WSDOTReportConfig = {
-    ...scenarioConfig.value,
-    weekdayDate: scenarioConfig.value?.startDate || new Date(),
-    weekendDate: scenarioConfig.value?.endDate || new Date(),
-    scheduleEnabled: true,
-    stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
+
+  try {
+    const wsdotConfig: WSDOTReportConfig = {
+      ...scenarioConfig.value,
+      weekdayDate: scenarioConfig.value?.startDate || new Date(),
+      weekendDate: scenarioConfig.value?.endDate || new Date(),
+      scheduleEnabled: true,
+      stopBufferRadius: wsdotReportConfig.value.stopBufferRadius,
+    }
+
+    // Use authenticated fetch to automatically include JWT token
+    const apiFetch = await useApiFetch()
+    const response = await apiFetch('/api/wsdot', {
+      method: 'POST',
+      body: JSON.stringify({
+        config: wsdotConfig,
+        scenarioData: scenarioData.value
+      })
+    })
+    const responseData = await response.json()
+    wsdotReport.value = responseData as WSDOTReport
+    wsdotReportConfig.value = wsdotConfig
+  } catch (error) {
+    console.error('WSDOT analysis failed:', error)
+    // You might want to show an error message to the user here
+  } finally {
+    loading.value = false
   }
-  const wsdotFetcher = new WSDOTReportFetcher(wsdotConfig, scenarioData.value!, client)
-  const wsdotResult = await wsdotFetcher.fetch()
-  wsdotReport.value = wsdotResult
-  wsdotReportConfig.value = wsdotConfig
-  loading.value = false
 }
 
 const handleCancel = () => {

@@ -1,6 +1,20 @@
 import { print } from 'graphql'
 
 /**
+ * GraphQL client implementations
+ *
+ * This file contains two approaches for GraphQL access:
+ *
+ * 1. BasicGraphQLClient - Direct API access for CLI tools, tests, and non-Nuxt contexts
+ *    - Uses environment variables: TRANSITLAND_API_ENDPOINT, TRANSITLAND_API_KEY
+ *    - Suitable for scripts, CLI tools, and testing
+ *
+ * 2. useGraphQLClientOnBackend - Proxy-based access for Nuxt server endpoints
+ *    - Uses user JWT tokens through the proxy system
+ *    - Suitable for authenticated web endpoints
+ */
+
+/**
  * Interface for GraphQL client
  * Implementations should provide the actual GraphQL query execution
  */
@@ -8,16 +22,20 @@ export interface GraphQLClient {
   query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
 }
 
+type fetcher = (url: string, options?: RequestInit) => Promise<Response>
+
 /**
  * Real GraphQL client for testing with actual API calls
+ * Use this for CLI tools, tests, and other non-Nuxt contexts
+ * For Nuxt server endpoints, use useGraphQLClientOnBackend instead
  */
 export class BasicGraphQLClient implements GraphQLClient {
   private baseUrl: string
-  private apiKey: string
+  private fetch: fetcher
 
-  constructor (baseUrl: string, apiKey: string) {
+  constructor (baseUrl: string, apiFetch: fetcher) {
     this.baseUrl = baseUrl
-    this.apiKey = apiKey
+    this.fetch = apiFetch || fetch
   }
 
   async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
@@ -30,21 +48,14 @@ export class BasicGraphQLClient implements GraphQLClient {
       queryString = print(query)
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'apikey': this.apiKey
-    }
-
     const requestBody = {
       query: queryString,
       variables,
     }
 
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await this.fetch(this.baseUrl, {
         method: 'POST',
-        headers,
         body: JSON.stringify(requestBody),
       })
 

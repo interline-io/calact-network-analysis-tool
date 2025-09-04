@@ -70,6 +70,7 @@
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
+            @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
           />
         </div>
 
@@ -121,6 +122,7 @@
             <analysis-picker
               :scenario-data="scenarioData"
               :scenario-config="scenarioConfig"
+              @cancel="setTab({ tab: 'query', sub: '' })"
             />
           </div>
         </div>
@@ -161,6 +163,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
+import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
@@ -647,11 +650,9 @@ const fetchScenario = async (loadExample: string) => {
       response = await fetch(`/examples/${loadExample}.json`)
     } else {
       // Make request to streaming scenario endpoint
-      response = await fetch('/api/scenario', {
+      const apiFetch = await useApiFetch()
+      response = await apiFetch('/api/scenario', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(config)
       })
     }

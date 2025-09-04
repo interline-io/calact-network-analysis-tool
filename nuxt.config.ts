@@ -1,15 +1,19 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
-import { stylisticConfig } from './node_modules/tlv2-ui/dist/runtime/config/eslint.js'
+import { resolve } from 'node:path'
+import { defineNuxtConfig } from 'nuxt/config'
+import { stylisticConfig } from 'tlv2-ui/config'
 
 const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
 
   modules: [
-    'tlv2-ui',
+    ['tlv2-ui', {
+      useProxy: true,
+      bulma: '~/assets/main.scss',
+    }],
     '@nuxt/devtools',
-    // '@nuxt/test-utils/module',
     '@nuxt/eslint',
   ],
   ssr: false,
@@ -19,31 +23,24 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    proxyBase: '',
-    allowedReferer: '',
-    graphqlApikey: '',
+    tlv2: {
+      proxyBase: '', // can be overridden by NUXT_PROXY_BASE environment variable
+      graphqlApikey: '',
+    },
     public: {
-      apiBase: '',
-      protomapsApikey: '',
-      nearmapsApikey: '',
-      auth0Domain: '',
-      auth0ClientId: '',
-      auth0RedirectUri: '',
-      auth0Audience: '',
-      auth0Scope: '',
-      loginGate: '',
-      requireLogin: '',
+      tlv2: {
+        apiBase: '', // can be overridden by NUXT_PUBLIC_API_BASE environment variable
+        protomapsApikey: '',
+        nearmapsApikey: '',
+        auth0Domain: '',
+        auth0ClientId: '',
+        auth0RedirectUri: '',
+        auth0Audience: '',
+        auth0Scope: '',
+        loginGate: '',
+        requireLogin: '',
+      }
     }
-  },
-
-  // bugs
-  build: {
-    transpile: [
-      'tslib', // https://github.com/nuxt/nuxt/issues/19265#issuecomment-1702014262
-      '@vue/apollo-composable',
-      '@apollo/client',
-      'protomaps-themes-base'
-    ]
   },
 
   // Disable CSRF
@@ -64,31 +61,15 @@ export default defineNuxtConfig({
     define: {
       __DEV__: isDev.toString()
     },
-    // bug https://github.com/nuxt/nuxt/issues/13247
-    optimizeDeps: {
-      include: [
-        'zen-observable',
-        'fast-json-stable-stringify',
-        'maplibre-gl',
-        'haversine',
-        '@mapbox/mapbox-gl-draw',
-        'cytoscape',
-        'mixpanel-browser'
-      ]
-    },
     server: {
       fs: {
-        allow: ['/Users/irees/src/interline-io', '/Users/drew/code/interline-io']
-      }
+        allow: isDev ? [resolve(__dirname, '../tlv2-ui')] : []
+      },
     }
   },
   eslint: {
     config: {
       stylistic: stylisticConfig,
     },
-  },
-  tlv2: {
-    useProxy: false,
-    bulma: '~/assets/main.scss',
   },
 })

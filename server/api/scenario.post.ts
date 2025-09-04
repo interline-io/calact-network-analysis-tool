@@ -3,10 +3,13 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
+import { createError } from 'h3'
+import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
 import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
 import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
 import { BasicGraphQLClient } from '~/src/graphql'
+import { useApiFetch } from '~/composables/useApiFetch'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -14,7 +17,10 @@ export default defineEventHandler(async (event) => {
 
   // Validate the config
   if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    throw new Error('Either bbox or geographyIds must be provided')
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Either bbox or geographyIds must be provided'
+    })
   }
 
   // Set streaming headers
@@ -22,10 +28,11 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
-  // Create GraphQL client
+  // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
+  // Create a proxy-based GraphQL client using the utility
   const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || 'https://transit.land/api/v2/query',
-    process.env.TRANSITLAND_API_KEY || 'test-key'
+    useTransitlandApiEndpoint('/query'),
+    await useApiFetch(event),
   )
 
   // Create a readable stream for the response
