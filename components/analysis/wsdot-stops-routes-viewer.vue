@@ -27,14 +27,14 @@
             Total Agencies
           </p>
           <p class="title is-6">
-            {{ report.agencies.length }}
+            {{ computedAgencies.length }}
           </p>
         </div>
       </div>
     </div>
 
     <div class="columns">
-      <div class="column is-one-quarter">
+      <div class="column">
         <o-field label="Agency Summary" class="mt-4" />
         <table class="agency-summary-table">
           <thead>
@@ -45,20 +45,13 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="agency in report.agencies" :key="agency.agencyId">
+            <tr v-for="agency in computedAgencies" :key="agency.agencyId">
               <td>{{ agency.agencyName }}</td>
               <td>{{ agency.stopsCount }}</td>
               <td>{{ agency.routesCount }}</td>
             </tr>
           </tbody>
         </table>
-      </div>
-      <div class="column">
-        <cal-map-viewer-ts
-          :features="displayFeatures"
-          :center="bboxCenter"
-          :zoom="zoom"
-        />
       </div>
     </div>
 
@@ -74,11 +67,23 @@
         </div>
         <div class="level-right">
           <div class="level-item">
-            <cal-geojson-download
-              :features="stopFeatures"
-              filename="wsdot-stops"
-              label="Download Stops as GeoJSON"
-            />
+            <div class="buttons">
+              <cal-csv-download
+                :data="stopTableData"
+                filename="wsdot-stops"
+                button-text="Download as CSV"
+              />
+              <cal-geojson-download
+                :data="stopFeatures"
+                filename="wsdot-stops"
+                button-text="Download as GeoJSON"
+              />
+              <cal-geopackage-download
+                :data="stopFeatures"
+                filename="wsdot-stops"
+                button-text="Download as GeoPackage"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -100,11 +105,23 @@
         </div>
         <div class="level-right">
           <div class="level-item">
-            <cal-geojson-download
-              :features="routeFeatures"
-              filename="wsdot-routes"
-              label="Download Routes as GeoJSON"
-            />
+            <div class="buttons">
+              <cal-csv-download
+                :data="routeTableData"
+                filename="wsdot-routes"
+                button-text="Download as CSV"
+              />
+              <cal-geojson-download
+                :data="routeFeatures"
+                filename="wsdot-routes"
+                button-text="Download as GeoJSON"
+              />
+              <cal-geopackage-download
+                :data="routeFeatures"
+                filename="wsdot-routes"
+                button-text="Download as GeoPackage"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -124,59 +141,99 @@ import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 // Define models for props
 const report = defineModel<WSDOTStopsRoutesReport>('report', { required: true })
 
-const zoom = 10
-const bboxCenter = computed(() => {
-  // Calculate center from stops if available
-  if (report.value.stops.length === 0) {
-    return { lat: 47.6062, lon: -122.3321 } // Default to Seattle
+// Compute agencies from stops and routes data
+const computedAgencies = computed(() => {
+  const agencyMap = new Map<string, { agencyId: string, agencyName: string, stopsCount: number, routesCount: number }>()
+
+  // Count stops per agency
+  for (const stop of report.value.stops) {
+    const existing = agencyMap.get(stop.agencyId)
+    if (existing) {
+      existing.stopsCount++
+    } else {
+      agencyMap.set(stop.agencyId, {
+        agencyId: stop.agencyId,
+        agencyName: stop.agencyId.includes(':') ? stop.agencyId.split(':')[1] : stop.agencyId,
+        stopsCount: 1,
+        routesCount: 0
+      })
+    }
   }
 
-  const lats = report.value.stops.map(s => s.stopLat)
-  const lons = report.value.stops.map(s => s.stopLon)
+  // Count routes per agency
+  for (const route of report.value.routes) {
+    const existing = agencyMap.get(route.agencyId)
+    if (existing) {
+      existing.routesCount++
+    } else {
+      agencyMap.set(route.agencyId, {
+        agencyId: route.agencyId,
+        agencyName: route.agencyId.includes(':') ? route.agencyId.split(':')[1] : route.agencyId,
+        stopsCount: 0,
+        routesCount: 1
+      })
+    }
+  }
 
-  const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length
-  const avgLon = lons.reduce((a, b) => a + b, 0) / lons.length
-
-  return { lat: avgLat, lon: avgLon }
+  return Array.from(agencyMap.values())
 })
 
-// Convert stops to GeoJSON features for map display
+// Convert stops to GeoJSON features for download
 const stopFeatures = computed((): Feature[] => {
   return report.value.stops.map(stop => ({
     id: `stop_${stop.stopId}`,
     type: 'Feature',
     properties: {
-      'stopId': stop.stopId,
-      'stopName': stop.stopName,
-      'agencyId': stop.agencyId,
-      'marker-color': '#ff0000',
-      'marker-radius': 4,
+      stopId: stop.stopId,
+      stopName: stop.stopName,
+      stopLat: stop.stopLat,
+      stopLon: stop.stopLon,
+      agencyId: stop.agencyId,
+      feedOnestopId: stop.feedOnestopId,
     },
     geometry: stop.geometry
   }))
 })
 
-// Convert routes to GeoJSON features for map display
+// Convert stops to table data for CSV download
+const stopTableData = computed(() => {
+  return report.value.stops.map(stop => ({
+    stopId: stop.stopId,
+    stopName: stop.stopName,
+    stopLat: stop.stopLat,
+    stopLon: stop.stopLon,
+    agencyId: stop.agencyId,
+    feedOnestopId: stop.feedOnestopId,
+  }))
+})
+
+// Convert routes to GeoJSON features for download
 const routeFeatures = computed((): Feature[] => {
   return report.value.routes.map(route => ({
     id: `route_${route.routeId}`,
     type: 'Feature',
     properties: {
-      'routeId': route.routeId,
-      'routeShortName': route.routeShortName,
-      'routeLongName': route.routeLongName,
-      'routeType': route.routeType,
-      'agencyId': route.agencyId,
-      'stroke': '#0000ff',
-      'stroke-width': 2,
+      routeId: route.routeId,
+      routeShortName: route.routeShortName,
+      routeLongName: route.routeLongName,
+      routeType: route.routeType,
+      agencyId: route.agencyId,
+      feedOnestopId: route.feedOnestopId,
     },
     geometry: route.geometry
   }))
 })
 
-// Combine features for map display
-const displayFeatures = computed((): Feature[] => {
-  return [...stopFeatures.value, ...routeFeatures.value]
+// Convert routes to table data for CSV download
+const routeTableData = computed(() => {
+  return report.value.routes.map(route => ({
+    routeId: route.routeId,
+    routeShortName: route.routeShortName,
+    routeLongName: route.routeLongName,
+    routeType: route.routeType,
+    agencyId: route.agencyId,
+    feedOnestopId: route.feedOnestopId,
+  }))
 })
 
 // Stops datagrid
