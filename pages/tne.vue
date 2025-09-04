@@ -171,8 +171,7 @@ import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/sr
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
 import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioFilterResult } from '~/src/scenario/scenario'
 import { applyScenarioResultFilter } from '~/src/scenario/scenario'
-import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
-import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamReceiver, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
 
 definePageMeta({
   layout: false

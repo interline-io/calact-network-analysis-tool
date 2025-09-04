@@ -6,8 +6,7 @@
 import { createError } from 'h3'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~/src/scenario/scenario'
-import { ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
-import { ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamSender, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
 

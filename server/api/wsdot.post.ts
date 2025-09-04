@@ -3,8 +3,7 @@ import { WSDOTReportFetcher } from '~/src/reports/wsdot'
 import type { WSDOTReportConfig } from '~/src/reports/wsdot'
 import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
-import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
+import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-fetcher'
 import { multiplexStream, requestStream } from '~/src/stream'
 
 export default defineEventHandler(async (event) => {
