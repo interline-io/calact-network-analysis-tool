@@ -48,12 +48,7 @@ export default defineEventHandler(async (event) => {
       const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
 
       // Start the fetch process
-      try {
-        await fetcher.fetch()
-      } catch (error) {
-        console.error('Scenario fetch error:', error)
-        scenarioDataSender.onError(error)
-      }
+      await fetcher.fetch()
     }
   })
 

@@ -49,11 +49,7 @@ export default defineEventHandler(async (event) => {
       const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
 
       // Start the fetch process
-      try {
-        await fetcher.fetch()
-      } catch (error) {
-        scenarioDataSender.onError(error)
-      }
+      await fetcher.fetch()
 
       console.log('✅ Scenario fetch completed!')
 
@@ -61,11 +57,7 @@ export default defineEventHandler(async (event) => {
       const scenarioData = receiver.getCurrentData()
       const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
       let wsdotResult: WSDOTReport | null = null
-      try {
-        wsdotResult = await wsdotFetcher.fetch()
-      } catch (error) {
-        scenarioDataSender.onError(error)
-      }
+      wsdotResult = await wsdotFetcher.fetch()
 
       console.log('✅ WSDOT analysis completed!')
 
