@@ -12,7 +12,7 @@ import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
 
 export default defineEventHandler(async (event) => {
-  console.log('useRuntimeConfig:', useRuntimeConfig())
+  console.log('useRuntimeConfig:', useRuntimeConfig(event))
   console.log('process.env:', process.env)
 
   // Parse the request body
