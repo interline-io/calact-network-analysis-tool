@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
   // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
   // Create a proxy-based GraphQL client using the utility
   const client = new BasicGraphQLClient(
-    useTransitlandApiEndpoint('/query'),
+    useTransitlandApiEndpoint('/query', event),
     await useApiFetch(event),
   )
 
