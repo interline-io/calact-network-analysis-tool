@@ -54,22 +54,6 @@
         </section>
       </div>
 
-      <div class="cal-report-option-section">
-        <div class="has-text-weight-semibold mb-3 is-flex is-justify-content-space-between is-align-items-center">
-          <span>Aggregate data by:</span>
-          <o-tooltip multiline label="Group data within the report by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view. To change the analysis area, return to the Query tab.">
-            <o-icon icon="information" />
-          </o-tooltip>
-        </div>
-        <o-field>
-          <o-select
-            v-model="aggregateMode"
-            :options="censusGeographyLayerOptions"
-            :disabled="!(dataDisplayMode === 'Stop')"
-          />
-        </o-field>
-      </div>
-
       <div class="cal-report-download">
         <cal-geojson-download
           :data="exportFeatures"
@@ -107,7 +91,7 @@ const props = defineProps<{
 const exportFeatures = ref<Feature[]>([])
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
-const aggregateMode = defineModel<string>('aggregateMode', { default: '' })
+const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 // TODO: For when we switch to datagrid
 const routeColumns: TableColumn[] = [
@@ -160,13 +144,13 @@ const agencyColumns: TableColumn[] = [
 // ]
 
 const geoReportData = computed((): TableReport => {
-  if (aggregateMode.value === '' || aggregateMode.value === 'none') {
+  if (aggregateLayer.value === '' || aggregateLayer.value === 'none') {
     return { data: [], columns: [] }
   }
   // Handle aggregation
   if (dataDisplayMode.value === 'Stop') {
     return {
-      data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateMode.value),
+      data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateLayer.value),
       columns: stopGeoAggregateColumns
     }
   }

@@ -50,6 +50,7 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
     scheduleEnabled: !options.noSchedule,
     startDate: parseDate(options.startDate)!,
     endDate: parseDate(options.endDate)!,
+    aggregateLayer: options.aggregateLayer,
     geographyIds: []
   }
 
