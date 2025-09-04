@@ -87,7 +87,7 @@
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" :title="!scenarioData ? 'You need to load scenario data before starting this analysis.' : ''" @click="runQuery">
+              <o-button variant="primary" @click="runQuery">
                 Run Report
               </o-button>
             </div>
