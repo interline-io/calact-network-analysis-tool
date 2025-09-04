@@ -195,18 +195,15 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
   }, {} as Record<string, LayerDetail>)
 })
 
-const displayStopFeatures = computed(() => {
+const stopFeatures = computed(() => {
   const features: Feature[] = wsdotReport.value.stops.map((stop) => {
-    const highestLevel = levelKeys.find(key => stop[key])
+    const highestLevel = levelKeys.find(key => stop[key]) || 'unknown'
     // if there is no highest level to set, then it will be filtered out below
-    const highestLevelColor = levelColors[highestLevel]
     const props: Record<string, any> = {
       highestLevel,
-      'stopId': stop.stopId,
-      'stopName': stop.stopName || '',
-      'levelNights': stop.levelNights,
-      'marker-color': highestLevelColor,
-      'marker-radius': 3,
+      stopId: stop.stopId,
+      stopName: stop.stopName || '',
+      levelNights: stop.levelNights
     }
     for (const levelKey of levelKeys) {
       props[levelKey] = stop[levelKey] ? 1 : 0
@@ -220,16 +217,44 @@ const displayStopFeatures = computed(() => {
         coordinates: [stop.stopLon, stop.stopLat]
       }
     }
-  }).filter((stop) => {
-    const highestLevel = stop.properties.highestLevel
-    return selectedLevels.value.includes(highestLevel)
-    // this will filter out stops that have no highest level set
+  }).filter((s) => {
+    let found = false
+    for (const levelKey of selectedLevels.value) {
+      if (s.properties[levelKey] === 1) {
+        found = true
+        break
+      }
+    }
+    return found
   })
   return features
 })
 
 const displayFeatures = computed(() => {
-  const features: Feature[] = [...displayStopFeatures.value]
+  const features: Feature[] = []
+  const reverseLevelKeys = [...levelKeys].reverse()
+  for (const level of reverseLevelKeys) {
+    if (!levelDetails.value[level]) {
+      continue
+    }
+    if (!selectedLevels.value.includes(level)) {
+      continue
+    }
+    const levelStops = stopFeatures.value
+      .filter(stop => stop.properties[level] === 1)
+      .map((stop) => {
+        return {
+          ...stop,
+          properties: {
+            ...stop.properties,
+            'marker-color': levelDetails.value[level].color,
+            'marker-radius': 3,
+          }
+        }
+      })
+    features.push(...levelStops)
+  }
+
   if (showStopBuffers.value) {
     for (const levelName of levelKeys) {
       if (!selectedLevels.value.includes(levelName)) {
@@ -252,7 +277,7 @@ const displayFeatures = computed(() => {
 })
 
 const stopDatagrid = computed((): TableReport => {
-  const data = displayStopFeatures.value.map((feature) => {
+  const data = stopFeatures.value.map((feature) => {
     return {
       id: feature.id,
       stopId: feature.properties.stopId,

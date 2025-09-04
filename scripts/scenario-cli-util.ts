@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { cannedBboxes } from '~/src/constants'
 import { getCurrentDate, getDateOneWeekLater } from '~/src/datetime'
-import type { ScenarioData } from '~/src/scenario/scenario'
+import type { ScenarioData } from '~/src/scenario'
 
 /**
  * Stream a JSON object to disk in chunks to handle large files efficiently

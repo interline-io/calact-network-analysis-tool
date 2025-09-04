@@ -14,13 +14,12 @@ import {
 } from './scenario-cli-util'
 
 // Core scenario functionality
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario/scenario'
-import { ScenarioDataReceiver, ScenarioFetcher } from '~/src/scenario/scenario-fetcher'
-import { ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario/scenario-streamer'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
 
 // Utilities
 import { parseBbox } from '~/src/geom'
-import { BasicGraphQLClient } from '~/src/graphql'
+import { BasicGraphQLClient, apiFetch } from '~/src/graphql'
 import { parseDate } from '~/src/datetime'
 
 /**
@@ -54,10 +53,9 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
     geographyIds: []
   }
 
-  // Create GraphQL client
   const client = new BasicGraphQLClient(
     process.env.TRANSITLAND_API_ENDPOINT || '',
-    process.env.TRANSITLAND_API_KEY || ''
+    apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 
   // Create a transform stream that optionally multiplexes to file

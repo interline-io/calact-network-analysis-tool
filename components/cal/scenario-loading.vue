@@ -67,8 +67,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioProgress } from '~/src/scenario/scenario-fetcher'
-import type { ScenarioData } from '~/src/scenario/scenario'
+import type { ScenarioProgress, ScenarioData } from '~/src/scenario'
 
 // Props
 const props = withDefaults(defineProps<{

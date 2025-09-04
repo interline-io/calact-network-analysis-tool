@@ -145,7 +145,7 @@
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
       <tl-modal
         v-model="showLoadingModal"
-        title="Loading Scenario Data"
+        title="Loading"
         :closable="false"
         :active="showLoadingModal"
       >
@@ -169,10 +169,7 @@ import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~
 import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
 import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
 import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
-import type { ScenarioConfig, ScenarioData, ScenarioFilter, ScenarioFilterResult } from '~/src/scenario/scenario'
-import { applyScenarioResultFilter } from '~/src/scenario/scenario'
-import { ScenarioStreamReceiver } from '~/src/scenario/scenario-streamer'
-import { ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario/scenario-fetcher'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
 
 definePageMeta({
   layout: false
@@ -190,10 +187,20 @@ const cannedBbox = ref('downtown-portland')
 const error = ref(null)
 
 // Runs on explore event from query (when user clicks "Run Query")
-function runQuery () {
+const runQuery = async () => {
   runCount.value++
+  showLoadingModal.value = true
   activeTab.value = { tab: 'map', sub: '' }
-  fetchScenario('')
+  try {
+    await fetchScenario('')
+    useToastNotification().showToast('Scenario data loaded successfully!')
+  } catch (err: any) {
+    console.error('Scenario fetch error:', err)
+    error.value = err
+    loadingProgress.value = null
+    useToastNotification().showToast('Scenario failed to load: ' + err.message)
+  }
+  showLoadingModal.value = false
 }
 
 const geomSource = computed({
@@ -607,73 +614,65 @@ const fetchScenario = async (loadExample: string) => {
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs, unless loading example
   }
-  try {
-    showLoadingModal.value = true
-    loadingProgress.value = null
-    stopDepartureCount.value = 0
+  loadingProgress.value = null
+  stopDepartureCount.value = 0
 
-    // Create receiver to accumulate scenario data
-    const receiver = new ScenarioDataReceiver({
-      onProgress: (progress: ScenarioProgress) => {
-        // Update progress for modal
-        loadingProgress.value = progress
-        stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-        console.log(`Stop departures loaded: ${stopDepartureCount.value}`)
+  // Create receiver to accumulate scenario data
+  const receiver = new ScenarioDataReceiver({
+    onProgress: (progress: ScenarioProgress) => {
+      // Update progress for modal
+      loadingProgress.value = progress
+      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      console.log(`Stop departures loaded: ${stopDepartureCount.value}`)
 
-        // Apply filters to partial data and emit (without schedule-dependent features)
-        // Skip if no route/stop data
-        if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
-          return
-        }
-        scenarioData.value = receiver.getCurrentData()
-      },
-      onComplete: () => {
-        // Get final accumulated data and apply filters
-        loadingProgress.value = null
-        scenarioData.value = receiver.getCurrentData()
-
-        // Auto-close modal and show success toast notification
-        showLoadingModal.value = false
-        useToastNotification().showToast('Scenario data loaded successfully!')
-      },
-      onError: (err: any) => {
-        showLoadingModal.value = false
-        loadingProgress.value = null
-        error.value = err
+      // Apply filters to partial data and emit (without schedule-dependent features)
+      // Skip if no route/stop data
+      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+        return
       }
+      scenarioData.value = receiver.getCurrentData()
+    },
+    onComplete: () => {
+      // Get final accumulated data and apply filters
+      loadingProgress.value = null
+      scenarioData.value = receiver.getCurrentData()
+
+      // Auto-close modal and show success toast notification
+      showLoadingModal.value = false
+      useToastNotification().showToast('Scenario data loaded successfully!')
+    },
+    onError: (err: any) => {
+      showLoadingModal.value = false
+      loadingProgress.value = null
+      error.value = err
+    }
+  })
+
+  let response: Response
+
+  if (loadExample) {
+    // Load example data from public JSON file
+    response = await fetch(`/examples/${loadExample}.json`)
+  } else {
+    // Make request to streaming scenario endpoint
+    const apiFetch = await useApiFetch()
+    response = await apiFetch('/api/scenario', {
+      method: 'POST',
+      body: JSON.stringify(config)
     })
-
-    let response: Response
-
-    if (loadExample) {
-      // Load example data from public JSON file
-      response = await fetch(`/examples/${loadExample}.json`)
-    } else {
-      // Make request to streaming scenario endpoint
-      const apiFetch = await useApiFetch()
-      response = await apiFetch('/api/scenario', {
-        method: 'POST',
-        body: JSON.stringify(config)
-      })
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    if (!response.body) {
-      throw new Error('No response body received')
-    }
-
-    // Process the streaming response
-    const streamer = new ScenarioStreamReceiver()
-    await streamer.processStream(response.body, receiver)
-  } catch (err: any) {
-    console.error('Scenario fetch error:', err)
-    error.value = err
-    showLoadingModal.value = false
-    loadingProgress.value = null
   }
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  if (!response.body) {
+    throw new Error('No response body received')
+  }
+
+  // Process the streaming response
+  const streamer = new ScenarioStreamReceiver()
+  await streamer.processStream(response.body, receiver)
 }
 
 // Apply filters and emit results when data or filters change
