@@ -62,7 +62,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
-            <o-slider v-model="wsdotReportConfig!.stopBufferRadius" :min="1" :max="1000" />
+            <o-slider v-model="wsdotReportConfig!.stopBufferRadius" :min="0" :max="1000" />
           </o-field>
         </div>
         <footer class="card-footer">
