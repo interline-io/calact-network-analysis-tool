@@ -32,7 +32,6 @@ describe('ScenarioFetcher', () => {
     frequencyUnderEnabled: false,
     frequencyOverEnabled: false,
   }
-  console.log(config, filter)
 
   afterEach(async () => {
     if (polly) {

@@ -3,21 +3,21 @@
  */
 import type { Command } from 'commander'
 import {
+  runScenarioData,
   scenarioOptionsAdd,
   scenarioOptionsCheck,
   type ScenarioCliOptions
-} from './scenario-cli-util'
-import { runScenarioData } from './scenario-cli'
+} from './scenario-cli'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
 import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
 import { parseBbox } from '~/src/geom'
 import { parseDate } from '~/src/datetime'
+
 /**
  * Configure WSDOT CLI command
  */
 export function configureWsdotReportCli (program: Command) {
   scenarioOptionsAdd(program)
-    .option('--save-wsdot-report <file>', 'Path to save WSDOT report')
     .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
     .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
     .allowUnknownOption(false)
@@ -26,8 +26,7 @@ export function configureWsdotReportCli (program: Command) {
     })
 }
 
-interface WSDOTReportOptions extends ScenarioCliOptions {
-  saveWsdotReport: string
+export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
   weekendDate: string
   scheduleEnabled: boolean
@@ -56,6 +55,7 @@ async function runWsdotReportScli (options: WSDOTReportOptions) {
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 
+  // Process main scenario
   const result = await runScenarioData(options)
 
   // Process WSDOT Report

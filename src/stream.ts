@@ -76,7 +76,6 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-
     try {
       while (true) {
         const { done, value } = await reader.read()
@@ -85,12 +84,9 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
           // console.log('GenericStreamReceiver: Stream fully read')
           break
         }
-
         buffer += decoder.decode(value, { stream: true })
-        // console.log(`...read ${buffer.length} bytes`)
         const lines = buffer.split('\n')
         buffer = lines.pop() || '' // Keep incomplete line in buffer
-
         for (const line of lines) {
           if (!line.trim()) { continue }
           const progress = JSON.parse(line) as T
@@ -99,14 +95,18 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
             receiver.onComplete()
           }
         }
+        // console.log('GenericStreamReceiver: ...processed chunk')
       }
     } catch (error) {
+      // console.log('GenericStreamReceiver: Error reading stream', error)
       receiver.onError(error)
     } finally {
+      // console.log('GenericStreamReceiver: Finished reading stream')
       reader.releaseLock()
     }
 
     // Return current accumulated data if stream ended without completion
+    // console.log('GenericStreamReceiver: Returning accumulated data')
     return receiver.getCurrentData()
   }
 }

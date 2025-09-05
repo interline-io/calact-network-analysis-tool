@@ -50,15 +50,11 @@ export default defineEventHandler(async (event) => {
       // Start the fetch process
       await fetcher.fetch()
 
-      console.log('✅ Scenario fetch completed!')
-
       // Run wsdot analysis
       const scenarioData = receiver.getCurrentData()
       const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
       let wsdotResult: WSDOTReport | null = null
       wsdotResult = await wsdotFetcher.fetch()
-
-      console.log('✅ WSDOT analysis completed!')
 
       // Update the client with the wsdot result
       scenarioDataSender.onProgress({

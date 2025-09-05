@@ -35,20 +35,6 @@
           </p>
         </header>
         <div class="card-content">
-          <!-- <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
-            <o-field label="Example regions">
-              <o-select v-model="cannedBbox">
-                <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
-                  {{ cannedBboxDetails.label }}
-                </option>
-              </o-select>
-              <o-button @click="loadExampleWsdotReport">
-                Load example
-              </o-button>
-            </o-field>
-            <br>
-          </tl-msg-warning> -->
-
           <o-field>
             <template #label>
               <o-tooltip multiline label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
@@ -120,6 +106,9 @@ import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioS
 
 const error = ref<Error | null>(null)
 const loading = ref(false)
+const showLoadingModal = ref(false)
+const loadingProgress = ref<ScenarioProgress | null>(null)
+const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
@@ -134,11 +123,6 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
 const emit = defineEmits<{
   cancel: []
 }>()
-
-const showLoadingModal = ref(false)
-const loadingProgress = ref<ScenarioProgress | null>(null)
-const stopDepartureCount = ref<number>(0)
-
 const handleCancel = () => {
   emit('cancel')
 }
@@ -160,7 +144,9 @@ const runQuery = async () => {
 const fetchScenario = async (loadExample: string) => {
   const config = scenarioConfig.value!
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    return // Need either bbox or geography IDs, unless loading example
+    // Need either bbox or geography IDs, unless loading example
+    useToastNotification().showToast('Please provide a bounding box or geography IDs.')
+    return
   }
   loadingProgress.value = null
   stopDepartureCount.value = 0
