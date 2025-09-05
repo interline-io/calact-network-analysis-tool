@@ -52,7 +52,7 @@ export class BasicGraphQLClient implements GraphQLClient {
       query: queryString,
       variables,
     }
-    console.log('GraphQL request:', JSON.stringify(requestBody))
+    // console.log('GraphQL request:', JSON.stringify(requestBody))
 
     try {
       const response = await this.fetch(this.baseUrl, {

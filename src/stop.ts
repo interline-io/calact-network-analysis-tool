@@ -25,7 +25,7 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
     platform_code
     tts_stop_name
     geometry
-    census_geographies(where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
+    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
       id
       geoid
       layer_name
