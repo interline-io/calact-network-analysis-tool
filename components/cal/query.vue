@@ -57,6 +57,20 @@
           </o-field>
         </tl-msg-warning>
 
+        <div class="container is-max-tablet pb-4">
+          <o-field>
+            <template #label>
+              <o-tooltip multiline label="Group data within the report by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view. To change the analysis area, return to the Query tab.">
+                Aggregate data by: <o-icon icon="information" />
+              </o-tooltip>
+            </template>
+            <o-select
+              v-model="aggregateLayer"
+              :options="censusGeographyLayerOptions"
+            />
+          </o-field>
+        </div>
+
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
             <o-field>
@@ -152,6 +166,7 @@ const props = defineProps<{
 const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
+const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')

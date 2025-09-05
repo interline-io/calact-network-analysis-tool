@@ -55,6 +55,7 @@
     <template #main>
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-overlay">
+          agg: {{ aggregateLayer }}
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -63,6 +64,7 @@
             v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
+            v-model:aggregate-layer="aggregateLayer"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -288,6 +290,15 @@ const unitSystem = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, unitSystem: v })
+  }
+})
+
+const aggregateLayer = computed({
+  get () {
+    return route.query.aggregateLayer?.toString() || 'tract'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, aggregateLayer: v })
   }
 })
 
@@ -571,6 +582,7 @@ async function setMapExtent (v: Bbox) {
 const scenarioConfig = computed((): ScenarioConfig => ({
   bbox: bbox.value,
   scheduleEnabled: scheduleEnabled.value,
+  aggregateLayer: aggregateLayer.value,
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,

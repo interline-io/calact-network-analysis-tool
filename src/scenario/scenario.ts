@@ -39,6 +39,7 @@ export interface ScenarioConfig {
   endDate?: Date
   geographyIds?: number[]
   stopLimit?: number
+  aggregateLayer?: string
   maxConcurrentDepartures?: number
 }
 
