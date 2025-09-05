@@ -1,76 +1,69 @@
 <template>
   <div class="cal-report">
-    <tl-title title="WSDOT Transit Stops and Transit Routes" />
+    <tl-title title="WSDOT Transit Stops and Routes" />
 
-    <!-- Overview Section -->
     <tl-msg-info>
-      <h4 class="title is-5">
+      <h5 class="title is-5">
         About this Analysis
-      </h4>
+      </h5>
       <p class="mb-3">
-        This analysis generates statewide GIS layers of Transit Stops and Transit Routes in a standardized format for the Washington State Department of Transportation (WSDOT). Can also be used by other states.
+        This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
+      </p>
+      <p class="mb-3">
+        <strong>Key Features:</strong>
+      </p>
+      <ul class="mb-3">
+        <li><strong>Complete GTFS Compliance:</strong> All standard GTFS stop and route fields are included for maximum compatibility with transit planning tools</li>
+        <li><strong>Service Level Integration:</strong> WSDOT frequency analysis results are embedded as additional columns (Level 1-6, Night service)</li>
+        <li><strong>Data Provenance:</strong> Feed Onestop IDs and version SHA1 hashes ensure data traceability and version control, with links to Transitland's historical feed archive</li>
+        <li><strong>Agency Consolidation:</strong> Handles multiple feeds with consistent agency identification across the region</li>
+        <li><strong>Network Filtering:</strong> Only includes stops that are connected to active transit routes</li>
+      </ul>
+      <p class="mb-3">
+        The data can be downloaded in CSV format (for spreadsheet analysis) or GeoJSON format (for GIS mapping and spatial analysis). All downloads include the same comprehensive field set, with geographic coordinates preserved for spatial operations.
       </p>
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
     </tl-msg-info>
 
-    <div v-if="loading">
+    <tl-msg-error v-if="error" class="mt-4" style="width:400px" :title="error.message">
+      An error occurred while running the WSDOT analysis.
+    </tl-msg-error>
+    <div v-else-if="loading">
       Loading...
     </div>
-    <div v-else-if="wsdotStopsRoutesConfig && wsdotStopsRoutesReport">
-      <!-- Results viewer will go here -->
-      <div class="notification is-info">
-        TODO: table and GeoJSON download components
-      </div>
+    <div v-else-if="wsdotReport && wsdotStopsRoutesReport">
+      <analysis-wsdot-stops-routes-viewer
+        v-model:report="wsdotStopsRoutesReport"
+      />
     </div>
     <div v-else>
       <div class="card">
         <header class="card-header">
           <p class="card-header-title">
-            Configure Analysis
+            Configure Report
           </p>
         </header>
         <div class="card-content">
-          <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
-            <o-field label="Example regions">
-              <o-select v-model="cannedBbox">
-                <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
-                  {{ cannedBboxDetails.label }}
-                </option>
-              </o-select>
-              <o-button @click="loadExampleStopsRoutes">
-                Load example
-              </o-button>
-            </o-field>
-            <br>
-          </tl-msg-warning>
-
           <o-field>
             <template #label>
-              <o-tooltip multiline label="The analysis date determines which GTFS schedule data is used for generating the stops and routes GIS layers.">
-                Analysis date
+              <o-tooltip multiline label="The weekday date is used to analyze transit service. This determines which specific Monday-Friday schedule is used.">
+                Weekday date
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
-            <o-datepicker v-model="wsdotStopsRoutesConfig.analysisDate" />
+            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </o-field>
 
           <o-field>
             <template #label>
-              <o-tooltip multiline label="Select the output format for the GIS layers. GeoJSON is currently available, with GeoPackage support coming in the future.">
-                Output format
+              <o-tooltip multiline label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used.">
+                Weekend date
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
-            <o-select v-model="wsdotStopsRoutesConfig.outputFormat">
-              <option value="geojson">
-                GeoJSON
-              </option>
-              <option value="geopackage" disabled>
-                GeoPackage (coming soon)
-              </option>
-            </o-select>
+            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </o-field>
         </div>
         <footer class="card-footer">
@@ -81,63 +74,142 @@
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" @click="runStopsRoutesAnalysis">
-                Run Analysis
+              <o-button variant="primary" @click="runQuery">
+                Run Report
               </o-button>
             </div>
           </div>
         </footer>
       </div>
     </div>
+
+    <!-- Loading Progress Modal -->
+    <tl-modal
+      v-model="showLoadingModal"
+      title="Loading"
+      :closable="false"
+      :active="showLoadingModal"
+    >
+      <cal-scenario-loading
+        :progress="loadingProgress"
+        :error="error"
+        :stop-departure-count="stopDepartureCount"
+        :scenario-data="scenarioData"
+      />
+    </tl-modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { cannedBboxes } from '~/src/constants'
+import { useApiFetch } from '~/composables/useApiFetch'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
+import { processWsdotReport, type WSDOTStopsRoutesReport } from '~/src/reports/wsdot-stops-routes'
+import {
+  type ScenarioData,
+  type ScenarioConfig,
+  ScenarioDataReceiver,
+  ScenarioStreamReceiver,
+  type ScenarioProgress
+} from '~/src/scenario'
 
+const error = ref<Error | null>(null)
 const loading = ref(false)
-const debugMenu = useDebugMenu()
-const cannedBbox = ref('portland')
-const wsdotStopsRoutesConfig = ref({
-  analysisDate: new Date(),
-  outputFormat: 'geojson'
+const showLoadingModal = ref(false)
+const loadingProgress = ref<ScenarioProgress | null>(null)
+const stopDepartureCount = ref<number>(0)
+const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const scenarioData = defineModel<ScenarioData | null>('scenarioData')
+const wsdotReport = ref<WSDOTReport | null>(null)
+const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
+const wsdotReportConfig = ref<WSDOTReportConfig>({
+  weekdayDate: scenarioConfig.value!.startDate!,
+  weekendDate: scenarioConfig.value!.endDate!,
+  scheduleEnabled: true,
+  stopBufferRadius: 800,
+  ...scenarioConfig.value
 })
-const wsdotStopsRoutesReport = ref<any>(null)
 
-const emit = defineEmits(['cancel'])
-
-const loadExampleStopsRoutes = async () => {
-  loading.value = true
-  // Placeholder for loading example data
-  console.log('Loading example stops and routes data...')
-  loading.value = false
-}
-
-const runStopsRoutesAnalysis = async () => {
-  console.log('runStopsRoutesAnalysis')
-  loading.value = true
-
-  try {
-    // TODO: Implement the actual analysis logic
-    console.log('Running stops and routes analysis...')
-
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    // Placeholder result
-    wsdotStopsRoutesReport.value = {
-      status: 'complete',
-      message: 'Analysis completed successfully'
-    }
-  } catch (error) {
-    console.error('Error running stops and routes analysis:', error)
-  } finally {
-    loading.value = false
-  }
-}
+const emit = defineEmits<{
+  cancel: []
+}>()
 
 const handleCancel = () => {
   emit('cancel')
+}
+
+// Scenario fetching logic - reuse WSDOT report logic but extract stops/routes data
+const runQuery = async () => {
+  showLoadingModal.value = true
+  try {
+    await fetchScenario('')
+    useToastNotification().showToast('Analysis completed successfully!')
+  } catch (err: any) {
+    error.value = err
+    loadingProgress.value = null
+    useToastNotification().showToast('Analysis failed to load: ' + err.message)
+  }
+  showLoadingModal.value = false
+}
+
+// Based on components/analysis/wsdot.vue fetchScenario
+const fetchScenario = async (loadExample: string) => {
+  const config = scenarioConfig.value!
+  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+    // Need either bbox or geography IDs, unless loading example
+    useToastNotification().showToast('Please provide a bounding box or geography IDs.')
+    return
+  }
+  loadingProgress.value = null
+  stopDepartureCount.value = 0
+
+  // Create receiver to accumulate scenario data
+  const receiver = new ScenarioDataReceiver({
+    onProgress: (progress: ScenarioProgress) => {
+      loadingProgress.value = progress
+      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+        return
+      }
+      scenarioData.value = receiver.getCurrentData()
+      if (progress.extraData) {
+        wsdotReport.value = progress.extraData as WSDOTReport
+        wsdotStopsRoutesReport.value = processWsdotReport(scenarioData.value, wsdotReport.value)
+      }
+    },
+    onComplete: () => {
+      loadingProgress.value = null
+      scenarioData.value = receiver.getCurrentData()
+    },
+    onError: (err: any) => {
+      loadingProgress.value = null
+      error.value = err
+    }
+  })
+
+  let response: Response
+  if (loadExample) {
+    // Load example data from public JSON file
+    response = await fetch(`/examples/${loadExample}.json`)
+  } else {
+    // Make request to streaming scenario endpoint
+    const apiFetch = await useApiFetch()
+    response = await apiFetch('/api/wsdot', {
+      method: 'POST',
+      body: JSON.stringify({ config: wsdotReportConfig.value })
+    })
+  }
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  if (!response.body) {
+    throw new Error('No response body received')
+  }
+
+  // Process the streaming response
+  const streamer = new ScenarioStreamReceiver()
+  await streamer.processStream(response.body, receiver)
 }
 </script>
 

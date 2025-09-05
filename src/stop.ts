@@ -24,7 +24,16 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
     wheelchair_boarding
     platform_code
     tts_stop_name
+    parent {
+    stop_id
+  }
     geometry
+    feed_version {
+      sha1
+      feed {
+        onestop_id
+      }
+    }
     census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
       id
       geoid
@@ -89,6 +98,15 @@ export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
   geometry: Point
+  parent?: {
+    stop_id: string
+  } | null
+  feed_version: {
+    sha1: string
+    feed: {
+      onestop_id: string
+    }
+  }
   census_geographies: [{
     id: number
     name: string

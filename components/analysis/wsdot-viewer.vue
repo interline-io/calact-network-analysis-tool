@@ -191,7 +191,7 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
       layerPopState.total = StatePopulations[state] || 0
       layerPops[state] = layerPopState
     }
-    console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
+    // console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
 
     // Save level details
     const stopCount = wsdotReport.value.stops.filter(stop => stop[levelName]).length

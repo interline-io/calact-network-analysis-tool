@@ -190,7 +190,7 @@ export class WSDOTReportFetcher {
           tableDatasetTableCol: 'b01001_001',
           geoDatasetName: 'tiger2024',
           geoDatasetLayer: geoDatasetLayer,
-          stopBufferRadius: this.config.stopBufferRadius || 1000,
+          stopBufferRadius: this.config.stopBufferRadius || 0,
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
@@ -495,12 +495,16 @@ async function getGeographyData (
   if (config.stopIds.size === 0) {
     return []
   }
+  if (config.stopBufferRadius <= 0) {
+    console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
+    return []
+  }
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     layer: config.geoDatasetLayer,
-    stopBufferRadius: config.stopBufferRadius || 1000, // 1km buffer
+    stopBufferRadius: config.stopBufferRadius,
     stopIds: Array.from(config.stopIds)
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)

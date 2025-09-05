@@ -24,29 +24,31 @@
       />
     </o-field>
 
-    <table class="cal-report-table table is-bordered is-striped">
-      <thead>
-        <tr>
-          <th v-for="column in tableReport.columns" :key="column.key">
-            {{ column.label }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in currentRows" :key="row.id">
-          <td v-for="column in tableReport.columns" :key="column.key">
-            <slot
-              :name="`column-${column.key}`"
-              :row="row"
-              :column="column"
-              :value="row[column.key]"
-            >
-              {{ row[column.key] }}
-            </slot>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-container">
+      <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+        <thead>
+          <tr>
+            <th v-for="column in tableReport.columns" :key="column.key">
+              {{ column.label }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in currentRows" :key="row.id">
+            <td v-for="column in tableReport.columns" :key="column.key">
+              <slot
+                :name="`column-${column.key}`"
+                :row="row"
+                :column="column"
+                :value="row[column.key]"
+              >
+                {{ row[column.key] }}
+              </slot>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 

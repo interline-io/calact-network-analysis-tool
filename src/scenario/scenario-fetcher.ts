@@ -174,7 +174,7 @@ export class ScenarioFetcher {
 
   async fetch () {
     try {
-      return await this.fetchMain()
+      await this.fetchMain()
     } catch (error) {
       this.callbacks.onError?.(error)
       throw error
