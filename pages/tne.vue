@@ -55,7 +55,6 @@
     <template #main>
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-overlay">
-          agg: {{ aggregateLayer }}
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
