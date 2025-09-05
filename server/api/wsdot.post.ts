@@ -10,7 +10,6 @@ export default defineEventHandler(async (event) => {
   // Parse the request body
   const { config: configData } = await readBody(event)
   const config: WSDOTReportConfig = configData as WSDOTReportConfig
-  console.log('config:', JSON.stringify(configData, null, 2))
 
   // Validate the config
   if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
@@ -28,7 +27,7 @@ export default defineEventHandler(async (event) => {
   // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
   // Create a proxy-based GraphQL client using the utility
   const client = new BasicGraphQLClient(
-    useTransitlandApiEndpoint('/query'),
+    useTransitlandApiEndpoint('/query', event),
     await useApiFetch(event),
   )
 

@@ -226,6 +226,8 @@ export class ScenarioFetcher {
     const variables = {
       after: task.after,
       limit: this.stopLimit,
+      layer_name: this.config.aggregateLayer,
+      dataset_name: 'tiger2024', // hardcoded for now
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
@@ -378,7 +380,7 @@ export class ScenarioDataReceiver {
    * Handle a progress event from ScenarioFetcher
    */
   onProgress (progress: ScenarioProgress): void {
-    console.log('ScenarioDataReceiver onProgress', progress)
+    // console.log('ScenarioDataReceiver onProgress', progress)
     // If progress contains partial data, accumulate it
     if (progress.partialData) {
       // Append new stops

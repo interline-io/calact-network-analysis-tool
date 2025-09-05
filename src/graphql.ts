@@ -6,7 +6,7 @@ import { print } from 'graphql'
  * This file contains two approaches for GraphQL access:
  *
  * 1. BasicGraphQLClient - Direct API access for CLI tools, tests, and non-Nuxt contexts
- *    - Uses environment variables: TRANSITLAND_API_ENDPOINT, TRANSITLAND_API_KEY
+ *    - Uses environment variables: TRANSITLAND_API_BASE, TRANSITLAND_API_KEY
  *    - Suitable for scripts, CLI tools, and testing
  *
  * 2. useGraphQLClientOnBackend - Proxy-based access for Nuxt server endpoints
@@ -52,6 +52,7 @@ export class BasicGraphQLClient implements GraphQLClient {
       query: queryString,
       variables,
     }
+    // console.log('GraphQL request:', JSON.stringify(requestBody))
 
     try {
       const response = await this.fetch(this.baseUrl, {

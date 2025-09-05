@@ -13,7 +13,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   }
   let polly: Polly | null = null
   const realClient = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
+    (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 

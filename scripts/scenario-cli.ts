@@ -50,11 +50,12 @@ export async function runScenarioData (options: ScenarioCliOptions): Promise<Sce
     scheduleEnabled: !options.noSchedule,
     startDate: parseDate(options.startDate)!,
     endDate: parseDate(options.endDate)!,
+    aggregateLayer: options.aggregateLayer,
     geographyIds: []
   }
 
   const client = new BasicGraphQLClient(
-    process.env.TRANSITLAND_API_ENDPOINT || '',
+    (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 
