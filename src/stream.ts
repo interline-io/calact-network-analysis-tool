@@ -7,6 +7,7 @@
  */
 export interface StreamableProgress {
   isLoading: boolean
+  error?: any
   currentStage: string
 }
 
@@ -16,7 +17,7 @@ export interface StreamableProgress {
 export interface StreamCallbacks<T extends StreamableProgress> {
   onProgress?: (progress: T) => void
   onComplete?: () => void
-  onError?: (error: any) => void
+  onError?: (error: string) => void
 }
 
 /**
@@ -57,7 +58,7 @@ export class GenericStreamSender<T extends StreamableProgress> implements Stream
 
   onError (error: any): void {
     const errMsg = { message: error.message || 'Unknown error' }
-    this.send({ isLoading: false, currentStage: 'complete', error: errMsg } as unknown as T)
+    this.send({ isLoading: false, currentStage: 'error', error: errMsg } as unknown as T)
   }
 }
 
@@ -91,6 +92,9 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
           if (!line.trim()) { continue }
           const progress = JSON.parse(line) as T
           receiver.onProgress(progress)
+          if (progress.error) {
+            receiver.onError(progress.error)
+          }
           if (progress.currentStage === 'complete') {
             receiver.onComplete()
           }
@@ -102,6 +106,7 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
       receiver.onError(error)
     } finally {
       // console.log('GenericStreamReceiver: Finished reading stream')
+      receiver.onComplete()
       reader.releaseLock()
     }
 
