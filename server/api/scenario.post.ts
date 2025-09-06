@@ -49,6 +49,9 @@ export default defineEventHandler(async (event) => {
 
       // Start the fetch process
       await fetcher.fetch()
+
+      // Close the writer when done
+      await writer.close()
     }
   })
 

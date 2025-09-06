@@ -12,8 +12,8 @@
       </div>
       <p>
         {{ formatStage(progress?.currentStage || 'ready') }}
-        <span v-if="progress?.feedVersionProgress">
-          ({{ progress?.feedVersionProgress?.completed || 0 }}/{{ progress?.feedVersionProgress?.total || 0 }})
+        <span v-if="progressPercentage > 0">
+          ({{ progressPercentage }}%)
         </span>
       </p>
     </div>
@@ -84,17 +84,23 @@ const props = withDefaults(defineProps<{
 // Computed values
 const progressPercentage = computed(() => {
   if (!props.progress) return 0
-
-  // Use feedVersionProgress for overall progress since it tracks stops + routes
-  const feedProgress = props.progress.feedVersionProgress
-  if (!feedProgress || feedProgress.total === 0) return 0
-
-  return Math.round((feedProgress.completed / feedProgress.total) * 100)
+  // Add feed version progress + stop departure progress
+  let total = 0
+  let completed = 0
+  if (props.progress.feedVersionProgress) {
+    total += props.progress.feedVersionProgress.total
+    completed += props.progress.feedVersionProgress.completed
+  }
+  if (props.progress.stopDepartureProgress) {
+    total += props.progress.stopDepartureProgress.total
+    completed += props.progress.stopDepartureProgress.completed
+  }
+  return Math.round((completed / total) * 100)
 })
 
 // Helper functions
 function formatStage (stage: ScenarioProgress['currentStage']): string {
-  const stageLabels = {
+  const stageLabels: Record<string, string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',

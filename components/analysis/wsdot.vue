@@ -127,18 +127,19 @@ const handleCancel = () => {
   emit('cancel')
 }
 
-// Scenario fetching logic
+// Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
   showLoadingModal.value = true
   try {
     await fetchScenario('')
-    useToastNotification().showToast('Scenario data loaded successfully!')
   } catch (err: any) {
     error.value = err
-    loadingProgress.value = null
-    useToastNotification().showToast('Scenario failed to load: ' + err.message)
   }
-  showLoadingModal.value = false
+  if (!error.value) {
+    useToastNotification().showToast('Scenario data loaded successfully!')
+    showLoadingModal.value = false
+  }
+  loadingProgress.value = null
 }
 
 const fetchScenario = async (loadExample: string) => {

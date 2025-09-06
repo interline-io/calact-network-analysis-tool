@@ -182,26 +182,24 @@ const route = useRoute()
 // Loading and error handling
 /////////////////
 
-const runCount = ref(0)
 const scheduleEnabled = ref(true)
 const cannedBbox = ref('downtown-portland')
-const error = ref(null)
+const error = ref(null as Error | string | null)
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
-  runCount.value++
   showLoadingModal.value = true
   activeTab.value = { tab: 'map', sub: '' }
   try {
     await fetchScenario('')
-    useToastNotification().showToast('Scenario data loaded successfully!')
   } catch (err: any) {
-    console.error('Scenario fetch error:', err)
     error.value = err
-    loadingProgress.value = null
-    useToastNotification().showToast('Scenario failed to load: ' + err.message)
   }
-  showLoadingModal.value = false
+  if (!error.value) {
+    useToastNotification().showToast('Scenario data loaded successfully!')
+    showLoadingModal.value = false
+  }
+  loadingProgress.value = null
 }
 
 const geomSource = computed({
@@ -647,14 +645,8 @@ const fetchScenario = async (loadExample: string) => {
       // Get final accumulated data and apply filters
       loadingProgress.value = null
       scenarioData.value = receiver.getCurrentData()
-
-      // Auto-close modal and show success toast notification
-      showLoadingModal.value = false
-      useToastNotification().showToast('Scenario data loaded successfully!')
     },
     onError: (err: any) => {
-      showLoadingModal.value = false
-      loadingProgress.value = null
       error.value = err
     }
   })
