@@ -20,6 +20,8 @@
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
       :hide-unmarked="hideUnmarked"
+      :has-scenario-data="hasScenarioData"
+      :show-admin-boundaries="showAdminBoundaries"
     />
 
     <cal-map-viewer-ts
@@ -540,6 +542,16 @@ watch(exportFeatures, () => {
 // Is there data to display?
 const hasData = computed((): boolean => {
   return !!(props.scenarioFilterResult?.stops.length || props.scenarioFilterResult?.routes.length)
+})
+
+// Is there scenario data loaded (regardless of whether it has stops/routes)?
+const hasScenarioData = computed((): boolean => {
+  return !!props.scenarioFilterResult
+})
+
+// Are administrative boundaries selected?
+const showAdminBoundaries = computed((): boolean => {
+  return props.censusGeographiesSelected && props.censusGeographiesSelected.length > 0
 })
 
 /////////////////

@@ -36,6 +36,14 @@
           </div>
         </div>
 
+        <!-- Administrative Boundaries -->
+        <div v-if="props.showAdminBoundaries && !props.hasData" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-marker-square" style="border:solid red 2px; background: transparent;" />
+            <div>Administrative Boundaries</div>
+          </div>
+        </div>
+
         <!-- Geometry Style -->
         <div v-if="props.hasData && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
           <div>
@@ -79,7 +87,7 @@
           </div>
         </div>
 
-        <div v-if="!props.hasData && !props.displayEditBboxMode">
+        <div v-if="!props.hasData && !props.displayEditBboxMode && props.hasScenarioData">
           <p class="legend-loading">
             <o-loading
               :active="true"
@@ -100,6 +108,8 @@ const props = defineProps<{
   hasData: boolean
   displayEditBboxMode?: boolean
   hideUnmarked?: boolean
+  hasScenarioData: boolean
+  showAdminBoundaries?: boolean
 }>()
 </script>
 
