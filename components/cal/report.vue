@@ -62,12 +62,21 @@
     </div>
 
     <div v-if="geoReportData.columns.length > 0">
+      <h4 class="title is-5 mb-4">
+        <o-tooltip multiline label="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
+          Aggregated by {{ getGeographyLabel(aggregateLayer) }}
+          <o-icon icon="information" />
+        </o-tooltip>
+      </h4>
       <cal-datagrid
         :table-report="geoReportData"
       />
-      <hr>
+      <hr class="my-5">
     </div>
 
+    <h4 class="title is-5 mb-4">
+      Individual results
+    </h4>
     <cal-datagrid
       :table-report="reportData"
     />
@@ -120,14 +129,32 @@ const stopColumns: TableColumn[] = [
   { key: 'agencies_count', label: 'Agencies Served', sortable: true },
   { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
 ]
-const stopGeoAggregateColumns: TableColumn[] = [
-  { key: 'name', label: 'Name', sortable: true },
-  { key: 'stops_count', label: 'Number of Stops', sortable: true },
-  { key: 'routes_modes', label: 'Modes', sortable: true },
-  { key: 'routes_count', label: 'Routes Served', sortable: true },
-  { key: 'agencies_count', label: 'Agencies Served', sortable: true },
-  { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
-]
+
+const getGeographyLabel = (layer: string) => {
+  const layerMap: Record<string, string> = {
+    'state': 'State',
+    'county': 'County',
+    'tract': 'Census Tract',
+    'place': 'City/Place',
+    'cbsa': 'Metropolitan Area',
+    'csa': 'Combined Statistical Area',
+    'uac20': 'Urban Area',
+    'fta-uac20-nonurban': 'Non-urban Area',
+    'fta-uac20-urban.geojsonl': 'Urban Area'
+  }
+  return layerMap[layer] || 'Geographic Area'
+}
+
+const stopGeoAggregateColumns = computed((): TableColumn[] => {
+  return [
+    { key: 'name', label: 'Name', sortable: true },
+    { key: 'stops_count', label: 'Number of Stops', sortable: true },
+    { key: 'routes_modes', label: 'Modes', sortable: true },
+    { key: 'routes_count', label: 'Routes Served', sortable: true },
+    { key: 'agencies_count', label: 'Agencies Served', sortable: true },
+    { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
+  ]
+})
 const agencyColumns: TableColumn[] = [
   { key: 'agency_id', label: 'Agency ID', sortable: true },
   { key: 'agency_name', label: 'Agency Name', sortable: true },
@@ -151,7 +178,7 @@ const geoReportData = computed((): TableReport => {
   if (dataDisplayMode.value === 'Stop') {
     return {
       data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateLayer.value),
-      columns: stopGeoAggregateColumns
+      columns: stopGeoAggregateColumns.value
     }
   }
   return { data: [], columns: [] }

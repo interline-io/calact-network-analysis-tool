@@ -59,7 +59,6 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
-            v-model:geom-layer="geomLayer"
             v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
@@ -109,7 +108,7 @@
         <div v-if="activeTab.tab === 'report'" class="cal-overlay">
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
-            v-model:aggregate-mode="geomLayer"
+            v-model:aggregate-layer="aggregateLayer"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
@@ -210,15 +209,6 @@ const geomSource = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, geomSource: v })
-  }
-})
-
-const geomLayer = computed({
-  get () {
-    return route.query.geomLayer ? route.query.geomLayer?.toString() : 'place'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, geomLayer: v })
   }
 })
 
