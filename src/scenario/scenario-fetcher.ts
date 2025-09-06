@@ -52,7 +52,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete' | 'ready'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete' | 'ready' | 'extra'
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
   error?: any

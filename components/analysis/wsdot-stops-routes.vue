@@ -137,18 +137,19 @@ const handleCancel = () => {
   emit('cancel')
 }
 
-// Scenario fetching logic - reuse WSDOT report logic but extract stops/routes data
+// Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
   showLoadingModal.value = true
   try {
     await fetchScenario('')
-    useToastNotification().showToast('Analysis completed successfully!')
   } catch (err: any) {
     error.value = err
-    loadingProgress.value = null
-    useToastNotification().showToast('Analysis failed to load: ' + err.message)
   }
-  showLoadingModal.value = false
+  if (!error.value) {
+    useToastNotification().showToast('Scenario data loaded successfully!')
+    showLoadingModal.value = false
+  }
+  loadingProgress.value = null
 }
 
 // Based on components/analysis/wsdot.vue fetchScenario
