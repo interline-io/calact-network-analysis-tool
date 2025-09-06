@@ -57,25 +57,11 @@
           </o-field>
         </tl-msg-warning>
 
-        <div class="container is-max-tablet pb-4">
-          <o-field>
-            <template #label>
-              <o-tooltip multiline label="Group data within the report by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view. To change the analysis area, return to the Query tab.">
-                Aggregate data by: <o-icon icon="information" />
-              </o-tooltip>
-            </template>
-            <o-select
-              v-model="aggregateLayer"
-              :options="censusGeographyLayerOptions"
-            />
-          </o-field>
-        </div>
-
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
             <o-field>
               <template #label>
-                <o-tooltip multiline label="Specify the area of interest for your query. In the future, there will be additional options including selection of Census geographies. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
+                <o-tooltip multiline label="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
                   Select geography by
                   <o-icon icon="information" />
                 </o-tooltip>
@@ -90,7 +76,7 @@
           <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
             <o-field>
               <template #label>
-                Boundary Type
+                Administrative boundary layer to search
               </template>
               <o-select
                 v-model="geomLayer"
@@ -103,30 +89,80 @@
         <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
           <o-field>
             <template #label>
-              Include Boundaries
+              Selected administrative boundaries
             </template>
-            <o-taginput
-              v-model="geographyIds"
-              v-model:input="geomSearch"
-              :open-on-focus="true"
-              :options="selectedGeographyTagOptions"
-              close-icon=""
-              icon="magnify"
-              placeholder="Search..."
-              expanded
-            >
-              <template #header>
-                <strong>
-                  <span v-if="geomSearch.length < 2">Type to search...</span>
-                  <span v-else-if="geomResultLoading">Loading...</span>
-                  <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
-                  <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
-                </strong>
-              </template>
-            </o-taginput>
+            <div class="field has-addons">
+              <div class="control is-expanded">
+                <o-taginput
+                  v-model="geographyIds"
+                  v-model:input="geomSearch"
+                  :open-on-focus="true"
+                  :options="selectedGeographyTagOptions"
+                  close-icon=""
+                  icon="magnify"
+                  placeholder="Search..."
+                  expanded
+                >
+                  <template #header>
+                    <strong>
+                      <span v-if="geomSearch.length < 2">Type to search...</span>
+                      <span v-else-if="geomResultLoading">Loading...</span>
+                      <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
+                      <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
+                    </strong>
+                  </template>
+                  <template #option="{ option }">
+                    <div class="is-flex is-align-items-center">
+                      <span>{{ option.label }}</span>
+                      <o-tag size="small" variant="light" class="ml-2">
+                        {{ option.geographyType }}
+                      </o-tag>
+                    </div>
+                  </template>
+                </o-taginput>
+              </div>
+              <div v-if="geomResultLoading" class="control">
+                <o-loading
+                  :active="true"
+                  :full-page="false"
+                  size="small"
+                />
+              </div>
+            </div>
           </o-field>
         </div>
       </tl-msg-box>
+
+      <article class="message mb-4 is-text">
+        <div class="message-header collapsible-header" @click="() => toggleAdvancedSettings()">
+          <span class="message-header-title">
+            Advanced Settings
+          </span>
+          <span class="message-header-icon">
+            <o-icon :icon="showAdvancedSettings ? 'menu-up' : 'menu-down'" />
+          </span>
+        </div>
+        <o-collapse
+          :open="showAdvancedSettings"
+          animation="slide"
+        >
+          <div class="message-body">
+            <div class="container is-max-tablet">
+              <o-field>
+                <template #label>
+                  <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                    Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
+                  </o-tooltip>
+                </template>
+                <o-select
+                  v-model="aggregateLayer"
+                  :options="censusGeographyLayerOptions"
+                />
+              </o-field>
+            </div>
+          </div>
+        </o-collapse>
+      </article>
 
       <div class="field has-addons">
         <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
@@ -141,6 +177,7 @@
 </template>
 
 <script setup lang="ts">
+import { nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Bbox, Point } from '~/src/geom'
@@ -167,16 +204,18 @@ const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
+const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')
-const geomLayer = defineModel<string>('geomLayer')
 const geomSearch = ref('')
 const geomSource = defineModel<string>('geomSource')
 const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const selectSingleDay = ref(true)
+const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
+const toggleAdvancedSettings = useToggle(showAdvancedSettings)
 
 const geomSearchVars = computed(() => {
   return {
@@ -208,6 +247,25 @@ watch(geomSearchVars, () => {
     } else {
       geomRefetch()
     }
+  }
+})
+
+// Focus search input when Administrative Boundary is selected
+watch(geomSource, (newValue, oldValue) => {
+  if (newValue === 'adminBoundary') {
+    nextTick(() => {
+      const searchInput = document.querySelector('.taginput input[type="text"]') as HTMLInputElement
+      if (searchInput) {
+        searchInput.focus()
+      }
+    })
+  } else if (oldValue === 'adminBoundary' && newValue !== 'adminBoundary') {
+    // Clear selected geographies when switching away from Administrative Boundary
+    geographyIds.value = []
+    censusGeographiesSelected.value = []
+    geomSearch.value = ''
+    // Clear search results
+    geomResult.value = undefined
   }
 })
 
@@ -253,7 +311,16 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 /////////////////////////////////////////
 
 const validQueryParams = computed(() => {
-  return startDate.value && bbox?.value?.valid
+  const hasValidDate = startDate.value
+  const hasValidBounds = bbox?.value?.valid
+
+  // If using administrative boundaries, must have at least one geography selected
+  if (geomSource.value === 'adminBoundary') {
+    return hasValidDate && (geographyIds.value?.length ?? 0) > 0
+  }
+
+  // For other modes (bbox, map extent), use existing validation
+  return hasValidDate && hasValidBounds
 })
 </script>
 
