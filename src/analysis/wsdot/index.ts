@@ -210,7 +210,7 @@ export class WSDOTReportFetcher {
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
     const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
-    const getGeographyLayers = ['tract'] // 'state', 'county',
+    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
 
     for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
       console.log(`\n====== ${levelKey} ======`)
@@ -548,6 +548,7 @@ async function getGeographyData (
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
   for (const geoDataset of result.data?.census_datasets || []) {
+    console.log('Geography dataset:', geoDataset.name)
     for (const geography of geoDataset.geographies || []) {
       console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
       const totalArea = geography.geometry_area || 0

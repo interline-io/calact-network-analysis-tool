@@ -155,12 +155,6 @@ const formatHighestLevel = (level: string) => {
   return level.replace('level', 'Level ')
 }
 
-// TEMPORARY
-const StatePopulations: Record<string, number> = {
-  Washington: 7693612, // 2020 Census
-  Oregon: 4237256, // 2020 Census
-}
-
 //////////////
 
 const zoom = 10
@@ -180,8 +174,19 @@ interface LayerDetail {
 }
 const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
   return levelKeys.reduce((acc, levelName) => {
+    const levelFeatures = wsdotReport.value.levelLayers[levelName] || {}
+
+    // Get state population
+    const statePopulations: Record<string, number> = {}
+    for (const stateFeature of levelFeatures['state'] || []) {
+      const state = stateFeature.properties.name || 'Unknown'
+      if (!statePopulations[state]) {
+        statePopulations[state] = stateFeature.properties.total_population || 0
+      }
+    }
+
     // GROUP BY STATE
-    const layerFeatures = (wsdotReport.value.levelLayers[levelName] || {})['tract']
+    const layerFeatures = levelFeatures['tract']
     const layerAdminKey = 'adm1_name'
     const layerPops: Record<string, { intersection: number, total: number }> = {}
     const layerAdminGroups: Record<string, Feature[]> = {}
@@ -194,7 +199,7 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
       const pop = feature.properties.intersection_population || 0
       const layerPopState = layerPops[state] || { intersection: 0, total: 0 }
       layerPopState.intersection += pop
-      layerPopState.total = StatePopulations[state] || 0
+      layerPopState.total = statePopulations[state] || 0
       layerPops[state] = layerPopState
     }
     // console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)

@@ -14,6 +14,7 @@ import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
 export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
   weekendDate: string
+  stopBufferRadius: number
   scheduleEnabled: boolean
 }
 
@@ -21,6 +22,7 @@ export function configureWsdotReportCli (program: Command) {
   scenarioOptionsAdd(program)
     .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
     .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
+    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', parseFloat, 400)
     .allowUnknownOption(false)
     .action(async (_options) => {
       const opts = _options as WSDOTReportOptions
@@ -34,6 +36,7 @@ export function configureWsdotReportCli (program: Command) {
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
+        stopBufferRadius: opts.stopBufferRadius,
         geographyIds: []
       }
 
