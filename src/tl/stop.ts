@@ -27,6 +27,15 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
       layer_name
       name
     }
+    parent {
+      stop_id
+    }
+    feed_version {
+      sha1
+      feed {
+        onestop_id
+      }
+    }
     route_stops {
       route {
         id
@@ -91,6 +100,15 @@ export type StopGql = {
     geoid: string
     layer_name: string
   }]
+  parent?: {
+    stop_id: string
+  } | null
+  feed_version: {
+    sha1: string
+    feed: {
+      onestop_id: string
+    }
+  }
   route_stops: {
     route: {
       id: number

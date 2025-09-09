@@ -20,6 +20,12 @@ query ($ids: [Int!], $where: RouteFilter) {
     continuous_pickup
     continuous_drop_off    
     geometry
+    feed_version {
+      sha1
+      feed {
+        onestop_id
+      }
+    }
     agency {
       id
       agency_id
@@ -56,6 +62,12 @@ export type RouteGql = {
     id: number
     agency_id: string
     agency_name: string
+  }
+  feed_version: {
+    sha1: string
+    feed: {
+      onestop_id: string
+    }
   }
   __typename?: string // GraphQL compatibility
 } & RouteGtfs
