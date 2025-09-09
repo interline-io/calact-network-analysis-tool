@@ -1,160 +1,139 @@
 <template>
   <div>
-    <div class="box level">
-      <div class="level-item has-text-centered">
-        <div>
-          <p class="heading">
-            Total Stops
-          </p>
-          <p class="title is-6">
-            {{ report.stops.length }}
-          </p>
-        </div>
-      </div>
-      <div class="level-item has-text-centered">
-        <div>
-          <p class="heading">
-            Total Routes
-          </p>
-          <p class="title is-6">
-            {{ report.routes.length }}
-          </p>
-        </div>
-      </div>
-      <div class="level-item has-text-centered">
-        <div>
-          <p class="heading">
-            Total Agencies
-          </p>
-          <p class="title is-6">
-            {{ computedAgencies.length }}
-          </p>
-        </div>
-      </div>
-    </div>
-
+    <!-- Tabbed Interface -->
     <div class="mt-4">
-      <h4 class="title is-4">
-        Agency Summary
-      </h4>
+      <o-tabs v-model="activeTab" expanded>
+        <o-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
+          <div class="mt-4">
+            <h4 class="title is-4">
+              Agency Summary
+            </h4>
 
-      <cal-datagrid
-        :table-report="agencyDatagrid"
-      >
-        <template #column-agencyId="{ value }">
-          <tl-safelink :text="value" max-width="150px" />
-        </template>
-        <template #column-feedOnestopId="{ value }">
-          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
-        </template>
-      </cal-datagrid>
-    </div>
+            <cal-datagrid
+              :table-report="agencyDatagrid"
+              :show-results-count="false"
+            >
+              <template #column-agencyId="{ value }">
+                <tl-safelink :text="value" max-width="150px" />
+              </template>
+              <template #column-feedOnestopId="{ value }">
+                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+              </template>
+            </cal-datagrid>
+          </div>
+        </o-tab-item>
 
-    <!-- Stops Table -->
-    <div class="mt-4">
-      <h4 class="title is-4">
-        Transit Stops
-      </h4>
+        <o-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
+          <div class="mt-4">
+            <h4 class="title is-4">
+              Transit Stops
+            </h4>
 
-      <cal-datagrid
-        :table-report="stopDatagrid"
-      >
-        <template #column-stopId="{ value }">
-          <tl-safelink :text="value" max-width="100px" />
-        </template>
-        <template #column-agencyId="{ value }">
-          <tl-safelink :text="value" max-width="150px" />
-        </template>
-        <template #column-feedOnestopId="{ value }">
-          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
-        </template>
-        <template #column-feedVersionSha1="{ value }">
-          <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
-        </template>
-        <template #column-highestLevel="{ value }">
-          <span
-            :class="getFrequencyLevelClass(value)"
-            class="tag"
-          >
-            {{ formatHighestLevel(value) }}
-          </span>
-        </template>
-        <template #column-level1="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-level2="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-level3="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-level4="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-level5="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-level6="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #column-levelNights="{ value }">
-          <o-icon v-if="value == 1" icon="check" />
-          <span v-else />
-        </template>
-        <template #additional-downloads="{ loading }">
-          <o-field>
-            <cal-geojson-download
-              :data="stopFeatures"
-              filename="wsdot-stops"
-              button-text="Download as GeoJSON"
-              :disabled="loading"
-            />
-          </o-field>
-        </template>
-      </cal-datagrid>
-    </div>
+            <cal-datagrid
+              :table-report="stopDatagrid"
+              :show-results-count="false"
+            >
+              <template #column-stopId="{ value }">
+                <tl-safelink :text="value" max-width="100px" />
+              </template>
+              <template #column-agencyId="{ value }">
+                <tl-safelink :text="value" max-width="150px" />
+              </template>
+              <template #column-feedOnestopId="{ value }">
+                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+              </template>
+              <template #column-feedVersionSha1="{ value }">
+                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+              </template>
+              <template #column-highestLevel="{ value }">
+                <span
+                  :class="getFrequencyLevelClass(value)"
+                  class="tag"
+                >
+                  {{ formatHighestLevel(value) }}
+                </span>
+              </template>
+              <template #column-level1="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-level2="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-level3="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-level4="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-level5="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-level6="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #column-levelNights="{ value }">
+                <o-icon v-if="value == 1" icon="check" />
+                <span v-else />
+              </template>
+              <template #additional-downloads="{ loading }">
+                <o-field>
+                  <cal-geojson-download
+                    :data="stopFeatures"
+                    filename="wsdot-stops"
+                    button-text="Download as GeoJSON"
+                    :disabled="loading"
+                  />
+                </o-field>
+              </template>
+            </cal-datagrid>
+          </div>
+        </o-tab-item>
 
-    <!-- Routes Table -->
-    <div class="mt-4">
-      <h4 class="title is-4">
-        Transit Routes
-      </h4>
+        <o-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
+          <div class="mt-4">
+            <h4 class="title is-4">
+              Transit Routes
+            </h4>
 
-      <cal-datagrid
-        :table-report="routeDatagrid"
-      >
-        <template #column-routeId="{ value }">
-          <tl-safelink :text="value" max-width="100px" />
-        </template>
-        <template #column-routeType="{ value }">
-          <tl-route-icon :route-type="value" />
-        </template>
-        <template #column-agencyId="{ value }">
-          <tl-safelink :text="value" max-width="150px" />
-        </template>
-        <template #column-feedOnestopId="{ value }">
-          <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
-        </template>
-        <template #column-feedVersionSha1="{ value }">
-          <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
-        </template>
-        <template #additional-downloads="{ loading }">
-          <o-field>
-            <cal-geojson-download
-              :data="routeFeatures"
-              filename="wsdot-routes"
-              button-text="Download as GeoJSON"
-              :disabled="loading"
-            />
-          </o-field>
-        </template>
-      </cal-datagrid>
+            <cal-datagrid
+              :table-report="routeDatagrid"
+              :show-results-count="false"
+            >
+              <template #column-routeId="{ value }">
+                <tl-safelink :text="value" max-width="100px" />
+              </template>
+              <template #column-routeType="{ value }">
+                <tl-route-icon :route-type="value" />
+              </template>
+              <template #column-agencyId="{ value }">
+                <tl-safelink :text="value" max-width="150px" />
+              </template>
+              <template #column-feedOnestopId="{ value }">
+                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+              </template>
+              <template #column-feedVersionSha1="{ value }">
+                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+              </template>
+              <template #additional-downloads="{ loading }">
+                <o-field>
+                  <cal-geojson-download
+                    :data="routeFeatures"
+                    filename="wsdot-routes"
+                    button-text="Download as GeoJSON"
+                    :disabled="loading"
+                  />
+                </o-field>
+              </template>
+            </cal-datagrid>
+          </div>
+        </o-tab-item>
+      </o-tabs>
     </div>
   </div>
 </template>
@@ -166,6 +145,9 @@ import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
 // Define models for props
 const report = defineModel<WSDOTStopsRoutesReport>('report', { required: true })
+
+// Tab state
+const activeTab = ref(0)
 
 // Create agency lookup map for efficient name resolution
 const agencyLookup = computed(() => {
@@ -490,5 +472,32 @@ const routeDatagrid = computed((): TableReport => {
 .frequency-level-nights {
   background-color: #5c5cff !important;
   color: #ffffff !important;
+}
+
+/* Override Oruga tab styling to match Bulma's default behavior */
+:deep(.o-tabs) {
+  .o-tabs__nav {
+    border-bottom: 1px solid var(--bulma-border);
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  .o-tabs__item {
+    border-bottom: none !important;
+
+    &.is-active {
+      border-bottom: none !important;
+    }
+  }
+
+  .o-tabs__link {
+    border-bottom: none !important;
+    padding: 0.5em 1em;
+
+    &:hover {
+      border-bottom: none !important;
+    }
+  }
 }
 </style>
