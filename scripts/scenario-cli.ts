@@ -3,17 +3,13 @@
  */
 
 import type { Command } from 'commander'
+import { checkTransitlandEnv, createStreamController } from './calact-utils'
 import { cannedBboxes } from '~/src/constants'
 import { getCurrentDate, getDateOneWeekLater, parseDate } from '~/src/datetime'
-
-// Core scenario functionality
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
-
-// Utilities
+import type { ScenarioData, ScenarioConfig } from '~/src/reports/scenario/scenario'
+import { runScenarioFetcher } from '~/src/reports/scenario/scenario'
 import { parseBbox } from '~/src/geom'
 import { BasicGraphQLClient, apiFetch } from '~/src/graphql'
-import { multiplexStream, requestStream } from '~/src/stream'
 
 /**
  * Add common scenario configuration options to a Commander.js program
@@ -32,6 +28,58 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--no-schedule', 'Disable schedule fetching')
 }
 
+/**
+ * Configure scenario CLI command
+ */
+export function configureScenarioCli (program: Command) {
+  scenarioOptionsAdd(program)
+    .allowUnknownOption(false)
+    .action(async (options) => {
+      scenarioOptionsCheck(options)
+      console.log('🚌 Starting transit scenario fetch...')
+
+      // Parse configuration from CLI options
+      const config: ScenarioConfig = {
+        bbox: options.bbox ? parseBbox(options.bbox) : undefined,
+        scheduleEnabled: !options.noSchedule,
+        startDate: parseDate(options.startDate)!,
+        endDate: parseDate(options.endDate)!,
+        aggregateLayer: options.aggregateLayer,
+        geographyIds: []
+      }
+
+      const client = new BasicGraphQLClient(
+        (process.env.TRANSITLAND_API_BASE || '') + '/query',
+        apiFetch(process.env.TRANSITLAND_API_KEY || '')
+      )
+
+      // Create a controller that optionally saves to file
+      const controller = createStreamController(options.saveScenarioData)
+      const result = await runScenarioFetcher(controller, config, client)
+
+      // Output results based on format
+      switch (options.output) {
+        case 'json':
+          console.log(JSON.stringify(result, null, '  '))
+          break
+
+        case 'csv':
+          scenarioOutputCsv(result)
+          break
+
+        case 'summary':
+        default:
+          scenarioOutputSummary(result)
+          break
+      }
+
+      return result
+    })
+}
+
+/**
+ * Utilities
+ */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
     options.bbox = cannedBboxes.get(options.bboxName)?.bboxString
@@ -104,108 +152,4 @@ export function scenarioOutputCsv (result: any) {
     const routeCount = stop.route_stops?.length || 0
     console.log(`${stop.id},"${stop.stop_name || 'Unnamed'}",${stop.marked},${routeCount}`)
   })
-}
-
-/**
- * Check environemnt config
- */
-export function checkTransitlandEnv () {
-  const apiEndpoint = process.env.TRANSITLAND_API_BASE
-  const apiKey = process.env.TRANSITLAND_API_KEY
-
-  if (!apiEndpoint) {
-    console.error('❌ Error: TRANSITLAND_API_BASE environment variable is required')
-    console.error('   Please set it to your TransitLand GraphQL API endpoint')
-    console.error('   Example: export TRANSITLAND_API_BASE="https://api.transit.land/api/v2"')
-    throw new Error('Missing TRANSITLAND_API_BASE environment variable')
-  }
-
-  if (!apiKey) {
-    console.error('❌ Error: TRANSITLAND_API_KEY environment variable is required')
-    console.error('   Please set it to your TransitLand API key')
-    console.error('   Example: export TRANSITLAND_API_KEY="your_api_key_here"')
-    throw new Error('Missing TRANSITLAND_API_KEY environment variable')
-  }
-}
-
-/**
- * Configure scenario CLI command
- */
-export function configureScenarioCli (program: Command) {
-  scenarioOptionsAdd(program)
-    .allowUnknownOption(false)
-    .action(async (options) => {
-      await runScenarioCli(options as ScenarioCliOptions)
-    })
-}
-
-/**
- * Execute scenario CLI with given options
- */
-async function runScenarioCli (options: ScenarioCliOptions) {
-  scenarioOptionsCheck(options)
-  await runScenarioData(options)
-}
-
-export async function runScenarioData (options: ScenarioCliOptions): Promise<ScenarioData> {
-  console.log('🚌 Starting transit scenario fetch...')
-
-  // Parse configuration from CLI options
-  const config: ScenarioConfig = {
-    bbox: options.bbox ? parseBbox(options.bbox) : undefined,
-    scheduleEnabled: !options.noSchedule,
-    startDate: parseDate(options.startDate)!,
-    endDate: parseDate(options.endDate)!,
-    aggregateLayer: options.aggregateLayer,
-    geographyIds: []
-  }
-
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || '')
-  )
-
-  // Create a transform stream that optionally multiplexes to file
-  const fileStream = await import('fs').then(fs => fs.createWriteStream('test.json'))
-  console.log(`📝 Logging scenario data to: ${options.saveScenarioData}`)
-
-  const { inputStream, outputStream } = multiplexStream(fileStream)
-  const writer = inputStream.getWriter()
-
-  // Create writable stream writer that writes to the response
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver()
-  const scenarioDataClient = new ScenarioStreamReceiver()
-
-  // Await data - start both concurrently and wait for both to complete
-  await Promise.all([
-    scenarioDataClient.processStream(outputStream, receiver),
-    fetcher.fetch()
-  ])
-
-  const result = receiver.getCurrentData()
-  console.log('✅ Fetch completed!')
-
-  // Output results based on format
-  switch (options.output) {
-    case 'json':
-      console.log(JSON.stringify(result, null, '  '))
-      break
-
-    case 'csv':
-      scenarioOutputCsv(result)
-      break
-
-    case 'summary':
-    default:
-      scenarioOutputSummary(result)
-      break
-  }
-
-  return result
 }

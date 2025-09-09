@@ -1,6 +1,5 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import type { MultiLineString } from 'geojson'
 import type { StopTime } from '~/src/departure'
 import type { StopDepartureCache } from '~/src/departure-cache'
 import { parseHMS } from '~/src/datetime'
@@ -25,12 +24,6 @@ query ($ids: [Int!], $where: RouteFilter) {
     continuous_pickup
     continuous_drop_off    
     geometry
-    feed_version {
-      sha1
-      feed {
-        onestop_id
-      }
-    }
     agency {
       id
       agency_id
@@ -62,13 +55,7 @@ export interface RouteGtfs {
 
 export type RouteGql = {
   id: number
-  geometry: MultiLineString
-  feed_version: {
-    sha1: string
-    feed: {
-      onestop_id: string
-    }
-  }
+  geometry: GeoJSON.MultiLineString
   agency: {
     id: number
     agency_id: string

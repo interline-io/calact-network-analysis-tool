@@ -2,9 +2,9 @@ import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
 import { parseDate } from '~/src/datetime'
 import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
-import { RunScenario } from '~/src/scenario'
+import { RunScenario } from '~/src/reports/scenario/scenario'
 import type { Bbox } from '~/src/geom'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {

@@ -1,72 +1,3 @@
-import { format } from 'date-fns'
-import {
-  type Stop,
-  type StopGql,
-  stopSetDerived
-} from '../stop'
-import type { FeedVersion } from '../feed-version'
-import type { Agency } from '../agency'
-import {
-  type Route,
-  type RouteGql,
-  routeSetDerived,
-  newRouteHeadwaySummary
-} from '../route'
-import { getCurrentDate, parseDate, getDateOneWeekLater } from '../datetime'
-import type { StopDepartureCache } from '~/src/departure-cache'
-import { cannedBboxes, type dow, routeTypes } from '~/src/constants'
-import { parseBbox, type Bbox } from '~/src/geom'
-
-export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
-  return {
-    bbox: parseBbox(cannedBboxes.get(bboxname)!.bboxString),
-    scheduleEnabled: true,
-    startDate: parseDate(getCurrentDate()),
-    endDate: parseDate(getDateOneWeekLater()),
-    geographyIds: [],
-    stopLimit: 1000,
-    maxConcurrentDepartures: 8
-  }
-}
-
-/**
- * Configuration for scenario fetching
- */
-export interface ScenarioConfig {
-  bbox?: Bbox
-  scheduleEnabled: boolean
-  startDate?: Date
-  endDate?: Date
-  geographyIds?: number[]
-  stopLimit?: number
-  aggregateLayer?: string
-  maxConcurrentDepartures?: number
-}
-
-export interface ScenarioFilter {
-  startTime?: Date
-  endTime?: Date
-  selectedRouteTypes: number[]
-  selectedDays: dow[]
-  selectedAgencies: string[]
-  selectedDayOfWeekMode: string
-  selectedTimeOfDayMode: string
-  frequencyUnder?: number
-  frequencyOver?: number
-  frequencyUnderEnabled: boolean
-  frequencyOverEnabled: boolean
-}
-
-/*****************
- * Apply filters to the scenario result data based on the provided configuration and filter criteria.
- */
-export interface ScenarioData {
-  routes: RouteGql[]
-  stops: StopGql[]
-  feedVersions: FeedVersion[]
-  stopDepartureCache: StopDepartureCache
-}
-
 export interface ScenarioFilterResult {
   routes: Route[]
   stops: Stop[]
@@ -207,16 +138,4 @@ export function applyScenarioResultFilter (
     stopDepartureCache: sdCache,
   }
   return result
-}
-
-function getSelectedDateRange (config: ScenarioConfig): Date[] {
-  const sd = new Date((config.startDate || new Date()).valueOf())
-  const ed = new Date((config.endDate || new Date()).valueOf())
-  const dates = []
-  while (sd <= ed) {
-    dates.push(new Date(sd.valueOf()))
-    sd.setDate(sd.getDate() + 1)
-  }
-  // console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
-  return dates
 }

@@ -28,7 +28,7 @@ import { agencyToAgencyCsv } from '~/src/agency'
 import type { Feature } from '~/src/geom'
 import { useToastNotification } from '#imports'
 import type { CensusGeography } from '~/src/census'
-import type { ScenarioFilterResult } from '~/src/scenario'
+import type { ScenarioFilterResult } from '~/src/reports/scenario/scenario'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult

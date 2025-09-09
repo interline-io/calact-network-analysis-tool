@@ -1,6 +1,5 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import type { Point } from 'geojson'
 import type { StopDepartureCache } from '~/src/departure-cache'
 import { type dow, routeTypes } from '~/src/constants'
 import { parseHMS } from '~/src/datetime'
@@ -10,7 +9,7 @@ import { parseHMS } from '~/src/datetime'
 //////////
 
 export const stopQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $layer_name: String) {
+query ($limit: Int, $after: Int, $where: StopFilter) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -24,17 +23,8 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
     wheelchair_boarding
     platform_code
     tts_stop_name
-    parent {
-    stop_id
-  }
     geometry
-    feed_version {
-      sha1
-      feed {
-        onestop_id
-      }
-    }
-    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
+    census_geographies(where:{radius:0.0}) {
       id
       geoid
       layer_name
@@ -97,16 +87,7 @@ export interface StopVisitSummary {
 export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
-  geometry: Point
-  parent?: {
-    stop_id: string
-  } | null
-  feed_version: {
-    sha1: string
-    feed: {
-      onestop_id: string
-    }
-  }
+  geometry: GeoJSON.Point
   census_geographies: [{
     id: number
     name: string

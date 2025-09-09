@@ -1,5 +1,5 @@
 import type { WSDOTReport, WSDOTReportConfig } from './wsdot'
-import type { ScenarioData } from '~/src/scenario/scenario'
+import type { ScenarioData } from '~/src/reports/scenario/scenario'
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]

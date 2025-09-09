@@ -101,8 +101,8 @@
 
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot/wsdot'
+import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/reports/scenario/scenario'
 
 const error = ref<Error | null>(null)
 const loading = ref(false)

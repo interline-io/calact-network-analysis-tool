@@ -44,7 +44,7 @@ import { type Route, routeToRouteCsv } from '~/src/route'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
 import { colors, routeTypes } from '~/src/constants'
 import type { CensusGeography } from '~/src/census'
-import type { ScenarioFilterResult } from '~/src/scenario'
+import type { ScenarioFilterResult } from '~/src/reports/scenario/scenario'
 
 const emit = defineEmits<{
   setBbox: [value: Bbox]

@@ -160,7 +160,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { WSDOTStopsRoutesReport } from '~/src/reports/wsdot-stops-routes'
+import type { WSDOTStopsRoutesReport } from '~/src/reports/wsdot/wsdot-stops-routes'
 import type { Feature } from '~/src/geom'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 

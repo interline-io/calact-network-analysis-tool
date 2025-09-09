@@ -379,7 +379,7 @@
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
 import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '~/src/constants'
-import type { ScenarioFilterResult } from '~/src/scenario'
+import type { ScenarioFilterResult } from '~/src/reports/scenario/scenario'
 </script>
 
 <script setup lang="ts">

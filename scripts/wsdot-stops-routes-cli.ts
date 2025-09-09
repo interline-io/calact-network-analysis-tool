@@ -4,11 +4,11 @@
 import type { Command } from 'commander'
 import {
   scenarioOptionsAdd,
-  scenarioOptionsCheck, runScenarioData
+  scenarioOptionsCheck
 } from './scenario-cli'
 import type { WSDOTReportOptions } from './wsdot-cli'
-import { WSDOTReportFetcher } from '~/src/reports/wsdot'
-import { processWsdotReport, type WSDOTStopsRoutesReportConfig } from '~/src/reports/wsdot-stops-routes'
+import { WSDOTReportFetcher } from '~/src/reports/wsdot/wsdot'
+import { processWsdotReport, type WSDOTStopsRoutesReportConfig } from '~/src/reports/wsdot/wsdot-stops-routes'
 import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
 import { parseBbox } from '~/src/geom'
 import { parseDate } from '~/src/datetime'
