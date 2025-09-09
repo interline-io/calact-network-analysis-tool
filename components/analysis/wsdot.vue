@@ -151,11 +151,7 @@ const emit = defineEmits<{
 const { setHasResults } = useAnalysisResults()
 const hasResults = computed(() => {
   const hasResultsValue = wsdotReport.value !== null
-  console.log('WSDOT hasResults:', hasResultsValue, 'wsdotReport:', wsdotReport.value)
-
-  // Update the global state when hasResults changes
   setHasResults('wsdot', hasResultsValue)
-
   return hasResultsValue
 })
 

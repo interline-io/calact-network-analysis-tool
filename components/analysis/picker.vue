@@ -37,7 +37,7 @@
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, computed, ref, watch } from 'vue'
+import { defineAsyncComponent, computed, ref } from 'vue'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
 
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
@@ -66,7 +66,6 @@ const emit = defineEmits<{
 // Check if any analysis has results
 const hasAnalysisResults = computed(() => {
   if (!scenarioData.value || selectedReportType.value === '') {
-    console.log('No scenario data or report type:', { scenarioData: scenarioData.value, selectedReportType: selectedReportType.value })
     return false
   }
 
@@ -80,11 +79,6 @@ const handleCancel = () => {
   selectedReportType.value = ''
   emit('cancel')
 }
-
-// Watch for changes in hasAnalysisResults
-watch(hasAnalysisResults, (newValue, oldValue) => {
-  console.log('Analysis picker hasAnalysisResults changed:', { oldValue, newValue })
-})
 
 // Expose hasAnalysisResults to parent component
 defineExpose({
