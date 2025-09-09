@@ -201,6 +201,7 @@ const runQuery = async () => {
   try {
     await fetchScenario('')
     useToastNotification().showToast('WSDOT analysis completed successfully!')
+    showLoadingModal.value = false
   } catch (err: any) {
     error.value = err
     loadingProgress.value = null
@@ -209,10 +210,6 @@ const runQuery = async () => {
       updateAnalysisStage(currentAnalysisStage.value, 'error')
     }
     useToastNotification().showToast('WSDOT analysis failed: ' + err.message)
-  }
-  if (!error.value) {
-    useToastNotification().showToast('Scenario data loaded successfully!')
-    showLoadingModal.value = false
   }
   loadingProgress.value = null
 }

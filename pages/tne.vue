@@ -240,7 +240,7 @@ const runQuery = async () => {
     error.value = err
   }
   if (!error.value) {
-    useToastNotification().showToast('Scenario data loaded successfully!')
+    useToastNotification().showToast('Browsing query data loaded successfully!')
     showLoadingModal.value = false
   }
   loadingProgress.value = null
