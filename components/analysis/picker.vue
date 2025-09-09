@@ -68,10 +68,8 @@ const hasAnalysisResults = computed(() => {
   if (!scenarioData.value || selectedReportType.value === '') {
     return false
   }
-
   // Use the persistent state
   const hasResults = hasResultsState.value[selectedReportType.value] || false
-  console.log('Analysis picker hasAnalysisResults:', hasResults, 'selectedReportType:', selectedReportType.value, 'hasResultsState:', hasResultsState.value)
   return hasResults
 })
 
