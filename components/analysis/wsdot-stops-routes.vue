@@ -102,10 +102,15 @@
 
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
+import type {
+  WSDOTReport,
+  WSDOTReportConfig
+} from '~/src/reports/wsdot'
 import {
   processWsdotStopsRoutesReport,
-  type WSDOTStopsRoutesReport,
+} from '~/src/reports/wsdot-stops-routes'
+import type {
+  WSDOTStopsRoutesReport,
 } from '~/src/reports/wsdot-stops-routes'
 import {
   ScenarioDataReceiver,

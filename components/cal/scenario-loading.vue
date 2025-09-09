@@ -67,7 +67,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioProgress, ScenarioData } from '~/src/reports/scenario/scenario'
+import type { ScenarioProgress, ScenarioData } from '~/src/scenario'
 
 // Props
 const props = withDefaults(defineProps<{

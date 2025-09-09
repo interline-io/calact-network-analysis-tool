@@ -1,8 +1,7 @@
 import { gql } from 'graphql-tag'
 import { format } from 'date-fns'
-import type { StopDepartureCache } from '~/src/tl/departure-cache'
-import { type dow, routeTypes } from '~/src/core'
-import { parseHMS } from '~/src/core'
+import type { StopDepartureCache } from './departure-cache'
+import { type dow, routeTypes, parseHMS } from '~/src/core'
 
 //////////
 // Stops

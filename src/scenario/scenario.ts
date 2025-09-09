@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
-import { StopDepartureCache } from '~/src/tl/departure-cache'
 import {
+  StopDepartureCache,
   feedVersionQuery,
   newRouteHeadwaySummary,
   routeQuery,
@@ -710,3 +710,7 @@ export class ScenarioStreamSender extends GenericStreamSender<ScenarioProgress> 
  * Streaming client processes readable streams and uses ScenarioDataReceiver
  */
 export class ScenarioStreamReceiver extends GenericStreamReceiver<ScenarioProgress, ScenarioData> {}
+
+//////////////////////
+// Moved from core
+//////////////////////

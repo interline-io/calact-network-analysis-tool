@@ -128,10 +128,11 @@ import { fmtDate, type Feature } from '~/src/core'
 import {
   SERVICE_LEVELS,
   levelColors,
-  type WSDOTReport,
-  type WSDOTReportConfig,
-  type LevelKey
-
+} from '~/src/reports/wsdot'
+import type {
+  WSDOTReport,
+  WSDOTReportConfig,
+  LevelKey
 } from '~/src/reports/wsdot'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 

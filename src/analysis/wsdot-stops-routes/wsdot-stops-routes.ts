@@ -1,4 +1,4 @@
-import type { WSDOTReport, WSDOTReportConfig } from '../wsdot'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import type { ScenarioData } from '~/src/scenario'
 
 export interface WSDOTStopsRoutesReport {
