@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry } from '~/src/core'
+import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox } from '~/src/core'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver } from '~/src/scenario'
 
 // Service level configuration matching Python implementation
@@ -120,6 +120,7 @@ export interface WSDOTReport {
   stops: WSDOTStopResult[]
   levelStops: Record<string, number[]>
   levelLayers: Record<string, Record<string, GeographyDataFeature[]>>
+  bboxIntersection: GeographyDataFeature[]
 }
 
 export interface WSDOTStopResult {
@@ -206,6 +207,19 @@ export class WSDOTReportFetcher {
     console.log(`Analyzed ${weekdayFreq.stops.size} stops and ${weekdayFreq.routes.size} routes for weekday`)
     console.log(`Analyzed ${weekendFreq.stops.size} stops and ${weekendFreq.routes.size} routes for weekend`)
 
+    // Get bbox population (tract intersections)
+    console.log(`Fetching tract populations for bbox...`)
+    const bboxIntersection = await getGeographyData({
+      client: this.client,
+      tableDatasetName: 'acsdt5y2022',
+      tableDatasetTable: `b01001`,
+      tableDatasetTableCol: 'b01001_001',
+      geoDatasetName: 'tiger2024',
+      geoDatasetLayer: 'tract',
+      bbox: this.config.bbox,
+    })
+    console.log('bboxIntersection:', bboxIntersection)
+
     // Process each service level
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
@@ -220,6 +234,13 @@ export class WSDOTReportFetcher {
       console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
       const geogLayers: Record<string, GeographyDataFeature[]> = {}
       for (const geoDatasetLayer of getGeographyLayers) {
+        if ((this.config?.stopBufferRadius || 0) <= 0) {
+          console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
+          continue
+        }
+        if (qualifyingStops.size === 0) {
+          continue
+        }
         const geoConfig: getGeographyDataConfig = {
           client: this.client,
           stopIds: qualifyingStops,
@@ -263,7 +284,8 @@ export class WSDOTReportFetcher {
     return {
       stops,
       levelStops,
-      levelLayers
+      levelLayers,
+      bboxIntersection
     }
   }
 }
@@ -518,32 +540,28 @@ interface GeographyDataFeature {
 
 interface getGeographyDataConfig {
   client: GraphQLClient
-  stopIds: Set<number>
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
   geoDatasetName: string
   geoDatasetLayer: string
-  stopBufferRadius: number
+  stopIds?: Set<number>
+  stopBufferRadius?: number
+  bbox?: Bbox
 }
 
 async function getGeographyData (
   config: getGeographyDataConfig,
 ): Promise<GeographyDataFeature[]> {
-  if (config.stopIds.size === 0) {
-    return []
-  }
-  if (config.stopBufferRadius <= 0) {
-    console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
-    return []
-  }
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     layer: config.geoDatasetLayer,
     stopBufferRadius: config.stopBufferRadius,
-    stopIds: Array.from(config.stopIds)
+    stopIds: Array.from(config.stopIds || []),
+    bbox: convertBbox(config.bbox),
+    includeIntersectionGeometry: true,
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
@@ -615,12 +633,12 @@ interface geographyIntersectionResult {
 }
 
 const geographyIntersectionQuery = gql`
-query ($geoDatasetName: String, $layer: String!, $stopIds: [Int!], $tableNames: [String!]!, $tableDatasetName: String, $stopBufferRadius: Float) {
+query ($geoDatasetName: String, $layer: String!, $tableNames: [String!]!, $tableDatasetName: String, $bbox: BoundingBox, $stopIds: [Int!],  $stopBufferRadius: Float, $includeIntersectionGeometry: Boolean = false) {
   census_datasets(limit: 1000, where: {name: $geoDatasetName}) {
     id
     name
     url
-    geographies(limit: 1000, where: {layer: $layer, location: {stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
+    geographies(limit: 1000, where: {layer: $layer, location: {bbox:$bbox, stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
       id
       name
       aland
@@ -633,7 +651,7 @@ query ($geoDatasetName: String, $layer: String!, $stopIds: [Int!], $tableNames: 
       layer_name
       geometry_area
       intersection_area
-      intersection_geometry
+      intersection_geometry @include(if: $includeIntersectionGeometry)
       values(dataset: $tableDatasetName, table_names: $tableNames) {
         dataset_name
         geoid

@@ -60,3 +60,13 @@ export interface MarkerFeature {
   draggable: boolean
   element?: HTMLElement // Optional HTML element for custom marker
 }
+
+export function convertBbox (bbox: Bbox | undefined): { min_lon: number | null, min_lat: number | null, max_lon: number | null, max_lat: number | null } | null {
+  if (!bbox) { return null }
+  return {
+    min_lon: bbox ? bbox.sw.lon : null,
+    min_lat: bbox ? bbox.sw.lat : null,
+    max_lon: bbox ? bbox.ne.lon : null,
+    max_lat: bbox ? bbox.ne.lat : null
+  }
+}
