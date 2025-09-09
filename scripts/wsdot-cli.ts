@@ -3,28 +3,13 @@
  */
 import type { Command } from 'commander'
 import {
-  runScenarioData,
   scenarioOptionsAdd,
   scenarioOptionsCheck,
-  type ScenarioCliOptions
+  createStreamController,
+  type ScenarioCliOptions,
 } from './scenario-cli'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
-import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
-import { parseBbox } from '~/src/geom'
-import { parseDate } from '~/src/datetime'
-
-/**
- * Configure WSDOT CLI command
- */
-export function configureWsdotReportCli (program: Command) {
-  scenarioOptionsAdd(program)
-    .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
-    .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
-    .allowUnknownOption(false)
-    .action(async (options) => {
-      await runWsdotReportScli(options as WSDOTReportOptions)
-    })
-}
+import { runAnalysis, type WSDOTReportConfig } from '~/src/analysis/wsdot'
+import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
 
 export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
@@ -32,34 +17,34 @@ export interface WSDOTReportOptions extends ScenarioCliOptions {
   scheduleEnabled: boolean
 }
 
-/**
- * Execute scenario CLI with given options
- */
-async function runWsdotReportScli (options: WSDOTReportOptions) {
-  scenarioOptionsCheck(options)
+export function configureWsdotReportCli (program: Command) {
+  scenarioOptionsAdd(program)
+    .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
+    .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
+    .allowUnknownOption(false)
+    .action(async (_options) => {
+      const opts = _options as WSDOTReportOptions
+      scenarioOptionsCheck(opts)
 
-  // Parse configuration from CLI options
-  const config: WSDOTReportConfig = {
-    bbox: options.bbox ? parseBbox(options.bbox) : undefined,
-    scheduleEnabled: !options.noSchedule,
-    startDate: parseDate(options.startDate)!,
-    endDate: parseDate(options.endDate)!,
-    weekdayDate: parseDate(options.weekdayDate)!,
-    weekendDate: parseDate(options.weekendDate)!,
-    geographyIds: []
-  }
+      // Parse configuration from CLI options
+      const config: WSDOTReportConfig = {
+        bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        scheduleEnabled: !opts.noSchedule,
+        startDate: parseDate(opts.startDate)!,
+        endDate: parseDate(opts.endDate)!,
+        weekdayDate: parseDate(opts.weekdayDate)!,
+        weekendDate: parseDate(opts.weekendDate)!,
+        geographyIds: []
+      }
 
-  // Create GraphQL client
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || '')
-  )
+      const client = new BasicGraphQLClient(
+        (process.env.TRANSITLAND_API_BASE || '') + '/query',
+        apiFetch(process.env.TRANSITLAND_API_KEY || '')
+      )
 
-  // Process main scenario
-  const result = await runScenarioData(options)
-
-  // Process WSDOT Report
-  const wsdotFetcher = new WSDOTReportFetcher(config, result, client)
-  await wsdotFetcher.fetch()
-  console.log('✅ WSDOT Report generated!')
+      // Create a controller that optionally saves to file
+      const controller = createStreamController(opts.saveScenarioData)
+      const result = await runAnalysis(controller, config, client)
+      return result
+    })
 }

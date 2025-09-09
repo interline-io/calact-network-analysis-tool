@@ -165,10 +165,8 @@ import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification } from '#imports'
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/census'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString } from '~/src/geom'
-import { fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/datetime'
-import { type dow, dowValues, routeTypes, cannedBboxes } from '~/src/constants'
+import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/tl'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypes, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
 
 definePageMeta({

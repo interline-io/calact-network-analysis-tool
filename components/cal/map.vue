@@ -39,11 +39,9 @@
 <script setup lang="ts">
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type Stop, stopToStopCsv } from '~/src/stop'
-import { type Route, routeToRouteCsv } from '~/src/route'
-import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/geom'
-import { colors, routeTypes } from '~/src/constants'
-import type { CensusGeography } from '~/src/census'
+import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~/src/tl'
+import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/core'
+import { colors, routeTypes } from '~/src/core'
 import type { ScenarioFilterResult } from '~/src/scenario'
 
 const emit = defineEmits<{

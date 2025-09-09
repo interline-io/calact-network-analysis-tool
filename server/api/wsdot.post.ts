@@ -1,10 +1,7 @@
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { WSDOTReportFetcher } from '~/src/reports/wsdot'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
-import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
-import { multiplexStream, requestStream } from '~/src/stream'
+import { runAnalysis, type WSDOTReportConfig } from '~/src/analysis/wsdot'
+import { BasicGraphQLClient } from '~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -34,41 +31,7 @@ export default defineEventHandler(async (event) => {
   // Create a readable stream for the response
   const stream = new ReadableStream({
     async start (controller) {
-      // Create a multiplex stream that writes to both the response and a new output stream
-      const { inputStream, outputStream } = multiplexStream(requestStream(controller))
-      const writer = inputStream.getWriter()
-
-      // Configure fetcher/sender
-      const scenarioDataSender = new ScenarioStreamSender(writer)
-      const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-      // Configure client/receiver
-      const receiver = new ScenarioDataReceiver()
-      const scenarioDataClient = new ScenarioStreamReceiver()
-      const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
-
-      // Start the fetch process
-      await fetcher.fetch()
-
-      // Run wsdot analysis
-      const scenarioData = receiver.getCurrentData()
-      const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-      let wsdotResult: WSDOTReport | null = null
-      wsdotResult = await wsdotFetcher.fetch()
-
-      // Update the client with the wsdot result
-      scenarioDataSender.onProgress({
-        isLoading: true,
-        currentStage: 'schedules', // TODO - extraData stage?
-        extraData: wsdotResult
-      })
-      scenarioDataSender.onComplete()
-
-      // Final complete - close the multiplexed stream
-      writer.close()
-
-      // Ensure all scenario client progress has been processed
-      await scenarioClientProgress
+      await runAnalysis(controller, config, client)
     }
   })
 

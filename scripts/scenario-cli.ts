@@ -1,23 +1,8 @@
-/**
- * Simple CLI example showing how to use ScenarioFetcher
- */
-
 import type { Command } from 'commander'
-import { cannedBboxes } from '~/src/constants'
-import { getCurrentDate, getDateOneWeekLater, parseDate } from '~/src/datetime'
-
-// Core scenario functionality
+import { cannedBboxes, parseBbox, getCurrentDate, getDateOneWeekLater, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender } from '~/src/scenario'
+import { runScenarioFetcher } from '~/src/scenario'
 
-// Utilities
-import { parseBbox } from '~/src/geom'
-import { BasicGraphQLClient, apiFetch } from '~/src/graphql'
-import { multiplexStream, requestStream } from '~/src/stream'
-
-/**
- * Add common scenario configuration options to a Commander.js program
- */
 export function scenarioOptionsAdd (program: Command): Command {
   return program
     .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
@@ -32,6 +17,55 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--no-schedule', 'Disable schedule fetching')
 }
 
+export function configureScenarioCli (program: Command) {
+  scenarioOptionsAdd(program)
+    .allowUnknownOption(false)
+    .action(async (options) => {
+      scenarioOptionsCheck(options)
+      console.log('🚌 Starting transit scenario fetch...')
+
+      // Parse configuration from CLI options
+      const config: ScenarioConfig = {
+        bbox: options.bbox ? parseBbox(options.bbox) : undefined,
+        scheduleEnabled: !options.noSchedule,
+        startDate: parseDate(options.startDate)!,
+        endDate: parseDate(options.endDate)!,
+        aggregateLayer: options.aggregateLayer,
+        geographyIds: []
+      }
+
+      const client = new BasicGraphQLClient(
+        (process.env.TRANSITLAND_API_BASE || '') + '/query',
+        apiFetch(process.env.TRANSITLAND_API_KEY || '')
+      )
+
+      // Create a controller that optionally saves to file
+      const controller = createStreamController(options.saveScenarioData)
+      const result = await runScenarioFetcher(controller, config, client)
+
+      // Output results based on format
+      switch (options.output) {
+        case 'json':
+          console.log(JSON.stringify(result, null, '  '))
+          break
+
+        case 'csv':
+          scenarioOutputCsv(result)
+          break
+
+        case 'summary':
+        default:
+          scenarioOutputSummary(result)
+          break
+      }
+
+      return result
+    })
+}
+
+/**
+ * Utilities
+ */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
     options.bbox = cannedBboxes.get(options.bboxName)?.bboxString
@@ -128,84 +162,43 @@ export function checkTransitlandEnv () {
   }
 }
 
-/**
- * Configure scenario CLI command
- */
-export function configureScenarioCli (program: Command) {
-  scenarioOptionsAdd(program)
-    .allowUnknownOption(false)
-    .action(async (options) => {
-      await runScenarioCli(options as ScenarioCliOptions)
+export function createStreamController (saveToFile?: string): ReadableStreamDefaultController {
+  let controller: ReadableStreamDefaultController
+
+  const stream = new ReadableStream({
+    start (ctrl) {
+      controller = ctrl
+    }
+  })
+
+  if (saveToFile) {
+    // Set up file writing in the background
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+
+    // Import fs dynamically to handle Node.js environment
+    import('fs').then(async (fs) => {
+      const writeStream = fs.createWriteStream(saveToFile)
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const text = decoder.decode(value)
+          writeStream.write(text)
+        }
+      } catch (error) {
+        console.error('Error writing to file:', error)
+      } finally {
+        writeStream.end()
+        reader.releaseLock()
+      }
+    }).catch((error) => {
+      console.error('Error importing fs module:', error)
     })
-}
-
-/**
- * Execute scenario CLI with given options
- */
-async function runScenarioCli (options: ScenarioCliOptions) {
-  scenarioOptionsCheck(options)
-  await runScenarioData(options)
-}
-
-export async function runScenarioData (options: ScenarioCliOptions): Promise<ScenarioData> {
-  console.log('🚌 Starting transit scenario fetch...')
-
-  // Parse configuration from CLI options
-  const config: ScenarioConfig = {
-    bbox: options.bbox ? parseBbox(options.bbox) : undefined,
-    scheduleEnabled: !options.noSchedule,
-    startDate: parseDate(options.startDate)!,
-    endDate: parseDate(options.endDate)!,
-    aggregateLayer: options.aggregateLayer,
-    geographyIds: []
   }
-
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || '')
-  )
-
-  // Create a transform stream that optionally multiplexes to file
-  const fileStream = await import('fs').then(fs => fs.createWriteStream('test.json'))
-  console.log(`📝 Logging scenario data to: ${options.saveScenarioData}`)
-
-  const { inputStream, outputStream } = multiplexStream(fileStream)
-  const writer = inputStream.getWriter()
-
-  // Create writable stream writer that writes to the response
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver()
-  const scenarioDataClient = new ScenarioStreamReceiver()
-
-  // Await data - start both concurrently and wait for both to complete
-  await Promise.all([
-    scenarioDataClient.processStream(outputStream, receiver),
-    fetcher.fetch()
-  ])
-
-  const result = receiver.getCurrentData()
-  console.log('✅ Fetch completed!')
-
-  // Output results based on format
-  switch (options.output) {
-    case 'json':
-      console.log(JSON.stringify(result, null, '  '))
-      break
-
-    case 'csv':
-      scenarioOutputCsv(result)
-      break
-
-    case 'summary':
-    default:
-      scenarioOutputSummary(result)
-      break
-  }
-
-  return result
+  // If saveToFile is not provided, the stream just acts as a dummy
+  // The controller will still work but data won't be written anywhere
+  return controller!
 }

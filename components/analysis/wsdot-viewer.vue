@@ -124,10 +124,16 @@
 
 <script lang="ts" setup>
 import type { ComputedRef } from 'vue'
-import type { WSDOTReport, WSDOTReportConfig, LevelKey } from '~/src/reports/wsdot'
-import { SERVICE_LEVELS, levelColors } from '~/src/reports/wsdot'
-import type { Feature } from '~/src/geom'
-import { fmtDate } from '~/src/datetime'
+import { fmtDate, type Feature } from '~/src/core'
+import {
+  SERVICE_LEVELS,
+  levelColors,
+} from '~/src/analysis/wsdot'
+import type {
+  WSDOTReport,
+  WSDOTReportConfig,
+  LevelKey
+} from '~/src/analysis/wsdot'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
 // Define models for props

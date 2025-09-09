@@ -1,10 +1,8 @@
 import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
-import { parseDate } from '~/src/datetime'
-import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
-import { RunScenario } from '~/src/scenario'
-import type { Bbox } from '~/src/geom'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { parseDate, apiFetch, BasicGraphQLClient, type Bbox } from '~/src/core'
+import { runScenarioFetcher } from '~/src/scenario'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {
@@ -12,7 +10,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     return
   }
   let polly: Polly | null = null
-  const realClient = new BasicGraphQLClient(
+  const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
@@ -50,8 +48,9 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       stopLimit: 1000
     }
 
-    const scenarioData = await RunScenario(config, realClient)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, realClient)
+    const controller = createStreamController()
+    const scenarioData = await runScenarioFetcher(controller, config, client)
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
     const report = await wsdotFetcher.fetch()
     console.log(report.levelStops)
   })
@@ -70,9 +69,15 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       geographyIds: [],
       stopLimit: 1000
     }
-    const scenarioData = await RunScenario(config, realClient)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, realClient)
+    const controller = createStreamController()
+    const scenarioData = await runScenarioFetcher(controller, config, client)
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
     const report = await wsdotFetcher.fetch()
     console.log(report.levelStops)
   })
 }, 600000)
+
+export function createStreamController (): ReadableStreamDefaultController {
+  let controller: ReadableStreamDefaultController
+  return controller!
+}

@@ -1,5 +1,8 @@
-import type { WSDOTReport, WSDOTReportConfig } from './wsdot'
-import type { ScenarioData } from '~/src/scenario/scenario'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
+import type { GraphQLClient } from '~/src/core'
+import type { ScenarioData } from '~/src/scenario'
+
+import { runAnalysis as runWsdotAnalysis } from '~/src/analysis/wsdot'
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
@@ -71,7 +74,13 @@ export interface WSDOTAgencyResult {
 
 export type WSDOTStopsRoutesReportConfig = WSDOTReportConfig
 
-export function processWsdotReport (currentData: ScenarioData, wsdotReport: WSDOTReport): WSDOTStopsRoutesReport {
+export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotReport: WSDOTReport, stopsRoutesReport: WSDOTStopsRoutesReport }> {
+  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client)
+  const stopsRoutesReport = processWsdotStopsRoutesReport(scenarioData, wsdotResult)
+  return { scenarioData, wsdotReport: wsdotResult, stopsRoutesReport }
+}
+
+export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotReport: WSDOTReport): WSDOTStopsRoutesReport {
   // Convert WSDOT report to stops/routes format for the viewer
   // Build agency map to avoid duplicates and get proper names
   const agencyMap = new Map<string, { agencyId: string, agencyName: string, feedOnestopId: string, stopsCount: number, routesCount: number }>()

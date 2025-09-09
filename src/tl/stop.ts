@@ -1,16 +1,12 @@
 import { gql } from 'graphql-tag'
-import { format } from 'date-fns'
-import type { Point } from 'geojson'
-import type { StopDepartureCache } from '~/src/departure-cache'
-import { type dow, routeTypes } from '~/src/constants'
-import { parseHMS } from '~/src/datetime'
+import { routeTypes } from '~/src/core'
 
 //////////
 // Stops
 //////////
 
 export const stopQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $layer_name: String) {
+query ($limit: Int, $after: Int, $where: StopFilter) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -24,21 +20,21 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
     wheelchair_boarding
     platform_code
     tts_stop_name
-    parent {
-    stop_id
-  }
     geometry
+    census_geographies(where:{radius:0.0}) {
+      id
+      geoid
+      layer_name
+      name
+    }
+    parent {
+      stop_id
+    }
     feed_version {
       sha1
       feed {
         onestop_id
       }
-    }
-    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
-      id
-      geoid
-      layer_name
-      name
     }
     route_stops {
       route {
@@ -97,7 +93,13 @@ export interface StopVisitSummary {
 export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
-  geometry: Point
+  geometry: GeoJSON.Point
+  census_geographies: [{
+    id: number
+    name: string
+    geoid: string
+    layer_name: string
+  }]
   parent?: {
     stop_id: string
   } | null
@@ -107,12 +109,6 @@ export type StopGql = {
       onestop_id: string
     }
   }
-  census_geographies: [{
-    id: number
-    name: string
-    geoid: string
-    layer_name: string
-  }]
   route_stops: {
     route: {
       id: number
@@ -157,211 +153,6 @@ interface StopGeoAggregateCsv {
 }
 
 export type Stop = StopGql & StopDerived
-
-const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-
-//////////////////////////////////////
-// Stop filtering
-//////////////////////////////////////
-
-// Mutates calculated fields on Stop
-export function stopSetDerived (
-  stop: Stop,
-  selectedDays: dow[],
-  selectedDayMode: string,
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
-  markedRoutes: Set<number>,
-  sdCache: StopDepartureCache | null,) {
-  // Apply filters
-  // Make sure to run stopVisits before stopMarked
-  stop.visits = stopVisits(
-    stop,
-    selectedDays,
-    selectedDateRange,
-    selectedStartTime,
-    selectedEndTime,
-    sdCache,
-  )
-  stop.marked = stopMarked(
-    stop,
-    selectedDays,
-    selectedDayMode,
-    selectedRouteTypes,
-    selectedAgencies,
-    frequencyUnder,
-    frequencyOver,
-    markedRoutes,
-    sdCache,
-  )
-}
-
-export function newStopVisitSummary (): StopVisitSummary {
-  return {
-    total: newStopVisitCounts(),
-    monday: newStopVisitCounts(),
-    tuesday: newStopVisitCounts(),
-    wednesday: newStopVisitCounts(),
-    thursday: newStopVisitCounts(),
-    friday: newStopVisitCounts(),
-    saturday: newStopVisitCounts(),
-    sunday: newStopVisitCounts(),
-  }
-}
-
-function stopVisits (
-  stop: StopGql,
-  selectedDays: dow[],
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  sdCache: StopDepartureCache | null,
-): StopVisitSummary {
-  const result = newStopVisitSummary()
-  if (!sdCache) {
-    return result
-  }
-  const startTime = parseHMS(selectedStartTime)
-  const endTime = parseHMS(selectedEndTime)
-  for (const sd of selectedDateRange) {
-    const sdDow = dowDateString[sd.getDay()] || ''
-    if (!selectedDays.includes(sdDow)) {
-      continue
-    }
-    // TODO: memoize formatted date
-    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map((st) => { return parseHMS(st.departure_time) })
-    let count = 0
-    for (const depTime of stopDepTimes) {
-      if (depTime >= startTime && depTime <= endTime) {
-        count += 1
-      }
-    }
-    result.total.date_count += 1
-    result.total.visit_count += count
-    result.total.visit_average = checkDiv(result.total.visit_count, result.total.date_count)
-    let resultDay = result.total
-    switch (sd.getDay()) {
-      case 0:
-        resultDay = result.sunday
-        break
-      case 1:
-        resultDay = result.monday
-        break
-      case 2:
-        resultDay = result.tuesday
-        break
-      case 3:
-        resultDay = result.wednesday
-        break
-      case 4:
-        resultDay = result.thursday
-        break
-      case 5:
-        resultDay = result.friday
-        break
-      case 6:
-        resultDay = result.saturday
-        break
-    }
-    resultDay.date_count += 1
-    resultDay.visit_count += count
-    resultDay.visit_average = checkDiv(resultDay.visit_count, resultDay.date_count)
-    if (count === 0) {
-      resultDay.all_date_service = false
-    }
-  }
-  // console.log('stopVisitResult:', stop.id, 'counts:', result)
-  return result
-}
-
-// Filter stops
-function stopMarked (
-  stop: Stop,
-  selectedDays: dow[],
-  selectedDayMode: string,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
-  markedRoutes: Set<number>,
-  sdCache: StopDepartureCache | null,
-): boolean {
-  // Check departure days
-  if (sdCache) {
-    // hasAny: stop has service on at least one selected day of week
-    // hasAll: stop has service on all selected days of week
-    let hasAny = false
-    let hasAll = true
-    for (const sd of selectedDays) {
-      // if-else tree required to avoid arbitrary index into type
-      let r: StopVisitCounts | null = null
-      if (sd === 'sunday') {
-        r = stop.visits?.sunday || null
-      } else if (sd === 'monday') {
-        r = stop.visits?.monday || null
-      } else if (sd === 'tuesday') {
-        r = stop.visits?.tuesday || null
-      } else if (sd === 'wednesday') {
-        r = stop.visits?.wednesday || null
-      } else if (sd === 'thursday') {
-        r = stop.visits?.thursday || null
-      } else if (sd === 'friday') {
-        r = stop.visits?.friday || null
-      } else if (sd === 'saturday') {
-        r = stop.visits?.saturday || null
-      }
-      if (!r) { continue }
-      if (r.visit_count > 0) {
-        hasAny = true
-      }
-      if (!r.all_date_service) {
-        hasAll = false
-      }
-    }
-    // Check mode
-    let found = false
-    if (selectedDayMode === 'Any') {
-      found = hasAny
-    } else if (selectedDayMode === 'All') {
-      found = hasAll
-    }
-    // Not found, no further processing
-    if (!found) {
-      return false
-    }
-  }
-
-  // Check marked routes
-  // Must match at least one marked route
-  if (selectedAgencies.length > 0 || selectedRouteTypes.length > 0 || frequencyUnder > 0 || frequencyOver > 0) {
-    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
-    if (!hasMarkedRoute) {
-      console.log('no marked route', stop.id)
-      return false
-    }
-  }
-
-  // Default is to return true
-  return true
-}
-
-function newStopVisitCounts (): StopVisitCounts {
-  return {
-    visit_count: 0,
-    date_count: 0,
-    visit_average: null,
-    all_date_service: true
-  }
-}
-
-function checkDiv (a: number, b: number): number {
-  return b === 0 ? 0 : a / b
-}
 
 ///////////////////////////
 // Stop csv
@@ -467,4 +258,8 @@ function roundOr (value: number | null | undefined): number | null {
   }
   const factor = Math.pow(10, digits)
   return Math.round(value * factor) / factor
+}
+
+function checkDiv (a: number, b: number): number {
+  return b === 0 ? 0 : a / b
 }
