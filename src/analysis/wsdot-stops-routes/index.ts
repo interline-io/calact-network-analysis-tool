@@ -1,6 +1,8 @@
-import { WSDOTReportFetcher, type WSDOTReport, type WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { multiplexStream, requestStream, type GraphQLClient } from '~/src/core'
-import { ScenarioDataReceiver, ScenarioFetcher, ScenarioStreamReceiver, ScenarioStreamSender, type ScenarioData } from '~/src/scenario'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
+import type { GraphQLClient } from '~/src/core'
+import type { ScenarioData } from '~/src/scenario'
+
+import { runAnalysis as runWsdotAnalysis } from '~/src/analysis/wsdot'
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
@@ -72,42 +74,10 @@ export interface WSDOTAgencyResult {
 
 export type WSDOTStopsRoutesReportConfig = WSDOTReportConfig
 
-export async function runWSDOTStopsRoutesReport (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient) {
-  // Create a multiplex stream that writes to both the response and a new output stream
-  const { inputStream, outputStream } = multiplexStream(requestStream(controller))
-  const writer = inputStream.getWriter()
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver()
-  const scenarioDataClient = new ScenarioStreamReceiver()
-  const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
-
-  // Start the fetch process
-  await fetcher.fetch()
-
-  // Run wsdot analysis
-  const scenarioData = receiver.getCurrentData()
-  const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-  let wsdotResult: WSDOTReport | null = null
-  wsdotResult = await wsdotFetcher.fetch()
-
-  // Update the client with the wsdot result
-  scenarioDataSender.onProgress({
-    isLoading: true,
-    currentStage: 'schedules', // TODO - extraData stage?
-    extraData: wsdotResult
-  })
-  scenarioDataSender.onComplete()
-
-  // Final complete - close the multiplexed stream
-  writer.close()
-
-  // Ensure all scenario client progress has been processed
-  await scenarioClientProgress
+export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotReport: WSDOTReport, stopsRoutesReport: WSDOTStopsRoutesReport }> {
+  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client)
+  const stopsRoutesReport = processWsdotStopsRoutesReport(scenarioData, wsdotResult)
+  return { scenarioData, wsdotReport: wsdotResult, stopsRoutesReport }
 }
 
 export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotReport: WSDOTReport): WSDOTStopsRoutesReport {

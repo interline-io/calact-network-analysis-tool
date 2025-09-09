@@ -1,6 +1,6 @@
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { runWSDOTReport, type WSDOTReportConfig } from '~/src/analysis/wsdot'
+import { runAnalysis, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 import { BasicGraphQLClient } from '~/src/core'
 
 export default defineEventHandler(async (event) => {
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
   // Create a readable stream for the response
   const stream = new ReadableStream({
     async start (controller) {
-      await runWSDOTReport(controller, config, client)
+      await runAnalysis(controller, config, client)
     }
   })
 

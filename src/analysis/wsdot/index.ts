@@ -142,7 +142,7 @@ export interface WSDOTReportConfig extends ScenarioConfig {
   stopBufferRadius?: number
 }
 
-export async function runWSDOTReport (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient) {
+export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
   // Create a multiplex stream that writes to both the response and a new output stream
   const { inputStream, outputStream } = multiplexStream(requestStream(controller))
   const writer = inputStream.getWriter()
@@ -178,6 +178,8 @@ export async function runWSDOTReport (controller: ReadableStreamDefaultControlle
 
   // Ensure all scenario client progress has been processed
   await scenarioClientProgress
+
+  return { scenarioData, wsdotResult: wsdotResult! }
 }
 
 export class WSDOTReportFetcher {
