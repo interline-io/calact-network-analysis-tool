@@ -10,7 +10,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     return
   }
   let polly: Polly | null = null
-  const realClient = new BasicGraphQLClient(
+  const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
@@ -48,8 +48,9 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       stopLimit: 1000
     }
 
-    const scenarioData = await RunScenario(config, realClient)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, realClient)
+    const controller = createStreamController()
+    const scenarioData = await runScenarioFetcher(controller, config, client)
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
     const report = await wsdotFetcher.fetch()
     console.log(report.levelStops)
   })
@@ -68,9 +69,15 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       geographyIds: [],
       stopLimit: 1000
     }
-    const scenarioData = await RunScenario(config, realClient)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, realClient)
+    const controller = createStreamController()
+    const scenarioData = await runScenarioFetcher(controller, config, client)
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
     const report = await wsdotFetcher.fetch()
     console.log(report.levelStops)
   })
 }, 600000)
+
+export function createStreamController (): ReadableStreamDefaultController {
+  let controller: ReadableStreamDefaultController
+  return controller!
+}

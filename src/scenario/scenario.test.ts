@@ -1,9 +1,23 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, type Mock } from 'vitest'
 import type { Polly } from '@pollyjs/core'
-import type { ScenarioConfig, ScenarioFilter } from './scenario'
+import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher } from './scenario'
-import { parseDate, parseTime, type Bbox } from '~/src/core'
-import { MockGraphQLClient } from '~/src/core/graphql.test'
+import { parseDate, type Bbox, type GraphQLClient } from '~/src/core'
+
+/**
+ * Mock GraphQL client for testing without real API calls
+ */
+export class MockGraphQLClient implements GraphQLClient {
+  public mockQuery: Mock
+
+  constructor () {
+    this.mockQuery = vi.fn()
+  }
+
+  async query<T = any>(query: any, variables?: any): Promise<{ data?: T }> {
+    return this.mockQuery(query, variables)
+  }
+}
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
@@ -20,17 +34,17 @@ describe('ScenarioFetcher', () => {
     geographyIds: [],
     stopLimit: 100
   }
-  const filter: ScenarioFilter = {
-    startTime: parseTime('06:00:00'),
-    endTime: parseTime('22:00:00'),
-    selectedRouteTypes: [3],
-    selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    selectedAgencies: [],
-    selectedDayOfWeekMode: 'Any',
-    selectedTimeOfDayMode: 'All',
-    frequencyUnderEnabled: false,
-    frequencyOverEnabled: false,
-  }
+  // const filter: ScenarioFilter = {
+  //   startTime: parseTime('06:00:00'),
+  //   endTime: parseTime('22:00:00'),
+  //   selectedRouteTypes: [3],
+  //   selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  //   selectedAgencies: [],
+  //   selectedDayOfWeekMode: 'Any',
+  //   selectedTimeOfDayMode: 'All',
+  //   frequencyUnderEnabled: false,
+  //   frequencyOverEnabled: false,
+  // }
 
   afterEach(async () => {
     if (polly) {
