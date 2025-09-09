@@ -124,9 +124,23 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
 const emit = defineEmits<{
   cancel: []
 }>()
+
+// Track if results are loaded, to collapse the about message, also for navigation guard
+const { setHasResults } = useAnalysisResults()
+const hasResults = computed(() => {
+  const hasResultsValue = wsdotReport.value !== null
+  setHasResults('wsdot', hasResultsValue)
+  return hasResultsValue
+})
+
 const handleCancel = () => {
   emit('cancel')
 }
+
+// Expose hasResults to parent component
+defineExpose({
+  hasResults
+})
 
 const runQuery = async () => {
   showLoadingModal.value = true
