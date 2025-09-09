@@ -8,7 +8,7 @@ import {
   createStreamController,
   type ScenarioCliOptions,
 } from './scenario-cli'
-import { runWSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { runWSDOTReport, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
 
 export interface WSDOTReportOptions extends ScenarioCliOptions {
@@ -44,7 +44,7 @@ export function configureWsdotReportCli (program: Command) {
 
       // Create a controller that optionally saves to file
       const controller = createStreamController(opts.saveScenarioData)
-      const result = await runWSDOTReportFetcher(controller, config, client)
+      const result = await runWSDOTReport(controller, config, client)
       return result
     })
 }

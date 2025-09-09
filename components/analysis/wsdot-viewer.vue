@@ -128,12 +128,12 @@ import { fmtDate, type Feature } from '~/src/core'
 import {
   SERVICE_LEVELS,
   levelColors,
-} from '~/src/reports/wsdot'
+} from '~/src/analysis/wsdot'
 import type {
   WSDOTReport,
   WSDOTReportConfig,
   LevelKey
-} from '~/src/reports/wsdot'
+} from '~/src/analysis/wsdot'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
 // Define models for props

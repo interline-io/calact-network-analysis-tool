@@ -1,7 +1,3 @@
-/**
- * Simple CLI example showing how to use ScenarioFetcher
- */
-
 import type { Command } from 'commander'
 import { cannedBboxes, parseBbox, getCurrentDate, getDateOneWeekLater, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'

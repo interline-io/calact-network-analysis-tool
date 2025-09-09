@@ -105,13 +105,13 @@ import { useApiFetch } from '~/composables/useApiFetch'
 import type {
   WSDOTReport,
   WSDOTReportConfig
-} from '~/src/reports/wsdot'
+} from '~/src/analysis/wsdot'
 import {
   processWsdotStopsRoutesReport,
-} from '~/src/reports/wsdot-stops-routes'
+} from '~/src/analysis/wsdot-stops-routes'
 import type {
   WSDOTStopsRoutesReport,
-} from '~/src/reports/wsdot-stops-routes'
+} from '~/src/analysis/wsdot-stops-routes'
 import {
   ScenarioDataReceiver,
   ScenarioStreamReceiver,

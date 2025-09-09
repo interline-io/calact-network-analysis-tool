@@ -2,7 +2,7 @@ import { describe, it, afterEach } from 'vitest'
 import type { Polly } from '@pollyjs/core'
 import { parseDate, apiFetch, BasicGraphQLClient, type Bbox } from '~/src/core'
 import { runScenarioFetcher } from '~/src/scenario'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {
