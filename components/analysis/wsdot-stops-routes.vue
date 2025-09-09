@@ -87,40 +87,19 @@
       </div>
     </div>
 
-    <!-- Loading Progress Modal - positioned at the end for highest z-index -->
+    <!-- Loading Progress Modal -->
     <tl-modal
       v-model="showLoadingModal"
       title="Loading"
       :closable="false"
       :active="showLoadingModal"
     >
-      <cal-analysis-progress
-        title="WSDOT Transit Stops and Routes Analysis"
-        :stages="analysisStages"
-        :current-stage-id="currentAnalysisStage"
-        :is-loading="showLoadingModal"
-        :error="error?.message"
-      >
-        <template #additional-content>
-          <div v-if="scenarioData" class="columns mt-4">
-            <div class="column is-one-third">
-              <tl-msg-info title="Stops" no-icon>
-                <p><strong>{{ scenarioData.stops.length || 0 }}</strong> loaded</p>
-              </tl-msg-info>
-            </div>
-            <div class="column is-one-third">
-              <tl-msg-info title="Routes" no-icon>
-                <p><strong>{{ scenarioData.routes.length || 0 }}</strong> loaded</p>
-              </tl-msg-info>
-            </div>
-            <div class="column is-one-third">
-              <tl-msg-info title="Departures" no-icon>
-                <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
-              </tl-msg-info>
-            </div>
-          </div>
-        </template>
-      </cal-analysis-progress>
+      <cal-scenario-loading
+        :progress="loadingProgress"
+        :error="error"
+        :stop-departure-count="stopDepartureCount"
+        :scenario-data="scenarioData"
+      />
     </tl-modal>
   </div>
 </template>
@@ -146,7 +125,6 @@ import type {
   ScenarioConfig,
   ScenarioProgress,
 } from '~/src/scenario'
-import type { AnalysisStage } from '~/components/cal/analysis-progress.vue'
 
 const error = ref<Error | null>(null)
 const loading = ref(false)
@@ -169,69 +147,21 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// Track if results are loaded to control collapse state
-const { setHasResults } = useAnalysisResults()
-const hasResults = computed(() => {
-  const hasResultsValue = wsdotStopsRoutesReport.value !== null
-  setHasResults('wsdot-stops-routes', hasResultsValue)
-  return hasResultsValue
-})
-
-// Analysis progress tracking
-const currentAnalysisStage = ref<string>('')
-const analysisStages = ref<AnalysisStage[]>([
-  { id: 'transit-data', label: 'Loading transit data (stops, routes, schedules)', status: 'pending' },
-  { id: 'frequency-analysis', label: 'Analyzing transit frequency patterns', status: 'pending' },
-  { id: 'service-levels', label: 'Processing service level criteria', status: 'pending' },
-  { id: 'population-data', label: 'Loading population and geography data', status: 'pending' },
-  { id: 'results', label: 'Building analysis results', status: 'pending' }
-])
-
 const handleCancel = () => {
   emit('cancel')
-}
-
-// Expose hasResults to parent component
-defineExpose({
-  hasResults
-})
-
-// Helper functions for analysis progress
-const updateAnalysisStage = (stageId: string, status: 'pending' | 'in-progress' | 'complete' | 'error') => {
-  const stage = analysisStages.value.find(s => s.id === stageId)
-  if (stage) {
-    stage.status = status
-    if (status === 'in-progress') {
-      currentAnalysisStage.value = stageId
-    }
-  }
-}
-
-const resetAnalysisProgress = () => {
-  analysisStages.value.forEach((stage) => {
-    stage.status = 'pending'
-  })
-  currentAnalysisStage.value = ''
 }
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
   showLoadingModal.value = true
-  resetAnalysisProgress()
-  updateAnalysisStage('transit-data', 'in-progress')
-
   try {
     await fetchScenario('')
-    useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
-    showLoadingModal.value = false
   } catch (err: any) {
     error.value = err
-    loadingProgress.value = null
-    // Mark current stage as error
-    if (currentAnalysisStage.value) {
-      updateAnalysisStage(currentAnalysisStage.value, 'error')
-    }
-    useToastNotification().showToast('WSDOT stops and routes analysis failed: ' + err.message)
+  }
+  if (!error.value) {
+    useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
+    showLoadingModal.value = false
   }
   loadingProgress.value = null
 }
@@ -252,27 +182,14 @@ const fetchScenario = async (loadExample: string) => {
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-
-      // Update analysis stage based on scenario progress
-      if (progress.currentStage === 'schedules') {
-        updateAnalysisStage('transit-data', 'complete')
-        updateAnalysisStage('frequency-analysis', 'complete')
-        updateAnalysisStage('service-levels', 'complete')
-        updateAnalysisStage('population-data', 'complete')
-        updateAnalysisStage('results', 'in-progress')
-
-        if (progress.extraData && scenarioData.value) {
-          // WSDOT analysis is complete
-          updateAnalysisStage('results', 'complete')
-          wsdotReport.value = progress.extraData as WSDOTReport
-          wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
-        }
-      }
-
       if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
         return
       }
       scenarioData.value = receiver.getCurrentData()
+      if (progress.extraData) {
+        wsdotReport.value = progress.extraData as WSDOTReport
+        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
+      }
     },
     onComplete: () => {
       loadingProgress.value = null
