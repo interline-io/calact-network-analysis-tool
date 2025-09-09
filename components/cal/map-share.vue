@@ -22,13 +22,11 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { stopToStopCsv } from '~/src/stop'
-import { routeToRouteCsv } from '~/src/route'
-import { agencyToAgencyCsv } from '~/src/agency'
-import type { Feature } from '~/src/geom'
 import { useToastNotification } from '#imports'
-import type { CensusGeography } from '~/src/census'
-import type { ScenarioFilterResult } from '~/src/reports/scenario/scenario'
+import { stopToStopCsv, routeToRouteCsv, agencyToAgencyCsv } from '~/src/tl'
+import type { CensusGeography } from '~/src/tl'
+import type { Feature } from '~/src/core'
+import type { ScenarioFilterResult } from '~/src/scenario'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult

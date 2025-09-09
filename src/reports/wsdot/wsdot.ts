@@ -1,9 +1,6 @@
 import { gql } from 'graphql-tag'
-import { multiplexStream, requestStream } from '../../stream'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver } from '~/src/reports/scenario/scenario'
-import type { GraphQLClient } from '~/src/graphql'
-import { fmtDate } from '~/src/datetime'
-import type { Geometry } from '~/src/geom'
+import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry } from '~/src/core'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver } from '~/src/scenario'
 
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {

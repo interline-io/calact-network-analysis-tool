@@ -4,11 +4,11 @@
  */
 
 import { createError } from 'h3'
-import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import type { ScenarioConfig } from '~/src/reports/scenario/scenario'
-import { runScenarioFetcher } from '~/src/reports/scenario/scenario'
-import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
+import type { ScenarioConfig } from '~/src/scenario'
+import { runScenarioFetcher } from '~/src/scenario'
+import { BasicGraphQLClient } from '~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body

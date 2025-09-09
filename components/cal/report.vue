@@ -85,11 +85,11 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv } from '~/src/stop'
-import { routeToRouteCsv } from '~/src/route'
-import { agencyToAgencyCsv } from '~/src/agency'
+import { stopToStopCsv, stopGeoAggregateCsv } from '~/src/tl/stop'
+import { routeToRouteCsv } from '~/src/tl/route'
+import { agencyToAgencyCsv } from '~/src/tl/agency'
 import type { ScenarioFilterResult } from '~/src/reports/scenario/scenario'
-import type { Feature } from '~/src/geom'
+import type { Feature } from '~/src/core'
 
 const props = defineProps<{
   filterSummary: string[]

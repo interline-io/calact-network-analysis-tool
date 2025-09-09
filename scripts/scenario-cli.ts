@@ -4,12 +4,9 @@
 
 import type { Command } from 'commander'
 import { checkTransitlandEnv, createStreamController } from './calact-utils'
-import { cannedBboxes } from '~/src/constants'
-import { getCurrentDate, getDateOneWeekLater, parseDate } from '~/src/datetime'
-import type { ScenarioData, ScenarioConfig } from '~/src/reports/scenario/scenario'
-import { runScenarioFetcher } from '~/src/reports/scenario/scenario'
-import { parseBbox } from '~/src/geom'
-import { BasicGraphQLClient, apiFetch } from '~/src/graphql'
+import { cannedBboxes, parseBbox, getCurrentDate, getDateOneWeekLater, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
+import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import { runScenarioFetcher } from '~/src/scenario'
 
 /**
  * Add common scenario configuration options to a Commander.js program

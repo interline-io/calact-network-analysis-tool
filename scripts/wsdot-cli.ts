@@ -8,10 +8,8 @@ import {
   type ScenarioCliOptions
 } from './scenario-cli'
 import { createStreamController } from './calact-utils'
-import { runWSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot/wsdot'
-import { apiFetch, BasicGraphQLClient } from '~/src/graphql'
-import { parseBbox } from '~/src/geom'
-import { parseDate } from '~/src/datetime'
+import { runWSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
 
 export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string

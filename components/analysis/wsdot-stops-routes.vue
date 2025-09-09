@@ -102,15 +102,20 @@
 
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot/wsdot'
-import { processWsdotReport, type WSDOTStopsRoutesReport } from '~/src/reports/wsdot/wsdot-stops-routes'
+import type { WSDOTReport, WSDOTReportConfig } from '~/src/reports/wsdot'
 import {
-  type ScenarioData,
-  type ScenarioConfig,
+  processWsdotStopsRoutesReport,
+  type WSDOTStopsRoutesReport,
+} from '~/src/reports/wsdot-stops-routes'
+import {
   ScenarioDataReceiver,
   ScenarioStreamReceiver,
-  type ScenarioProgress
-} from '~/src/reports/scenario/scenario'
+} from '~/src/scenario'
+import type {
+  ScenarioData,
+  ScenarioConfig,
+  ScenarioProgress,
+} from '~/src/scenario'
 
 const error = ref<Error | null>(null)
 const loading = ref(false)
@@ -174,7 +179,7 @@ const fetchScenario = async (loadExample: string) => {
       scenarioData.value = receiver.getCurrentData()
       if (progress.extraData) {
         wsdotReport.value = progress.extraData as WSDOTReport
-        wsdotStopsRoutesReport.value = processWsdotReport(scenarioData.value, wsdotReport.value)
+        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
       }
     },
     onComplete: () => {

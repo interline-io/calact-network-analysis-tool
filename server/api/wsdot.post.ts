@@ -1,7 +1,7 @@
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { runWSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot/wsdot'
-import { BasicGraphQLClient } from '~/src/graphql'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { runWSDOTReportFetcher, type WSDOTReportConfig } from '~/src/reports/wsdot'
+import { BasicGraphQLClient } from '~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
