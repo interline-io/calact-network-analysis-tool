@@ -207,55 +207,63 @@ export class WSDOTReportFetcher {
     console.log(`Analyzed ${weekdayFreq.stops.size} stops and ${weekdayFreq.routes.size} routes for weekday`)
     console.log(`Analyzed ${weekendFreq.stops.size} stops and ${weekendFreq.routes.size} routes for weekend`)
 
-    // Get bbox population (tract intersections)
-    console.log(`Fetching tract populations for bbox...`)
-    const bboxIntersection = await getGeographyData({
+    const results: Record<string, Set<number>> = {}
+    const levelStops: Record<string, number[]> = {}
+    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
+    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
+
+    // Process each service level
+    levelStops['all'] = this.scenarioData.stops.map(s => s.id)
+    results['all'] = new Set(this.scenarioData.stops.map(s => s.id))
+    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
+      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
+      levelStops[levelKey] = Array.from(qualifyingStops)
+      results[levelKey] = qualifyingStops
+      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
+    }
+
+    // Fetch geography data for the stops in each level (and all stops)
+    const baseGeographyConfig: getGeographyDataConfig = {
       client: this.client,
       tableDatasetName: 'acsdt5y2022',
       tableDatasetTable: `b01001`,
       tableDatasetTableCol: 'b01001_001',
       geoDatasetName: 'tiger2024',
       geoDatasetLayer: 'tract',
+    }
+
+    // Get bbox population (tract intersections)
+    console.log(`Fetching tract populations for bbox...`)
+    const bboxIntersection = await getGeographyData({
+      ...baseGeographyConfig,
+      geoDatasetLayer: 'tract',
       bbox: this.config.bbox,
     })
-    console.log('bboxIntersection:', bboxIntersection)
 
-    // Process each service level
-    const results: Record<string, Set<number>> = {}
-    const levelStops: Record<string, number[]> = {}
-    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
-    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
-
-    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
-      console.log(`\n====== ${levelKey} ======`)
-      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
-      levelStops[levelKey] = Array.from(qualifyingStops)
-      results[levelKey] = qualifyingStops
-      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
-      const geogLayers: Record<string, GeographyDataFeature[]> = {}
-      for (const geoDatasetLayer of getGeographyLayers) {
-        if ((this.config?.stopBufferRadius || 0) <= 0) {
-          console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
-          continue
-        }
-        if (qualifyingStops.size === 0) {
+    for (const geoDatasetLayer of getGeographyLayers) {
+      if ((this.config?.stopBufferRadius || 0) <= 0) {
+        console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
+        continue
+      }
+      for (const levelKey of Object.keys(levelStops)) {
+        console.log(`\nLevel: ${levelKey}`)
+        const levelStops = results[levelKey]
+        console.log(`${levelKey}: ${levelStops.size} qualifying stops`)
+        const geogLayers: Record<string, GeographyDataFeature[]> = {}
+        if (levelStops.size === 0) {
           continue
         }
         const geoConfig: getGeographyDataConfig = {
-          client: this.client,
-          stopIds: qualifyingStops,
-          tableDatasetName: 'acsdt5y2022',
-          tableDatasetTable: `b01001`,
-          tableDatasetTableCol: 'b01001_001',
-          geoDatasetName: 'tiger2024',
+          ...baseGeographyConfig,
+          stopIds: levelStops,
           geoDatasetLayer: geoDatasetLayer,
           stopBufferRadius: this.config.stopBufferRadius || 0,
         }
-        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
+        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${levelStops.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
         geogLayers[geoDatasetLayer] = data
+        levelLayers[levelKey] = geogLayers
       }
-      levelLayers[levelKey] = geogLayers
     }
 
     // Build final result
@@ -566,9 +574,9 @@ async function getGeographyData (
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
   for (const geoDataset of result.data?.census_datasets || []) {
-    console.log('Geography dataset:', geoDataset.name)
+    // console.log('Geography dataset:', geoDataset.name)
     for (const geography of geoDataset.geographies || []) {
-      console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
+      // console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
       const totalArea = geography.geometry_area || 0
       const intersectionArea = geography.intersection_area || 0
       if (totalArea === 0) {
@@ -579,11 +587,11 @@ async function getGeographyData (
         .find(v => v.dataset_name === config.tableDatasetName)
         ?.values[config.tableDatasetTableCol]
         || 0
-      console.log(`\tPopulation: ${totalPop}`)
-      console.log(`\tArea: ${totalArea}`)
-      console.log(`\tIntersection area: ${intersectionArea}`)
-      console.log(`\tIntersection ratio: ${intersectionRatio}`)
-      console.log(`\tIntersection pop: ${totalPop * intersectionRatio}`)
+      // console.log(`\tPopulation: ${totalPop}`)
+      // console.log(`\tArea: ${totalArea}`)
+      // console.log(`\tIntersection area: ${intersectionArea}`)
+      // console.log(`\tIntersection ratio: ${intersectionRatio}`)
+      // console.log(`\tIntersection pop: ${totalPop * intersectionRatio}`)
       features.push({
         id: geography.geoid,
         type: 'Feature',
