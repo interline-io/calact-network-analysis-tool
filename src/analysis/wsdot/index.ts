@@ -106,7 +106,7 @@ export const levelColors: Record<LevelKey, string> = {
   level5: '#ff8000',
   level6: '#ff0000',
   levelNights: '#5c5cff',
-  levelAll: '#ff00ff',
+  levelAll: '#000000',
 }
 
 interface StopFrequencyData {

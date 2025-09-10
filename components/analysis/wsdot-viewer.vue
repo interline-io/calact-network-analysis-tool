@@ -396,7 +396,7 @@ const stopDatagrid = computed((): TableReport => {
 }
 
 .frequency-level-all {
-  background-color: #ff00ff !important;
+  background-color: #000000 !important;
   color: #ffffff !important;
 }
 </style>
