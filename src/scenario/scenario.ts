@@ -84,7 +84,7 @@ export function getSelectedDateRange (config: ScenarioConfig): Date[] {
   const sd = new Date((config.startDate || new Date()).valueOf())
   const ed = new Date((config.endDate || new Date()).valueOf())
   const dates = []
-  while (sd <= ed) {
+  while (sd < ed) {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
