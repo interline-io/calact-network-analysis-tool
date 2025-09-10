@@ -37,7 +37,7 @@ export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
     endDate: parseDate(getDateOneWeekLater()),
     geographyIds: [],
     stopLimit: 1000,
-    maxConcurrentDepartures: 8
+    maxConcurrentDepartures: 1
   }
 }
 
