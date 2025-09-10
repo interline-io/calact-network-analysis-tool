@@ -59,6 +59,14 @@
             Show stop buffers
           </o-checkbox>
         </o-field>
+        <o-field label="Population options">
+          <o-radio v-model="popMethod" native-value="state">
+            Percent of state population
+          </o-radio>
+          <o-radio v-model="popMethod" native-value="bboxIntersection">
+            Percent of population in bounding box
+          </o-radio>
+        </o-field>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -143,6 +151,7 @@ const wsdotReport = defineModel<WSDOTReport>('report', { required: true })
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
 const showStopBuffers = ref(false)
+const popMethod = ref<'state' | 'bboxIntersection'>('state')
 
 // Helper functions for Highest Level column rendering
 const getFrequencyLevelClass = (level: string) => {
@@ -178,12 +187,25 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
 
     // Get state population
     const statePopulations: Record<string, number> = {}
-    for (const stateFeature of levelFeatures['state'] || []) {
-      const state = stateFeature.properties.name || 'Unknown'
-      if (!statePopulations[state]) {
-        statePopulations[state] = stateFeature.properties.total_population || 0
+    if (popMethod.value == 'bboxIntersection') {
+      for (const stateFeature of wsdotReport.value.bboxIntersection || []) {
+        const state = stateFeature.properties.adm1_name || 'Unknown'
+        if (!statePopulations[state]) {
+          statePopulations[state] = 0
+        }
+        statePopulations[state] += stateFeature.properties.total_population || 0
       }
+    } else if (popMethod.value) {
+      for (const stateFeature of levelFeatures['state'] || []) {
+        const state = stateFeature.properties.name || 'Unknown'
+        if (!statePopulations[state]) {
+          statePopulations[state] = stateFeature.properties.total_population || 0
+        }
+      }
+    } else {
+      console.warn('No population method selected')
     }
+    console.log('statePopulations:', statePopulations)
 
     // GROUP BY STATE
     const layerFeatures = levelFeatures['tract']

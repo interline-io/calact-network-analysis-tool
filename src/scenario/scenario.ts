@@ -25,7 +25,8 @@ import {
   type dow,
   parseBbox,
   type Bbox,
-  type GraphQLClient
+  type GraphQLClient,
+  convertBbox
 } from '~/src/core'
 
 export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
@@ -385,6 +386,7 @@ export class ScenarioFetcher {
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartures: [] })
+
     return feedVersions
   }
 
@@ -607,15 +609,6 @@ export class ScenarioDataReceiver {
    */
   getCurrentData (): ScenarioData {
     return { ...this.accumulatedData }
-  }
-}
-
-function convertBbox (bbox: Bbox | undefined): any {
-  return {
-    min_lon: bbox ? bbox.sw.lon : null,
-    min_lat: bbox ? bbox.sw.lat : null,
-    max_lon: bbox ? bbox.ne.lon : null,
-    max_lat: bbox ? bbox.ne.lat : null
   }
 }
 
