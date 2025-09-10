@@ -241,7 +241,6 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
 })
 
 const stopFeatures = computed(() => {
-  console.log('levelKeys:', levelKeys)
   const features: Feature[] = wsdotReport.value.stops.map((stop) => {
     const highestLevel = levelKeys.find(key => stop[key]) || 'unknown'
     const props: Record<string, any> = {
@@ -300,14 +299,11 @@ const displayFeatures = computed(() => {
   }
 
   if (showStopBuffers.value) {
-    console.log('levelKeys:', levelKeys)
-    console.log('selectedLevels:', selectedLevels.value)
     for (const levelName of levelKeys) {
       if (!selectedLevels.value.includes(levelName)) {
         continue
       }
       const layerFeatures = (wsdotReport.value.levelLayers[levelName] || {})['tract']
-      console.log(wsdotReport.value.levelLayers[levelName])
       for (const feature of layerFeatures || []) {
         features.push({
           id: feature.id,
