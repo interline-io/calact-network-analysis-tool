@@ -37,6 +37,7 @@ export function configureWsdotReportCli (program: Command) {
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
+        aggregateLayer: opts.aggregateLayer,
         geographyIds: []
       }
 

@@ -397,7 +397,7 @@ export class ScenarioFetcher {
     const variables = {
       after: task.after,
       limit: this.stopLimit,
-      layer_name: this.config.aggregateLayer,
+      layer_name: this.config.aggregateLayer || 'tract',
       dataset_name: 'tiger2024', // hardcoded for now
       where: {
         location_type: 0,
