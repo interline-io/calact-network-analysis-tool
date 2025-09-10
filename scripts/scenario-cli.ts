@@ -35,8 +35,6 @@ export function configureScenarioCli (program: Command) {
         geographyIds: []
       }
 
-      console.log('config:', config, 'opts.noSchedule:', opts.schedule)
-
       const client = new BasicGraphQLClient(
         (process.env.TRANSITLAND_API_BASE || '') + '/query',
         apiFetch(process.env.TRANSITLAND_API_KEY || '')
