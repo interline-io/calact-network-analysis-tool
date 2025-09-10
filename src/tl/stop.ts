@@ -6,7 +6,7 @@ import { routeTypes } from '~/src/core'
 //////////
 
 export const stopQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter) {
+query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $layer_name: String) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -21,12 +21,6 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
     platform_code
     tts_stop_name
     geometry
-    census_geographies(where:{radius:0.0}) {
-      id
-      geoid
-      layer_name
-      name
-    }
     parent {
       stop_id
     }
@@ -36,6 +30,12 @@ query ($limit: Int, $after: Int, $where: StopFilter) {
         onestop_id
       }
     }
+    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
+      id
+      geoid
+      layer_name
+      name
+    }    
     route_stops {
       route {
         id

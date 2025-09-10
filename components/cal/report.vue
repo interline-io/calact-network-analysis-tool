@@ -84,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~/src/tl'
 import type { ScenarioFilterResult } from '~/src/scenario'
