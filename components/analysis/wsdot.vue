@@ -1,11 +1,12 @@
 <template>
-  <div class="cal-report">
+  <div>
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
-    <tl-msg-info>
-      <h5 class="title is-5">
-        About this Analysis
-      </h5>
+    <tl-msg-info
+      collapsible
+      :collapsed="hasResults"
+      title="About this Analysis"
+    >
       <p class="mb-3">
         The Washington State Department of Transportation (WSDOT) Frequent Transit Service Study analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
         This study defines seven levels of transit frequency based on headway, span, and days of service.
@@ -123,11 +124,24 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
 const emit = defineEmits<{
   cancel: []
 }>()
+
+// Track if results are loaded, to collapse the about message, also for navigation guard
+const { setHasResults } = useAnalysisResults()
+const hasResults = computed(() => {
+  const hasResultsValue = wsdotReport.value !== null
+  setHasResults('wsdot', hasResultsValue)
+  return hasResultsValue
+})
+
 const handleCancel = () => {
   emit('cancel')
 }
 
-// Runs on explore event from query (when user clicks "Run Query")
+// Expose hasResults to parent component
+defineExpose({
+  hasResults
+})
+
 const runQuery = async () => {
   showLoadingModal.value = true
   try {
@@ -136,7 +150,7 @@ const runQuery = async () => {
     error.value = err
   }
   if (!error.value) {
-    useToastNotification().showToast('Scenario data loaded successfully!')
+    useToastNotification().showToast('WSDOT analysis completed successfully!')
     showLoadingModal.value = false
   }
   loadingProgress.value = null
@@ -201,15 +215,3 @@ const fetchScenario = async (loadExample: string) => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
-
-<style scoped lang="scss">
-.cal-report {
-  display:flex;
-  flex-direction:column;
-  background: var(--bulma-scheme-main);
-  height: 100vw;
-  width: calc(100vw - 100px);
-  padding-left:20px;
-  padding-right:20px;
-}
-</style>

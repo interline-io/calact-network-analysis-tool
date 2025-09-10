@@ -1,6 +1,6 @@
 <template>
-  <div class="cal-report">
-    <div class="cal-report-total block">
+  <div>
+    <div v-if="showResultsCount" class="cal-report-total block">
       {{ total }} results found
     </div>
 
@@ -26,7 +26,7 @@
 
     <div class="table-container">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
-        <thead>
+        <thead class="is-sticky">
           <tr>
             <th v-for="column in tableReport.columns" :key="column.key">
               {{ column.label }}
@@ -70,6 +70,7 @@ const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
+const showResultsCount = defineModel<boolean>('showResultsCount', { default: true })
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage
@@ -81,13 +82,44 @@ const total = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.table-container {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--bulma-radius);
+  position: relative;
+}
+
 .cal-report-table {
-    th, td {
-    padding: 2px 5px;
-    }
-    th {
-    background: #666;
-    color: #fff;
-    }
+  th, td {
+    padding: 0.5rem 0.75rem;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  th {
+    background: var(--bulma-scheme-main-ter);
+    color: var(--bulma-text-strong);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 2px solid var(--bulma-border);
+  }
+
+  td {
+    background: var(--bulma-scheme-main);
+  }
+
+  tr:hover td {
+    background: var(--bulma-scheme-main-bis);
+  }
+
+  // Ensure sticky header works properly
+  thead.is-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
 }
 </style>

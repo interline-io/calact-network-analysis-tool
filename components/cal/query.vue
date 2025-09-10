@@ -5,7 +5,7 @@
     </tl-title>
 
     <tl-msg-info>
-      <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Base Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
+      <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
     </tl-msg-info>
 
     <div class="cal-body">
@@ -114,9 +114,9 @@
                   <template #option="{ option }">
                     <div class="is-flex is-align-items-center">
                       <span>{{ option.label }}</span>
-                      <o-tag size="small" variant="light" class="ml-2">
+                      <span class="tag is-light is-small ml-2">
                         {{ option.geographyType }}
-                      </o-tag>
+                      </span>
                     </div>
                   </template>
                 </o-taginput>
@@ -166,7 +166,7 @@
 
       <div class="field has-addons">
         <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
-          Run Base Query
+          Run Browse Query
         </o-button>
         <o-button variant="primary-outline" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
           Run Advanced Analysis

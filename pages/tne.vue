@@ -14,7 +14,12 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('filter')" title="Filter" role="button" @click="setTab({ tab: 'filter', sub: '' })">
+          <a
+            :class="[itemHelper('filter'), { 'is-disabled': !hasScenarioData }]"
+            :title="hasScenarioData ? 'Filter' : 'Filter (Run a query first)'"
+            role="button"
+            @click="hasScenarioData ? setTab({ tab: 'filter', sub: '' }) : null"
+          >
             <o-icon
               icon="filter"
               class="is-fullwidth"
@@ -23,7 +28,12 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('map')" title="Map" role="button" @click="setTab({ tab: 'map', sub: '' })">
+          <a
+            :class="[itemHelper('map'), { 'is-disabled': !hasScenarioData }]"
+            :title="hasScenarioData ? 'Map' : 'Map (Run a query first)'"
+            role="button"
+            @click="hasScenarioData ? setTab({ tab: 'map', sub: '' }) : null"
+          >
             <o-icon
               icon="map"
               class="is-fullwidth"
@@ -32,7 +42,12 @@
           </a>
         </li>
         <li>
-          <a :class="itemHelper('report')" title="Report" role="button" @click="setTab({ tab: 'report', sub: '' })">
+          <a
+            :class="[itemHelper('report'), { 'is-disabled': !hasScenarioData }]"
+            :title="hasScenarioData ? 'Report' : 'Report (Run a query first)'"
+            role="button"
+            @click="hasScenarioData ? setTab({ tab: 'report', sub: '' }) : null"
+          >
             <o-icon
               icon="file-chart"
               class="is-fullwidth"
@@ -54,7 +69,7 @@
 
     <template #main>
       <div style="position:relative">
-        <div v-if="activeTab.tab === 'query'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -74,7 +89,7 @@
           />
         </div>
 
-        <div v-if="activeTab.tab === 'filter'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'filter'" class="cal-tab-content cal-tab-filter">
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -105,7 +120,7 @@
           />
         </div>
 
-        <div v-if="activeTab.tab === 'report'" class="cal-overlay">
+        <div v-if="activeTab.tab === 'report'" class="cal-tab-content cal-tab-report">
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-layer="aggregateLayer"
@@ -117,14 +132,12 @@
           />
         </div>
 
-        <div v-if="activeTab.tab === 'analysis'" class="cal-overlay">
-          <div style="background:white;width:100%">
-            <analysis-picker
-              :scenario-data="scenarioData"
-              :scenario-config="scenarioConfig"
-              @cancel="setTab({ tab: 'query', sub: '' })"
-            />
-          </div>
+        <div v-if="activeTab.tab === 'analysis'" class="cal-tab-content cal-tab-analysis">
+          <analysis-picker
+            :scenario-data="scenarioData"
+            :scenario-config="scenarioConfig"
+            @cancel="setTab({ tab: 'query', sub: '' })"
+          />
         </div>
 
         <!-- This is a component for displaying the map and legend -->
@@ -164,7 +177,7 @@
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { navigateTo, useToastNotification } from '#imports'
+import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/tl'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypes, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
@@ -174,6 +187,40 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
+
+// Shared function to check if user has analysis results and handle confirmation
+function checkAnalysisResultsAndConfirm (action: string): boolean {
+  const { hasAnyResults, clearAllResults } = useAnalysisResults()
+
+  if (hasAnyResults.value) {
+    console.log(`${action} blocked - has analysis results`)
+    const confirmed = confirm(`You have analysis results displayed. ${action} will clear these results and you'll need to run the analysis again to see them. Do you want to continue?`)
+
+    if (!confirmed) {
+      return false
+    }
+
+    // User confirmed, clear the results state
+    clearAllResults()
+  }
+
+  return true
+}
+
+// Route navigation guard to prevent leaving with analysis results
+router.beforeEach((to, from, next) => {
+  // Only check if we're currently on the analysis page and trying to navigate away
+  if (from.path === '/tne' && activeTab.value.tab === 'analysis') {
+    if (!checkAnalysisResultsAndConfirm('Navigating away')) {
+      // User cancelled, stay on current page
+      return false
+    }
+  }
+
+  // Allow navigation to proceed
+  next()
+})
 
 /////////////////
 // Loading and error handling
@@ -193,7 +240,7 @@ const runQuery = async () => {
     error.value = err
   }
   if (!error.value) {
-    useToastNotification().showToast('Scenario data loaded successfully!')
+    useToastNotification().showToast('Browsing query data loaded successfully!')
     showLoadingModal.value = false
   }
   loadingProgress.value = null
@@ -504,6 +551,11 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
 
+// Check if there's scenario data to display in reports
+const hasScenarioData = computed(() => {
+  return scenarioData.value !== null && scenarioFilterResult.value !== undefined
+})
+
 watch([activeTab, geomSource], () => {
   if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
     displayEditBboxMode.value = true
@@ -525,6 +577,14 @@ function setTab (v: Tab) {
     activeTab.value = { tab: 'map', sub: '' }
     return
   }
+
+  // Check if we're leaving the analysis tab and have results
+  if (activeTab.value.tab === 'analysis') {
+    if (!checkAnalysisResultsAndConfirm('Switching tabs')) {
+      return
+    }
+  }
+
   activeTab.value = v
 }
 
@@ -842,12 +902,49 @@ function toTitleCase (str: string): string {
 </script>
 
 <style scoped lang="scss">
-.cal-overlay {
-  position:absolute;
-  top:0px;
-  left:0px;
-  height:100vh;
-  z-index:1000;
+// Base tab content styling - shared by all tabs
+.cal-tab-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 1000;
+  background: white;
+}
+
+// Individual tab width classes
+.cal-tab-query {
+  width: calc(50vw); // Query tab - half width, map visible
+}
+
+.cal-tab-filter {
+  width: 270px;
+}
+
+.cal-tab-report {
+  width: 100vw; // Report tab - full width, no map
+}
+
+.cal-tab-analysis {
+  width: 100vw; // Analysis tab - full width, no map
+}
+
+// Disabled tab styling
+.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+
+  // Allow hover events for tooltips but prevent clicks
+  pointer-events: auto;
+
+  // Prevent clicks by making the click handler return early
+  &:active {
+    transform: none !important;
+  }
+
+  .o-icon {
+    color: #999 !important;
+  }
 }
 </style>
 

@@ -1,11 +1,12 @@
 <template>
-  <div class="cal-report">
+  <div>
     <tl-title title="WSDOT Transit Stops and Routes" />
 
-    <tl-msg-info>
-      <h5 class="title is-5">
-        About this Analysis
-      </h5>
+    <tl-msg-info
+      collapsible
+      :collapsed="hasResults"
+      title="About this Analysis"
+    >
       <p class="mb-3">
         This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
       </p>
@@ -30,8 +31,11 @@
     <tl-msg-error v-if="error" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
     </tl-msg-error>
-    <div v-else-if="loading">
-      Loading...
+    <div v-else-if="loading" class="has-text-centered">
+      <o-loading :active="true" :full-page="false" />
+      <p class="mt-4">
+        Running WSDOT Transit Stops and Routes Analysis...
+      </p>
     </div>
     <div v-else-if="wsdotReport && wsdotStopsRoutesReport">
       <analysis-wsdot-stops-routes-viewer
@@ -143,9 +147,22 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+// Track if results are loaded, to collapse the about message, also for navigation guard
+const { setHasResults } = useAnalysisResults()
+const hasResults = computed(() => {
+  const hasResultsValue = wsdotStopsRoutesReport.value !== null
+  setHasResults('wsdot-stops-routes', hasResultsValue)
+  return hasResultsValue
+})
+
 const handleCancel = () => {
   emit('cancel')
 }
+
+// Expose hasResults to parent component
+defineExpose({
+  hasResults
+})
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
@@ -156,7 +173,7 @@ const runQuery = async () => {
     error.value = err
   }
   if (!error.value) {
-    useToastNotification().showToast('Scenario data loaded successfully!')
+    useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
     showLoadingModal.value = false
   }
   loadingProgress.value = null
@@ -223,15 +240,3 @@ const fetchScenario = async (loadExample: string) => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
-
-<style scoped lang="scss">
-.cal-report {
-  display:flex;
-  flex-direction:column;
-  background: var(--bulma-scheme-main);
-  height: 100vw;
-  width: calc(100vw - 100px);
-  padding-left:20px;
-  padding-right:20px;
-}
-</style>
