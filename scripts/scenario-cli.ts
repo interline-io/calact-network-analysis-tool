@@ -21,16 +21,17 @@ export function configureScenarioCli (program: Command) {
   scenarioOptionsAdd(program)
     .allowUnknownOption(false)
     .action(async (options) => {
-      scenarioOptionsCheck(options)
+      const opts = options as ScenarioCliOptions
+      scenarioOptionsCheck(opts)
       console.log('🚌 Starting transit scenario fetch...')
 
       // Parse configuration from CLI options
       const config: ScenarioConfig = {
-        bbox: options.bbox ? parseBbox(options.bbox) : undefined,
-        scheduleEnabled: !options.noSchedule,
-        startDate: parseDate(options.startDate)!,
-        endDate: parseDate(options.endDate)!,
-        aggregateLayer: options.aggregateLayer,
+        bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        scheduleEnabled: !!opts.schedule,
+        startDate: parseDate(opts.startDate)!,
+        endDate: parseDate(opts.endDate)!,
+        aggregateLayer: opts.aggregateLayer,
         geographyIds: []
       }
 
@@ -40,11 +41,11 @@ export function configureScenarioCli (program: Command) {
       )
 
       // Create a controller that optionally saves to file
-      const controller = createStreamController(options.saveScenarioData)
+      const controller = createStreamController(opts.saveScenarioData)
       const result = await runScenarioFetcher(controller, config, client)
 
       // Output results based on format
-      switch (options.output) {
+      switch (opts.output) {
         case 'json':
           console.log(JSON.stringify(result, null, '  '))
           break
@@ -97,7 +98,7 @@ export interface ScenarioCliOptions {
   output: string
   aggregateLayer: string
   saveScenarioData?: string
-  noSchedule: boolean
+  schedule?: boolean
 }
 
 /**

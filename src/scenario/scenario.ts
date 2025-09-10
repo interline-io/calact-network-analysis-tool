@@ -37,7 +37,7 @@ export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
     endDate: parseDate(getDateOneWeekLater()),
     geographyIds: [],
     stopLimit: 1000,
-    maxConcurrentDepartures: 8
+    maxConcurrentDepartures: 1
   }
 }
 
@@ -84,7 +84,7 @@ export function getSelectedDateRange (config: ScenarioConfig): Date[] {
   const sd = new Date((config.startDate || new Date()).valueOf())
   const ed = new Date((config.endDate || new Date()).valueOf())
   const dates = []
-  while (sd <= ed) {
+  while (sd < ed) {
     dates.push(new Date(sd.valueOf()))
     sd.setDate(sd.getDate() + 1)
   }
@@ -397,7 +397,7 @@ export class ScenarioFetcher {
     const variables = {
       after: task.after,
       limit: this.stopLimit,
-      layer_name: this.config.aggregateLayer,
+      layer_name: this.config.aggregateLayer || 'tract',
       dataset_name: 'tiger2024', // hardcoded for now
       where: {
         location_type: 0,

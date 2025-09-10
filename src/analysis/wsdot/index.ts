@@ -9,9 +9,10 @@ interface ServiceLevelConfig {
   peak?: TimeConfig
   extended?: TimeConfig
   weekend?: TimeConfig
-  night_segments?: NightSegmentConfig[]
-  total_trips_threshold?: number
-  weekend_required: boolean
+  nightSegments?: NightSegmentConfig[]
+  totalTripsThreshold?: number
+  includeAll?: boolean
+  weekendRequired?: boolean
 }
 
 interface TimeConfig {
@@ -26,7 +27,7 @@ interface NightSegmentConfig {
 }
 
 // WSDOT service levels configuration
-export type LevelKey = 'level1' | 'level2' | 'level3' | 'level4' | 'level5' | 'level6' | 'levelNights'
+export type LevelKey = 'level1' | 'level2' | 'level3' | 'level4' | 'level5' | 'level6' | 'levelNights' | 'levelAll'
 
 export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
   level1: {
@@ -35,13 +36,13 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 4, min_total: 40 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 3, min_total: 32 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 3, min_total: 32 },
-    night_segments: [
+    nightSegments: [
       { hours: [23, 0], min_total: 0 },
       { hours: [1, 2], min_total: 0 },
       { hours: [3, 4], min_total: 0 },
       { hours: [2, 3], min_total: 0 }
     ],
-    weekend_required: true,
+    weekendRequired: true,
   },
   level2: {
     name: 'Level 2',
@@ -49,7 +50,7 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 3, min_total: 32 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 1, min_total: 16 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 1, min_total: 16 },
-    weekend_required: true,
+    weekendRequired: true,
   },
   level3: {
     name: 'Level 3',
@@ -57,38 +58,44 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 1, min_total: 16 },
     extended: { hours: [6, 7, 8, 17, 18, 19, 20, 21], min_tph: 0, min_total: 8 },
     weekend: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 0, min_total: 8 },
-    weekend_required: true,
+    weekendRequired: true,
   },
   level4: {
     name: 'Level 4',
     description: 'Level 4',
     peak: { hours: [9, 10, 11, 12, 13, 14, 15, 16], min_tph: 0, min_total: 8 },
-    weekend_required: false,
+    weekendRequired: false,
   },
   level5: {
     name: 'Level 5',
     description: 'Level 5',
-    total_trips_threshold: 6,
-    weekend_required: false,
+    totalTripsThreshold: 6,
+    weekendRequired: false,
   },
   level6: {
     name: 'Level 6',
     description: 'Level 6',
-    total_trips_threshold: 2,
-    weekend_required: false,
+    totalTripsThreshold: 2,
+    weekendRequired: false,
   },
   levelNights: {
     name: 'Night',
     description: 'Night service',
     peak: { hours: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4], min_tph: 0, min_total: 4 },
-    night_segments: [
+    nightSegments: [
       { hours: [23, 0], min_total: 1 },
       { hours: [1, 2], min_total: 1 },
       { hours: [3, 4], min_total: 1 },
       { hours: [2, 3], min_total: 1 }
     ],
-    weekend_required: true,
+    weekendRequired: true,
   },
+  levelAll: {
+    name: 'All',
+    description: 'All stops in the scenario',
+    includeAll: true,
+  },
+
 }
 
 export const levelColors: Record<LevelKey, string> = {
@@ -99,6 +106,7 @@ export const levelColors: Record<LevelKey, string> = {
   level5: '#ff8000',
   level6: '#ff0000',
   levelNights: '#5c5cff',
+  levelAll: '#000000',
 }
 
 interface StopFrequencyData {
@@ -135,6 +143,7 @@ export interface WSDOTStopResult {
   level2: boolean
   level1: boolean
   levelNights: boolean
+  levelAll: boolean
 }
 
 export interface WSDOTReportConfig extends ScenarioConfig {
@@ -207,51 +216,56 @@ export class WSDOTReportFetcher {
     console.log(`Analyzed ${weekdayFreq.stops.size} stops and ${weekdayFreq.routes.size} routes for weekday`)
     console.log(`Analyzed ${weekendFreq.stops.size} stops and ${weekendFreq.routes.size} routes for weekend`)
 
-    // Get bbox population (tract intersections)
-    console.log(`Fetching tract populations for bbox...`)
-    const bboxIntersection = await getGeographyData({
+    const results: Record<string, Set<number>> = {}
+    const levelStops: Record<string, number[]> = {}
+    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
+    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
+
+    // Process each service level
+    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
+      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
+      levelStops[levelKey] = Array.from(qualifyingStops)
+      results[levelKey] = qualifyingStops
+      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
+    }
+
+    // Fetch geography data for the stops in each level (and all stops)
+    const baseGeographyConfig: getGeographyDataConfig = {
       client: this.client,
       tableDatasetName: 'acsdt5y2022',
       tableDatasetTable: `b01001`,
       tableDatasetTableCol: 'b01001_001',
       geoDatasetName: 'tiger2024',
       geoDatasetLayer: 'tract',
+    }
+
+    // Get bbox population (tract intersections)
+    console.log(`Fetching tract populations for bbox...`)
+    const bboxIntersection = await getGeographyData({
+      ...baseGeographyConfig,
+      geoDatasetLayer: 'tract',
       bbox: this.config.bbox,
     })
-    console.log('bboxIntersection:', bboxIntersection)
 
-    // Process each service level
-    const results: Record<string, Set<number>> = {}
-    const levelStops: Record<string, number[]> = {}
-    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
-    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
-
-    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
+    for (const [levelKey, stopIds] of Object.entries(results)) {
       console.log(`\n====== ${levelKey} ======`)
-      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
-      levelStops[levelKey] = Array.from(qualifyingStops)
-      results[levelKey] = qualifyingStops
-      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
+      console.log(`${levelKey}: ${stopIds.size} qualifying stops`)
       const geogLayers: Record<string, GeographyDataFeature[]> = {}
       for (const geoDatasetLayer of getGeographyLayers) {
         if ((this.config?.stopBufferRadius || 0) <= 0) {
           console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
           continue
         }
-        if (qualifyingStops.size === 0) {
+        if (stopIds.size === 0) {
           continue
         }
         const geoConfig: getGeographyDataConfig = {
-          client: this.client,
-          stopIds: qualifyingStops,
-          tableDatasetName: 'acsdt5y2022',
-          tableDatasetTable: `b01001`,
-          tableDatasetTableCol: 'b01001_001',
-          geoDatasetName: 'tiger2024',
+          ...baseGeographyConfig,
+          stopIds: stopIds,
           geoDatasetLayer: geoDatasetLayer,
           stopBufferRadius: this.config.stopBufferRadius || 0,
         }
-        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${qualifyingStops.size} stop IDs`)
+        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
         geogLayers[geoDatasetLayer] = data
       }
@@ -277,7 +291,8 @@ export class WSDOTReportFetcher {
         level3: results.level3?.has(stopId) || false,
         level2: results.level2?.has(stopId) || false,
         level1: results.level1?.has(stopId) || false,
-        levelNights: results.levelNights?.has(stopId) || false
+        levelNights: results.levelNights?.has(stopId) || false,
+        levelAll: true,
       }
       stops.push(result)
     }
@@ -363,9 +378,14 @@ function processServiceLevel (
   weekdayFreq: { stops: Map<number, StopFrequencyData>, routes: Map<string, RouteFrequencyData> },
   weekendFreq: { stops: Map<number, StopFrequencyData>, routes: Map<string, RouteFrequencyData> }
 ): Set<number> {
+  // Include all stops if configured
+  if (config.includeAll) {
+    return new Set<number>([...weekdayFreq.stops.keys(), ...weekendFreq.stops.keys()])
+  }
+
   // Handle total trips threshold levels (level5 and level6)
-  if (config.total_trips_threshold !== undefined) {
-    return analyzeRouteFrequencyByTotalTrips(weekdayFreq.routes, config.total_trips_threshold)
+  if (config.totalTripsThreshold !== undefined) {
+    return analyzeRouteFrequencyByTotalTrips(weekdayFreq.routes, config.totalTripsThreshold)
   }
 
   // Stop-level analysis
@@ -384,8 +404,8 @@ function processServiceLevel (
   }
 
   // Night segments analysis
-  if (config.night_segments) {
-    const nightStops = processNightSegments(weekdayFreq.stops, config.night_segments)
+  if (config.nightSegments) {
+    const nightStops = processNightSegments(weekdayFreq.stops, config.nightSegments)
     stopResults.push(nightStops)
   }
 
@@ -403,7 +423,7 @@ function processServiceLevel (
   }
 
   // Weekend analysis if required
-  if (config.weekend_required && config.weekend) {
+  if (config.weekendRequired && config.weekend) {
     const weekendStops = analyzeStopFrequency(weekendFreq.stops, config.weekend)
     const weekendRouteStops = analyzeRouteFrequency(weekendFreq.routes, config.weekend)
     const weekendMerged = intersection(weekendStops, weekendRouteStops)
@@ -566,9 +586,9 @@ async function getGeographyData (
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
   for (const geoDataset of result.data?.census_datasets || []) {
-    console.log('Geography dataset:', geoDataset.name)
+    // console.log('Geography dataset:', geoDataset.name)
     for (const geography of geoDataset.geographies || []) {
-      console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
+      // console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
       const totalArea = geography.geometry_area || 0
       const intersectionArea = geography.intersection_area || 0
       if (totalArea === 0) {
@@ -579,11 +599,11 @@ async function getGeographyData (
         .find(v => v.dataset_name === config.tableDatasetName)
         ?.values[config.tableDatasetTableCol]
         || 0
-      console.log(`\tPopulation: ${totalPop}`)
-      console.log(`\tArea: ${totalArea}`)
-      console.log(`\tIntersection area: ${intersectionArea}`)
-      console.log(`\tIntersection ratio: ${intersectionRatio}`)
-      console.log(`\tIntersection pop: ${totalPop * intersectionRatio}`)
+      // console.log(`\tPopulation: ${totalPop}`)
+      // console.log(`\tArea: ${totalArea}`)
+      // console.log(`\tIntersection area: ${intersectionArea}`)
+      // console.log(`\tIntersection ratio: ${intersectionRatio}`)
+      // console.log(`\tIntersection pop: ${totalPop * intersectionRatio}`)
       features.push({
         id: geography.geoid,
         type: 'Feature',

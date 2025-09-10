@@ -156,11 +156,13 @@ const popMethod = ref<'state' | 'bboxIntersection'>('state')
 // Helper functions for Highest Level column rendering
 const getFrequencyLevelClass = (level: string) => {
   if (level === 'levelNights') return 'frequency-level-nights'
+  if (level === 'levelAll') return 'frequency-level-all'
   return `frequency-level-${level.replace('level', '')}`
 }
 
 const formatHighestLevel = (level: string) => {
   if (level === 'levelNights') return 'Night'
+  if (level === 'levelAll') return 'All'
   return level.replace('level', 'Level ')
 }
 
@@ -241,12 +243,10 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
 const stopFeatures = computed(() => {
   const features: Feature[] = wsdotReport.value.stops.map((stop) => {
     const highestLevel = levelKeys.find(key => stop[key]) || 'unknown'
-    // if there is no highest level to set, then it will be filtered out below
     const props: Record<string, any> = {
       highestLevel,
       stopId: stop.stopId,
-      stopName: stop.stopName || '',
-      levelNights: stop.levelNights
+      stopName: stop.stopName || ''
     }
     for (const levelKey of levelKeys) {
       props[levelKey] = stop[levelKey] ? 1 : 0
@@ -335,6 +335,7 @@ const stopDatagrid = computed((): TableReport => {
       level5: feature.properties.level5,
       level6: feature.properties.level6,
       levelNights: feature.properties.levelNights,
+      levelAll: true,
     }
   })
   const columns: TableColumn[] = [
@@ -391,6 +392,11 @@ const stopDatagrid = computed((): TableReport => {
 
 .frequency-level-nights {
   background-color: #5c5cff !important;
+  color: #ffffff !important;
+}
+
+.frequency-level-all {
+  background-color: #000000 !important;
   color: #ffffff !important;
 }
 </style>

@@ -31,12 +31,13 @@ export function configureWsdotReportCli (program: Command) {
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: !opts.noSchedule,
+        scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
+        aggregateLayer: opts.aggregateLayer,
         geographyIds: []
       }
 
