@@ -680,7 +680,6 @@ const fetchScenario = async (loadExample: string) => {
       // Update progress for modal
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-      console.log(`Stop departures loaded: ${stopDepartureCount.value}`)
 
       // Apply filters to partial data and emit (without schedule-dependent features)
       // Skip if no route/stop data
