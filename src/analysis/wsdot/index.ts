@@ -91,7 +91,7 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     weekendRequired: true,
   },
   levelAll: {
-    name: 'All',
+    name: 'All stops',
     description: 'All stops in the scenario',
     includeAll: true,
   },
@@ -171,6 +171,14 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
 
   // Run wsdot analysis
   const scenarioData = receiver.getCurrentData()
+
+  // Update the client with the wsdot result
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'extra',
+    currentStageMessage: 'Running WSDOT frequency analysis...'
+  })
+
   const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
   let wsdotResult: WSDOTReport | null = null
   wsdotResult = await wsdotFetcher.fetch()
@@ -178,9 +186,12 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   // Update the client with the wsdot result
   scenarioDataSender.onProgress({
     isLoading: true,
-    currentStage: 'schedules', // TODO - extraData stage?
-    extraData: wsdotResult
+    currentStage: 'extra',
+    extraData: wsdotResult,
+    currentStageMessage: 'Running WSDOT frequency analysis...'
   })
+
+  // Complete the scenario data stream
   scenarioDataSender.onComplete()
 
   // Final complete - close the multiplexed stream
