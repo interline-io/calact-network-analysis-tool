@@ -40,7 +40,7 @@
             <tr>
               <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
                 <o-checkbox v-model="selectedLevels" :native-value="levelKey">
-                  Frequency: {{ levelDetail.label }}
+                  {{ levelDetail.label }}
                 </o-checkbox>
               </td>
             </tr>
@@ -50,7 +50,7 @@
                 {{ adminKey }}
               </td>
               <td>{{ Math.round(pop.intersection).toLocaleString() }}</td>
-              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}% of total population)</td>
+              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}% of {{ popMethod === 'state' ? 'state population' : 'state population within bounding box' }})</td>
             </tr>
           </tbody>
         </table>
@@ -344,6 +344,9 @@ const stopDatagrid = computed((): TableReport => {
     { key: 'highestLevel', label: 'Highest Level', sortable: true },
   ]
   for (const levelKey of levelKeys) {
+    if (levelKey === 'levelAll') {
+      continue // Skip "All" level in datagrid
+    }
     columns.push({ key: levelKey, label: SERVICE_LEVELS[levelKey].name, sortable: true })
   }
 
