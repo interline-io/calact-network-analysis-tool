@@ -139,7 +139,7 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
-  stopBufferRadius: 800,
+  stopBufferRadius: 0, // no population data needed for this analysis
   ...scenarioConfig.value
 })
 
