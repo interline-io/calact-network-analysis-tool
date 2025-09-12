@@ -2,6 +2,7 @@
  * Simple CLI example showing how to use WSDOT Report
  */
 import type { Command } from 'commander'
+import { format, nextMonday, nextSunday } from 'date-fns'
 import {
   scenarioOptionsAdd,
   scenarioOptionsCheck,
@@ -27,6 +28,17 @@ export function configureWsdotReportCli (program: Command) {
     .action(async (_options) => {
       const opts = _options as WSDOTReportOptions
       scenarioOptionsCheck(opts)
+
+      const today = new Date() // Or any starting date you desire
+      const monday = nextMonday(today)
+      if (!opts.weekdayDate) {
+        opts.weekdayDate = format(monday, 'yyyy-MM-dd')
+        console.log('using next monday as weekdayDate:', opts.weekdayDate)
+      }
+      if (!opts.weekendDate) {
+        opts.weekendDate = format(nextSunday(monday), 'yyyy-MM-dd')
+        console.log('using next sunday as weekendDate:', opts.weekendDate)
+      }
 
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {

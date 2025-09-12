@@ -1,13 +1,14 @@
 import type { Command } from 'commander'
-import { cannedBboxes, parseBbox, getCurrentDate, getDateOneWeekLater, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
+import { format, nextMonday, nextSunday } from 'date-fns'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
 import { runScenarioFetcher } from '~/src/scenario'
 
 export function scenarioOptionsAdd (program: Command): Command {
   return program
     .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
-    .option('--start-date <date>', 'Start date (YYYY-MM-DD)', getCurrentDate())
-    .option('--end-date <date>', 'End date (YYYY-MM-DD)', getDateOneWeekLater())
+    .option('--start-date <date>', 'Start date (YYYY-MM-DD)')
+    .option('--end-date <date>', 'End date (YYYY-MM-DD)')
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
     .option('--end-time <time>', 'End time (HH:MM)', '22:00')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
@@ -82,6 +83,17 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   } catch {
     console.error('❌ Error: missing required environment variables')
     process.exit(1)
+  }
+
+  const today = new Date() // Or any starting date you desire
+  const monday = nextMonday(today)
+  if (!options.startDate) {
+    options.startDate = format(monday, 'yyyy-MM-dd')
+    console.log('using next monday as start date:', options.startDate)
+  }
+  if (!options.endDate) {
+    options.endDate = format(nextSunday(monday), 'yyyy-MM-dd')
+    console.log('using next sunday as end date:', options.endDate)
   }
 }
 
