@@ -332,7 +332,7 @@ function extractFrequencyData (data: ScenarioData, date: Date): { stops: Map<num
 
   // Process each stop
   for (const stop of data.stops) {
-    console.log('\tstop:', stop.id, stop.stop_name)
+    // console.log('\tstop:', stop.id, stop.stop_name)
     const departures = data.stopDepartureCache.get(stop.id, dateStr)
 
     const stopData: StopFrequencyData = {
