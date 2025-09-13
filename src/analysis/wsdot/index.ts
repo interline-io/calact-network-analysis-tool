@@ -180,8 +180,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   })
 
   const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-  let wsdotResult: WSDOTReport | null = null
-  wsdotResult = await wsdotFetcher.fetch()
+  const wsdotResult = await wsdotFetcher.fetch()
 
   // Update the client with the wsdot result
   scenarioDataSender.onProgress({
@@ -200,7 +199,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   // Ensure all scenario client progress has been processed
   await scenarioClientProgress
 
-  return { scenarioData, wsdotResult: wsdotResult! }
+  return { scenarioData, wsdotResult: wsdotResult }
 }
 
 export class WSDOTReportFetcher {
@@ -275,6 +274,7 @@ export class WSDOTReportFetcher {
           stopIds: stopIds,
           geoDatasetLayer: geoDatasetLayer,
           stopBufferRadius: this.config.stopBufferRadius || 0,
+          includeIntersectionGeometry: true
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
@@ -307,6 +307,8 @@ export class WSDOTReportFetcher {
       }
       stops.push(result)
     }
+
+    console.log('WSDOT frequency analysis completed...')
     return {
       stops,
       levelStops,
@@ -589,6 +591,7 @@ interface getGeographyDataConfig {
   geoDatasetLayer: string
   stopIds?: Set<number>
   stopBufferRadius?: number
+  includeIntersectionGeometry?: boolean
   bbox?: Bbox
 }
 
@@ -603,7 +606,7 @@ async function getGeographyData (
     stopBufferRadius: config.stopBufferRadius,
     stopIds: Array.from(config.stopIds || []),
     bbox: convertBbox(config.bbox),
-    includeIntersectionGeometry: true,
+    includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
   const features: GeographyDataFeature[] = []
