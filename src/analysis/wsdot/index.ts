@@ -179,16 +179,21 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
     currentStageMessage: 'Running WSDOT frequency analysis...'
   })
 
-  const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-  const wsdotResult = await wsdotFetcher.fetch()
-
-  // Update the client with the wsdot result
-  scenarioDataSender.onProgress({
-    isLoading: true,
-    currentStage: 'extra',
-    extraData: wsdotResult,
-    currentStageMessage: 'Running WSDOT frequency analysis...'
-  })
+  let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
+  try {
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
+    wsdotResult = await wsdotFetcher.fetch()
+    // Update the client with the wsdot result
+    scenarioDataSender.onProgress({
+      isLoading: true,
+      currentStage: 'extra',
+      extraData: wsdotResult,
+      currentStageMessage: 'Running WSDOT frequency analysis...'
+    })
+  } catch (e) {
+    console.error('WSDOT analysis error:', e)
+    scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
+  }
 
   // Complete the scenario data stream
   scenarioDataSender.onComplete()
