@@ -223,8 +223,8 @@ export class WSDOTReportFetcher {
 
     // Extract frequency data for weekday and weekend
     const weekdayFreq = extractFrequencyData(this.scenarioData, this.config.weekdayDate)
-    const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
     console.log(`Analyzed ${weekdayFreq.stops.size} stops and ${weekdayFreq.routes.size} routes for weekday`)
+    const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
     console.log(`Analyzed ${weekendFreq.stops.size} stops and ${weekendFreq.routes.size} routes for weekend`)
 
     const results: Record<string, Set<number>> = {}
@@ -317,13 +317,16 @@ export class WSDOTReportFetcher {
 }
 
 function extractFrequencyData (data: ScenarioData, date: Date): { stops: Map<number, StopFrequencyData>, routes: Map<string, RouteFrequencyData> } {
+  const dateStr = fmtDate(date)
+  console.log('Processing frequency data for date:', dateStr)
   const stops = new Map<number, StopFrequencyData>()
   const routes = new Map<string, RouteFrequencyData>()
   let depCount = 0
 
   // Process each stop
   for (const stop of data.stops) {
-    const departures = data.stopDepartureCache.get(stop.id, fmtDate(date))
+    console.log('\tstop:', stop.id, stop.stop_name)
+    const departures = data.stopDepartureCache.get(stop.id, dateStr)
 
     const stopData: StopFrequencyData = {
       stopId: stop.id,
@@ -334,27 +337,35 @@ function extractFrequencyData (data: ScenarioData, date: Date): { stops: Map<num
 
     // Count trips by hour
     for (const departure of departures) {
+      // console.log('\t\tdeparture:', departure)
+      if (!departure.departure_time) {
+        console.log('\t\t\tno departure time, skipping')
+        continue
+      }
       depCount += 1
+      if (depCount % 1000 === 0) {
+        console.log(`\tProcessed ${depCount} departures...`)
+      }
       const hour = parseHour(departure.departure_time)
       stopData.hourlyTrips[hour] = (stopData.hourlyTrips[hour] || 0) + 1
       stopData.routeIds.add(departure.trip.route.id)
+      // console.log('\t\tstop data:', stopData)
 
       // Track route frequency
       const routeKey = `${departure.trip.route.id}_${departure.trip.direction_id}`
-      if (!routes.has(routeKey)) {
-        routes.set(routeKey, {
-          routeId: departure.trip.route.id,
-          directionId: departure.trip.direction_id,
-          hourlyTrips: {},
-          totalTrips: 0,
-          stopIds: new Set()
-        })
+      // console.log('\t\troute key:', routeKey)
+      const routeData = routes.get(routeKey) || {
+        routeId: departure.trip.route.id,
+        directionId: departure.trip.direction_id,
+        hourlyTrips: {},
+        totalTrips: 0,
+        stopIds: new Set()
       }
-
-      const routeData = routes.get(routeKey)!
       routeData.hourlyTrips[hour] = (routeData.hourlyTrips[hour] || 0) + 1
       routeData.totalTrips += 1
       routeData.stopIds.add(stop.id)
+      routes.set(routeKey, routeData)
+      // console.log('\t\troute data:', routeData)
     }
 
     stops.set(stop.id, stopData)
