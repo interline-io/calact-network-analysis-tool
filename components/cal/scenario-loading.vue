@@ -10,8 +10,9 @@
           :style="{ width: progressPercentage + '%' }"
         />
       </div>
+
       <p>
-        {{ formatStage(progress?.currentStage || 'ready') }}
+        {{ formatStage(progress?.currentStage || 'ready', progress?.currentStageMessage || '') }}
         <span v-if="progressPercentage > 0">
           ({{ progressPercentage }}%)
         </span>
@@ -99,16 +100,19 @@ const progressPercentage = computed(() => {
 })
 
 // Helper functions
-function formatStage (stage: ScenarioProgress['currentStage']): string {
+function formatStage (stage: ScenarioProgress['currentStage'], stageText: string): string {
+  if (stageText) {
+    return stageText
+  }
   const stageLabels: Record<string, string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
     'schedules': 'Loading schedules...',
     'complete': 'Complete',
-    'ready': 'Ready'
+    'ready': 'Ready',
   }
-  return stageLabels[stage] || stage
+  return stageLabels[stage] || 'Loading...'
 }
 </script>
 
