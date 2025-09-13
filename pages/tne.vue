@@ -633,7 +633,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
-  stopLimit: 100
+  stopLimit: 50
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
