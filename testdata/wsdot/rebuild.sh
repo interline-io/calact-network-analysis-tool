@@ -35,6 +35,15 @@ transitland import --activate --storage="tmp" --activate --workers=8
 psql -c "update feed_states set public = true"
 TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-batch-size=1000 --long-query=0
 
+# irees@alt (db:localhost/tlv2) (k8:mtc) wsdot-python % python3 ./summary.py frequent_stops_24_20241023.csv
+# level1: 548
+# level2: 3027
+# level3: 10348
+# level4: 18564
+# level5: 20972
+# level6: 22245
+# levelNights: 722
+
 # TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-19 --stop-buffer-radius=800 --bbox-name=wa --save-scenario-data=washington.wsdot.json
 # ====== level1 ======
 # level1: 1514 qualifying stops
