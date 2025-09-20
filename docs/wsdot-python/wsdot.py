@@ -97,13 +97,13 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         all_trips = service.get_tph_by_line()
         frequent_routes = pd.pivot_table(all_trips, values=time_config['hours'], 
                                        index=["route_id","direction_id"], aggfunc=np.sum)
-        
         # Filter by minimum trips per hour
         for hour in time_config['hours']:
             frequent_routes = frequent_routes[frequent_routes[hour] >= time_config['min_tph']]
         
         frequent_routes['frequent_sum'] = frequent_routes[time_config['hours']].sum(axis=1)
         frequent_routes = frequent_routes[frequent_routes['frequent_sum'] >= time_config['min_total']]
+        print("frequent routes:", frequent_routes)
     
     # Get stops for these routes
     frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
@@ -182,13 +182,14 @@ def process_service_level(level_name, config, weekday_service, weekend_service):
     
     # Weekend analysis if required
     if config.get('weekend_required', False) and 'weekend' in config:
-        weekend_stops = analyze_stop_frequency(weekend_service, config['weekend'])
-        weekend_route_stops = analyze_route_frequency(weekend_service, config['weekend'])
+        pass
+        # weekend_stops = analyze_stop_frequency(weekend_service, config['weekend'])
+        # weekend_route_stops = analyze_route_frequency(weekend_service, config['weekend'])
         
-        # Merge weekend results - only keep stop_id
-        weekend_merged = weekend_stops[['stop_id']].merge(weekend_route_stops[['stop_id']], how='inner', on='stop_id')
-        result = result.merge(weekend_merged, how='inner', on='stop_id')
-        print(f"After weekend filtering: {len(result)} stops")
+        # # Merge weekend results - only keep stop_id
+        # weekend_merged = weekend_stops[['stop_id']].merge(weekend_route_stops[['stop_id']], how='inner', on='stop_id')
+        # result = result.merge(weekend_merged, how='inner', on='stop_id')
+        # print(f"After weekend filtering: {len(result)} stops")
     
     result = result.drop_duplicates(subset=['stop_id'])
     print(f"Final {level_name}: {len(result)} stops")
@@ -199,7 +200,7 @@ def main():
     """Main processing function"""
     # Check for command line argument
     if len(sys.argv) < 2:
-        print("Usage: python ian_refactored.py <output_filename.csv>")
+        print("Usage: python ian_refactored.py <output_filename.csv> <monday_dir> <sunday_dir>")
         sys.exit(1)
     
     output_filename = sys.argv[1]
@@ -210,10 +211,10 @@ def main():
 
     # import GTFS feeds
     ## weekday feed
-    path = r'gtfs/monday-3'
+    path = sys.argv[2] # r'gtfs/monday-3'
     weekday_service = tsa.load_gtfs(path, '20240819')
     ## weekend feed
-    path1 = r'gtfs/sunday-3'
+    path1 = sys.argv[3] # r'gtfs/sunday-3'
     weekend_service = tsa.load_gtfs(path1, '20240825')
 
     # Process all service levels

@@ -33,4 +33,22 @@ mkdir -p tmp && rm tmp/*.* || true
 find tmp-fixed -name "*.zip" | parallel --lb transitland fetch --allow-local-fetch --storage="tmp" --create-feed --feed-url="{}" \$\(basename {} \| sed s/.zip//\)
 transitland import --activate --storage="tmp" --activate --workers=8
 psql -c "update feed_states set public = true"
-TL_LOG=trace tlserver server --max-radius=100_000_000  --loader-stop-time-batch-size=1000
+TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-batch-size=1000 --long-query=0
+
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-19 --stop-buffer-radius=800 --bbox-name=wa --save-scenario-data=washington.wsdot.json
+# ====== level1 ======
+# level1: 1514 qualifying stops
+# ====== level2 ======
+# level2: 4168 qualifying stops
+# ====== level3 ======
+# level3: 11604 qualifying stops
+# ====== level4 ======
+# level4: 17320 qualifying stops
+# ====== level5 ======
+# level5: 20947 qualifying stops
+# ====== level6 ======
+# level6: 20958 qualifying stops
+# ====== levelNights ======
+# levelNights: 12 qualifying stops
+# ====== levelAll ======
+# levelAll: 21238 qualifying stops
