@@ -30,6 +30,8 @@ interface NightSegmentConfig {
 // WSDOT service levels configuration
 export type LevelKey = 'level1' | 'level2' | 'level3' | 'level4' | 'level5' | 'level6' | 'levelNights' | 'levelAll'
 
+const ALL_HOURS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+
 export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
   level1: {
     name: 'Level 1',
@@ -112,8 +114,7 @@ interface StopFrequencyData {
 interface RouteFrequencyData {
   routeId: number
   route: RouteGql
-  hourlyDepartures: Map<number, Map<number, StopTime[]>>
-  hourlyMaxTph: Map<number, number>
+  hourlyDepartures: Map<number, StopTime[]>
   stopIds: Set<number>
 }
 
@@ -231,6 +232,9 @@ export class WSDOTReportFetcher {
 
     // Process each service level
     for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
+      if (levelKey !== 'level1') {
+        continue
+      }
       console.log(`===== Processing ${levelKey} =====`)
       const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
       levelStops[levelKey] = Array.from(qualifyingStops)
@@ -330,8 +334,8 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     const routeData = {
       routeId: route.id,
       route: route,
-      hourlyDepartures: new Map<number, Map<number, StopTime[]>>(),
-      hourlyMaxTph: new Map<number, number>(),
+      stopHourlyDepartures: new Map<number, Map<number, StopTime[]>>(),
+      hourlyDepartures: new Map<number, StopTime[]>(),
       stopIds: new Set<number>(),
     }
     routes.set(route.id, routeData)
@@ -361,23 +365,21 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
       if (depCount % 1000 === 0) {
         console.log(`\tProcessed ${depCount} departures...`)
       }
+      const routeId = departure.trip.route.id
       const hour = parseHour(departure.departure_time)
       const stopHourData = stopData.hourlyDepartures.get(hour) || []
       stopHourData.push(departure)
       stopData.hourlyDepartures.set(hour, stopHourData)
-      stopData.routeIds.add(departure.trip.route.id)
+      stopData.routeIds.add(routeId)
       // console.log('\t\tstop data:', stopData)
 
-      const routeId = departure.trip.route.id
       const routeData = routes.get(routeId)
       if (!routeData) {
         console.warn(`Route ID ${routeId} not found for departure, skipping`)
         continue
       }
-      const routeHourData = routeData.hourlyDepartures.get(hour) || new Map<number, StopTime[]>()
-      const routeHourStopData = routeHourData.get(stop.id) || []
-      routeHourStopData.push(departure)
-      routeHourData.set(stop.id, routeHourStopData)
+      const routeHourData = routeData.hourlyDepartures.get(hour) || []
+      routeHourData.push(departure)
       routeData.hourlyDepartures.set(hour, routeHourData)
       routeData.stopIds.add(stop.id)
       routes.set(routeId, routeData)
@@ -385,28 +387,11 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     stops.set(stop.id, stopData)
   }
 
-  // Compute max TPH for each route
-  for (const routeData of routes.values()) {
-    for (const directionId of [0, 1]) {
-      for (const [hour, stopMap] of routeData.hourlyDepartures) {
-        for (const [_, stopTimes] of stopMap.entries()) {
-          const dirCount = stopTimes.filter(st => st.trip.direction_id === directionId).length
-          const currentMax = routeData.hourlyMaxTph.get(hour) || 0
-          routeData.hourlyMaxTph.set(hour, Math.max(currentMax, dirCount))
-        }
-      }
-    }
-    console.log(`Route ${routeData.route.route_id}: ${routeData.route.route_short_name} - ${routeData.route.route_long_name} max TPH by hour:`)
-    for (let i = 0; i < 24; i++) {
-      console.log(`\thour ${i}: ${routeData.hourlyMaxTph.get(i) || 0} tph`)
-    }
-  }
-
   // Summary
   const totalHourlyDepartures: Map<number, number> = new Map()
   for (const sd of stops.values()) {
-    for (const [hour, count] of Object.entries(sd.hourlyDepartures)) {
-      totalHourlyDepartures.set(parseInt(hour), (totalHourlyDepartures.get(parseInt(hour)) || 0) + count.length)
+    for (const [hour, count] of sd.hourlyDepartures.entries()) {
+      totalHourlyDepartures.set(hour, (totalHourlyDepartures.get(hour) || 0) + count.length)
     }
   }
   console.log(`Processed ${stops.size} date ${date} stops with ${depCount} total departures`)
@@ -476,6 +461,17 @@ function processServiceLevel (
     stopResults.push(totalTripStops)
   }
 
+  // Route level analysis
+  if (config.peak) {
+    const peakRouteStops = analyzeRouteFrequency(weekdayFreq.stops, weekdayFreq.routes, config.peak)
+    console.log(`Stops on routes meeting peak criteria: ${peakRouteStops.size}`)
+    stopResults.push(peakRouteStops)
+  } else if (config.extended) {
+    const extendedRouteStops = analyzeRouteFrequency(weekdayFreq.stops, weekdayFreq.routes, config.extended)
+    console.log(`Stops on routes meeting extended criteria: ${extendedRouteStops.size}`)
+    stopResults.push(extendedRouteStops)
+  }
+
   // Merge stop-level results (intersection)
   let mergedStops = stopResults.length > 0 ? stopResults[0] : new Set<number>()
   for (let i = 1; i < stopResults.length; i++) {
@@ -505,33 +501,85 @@ function analyzeFrequency (stops: Map<number, StopFrequencyData>, routes: Map<nu
     }
     qualifyingStops.add(stopId)
   }
+  return qualifyingStops
+}
 
-  // Calculate all routes that satisfy timeConfig
-  // Process all departures for all stops in this hour
+function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: Map<number, RouteFrequencyData>, timeConfig: TimeConfig): Set<number> {
+  // Calculate all route-direction combinations that satisfy timeConfig
+  // This matches the Python implementation: get_tph_by_line -> pivot_table by route_id,direction_id
   const qualifyingRouteStops = new Set<number>()
+  const qualifyingRoutes = new Set<string>()
+
+  // Use route trips per hour per direction
   for (const routeData of routes.values()) {
-    let totalTrips = 0
-    let meetsTph = true
-    for (const hour of timeConfig.hours) {
-      const routeHourTph = routeData.hourlyMaxTph.get(hour) || 0
-      totalTrips += routeHourTph
-      if (routeHourTph < timeConfig.min_tph) {
-        meetsTph = false
+    console.log('\n===== Route', routeData.route.route_id)
+    const allTrips = new Set<string>()
+    const dirTphMatches = Array<boolean>()
+    const dirTotalMatches = Array<boolean>()
+
+    for (const directionId of [0, 1]) {
+      console.log('Direction', directionId)
+
+      // Bucket route-direction trips into hours
+      const dirHourTrips: Map<number, Set<string>> = new Map()
+      const dirAllTrips = new Set<string>()
+      for (const hour of ALL_HOURS) {
+        const deps = routeData.hourlyDepartures.get(hour) || []
+        const hourTrips = new Set<string>()
+        for (const dep of deps.filter(d => d.trip.direction_id === directionId)) {
+          // ... to match python version, only use the first hour for each trip
+          if (!allTrips.has(dep.trip.trip_id)) {
+            hourTrips.add(dep.trip.trip_id)
+            allTrips.add(dep.trip.trip_id)
+          }
+        }
+        dirHourTrips.set(hour, hourTrips)
+      }
+
+      // Check if this route-direction meets the frequency requirements
+      for (const hour of timeConfig.hours) {
+        const hourTrips = dirHourTrips.get(hour) || new Set<string>()
+        console.log('\thour', hour, 'trips:', hourTrips.size, 'trip_ids:', Array.from(hourTrips).join(' '))
+        for (const tripId of hourTrips) {
+          dirAllTrips.add(tripId)
+        }
+        if (hourTrips.size < timeConfig.min_tph) {
+          console.log(`\t\thour ${hour} does not meet tph requirement`)
+          dirTphMatches.push(false)
+        } else {
+          dirTphMatches.push(true)
+        }
+      }
+      if (dirAllTrips.size < timeConfig.min_total) {
+        console.log(`\t\tdirection does not meet total trip requirement`)
+        dirTotalMatches.push(false)
+      } else {
+        dirTotalMatches.push(true)
       }
     }
-    if (!meetsTph) {
+
+    console.log('all scheduled trips:', allTrips.size)
+    // console.log('\n\t', Array.from(allTrips).join(' '))
+
+    if (!dirTphMatches.every(m => m)) {
+      console.log('Does not meet tph requirement')
       continue
     }
-    if (totalTrips < timeConfig.min_total) {
-      // console.log('\tdoes not meet total trips requirements')
+    if (!dirTotalMatches.every(m => m)) {
+      console.log('Does not meet total trip requirement')
       continue
     }
-    // console.log('\tqualifies')
+    console.log('QUALIFIES')
+
+    // Add all stops served by this qualifying route-direction
+    qualifyingRoutes.add(routeData.route.route_id)
     for (const stopId of routeData.stopIds) {
       qualifyingRouteStops.add(stopId)
     }
   }
-  return intersection(qualifyingStops, qualifyingRouteStops)
+  console.log(`Stops on qualifying routes: ${qualifyingRouteStops.size}`)
+  console.log('Qualifying routes:', Array.from(qualifyingRoutes).join(', '))
+  return qualifyingRouteStops
 }
 
 function processNightSegments (stops: Map<number, StopFrequencyData>, nightSegments: NightSegmentConfig[]): Set<number> {

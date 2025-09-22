@@ -10,6 +10,7 @@ fragment departure on StopTime {
   trip {
     id
     direction_id
+    trip_id
     route {
       id
     }
@@ -64,6 +65,7 @@ export interface StopTime {
   trip: {
     id: number
     direction_id: number
+    trip_id: string
     route: {
       id: number
     }
