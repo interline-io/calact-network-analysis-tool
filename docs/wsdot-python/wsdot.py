@@ -14,17 +14,17 @@ import sys
 
 # Configuration for all service levels
 SERVICE_LEVELS = {
-    # 'night': {
-    #     'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
-    #     'night_segments': [
-    #         {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
-    #         {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
-    #         {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
-    #         {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
-    #     ],
-    #     'weekend_required': True,
-    #     'level_column': 'levelNights'
-    # },
+    'night': {
+        'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
+        'night_segments': [
+            {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
+            {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
+            {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
+            {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
+        ],
+        'weekend_required': True,
+        'level_column': 'levelNights'
+    },
     'level1': {
         'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 4, 'min_total': 40},
         'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 3, 'min_total': 32},
@@ -38,35 +38,35 @@ SERVICE_LEVELS = {
         'weekend_required': True,
         'level_column': 'level1'
     },
-    # 'level2': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
-    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
-    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-    #     'weekend_required': True,
-    #     'level_column': 'level2'
-    # },
-    # 'level3': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend_required': True,
-    #     'level_column': 'level3'
-    # },
-    # 'level4': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend_required': False,
-    #     'level_column': 'level4'
-    # },
-    # 'level5': {
-    #     'total_trips_threshold': 6,
-    #     'weekend_required': False,
-    #     'level_column': 'level5'
-    # },
-    # 'level6': {
-    #     'total_trips_threshold': 2,
-    #     'weekend_required': False,
-    #     'level_column': 'level6'
-    # }
+    'level2': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
+        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
+        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+        'weekend_required': True,
+        'level_column': 'level2'
+    },
+    'level3': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
+        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+        'weekend_required': True,
+        'level_column': 'level3'
+    },
+    'level4': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+        'weekend_required': False,
+        'level_column': 'level4'
+    },
+    'level5': {
+        'total_trips_threshold': 6,
+        'weekend_required': False,
+        'level_column': 'level5'
+    },
+    'level6': {
+        'total_trips_threshold': 2,
+        'weekend_required': False,
+        'level_column': 'level6'
+    }
 }
 
 def process_night_segments(service, night_segments):
@@ -95,60 +95,53 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         frequent_routes = frequent_routes[frequent_routes['total_trips'] >= time_config['threshold']]
     else:
         all_trips = service.get_tph_by_line()
-        print("all trips:", all_trips)
-        
         # Debug: Print trips per hour for specific route
-        check_route = "KCM_100045"
-        debug_route = all_trips[all_trips['route_id'] == check_route]
-        if not debug_route.empty:
-            print(f"\nDEBUG: Trips per hour for route {check_route}:")
-            print(debug_route)
-            print(f"\nDEBUG: Column names: {list(debug_route.columns)}")
+        # check_route = "KCM_100045"
+        # debug_route = all_trips[all_trips['route_id'] == check_route]
+        # if not debug_route.empty:
+        #     print(f"\nDEBUG: Trips per hour for route {check_route}:")
+        #     print(debug_route)
+        #     print(f"\nDEBUG: Column names: {list(debug_route.columns)}")
             
-            # Get the underlying trip data to show actual trip IDs per hour
-            print(f"\nDEBUG: Getting detailed trip data for route {check_route}...")
-            try:
-                # Follow the same logic as get_tph_by_line() but show individual trip IDs
-                first_departure = (
-                    service._df_all_stops_by_trips.sort_values("stop_sequence", ascending=True)
-                    .groupby("trip_id", as_index=False)
-                    .first()
-                )
-                first_departure = first_departure.loc[(first_departure.stop_sequence == 1)]
+        #     # Get the underlying trip data to show actual trip IDs per hour
+        #     print(f"\nDEBUG: Getting detailed trip data for route {check_route}...")
+        #     try:
+        #         # Follow the same logic as get_tph_by_line() but show individual trip IDs
+        #         first_departure = (
+        #             service._df_all_stops_by_trips.sort_values("stop_sequence", ascending=True)
+        #             .groupby("trip_id", as_index=False)
+        #             .first()
+        #         )
+        #         first_departure = first_departure.loc[(first_departure.stop_sequence == 1)]
                 
-                # Get trips for our specific route
-                route_trips = service.trips[service.trips['route_id'] == check_route]
-                route_first_departures = first_departure[first_departure['trip_id'].isin(route_trips['trip_id'])]
+        #         # Get trips for our specific route
+        #         route_trips = service.trips[service.trips['route_id'] == check_route]
+        #         route_first_departures = first_departure[first_departure['trip_id'].isin(route_trips['trip_id'])]
                 
-                if not route_first_departures.empty:
-                    print(f"\nTrip IDs by departure hour for route {check_route}:")
-                    # Group by hour and show the actual trip IDs
-                    hourly_trips = route_first_departures.groupby('departure_time_hrs')['trip_id'].apply(list)
-                    for hour, trip_ids in hourly_trips.items():
-                        print(f"Hour {hour} (hour_{hour}): {trip_ids} ({len(trip_ids)} trips)")
-                else:
-                    print(f"No first departures found for route {check_route}")
-
-            except Exception as e:
-                print(f"Error accessing detailed trip data: {e}")
-                print("Available service attributes:", [attr for attr in dir(service) if not attr.startswith('_')])
-            
-        else:
-            print(f"\nDEBUG: Route {check_route} not found in all_trips data")
-            print(f"Available routes: {sorted(all_trips['route_id'].unique())[:10]}...")
+        #         if not route_first_departures.empty:
+        #             print(f"\nTrip IDs by departure hour for route {check_route}:")
+        #             # Group by hour and show the actual trip IDs
+        #             hourly_trips = route_first_departures.groupby('departure_time_hrs')['trip_id'].apply(list)
+        #             for hour, trip_ids in hourly_trips.items():
+        #                 print(f"Hour {hour} (hour_{hour}): {trip_ids} ({len(trip_ids)} trips)")
+        #         else:
+        #             print(f"No first departures found for route {check_route}")
+        #     except Exception as e:
+        #         print(f"Error accessing detailed trip data: {e}")
+        #         print("Available service attributes:", [attr for attr in dir(service) if not attr.startswith('_')])            
+        # else:
+        #     print(f"\nDEBUG: Route {check_route} not found in all_trips data")
+        #     print(f"Available routes: {sorted(all_trips['route_id'].unique())[:10]}...")
         
         frequent_routes = pd.pivot_table(all_trips, values=time_config['hours'], 
                                        index=["route_id","direction_id"], aggfunc=np.sum)
-        print("frequent routes before filter:", frequent_routes)
 
         # Filter by minimum trips per hour
         for hour in time_config['hours']:
             frequent_routes = frequent_routes[frequent_routes[hour] >= time_config['min_tph']]
-        print("frequent routes after hour filter:", frequent_routes)
 
         frequent_routes['frequent_sum'] = frequent_routes[time_config['hours']].sum(axis=1)
         frequent_routes = frequent_routes[frequent_routes['frequent_sum'] >= time_config['min_total']]
-        print("frequent routes after sum check:", frequent_routes)
     
     # Get stops for these routes
     frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
@@ -156,7 +149,6 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
     frequent_stops = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
     
     ret = frequent_stops.drop_duplicates(subset=['stop_id'])
-    print("frequent stops from route analysis:", ret)
 
     return frequent_stops
 

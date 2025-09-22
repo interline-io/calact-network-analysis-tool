@@ -221,9 +221,9 @@ export class WSDOTReportFetcher {
 
     // Extract frequency data for weekday and weekend
     const weekdayFreq = extractFrequencyData(this.scenarioData, this.config.weekdayDate)
-    console.log(`Analyzed ${weekdayFreq.stops.size} stops for weekday`)
+    console.log(`Analyzed ${weekdayFreq.stops.size} stops for weekday ${this.config.weekdayDate}`)
     const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
-    console.log(`Analyzed ${weekendFreq.stops.size} stops routes for weekend`)
+    console.log(`Analyzed ${weekendFreq.stops.size} stops routes for weekend ${this.config.weekendDate}`)
 
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
@@ -232,9 +232,6 @@ export class WSDOTReportFetcher {
 
     // Process each service level
     for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
-      if (levelKey !== 'level1') {
-        continue
-      }
       console.log(`===== Processing ${levelKey} =====`)
       const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq)
       levelStops[levelKey] = Array.from(qualifyingStops)
@@ -447,16 +444,9 @@ function processServiceLevel (
     stopResults.push(nightStops)
   }
 
-  // Weekend hours analysis
-  if (config.weekend) {
-    const weekendStops = analyzeFrequency(weekendFreq.stops, weekendFreq.routes, config.weekend)
-    console.log(`Stops meeting weekend criteria: ${weekendStops.size}`)
-    stopResults.push(weekendStops)
-  }
-
   // Handle total trips threshold levels (level5 and level6)
   if (config.any) {
-    const totalTripStops = analyzeFrequency(weekdayFreq.stops, weekdayFreq.routes, config.any)
+    const totalTripStops = analyzeRouteFrequency(weekdayFreq.stops, weekdayFreq.routes, config.any)
     console.log(`Stops meeting total trips criteria: ${totalTripStops.size}`)
     stopResults.push(totalTripStops)
   }
@@ -470,6 +460,16 @@ function processServiceLevel (
     const extendedRouteStops = analyzeRouteFrequency(weekdayFreq.stops, weekdayFreq.routes, config.extended)
     console.log(`Stops on routes meeting extended criteria: ${extendedRouteStops.size}`)
     stopResults.push(extendedRouteStops)
+  }
+
+  // Weekend analysis
+  if (config.weekend) {
+    const weekendStops = analyzeFrequency(weekendFreq.stops, weekendFreq.routes, config.weekend)
+    console.log(`Stops meeting weekend criteria: ${weekendStops.size}`)
+    stopResults.push(weekendStops)
+    const weekendRouteStops = analyzeRouteFrequency(weekendFreq.stops, weekendFreq.routes, config.weekend)
+    console.log(`Stops on routes meeting weekend criteria: ${weekendRouteStops.size}`)
+    stopResults.push(weekendRouteStops)
   }
 
   // Merge stop-level results (intersection)
@@ -523,10 +523,12 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       // Bucket route-direction trips into hours
       const dirHourTrips: Map<number, Set<string>> = new Map()
       const dirAllTrips = new Set<string>()
+      let hasTrips = false
       for (const hour of ALL_HOURS) {
         const deps = routeData.hourlyDepartures.get(hour) || []
         const hourTrips = new Set<string>()
         for (const dep of deps.filter(d => d.trip.direction_id === directionId)) {
+          hasTrips = true
           // ... to match python version, only use the first hour for each trip
           if (!allTrips.has(dep.trip.trip_id)) {
             hourTrips.add(dep.trip.trip_id)
@@ -534,6 +536,10 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
           }
         }
         dirHourTrips.set(hour, hourTrips)
+      }
+      if (!hasTrips) {
+        console.log('\tno trips in this direction, skipping')
+        continue
       }
 
       // Check if this route-direction meets the frequency requirements
@@ -544,14 +550,14 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
           dirAllTrips.add(tripId)
         }
         if (hourTrips.size < timeConfig.min_tph) {
-          console.log(`\t\thour ${hour} does not meet tph requirement`)
+          console.log(`\t\thour ${hour} does not meet tph requirement (${hourTrips.size} < ${timeConfig.min_tph})`)
           dirTphMatches.push(false)
         } else {
           dirTphMatches.push(true)
         }
       }
       if (dirAllTrips.size < timeConfig.min_total) {
-        console.log(`\t\tdirection does not meet total trip requirement`)
+        console.log(`\t\tdirection does not meet total trip requirement (${dirAllTrips.size} < ${timeConfig.min_total})`)
         dirTotalMatches.push(false)
       } else {
         dirTotalMatches.push(true)
