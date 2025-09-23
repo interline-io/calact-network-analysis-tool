@@ -145,7 +145,8 @@ export type StopDepartureTuple = readonly [
   departure_time: string,
   trip_id: number,
   trip_direction_id: number,
-  trip_route_id: number
+  trip_route_id: number,
+  trip_trip_id: string
 ]
 
 // Helper functions for working with the tuple
@@ -156,22 +157,25 @@ export const StopDepartureTuple = {
     departure_time: string,
     trip_id: number,
     trip_direction_id: number,
-    trip_route_id: number
-  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
+    trip_route_id: number,
+    trip_trip_id: string,
+  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id, trip_trip_id],
   fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
     stopId,
     departureDate,
     stopDeparture.departure_time,
     stopDeparture.trip.id,
     stopDeparture.trip.direction_id,
-    stopDeparture.trip.route.id
+    stopDeparture.trip.route.id,
+    stopDeparture.trip.trip_id,
   ),
   stopId: (tuple: StopDepartureTuple) => tuple[0],
   departureDate: (tuple: StopDepartureTuple) => tuple[1],
   departureTime: (tuple: StopDepartureTuple) => tuple[2],
   tripId: (tuple: StopDepartureTuple) => tuple[3],
   tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
-  tripRouteId: (tuple: StopDepartureTuple) => tuple[5]
+  tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
+  tripTripId: (tuple: StopDepartureTuple) => tuple[6],
 }
 
 // ============================================================================
@@ -616,6 +620,7 @@ export class ScenarioDataReceiver {
           trip: {
             id: StopDepartureTuple.tripId(event),
             direction_id: StopDepartureTuple.tripDirectionId(event),
+            trip_id: StopDepartureTuple.tripTripId(event),
             route: {
               id: StopDepartureTuple.tripRouteId(event)
             }

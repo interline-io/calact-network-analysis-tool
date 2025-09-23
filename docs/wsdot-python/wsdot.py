@@ -95,13 +95,51 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         frequent_routes = frequent_routes[frequent_routes['total_trips'] >= time_config['threshold']]
     else:
         all_trips = service.get_tph_by_line()
+        # Debug: Print trips per hour for specific route
+        # check_route = "KCM_100045"
+        # debug_route = all_trips[all_trips['route_id'] == check_route]
+        # if not debug_route.empty:
+        #     print(f"\nDEBUG: Trips per hour for route {check_route}:")
+        #     print(debug_route)
+        #     print(f"\nDEBUG: Column names: {list(debug_route.columns)}")
+            
+        #     # Get the underlying trip data to show actual trip IDs per hour
+        #     print(f"\nDEBUG: Getting detailed trip data for route {check_route}...")
+        #     try:
+        #         # Follow the same logic as get_tph_by_line() but show individual trip IDs
+        #         first_departure = (
+        #             service._df_all_stops_by_trips.sort_values("stop_sequence", ascending=True)
+        #             .groupby("trip_id", as_index=False)
+        #             .first()
+        #         )
+        #         first_departure = first_departure.loc[(first_departure.stop_sequence == 1)]
+                
+        #         # Get trips for our specific route
+        #         route_trips = service.trips[service.trips['route_id'] == check_route]
+        #         route_first_departures = first_departure[first_departure['trip_id'].isin(route_trips['trip_id'])]
+                
+        #         if not route_first_departures.empty:
+        #             print(f"\nTrip IDs by departure hour for route {check_route}:")
+        #             # Group by hour and show the actual trip IDs
+        #             hourly_trips = route_first_departures.groupby('departure_time_hrs')['trip_id'].apply(list)
+        #             for hour, trip_ids in hourly_trips.items():
+        #                 print(f"Hour {hour} (hour_{hour}): {trip_ids} ({len(trip_ids)} trips)")
+        #         else:
+        #             print(f"No first departures found for route {check_route}")
+        #     except Exception as e:
+        #         print(f"Error accessing detailed trip data: {e}")
+        #         print("Available service attributes:", [attr for attr in dir(service) if not attr.startswith('_')])            
+        # else:
+        #     print(f"\nDEBUG: Route {check_route} not found in all_trips data")
+        #     print(f"Available routes: {sorted(all_trips['route_id'].unique())[:10]}...")
+        
         frequent_routes = pd.pivot_table(all_trips, values=time_config['hours'], 
                                        index=["route_id","direction_id"], aggfunc=np.sum)
-        
+
         # Filter by minimum trips per hour
         for hour in time_config['hours']:
             frequent_routes = frequent_routes[frequent_routes[hour] >= time_config['min_tph']]
-        
+
         frequent_routes['frequent_sum'] = frequent_routes[time_config['hours']].sum(axis=1)
         frequent_routes = frequent_routes[frequent_routes['frequent_sum'] >= time_config['min_total']]
     
@@ -110,7 +148,9 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
     all_stops = service.get_line_stops_gdf()
     frequent_stops = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
     
-    return frequent_stops.drop_duplicates(subset=['stop_id'])
+    ret = frequent_stops.drop_duplicates(subset=['stop_id'])
+
+    return frequent_stops
 
 def analyze_stop_frequency(service, time_config):
     """Analyze stops meeting frequency requirements for a time period"""
@@ -199,7 +239,7 @@ def main():
     """Main processing function"""
     # Check for command line argument
     if len(sys.argv) < 2:
-        print("Usage: python ian_refactored.py <output_filename.csv>")
+        print("Usage: python ian_refactored.py <output_filename.csv> <monday_dir> <sunday_dir>")
         sys.exit(1)
     
     output_filename = sys.argv[1]
@@ -210,10 +250,10 @@ def main():
 
     # import GTFS feeds
     ## weekday feed
-    path = r'gtfs/monday-3'
+    path = sys.argv[2] # r'gtfs/monday-3'
     weekday_service = tsa.load_gtfs(path, '20240819')
     ## weekend feed
-    path1 = r'gtfs/sunday-3'
+    path1 = sys.argv[3] # r'gtfs/sunday-3'
     weekend_service = tsa.load_gtfs(path1, '20240825')
 
     # Process all service levels

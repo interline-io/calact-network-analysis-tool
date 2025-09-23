@@ -17,12 +17,22 @@ export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekendDate: string
   stopBufferRadius: number
   scheduleEnabled: boolean
+  tableDatasetName: string
+  tableDatasetTable: string
+  tableDatasetTableCol: string
+  geoDatasetName: string
+  geoDatasetLayer: string
 }
 
 export function configureWsdotReportCli (program: Command) {
   scenarioOptionsAdd(program)
     .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
     .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
+    .option('--table-dataset-name <name>', 'Name of the Census dataset to use', 'acsdt5y2022')
+    .option('--table-dataset-table <table>', 'Name of the Census table to use', 'b01001')
+    .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', 'b01001_001')
+    .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', 'tiger2024')
+    .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', 'tract')
     .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', parseFloat, 400)
     .allowUnknownOption(false)
     .action(async (_options) => {
@@ -50,6 +60,11 @@ export function configureWsdotReportCli (program: Command) {
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
         aggregateLayer: opts.aggregateLayer,
+        tableDatasetName: opts.tableDatasetName,
+        tableDatasetTable: opts.tableDatasetTable,
+        tableDatasetTableCol: opts.tableDatasetTableCol,
+        geoDatasetName: opts.geoDatasetName,
+        geoDatasetLayer: opts.geoDatasetLayer,
         geographyIds: []
       }
 

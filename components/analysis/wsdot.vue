@@ -35,6 +35,21 @@
             Configure Report
           </p>
         </header>
+
+        <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+          <o-field label="Preset bounding box">
+            <o-select v-model="cannedBbox">
+              <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+                {{ cannedBboxDetails.label }}
+              </option>
+            </o-select>
+            <o-button @click="runQuery">
+              Load example
+            </o-button>
+          </o-field>
+          <br>
+        </tl-msg-warning>
+
         <div class="card-content">
           <o-field>
             <template #label>
@@ -104,7 +119,9 @@
 import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
 import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
+import { cannedBboxes } from '~/src/core'
 
+const debugMenu = useDebugMenu()
 const error = ref<Error | null>(null)
 const loading = ref(false)
 const showLoadingModal = ref(false)
@@ -112,12 +129,19 @@ const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
+const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const wsdotReport = ref<WSDOTReport | null>(null)
 const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
   stopBufferRadius: 800,
+  tableDatasetName: 'acsdt5y2022',
+  tableDatasetTable: 'b01001',
+  tableDatasetTableCol: 'b01001_001',
+  geoDatasetName: 'tiger2024',
+  geoDatasetLayer: 'tract',
+
   ...scenarioConfig.value
 })
 
@@ -145,7 +169,7 @@ defineExpose({
 const runQuery = async () => {
   showLoadingModal.value = true
   try {
-    await fetchScenario('')
+    await fetchScenario(cannedBbox.value || '')
   } catch (err: any) {
     error.value = err
   }
@@ -192,7 +216,7 @@ const fetchScenario = async (loadExample: string) => {
   let response: Response
   if (loadExample) {
     // Load example data from public JSON file
-    response = await fetch(`/examples/${loadExample}.json`)
+    response = await fetch(`/examples/${loadExample}.wsdot.json`)
   } else {
     // Make request to streaming scenario endpoint
     const apiFetch = await useApiFetch()

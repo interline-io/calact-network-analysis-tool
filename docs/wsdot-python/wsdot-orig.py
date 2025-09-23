@@ -19,10 +19,10 @@ import transit_service_analyst as tsa
 
 # import GTFS feeds
 ## weekday feed
-path = r'gtfs/monday-3'
+path = sys.argv[1] # r'gtfs/monday-3'
 weekday_service = tsa.load_gtfs(path, '20240819')
 ## weekend feed
-path1 = r'gtfs/sunday-3'
+path1 = sys.argv[2] # r'gtfs/sunday-3'
 weekend_service = tsa.load_gtfs(path1, '20240825')
 
 # define time windows
