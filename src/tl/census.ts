@@ -2,8 +2,8 @@ import { gql } from 'graphql-tag'
 import type { Geometry } from '~/src/core'
 
 export const geographyLayerQuery = gql`
-query($geography_ids: [Int!], $include_geographies: Boolean = false) {
-  census_datasets {
+query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_name: String) {
+  census_datasets(where: {name: $dataset_name}) {
     id
     name
     description
@@ -14,7 +14,6 @@ query($geography_ids: [Int!], $include_geographies: Boolean = false) {
       geometry
       adm1_name
       adm1_iso
-      geometry
       layer {
         id
         name
