@@ -143,7 +143,12 @@ export interface WSDOTStopResult {
 export interface WSDOTReportConfig extends ScenarioConfig {
   weekdayDate: Date
   weekendDate: Date
-  stopBufferRadius?: number
+  stopBufferRadius: number
+  tableDatasetName: string
+  tableDatasetTable: string
+  tableDatasetTableCol: string
+  geoDatasetName: string
+  geoDatasetLayer: string
 }
 
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
@@ -242,11 +247,11 @@ export class WSDOTReportFetcher {
     // Fetch geography data for the stops in each level (and all stops)
     const baseGeographyConfig: getGeographyDataConfig = {
       client: this.client,
-      tableDatasetName: 'acsdt5y2022',
-      tableDatasetTable: `b01001`,
-      tableDatasetTableCol: 'b01001_001',
-      geoDatasetName: 'tiger2024',
-      geoDatasetLayer: 'tract',
+      tableDatasetName: this.config.tableDatasetName,
+      tableDatasetTable: this.config.tableDatasetTable,
+      tableDatasetTableCol: this.config.tableDatasetTableCol,
+      geoDatasetName: this.config.geoDatasetName,
+      geoDatasetLayer: this.config.geoDatasetLayer,
     }
 
     // Get bbox population (tract intersections)
@@ -742,11 +747,11 @@ interface geographyIntersectionResult {
 
 const geographyIntersectionQuery = gql`
 query ($geoDatasetName: String, $layer: String!, $tableNames: [String!]!, $tableDatasetName: String, $bbox: BoundingBox, $stopIds: [Int!],  $stopBufferRadius: Float, $includeIntersectionGeometry: Boolean = false) {
-  census_datasets(limit: 1000, where: {name: $geoDatasetName}) {
+  census_datasets(where: {name: $geoDatasetName}) {
     id
     name
     url
-    geographies(limit: 1000, where: {layer: $layer, location: {bbox:$bbox, stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
+    geographies(limit: 100000, where: {layer: $layer, location: {bbox:$bbox, stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
       id
       name
       aland

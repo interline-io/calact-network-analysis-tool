@@ -54,6 +54,14 @@
             </tr>
           </tbody>
         </table>
+
+        <o-field class="py-2">
+          <cal-csv-download
+            :data="populationDatagrid.data"
+            button-text="Download Population Data as CSV"
+          />
+        </o-field>
+
         <o-field label="Map display options" class="mt-4">
           <o-checkbox v-model="showStopBuffers">
             Show stop buffers
@@ -317,6 +325,46 @@ const displayFeatures = computed(() => {
     }
   }
   return features
+})
+
+const populationDatagrid = computed((): TableReport => {
+  const data: {
+    level: string
+    label: string
+    intersectionPopulation: number
+    adminKey: string
+    totalPopulation: number
+    percentPopulation: number
+    stopCount: number
+  }[] = []
+  for (const [levelKey, levelDetail] of Object.entries(levelDetails.value)) {
+    for (const [adminKey, pop] of Object.entries(levelDetail.layerPops)) {
+      data.push({
+        level: levelKey,
+        label: levelDetail.label,
+        adminKey: adminKey,
+        intersectionPopulation: Math.round(pop.intersection),
+        totalPopulation: Math.round(pop.total),
+        percentPopulation: pop.total > 0 ? (pop.intersection / pop.total) * 100 : 0,
+        stopCount: levelDetail.count
+      })
+    }
+  }
+
+  const columns: TableColumn[] = [
+    { key: 'level', label: 'Level', sortable: true },
+    { key: 'label', label: 'Level Name', sortable: true },
+    { key: 'adminKey', label: 'State', sortable: true },
+    { key: 'intersectionPopulation', label: 'Intersection Population', sortable: true },
+    { key: 'totalPopulation', label: 'Total Population', sortable: true },
+    { key: 'percentPopulation', label: 'Percent Population (%)', sortable: true },
+    { key: 'stopCount', label: 'Number of Stops', sortable: true },
+  ]
+
+  return {
+    data,
+    columns
+  }
 })
 
 const stopDatagrid = computed((): TableReport => {

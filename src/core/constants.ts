@@ -11,7 +11,7 @@ export const cannedBboxes = new Map<string, CannedBbox>(Object.entries({
   'bend': { label: 'Bend, OR', bboxString: '-121.32895,44.04474,-121.29887,44.06547' },
   'eugene': { label: 'Eugene, OR', bboxString: '-123.11829,44.02712,-123.07870,44.05676' },
   'salem': { label: 'Salem, OR', bboxString: '-123.04563,44.93167,-123.01971,44.94815' },
-  'wa': { label: 'Washington', bboxString: '-124.905719,45.959815,-116.935138,49.046038' },
+  'wa': { label: 'Washington', bboxString: '-124.87621,45.17931,-116.41936,49.33295' },
   'wa+or': { label: 'Washington and Oregon', bboxString: '-127.300423,44.772916,-113.320321,47.625345' },
 }))
 
