@@ -1,17 +1,5 @@
 import { format } from 'date-fns'
-import {
-  StopDepartureCache,
-  feedVersionQuery,
-  routeQuery,
-  stopDepartureQuery,
-  stopQuery,
-  type FeedGql,
-  type FeedVersion,
-  type RouteGql,
-  type StopDeparture,
-  type StopGql,
-  type StopTime
-} from '~/src/tl'
+import bbox from '@turf/bbox'
 import {
   cannedBboxes,
   GenericStreamReceiver,
@@ -28,6 +16,20 @@ import {
   type GraphQLClient,
   convertBbox
 } from '~/src/core'
+import {
+  StopDepartureCache,
+  feedVersionQuery,
+  routeQuery,
+  stopDepartureQuery,
+  stopQuery,
+  type FeedGql,
+  type FeedVersion,
+  type RouteGql,
+  type StopDeparture,
+  type StopGql,
+  type StopTime
+} from '~/src/tl'
+import { geographyLayerQuery } from '~/src/tl/census'
 
 export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
   return {
@@ -387,18 +389,61 @@ export class ScenarioFetcher {
 
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<FeedVersion[]> {
-    const variables = { where: { bbox: convertBbox(this.config.bbox) } }
+    let searchBbox = this.config.bbox
+    // If using one or more administrative boundaries, compute a bbox around them
+    if (this.config.geographyIds && this.config.geographyIds.length > 0) {
+      // First get the geometry for the administrative boundaries
+      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.MultiPolygon }[] }[] }>(
+        geographyLayerQuery,
+        {
+          geography_ids: this.config.geographyIds,
+          include_geographies: true,
+          dataset_name: 'tiger2024'
+        }
+      )
+
+      // Combine all geometries into a FeatureCollection
+      const features = geogResponse.data?.census_datasets?.[0]?.geographies?.map(g => ({
+        type: 'Feature' as const,
+        geometry: g.geometry,
+        properties: {}
+      })) || []
+
+      if (features.length > 0) {
+        const fc = {
+          type: 'FeatureCollection' as const,
+          features
+        }
+
+        // Calculate bbox that contains all administrative boundaries
+        const [minX, minY, maxX, maxY] = bbox(fc)
+        searchBbox = {
+          sw: { lon: minX, lat: minY },
+          ne: { lon: maxX, lat: maxY },
+          valid: true
+        }
+      } else {
+        console.warn('No features found in census datasets response')
+      }
+    }
+
+    // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
+    const bboxForQuery = convertBbox(searchBbox)
+    const variables = { where: { bbox: bboxForQuery } }
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
-    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions: feedVersions, stopDepartures: [] })
+
+    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [] })
 
     return feedVersions
   }
 
   // Fetch stops from GraphQL API
   private async fetchStops (task: StopFetchTask): Promise<void> {
-    const b = (this.config.bbox == null ? null : convertBbox(this.config.bbox))
+    // If we have geography IDs, use them and no bbox
+    // If we don't, use the bbox from the config
     const geoIds = this.config.geographyIds || []
+    const b = geoIds.length > 0 ? null : convertBbox(this.config.bbox)
     const variables = {
       after: task.after,
       limit: this.stopLimit,
