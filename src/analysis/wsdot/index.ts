@@ -538,11 +538,11 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
 
   // Use route trips per hour per direction
   for (const routeData of routes.values()) {
-    console.log('\n===== Route', routeData.route.route_id)
+    // console.log('\n===== Route', routeData.route.route_id)
     const allTrips = new Set<string>()
 
     for (const directionId of [0, 1]) {
-      console.log('Direction', directionId)
+      // console.log('Direction', directionId)
 
       // Bucket route-direction trips into hours
       const dirHourTrips: Map<number, Set<string>> = new Map()
@@ -562,7 +562,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
         dirHourTrips.set(hour, hourTrips)
       }
       if (!hasTrips) {
-        console.log('\tno trips in this direction, skipping')
+        // console.log('\tno trips in this direction, skipping')
         continue
       }
 
@@ -571,7 +571,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       let dirTphMatches = true
       for (const hour of timeConfig.hours) {
         const hourTrips = dirHourTrips.get(hour) || new Set<string>()
-        console.log('\thour', hour, 'trips:', hourTrips.size, 'trip_ids:', Array.from(hourTrips).join(' '))
+        // console.log('\thour', hour, 'trips:', hourTrips.size, 'trip_ids:', Array.from(hourTrips).join(' '))
         for (const tripId of hourTrips) {
           dirAllTrips.add(tripId)
         }
@@ -581,24 +581,24 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       for (const hour of timeConfig.hours.slice(-1)) {
         const hourTrips = dirHourTrips.get(hour) || new Set<string>()
         if (hourTrips.size < timeConfig.min_tph) {
-          console.log(`\t\thour ${hour} does not meet tph requirement (${hourTrips.size} < ${timeConfig.min_tph})`)
+          // console.log(`\t\thour ${hour} does not meet tph requirement (${hourTrips.size} < ${timeConfig.min_tph})`)
           dirTphMatches = false
         }
       }
       if (dirAllTrips.size < timeConfig.min_total) {
-        console.log(`\t\tdirection does not meet total trip requirement (${dirAllTrips.size} < ${timeConfig.min_total})`)
+        // console.log(`\t\tdirection does not meet total trip requirement (${dirAllTrips.size} < ${timeConfig.min_total})`)
         dirTotalMatches = false
       }
 
       if (!dirTphMatches) {
-        console.log('Does not meet tph requirement')
+        // console.log('Does not meet tph requirement')
         continue
       }
       if (!dirTotalMatches) {
-        console.log('Does not meet total trip requirement')
+        // console.log('Does not meet total trip requirement')
         continue
       }
-      console.log('QUALIFIES')
+      // console.log('QUALIFIES')
 
       // Add all stops served by this qualifying route-direction
       qualifyingRoutes.add(routeData.route.route_id)
@@ -607,7 +607,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       }
     }
 
-    console.log('all scheduled trips:', allTrips.size)
+    // console.log('all scheduled trips:', allTrips.size)
     // console.log('\n\t', Array.from(allTrips).join(' '))
   }
   // console.log(`Stops on qualifying routes: ${qualifyingRouteStops.size}`)
