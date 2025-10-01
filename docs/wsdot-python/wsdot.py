@@ -14,59 +14,59 @@ import sys
 
 # Configuration for all service levels
 SERVICE_LEVELS = {
-    # 'night': {
-    #     'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
-    #     'night_segments': [
-    #         {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
-    #         {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
-    #         {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
-    #         {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
-    #     ],
-    #     'weekend_required': True,
-    #     'level_column': 'levelNights'
-    # },
-    # 'level1': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 4, 'min_total': 40},
-    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 3, 'min_total': 32},
-    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
-    #     'night_segments': [
-    #         {'hours': ['hour_23', 'hour_24'], 'min_total': 0},
-    #         {'hours': ['hour_25', 'hour_26'], 'min_total': 0},
-    #         {'hours': ['hour_27', 'hour_28'], 'min_total': 0},
-    #         {'hours': ['hour_26', 'hour_27'], 'min_total': 0}
-    #     ],
-    #     'weekend_required': True,
-    #     'level_column': 'level1'
-    # },
-    # 'level2': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
-    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
-    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-    #     'weekend_required': True,
-    #     'level_column': 'level2'
-    # },
-    # 'level3': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend_required': True,
-    #     'level_column': 'level3'
-    # },
-    # 'level4': {
-    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
-    #     'weekend_required': False,
-    #     'level_column': 'level4'
-    # },
-    # 'level5': {
-    #     'total_trips_threshold': 6,
-    #     'weekend_required': False,
-    #     'level_column': 'level5'
-    # },
-    # 'level6': {
-    #     'total_trips_threshold': 2,
-    #     'weekend_required': False,
-    #     'level_column': 'level6'
-    # }
+    'night': {
+        'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
+        'night_segments': [
+            {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
+            {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
+            {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
+            {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
+        ],
+        'weekend_required': True,
+        'level_column': 'levelNights'
+    },
+    'level1': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 4, 'min_total': 40},
+        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 3, 'min_total': 32},
+        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
+        'night_segments': [
+            {'hours': ['hour_23', 'hour_24'], 'min_total': 0},
+            {'hours': ['hour_25', 'hour_26'], 'min_total': 0},
+            {'hours': ['hour_27', 'hour_28'], 'min_total': 0},
+            {'hours': ['hour_26', 'hour_27'], 'min_total': 0}
+        ],
+        'weekend_required': True,
+        'level_column': 'level1'
+    },
+    'level2': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
+        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
+        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+        'weekend_required': True,
+        'level_column': 'level2'
+    },
+    'level3': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
+        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+        'weekend_required': True,
+        'level_column': 'level3'
+    },
+    'level4': {
+        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+        'weekend_required': False,
+        'level_column': 'level4'
+    },
+    'level5': {
+        'total_trips_threshold': 6,
+        'weekend_required': False,
+        'level_column': 'level5'
+    },
+    'level6': {
+        'total_trips_threshold': 2,
+        'weekend_required': False,
+        'level_column': 'level6'
+    },
     'levelAll': {
         'total_trips_threshold': 0,
         'weekend_required': False,
