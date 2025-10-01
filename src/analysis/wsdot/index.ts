@@ -159,7 +159,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const writer = inputStream.getWriter()
 
   // Configure fetcher/sender
-  const configCopy = { ...config, departureMode: 'all' as const }
+  const configCopy = { ...config, departureMode: 'all' as const, routeHourCompatMode: true }
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
 
