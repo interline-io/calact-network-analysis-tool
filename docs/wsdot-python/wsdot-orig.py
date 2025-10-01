@@ -79,7 +79,7 @@ min_tph_5_24hour = 2
 
 ## find stop_ids for layer NIGHT
 
-LEVELS = set(['levelNights'])
+LEVELS = set(['levelNights', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6'])
 
 # identify stops with service in all hours
 if 'levelNights' in LEVELS:
@@ -671,7 +671,7 @@ if 'level6' in LEVELS:
     print(set(frequent_stops5['stop_id'].tolist()))
 
 # merge with stops.txt, identify stops in layers ---- does not account for merging stops across feeds, but that shouldn't matter in this process because we will flatten frequency layers
-OUTPUT = False
+OUTPUT = True
 if OUTPUT:
     # add binary identifier to each level
     frequent_stops0['level1']='1'
