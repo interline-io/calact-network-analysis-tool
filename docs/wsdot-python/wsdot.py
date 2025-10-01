@@ -139,10 +139,9 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         #     print(f"\nDEBUG: Route {check_route} not found in all_trips data")
         #     print(f"Available routes: {sorted(all_trips['route_id'].unique())[:10]}...")
         
+        # Filter by minimum trips per hour
         frequent_routes = pd.pivot_table(all_trips, values=time_config['hours'], 
                                        index=["route_id","direction_id"], aggfunc=np.sum)
-
-        # Filter by minimum trips per hour
         for hour in time_config['hours']:
             frequent_routes = frequent_routes[frequent_routes[hour] >= time_config['min_tph']]
 
@@ -163,18 +162,8 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
 
 def analyze_stop_frequency(service, time_config):
     """Analyze stops meeting frequency requirements for a time period"""
-    freq = service.get_tph_at_stops()
-    
-    debug_stop = freq[freq['stop_id'] == 'ST_99913']
-    if not debug_stop.empty:
-        print(f"\nDEBUG: All columns for stop_id ST_99913:")
-        print(debug_stop.to_string())
-        print(f"\nColumn names: {list(debug_stop.columns)}")
-    else:
-        print(f"\nDEBUG: stop_id ST_99913 not found in frequency data")
-        print(f"Available stop_ids sample: {freq['stop_id'].head(10).tolist()}")
-        
     # Filter by minimum trips per hour for each hour
+    freq = service.get_tph_at_stops()    
     for hour in time_config['hours']:
         freq = freq[freq[hour] >= time_config['min_tph']]
     
