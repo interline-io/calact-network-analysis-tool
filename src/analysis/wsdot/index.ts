@@ -159,8 +159,9 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const writer = inputStream.getWriter()
 
   // Configure fetcher/sender
+  const configCopy = { ...config, departureMode: 'all' as const }
   const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+  const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
 
   // Configure client/receiver
   const receiver = new ScenarioDataReceiver()
@@ -182,7 +183,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
 
   let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, client)
     wsdotResult = await wsdotFetcher.fetch()
     // Update the client with the wsdot result
     scenarioDataSender.onProgress({

@@ -36,6 +36,62 @@ query (
 ) {
   stops(ids: $ids) {
     id
+    monday: departures(limit: 10000, where: {date: $monday}) @include(if: $include_monday) {
+      ...departure
+    }
+    tuesday: departures(limit: 10000, where: {date: $tuesday}) @include(if: $include_tuesday) {
+      ...departure
+    }
+    wednesday: departures(limit: 10000, where: {date: $wednesday}) @include(if: $include_wednesday) {
+      ...departure
+    }
+    thursday: departures(limit: 10000, where: {date: $thursday}) @include(if: $include_thursday) {
+      ...departure
+    }
+    friday: departures(limit: 10000, where: {date: $friday}) @include(if: $include_friday) {
+      ...departure
+    }
+    saturday: departures(limit: 10000, where: {date: $saturday}) @include(if: $include_saturday) {
+      ...departure
+    }
+    sunday: departures(limit: 10000, where: {date: $sunday}) @include(if: $include_sunday) {
+      ...departure
+    }    
+  }
+}`
+
+export const stopTimeQuery = gql`
+fragment departure on StopTime {
+  departure_time
+  trip {
+    id
+    direction_id
+    trip_id
+    route {
+      id
+    }
+  }
+}
+
+query (
+  $ids: [Int!],
+  $monday: Date,
+  $tuesday: Date,
+  $wednesday: Date,
+  $thursday: Date,
+  $friday: Date,
+  $saturday: Date,
+  $sunday: Date,
+  $include_monday: Boolean!,
+  $include_tuesday: Boolean!,
+  $include_wednesday: Boolean!,
+  $include_thursday: Boolean!,
+  $include_friday: Boolean!,
+  $include_saturday: Boolean!,
+  $include_sunday: Boolean!
+) {
+  stops(ids: $ids) {
+    id
     monday: stop_times(limit: 10000, where: {date: $monday}) @include(if: $include_monday) {
       ...departure
     }

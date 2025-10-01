@@ -65,7 +65,8 @@ export function configureWsdotReportCli (program: Command) {
         tableDatasetTableCol: opts.tableDatasetTableCol,
         geoDatasetName: opts.geoDatasetName,
         geoDatasetLayer: opts.geoDatasetLayer,
-        geographyIds: []
+        geographyIds: [],
+        routeHourCompatMode: true,
       }
 
       const client = new BasicGraphQLClient(

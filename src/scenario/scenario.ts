@@ -21,6 +21,7 @@ import {
   feedVersionQuery,
   routeQuery,
   stopDepartureQuery,
+  stopTimeQuery,
   stopQuery,
   type FeedGql,
   type FeedVersion,
@@ -39,7 +40,7 @@ export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
     endDate: parseDate(getDateOneWeekLater()),
     geographyIds: [],
     stopLimit: 1000,
-    maxConcurrentDepartures: 1
+    maxConcurrentDepartures: 1,
   }
 }
 
@@ -56,6 +57,7 @@ export interface ScenarioConfig {
   stopLimit?: number
   aggregateLayer?: string
   maxConcurrentDepartures?: number
+  departureMode?: 'all' | 'departures'
 }
 
 export interface ScenarioFilter {
@@ -527,7 +529,8 @@ export class ScenarioFetcher {
     const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const fetchDates = dowDateStringLower.filter(s => task.get(s)).map(s => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
     console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
-    const response = await this.client.query<{ stops: StopDeparture[] }>(stopDepartureQuery, task)
+    const q = this.config.departureMode === 'departures' ? stopDepartureQuery : stopTimeQuery
+    const response = await this.client.query<{ stops: StopDeparture[] }>(q, task)
     // Map into simpler format for wire format
     const stopDepartures: StopDepartureTuple[] = []
     for (const stop of response.data?.stops || []) {
