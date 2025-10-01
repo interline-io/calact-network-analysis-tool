@@ -639,7 +639,7 @@ frequent_stops4 = frequent_stops.drop_duplicates(subset=['stop_id'])
 print (f'There are {len(frequent_stops4)} stops that have {min_tph_4_24hour} trips or more during the day.')
 print(set(frequent_stops4['stop_id'].tolist()))
 
-if 'level6' in LEVELS:
+# if 'level6' in LEVELS:
 ## find stop_ids for Level1 
 
 # identify stops with service in peak hours 
