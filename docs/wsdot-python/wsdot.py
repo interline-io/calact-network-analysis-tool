@@ -14,59 +14,65 @@ import sys
 
 # Configuration for all service levels
 SERVICE_LEVELS = {
-    'night': {
-        'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
-        'night_segments': [
-            {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
-            {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
-            {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
-            {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
-        ],
-        'weekend_required': True,
-        'level_column': 'levelNights'
-    },
-    'level1': {
-        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 4, 'min_total': 40},
-        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 3, 'min_total': 32},
-        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
-        'night_segments': [
-            {'hours': ['hour_23', 'hour_24'], 'min_total': 0},
-            {'hours': ['hour_25', 'hour_26'], 'min_total': 0},
-            {'hours': ['hour_27', 'hour_28'], 'min_total': 0},
-            {'hours': ['hour_26', 'hour_27'], 'min_total': 0}
-        ],
-        'weekend_required': True,
-        'level_column': 'level1'
-    },
-    'level2': {
-        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
-        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
-        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-        'weekend_required': True,
-        'level_column': 'level2'
-    },
-    'level3': {
-        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
-        'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
-        'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
-        'weekend_required': True,
-        'level_column': 'level3'
-    },
-    'level4': {
-        'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+    # 'night': {
+    #     'peak': {'hours': ['hour_5', 'hour_6', 'hour_7', 'hour_8', 'hour_9', 'hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21', 'hour_22', 'hour_23', 'hour_24', 'hour_25', 'hour_26', 'hour_27', 'hour_28'], 'min_tph': 0, 'min_total': 4},
+    #     'night_segments': [
+    #         {'hours': ['hour_23', 'hour_24'], 'min_total': 1},
+    #         {'hours': ['hour_25', 'hour_26'], 'min_total': 1},
+    #         {'hours': ['hour_27', 'hour_28'], 'min_total': 1},
+    #         {'hours': ['hour_26', 'hour_27'], 'min_total': 1}
+    #     ],
+    #     'weekend_required': True,
+    #     'level_column': 'levelNights'
+    # },
+    # 'level1': {
+    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 4, 'min_total': 40},
+    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 3, 'min_total': 32},
+    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
+    #     'night_segments': [
+    #         {'hours': ['hour_23', 'hour_24'], 'min_total': 0},
+    #         {'hours': ['hour_25', 'hour_26'], 'min_total': 0},
+    #         {'hours': ['hour_27', 'hour_28'], 'min_total': 0},
+    #         {'hours': ['hour_26', 'hour_27'], 'min_total': 0}
+    #     ],
+    #     'weekend_required': True,
+    #     'level_column': 'level1'
+    # },
+    # 'level2': {
+    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 3, 'min_total': 32},
+    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 1, 'min_total': 16},
+    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+    #     'weekend_required': True,
+    #     'level_column': 'level2'
+    # },
+    # 'level3': {
+    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 1, 'min_total': 16},
+    #     'extended': {'hours': ['hour_6', 'hour_7', 'hour_8', 'hour_17', 'hour_18', 'hour_19', 'hour_20', 'hour_21'], 'min_tph': 0, 'min_total': 8},
+    #     'weekend': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+    #     'weekend_required': True,
+    #     'level_column': 'level3'
+    # },
+    # 'level4': {
+    #     'peak': {'hours': ['hour_10', 'hour_11', 'hour_12', 'hour_13', 'hour_14', 'hour_15', 'hour_16', 'hour_9'], 'min_tph': 0, 'min_total': 8},
+    #     'weekend_required': False,
+    #     'level_column': 'level4'
+    # },
+    # 'level5': {
+    #     'total_trips_threshold': 6,
+    #     'weekend_required': False,
+    #     'level_column': 'level5'
+    # },
+    # 'level6': {
+    #     'total_trips_threshold': 2,
+    #     'weekend_required': False,
+    #     'level_column': 'level6'
+    # }
+    'levelAll': {
+        'total_trips_threshold': 0,
         'weekend_required': False,
-        'level_column': 'level4'
-    },
-    'level5': {
-        'total_trips_threshold': 6,
-        'weekend_required': False,
-        'level_column': 'level5'
-    },
-    'level6': {
-        'total_trips_threshold': 2,
-        'weekend_required': False,
-        'level_column': 'level6'
+        'level_column': 'levelAll'
     }
+
 }
 
 def process_night_segments(service, night_segments):
@@ -143,19 +149,31 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         frequent_routes['frequent_sum'] = frequent_routes[time_config['hours']].sum(axis=1)
         frequent_routes = frequent_routes[frequent_routes['frequent_sum'] >= time_config['min_total']]
     
+    print(f"Routes meeting frequency criteria: {len(frequent_routes)}")
+    print(frequent_routes.index.get_level_values('route_id').unique().tolist())
+
     # Get stops for these routes
     frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
     all_stops = service.get_line_stops_gdf()
     frequent_stops = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
-    
     ret = frequent_stops.drop_duplicates(subset=['stop_id'])
-
-    return frequent_stops
+    print(f"Stops meeting frequency criteria: {len(ret)}")
+    print(ret['stop_id'].tolist())
+    return ret
 
 def analyze_stop_frequency(service, time_config):
     """Analyze stops meeting frequency requirements for a time period"""
     freq = service.get_tph_at_stops()
     
+    debug_stop = freq[freq['stop_id'] == 'ST_99913']
+    if not debug_stop.empty:
+        print(f"\nDEBUG: All columns for stop_id ST_99913:")
+        print(debug_stop.to_string())
+        print(f"\nColumn names: {list(debug_stop.columns)}")
+    else:
+        print(f"\nDEBUG: stop_id ST_99913 not found in frequency data")
+        print(f"Available stop_ids sample: {freq['stop_id'].head(10).tolist()}")
+        
     # Filter by minimum trips per hour for each hour
     for hour in time_config['hours']:
         freq = freq[freq[hour] >= time_config['min_tph']]
@@ -185,19 +203,22 @@ def process_service_level(level_name, config, weekday_service, weekend_service):
         peak_stops = analyze_stop_frequency(weekday_service, config['peak'])
         stop_results.append(peak_stops)
         print(f"Found {len(peak_stops)} stops meeting peak requirements")
+        print(peak_stops['stop_id'].tolist())
     
     # Extended hours analysis
     if 'extended' in config:
         extended_stops = analyze_stop_frequency(weekday_service, config['extended'])
         stop_results.append(extended_stops)
         print(f"Found {len(extended_stops)} stops meeting extended requirements")
-    
+        print(extended_stops['stop_id'].tolist())
+
     # Night segments analysis
     if 'night_segments' in config:
         night_stops = process_night_segments(weekday_service, config['night_segments'])
         stop_results.append(night_stops)
         print(f"Found {len(night_stops)} stops meeting night requirements")
-    
+        print(night_stops['stop_id'].tolist())
+
     # Merge stop-level results - only keep stop_id for merging
     if stop_results:
         merged_stops = stop_results[0][['stop_id']]
@@ -229,6 +250,7 @@ def process_service_level(level_name, config, weekday_service, weekend_service):
         weekend_merged = weekend_stops[['stop_id']].merge(weekend_route_stops[['stop_id']], how='inner', on='stop_id')
         result = result.merge(weekend_merged, how='inner', on='stop_id')
         print(f"After weekend filtering: {len(result)} stops")
+        print(result['stop_id'].tolist())
     
     result = result.drop_duplicates(subset=['stop_id'])
     print(f"Final {level_name}: {len(result)} stops")
