@@ -11,7 +11,13 @@ for day in monday-3 sunday-3; do
     --set "stops.txt,*,parent_station," \
     --set "routes.txt,*,route_color," \
     --set "routes.txt,*,route_text_color," \
+    --set "routes.txt,*,agency_id,40" \
     --set "agency.txt,*,agency_timezone,America/Los_Angeles" \
+    --set "trips.txt,*,shape_id," \
+    --set "calendar.txt,monday-3:1,tuesday,1" \
+    --set "calendar.txt,monday-3:1,wednesday,1" \
+    --set "calendar.txt,monday-3:1,thursday,1" \
+    --set "calendar.txt,monday-3:1,friday,1" \
     --normalize-service-ids \
     --prefix "$day:" \
     --prefix-files-exclude agency.txt \
@@ -24,7 +30,6 @@ done
 transitland merge tmp-fixed/wsdot-merged.zip tmp-fixed/monday-3 tmp-fixed/sunday-3
 
 # # migrate
-createdb tlv2
 transitland dbmigrate up
 transitland dbmigrate natural-earth
 
@@ -44,20 +49,4 @@ TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-bat
 # level6: 22245
 # levelNights: 722
 
-# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-19 --stop-buffer-radius=800 --bbox-name=wa --save-scenario-data=washington.wsdot.json
-# ====== level1 ======
-# level1: 1514 qualifying stops
-# ====== level2 ======
-# level2: 4168 qualifying stops
-# ====== level3 ======
-# level3: 11604 qualifying stops
-# ====== level4 ======
-# level4: 17320 qualifying stops
-# ====== level5 ======
-# level5: 20947 qualifying stops
-# ====== level6 ======
-# level6: 20958 qualifying stops
-# ====== levelNights ======
-# levelNights: 12 qualifying stops
-# ====== levelAll ======
-# levelAll: 21238 qualifying stops
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-25 --stop-buffer-radius=800 --bbox-name=wa --save-scenario-data=washington.wsdot.json

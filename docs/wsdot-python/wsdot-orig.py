@@ -13,16 +13,22 @@ import pandas as pd
 import numpy as np
 import transit_service_analyst as tsa
 
+# Set display options to show all rows and columns
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+pd.set_option('display.max_colwidth', None)
+
 # user must separately merge gtfs files before use of this notebook: 
 # combine_gtfs_feeds run -g C:\Users\craigth\pythonwork\FTSS_2024\2024 -s 20240819 -o C:\Users\craigth\pythonwork\FTSS_2024\monday-3
 # combine_gtfs_feeds run -g C:\Users\craigth\pythonwork\FTSS_2024\2024 -s 20240825 -o C:\Users\craigth\pythonwork\FTSS_2024\sunday-3
 
 # import GTFS feeds
 ## weekday feed
-path = sys.argv[1] # r'gtfs/monday-3'
+path = sys.argv[2] # r'gtfs/monday-3'
 weekday_service = tsa.load_gtfs(path, '20240819')
 ## weekend feed
-path1 = sys.argv[2] # r'gtfs/sunday-3'
+path1 = sys.argv[3] # r'gtfs/sunday-3'
 weekend_service = tsa.load_gtfs(path1, '20240825')
 
 # define time windows
@@ -73,7 +79,10 @@ min_tph_5_24hour = 2
 
 ## find stop_ids for layer NIGHT
 
+LEVELS = set(['levelNights', 'level1', 'level2', 'level3', 'level4', 'level5', 'level6'])
+
 # identify stops with service in all hours
+# if 'levelNights' in LEVELS:
 freqNight = weekday_service.get_tph_at_stops() 
 cols = []
 for hour in hours:
@@ -215,11 +224,12 @@ print (f'There are {len(freqNightw3)} stops that have service between 3 and 5 on
 print (f'There are {len(freqNightw4)} stops that have service between 3 and 5 on weekends.')
 print (f'There are {len(frequent_stopsNightsw)} stops associated with routes that have {min_tph_Night_peak} or more trips per hour 24 hours per day on Sundays.')
 print (f'There are {len(frequent_stopsNights)} stops that meet all criteria.')
-
+print(set(frequent_stopsNights['stop_id'].tolist()))
 
 ## find stop_ids for Level1
 
 # identify stops with service in peak hours
+# if 'level1' in LEVELS:
 freq0 = weekday_service.get_tph_at_stops() 
 cols = []
 for hour in peak_hours:
@@ -341,9 +351,10 @@ print (f'There are {len(frequent_stops)} stops associated with routes that have 
 print (f'There are {len(freq0w)} stops that have {min_tph_0_end} trips or more on Sundays.')
 print (f'There are {len(frequent_stops0w)} stops associated with routes that have {min_tph_0_end} or more trips per hour during the weekends.')
 print (f'There are {len(frequent_stops0)} stops that meet all criteria.')
+print(set(frequent_stops0['stop_id'].tolist()))
 
 ## find stop_ids for Level2
-
+# if 'level2' in LEVELS:
 # identify stops with service in peak hours
 freq7 = weekday_service.get_tph_at_stops() 
 cols = []
@@ -373,23 +384,48 @@ cols = []
 for hour in peak_hours:
     frequent_routes0 = frequent_routes[frequent_routes[hour]>=min_tph_7_peak]
 frequent_routes0['frequent_sum'] = frequent_routes0[peak_hours].sum(axis=1)
+
+# print("FREQUENT ROUTES AFTER PEAK HOUR FILTERING:")
+# print(frequent_routes0)
+
 frequent_routes0 = frequent_routes0[frequent_routes0['frequent_sum']>=min_tph_7_peak_8hour]
+# print("FREQUENT ROUTES AFTER PEAK HOUR TOTAL FILTERING:")
+# print(frequent_routes0)
+# print(frequent_routes0.index.get_level_values('route_id').unique().tolist())
+
 # during extended hours
 cols = []
 for hour in extended_hours:
     frequent_routes0a = frequent_routes[frequent_routes[hour]>=min_tph_7_ext]
 frequent_routes0a['frequent_sum'] = frequent_routes0a[extended_hours].sum(axis=1)
+# print("FREQUENT ROUTES AFTER EXTENDED HOUR FILTERING:")
+# print(frequent_routes0a)
+
 frequent_routes0a = frequent_routes0a[frequent_routes0a['frequent_sum']>=min_tph_7_ext_8hour]
+# print("FREQUENT ROUTES AFTER EXTENDED HOUR TOTAL FILTERING:")
+# print(frequent_routes0a)
+# print(frequent_routes0a.index.get_level_values('route_id').unique().tolist())
+
 # identify trips associated with those routes
 frequent_routes = frequent_routes0a.merge(frequent_routes0, how='inner', on='route_id')
+# print("FREQUENT ROUTES AFTER MERGING PEAK AND EXTENDED:")
+# print(frequent_routes)
+# print(frequent_routes.index.get_level_values('route_id').unique().tolist())
+
 frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
 # identify stops associated with those trips
 all_stops = weekday_service.get_line_stops_gdf()
 frequent_stops = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
+# print("FREQUENT STOPS FROM BOTH ROUTE CONFIGS MERGED:")
+# print(len(set(frequent_stops['stop_id'].tolist())))
+# print(set(frequent_stops['stop_id'].tolist()))
 
 # merge to list from stop-level process
 frequent_stops7 = freq7f.merge(frequent_stops, how = 'inner', on = 'stop_id')
 frequent_stops7 = frequent_stops7.drop_duplicates(subset=['stop_id'])
+# print("Frequent stops after merging stop level and route level:")
+# print(len(set(frequent_stops7['stop_id'].tolist())))
+# print(set(frequent_stops7['stop_id'].tolist()))
 
 # identify stops with service in weekend hours
 freq7w = weekend_service.get_tph_at_stops() 
@@ -398,10 +434,16 @@ for hour in peak_hours:
     freq7w = freq7w[freq7w[hour]>=min_tph_7_end]
     freq7w['frequent_sum'] = freq7w[peak_hours].sum(axis=1)
 freq7w = freq7w[freq7w['frequent_sum']>=min_tph_7_end_8hour]
-    
+# print("Stops meeting weekend hour criteria")
+# print(len(set(freq7w['stop_id'].tolist())))
+# print(set(freq7w['stop_id'].tolist()))        
+
 # merge to list from weekday/route-level process
 frequent_stops7 = freq7w.merge(frequent_stops7, how = 'inner', on = 'stop_id')
 frequent_stops7 = frequent_stops7.drop_duplicates(subset=['stop_id'])
+# print("...after merging with previous frequent stops")
+# print(len(set(frequent_stops7['stop_id'].tolist())))
+# print(set(frequent_stops7['stop_id'].tolist()))    
 
 # aggregate headway of trips into routes by direction
 all_trips = weekend_service.get_tph_by_line()
@@ -412,16 +454,22 @@ for hour in peak_hours:
     frequent_routes = frequent_routes[frequent_routes[hour]>=min_tph_7_end]
 frequent_routes['frequent_sum'] = frequent_routes[peak_hours].sum(axis=1)
 frequent_routes = frequent_routes[frequent_routes['frequent_sum']>=min_tph_7_end_8hour]
-    
+
 # identify trips associated with those routes
 frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
 # identify stops associated with those trips
 all_stops = weekend_service.get_line_stops_gdf()
 frequent_stops7w = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
+# print("Stops on routes meeting weekend criteria")
+# print(len(set(frequent_stops7w['stop_id'].tolist())))
+# print(set(frequent_stops7w['stop_id'].tolist()))
 
 # merge to list from previous processes
 frequent_stops7 = frequent_stops7.merge(frequent_stops7w, how = 'inner', on = 'stop_id')
 frequent_stops7 = frequent_stops7.drop_duplicates(subset=['stop_id'])
+# print("...after merging with previous frequent stops")
+# print(len(set(frequent_stops7['stop_id'].tolist())))
+# print(set(frequent_stops7['stop_id'].tolist()))    
 
 #print series of human readable sentences revealing how many stops were in each dataframe above
 print (f'There are {len(freq7)} stops that have {min_tph_7_peak} trips or more per hour during peak.')
@@ -430,9 +478,10 @@ print (f'There are {len(frequent_stops)} stops associated with routes that have 
 print (f'There are {len(freq7w)} stops that have {min_tph_7_end} trips or more on Sundays.')
 print (f'There are {len(frequent_stops7w)} stops associated with routes that have {min_tph_7_end} or more trips per hour during the weekends.')
 print (f'There are {len(frequent_stops7)} stops that meet all criteria.')
+print(set(frequent_stops7['stop_id'].tolist()))
 
 ## find stop_ids for Level3
-
+# if 'level3' in LEVELS:
 # identify stops with service in peak hours
 freq2 = weekday_service.get_tph_at_stops() 
 cols = []
@@ -519,9 +568,11 @@ print (f'There are {len(frequent_stops)} stops associated with routes that have 
 print (f'There are {len(freq2w)} stops that have {min_tph_2_end} trips or more on Sundays.')
 print (f'There are {len(frequent_stops2w)} stops associated with routes that have {min_tph_2_end} or more trips per hour during the weekends.')
 print (f'There are {len(frequent_stops2)} stops that meet all criteria.')
+print(set(frequent_stops2['stop_id'].tolist()))
+
 
 ## find stop_ids for Level4
-
+# if 'level4' in LEVELS:
 # identify stops with service in peak hours
 freq3 = weekday_service.get_tph_at_stops() 
 cols = []
@@ -555,9 +606,11 @@ frequent_stops3 = frequent_stops3.drop_duplicates(subset=['stop_id'])
 print (f'There are {len(freq3)} stops that have {min_tph_3_peak} trips or more per hour during peak.')
 print (f'There are {len(frequent_stops)} stops associated with routes that have {min_tph_3_peak} or more trips per hour during the day.')
 print (f'There are {len(frequent_stops3)} stops that meet all criteria.')
+print(set(frequent_stops3['stop_id'].tolist()))
+
 
 ## find stop_ids for Level5 
-
+# if 'level5' in LEVELS:
 # identify stops with service in peak hourss
 # freq4 = weekday_service.get_tph_at_stops() 
 # cols = []
@@ -584,7 +637,9 @@ frequent_stops4 = frequent_stops.drop_duplicates(subset=['stop_id'])
 
 #print series of human readable sentences revealing how many stops were in each dataframe above
 print (f'There are {len(frequent_stops4)} stops that have {min_tph_4_24hour} trips or more during the day.')
+print(set(frequent_stops4['stop_id'].tolist()))
 
+# if 'level6' in LEVELS:
 ## find stop_ids for Level1 
 
 # identify stops with service in peak hours 
@@ -613,9 +668,11 @@ frequent_stops5 = frequent_stops.drop_duplicates(subset=['stop_id'])
 
 #print series of human readable sentences revealing how many stops were in each dataframe above
 print (f'There are {len(frequent_stops5)} stops that have {min_tph_5_24hour} trips or more during the day.')
+print(set(frequent_stops5['stop_id'].tolist()))
 
 # merge with stops.txt, identify stops in layers ---- does not account for merging stops across feeds, but that shouldn't matter in this process because we will flatten frequency layers
-
+OUTPUT = True
+# if OUTPUT:
 # add binary identifier to each level
 frequent_stops0['level1']='1'
 frequent_stops7['level2']='1'
