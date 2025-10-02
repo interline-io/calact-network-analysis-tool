@@ -66,7 +66,13 @@ SERVICE_LEVELS = {
         'total_trips_threshold': 2,
         'weekend_required': False,
         'level_column': 'level6'
+    },
+    'levelAll': {
+        'total_trips_threshold': 0,
+        'weekend_required': False,
+        'level_column': 'levelAll'
     }
+
 }
 
 def process_night_segments(service, night_segments):
@@ -133,30 +139,31 @@ def analyze_route_frequency(service, time_config, use_total_trips=False):
         #     print(f"\nDEBUG: Route {check_route} not found in all_trips data")
         #     print(f"Available routes: {sorted(all_trips['route_id'].unique())[:10]}...")
         
+        # Filter by minimum trips per hour
         frequent_routes = pd.pivot_table(all_trips, values=time_config['hours'], 
                                        index=["route_id","direction_id"], aggfunc=np.sum)
-
-        # Filter by minimum trips per hour
         for hour in time_config['hours']:
             frequent_routes = frequent_routes[frequent_routes[hour] >= time_config['min_tph']]
 
         frequent_routes['frequent_sum'] = frequent_routes[time_config['hours']].sum(axis=1)
         frequent_routes = frequent_routes[frequent_routes['frequent_sum'] >= time_config['min_total']]
     
+    print(f"Routes meeting frequency criteria: {len(frequent_routes)}")
+    print(frequent_routes.index.get_level_values('route_id').unique().tolist())
+
     # Get stops for these routes
     frequent_trips = all_trips.merge(frequent_routes, how='inner', on='route_id')
     all_stops = service.get_line_stops_gdf()
     frequent_stops = all_stops[all_stops['trip_id'].isin(frequent_trips['rep_trip_id'])]
-    
     ret = frequent_stops.drop_duplicates(subset=['stop_id'])
-
-    return frequent_stops
+    print(f"Stops meeting frequency criteria: {len(ret)}")
+    print(ret['stop_id'].tolist())
+    return ret
 
 def analyze_stop_frequency(service, time_config):
     """Analyze stops meeting frequency requirements for a time period"""
-    freq = service.get_tph_at_stops()
-    
     # Filter by minimum trips per hour for each hour
+    freq = service.get_tph_at_stops()    
     for hour in time_config['hours']:
         freq = freq[freq[hour] >= time_config['min_tph']]
     
@@ -185,19 +192,22 @@ def process_service_level(level_name, config, weekday_service, weekend_service):
         peak_stops = analyze_stop_frequency(weekday_service, config['peak'])
         stop_results.append(peak_stops)
         print(f"Found {len(peak_stops)} stops meeting peak requirements")
+        print(peak_stops['stop_id'].tolist())
     
     # Extended hours analysis
     if 'extended' in config:
         extended_stops = analyze_stop_frequency(weekday_service, config['extended'])
         stop_results.append(extended_stops)
         print(f"Found {len(extended_stops)} stops meeting extended requirements")
-    
+        print(extended_stops['stop_id'].tolist())
+
     # Night segments analysis
     if 'night_segments' in config:
         night_stops = process_night_segments(weekday_service, config['night_segments'])
         stop_results.append(night_stops)
         print(f"Found {len(night_stops)} stops meeting night requirements")
-    
+        print(night_stops['stop_id'].tolist())
+
     # Merge stop-level results - only keep stop_id for merging
     if stop_results:
         merged_stops = stop_results[0][['stop_id']]
@@ -229,6 +239,7 @@ def process_service_level(level_name, config, weekday_service, weekend_service):
         weekend_merged = weekend_stops[['stop_id']].merge(weekend_route_stops[['stop_id']], how='inner', on='stop_id')
         result = result.merge(weekend_merged, how='inner', on='stop_id')
         print(f"After weekend filtering: {len(result)} stops")
+        print(result['stop_id'].tolist())
     
     result = result.drop_duplicates(subset=['stop_id'])
     print(f"Final {level_name}: {len(result)} stops")
