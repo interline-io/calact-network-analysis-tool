@@ -29,15 +29,12 @@ done
 # merge results together
 transitland merge tmp-fixed/wsdot-merged.zip tmp-fixed/monday-3 tmp-fixed/sunday-3
 
-# # migrate
-transitland dbmigrate up
-transitland dbmigrate natural-earth
-
 # tlfetch && tlrebuild
 mkdir -p tmp && rm tmp/*.* || true
 find tmp-fixed -name "*.zip" | parallel --lb transitland fetch --allow-local-fetch --storage="tmp" --create-feed --feed-url="{}" \$\(basename {} \| sed s/.zip//\)
 transitland import --activate --storage="tmp" --activate --workers=8
 psql -c "update feed_states set public = true"
+
 TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-batch-size=1000 --long-query=0
 
 # irees@alt (db:localhost/tlv2) (k8:mtc) wsdot-python % python3 ./summary.py frequent_stops_24_20241023.csv
@@ -49,7 +46,8 @@ TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-bat
 # level6: 22245
 # levelNights: 722
 
-# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-25 --stop-buffer-radius=805 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract --stop-buffer-radius 805 --save-scenario-data public/examples/wa-2024.wsdot.json
+#  TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-25 --stop-buffer-radius=805 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract --save-scenario-data public/examples/wsdot/wa-2024.wsdot.json --report-name "Washington (2024 merged data; 2021 ACS)"
 
-# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-20 --weekday-date 2025-10-14 --weekend-date 2025-10-20 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract --stop-buffer-radius 805 --save-scenario-data public/examples/wa-2025.wsdot.json
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-19 --weekday-date 2025-10-14 --weekend-date 2025-10-19 --stop-buffer-radius 805 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract  --save-scenario-data public/examples/wsdot/wa-2025.wsdot.json --report-name "Washington (2025 Transitland data; 2021 ACS)"
 
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-19 --weekday-date 2025-10-14 --weekend-date 2025-10-19 --stop-buffer-radius 805 --bbox-name wa --table-dataset-name acsdt5y2023 --geo-dataset-name tiger2023 --geo-dataset-layer tract  --save-scenario-data public/examples/wsdot/wa-2025-acs2023.wsdot.json --report-name "Washington (2025 Transitland data; 2023 ACS)"
