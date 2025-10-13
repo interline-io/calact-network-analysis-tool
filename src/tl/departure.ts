@@ -36,25 +36,25 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    monday: departures(limit: 10000, where: {date: $monday}) @include(if: $include_monday) {
+    monday: departures(limit: 10000, where: {use_service_window: true, date: $monday}) @include(if: $include_monday) {
       ...departure
     }
-    tuesday: departures(limit: 10000, where: {date: $tuesday}) @include(if: $include_tuesday) {
+    tuesday: departures(limit: 10000, where: {use_service_window: true, date: $tuesday}) @include(if: $include_tuesday) {
       ...departure
     }
-    wednesday: departures(limit: 10000, where: {date: $wednesday}) @include(if: $include_wednesday) {
+    wednesday: departures(limit: 10000, where: {use_service_window: true, date: $wednesday}) @include(if: $include_wednesday) {
       ...departure
     }
-    thursday: departures(limit: 10000, where: {date: $thursday}) @include(if: $include_thursday) {
+    thursday: departures(limit: 10000, where: {use_service_window: true, date: $thursday}) @include(if: $include_thursday) {
       ...departure
     }
-    friday: departures(limit: 10000, where: {date: $friday}) @include(if: $include_friday) {
+    friday: departures(limit: 10000, where: {use_service_window: true, date: $friday}) @include(if: $include_friday) {
       ...departure
     }
-    saturday: departures(limit: 10000, where: {date: $saturday}) @include(if: $include_saturday) {
+    saturday: departures(limit: 10000, where: {use_service_window: true, date: $saturday}) @include(if: $include_saturday) {
       ...departure
     }
-    sunday: departures(limit: 10000, where: {date: $sunday}) @include(if: $include_sunday) {
+    sunday: departures(limit: 10000, where: {use_service_window: true, date: $sunday}) @include(if: $include_sunday) {
       ...departure
     }    
   }
@@ -92,25 +92,25 @@ query (
 ) {
   stops(ids: $ids) {
     id
-    monday: stop_times(limit: 10000, where: {date: $monday}) @include(if: $include_monday) {
+    monday: stop_times(limit: 10000, where: {use_service_window: true, date: $monday}) @include(if: $include_monday) {
       ...departure
     }
-    tuesday: stop_times(limit: 10000, where: {date: $tuesday}) @include(if: $include_tuesday) {
+    tuesday: stop_times(limit: 10000, where: {use_service_window: true, date: $tuesday}) @include(if: $include_tuesday) {
       ...departure
     }
-    wednesday: stop_times(limit: 10000, where: {date: $wednesday}) @include(if: $include_wednesday) {
+    wednesday: stop_times(limit: 10000, where: {use_service_window: true, date: $wednesday}) @include(if: $include_wednesday) {
       ...departure
     }
-    thursday: stop_times(limit: 10000, where: {date: $thursday}) @include(if: $include_thursday) {
+    thursday: stop_times(limit: 10000, where: {use_service_window: true,  date: $thursday}) @include(if: $include_thursday) {
       ...departure
     }
-    friday: stop_times(limit: 10000, where: {date: $friday}) @include(if: $include_friday) {
+    friday: stop_times(limit: 10000, where: {use_service_window: true,  date: $friday}) @include(if: $include_friday) {
       ...departure
     }
-    saturday: stop_times(limit: 10000, where: {date: $saturday}) @include(if: $include_saturday) {
+    saturday: stop_times(limit: 10000, where: {use_service_window: true,  date: $saturday}) @include(if: $include_saturday) {
       ...departure
     }
-    sunday: stop_times(limit: 10000, where: {date: $sunday}) @include(if: $include_sunday) {
+    sunday: stop_times(limit: 10000, where: {use_service_window: true,  date: $sunday}) @include(if: $include_sunday) {
       ...departure
     }    
   }
