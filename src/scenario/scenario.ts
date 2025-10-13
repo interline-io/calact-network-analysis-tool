@@ -1,17 +1,12 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
 import {
-  cannedBboxes,
   GenericStreamReceiver,
   GenericStreamSender,
-  getCurrentDate,
-  getDateOneWeekLater,
   multiplexStream,
-  parseDate,
   requestStream,
   TaskQueue,
   type dow,
-  parseBbox,
   type Bbox,
   type GraphQLClient,
   convertBbox
@@ -32,23 +27,12 @@ import {
 } from '~/src/tl'
 import { geographyLayerQuery } from '~/src/tl/census'
 
-export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
-  return {
-    bbox: parseBbox(cannedBboxes.get(bboxname)!.bboxString),
-    scheduleEnabled: true,
-    startDate: parseDate(getCurrentDate()),
-    endDate: parseDate(getDateOneWeekLater()),
-    geographyIds: [],
-    stopLimit: 1000,
-    maxConcurrentDepartures: 1,
-  }
-}
-
 /**
  * Configuration for scenario fetching
  */
 
 export interface ScenarioConfig {
+  reportName: string
   bbox?: Bbox
   scheduleEnabled: boolean
   startDate?: Date
@@ -138,6 +122,7 @@ export interface ScenarioProgress {
     stopDepartures: StopDepartureTuple[]
   }
   extraData?: any
+  config?: any
 }
 
 // Define the tuple type with named fields
@@ -264,6 +249,14 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   // Configure fetcher/sender
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting scenario fetcher',
+    config: config,
+  })
 
   // Configure client/receiver
   const receiver = new ScenarioDataReceiver()

@@ -49,4 +49,7 @@ TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-bat
 # level6: 22245
 # levelNights: 722
 
-# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-25 --stop-buffer-radius=800 --bbox-name=wa --save-scenario-data=washington.wsdot.json
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date=2024-08-19 --end-date=2024-08-25 --weekday-date=2024-08-19 --weekend-date=2024-08-25 --stop-buffer-radius=805 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract --stop-buffer-radius 805 --save-scenario-data public/examples/wa-2024.wsdot.json
+
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-20 --weekday-date 2025-10-14 --weekend-date 2025-10-20 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract --stop-buffer-radius 805 --save-scenario-data public/examples/wa-2025.wsdot.json
+

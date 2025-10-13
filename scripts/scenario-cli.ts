@@ -28,6 +28,7 @@ export function configureScenarioCli (program: Command) {
 
       // Parse configuration from CLI options
       const config: ScenarioConfig = {
+        reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
         scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
@@ -70,7 +71,9 @@ export function configureScenarioCli (program: Command) {
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
-    options.bbox = cannedBboxes.get(options.bboxName)?.bboxString
+    const b = cannedBboxes.get(options.bboxName)
+    options.bbox = b?.bboxString
+    options.reportName = options.reportName || b?.label || ''
   }
   if (!options.bbox) {
     console.error('❌ Error: Must provide --bbox')
@@ -101,6 +104,7 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
  * CLI options interface for scenario commands
  */
 export interface ScenarioCliOptions {
+  reportName: string
   bbox?: string
   bboxName: string
   startDate: string

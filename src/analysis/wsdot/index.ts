@@ -163,6 +163,14 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
 
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting WSDOT fetcher',
+    config: config,
+  })
+
   // Configure client/receiver
   const receiver = new ScenarioDataReceiver()
   const scenarioDataClient = new ScenarioStreamReceiver()
