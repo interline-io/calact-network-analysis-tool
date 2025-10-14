@@ -400,21 +400,7 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   }
 
   override onProgress (progress: ScenarioProgress): void {
-    // Ignore departure data
     super.onProgress(progress)
-    // super.onProgress({
-    //   isLoading: progress.isLoading,
-    //   currentStage: progress.currentStage,
-    //   currentStageMessage: progress.currentStageMessage,
-    //   error: progress.error,
-    //   partialData: {
-    //     feedVersions: progress.partialData?.feedVersions || [],
-    //     stops: progress.partialData?.stops || [],
-    //     routes: progress.partialData?.routes || [],
-    //     stopDepartures: [],
-    //   },
-    //   extraData: null
-    // })
 
     // Then handle WSDOT report extraData aggregation
     if (progress.extraData) {
