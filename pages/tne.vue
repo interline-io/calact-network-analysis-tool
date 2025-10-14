@@ -553,6 +553,16 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
 
+// Advanced report query parameter support
+const advancedReport = computed({
+  get () {
+    return route.query.advancedReport?.toString() || ''
+  },
+  set (v: string) {
+    setQuery({ ...route.query, advancedReport: v || undefined })
+  }
+})
+
 // Check if there's scenario data to display in reports
 const hasScenarioData = computed(() => {
   return scenarioData.value !== null && scenarioFilterResult.value !== undefined
@@ -568,6 +578,20 @@ watch([activeTab, geomSource], () => {
 
 // Initialize displayEditBboxMode based on initial values
 const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+
+// Initialize active tab based on advancedReport query parameter
+onMounted(() => {
+  if (advancedReport.value) {
+    activeTab.value = { tab: 'analysis', sub: '' }
+  }
+})
+
+// Watch for changes in advancedReport to sync tab state
+watch(advancedReport, (newValue) => {
+  if (newValue) {
+    activeTab.value = { tab: 'analysis', sub: '' }
+  }
+})
 
 interface Tab {
   tab: string
@@ -588,6 +612,11 @@ function setTab (v: Tab) {
   }
 
   activeTab.value = v
+
+  // Clear advancedReport when switching away from analysis tab
+  if (v.tab !== 'analysis' && advancedReport.value) {
+    advancedReport.value = ''
+  }
 }
 
 /////////////////////////////
@@ -627,6 +656,8 @@ async function setMapExtent (v: Bbox) {
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
+  geoDatasetName: 'tiger2023',
+  reportName: 'Transit Network Explorer',
   bbox: bbox.value,
   scheduleEnabled: scheduleEnabled.value,
   aggregateLayer: aggregateLayer.value,

@@ -37,8 +37,11 @@
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, computed, ref } from 'vue'
+import { defineAsyncComponent, computed, ref, watch } from 'vue'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+
+const route = useRoute()
+const router = useRouter()
 
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
@@ -55,7 +58,27 @@ const analysisComponents: Record<string, { component: any }> = {
   'wsdot-stops-routes': { component: defineAsyncComponent(() => import('./wsdot-stops-routes.vue')) },
 }
 
-const selectedReportType = ref<string>('')
+// Initialize selectedReportType from query parameter
+const selectedReportType = ref<string>(String(route.query.advancedReport || ''))
+
+// Sync selectedReportType with URL query parameter
+watch(selectedReportType, (newValue) => {
+  const currentQuery = { ...route.query }
+  if (newValue) {
+    currentQuery.advancedReport = newValue
+  } else {
+    delete currentQuery.advancedReport
+  }
+  router.replace({ query: currentQuery })
+})
+
+// Watch for URL changes to update selectedReportType
+watch(() => route.query.advancedReport, (newValue) => {
+  const newSelectedReport = String(newValue || '')
+  if (selectedReportType.value !== newSelectedReport) {
+    selectedReportType.value = newSelectedReport
+  }
+})
 
 const { hasResultsState } = useAnalysisResults()
 

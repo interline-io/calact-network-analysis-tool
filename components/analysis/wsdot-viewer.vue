@@ -33,7 +33,7 @@
       </div>
     </div>
     <div class="columns">
-      <div class="column is-one-quarter">
+      <div class="column is-one-half">
         <o-field label="Frequency level selection and stats" class="mt-4" />
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
@@ -46,11 +46,21 @@
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
               <td style="width:50px" />
-              <td v-if="Object.keys(levelDetail.layerPops).length > 1">
+              <td>
                 {{ adminKey }}
               </td>
-              <td>{{ Math.round(pop.intersection).toLocaleString() }}</td>
-              <td>({{ Math.round((pop.intersection / pop.total) * 100) }}% of {{ popMethod === 'state' ? 'state population' : 'state population within bounding box' }})</td>
+              <td>
+                {{ pop.stopCount.toLocaleString() }} stops
+              </td>
+              <td>{{ Math.round(pop.intersectionPopulation).toLocaleString() }} pop</td>
+              <td>
+                <template v-if="popMethod === 'bboxIntersection'">
+                  {{ pop.bboxPopulation > 0 ? ((pop.intersectionPopulation / pop.bboxPopulation) * 100).toFixed(1) : '0' }}%
+                </template>
+                <template v-else>
+                  {{ pop.totalPopulation > 0 ? ((pop.intersectionPopulation / pop.totalPopulation) * 100).toFixed(1) : '0' }}%
+                </template>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -66,6 +76,28 @@
           <o-checkbox v-model="showStopBuffers">
             Show stop buffers
           </o-checkbox>
+          <o-dropdown
+            v-model:model-value="selectedStates"
+            selectable
+            multiple
+          >
+            <template #trigger>
+              <o-button
+                type="button"
+                icon-right="caret-down"
+              >
+                States ({{ selectedStates.length }})
+              </o-button>
+            </template>
+
+            <o-dropdown-item
+              v-for="state in Object.keys(StatePopulations).sort()"
+              :key="state"
+              :value="state"
+            >
+              {{ state }}
+            </o-dropdown-item>
+          </o-dropdown>
         </o-field>
         <o-field label="Population options">
           <o-radio v-model="popMethod" native-value="state">
@@ -152,9 +184,13 @@ import type {
 } from '~/src/analysis/wsdot'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
-// Define models for props
-const wsdotReportConfig = defineModel<WSDOTReportConfig>('config', { required: true })
-const wsdotReport = defineModel<WSDOTReport>('report', { required: true })
+// Define read-only props
+const props = defineProps<{
+  config: WSDOTReportConfig
+  report: WSDOTReport
+}>()
+
+const { config: wsdotReportConfig, report: wsdotReport } = toRefs(props)
 
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
@@ -185,64 +221,80 @@ const bboxCenter = computed(() => {
   return pt
 })
 
+interface StatePopulation {
+  totalPopulation: number
+  bboxPopulation: number
+}
+
+const StatePopulations = computed((): Record<string, StatePopulation> => {
+  const levelFeatures = wsdotReport.value.levelLayers['levelAll'] || {}
+  const statePopulations: Record<string, StatePopulation> = {}
+  for (const stateFeature of levelFeatures['state'] || []) {
+    const state = stateFeature.properties.name || 'Unknown'
+    if (!statePopulations[state]) {
+      statePopulations[state] = { totalPopulation: 0, bboxPopulation: 0 }
+    }
+    statePopulations[state].totalPopulation = stateFeature.properties.total_population || 0
+  }
+  //
+  for (const stateFeature of wsdotReport.value.bboxIntersection || []) {
+    const state = stateFeature.properties.adm1_name || 'Unknown'
+    if (!statePopulations[state]) {
+      statePopulations[state] = { totalPopulation: 0, bboxPopulation: 0 }
+    }
+    statePopulations[state].bboxPopulation += stateFeature.properties.total_population || 0
+  }
+  return statePopulations
+})
+
+const selectedStatesShadow = ref<string[] | null>(null)
+const selectedStates = computed({
+  get: () => {
+    if (selectedStatesShadow.value !== null) {
+      return selectedStatesShadow.value
+    }
+    return Object.keys(StatePopulations.value).sort()
+  },
+  set: (val: string[]) => {
+    selectedStatesShadow.value = val
+  }
+})
+
 interface LayerDetail {
   label: string
   color: string
-  count: number
-  layerPops: Record<string, { intersection: number, total: number }>
+  layerPops: Record<string, { intersectionPopulation: number, totalPopulation: number, bboxPopulation: number, stopCount: number }>
 }
 const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
+  // Get state population
+  const statePopulations = StatePopulations.value
+  const layerAdminKey = 'adm1_name'
+
   return levelKeys.reduce((acc, levelName) => {
-    const levelFeatures = wsdotReport.value.levelLayers[levelName] || {}
-
-    // Get state population
-    const statePopulations: Record<string, number> = {}
-    if (popMethod.value == 'bboxIntersection') {
-      for (const stateFeature of wsdotReport.value.bboxIntersection || []) {
-        const state = stateFeature.properties.adm1_name || 'Unknown'
-        if (!statePopulations[state]) {
-          statePopulations[state] = 0
-        }
-        statePopulations[state] += stateFeature.properties.total_population || 0
-      }
-    } else if (popMethod.value) {
-      for (const stateFeature of levelFeatures['state'] || []) {
-        const state = stateFeature.properties.name || 'Unknown'
-        if (!statePopulations[state]) {
-          statePopulations[state] = stateFeature.properties.total_population || 0
-        }
-      }
-    } else {
-      console.warn('No population method selected')
-    }
-    console.log('statePopulations:', statePopulations)
-
     // GROUP BY STATE
+    const levelFeatures = wsdotReport.value.levelLayers[levelName] || {}
     const layerFeatures = levelFeatures['tract']
-    const layerAdminKey = 'adm1_name'
-    const layerPops: Record<string, { intersection: number, total: number }> = {}
-    const layerAdminGroups: Record<string, Feature[]> = {}
+    const layerPops: Record<string, { intersectionPopulation: number, totalPopulation: number, bboxPopulation: number, stopCount: number }> = {}
     for (const feature of layerFeatures || []) {
       const state = feature.properties[layerAdminKey] || 'Unknown'
-      if (!layerAdminGroups[state]) {
-        layerAdminGroups[state] = []
+      if (!selectedStates.value.includes(state)) {
+        continue
       }
-      layerAdminGroups[state].push(feature)
-      const pop = feature.properties.intersection_population || 0
-      const layerPopState = layerPops[state] || { intersection: 0, total: 0 }
-      layerPopState.intersection += pop
-      layerPopState.total = statePopulations[state] || 0
+      const stopCount = wsdotReport.value.stops.filter(stop => stop[levelName] && stop.stateName === state).length
+      const statePop = statePopulations[state] || { total: 0, bboxIntersection: 0 }
+      const layerPopState = layerPops[state] || { intersectionPopulation: 0, totalPopulation: 0, bboxPopulation: 0, stopCount: 0 }
+      layerPopState.intersectionPopulation += feature.properties.intersection_population || 0
+      layerPopState.totalPopulation = statePop?.totalPopulation || 0
+      layerPopState.bboxPopulation = statePop?.bboxPopulation || 0
+      layerPopState.stopCount = stopCount || 0
       layerPops[state] = layerPopState
     }
-    // console.log('level:', levelName, 'layerAdminGroups:', layerAdminGroups, 'layerPops:', layerPops)
 
     // Save level details
-    const stopCount = wsdotReport.value.stops.filter(stop => stop[levelName]).length
     acc[levelName] = {
       label: SERVICE_LEVELS[levelName].name,
       color: levelColors[levelName],
       layerPops: layerPops,
-      count: stopCount
     }
     return acc
   }, {} as Record<string, LayerDetail>)
@@ -252,6 +304,9 @@ const stopFeatures = computed(() => {
   const features: Feature[] = wsdotReport.value.stops.map((stop) => {
     const highestLevel = levelKeys.find(key => stop[key]) || 'unknown'
     const props: Record<string, any> = {
+      feedOnestopId: stop.feedOnestopId,
+      feedVersionSha1: stop.feedVersionSha1,
+      stateName: stop.stateName,
       highestLevel,
       stopId: stop.stopId,
       stopName: stop.stopName || ''
@@ -269,14 +324,18 @@ const stopFeatures = computed(() => {
       }
     }
   }).filter((s) => {
-    let found = false
+    if (!s.properties.stateName) {
+      return false
+    }
+    if (selectedStates.value != null && !selectedStates.value.includes(s.properties.stateName)) {
+      return false
+    }
     for (const levelKey of selectedLevels.value) {
       if (s.properties[levelKey] === 1) {
-        found = true
-        break
+        return true
       }
     }
-    return found
+    return false
   })
   return features
 })
@@ -343,10 +402,10 @@ const populationDatagrid = computed((): TableReport => {
         level: levelKey,
         label: levelDetail.label,
         adminKey: adminKey,
-        intersectionPopulation: Math.round(pop.intersection),
-        totalPopulation: Math.round(pop.total),
-        percentPopulation: pop.total > 0 ? (pop.intersection / pop.total) * 100 : 0,
-        stopCount: levelDetail.count
+        intersectionPopulation: Math.round(pop.intersectionPopulation),
+        totalPopulation: Math.round(pop.totalPopulation),
+        percentPopulation: pop.totalPopulation > 0 ? (pop.intersectionPopulation / pop.totalPopulation) * 100 : 0,
+        stopCount: pop.stopCount
       })
     }
   }
@@ -371,6 +430,9 @@ const stopDatagrid = computed((): TableReport => {
   const data = stopFeatures.value.map((feature) => {
     return {
       id: feature.id,
+      feedOnestopId: feature.properties.feedOnestopId,
+      feedVersionSha1: feature.properties.feedVersionSha1,
+      stateName: feature.properties.stateName,
       stopId: feature.properties.stopId,
       stopName: feature.properties.stopName,
       highestLevel: feature.properties.highestLevel,
@@ -387,6 +449,7 @@ const stopDatagrid = computed((): TableReport => {
     }
   })
   const columns: TableColumn[] = [
+    { key: 'stateName', label: 'State', sortable: true },
     { key: 'stopId', label: 'Stop ID', sortable: true },
     { key: 'stopName', label: 'Stop Name', sortable: true },
     { key: 'highestLevel', label: 'Highest Level', sortable: true },
@@ -397,7 +460,6 @@ const stopDatagrid = computed((): TableReport => {
     }
     columns.push({ key: levelKey, label: SERVICE_LEVELS[levelKey].name, sortable: true })
   }
-
   return {
     data,
     columns

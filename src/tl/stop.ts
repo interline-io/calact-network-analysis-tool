@@ -30,7 +30,7 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
         onestop_id
       }
     }
-    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name, radius:0.0}) {
+    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name}) {
       id
       geoid
       layer_name

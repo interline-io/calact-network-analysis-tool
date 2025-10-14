@@ -157,3 +157,12 @@ export const multiplexStream = (originalStream: WritableStream): { inputStream: 
     outputStream: readable // New stream that receives the same data
   }
 }
+
+// Generic helper function to chunk arrays into smaller arrays
+export function chunkArray<T> (array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize))
+  }
+  return chunks
+}

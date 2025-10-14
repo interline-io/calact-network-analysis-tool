@@ -1,20 +1,16 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
 import {
-  cannedBboxes,
   GenericStreamReceiver,
   GenericStreamSender,
-  getCurrentDate,
-  getDateOneWeekLater,
   multiplexStream,
-  parseDate,
   requestStream,
   TaskQueue,
   type dow,
-  parseBbox,
   type Bbox,
   type GraphQLClient,
-  convertBbox
+  convertBbox,
+  chunkArray
 } from '~/src/core'
 import {
   StopDepartureCache,
@@ -32,23 +28,17 @@ import {
 } from '~/src/tl'
 import { geographyLayerQuery } from '~/src/tl/census'
 
-export function ScenarioConfigFromBboxName (bboxname: string): ScenarioConfig {
-  return {
-    bbox: parseBbox(cannedBboxes.get(bboxname)!.bboxString),
-    scheduleEnabled: true,
-    startDate: parseDate(getCurrentDate()),
-    endDate: parseDate(getDateOneWeekLater()),
-    geographyIds: [],
-    stopLimit: 1000,
-    maxConcurrentDepartures: 1,
-  }
-}
+// Constants for progress updates
+const PROGRESS_LIMIT_STOPS = 1000
+const PROGRESS_LIMIT_ROUTES = 10
+const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 
 /**
  * Configuration for scenario fetching
  */
 
 export interface ScenarioConfig {
+  reportName: string
   bbox?: Bbox
   scheduleEnabled: boolean
   startDate?: Date
@@ -58,6 +48,7 @@ export interface ScenarioConfig {
   aggregateLayer?: string
   maxConcurrentDepartures?: number
   departureMode?: 'all' | 'departures'
+  geoDatasetName: string
 }
 
 export interface ScenarioFilter {
@@ -138,6 +129,7 @@ export interface ScenarioProgress {
     stopDepartures: StopDepartureTuple[]
   }
   extraData?: any
+  config?: any
 }
 
 // Define the tuple type with named fields
@@ -264,6 +256,14 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   // Configure fetcher/sender
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting scenario fetcher',
+    config: config,
+  })
 
   // Configure client/receiver
   const receiver = new ScenarioDataReceiver()
@@ -400,7 +400,7 @@ export class ScenarioFetcher {
         {
           geography_ids: this.config.geographyIds,
           include_geographies: true,
-          dataset_name: 'tiger2024'
+          dataset_name: this.config.geoDatasetName
         }
       )
 
@@ -449,8 +449,8 @@ export class ScenarioFetcher {
     const variables = {
       after: task.after,
       limit: this.stopLimit,
-      layer_name: this.config.aggregateLayer || 'tract',
-      dataset_name: 'tiger2024', // hardcoded for now
+      layer_name: this.config.aggregateLayer,
+      dataset_name: this.config.geoDatasetName,
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
@@ -464,8 +464,10 @@ export class ScenarioFetcher {
     const stopData: StopGql[] = response.data?.stops || []
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
-    // Send progress update with only the NEW stops
-    this.updateProgress('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartures: [] })
+    // Send progress updates in batches using the generic helper function
+    for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
+      this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [] })
+    }
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -517,7 +519,12 @@ export class ScenarioFetcher {
     for (const route of routeData) {
       this.fetchedRouteIds.add(route.id)
     }
-    this.updateProgress('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartures: [] })
+
+    // Send progress updates in batches using the generic helper function
+    for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
+      this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [] })
+    }
+
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
   }
 
@@ -564,7 +571,11 @@ export class ScenarioFetcher {
         )
       }
     }
-    this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
+
+    // Send progress updates in batches using the generic helper function
+    for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
+      this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch })
+    }
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {
@@ -631,7 +642,6 @@ export class ScenarioDataReceiver {
         }
         // const stopId = StopDepartureTuple.stopId(event)
         // const departureDate = StopDepartureTuple.departureDate(event)
-        // console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),

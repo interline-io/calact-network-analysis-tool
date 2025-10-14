@@ -1,7 +1,11 @@
 import { gql } from 'graphql-tag'
-import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox } from '~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver } from '~/src/scenario'
+import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox, chunkArray } from '~/src/core'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~/src/scenario'
 import type { RouteGql, StopTime } from '~/src/tl'
+
+// Constants for progress updates
+const PROGRESS_LIMIT_STOPS = 1000
+const PROGRESS_LIMIT_BBOX_FEATURES = 100
 
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
@@ -127,6 +131,9 @@ export interface WSDOTReport {
 }
 
 export interface WSDOTStopResult {
+  feedOnestopId: string
+  feedVersionSha1: string
+  stateName: string
   stopId: string
   stopName: string
   stopLat: number
@@ -163,8 +170,16 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
 
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver()
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting WSDOT fetcher',
+    config: config,
+  })
+
+  // Configure client/receiver - use specialized WSDOT receiver
+  const receiver = new WSDOTReportDataReceiver()
   const scenarioDataClient = new ScenarioStreamReceiver()
   const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
 
@@ -181,17 +196,9 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
     currentStageMessage: 'Running WSDOT frequency analysis...'
   })
 
-  let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, client)
-    wsdotResult = await wsdotFetcher.fetch()
-    // Update the client with the wsdot result
-    scenarioDataSender.onProgress({
-      isLoading: true,
-      currentStage: 'extra',
-      extraData: wsdotResult,
-      currentStageMessage: 'Running WSDOT frequency analysis...'
-    })
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, client, scenarioDataSender)
+    await wsdotFetcher.fetch()
   } catch (e) {
     console.error('WSDOT analysis error:', e)
     scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
@@ -206,25 +213,30 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   // Ensure all scenario client progress has been processed
   await scenarioClientProgress
 
-  return { scenarioData, wsdotResult: wsdotResult }
+  // Get the final accumulated data from the receiver
+  const { scenarioData: finalScenarioData, wsdotReport } = receiver.getCurrentCombinedData()
+  return { scenarioData: finalScenarioData, wsdotResult: wsdotReport }
 }
 
 export class WSDOTReportFetcher {
   private config: WSDOTReportConfig
   private scenarioData: ScenarioData
   private client: GraphQLClient
+  private progressSender: ScenarioStreamSender
 
   constructor (
     config: WSDOTReportConfig,
     data: ScenarioData,
     client: GraphQLClient,
+    progressSender: ScenarioStreamSender
   ) {
     this.config = config
     this.scenarioData = data
     this.client = client
+    this.progressSender = progressSender
   }
 
-  async fetch (): Promise<WSDOTReport> {
+  async fetch () {
     console.log('Starting WSDOT frequency analysis...')
 
     // Extract frequency data for weekday and weekend
@@ -294,12 +306,17 @@ export class WSDOTReportFetcher {
     // Build final result
     const stops: WSDOTStopResult[] = []
     const allStopIds = new Set([...weekdayFreq.stops.keys(), ...weekendFreq.stops.keys()])
+
     for (const stopId of allStopIds) {
       const stop = this.scenarioData.stops.find(s => s.id === stopId)
       if (!stop?.geometry) {
         continue
       }
-      const result: WSDOTStopResult = {
+      const stateName = (stop.census_geographies || []).find(g => g.layer_name === this.config.aggregateLayer)?.name || ''
+      stops.push({
+        feedOnestopId: stop.feed_version?.feed?.onestop_id,
+        feedVersionSha1: stop.feed_version?.sha1,
+        stateName: stateName,
         stopId: stop.stop_id,
         stopName: stop.stop_name || '',
         stopLat: stop.geometry.coordinates[1],
@@ -312,16 +329,131 @@ export class WSDOTReportFetcher {
         level1: results.level1?.has(stopId) || false,
         levelNights: results.levelNights?.has(stopId) || false,
         levelAll: true,
+      })
+    }
+
+    // Send stops in batches using the generic helper function
+    const stopChunks = chunkArray(stops, PROGRESS_LIMIT_STOPS)
+    for (let i = 0; i < stopChunks.length; i++) {
+      this.progressSender.onProgress({
+        isLoading: true,
+        currentStage: 'extra',
+        extraData: { stops: stopChunks[i], levelStops: {}, levelLayers: {}, bboxIntersection: [] },
+        currentStageMessage: `WSDOT stops batch ${i + 1} of ${stopChunks.length}...`
+      })
+    }
+
+    // Send levelStops by individual level
+    for (const [levelKey, stopIds] of Object.entries(levelStops)) {
+      this.progressSender.onProgress({
+        isLoading: true,
+        currentStage: 'extra',
+        extraData: { stops: [], levelStops: { [levelKey]: stopIds }, levelLayers: {}, bboxIntersection: [] },
+        currentStageMessage: `WSDOT service level stops for ${levelKey}...`
+      })
+    }
+
+    // Send geography layers in batches using the generic helper function
+    for (const [levelKey, layers] of Object.entries(levelLayers)) {
+      for (const [layerName, features] of Object.entries(layers)) {
+        const featureChunks = chunkArray(features, PROGRESS_LIMIT_STOPS)
+        for (let i = 0; i < featureChunks.length; i++) {
+          const batchLevelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {
+            [levelKey]: {
+              [layerName]: featureChunks[i]
+            }
+          }
+          this.progressSender.onProgress({
+            isLoading: true,
+            currentStage: 'extra',
+            extraData: { stops: [], levelStops: {}, levelLayers: batchLevelLayers, bboxIntersection: [] },
+            currentStageMessage: `WSDOT ${levelKey} ${layerName} batch ${i + 1} of ${featureChunks.length}...`
+          })
+        }
       }
-      stops.push(result)
+    }
+
+    // Send bboxIntersection in batches using the generic helper function
+    const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
+    for (let i = 0; i < bboxChunks.length; i++) {
+      this.progressSender.onProgress({
+        isLoading: true,
+        currentStage: 'extra',
+        extraData: { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: bboxChunks[i] },
+        currentStageMessage: `WSDOT bbox intersection batch ${i + 1} of ${bboxChunks.length}...`
+      })
     }
 
     console.log('WSDOT frequency analysis completed...')
+  }
+}
+
+/**
+ * Specialized receiver that extends ScenarioDataReceiver to handle WSDOT report aggregation
+ * Accumulates scenario data and merges batched WSDOT report data from extraData
+ */
+export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
+  private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
+
+  constructor (callbacks: ScenarioCallbacks = {}) {
+    super(callbacks)
+  }
+
+  override onProgress (progress: ScenarioProgress): void {
+    super.onProgress(progress)
+
+    // Then handle WSDOT report extraData aggregation
+    if (progress.extraData) {
+      this.mergeWSDOTReportData(progress.extraData as WSDOTReport)
+    }
+  }
+
+  private mergeWSDOTReportData (extraData: WSDOTReport): void {
+    // Merge stops by appending new ones
+    if (extraData.stops) {
+      this.wsdotReport.stops.push(...extraData.stops)
+    }
+
+    // Merge levelStops by assigning/updating object properties
+    if (extraData.levelStops) {
+      Object.assign(this.wsdotReport.levelStops, extraData.levelStops)
+    }
+
+    // Deep merge levelLayers - merge each level and append to existing layer arrays
+    if (extraData.levelLayers) {
+      for (const [levelKey, layers] of Object.entries(extraData.levelLayers)) {
+        if (!this.wsdotReport.levelLayers[levelKey]) {
+          this.wsdotReport.levelLayers[levelKey] = {}
+        }
+        for (const [layerName, features] of Object.entries(layers)) {
+          if (!this.wsdotReport.levelLayers[levelKey][layerName]) {
+            this.wsdotReport.levelLayers[levelKey][layerName] = []
+          }
+          this.wsdotReport.levelLayers[levelKey][layerName].push(...features)
+        }
+      }
+    }
+
+    // Merge bboxIntersection by appending new features
+    if (extraData.bboxIntersection) {
+      this.wsdotReport.bboxIntersection.push(...extraData.bboxIntersection)
+    }
+  }
+
+  /**
+   * Get the current accumulated WSDOT report
+   */
+  getCurrentWSDOTReport (): WSDOTReport {
+    return { ...this.wsdotReport }
+  }
+
+  /**
+   * Get both scenario data and WSDOT report
+   */
+  getCurrentCombinedData (): { scenarioData: ScenarioData, wsdotReport: WSDOTReport } {
     return {
-      stops,
-      levelStops,
-      levelLayers,
-      bboxIntersection
+      scenarioData: this.getCurrentData(),
+      wsdotReport: this.getCurrentWSDOTReport()
     }
   }
 }

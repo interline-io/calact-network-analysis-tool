@@ -111,13 +111,15 @@ import type {
   WSDOTReportConfig
 } from '~/src/analysis/wsdot'
 import {
+  WSDOTReportDataReceiver
+} from '~/src/analysis/wsdot'
+import {
   processWsdotStopsRoutesReport,
 } from '~/src/analysis/wsdot-stops-routes'
 import type {
   WSDOTStopsRoutesReport,
 } from '~/src/analysis/wsdot-stops-routes'
 import {
-  ScenarioDataReceiver,
   ScenarioStreamReceiver,
 } from '~/src/scenario'
 import type {
@@ -136,11 +138,19 @@ const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
 const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  ...scenarioConfig.value,
+  reportName: 'wsdot-report',
+  routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
-  stopBufferRadius: 0, // no population data needed for this analysis
-  ...scenarioConfig.value
+  stopBufferRadius: 0,
+  tableDatasetName: 'acsdt5y2023',
+  tableDatasetTable: 'b01001',
+  tableDatasetTableCol: 'b01001_001',
+  geoDatasetName: scenarioConfig.value!.geoDatasetName,
+  geoDatasetLayer: 'tract',
+  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{
@@ -190,23 +200,29 @@ const fetchScenario = async (loadExample: string) => {
   loadingProgress.value = null
   stopDepartureCount.value = 0
 
-  // Create receiver to accumulate scenario data
-  const receiver = new ScenarioDataReceiver({
+  // Create receiver to accumulate scenario data and WSDOT report
+  const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
       if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
         return
       }
+      // Update both scenario data and WSDOT report from the receiver
       scenarioData.value = receiver.getCurrentData()
-      if (progress.extraData) {
-        wsdotReport.value = progress.extraData as WSDOTReport
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
+      if (scenarioData.value && wsdotReport.value) {
         wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
       }
     },
     onComplete: () => {
       loadingProgress.value = null
+      // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
+      if (scenarioData.value && wsdotReport.value) {
+        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
+      }
     },
     onError: (err: any) => {
       loadingProgress.value = null

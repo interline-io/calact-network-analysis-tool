@@ -36,16 +36,16 @@
           </p>
         </header>
 
-        <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
-          <o-field label="Preset bounding box">
-            <o-select v-model="cannedBbox">
-              <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
-                {{ cannedBboxDetails.label }}
+        <tl-msg-warning v-if="debugMenu" class="mt-4" title="Debug menu">
+          <o-field label="Example configuration">
+            <o-select v-model="selectedExample">
+              <option value="">
+                Select an example...
+              </option>
+              <option v-for="example of exampleConfigs" :key="example.filename" :value="example.filename">
+                {{ example.config.reportName }}
               </option>
             </o-select>
-            <o-button @click="runQuery">
-              Load example
-            </o-button>
           </o-field>
           <br>
         </tl-msg-warning>
@@ -118,31 +118,44 @@
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
-import { cannedBboxes } from '~/src/core'
+import { WSDOTReportDataReceiver } from '~/src/analysis/wsdot'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
+
+interface ExampleConfig {
+  filename: string
+  config: WSDOTReportConfig
+  hasError: boolean
+}
 
 const debugMenu = useDebugMenu()
+const route = useRoute()
+const router = useRouter()
 const error = ref<Error | null>(null)
 const loading = ref(false)
 const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
-const scenarioData = defineModel<ScenarioData | null>('scenarioData')
-const cannedBbox = defineModel<string>('cannedBbox', { default: null })
-const wsdotReport = ref<WSDOTReport | null>(null)
+const scenarioData = shallowRef<ScenarioData | null>(null)
+const wsdotReport = shallowRef<WSDOTReport | null>(null)
+
+// Example configurations from index.json
+const exampleConfigs = ref<ExampleConfig[]>([])
+const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  ...scenarioConfig.value,
+  reportName: 'wsdot-report',
+  routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
   stopBufferRadius: 800,
-  tableDatasetName: 'acsdt5y2022',
+  tableDatasetName: 'acsdt5y2023',
   tableDatasetTable: 'b01001',
   tableDatasetTableCol: 'b01001_001',
-  geoDatasetName: 'tiger2024',
+  geoDatasetName: scenarioConfig.value!.geoDatasetName,
   geoDatasetLayer: 'tract',
-
-  ...scenarioConfig.value
+  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{
@@ -161,6 +174,65 @@ const handleCancel = () => {
   emit('cancel')
 }
 
+// Load example configurations from index.json
+const loadExampleConfigs = async () => {
+  try {
+    const response = await fetch('/examples/index.json')
+    if (!response.ok) {
+      throw new Error(`Failed to fetch examples: ${response.status}`)
+    }
+    const data = await response.json()
+    exampleConfigs.value = data.files.filter((file: ExampleConfig) =>
+      file.filename.includes('.wsdot.') && !file.hasError
+    )
+  } catch (err) {
+    console.error('Failed to load example configurations:', err)
+  }
+}
+
+// Watch for changes in selectedExample and auto-load
+watch(selectedExample, (newValue) => {
+  if (newValue) {
+    const example = exampleConfigs.value.find(config => config.filename === newValue)
+    console.log('Selected example:', newValue, example)
+    if (!example) {
+      return
+    }
+
+    // Update wsdotReportConfig with all values from the example
+    Object.assign(wsdotReportConfig.value!, {
+      ...example.config,
+      // Convert date strings back to Date objects if needed
+      weekdayDate: new Date(example.config.weekdayDate),
+      weekendDate: new Date(example.config.weekendDate)
+    })
+  }
+})
+
+// Sync selectedExample with URL query parameter
+watch(selectedExample, (newValue) => {
+  const currentQuery = { ...route.query }
+  if (newValue) {
+    currentQuery.selectedExample = newValue
+  } else {
+    delete currentQuery.selectedExample
+  }
+  router.replace({ query: currentQuery })
+})
+
+// Watch for URL changes to update selectedExample
+watch(() => route.query.selectedExample, (newValue) => {
+  const newSelectedExample = String(newValue || '')
+  if (selectedExample.value !== newSelectedExample) {
+    selectedExample.value = newSelectedExample
+  }
+})
+
+// Load examples on component mount
+onMounted(() => {
+  loadExampleConfigs()
+})
+
 // Expose hasResults to parent component
 defineExpose({
   hasResults
@@ -169,7 +241,7 @@ defineExpose({
 const runQuery = async () => {
   showLoadingModal.value = true
   try {
-    await fetchScenario(cannedBbox.value || '')
+    await fetchScenario()
   } catch (err: any) {
     error.value = err
   }
@@ -180,9 +252,9 @@ const runQuery = async () => {
   loadingProgress.value = null
 }
 
-const fetchScenario = async (loadExample: string) => {
-  const config = scenarioConfig.value!
-  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+const fetchScenario = async () => {
+  const config = wsdotReportConfig.value!
+  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     // Need either bbox or geography IDs, unless loading example
     useToastNotification().showToast('Please provide a bounding box or geography IDs.')
     return
@@ -190,22 +262,18 @@ const fetchScenario = async (loadExample: string) => {
   loadingProgress.value = null
   stopDepartureCount.value = 0
 
-  // Create receiver to accumulate scenario data
-  const receiver = new ScenarioDataReceiver({
+  // Create receiver to accumulate scenario data and WSDOT report
+  const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
-        return
-      }
       scenarioData.value = receiver.getCurrentData()
-      if (progress.extraData) {
-        wsdotReport.value = progress.extraData as WSDOTReport
-      }
     },
     onComplete: () => {
       loadingProgress.value = null
+      // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onError: (err: any) => {
       loadingProgress.value = null
@@ -214,11 +282,11 @@ const fetchScenario = async (loadExample: string) => {
   })
 
   let response: Response
-  if (loadExample) {
+  if (selectedExample.value) {
     // Load example data from public JSON file
-    response = await fetch(`/examples/${loadExample}.wsdot.json`)
+    response = await fetch(`/examples/${selectedExample.value}`)
   } else {
-    // Make request to streaming scenario endpoint
+  // Make request to streaming scenario endpoint
     const apiFetch = await useApiFetch()
     response = await apiFetch('/api/wsdot', {
       method: 'POST',

@@ -22,21 +22,22 @@ export interface WSDOTReportOptions extends ScenarioCliOptions {
   tableDatasetTableCol: string
   geoDatasetName: string
   geoDatasetLayer: string
+  reportName: string
 }
 
 export function configureWsdotReportCli (program: Command) {
   scenarioOptionsAdd(program)
+    .option('--report-name <name>', 'Name of the report', '')
     .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
     .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
-    .option('--table-dataset-name <name>', 'Name of the Census dataset to use', 'acsdt5y2022')
+    .option('--table-dataset-name <name>', 'Name of the Census dataset to use', 'acsdt5y2023')
     .option('--table-dataset-table <table>', 'Name of the Census table to use', 'b01001')
     .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', 'b01001_001')
-    .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', 'tiger2024')
+    .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', 'tiger2023')
     .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', 'tract')
     .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', parseFloat, 400)
     .allowUnknownOption(false)
-    .action(async (_options) => {
-      const opts = _options as WSDOTReportOptions
+    .action(async (opts: WSDOTReportOptions) => {
       scenarioOptionsCheck(opts)
 
       const today = new Date() // Or any starting date you desire
@@ -52,6 +53,8 @@ export function configureWsdotReportCli (program: Command) {
 
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {
+        routeHourCompatMode: true,
+        reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
         scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
@@ -59,7 +62,7 @@ export function configureWsdotReportCli (program: Command) {
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
-        aggregateLayer: opts.aggregateLayer,
+        aggregateLayer: 'state', // WSDOT report uses state-level aggregation
         tableDatasetName: opts.tableDatasetName,
         tableDatasetTable: opts.tableDatasetTable,
         tableDatasetTableCol: opts.tableDatasetTableCol,
@@ -75,7 +78,6 @@ export function configureWsdotReportCli (program: Command) {
 
       // Create a controller that optionally saves to file
       const controller = createStreamController(opts.saveScenarioData)
-      const result = await runAnalysis(controller, config, client)
-      return result
+      await runAnalysis(controller, config, client)
     })
 }
