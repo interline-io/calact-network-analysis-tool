@@ -450,7 +450,7 @@ export class ScenarioFetcher {
       after: task.after,
       limit: this.stopLimit,
       layer_name: this.config.aggregateLayer,
-      dataset_name: this.config.geoDatasetName, // hardcoded for now
+      dataset_name: this.config.geoDatasetName,
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
