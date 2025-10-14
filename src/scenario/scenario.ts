@@ -27,6 +27,11 @@ import {
 } from '~/src/tl'
 import { geographyLayerQuery } from '~/src/tl/census'
 
+// Constants for progress updates
+const PROGRESS_LIMIT_STOPS = 1000
+const PROGRESS_LIMIT_ROUTES = 100
+const PROGRESS_LIMIT_STOP_DEPARTURES = 1000
+
 /**
  * Configuration for scenario fetching
  */
@@ -457,8 +462,11 @@ export class ScenarioFetcher {
     const stopData: StopGql[] = response.data?.stops || []
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
-    // Send progress update with only the NEW stops
-    this.updateProgress('stops', true, { stops: stopData, routes: [], feedVersions: [], stopDepartures: [] })
+    // Send progress updates in batches of PROGRESS_LIMIT_STOPS
+    for (let i = 0; i < stopData.length; i += PROGRESS_LIMIT_STOPS) {
+      const stopBatch = stopData.slice(i, i + PROGRESS_LIMIT_STOPS)
+      this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [] })
+    }
 
     // Extract route IDs and fetch routes
     const routeIds: Set<number> = new Set()
@@ -510,7 +518,13 @@ export class ScenarioFetcher {
     for (const route of routeData) {
       this.fetchedRouteIds.add(route.id)
     }
-    this.updateProgress('routes', true, { stops: [], routes: routeData, feedVersions: [], stopDepartures: [] })
+
+    // Send progress updates in batches of PROGRESS_LIMIT_ROUTES
+    for (let i = 0; i < routeData.length; i += PROGRESS_LIMIT_ROUTES) {
+      const routeBatch = routeData.slice(i, i + PROGRESS_LIMIT_ROUTES)
+      this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [] })
+    }
+
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
   }
 
@@ -557,7 +571,12 @@ export class ScenarioFetcher {
         )
       }
     }
-    this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures })
+
+    // Send progress updates in batches of PROGRESS_LIMIT_STOP_DEPARTURES
+    for (let i = 0; i < stopDepartures.length; i += PROGRESS_LIMIT_STOP_DEPARTURES) {
+      const stopDepartureBatch = stopDepartures.slice(i, i + PROGRESS_LIMIT_STOP_DEPARTURES)
+      this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch })
+    }
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {

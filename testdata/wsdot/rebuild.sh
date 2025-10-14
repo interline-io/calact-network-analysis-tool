@@ -51,3 +51,6 @@ TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-bat
 # TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-19 --weekday-date 2025-10-14 --weekend-date 2025-10-19 --stop-buffer-radius 805 --bbox-name wa --table-dataset-name acsdt5y2021 --geo-dataset-name tiger2021 --geo-dataset-layer tract  --save-scenario-data public/examples/wsdot/wa-2025.wsdot.json --report-name "Washington (2025 Transitland data; 2021 ACS)"
 
 # TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-19 --weekday-date 2025-10-14 --weekend-date 2025-10-19 --stop-buffer-radius 805 --bbox-name wa --table-dataset-name acsdt5y2023 --geo-dataset-name tiger2023 --geo-dataset-layer tract  --save-scenario-data public/examples/wsdot/wa-2025-acs2023.wsdot.json --report-name "Washington (2025 Transitland data; 2023 ACS)"
+
+
+# TRANSITLAND_API_BASE=http://localhost:8080 yarn run calact wsdot --start-date 2025-10-13 --end-date 2025-10-19 --weekday-date 2025-10-14 --weekend-date 2025-10-19 --stop-buffer-radius 805 --bbox-name portland --table-dataset-name acsdt5y2023 --geo-dataset-name tiger2023 --geo-dataset-layer tract  --save-scenario-data public/examples/wsdot/portland.wsdot.json --report-name "Portland (2025 Transitland data; 2023 ACS)"

@@ -127,6 +127,10 @@ export interface WSDOTReport {
 }
 
 export interface WSDOTStopResult {
+  feedOnestopId: string
+  feedVersionSha1: string
+  adm0name: string
+  adm1name: string
   stopId: string
   stopName: string
   stopLat: number
@@ -307,7 +311,11 @@ export class WSDOTReportFetcher {
       if (!stop?.geometry) {
         continue
       }
-      const result: WSDOTStopResult = {
+      stops.push({
+        feedOnestopId: stop.feed_version?.feed?.onestop_id,
+        feedVersionSha1: stop.feed_version?.sha1,
+        adm0name: (stop.census_geographies || []).find(g => g.layer_name === 'adm0')?.name || '',
+        adm1name: (stop.census_geographies || []).find(g => g.layer_name === 'adm1')?.name || '',
         stopId: stop.stop_id,
         stopName: stop.stop_name || '',
         stopLat: stop.geometry.coordinates[1],
@@ -320,8 +328,7 @@ export class WSDOTReportFetcher {
         level1: results.level1?.has(stopId) || false,
         levelNights: results.levelNights?.has(stopId) || false,
         levelAll: true,
-      }
-      stops.push(result)
+      })
     }
 
     console.log('WSDOT frequency analysis completed...')

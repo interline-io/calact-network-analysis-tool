@@ -36,7 +36,7 @@
           </p>
         </header>
 
-        <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+        <tl-msg-warning v-if="debugMenu" class="mt-4" title="Debug menu">
           <o-field label="Example configuration">
             <o-select v-model="selectedExample">
               <option value="">
@@ -127,6 +127,8 @@ interface ExampleConfig {
 }
 
 const debugMenu = useDebugMenu()
+const route = useRoute()
+const router = useRouter()
 const error = ref<Error | null>(null)
 const loading = ref(false)
 const showLoadingModal = ref(false)
@@ -138,7 +140,7 @@ const wsdotReport = ref<WSDOTReport | null>(null)
 
 // Example configurations from index.json
 const exampleConfigs = ref<ExampleConfig[]>([])
-const selectedExample = ref<string>('')
+const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 const wsdotReportConfig = ref<WSDOTReportConfig>({
   reportName: '',
   routeHourCompatMode: true,
@@ -202,6 +204,25 @@ watch(selectedExample, (newValue) => {
       weekdayDate: example.config.weekdayDate ? new Date(example.config.weekdayDate) : new Date(),
       weekendDate: example.config.weekendDate ? new Date(example.config.weekendDate) : new Date()
     })
+  }
+})
+
+// Sync selectedExample with URL query parameter
+watch(selectedExample, (newValue) => {
+  const currentQuery = { ...route.query }
+  if (newValue) {
+    currentQuery.selectedExample = newValue
+  } else {
+    delete currentQuery.selectedExample
+  }
+  router.replace({ query: currentQuery })
+})
+
+// Watch for URL changes to update selectedExample
+watch(() => route.query.selectedExample, (newValue) => {
+  const newSelectedExample = String(newValue || '')
+  if (selectedExample.value !== newSelectedExample) {
+    selectedExample.value = newSelectedExample
   }
 })
 
