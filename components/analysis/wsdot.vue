@@ -136,25 +136,26 @@ const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
-const scenarioData = defineModel<ScenarioData | null>('scenarioData')
-const wsdotReport = ref<WSDOTReport | null>(null)
+const scenarioData = shallowRef<ScenarioData | null>(null)
+const wsdotReport = shallowRef<WSDOTReport | null>(null)
 
 // Example configurations from index.json
 const exampleConfigs = ref<ExampleConfig[]>([])
 const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 const wsdotReportConfig = ref<WSDOTReportConfig>({
-  reportName: '',
+  ...scenarioConfig.value,
+  reportName: 'wsdot-report',
   routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
   stopBufferRadius: 800,
-  tableDatasetName: 'acsdt5y2022',
+  tableDatasetName: 'acsdt5y2023',
   tableDatasetTable: 'b01001',
   tableDatasetTableCol: 'b01001_001',
-  geoDatasetName: 'tiger2024',
+  geoDatasetName: scenarioConfig.value!.geoDatasetName,
   geoDatasetLayer: 'tract',
-  ...scenarioConfig.value
+  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{
@@ -202,8 +203,8 @@ watch(selectedExample, (newValue) => {
     Object.assign(wsdotReportConfig.value!, {
       ...example.config,
       // Convert date strings back to Date objects if needed
-      weekdayDate: example.config.weekdayDate ? new Date(example.config.weekdayDate) : new Date(),
-      weekendDate: example.config.weekendDate ? new Date(example.config.weekendDate) : new Date()
+      weekdayDate: new Date(example.config.weekdayDate),
+      weekendDate: new Date(example.config.weekendDate)
     })
   }
 })
@@ -266,12 +267,7 @@ const fetchScenario = async () => {
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
-        return
-      }
-      // Update both scenario data and WSDOT report from the receiver
       scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onComplete: () => {
       loadingProgress.value = null

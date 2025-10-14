@@ -1,7 +1,9 @@
-import { readdir, readFile, writeFile } from 'fs/promises'
+import { readdir, writeFile } from 'fs/promises'
+import { createReadStream } from 'fs'
+import { createInterface } from 'readline'
 import { join } from 'path'
 import type { Command } from 'commander'
-import { GenericStreamReceiver } from '../src/core/stream.js'
+import { GenericStreamReceiver } from '../src/core'
 
 interface ProgressData {
   isLoading: boolean
@@ -48,20 +50,33 @@ async function processJsonFile (filePath: string, examplesDir: string): Promise<
   const filename = filePath.replace(examplesDir + '/', '')
 
   try {
-    const fileContent = await readFile(filePath, 'utf-8')
-
-    // Convert file content to ReadableStream
+    // Create a ReadableStream that reads the file line by line
     const stream = new ReadableStream({
       start (controller) {
         const encoder = new TextEncoder()
-        controller.enqueue(encoder.encode(fileContent))
-        controller.close()
+        const fileStream = createReadStream(filePath, { encoding: 'utf8' })
+        const rl = createInterface({
+          input: fileStream,
+          crlfDelay: Infinity // Handle Windows line endings properly
+        })
+
+        rl.on('line', (line) => {
+          // Encode each line and add newline back
+          controller.enqueue(encoder.encode(line + '\n'))
+        })
+
+        rl.on('close', () => {
+          controller.close()
+        })
+
+        rl.on('error', (error) => {
+          controller.error(error)
+        })
       }
     })
 
     const receiver = new ConfigReceiver()
     const streamReceiver = new GenericStreamReceiver<ProgressData, { config: any | null, error: string | null }>()
-
     const result = await streamReceiver.processStream(stream, receiver)
 
     return {

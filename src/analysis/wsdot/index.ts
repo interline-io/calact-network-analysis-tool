@@ -133,8 +133,7 @@ export interface WSDOTReport {
 export interface WSDOTStopResult {
   feedOnestopId: string
   feedVersionSha1: string
-  adm0name: string
-  adm1name: string
+  stateName: string
   stopId: string
   stopName: string
   stopLat: number
@@ -313,12 +312,11 @@ export class WSDOTReportFetcher {
       if (!stop?.geometry) {
         continue
       }
-
+      const stateName = (stop.census_geographies || []).find(g => g.layer_name === this.config.aggregateLayer)?.name || ''
       stops.push({
         feedOnestopId: stop.feed_version?.feed?.onestop_id,
         feedVersionSha1: stop.feed_version?.sha1,
-        adm0name: (stop.census_geographies || []).find(g => g.layer_name === 'adm0')?.name || '',
-        adm1name: (stop.census_geographies || []).find(g => g.layer_name === 'adm1')?.name || '',
+        stateName: stateName,
         stopId: stop.stop_id,
         stopName: stop.stop_name || '',
         stopLat: stop.geometry.coordinates[1],
@@ -402,8 +400,21 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   }
 
   override onProgress (progress: ScenarioProgress): void {
-    // First, handle scenario data accumulation
+    // Ignore departure data
     super.onProgress(progress)
+    // super.onProgress({
+    //   isLoading: progress.isLoading,
+    //   currentStage: progress.currentStage,
+    //   currentStageMessage: progress.currentStageMessage,
+    //   error: progress.error,
+    //   partialData: {
+    //     feedVersions: progress.partialData?.feedVersions || [],
+    //     stops: progress.partialData?.stops || [],
+    //     routes: progress.partialData?.routes || [],
+    //     stopDepartures: [],
+    //   },
+    //   extraData: null
+    // })
 
     // Then handle WSDOT report extraData aggregation
     if (progress.extraData) {
