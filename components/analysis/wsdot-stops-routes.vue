@@ -138,11 +138,19 @@ const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
 const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  ...scenarioConfig.value,
+  reportName: 'wsdot-report',
+  routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
-  stopBufferRadius: 0, // no population data needed for this analysis
-  ...scenarioConfig.value
+  stopBufferRadius: 0,
+  tableDatasetName: 'acsdt5y2023',
+  tableDatasetTable: 'b01001',
+  tableDatasetTableCol: 'b01001_001',
+  geoDatasetName: scenarioConfig.value!.geoDatasetName,
+  geoDatasetLayer: 'tract',
+  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{
