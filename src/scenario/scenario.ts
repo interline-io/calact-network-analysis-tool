@@ -642,7 +642,6 @@ export class ScenarioDataReceiver {
         }
         // const stopId = StopDepartureTuple.stopId(event)
         // const departureDate = StopDepartureTuple.departureDate(event)
-        // console.log(`Adding stop departure for stop ${StopDepartureTuple.stopId(event)}: ${st}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),
