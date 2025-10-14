@@ -9,7 +9,8 @@ import {
   type dow,
   type Bbox,
   type GraphQLClient,
-  convertBbox
+  convertBbox,
+  chunkArray
 } from '~/src/core'
 import {
   StopDepartureCache,
@@ -29,8 +30,8 @@ import { geographyLayerQuery } from '~/src/tl/census'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
-const PROGRESS_LIMIT_ROUTES = 100
-const PROGRESS_LIMIT_STOP_DEPARTURES = 1000
+const PROGRESS_LIMIT_ROUTES = 10
+const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 
 /**
  * Configuration for scenario fetching
@@ -462,9 +463,8 @@ export class ScenarioFetcher {
     const stopData: StopGql[] = response.data?.stops || []
     console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
 
-    // Send progress updates in batches of PROGRESS_LIMIT_STOPS
-    for (let i = 0; i < stopData.length; i += PROGRESS_LIMIT_STOPS) {
-      const stopBatch = stopData.slice(i, i + PROGRESS_LIMIT_STOPS)
+    // Send progress updates in batches using the generic helper function
+    for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
       this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [] })
     }
 
@@ -519,9 +519,8 @@ export class ScenarioFetcher {
       this.fetchedRouteIds.add(route.id)
     }
 
-    // Send progress updates in batches of PROGRESS_LIMIT_ROUTES
-    for (let i = 0; i < routeData.length; i += PROGRESS_LIMIT_ROUTES) {
-      const routeBatch = routeData.slice(i, i + PROGRESS_LIMIT_ROUTES)
+    // Send progress updates in batches using the generic helper function
+    for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
       this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [] })
     }
 
@@ -572,9 +571,8 @@ export class ScenarioFetcher {
       }
     }
 
-    // Send progress updates in batches of PROGRESS_LIMIT_STOP_DEPARTURES
-    for (let i = 0; i < stopDepartures.length; i += PROGRESS_LIMIT_STOP_DEPARTURES) {
-      const stopDepartureBatch = stopDepartures.slice(i, i + PROGRESS_LIMIT_STOP_DEPARTURES)
+    // Send progress updates in batches using the generic helper function
+    for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
       this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch })
     }
   }
@@ -643,7 +641,7 @@ export class ScenarioDataReceiver {
         }
         // const stopId = StopDepartureTuple.stopId(event)
         // const departureDate = StopDepartureTuple.departureDate(event)
-        // console.log(`Adding stop departure for stop ${stopId} on ${st.departure_time} ${departureDate} trip ${st.trip.id}`)
+        // console.log(`Adding stop departure for stop ${StopDepartureTuple.stopId(event)}: ${st}`)
         this.accumulatedData.stopDepartureCache.add(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),

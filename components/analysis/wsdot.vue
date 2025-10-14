@@ -118,7 +118,8 @@
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
+import { WSDOTReportDataReceiver } from '~/src/analysis/wsdot'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
 
 interface ExampleConfig {
   filename: string
@@ -260,22 +261,23 @@ const fetchScenario = async () => {
   loadingProgress.value = null
   stopDepartureCount.value = 0
 
-  // Create receiver to accumulate scenario data
-  const receiver = new ScenarioDataReceiver({
+  // Create receiver to accumulate scenario data and WSDOT report
+  const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
       if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
         return
       }
+      // Update both scenario data and WSDOT report from the receiver
       scenarioData.value = receiver.getCurrentData()
-      if (progress.extraData) {
-        wsdotReport.value = progress.extraData as WSDOTReport
-      }
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onComplete: () => {
       loadingProgress.value = null
+      // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onError: (err: any) => {
       loadingProgress.value = null
