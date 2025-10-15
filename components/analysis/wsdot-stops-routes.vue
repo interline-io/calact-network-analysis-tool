@@ -145,7 +145,7 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekendDate: scenarioConfig.value!.endDate!,
   scheduleEnabled: true,
   stopBufferRadius: 0,
-  tableDatasetName: 'acsdt5y2023',
+  tableDatasetName: 'acsdt5y2021',
   tableDatasetTable: 'b01001',
   tableDatasetTableCol: 'b01001_001',
   geoDatasetName: scenarioConfig.value!.geoDatasetName,
