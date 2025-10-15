@@ -656,7 +656,7 @@ async function setMapExtent (v: Bbox) {
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: 'tiger2023',
+  geoDatasetName: 'tiger2021',
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
   scheduleEnabled: scheduleEnabled.value,
