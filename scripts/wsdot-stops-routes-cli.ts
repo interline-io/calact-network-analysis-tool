@@ -65,7 +65,7 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
             geometry: stop.geometry
           }))
         }
-        const fs = await import('fs/promises')
+        const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveStopsGeojson, JSON.stringify(stopsGeoJSON, null, 2))
         console.log(`💾 Stops GeoJSON saved to: ${opts.saveStopsGeojson}`)
       }
@@ -87,7 +87,7 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
             geometry: route.geometry
           }))
         }
-        const fs = await import('fs/promises')
+        const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveRoutesGeojson, JSON.stringify(routesGeoJSON, null, 2))
         console.log(`💾 Routes GeoJSON saved to: ${opts.saveRoutesGeojson}`)
       }

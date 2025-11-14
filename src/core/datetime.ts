@@ -43,7 +43,7 @@ export function getUTCDateNoTime (): Date {
 
 export function parseHMS (value: string): number {
   const a = (value || '').split(':').map((s) => {
-    return parseInt(s)
+    return Number.parseInt(s)
   })
   if (a.length !== 3) {
     return -1

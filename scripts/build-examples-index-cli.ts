@@ -1,7 +1,7 @@
-import { readdir, writeFile } from 'fs/promises'
-import { createReadStream } from 'fs'
-import { createInterface } from 'readline'
-import { join } from 'path'
+import { readdir, writeFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
+import { join } from 'node:path'
 import type { Command } from 'commander'
 import { GenericStreamReceiver } from '../src/core'
 

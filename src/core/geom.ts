@@ -26,7 +26,7 @@ export function ptString (p: Point): string {
 }
 
 export function parseBbox (bbox: string | null): Bbox {
-  const p = (bbox || '').split(',').map(parseFloat).filter(s => (!isNaN(s)))
+  const p = (bbox || '').split(',').map(Number.parseFloat).filter(s => (!Number.isNaN(s)))
   const sw = { lon: 0, lat: 0 }
   const ne = { lon: 0, lat: 0 }
   if (p.length === 4) {

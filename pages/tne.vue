@@ -174,7 +174,7 @@
 </template>
 
 <script lang="ts" setup>
-import { nextMonday, nextSunday } from 'date-fns'
+import { nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
@@ -258,7 +258,7 @@ const geomSource = computed({
 
 const geographyIds = computed({
   get () {
-    return route.query.geographyIds?.toString().split(',').map(p => (parseInt(p))) || []
+    return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
   },
   set (v: number[]) {
     setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
@@ -394,7 +394,7 @@ const selectedRouteTypes = computed({
   get (): number[] {
     const d = arrayParam('selectedRouteTypes', [])
     if (d.length) {
-      return d.map(p => parseInt(p))
+      return d.map(p => Number.parseInt(p))
     }
     return Array.from(routeTypes.keys())
   },
@@ -440,7 +440,7 @@ const frequencyUnderEnabled = computed({
 
 const frequencyUnder = computed({
   get () {
-    return parseInt(route.query.frequencyUnder?.toString() || '') || 15
+    return Number.parseInt(route.query.frequencyUnder?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyUnder: v.toString() })
@@ -458,7 +458,7 @@ const frequencyOverEnabled = computed({
 
 const frequencyOver = computed({
   get () {
-    return parseInt(route.query.frequencyOver?.toString() || '') || 15
+    return Number.parseInt(route.query.frequencyOver?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyOver: v.toString() })
@@ -485,7 +485,7 @@ const maxFareEnabled = computed({
 
 const maxFare = computed({
   get () {
-    return parseInt(route.query.maxFare?.toString() || '') || 0
+    return Number.parseInt(route.query.maxFare?.toString() || '') || 0
   },
   set (v: number) {
     setQuery({ ...route.query, maxFare: v.toString() })
@@ -503,7 +503,7 @@ const minFareEnabled = computed({
 
 const minFare = computed({
   get () {
-    return parseInt(route.query.minFare?.toString() || '') || 0
+    return Number.parseInt(route.query.minFare?.toString() || '') || 0
   },
   set (v: string) {
     setQuery({ ...route.query, minFare: v.toString() })

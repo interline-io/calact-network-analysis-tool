@@ -194,7 +194,7 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
     const decoder = new TextDecoder()
 
     // Import fs dynamically to handle Node.js environment
-    import('fs').then(async (fs) => {
+    import('node:fs').then(async (fs) => {
       const writeStream = fs.createWriteStream(saveToFile)
 
       try {

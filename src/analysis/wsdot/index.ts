@@ -541,7 +541,7 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
 
 function parseHour (timeString: string): number {
   const parts = timeString.split(':')
-  let hour = parseInt(parts[0], 10)
+  let hour = Number.parseInt(parts[0], 10)
   // Handle GTFS 24+ hour format
   if (hour >= 24) {
     hour = hour - 24
