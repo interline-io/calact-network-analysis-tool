@@ -470,9 +470,15 @@ const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
   const jsDowValues: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const result = new Set<string>()
+  if (!startDate.value || !endDate.value) {
+    return result
+  }
   const range = eachDayOfInterval({ start: startDate.value, end: endDate.value })
   for (const d of range) {
-    result.add(jsDowValues[d.getDay()])
+    const dow = jsDowValues[d.getDay()]
+    if (dow) {
+      result.add(dow)
+    }
     if (result.size === 7) break // we got them all
   }
   return result

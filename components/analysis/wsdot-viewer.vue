@@ -281,11 +281,11 @@ const levelDetails: ComputedRef<Record<string, LayerDetail>> = computed(() => {
         continue
       }
       const stopCount = wsdotReport.value.stops.filter(stop => stop[levelName] && stop.stateName === state).length
-      const statePop = statePopulations[state] || { total: 0, bboxIntersection: 0 }
+      const statePop = statePopulations[state] || { totalPopulation: 0, bboxPopulation: 0 }
       const layerPopState = layerPops[state] || { intersectionPopulation: 0, totalPopulation: 0, bboxPopulation: 0, stopCount: 0 }
       layerPopState.intersectionPopulation += feature.properties.intersection_population || 0
-      layerPopState.totalPopulation = statePop?.totalPopulation || 0
-      layerPopState.bboxPopulation = statePop?.bboxPopulation || 0
+      layerPopState.totalPopulation = statePop.totalPopulation || 0
+      layerPopState.bboxPopulation = statePop.bboxPopulation || 0
       layerPopState.stopCount = stopCount || 0
       layerPops[state] = layerPopState
     }
@@ -357,7 +357,7 @@ const displayFeatures = computed(() => {
           ...stop,
           properties: {
             ...stop.properties,
-            'marker-color': levelDetails.value[level].color,
+            'marker-color': levelDetails.value[level]?.color ?? '#000',
             'marker-radius': 3,
           }
         }

@@ -34,8 +34,8 @@ export function routeSetDerived (
     }
     if (hw.headways_seconds.length > 0) {
       route.average_frequency = (hw.headways_seconds.reduce((a, b) => a + b) / hw.headways_seconds.length)
-      route.fastest_frequency = hw.headways_seconds[0]
-      route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1]
+      route.fastest_frequency = hw.headways_seconds[0] ?? null
+      route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1] ?? null
     } else {
       route.average_frequency = null
       route.fastest_frequency = null
@@ -126,7 +126,11 @@ export function routeHeadways (
 
       const headways: number[] = []
       for (let i = 0; i < stSecs.length - 1; i++) {
-        headways.push(stSecs[i + 1] - stSecs[i])
+        const curr = stSecs[i]
+        const next = stSecs[i + 1]
+        if (curr !== undefined && next !== undefined) {
+          headways.push(next - curr)
+        }
       }
       headways.sort((a, b) => a - b)
 
@@ -260,8 +264,8 @@ function stopVisits (
   const startTime = parseHMS(selectedStartTime)
   const endTime = parseHMS(selectedEndTime)
   for (const sd of selectedDateRange) {
-    const sdDow = dowDateString[sd.getDay()] || ''
-    if (!selectedDays.includes(sdDow)) {
+    const sdDow = dowDateString[sd.getDay()]
+    if (!sdDow || !selectedDays.includes(sdDow)) {
       continue
     }
     // TODO: memoize formatted date

@@ -315,7 +315,9 @@ const styleData = computed((): Matcher[] => {
     for (let i = 0; i < Math.min(agencies.length, maxColor); i++) {
       const agency = agencies[i]
       const color = colors[i]
-      rules.push({ label: agency.name, color: color, match: getAgencyMatcher(agency.id) })
+      if (agency && color) {
+        rules.push({ label: agency.name ?? '', color: color, match: getAgencyMatcher(agency.id ?? '') })
+      }
     }
     return rules
   }
@@ -326,9 +328,11 @@ const styleData = computed((): Matcher[] => {
     const modes = [...routeTypes.keys()]
     for (let i = 0; i < Math.min(modes.length, maxColor); i++) {
       const mode = modes[i]
-      const label = routeTypes.get(mode) || 'Unknown'
       const color = colors[i]
-      rules.push({ label: label, color: color, match: getModeMatcher(mode) })
+      if (mode !== undefined && color) {
+        const label = routeTypes.get(mode) || 'Unknown'
+        rules.push({ label: label, color: color, match: getModeMatcher(mode) })
+      }
     }
     return rules
   }
@@ -336,11 +340,11 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of ROUTE FREQUENCY MATCHERS (static)
   function getRouteFrequencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    rules.push({ label: '40+ mins', color: colors[0], match: getRouteFrequencyMatcher(40) })
-    rules.push({ label: '30-39 mins', color: colors[1], match: getRouteFrequencyMatcher(30) })
-    rules.push({ label: '20-29 mins', color: colors[2], match: getRouteFrequencyMatcher(20) })
-    rules.push({ label: '10-19 mins', color: colors[3], match: getRouteFrequencyMatcher(10) })
-    rules.push({ label: '0-9 mins', color: colors[4], match: getRouteFrequencyMatcher(0) })
+    rules.push({ label: '40+ mins', color: colors[0] ?? '#000', match: getRouteFrequencyMatcher(40) })
+    rules.push({ label: '30-39 mins', color: colors[1] ?? '#000', match: getRouteFrequencyMatcher(30) })
+    rules.push({ label: '20-29 mins', color: colors[2] ?? '#000', match: getRouteFrequencyMatcher(20) })
+    rules.push({ label: '10-19 mins', color: colors[3] ?? '#000', match: getRouteFrequencyMatcher(10) })
+    rules.push({ label: '0-9 mins', color: colors[4] ?? '#000', match: getRouteFrequencyMatcher(0) })
     rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
@@ -348,11 +352,11 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of STOP VISIT MATCHERS (static)
   function getStopVisitMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    rules.push({ label: '100+ visits', color: colors[0], match: getStopVisitMatcher(100) })
-    rules.push({ label: '50-100 visits', color: colors[1], match: getStopVisitMatcher(50) })
-    rules.push({ label: '20-50 visits', color: colors[2], match: getStopVisitMatcher(20) })
-    rules.push({ label: '10-20 visits', color: colors[3], match: getStopVisitMatcher(10) })
-    rules.push({ label: '0-9 visits', color: colors[4], match: getStopVisitMatcher(0) })
+    rules.push({ label: '100+ visits', color: colors[0] ?? '#000', match: getStopVisitMatcher(100) })
+    rules.push({ label: '50-100 visits', color: colors[1] ?? '#000', match: getStopVisitMatcher(50) })
+    rules.push({ label: '20-50 visits', color: colors[2] ?? '#000', match: getStopVisitMatcher(20) })
+    rules.push({ label: '10-20 visits', color: colors[3] ?? '#000', match: getStopVisitMatcher(10) })
+    rules.push({ label: '0-9 visits', color: colors[4] ?? '#000', match: getStopVisitMatcher(0) })
     rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }

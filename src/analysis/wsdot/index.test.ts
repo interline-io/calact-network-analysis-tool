@@ -1,7 +1,6 @@
 import { describe, it, afterEach } from 'vitest'
-import type { Polly } from '@pollyjs/core'
-import { parseDate, apiFetch, BasicGraphQLClient, type Bbox } from '~/src/core'
-import { runScenarioFetcher } from '~/src/scenario'
+import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, DEFAULT_CENSUS_DATASET, DEFAULT_GEODATA_DATASET } from '~/src/core'
+import { runScenarioFetcher, ScenarioStreamSender } from '~/src/scenario'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
@@ -9,17 +8,13 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     // Skip test if TEST_WSDOT is not set to 'true'
     return
   }
-  let polly: Polly | null = null
   const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',
     apiFetch(process.env.TRANSITLAND_API_KEY || '')
   )
 
   afterEach(async () => {
-    if (polly) {
-      await polly.stop()
-      polly = null
-    }
+    // Cleanup if needed
   })
 
   const smallBbox: Bbox = {
@@ -38,6 +33,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const startDate = '2024-08-19'
     const endDate = '2024-08-25'
     const config: WSDOTReportConfig = {
+      reportName: 'Test Report',
       bbox: bigBbox,
       scheduleEnabled: true,
       startDate: parseDate(startDate)!,
@@ -45,14 +41,22 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      stopLimit: 1000
+      stopLimit: 1000,
+      stopBufferRadius: 0.25,
+      tableDatasetName: DEFAULT_CENSUS_DATASET,
+      tableDatasetTable: 'blocks',
+      tableDatasetTableCol: 'population',
+      geoDatasetName: DEFAULT_GEODATA_DATASET,
+      geoDatasetLayer: 'blocks',
+      routeHourCompatMode: true
     }
 
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-    const report = await wsdotFetcher.fetch()
-    console.log(report.levelStops)
+    const mockSender = createMockSender()
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
+    await wsdotFetcher.fetch()
+    console.log('Test completed')
   })
 
   it('tlv2-prod', async () => {
@@ -60,6 +64,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const startDate = '2025-08-11'
     const endDate = '2025-08-18'
     const config: WSDOTReportConfig = {
+      reportName: 'Test Report',
       bbox: smallBbox,
       scheduleEnabled: true,
       startDate: parseDate(startDate)!,
@@ -67,15 +72,28 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      stopLimit: 1000
+      stopLimit: 1000,
+      stopBufferRadius: 0.25,
+      tableDatasetName: DEFAULT_CENSUS_DATASET,
+      tableDatasetTable: 'blocks',
+      tableDatasetTableCol: 'population',
+      geoDatasetName: DEFAULT_GEODATA_DATASET,
+      geoDatasetLayer: 'blocks',
+      routeHourCompatMode: true
     }
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-    const report = await wsdotFetcher.fetch()
-    console.log(report.levelStops)
+    const mockSender = createMockSender()
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
+    await wsdotFetcher.fetch()
+    console.log('Test completed')
   })
 }, 600000)
+
+function createMockSender () {
+  const { writable } = new TransformStream()
+  return new ScenarioStreamSender(writable.getWriter())
+}
 
 export function createStreamController (): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController

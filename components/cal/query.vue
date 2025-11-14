@@ -9,7 +9,7 @@
     </tl-msg-info>
 
     <div class="cal-body">
-      <tl-msg-box variant="text" title="Date range">
+      <tl-msg-box title="Date range">
         <o-field>
           <template #label>
             <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
@@ -33,7 +33,7 @@
         </o-field>
       </tl-msg-box>
 
-      <tl-msg-box variant="text" title="Geographic Bounds">
+      <tl-msg-box title="Geographic Bounds">
         <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
             <o-select v-model="cannedBbox">

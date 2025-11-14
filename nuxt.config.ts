@@ -8,7 +8,7 @@ export default defineNuxtConfig({
   modules: [
     'tlv2-ui',
     '@nuxt/eslint',
-    '@nuxt/devtools',
+    '@nuxt/devtools'
   ],
 
   ssr: false,

@@ -319,8 +319,8 @@ export class WSDOTReportFetcher {
         stateName: stateName,
         stopId: stop.stop_id,
         stopName: stop.stop_name || '',
-        stopLat: stop.geometry.coordinates[1],
-        stopLon: stop.geometry.coordinates[0],
+        stopLat: stop.geometry.coordinates[1] ?? 0,
+        stopLon: stop.geometry.coordinates[0] ?? 0,
         level6: results.level6?.has(stopId) || false,
         level5: results.level5?.has(stopId) || false,
         level4: results.level4?.has(stopId) || false,
@@ -358,9 +358,10 @@ export class WSDOTReportFetcher {
       for (const [layerName, features] of Object.entries(layers)) {
         const featureChunks = chunkArray(features, PROGRESS_LIMIT_STOPS)
         for (let i = 0; i < featureChunks.length; i++) {
+          const chunk = featureChunks[i] ?? []
           const batchLevelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {
             [levelKey]: {
-              [layerName]: featureChunks[i]
+              [layerName]: chunk
             }
           }
           this.progressSender.onProgress({
@@ -541,7 +542,7 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
 
 function parseHour (timeString: string): number {
   const parts = timeString.split(':')
-  let hour = Number.parseInt(parts[0], 10)
+  let hour = Number.parseInt(parts[0] ?? '0', 10)
   // Handle GTFS 24+ hour format
   if (hour >= 24) {
     hour = hour - 24
@@ -629,9 +630,10 @@ function processServiceLevel (
 }
 
 function mergeSets (stopResults: Set<number>[]): Set<number> {
-  let mergedStops = stopResults.length > 0 ? stopResults[0] : new Set<number>()
+  let mergedStops: Set<number> = stopResults.length > 0 ? (stopResults[0] ?? new Set<number>()) : new Set<number>()
   for (let i = 1; i < stopResults.length; i++) {
-    mergedStops = intersection(mergedStops, stopResults[i])
+    const nextSet = stopResults[i] ?? new Set<number>()
+    mergedStops = intersection(mergedStops, nextSet)
   }
   return mergedStops
 }

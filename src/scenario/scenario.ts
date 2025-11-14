@@ -500,9 +500,10 @@ export class ScenarioFetcher {
 
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
-    if (stopData.length >= this.stopLimit && stopIds.length > 0) {
+    const lastStopId = stopIds[stopIds.length - 1]
+    if (stopData.length >= this.stopLimit && stopIds.length > 0 && lastStopId !== undefined) {
       this.stopFetchQueue.enqueueOne({
-        after: stopIds[stopIds.length - 1],
+        after: lastStopId,
         feedOnestopId: task.feedOnestopId,
         feedVersionSha1: task.feedVersionSha1
       })
