@@ -10,9 +10,9 @@ export default defineVitestConfig({
       [
         'default',
         {
-          summary: false
-        }
-      ]
-    ]
-  }
+          summary: false,
+        },
+      ],
+    ],
+  },
 })
