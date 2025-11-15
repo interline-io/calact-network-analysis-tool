@@ -177,7 +177,7 @@ const handleCancel = () => {
 // Load example configurations from index.json
 const loadExampleConfigs = async () => {
   try {
-    const response = await fetch('/examples/index.json')
+    const response = await fetch('/api/examples')
     if (!response.ok) {
       throw new Error(`Failed to fetch examples: ${response.status}`)
     }
