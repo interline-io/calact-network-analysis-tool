@@ -64,6 +64,17 @@ export default defineNuxtConfig({
     },
   },
 
+  typescript: {
+    typeCheck: true,
+    strict: true,
+    tsConfig: {
+      vueCompilerOptions: {
+        // This is critical for checking component props in templates
+        // strictTemplates: true,
+      },
+    },
+  },
+
   tlv2: {
     useProxy: true,
     bulma: '~/assets/main.scss',
