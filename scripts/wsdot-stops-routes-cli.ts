@@ -5,7 +5,7 @@ import type { Command } from 'commander'
 import {
   createStreamController,
   scenarioOptionsAdd,
-  scenarioOptionsCheck
+  scenarioOptionsCheck,
 } from './scenario-cli'
 import type { WSDOTReportOptions } from './wsdot-cli'
 import { runAnalysis } from '~/src/analysis/wsdot-stops-routes'
@@ -18,7 +18,7 @@ export interface WSDOTStopsRoutesReportOptions extends WSDOTReportOptions {
   saveRoutesGeojson?: string
 }
 
-export function configureWsdotStopsRoutesReportCli (program: Command) {
+export function configureWsdotStopsRoutesReportCli(program: Command) {
   scenarioOptionsAdd(program)
     .option('--save-report <file>', 'Path to save WSDOT stops and routes report')
     .option('--save-stops-geojson <file>', 'Path to save stops as GeoJSON')
@@ -39,19 +39,19 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
-        geographyIds: [],
-        stopBufferRadius: 0.25,
+        routeHourCompatMode: true,
+        stopBufferRadius: 800,
         tableDatasetName: DEFAULT_CENSUS_DATASET,
-        tableDatasetTable: 'blocks',
-        tableDatasetTableCol: 'population',
+        tableDatasetTable: 'b01001',
+        tableDatasetTableCol: 'b01001_001',
         geoDatasetName: DEFAULT_GEODATA_DATASET,
-        geoDatasetLayer: 'blocks',
-        routeHourCompatMode: true
+        geoDatasetLayer: 'tract',
+        aggregateLayer: 'state',
       }
 
       const client = new BasicGraphQLClient(
         (process.env.TRANSITLAND_API_BASE || '') + '/query',
-        apiFetch(process.env.TRANSITLAND_API_KEY || '')
+        apiFetch(process.env.TRANSITLAND_API_KEY || ''),
       )
 
       // Create a controller that optionally saves to file
@@ -68,10 +68,10 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
               stopId: stop.stopId,
               stopName: stop.stopName,
               agencyId: stop.agencyId,
-              feedOnestopId: stop.feedOnestopId
+              feedOnestopId: stop.feedOnestopId,
             },
-            geometry: stop.geometry
-          }))
+            geometry: stop.geometry,
+          })),
         }
         const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveStopsGeojson, JSON.stringify(stopsGeoJSON, null, 2))
@@ -90,10 +90,10 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
               routeLongName: route.routeLongName,
               routeType: route.routeType,
               agencyId: route.agencyId,
-              feedOnestopId: route.feedOnestopId
+              feedOnestopId: route.feedOnestopId,
             },
-            geometry: route.geometry
-          }))
+            geometry: route.geometry,
+          })),
         }
         const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveRoutesGeojson, JSON.stringify(routesGeoJSON, null, 2))
