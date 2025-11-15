@@ -30,30 +30,29 @@
   // ============================================
   "[vue]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
   },
   "[javascript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
   },
   "[typescript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
   },
   "[json]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
   },
   "[jsonc]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": false
+    "editor.formatOnSave": true
   },
 
   // ============================================
   // TypeScript Configuration
   // ============================================
   "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
 
   // ============================================
   // Search Exclusions

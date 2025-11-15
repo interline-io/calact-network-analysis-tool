@@ -18,7 +18,7 @@ export interface WSDOTStopsRoutesReportOptions extends WSDOTReportOptions {
   saveRoutesGeojson?: string
 }
 
-export function configureWsdotStopsRoutesReportCli(program: Command) {
+export function configureWsdotStopsRoutesReportCli (program: Command) {
   scenarioOptionsAdd(program)
     .option('--save-report <file>', 'Path to save WSDOT stops and routes report')
     .option('--save-stops-geojson <file>', 'Path to save stops as GeoJSON')

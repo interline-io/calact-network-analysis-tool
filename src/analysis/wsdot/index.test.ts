@@ -10,7 +10,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   }
   const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || '')
+    apiFetch(process.env.TRANSITLAND_API_KEY || ''),
   )
 
   afterEach(async () => {
@@ -20,12 +20,12 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   const smallBbox: Bbox = {
     sw: { lon: -122.375034, lat: 47.586920 },
     ne: { lon: -122.265815, lat: 47.625345 },
-    valid: true
+    valid: true,
   }
   const bigBbox: Bbox = {
     sw: { lon: -127.300423, lat: 44.772916 },
     ne: { lon: -113.320321, lat: 47.625345 },
-    valid: true
+    valid: true,
   }
 
   it('thomas-2024', async () => {
@@ -41,14 +41,16 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
+      routeHourCompatMode: true,
       stopLimit: 1000,
-      stopBufferRadius: 0.25,
+      stopBufferRadius: 800,
       tableDatasetName: DEFAULT_CENSUS_DATASET,
-      tableDatasetTable: 'blocks',
-      tableDatasetTableCol: 'population',
+      tableDatasetTable: 'b01001',
+      tableDatasetTableCol: 'b01001_001',
       geoDatasetName: DEFAULT_GEODATA_DATASET,
-      geoDatasetLayer: 'blocks',
-      routeHourCompatMode: true
+      geoDatasetLayer: 'tract',
+      aggregateLayer: 'state',
+
     }
 
     const controller = createStreamController()
@@ -72,14 +74,15 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
+      routeHourCompatMode: true,
       stopLimit: 1000,
-      stopBufferRadius: 0.25,
+      stopBufferRadius: 800,
       tableDatasetName: DEFAULT_CENSUS_DATASET,
-      tableDatasetTable: 'blocks',
-      tableDatasetTableCol: 'population',
+      tableDatasetTable: 'b01001',
+      tableDatasetTableCol: 'b01001_001',
       geoDatasetName: DEFAULT_GEODATA_DATASET,
-      geoDatasetLayer: 'blocks',
-      routeHourCompatMode: true
+      geoDatasetLayer: 'tract',
+      aggregateLayer: 'state',
     }
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)
