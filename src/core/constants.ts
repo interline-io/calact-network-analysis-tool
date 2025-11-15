@@ -1,5 +1,5 @@
 export const DEFAULT_CENSUS_DATASET = 'acsdt5y2021'
-export const DEFAULT_GEODATA_DATASET = 'acsdt5y2021'
+export const DEFAULT_GEODATA_DATASET = 'tiger2021'
 
 export interface CannedBbox {
   label: string
