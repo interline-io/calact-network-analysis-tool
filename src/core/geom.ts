@@ -29,11 +29,11 @@ export function parseBbox (bbox: string | null): Bbox {
   const p = (bbox || '').split(',').map(Number.parseFloat).filter(s => (!Number.isNaN(s)))
   const sw = { lon: 0, lat: 0 }
   const ne = { lon: 0, lat: 0 }
-  if (p.length === 4 && p[0] !== undefined && p[1] !== undefined && p[2] !== undefined && p[3] !== undefined) {
-    sw.lon = p[0]
-    sw.lat = p[1]
-    ne.lon = p[2]
-    ne.lat = p[3]
+  if (p.length === 4) {
+    sw.lon = p[0]!
+    sw.lat = p[1]!
+    ne.lon = p[2]!
+    ne.lat = p[3]!
     return { sw, ne, valid: true }
   }
   return { sw: sw, ne: ne, valid: false, }

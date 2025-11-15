@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter } from './scenario'
-import { parseHMS, routeTypes, type dow } from '~/src/core'
+import { parseHMS, routeTypeNames, type dow } from '~/src/core'
 import type { Agency, FeedVersion, Route, RouteHeadwayDirections, RouteHeadwaySummary, Stop, StopDepartureCache, StopGql, StopTime, StopVisitCounts, StopVisitSummary } from '~/src/tl'
 
 ////////////////////
@@ -429,7 +429,7 @@ export function applyScenarioResultFilter (
       ...routeGql,
       route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
       agency_name: routeGql.agency?.agency_name || 'Unknown',
-      route_mode: routeTypes.get(routeGql.route_type) || 'Unknown',
+      route_mode: routeTypeNames.get(routeGql.route_type) || 'Unknown',
       marked: true,
       average_frequency: null,
       fastest_frequency: null,
@@ -515,7 +515,7 @@ export function applyScenarioResultFilter (
     return {
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
-      routes_modes: [...adata.routes_modes].map(r => (routeTypes.get(r) || 'Unknown')).join(', '),
+      routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
       stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
       id: agency.id,
       agency_id: agency.agency_id,

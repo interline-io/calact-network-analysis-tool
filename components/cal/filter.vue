@@ -239,7 +239,7 @@
             Modes
           </p>
           <ul>
-            <li v-for="[routeType, routeTypeDesc] of routeTypes" :key="routeType">
+            <li v-for="[routeType, routeTypeDesc] of routeTypeNames" :key="routeType">
               <o-checkbox v-model="selectedRouteTypes" :native-value="routeType">
                 {{ routeTypeDesc }}
               </o-checkbox>
@@ -378,7 +378,7 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypes, dataDisplayModes, baseMapStyles } from '~/src/core'
+import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles } from '~/src/core'
 import type { ScenarioFilterResult } from '~/src/scenario'
 </script>
 

@@ -72,7 +72,7 @@ export function configureScenarioCli (program: Command) {
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
-    const b = cannedBboxes.get(options.bboxName)
+    const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
     options.bbox = b?.bboxString
     options.reportName = options.reportName || b?.label || ''
   }

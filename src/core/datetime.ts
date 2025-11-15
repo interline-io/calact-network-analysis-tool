@@ -45,10 +45,10 @@ export function parseHMS (value: string): number {
   const a = (value || '').split(':').map((s) => {
     return Number.parseInt(s)
   })
-  if (a.length !== 3 || a[0] === undefined || a[1] === undefined || a[2] === undefined) {
+  if (a.length !== 3 || a.some(Number.isNaN)) {
     return -1
   }
-  return a[0] * 3600 + a[1] * 60 + a[2]
+  return a[0]! * 3600 + a[1]! * 60 + a[2]!
 }
 
 /**

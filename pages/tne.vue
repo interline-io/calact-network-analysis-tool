@@ -180,7 +180,7 @@ import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypes, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
 
 definePageMeta({
@@ -309,7 +309,7 @@ const endTime = computed({
 
 const bbox = computed({
   get () {
-    const defaultBbox = cannedBboxes.get(cannedBbox.value)?.bboxString || ''
+    const defaultBbox = cannedBboxes[cannedBbox.value as keyof typeof cannedBboxes]?.bboxString || ''
     const bbox = route.query.bbox?.toString() ?? defaultBbox
     return parseBbox(bbox)
   },
@@ -391,12 +391,12 @@ const selectedTimeOfDayMode = computed({
 })
 
 const selectedRouteTypes = computed({
-  get (): number[] {
+  get () {
     const d = arrayParam('selectedRouteTypes', [])
     if (d.length) {
       return d.map(p => Number.parseInt(p))
     }
-    return Array.from(routeTypes.keys())
+    return Array.from(routeTypeNames.keys())
   },
   set (v: string[]) {
     setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
@@ -780,8 +780,8 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypes.get(val) || '')).filter(Boolean)
-  if (rtypes.length !== routeTypes.size) {
+  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
+  if (rtypes.length !== routeTypeNames.size) {
     results.push('with route types ' + rtypes.join(', '))
   }
 

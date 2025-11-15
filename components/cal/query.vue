@@ -37,7 +37,7 @@
         <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
             <o-select v-model="cannedBbox">
-              <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
               </option>
             </o-select>

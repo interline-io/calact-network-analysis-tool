@@ -41,7 +41,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/core'
-import { colors, routeTypes } from '~/src/core'
+import { colors, routeTypeNames } from '~/src/core'
 import type { ScenarioFilterResult } from '~/src/scenario'
 
 const emit = defineEmits<{
@@ -325,13 +325,12 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of MODE MATCHERS (static)
   function getModeMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    const modes = [...routeTypes.keys()]
+    const modes = [...routeTypeNames.keys()]
     for (let i = 0; i < Math.min(modes.length, maxColor); i++) {
       const mode = modes[i]
-      const color = colors[i]
-      if (mode !== undefined && color) {
-        const label = routeTypes.get(mode) || 'Unknown'
-        rules.push({ label: label, color: color, match: getModeMatcher(mode) })
+      if (mode !== undefined) {
+        const label = routeTypeNames.get(mode) || 'Unknown'
+        rules.push({ label: label, color: colors[i]!, match: getModeMatcher(mode) })
       }
     }
     return rules
@@ -340,11 +339,11 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of ROUTE FREQUENCY MATCHERS (static)
   function getRouteFrequencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    rules.push({ label: '40+ mins', color: colors[0] ?? '#000', match: getRouteFrequencyMatcher(40) })
-    rules.push({ label: '30-39 mins', color: colors[1] ?? '#000', match: getRouteFrequencyMatcher(30) })
-    rules.push({ label: '20-29 mins', color: colors[2] ?? '#000', match: getRouteFrequencyMatcher(20) })
-    rules.push({ label: '10-19 mins', color: colors[3] ?? '#000', match: getRouteFrequencyMatcher(10) })
-    rules.push({ label: '0-9 mins', color: colors[4] ?? '#000', match: getRouteFrequencyMatcher(0) })
+    rules.push({ label: '40+ mins', color: colors[0], match: getRouteFrequencyMatcher(40) })
+    rules.push({ label: '30-39 mins', color: colors[1], match: getRouteFrequencyMatcher(30) })
+    rules.push({ label: '20-29 mins', color: colors[2], match: getRouteFrequencyMatcher(20) })
+    rules.push({ label: '10-19 mins', color: colors[3], match: getRouteFrequencyMatcher(10) })
+    rules.push({ label: '0-9 mins', color: colors[4], match: getRouteFrequencyMatcher(0) })
     rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
@@ -352,11 +351,11 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of STOP VISIT MATCHERS (static)
   function getStopVisitMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    rules.push({ label: '100+ visits', color: colors[0] ?? '#000', match: getStopVisitMatcher(100) })
-    rules.push({ label: '50-100 visits', color: colors[1] ?? '#000', match: getStopVisitMatcher(50) })
-    rules.push({ label: '20-50 visits', color: colors[2] ?? '#000', match: getStopVisitMatcher(20) })
-    rules.push({ label: '10-20 visits', color: colors[3] ?? '#000', match: getStopVisitMatcher(10) })
-    rules.push({ label: '0-9 visits', color: colors[4] ?? '#000', match: getStopVisitMatcher(0) })
+    rules.push({ label: '100+ visits', color: colors[0], match: getStopVisitMatcher(100) })
+    rules.push({ label: '50-100 visits', color: colors[1], match: getStopVisitMatcher(50) })
+    rules.push({ label: '20-50 visits', color: colors[2], match: getStopVisitMatcher(20) })
+    rules.push({ label: '10-20 visits', color: colors[3], match: getStopVisitMatcher(10) })
+    rules.push({ label: '0-9 visits', color: colors[4], match: getStopVisitMatcher(0) })
     rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
@@ -587,7 +586,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       text = `
         Route ID: ${rp.route_id}<br>
         <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
-        Type: ${routeTypes.get(rp.route_type)}<br>
+        Type: ${routeTypeNames.get(rp.route_type) || 'Unknown'}<br>
         Agency: ${rp.agency_name}`
     }
 
