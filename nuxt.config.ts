@@ -8,7 +8,7 @@ export default defineNuxtConfig({
   modules: [
     'tlv2-ui',
     '@nuxt/eslint',
-    '@nuxt/devtools'
+    '@nuxt/devtools',
   ],
 
   ssr: false,
@@ -37,6 +37,7 @@ export default defineNuxtConfig({
         auth0Audience: 'https://api.transit.land',
         auth0Scope: 'profile email openid',
         loginGate: true,
+        requireLogin: true,
       },
     },
   },
