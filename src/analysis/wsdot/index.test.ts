@@ -1,5 +1,5 @@
 import { describe, it, afterEach } from 'vitest'
-import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, DEFAULT_CENSUS_DATASET, DEFAULT_GEODATA_DATASET } from '~/src/core'
+import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, SCENARIO_DEFAULTS } from '~/src/core'
 import { runScenarioFetcher, ScenarioStreamSender } from '~/src/scenario'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 
@@ -35,21 +35,13 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const config: WSDOTReportConfig = {
       reportName: 'Test Report',
       bbox: bigBbox,
-      scheduleEnabled: true,
       startDate: parseDate(startDate)!,
       endDate: parseDate('2024-08-26')!, // FIXME: must be one day past window
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      routeHourCompatMode: true,
-      stopLimit: 1000,
-      stopBufferRadius: 800,
-      tableDatasetName: DEFAULT_CENSUS_DATASET,
-      tableDatasetTable: 'b01001',
-      tableDatasetTableCol: 'b01001_001',
-      geoDatasetName: DEFAULT_GEODATA_DATASET,
-      geoDatasetLayer: 'tract',
-      aggregateLayer: 'state',
+      ...SCENARIO_DEFAULTS,
+      stopBufferRadius: 800, // Override default of 0
 
     }
 
@@ -68,21 +60,13 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const config: WSDOTReportConfig = {
       reportName: 'Test Report',
       bbox: smallBbox,
-      scheduleEnabled: true,
       startDate: parseDate(startDate)!,
       endDate: parseDate('2025-08-19')!, // FIXME: must be one day past window
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      routeHourCompatMode: true,
-      stopLimit: 1000,
-      stopBufferRadius: 800,
-      tableDatasetName: DEFAULT_CENSUS_DATASET,
-      tableDatasetTable: 'b01001',
-      tableDatasetTableCol: 'b01001_001',
-      geoDatasetName: DEFAULT_GEODATA_DATASET,
-      geoDatasetLayer: 'tract',
-      aggregateLayer: 'state',
+      ...SCENARIO_DEFAULTS,
+      stopBufferRadius: 800, // Override default of 0
     }
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)

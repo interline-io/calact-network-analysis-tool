@@ -10,7 +10,7 @@ import {
 import type { WSDOTReportOptions } from './wsdot-cli'
 import { runAnalysis } from '~/src/analysis/wsdot-stops-routes'
 import type { WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, DEFAULT_CENSUS_DATASET, DEFAULT_GEODATA_DATASET } from '~/src/core'
+import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~/src/core'
 
 export interface WSDOTStopsRoutesReportOptions extends WSDOTReportOptions {
   saveReport?: string
@@ -32,21 +32,14 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
 
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {
+        ...SCENARIO_DEFAULTS,
         reportName: 'WSDOT Stops and Routes Report',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: opts.schedule ?? true,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
-        routeHourCompatMode: true,
-        stopBufferRadius: 800,
-        tableDatasetName: DEFAULT_CENSUS_DATASET,
-        tableDatasetTable: 'b01001',
-        tableDatasetTableCol: 'b01001_001',
-        geoDatasetName: DEFAULT_GEODATA_DATASET,
-        geoDatasetLayer: 'tract',
-        aggregateLayer: 'state',
+        stopBufferRadius: 800, // Override default of 0
       }
 
       const client = new BasicGraphQLClient(
