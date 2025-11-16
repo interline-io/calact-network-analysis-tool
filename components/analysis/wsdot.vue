@@ -151,6 +151,7 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekendDate: scenarioConfig.value!.endDate!,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
+  aggregateLayer: 'state'
 })
 
 const emit = defineEmits<{
