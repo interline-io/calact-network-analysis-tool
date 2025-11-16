@@ -5,12 +5,12 @@ import type { Command } from 'commander'
 import {
   createStreamController,
   scenarioOptionsAdd,
-  scenarioOptionsCheck
+  scenarioOptionsCheck,
 } from './scenario-cli'
 import type { WSDOTReportOptions } from './wsdot-cli'
 import { runAnalysis } from '~/src/analysis/wsdot-stops-routes'
 import type { WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
+import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~/src/core'
 
 export interface WSDOTStopsRoutesReportOptions extends WSDOTReportOptions {
   saveReport?: string
@@ -32,18 +32,18 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
 
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {
+        ...SCENARIO_DEFAULTS,
+        reportName: 'WSDOT Stops and Routes Report',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: !opts.noSchedule,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
-        geographyIds: []
       }
 
       const client = new BasicGraphQLClient(
         (process.env.TRANSITLAND_API_BASE || '') + '/query',
-        apiFetch(process.env.TRANSITLAND_API_KEY || '')
+        apiFetch(process.env.TRANSITLAND_API_KEY || ''),
       )
 
       // Create a controller that optionally saves to file
@@ -60,12 +60,12 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
               stopId: stop.stopId,
               stopName: stop.stopName,
               agencyId: stop.agencyId,
-              feedOnestopId: stop.feedOnestopId
+              feedOnestopId: stop.feedOnestopId,
             },
-            geometry: stop.geometry
-          }))
+            geometry: stop.geometry,
+          })),
         }
-        const fs = await import('fs/promises')
+        const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveStopsGeojson, JSON.stringify(stopsGeoJSON, null, 2))
         console.log(`💾 Stops GeoJSON saved to: ${opts.saveStopsGeojson}`)
       }
@@ -82,12 +82,12 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
               routeLongName: route.routeLongName,
               routeType: route.routeType,
               agencyId: route.agencyId,
-              feedOnestopId: route.feedOnestopId
+              feedOnestopId: route.feedOnestopId,
             },
-            geometry: route.geometry
-          }))
+            geometry: route.geometry,
+          })),
         }
-        const fs = await import('fs/promises')
+        const fs = await import('node:fs/promises')
         await fs.writeFile(opts.saveRoutesGeojson, JSON.stringify(routesGeoJSON, null, 2))
         console.log(`💾 Routes GeoJSON saved to: ${opts.saveRoutesGeojson}`)
       }

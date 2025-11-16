@@ -215,7 +215,7 @@ function updateOverlayFeatures (features: Feature[]) {
   const polygonSource = map.getSource('overlayPolygons') as maplibre.GeoJSONSource
   if (polygonSource) {
     const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
-    polygonSource.setData({ type: 'FeatureCollection', features: polygons })
+    polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
   fitFeatures(features)
 }
@@ -240,13 +240,13 @@ function updateFeatures (features: Feature[]) {
   const pointSource = map.getSource('points') as maplibre.GeoJSONSource
   const polygonSource = map.getSource('polygons') as maplibre.GeoJSONSource
   if (lineSource) {
-    lineSource.setData({ type: 'FeatureCollection', features: lines })
+    lineSource.setData({ type: 'FeatureCollection', features: lines as any })
   }
   if (pointSource) {
-    pointSource.setData({ type: 'FeatureCollection', features: points })
+    pointSource.setData({ type: 'FeatureCollection', features: points as any })
   }
   if (polygonSource) {
-    polygonSource.setData({ type: 'FeatureCollection', features: polygons })
+    polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
 }
 
@@ -303,8 +303,12 @@ function drawPopupFeatures (features: PopupFeature[]) {
   if (features.length === 0) {
     return
   }
-  const p = features[0].point
-  const description = features[0].text
+  const first = features[0]
+  if (!first) {
+    return
+  }
+  const p = first.point
+  const description = first.text
   new maplibre.Popup()
     .setLngLat([p.lon, p.lat])
     .setHTML(description)

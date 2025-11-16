@@ -41,7 +41,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~/src/core'
-import { colors, routeTypes } from '~/src/core'
+import { colors, routeTypeNames } from '~/src/core'
 import type { ScenarioFilterResult } from '~/src/scenario'
 
 const emit = defineEmits<{
@@ -315,7 +315,9 @@ const styleData = computed((): Matcher[] => {
     for (let i = 0; i < Math.min(agencies.length, maxColor); i++) {
       const agency = agencies[i]
       const color = colors[i]
-      rules.push({ label: agency.name, color: color, match: getAgencyMatcher(agency.id) })
+      if (agency && color) {
+        rules.push({ label: agency.name ?? '', color: color, match: getAgencyMatcher(agency.id ?? '') })
+      }
     }
     return rules
   }
@@ -323,12 +325,13 @@ const styleData = computed((): Matcher[] => {
   // Generate a set of MODE MATCHERS (static)
   function getModeMatchers (): Matcher[] {
     const rules: Matcher[] = []
-    const modes = [...routeTypes.keys()]
+    const modes = [...routeTypeNames.keys()]
     for (let i = 0; i < Math.min(modes.length, maxColor); i++) {
       const mode = modes[i]
-      const label = routeTypes.get(mode) || 'Unknown'
-      const color = colors[i]
-      rules.push({ label: label, color: color, match: getModeMatcher(mode) })
+      if (mode !== undefined) {
+        const label = routeTypeNames.get(mode) || 'Unknown'
+        rules.push({ label: label, color: colors[i]!, match: getModeMatcher(mode) })
+      }
     }
     return rules
   }
@@ -583,7 +586,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       text = `
         Route ID: ${rp.route_id}<br>
         <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
-        Type: ${routeTypes.get(rp.route_type)}<br>
+        Type: ${routeTypeNames.get(rp.route_type) || 'Unknown'}<br>
         Agency: ${rp.agency_name}`
     }
 

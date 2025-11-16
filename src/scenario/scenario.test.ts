@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, afterEach, type Mock } from 'vitest'
-import type { Polly } from '@pollyjs/core'
 import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher } from './scenario'
-import { parseDate, type Bbox, type GraphQLClient } from '~/src/core'
+import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~/src/core'
 
 /**
  * Mock GraphQL client for testing without real API calls
@@ -21,18 +20,17 @@ export class MockGraphQLClient implements GraphQLClient {
 
 describe('ScenarioFetcher', () => {
   const mockClient: MockGraphQLClient = new MockGraphQLClient()
-  let polly: Polly | null = null
   const config: ScenarioConfig = {
+    reportName: 'Test Scenario',
     bbox: {
       sw: { lat: 45.4, lon: -122.8 },
       ne: { lat: 45.7, lon: -122.5 },
       valid: true
     } as Bbox,
-    scheduleEnabled: true,
     startDate: parseDate('2024-07-03'),
     endDate: parseDate('2024-07-10'),
     geographyIds: [],
-    stopLimit: 100
+    geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
   }
   // const filter: ScenarioFilter = {
   //   startTime: parseTime('06:00:00'),
@@ -47,10 +45,7 @@ describe('ScenarioFetcher', () => {
   // }
 
   afterEach(async () => {
-    if (polly) {
-      await polly.stop()
-      polly = null
-    }
+    // Cleanup if needed
   })
 
   it('should handle GraphQL errors', async () => {

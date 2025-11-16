@@ -10,13 +10,12 @@ import {
   type ScenarioCliOptions,
 } from './scenario-cli'
 import { runAnalysis, type WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { apiFetch, BasicGraphQLClient, parseBbox, parseDate } from '~/src/core'
+import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~/src/core'
 
 export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
   weekendDate: string
   stopBufferRadius: number
-  scheduleEnabled: boolean
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -30,12 +29,12 @@ export function configureWsdotReportCli (program: Command) {
     .option('--report-name <name>', 'Name of the report', '')
     .option('--weekday-date <date>', 'Date for weekday report (YYYY-MM-DD)')
     .option('--weekend-date <date>', 'Date for weekend report (YYYY-MM-DD)')
-    .option('--table-dataset-name <name>', 'Name of the Census dataset to use', 'acsdt5y2021')
-    .option('--table-dataset-table <table>', 'Name of the Census table to use', 'b01001')
-    .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', 'b01001_001')
-    .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', 'tiger2021')
-    .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', 'tract')
-    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', parseFloat, 400)
+    .option('--table-dataset-name <name>', 'Name of the Census dataset to use', SCENARIO_DEFAULTS.tableDatasetName)
+    .option('--table-dataset-table <table>', 'Name of the Census table to use', SCENARIO_DEFAULTS.tableDatasetTable)
+    .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', SCENARIO_DEFAULTS.tableDatasetTableCol)
+    .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', SCENARIO_DEFAULTS.geoDatasetName)
+    .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', SCENARIO_DEFAULTS.geoDatasetLayer)
+    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', Number.parseFloat, SCENARIO_DEFAULTS.stopBufferRadius)
     .allowUnknownOption(false)
     .action(async (opts: WSDOTReportOptions) => {
       scenarioOptionsCheck(opts)
@@ -53,22 +52,20 @@ export function configureWsdotReportCli (program: Command) {
 
       // Parse configuration from CLI options
       const config: WSDOTReportConfig = {
-        routeHourCompatMode: true,
+        ...SCENARIO_DEFAULTS,
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
-        aggregateLayer: 'state', // WSDOT report uses state-level aggregation
+        aggregateLayer: opts.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
         tableDatasetName: opts.tableDatasetName,
         tableDatasetTable: opts.tableDatasetTable,
         tableDatasetTableCol: opts.tableDatasetTableCol,
         geoDatasetName: opts.geoDatasetName,
         geoDatasetLayer: opts.geoDatasetLayer,
-        geographyIds: [],
       }
 
       const client = new BasicGraphQLClient(

@@ -1,7 +1,6 @@
 import { describe, it, afterEach } from 'vitest'
-import type { Polly } from '@pollyjs/core'
-import { parseDate, apiFetch, BasicGraphQLClient, type Bbox } from '~/src/core'
-import { runScenarioFetcher } from '~/src/scenario'
+import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, SCENARIO_DEFAULTS } from '~/src/core'
+import { runScenarioFetcher, ScenarioStreamSender } from '~/src/scenario'
 import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
@@ -9,28 +8,24 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     // Skip test if TEST_WSDOT is not set to 'true'
     return
   }
-  let polly: Polly | null = null
   const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || '')
+    apiFetch(process.env.TRANSITLAND_API_KEY || ''),
   )
 
   afterEach(async () => {
-    if (polly) {
-      await polly.stop()
-      polly = null
-    }
+    // Cleanup if needed
   })
 
   const smallBbox: Bbox = {
     sw: { lon: -122.375034, lat: 47.586920 },
     ne: { lon: -122.265815, lat: 47.625345 },
-    valid: true
+    valid: true,
   }
   const bigBbox: Bbox = {
     sw: { lon: -127.300423, lat: 44.772916 },
     ne: { lon: -113.320321, lat: 47.625345 },
-    valid: true
+    valid: true,
   }
 
   it('thomas-2024', async () => {
@@ -38,21 +33,24 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const startDate = '2024-08-19'
     const endDate = '2024-08-25'
     const config: WSDOTReportConfig = {
+      reportName: 'Test Report',
       bbox: bigBbox,
-      scheduleEnabled: true,
       startDate: parseDate(startDate)!,
       endDate: parseDate('2024-08-26')!, // FIXME: must be one day past window
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      stopLimit: 1000
+      ...SCENARIO_DEFAULTS,
+      stopBufferRadius: 800, // Override default of 0
+
     }
 
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-    const report = await wsdotFetcher.fetch()
-    console.log(report.levelStops)
+    const mockSender = createMockSender()
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
+    await wsdotFetcher.fetch()
+    console.log('Test completed')
   })
 
   it('tlv2-prod', async () => {
@@ -60,22 +58,29 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     const startDate = '2025-08-11'
     const endDate = '2025-08-18'
     const config: WSDOTReportConfig = {
+      reportName: 'Test Report',
       bbox: smallBbox,
-      scheduleEnabled: true,
       startDate: parseDate(startDate)!,
       endDate: parseDate('2025-08-19')!, // FIXME: must be one day past window
       weekdayDate: parseDate(startDate)!,
       weekendDate: parseDate(endDate)!,
       geographyIds: [],
-      stopLimit: 1000
+      ...SCENARIO_DEFAULTS,
+      stopBufferRadius: 800, // Override default of 0
     }
     const controller = createStreamController()
     const scenarioData = await runScenarioFetcher(controller, config, client)
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client)
-    const report = await wsdotFetcher.fetch()
-    console.log(report.levelStops)
+    const mockSender = createMockSender()
+    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
+    await wsdotFetcher.fetch()
+    console.log('Test completed')
   })
 }, 600000)
+
+function createMockSender () {
+  const { writable } = new TransformStream()
+  return new ScenarioStreamSender(writable.getWriter())
+}
 
 export function createStreamController (): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController

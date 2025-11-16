@@ -2,7 +2,7 @@
   <div class="analysis-picker">
     <!-- Dynamic analysis component -->
     <component
-      :is="analysisComponents[selectedReportType].component"
+      :is="analysisComponents[selectedReportType]?.component"
       v-if="selectedReportType && analysisComponents && analysisComponents[selectedReportType]"
       :scenario-config="scenarioConfig"
       :scenario-data="scenarioData"

@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { format, nextMonday, nextSunday } from 'date-fns'
-import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch } from '~/src/core'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
 import { runScenarioFetcher } from '~/src/scenario'
 
@@ -30,11 +30,10 @@ export function configureScenarioCli (program: Command) {
       const config: ScenarioConfig = {
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
-        geographyIds: []
+        geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
       }
 
       const client = new BasicGraphQLClient(
@@ -71,7 +70,7 @@ export function configureScenarioCli (program: Command) {
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
   if (options.bboxName) {
-    const b = cannedBboxes.get(options.bboxName)
+    const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
     options.bbox = b?.bboxString
     options.reportName = options.reportName || b?.label || ''
   }
@@ -194,7 +193,7 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
     const decoder = new TextDecoder()
 
     // Import fs dynamically to handle Node.js environment
-    import('fs').then(async (fs) => {
+    import('node:fs').then(async (fs) => {
       const writeStream = fs.createWriteStream(saveToFile)
 
       try {

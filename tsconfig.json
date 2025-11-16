@@ -1,10 +1,8 @@
 {
-  // https://v3.nuxtjs.org/concepts/typescript
   "extends": "./.nuxt/tsconfig.json",
-  "compilerOptions": {
-    "types": [
-      "@nuxt/types",
-      "@types/node",
-    ]
-  }
+  "exclude": [
+    "dist",
+    "node_modules",
+    "playground",
+  ]
 }

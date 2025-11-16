@@ -116,6 +116,7 @@ import {
 import {
   processWsdotStopsRoutesReport,
 } from '~/src/analysis/wsdot-stops-routes'
+import { SCENARIO_DEFAULTS } from '~/src/core/constants'
 import type {
   WSDOTStopsRoutesReport,
 } from '~/src/analysis/wsdot-stops-routes'
@@ -133,24 +134,17 @@ const loading = ref(false)
 const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
-const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
 const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  // WSDOT-specific required properties (not in ScenarioConfig)
+  ...SCENARIO_DEFAULTS,
   ...scenarioConfig.value,
   reportName: 'wsdot-report',
-  routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
-  scheduleEnabled: true,
-  stopBufferRadius: 0,
-  tableDatasetName: 'acsdt5y2021',
-  tableDatasetTable: 'b01001',
-  tableDatasetTableCol: 'b01001_001',
-  geoDatasetName: scenarioConfig.value!.geoDatasetName,
-  geoDatasetLayer: 'tract',
-  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{

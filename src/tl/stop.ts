@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { routeTypes } from '~/src/core'
+import { routeTypeNames } from '~/src/core'
 
 //////////
 // Stops
@@ -195,7 +195,7 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
     }
   }
   const result = stopAgg.values().map((a): StopGeoAggregateCsv => {
-    const rmodes = a.routes_modes.values().map((r): string => routeTypes.get(r) || 'Unknown')
+    const rmodes = a.routes_modes.values().map((r): string => routeTypeNames.get(r) || 'Unknown')
     return {
       geoid: a.geoid,
       layer_name: a.layer_name,
@@ -217,7 +217,7 @@ export function stopToStopCsv (stop: Stop): StopCsv {
   for (const rstop of routeStops) {
     agencies.add(rstop.route.agency.id)
     const rtype = rstop.route.route_type
-    const mode = routeTypes.get(rtype)
+    const mode = routeTypeNames.get(rtype)
     if (mode) {
       modes.add(mode)
     }

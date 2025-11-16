@@ -120,6 +120,7 @@ import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~/src/analysis/wsdot'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
+import { SCENARIO_DEFAULTS } from '~/src/core/constants'
 
 interface ExampleConfig {
   filename: string
@@ -135,7 +136,7 @@ const loading = ref(false)
 const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress | null>(null)
 const stopDepartureCount = ref<number>(0)
-const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
+const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData | null>(null)
 const wsdotReport = shallowRef<WSDOTReport | null>(null)
 
@@ -143,19 +144,14 @@ const wsdotReport = shallowRef<WSDOTReport | null>(null)
 const exampleConfigs = ref<ExampleConfig[]>([])
 const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  ...SCENARIO_DEFAULTS,
   ...scenarioConfig.value,
   reportName: 'wsdot-report',
-  routeHourCompatMode: true,
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
-  scheduleEnabled: true,
-  stopBufferRadius: 800,
-  tableDatasetName: 'acsdt5y2021',
-  tableDatasetTable: 'b01001',
-  tableDatasetTableCol: 'b01001_001',
-  geoDatasetName: scenarioConfig.value!.geoDatasetName,
-  geoDatasetLayer: 'tract',
-  aggregateLayer: 'state',
+  // WSDOT-specific required properties (not in ScenarioConfig)
+  stopBufferRadius: 800, // Override default of 0
+  aggregateLayer: 'state'
 })
 
 const emit = defineEmits<{
@@ -177,7 +173,7 @@ const handleCancel = () => {
 // Load example configurations from index.json
 const loadExampleConfigs = async () => {
   try {
-    const response = await fetch('/examples/index.json')
+    const response = await fetch('/api/examples')
     if (!response.ok) {
       throw new Error(`Failed to fetch examples: ${response.status}`)
     }

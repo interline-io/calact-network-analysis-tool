@@ -1,74 +1,82 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
-import { resolve } from 'node:path'
 import { defineNuxtConfig } from 'nuxt/config'
-import { stylisticConfig } from 'tlv2-ui/config'
 
 const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
   modules: [
-    ['tlv2-ui', {
-      useProxy: true,
-      bulma: '~/assets/main.scss',
-    }],
-    '@nuxt/devtools',
+    'tlv2-ui',
     '@nuxt/eslint',
+    '@nuxt/devtools',
   ],
+
   ssr: false,
 
   devtools: {
-    enabled: isDev
+    enabled: isDev,
   },
 
   runtimeConfig: {
     tlv2: {
       graphqlApikey: '',
-      proxyBase: '',
+      proxyBase: {
+        default: '',
+      },
     },
     public: {
       tlv2: {
         useProxy: true,
-        apiBase: '',
+        apiBase: {
+          default: '',
+        },
         protomapsApikey: '',
-        nearmapsApikey: '',
-        auth0Domain: '',
-        auth0ClientId: '',
+        auth0Domain: 'https://auth.interline.io',
+        auth0ClientId: 'GwwocjhHGFR9dfOv2kFgebRhx79GRh0B',
         auth0RedirectUri: '',
-        auth0Audience: '',
-        auth0Scope: '',
-        loginGate: ''
-      }
-    }
-  },
-
-  // Disable CSRF
-  routeRules: {
-    '/api/**': {
-      csurf: false,
+        auth0Audience: 'https://api.transit.land',
+        auth0Scope: 'profile email openid',
+        loginGate: true,
+        requireLogin: true,
+      },
     },
   },
 
-  compatibilityDate: '2025-02-18',
+  build: {
+    transpile: ['tlv2-ui'],
+  },
+
+  routeRules: {
+    '/**': {
+      csurf: {
+        methodsToProtect: [],
+      },
+    },
+  },
+
+  compatibilityDate: '2025-02-14',
 
   vite: {
-    // https://github.com/nuxt/nuxt/issues/20001
-    resolve: {
-      preserveSymlinks: true
-    },
-    // bug https://github.com/apollographql/apollo-client/issues/9756
-    define: {
-      __DEV__: isDev.toString()
-    },
     server: {
       fs: {
-        allow: isDev ? [resolve(__dirname, '../tlv2-ui')] : []
+        allow: isDev ? ['../tlv2-ui'] : [],
       },
-    }
-  },
-  eslint: {
-    config: {
-      stylistic: stylisticConfig,
     },
+  },
+
+  typescript: {
+    typeCheck: true,
+    strict: true,
+    tsConfig: {
+      vueCompilerOptions: {
+        // This is critical for checking component props in templates
+        // strictTemplates: true,
+      },
+    },
+  },
+
+  tlv2: {
+    useProxy: true,
+    bulma: '~/assets/main.scss',
   },
 })

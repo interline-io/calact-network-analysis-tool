@@ -17,15 +17,23 @@
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",
-    "@turf/bbox": "^7.2.0",
+    "@nuxt/eslint": "1.10.0",
+    "@nuxt/eslint-config": "1.10.0",
+    "@turf/bbox": "7.2.0",
     "@types/big-json": "3.2.0",
+    "@types/node": "latest",
     "big-json": "3.2.0",
     "csv-stringify": "6.5.2",
-    "eslint": "9.31.0",
-    "nuxt": "3.16.0",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=9093c6f81bb09bcd8148c9a49e641f7597e728ec",
+    "eslint": "9.39.1",
+    "nuxt": "4.2.0",
+    "sass-embedded": "1.93.3",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=5071401841861dac596e46f1fe600a7c1a60b87d",
     "tsx": "4.20.3",
-    "vitest": "3.2.4"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.3",
+    "vitest": "3.2.4",
+    "vue": "3.5.22",
+    "vue-tsc": "3.1.1"
   },
   "packageManager": "yarn@4.3.0"
 }

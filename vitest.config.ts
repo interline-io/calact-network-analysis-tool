@@ -1,18 +1,49 @@
-import { defineVitestConfig } from '@nuxt/test-utils/config'
+import { defineConfig } from 'vitest/config'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 
-export default defineVitestConfig({
+const _dirname = dirname(fileURLToPath(import.meta.url))
+const alias = [{ find: '~', replacement: _dirname }]
+
+export default defineConfig({
   test: {
-    globals: true,
-    environment: 'node',
-    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
-    exclude: ['node_modules', 'dist', '.nuxt'],
-    reporters: [
-      [
-        'default',
-        {
-          summary: false
-        }
-      ]
-    ]
-  }
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'clover', 'json'],
+      reportsDirectory: './coverage',
+    },
+    projects: [
+      {
+        resolve: { alias },
+        test: {
+          name: 'node',
+          include: [
+            'src/**/*.{test,spec}.ts',
+            'test/node/**/*.{test,spec}.ts',
+          ],
+          environment: 'node',
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          name: 'e2e',
+          include: [
+            'test/e2e/**/*.{test,spec}.ts',
+          ],
+          environment: 'node',
+          setupFiles: ['./test/e2e/setup.ts'],
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          name: 'browser',
+          include: ['test/browser/**/*.{test,spec}.ts'],
+          environment: 'node',
+          setupFiles: ['./test/browser/setup.ts'],
+        },
+      },
+    ],
+  },
 })

@@ -9,7 +9,7 @@
     </tl-msg-info>
 
     <div class="cal-body">
-      <tl-msg-box variant="text" title="Date range">
+      <tl-msg-box title="Date range">
         <o-field>
           <template #label>
             <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
@@ -33,11 +33,11 @@
         </o-field>
       </tl-msg-box>
 
-      <tl-msg-box variant="text" title="Geographic Bounds">
+      <tl-msg-box title="Geographic Bounds">
         <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
             <o-select v-model="cannedBbox">
-              <option v-for="[cannedBboxName, cannedBboxDetails] of cannedBboxes.entries()" :key="cannedBboxName" :value="cannedBboxName">
+              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
               </option>
             </o-select>
@@ -46,15 +46,6 @@
             </o-button>
           </o-field>
           <br>
-          <o-field label="Data options">
-            <o-checkbox
-              v-model="scheduleEnabled"
-              :true-value="true"
-              :false-value="false"
-            >
-              Load schedule data
-            </o-checkbox>
-          </o-field>
         </tl-msg-warning>
 
         <div class="columns is-align-items-flex-end">
@@ -210,7 +201,6 @@ const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')
 const geomSearch = ref('')
 const geomSource = defineModel<string>('geomSource')
-const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const selectSingleDay = ref(true)
 const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date>('startDate')

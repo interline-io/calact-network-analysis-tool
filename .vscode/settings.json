@@ -1,34 +1,70 @@
 {
-    "eslint.format.enable": true,
-    "eslint.lintTask.enable": true,
-    "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-    },
-    "eslint.validate": [
-        "javascript",
-        "javascriptreact",
-        "typescript",
-        "vue"
-    ],
-    "[vue]": {
-        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-        "editor.formatOnSave": true
-    },
-    "[javascript]": {
-        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-        "editor.formatOnSave": true
-    },
-    "[typescript]": {
-        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-        "editor.formatOnSave": true
-    },
-    "search.exclude": {
-        "**/yarn.lock": true,
-        "**/.yarn": true,
-        "**/node_modules": true,
-        "**/.git": true,
-        "**/dist": true,
-        "**/.output": true,
-        "**/.nuxt": true
-    }
+  // ============================================
+  // ESLint Configuration (Primary Formatter)
+  // ============================================
+  "eslint.format.enable": true,
+  "eslint.lintTask.enable": true,
+  "eslint.useFlatConfig": true,
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue",
+    "json",
+    "jsonc"
+  ],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // ============================================
+  // Disable Competing Formatters
+  // ============================================
+  "typescript.format.enable": false,
+  "javascript.format.enable": false,
+  "html.format.enable": false,
+
+  // ============================================
+  // Language-Specific Formatters
+  // ============================================
+  "[vue]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+
+  // ============================================
+  // TypeScript Configuration
+  // ============================================
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // ============================================
+  // Search Exclusions
+  // ============================================
+  "search.exclude": {
+    "**/yarn.lock": true,
+    "**/.yarn": true,
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/dist": true,
+    "**/.output": true,
+    "**/.nuxt": true,
+    "**/coverage": true
+  }
 }

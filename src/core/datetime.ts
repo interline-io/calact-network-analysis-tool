@@ -43,12 +43,12 @@ export function getUTCDateNoTime (): Date {
 
 export function parseHMS (value: string): number {
   const a = (value || '').split(':').map((s) => {
-    return parseInt(s)
+    return Number.parseInt(s)
   })
-  if (a.length !== 3) {
+  if (a.length !== 3 || a.some(Number.isNaN)) {
     return -1
   }
-  return a[0] * 3600 + a[1] * 60 + a[2]
+  return a[0]! * 3600 + a[1]! * 60 + a[2]!
 }
 
 /**

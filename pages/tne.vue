@@ -74,7 +74,6 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
-            v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
             v-model:aggregate-layer="aggregateLayer"
@@ -174,13 +173,13 @@
 </template>
 
 <script lang="ts" setup>
-import { nextMonday, nextSunday } from 'date-fns'
+import { nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypes, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
 
 definePageMeta({
@@ -227,7 +226,6 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
-const scheduleEnabled = ref(true)
 const cannedBbox = ref('downtown-portland')
 const error = ref(null as Error | string | null)
 
@@ -258,7 +256,7 @@ const geomSource = computed({
 
 const geographyIds = computed({
   get () {
-    return route.query.geographyIds?.toString().split(',').map(p => (parseInt(p))) || []
+    return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
   },
   set (v: number[]) {
     setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
@@ -309,7 +307,7 @@ const endTime = computed({
 
 const bbox = computed({
   get () {
-    const defaultBbox = cannedBboxes.get(cannedBbox.value)?.bboxString || ''
+    const defaultBbox = cannedBboxes[cannedBbox.value as keyof typeof cannedBboxes]?.bboxString || ''
     const bbox = route.query.bbox?.toString() ?? defaultBbox
     return parseBbox(bbox)
   },
@@ -391,12 +389,12 @@ const selectedTimeOfDayMode = computed({
 })
 
 const selectedRouteTypes = computed({
-  get (): number[] {
+  get () {
     const d = arrayParam('selectedRouteTypes', [])
     if (d.length) {
-      return d.map(p => parseInt(p))
+      return d.map(p => Number.parseInt(p))
     }
-    return Array.from(routeTypes.keys())
+    return Array.from(routeTypeNames.keys())
   },
   set (v: string[]) {
     setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
@@ -440,7 +438,7 @@ const frequencyUnderEnabled = computed({
 
 const frequencyUnder = computed({
   get () {
-    return parseInt(route.query.frequencyUnder?.toString() || '') || 15
+    return Number.parseInt(route.query.frequencyUnder?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyUnder: v.toString() })
@@ -458,7 +456,7 @@ const frequencyOverEnabled = computed({
 
 const frequencyOver = computed({
   get () {
-    return parseInt(route.query.frequencyOver?.toString() || '') || 15
+    return Number.parseInt(route.query.frequencyOver?.toString() || '') || 15
   },
   set (v: number) {
     setQuery({ ...route.query, frequencyOver: v.toString() })
@@ -485,7 +483,7 @@ const maxFareEnabled = computed({
 
 const maxFare = computed({
   get () {
-    return parseInt(route.query.maxFare?.toString() || '') || 0
+    return Number.parseInt(route.query.maxFare?.toString() || '') || 0
   },
   set (v: number) {
     setQuery({ ...route.query, maxFare: v.toString() })
@@ -503,7 +501,7 @@ const minFareEnabled = computed({
 
 const minFare = computed({
   get () {
-    return parseInt(route.query.minFare?.toString() || '') || 0
+    return Number.parseInt(route.query.minFare?.toString() || '') || 0
   },
   set (v: string) {
     setQuery({ ...route.query, minFare: v.toString() })
@@ -656,15 +654,13 @@ async function setMapExtent (v: Bbox) {
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: 'tiger2021',
+  geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
-  scheduleEnabled: scheduleEnabled.value,
   aggregateLayer: aggregateLayer.value,
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
-  stopLimit: 50
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -780,8 +776,8 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypes.get(val) || '')).filter(Boolean)
-  if (rtypes.length !== routeTypes.size) {
+  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
+  if (rtypes.length !== routeTypeNames.size) {
     results.push('with route types ' + rtypes.join(', '))
   }
 

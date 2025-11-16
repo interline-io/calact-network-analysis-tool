@@ -1,9 +1,8 @@
-import { readdir, writeFile } from 'fs/promises'
-import { createReadStream } from 'fs'
-import { createInterface } from 'readline'
-import { join } from 'path'
-import type { Command } from 'commander'
-import { GenericStreamReceiver } from '../src/core'
+import { readdir } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { createInterface } from 'node:readline'
+import { join } from 'node:path'
+import { GenericStreamReceiver } from '~/src/core'
 
 interface ProgressData {
   isLoading: boolean
@@ -111,74 +110,43 @@ async function findJsonFilesRecursively (dir: string): Promise<string[]> {
   return files
 }
 
-async function buildExamplesIndex (verbose = false): Promise<void> {
+async function buildExamplesIndex (): Promise<any> {
   const examplesDir = join(process.cwd(), 'public/examples')
 
-  try {
-    // Find all JSON files recursively
-    const jsonFiles = await findJsonFilesRecursively(examplesDir)
+  // Find all JSON files recursively
+  const jsonFiles = await findJsonFilesRecursively(examplesDir)
 
-    // Filter out the index.json file itself
-    const filteredFiles = jsonFiles.filter(file => !file.endsWith('index.json'))
+  // Filter out the index.json file itself
+  const filteredFiles = jsonFiles.filter(file => !file.endsWith('index.json'))
 
-    if (verbose) {
-      console.log(`Found ${filteredFiles.length} JSON files to process...`)
-    }
+  // Process each JSON file
+  const results: ExampleFileData[] = []
 
-    // Process each JSON file
-    const results: ExampleFileData[] = []
+  for (const filePath of filteredFiles) {
+    const result = await processJsonFile(filePath, examplesDir)
+    results.push(result)
+  }
 
-    for (const filePath of filteredFiles) {
-      const relativePath = filePath.replace(examplesDir + '/', '')
-      if (verbose) {
-        console.log(`Processing ${relativePath}...`)
-      }
-      const result = await processJsonFile(filePath, examplesDir)
-      results.push(result)
-
-      if (verbose) {
-        if (result.error) {
-          console.warn(`  Warning: ${result.error}`)
-        } else if (result.config) {
-          console.log(`  Found config: ${result.config.reportName || 'Unnamed report'}`)
-        } else {
-          console.warn(`  No config found`)
-        }
-      }
-    }
-
-    // Create the index
-    const index = {
-      generated: new Date().toISOString(),
-      files: results.map(result => ({
-        filename: result.filename,
-        config: result.config,
-        hasError: !!result.error,
-        error: result.error
-      }))
-    }
-
-    // Write the index file
-    const indexPath = join(examplesDir, 'index.json')
-    await writeFile(indexPath, JSON.stringify(index, null, 2))
-
-    console.log(`Index created successfully at ${indexPath}`)
-    if (verbose) {
-      console.log(`Processed ${results.length} files`)
-      console.log(`Found configs in ${results.filter(r => r.config).length} files`)
-      console.log(`Errors in ${results.filter(r => r.error).length} files`)
-    }
-  } catch (error) {
-    console.error('Error building examples index:', error)
-    process.exit(1)
+  // Create the index
+  return {
+    generated: new Date().toISOString(),
+    files: results.map(result => ({
+      filename: result.filename,
+      config: result.config,
+      hasError: !!result.error,
+      error: result.error
+    }))
   }
 }
 
-export function configureBuildExamplesIndexCli (command: Command): void {
-  command
-    .description('Build an index of example files and their configurations')
-    .option('-v, --verbose', 'Enable verbose output', false)
-    .action(async (options) => {
-      await buildExamplesIndex(options.verbose)
+export default defineEventHandler(async () => {
+  try {
+    const index = await buildExamplesIndex()
+    return index
+  } catch (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : 'Error building examples index'
     })
-}
+  }
+})
