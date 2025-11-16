@@ -40,13 +40,11 @@ const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 export interface ScenarioConfig {
   reportName: string
   bbox?: Bbox
-  scheduleEnabled: boolean
   startDate?: Date
   endDate?: Date
   geographyIds?: number[]
   stopLimit?: number
   aggregateLayer?: string
-  maxConcurrentDepartures?: number
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
 }
@@ -325,7 +323,6 @@ export class ScenarioFetcher {
     this.callbacks = callbacks
     this.client = client
     this.stopLimit = config.stopLimit ?? 1000
-    this.maxConcurrentRequests = config.maxConcurrentDepartures ?? 8
 
     // Initialize task queues
     this.stopFetchQueue = new TaskQueue<StopFetchTask>(
@@ -531,7 +528,7 @@ export class ScenarioFetcher {
 
   // Fetch stop departures from GraphQL API
   private async fetchStopDepartures (task: StopDepartureQueryVars): Promise<void> {
-    if (!this.config.scheduleEnabled || task.ids.length === 0) {
+    if (task.ids.length === 0) {
       return
     }
     const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']

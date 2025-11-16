@@ -46,15 +46,6 @@
             </o-button>
           </o-field>
           <br>
-          <o-field label="Data options">
-            <o-checkbox
-              v-model="scheduleEnabled"
-              :true-value="true"
-              :false-value="false"
-            >
-              Load schedule data
-            </o-checkbox>
-          </o-field>
         </tl-msg-warning>
 
         <div class="columns is-align-items-flex-end">
@@ -210,7 +201,6 @@ const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate')
 const geomSearch = ref('')
 const geomSource = defineModel<string>('geomSource')
-const scheduleEnabled = defineModel<boolean>('scheduleEnabled')
 const selectSingleDay = ref(true)
 const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date>('startDate')

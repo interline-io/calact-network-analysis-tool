@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { format, nextMonday, nextSunday } from 'date-fns'
-import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, DEFAULT_GEODATA_DATASET } from '~/src/core'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
 import { runScenarioFetcher } from '~/src/scenario'
 
@@ -30,12 +30,10 @@ export function configureScenarioCli (program: Command) {
       const config: ScenarioConfig = {
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
-        scheduleEnabled: !!opts.schedule,
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
-        geographyIds: [],
-        geoDatasetName: DEFAULT_GEODATA_DATASET
+        geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
       }
 
       const client = new BasicGraphQLClient(

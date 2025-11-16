@@ -1,25 +1,17 @@
-export const DEFAULT_CENSUS_DATASET = 'acsdt5y2021'
-export const DEFAULT_GEODATA_DATASET = 'tiger2021'
-export const DEFAULT_TABLE_DATASET_TABLE = 'b01001'
-export const DEFAULT_TABLE_DATASET_TABLE_COL = 'b01001_001'
-export const DEFAULT_GEO_DATASET_LAYER = 'tract'
-export const DEFAULT_AGGREGATE_LAYER = 'state'
-
 /**
  * Grouped defaults for scenario and WSDOT configurations.
  * Use this to avoid importing individual constants.
  * Property names match WSDOTReportConfig for easy spreading.
  */
 export const SCENARIO_DEFAULTS = {
-  tableDatasetName: DEFAULT_CENSUS_DATASET,
-  geoDatasetName: DEFAULT_GEODATA_DATASET,
-  tableDatasetTable: DEFAULT_TABLE_DATASET_TABLE,
-  tableDatasetTableCol: DEFAULT_TABLE_DATASET_TABLE_COL,
-  geoDatasetLayer: DEFAULT_GEO_DATASET_LAYER,
-  aggregateLayer: DEFAULT_AGGREGATE_LAYER,
+  tableDatasetName: 'acsdt5y2021',
+  geoDatasetName: 'tiger2021',
+  tableDatasetTable: 'b01001',
+  tableDatasetTableCol: 'b01001_001',
+  geoDatasetLayer: 'tract',
+  aggregateLayer: 'state',
   routeHourCompatMode: true,
-  scheduleEnabled: true,
-  stopLimit: 1000,
+  stopLimit: 100,
   stopBufferRadius: 0,
 } as const
 

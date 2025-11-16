@@ -139,15 +139,12 @@ const scenarioData = defineModel<ScenarioData | null>('scenarioData')
 const wsdotReport = ref<WSDOTReport | null>(null)
 const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  // WSDOT-specific required properties (not in ScenarioConfig)
+  ...SCENARIO_DEFAULTS,
   ...scenarioConfig.value,
   reportName: 'wsdot-report',
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
-  // WSDOT-specific required properties (not in ScenarioConfig)
-  ...SCENARIO_DEFAULTS,
-  // Override optional ScenarioConfig properties with defaults if not set
-  geoDatasetName: scenarioConfig.value!.geoDatasetName,
-  aggregateLayer: scenarioConfig.value?.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
 })
 
 const emit = defineEmits<{

@@ -74,7 +74,6 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
-            v-model:schedule-enabled="scheduleEnabled"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
             v-model:aggregate-layer="aggregateLayer"
@@ -180,7 +179,7 @@ import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime } from '~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~/src/scenario'
 
 definePageMeta({
@@ -227,7 +226,6 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
-const scheduleEnabled = ref(true)
 const cannedBbox = ref('downtown-portland')
 const error = ref(null as Error | string | null)
 
@@ -656,15 +654,13 @@ async function setMapExtent (v: Bbox) {
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: 'tiger2021',
+  geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
-  scheduleEnabled: scheduleEnabled.value,
   aggregateLayer: aggregateLayer.value,
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
-  stopLimit: 50
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({

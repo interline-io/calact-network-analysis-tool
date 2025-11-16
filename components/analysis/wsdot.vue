@@ -144,16 +144,13 @@ const wsdotReport = shallowRef<WSDOTReport | null>(null)
 const exampleConfigs = ref<ExampleConfig[]>([])
 const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 const wsdotReportConfig = ref<WSDOTReportConfig>({
+  ...SCENARIO_DEFAULTS,
   ...scenarioConfig.value,
   reportName: 'wsdot-report',
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
   // WSDOT-specific required properties (not in ScenarioConfig)
-  ...SCENARIO_DEFAULTS,
   stopBufferRadius: 800, // Override default of 0
-  // Override optional ScenarioConfig properties with defaults if not set
-  geoDatasetName: scenarioConfig.value!.geoDatasetName,
-  aggregateLayer: scenarioConfig.value?.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
 })
 
 const emit = defineEmits<{

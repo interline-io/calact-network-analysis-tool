@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher } from './scenario'
-import { parseDate, type Bbox, type GraphQLClient, DEFAULT_GEODATA_DATASET } from '~/src/core'
+import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~/src/core'
 
 /**
  * Mock GraphQL client for testing without real API calls
@@ -27,12 +27,10 @@ describe('ScenarioFetcher', () => {
       ne: { lat: 45.7, lon: -122.5 },
       valid: true
     } as Bbox,
-    scheduleEnabled: true,
     startDate: parseDate('2024-07-03'),
     endDate: parseDate('2024-07-10'),
     geographyIds: [],
-    stopLimit: 100,
-    geoDatasetName: DEFAULT_GEODATA_DATASET
+    geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
   }
   // const filter: ScenarioFilter = {
   //   startTime: parseTime('06:00:00'),

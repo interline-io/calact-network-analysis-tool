@@ -16,7 +16,6 @@ export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
   weekendDate: string
   stopBufferRadius: number
-  scheduleEnabled: boolean
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -35,7 +34,7 @@ export function configureWsdotReportCli (program: Command) {
     .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', SCENARIO_DEFAULTS.tableDatasetTableCol)
     .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', SCENARIO_DEFAULTS.geoDatasetName)
     .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', SCENARIO_DEFAULTS.geoDatasetLayer)
-    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', Number.parseFloat, 400)
+    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', Number.parseFloat, SCENARIO_DEFAULTS.stopBufferRadius)
     .allowUnknownOption(false)
     .action(async (opts: WSDOTReportOptions) => {
       scenarioOptionsCheck(opts)
@@ -67,7 +66,6 @@ export function configureWsdotReportCli (program: Command) {
         tableDatasetTableCol: opts.tableDatasetTableCol,
         geoDatasetName: opts.geoDatasetName,
         geoDatasetLayer: opts.geoDatasetLayer,
-        geographyIds: [],
       }
 
       const client = new BasicGraphQLClient(

@@ -39,7 +39,6 @@ export function configureWsdotStopsRoutesReportCli (program: Command) {
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
-        stopBufferRadius: 800, // Override default of 0
       }
 
       const client = new BasicGraphQLClient(
