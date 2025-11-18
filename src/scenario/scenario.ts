@@ -11,7 +11,7 @@ import {
   type GraphQLClient,
   convertBbox,
   chunkArray
-} from '~/src/core'
+} from '~~/src/core'
 import {
   StopDepartureCache,
   feedVersionQuery,
@@ -25,8 +25,8 @@ import {
   type StopDeparture,
   type StopGql,
   type StopTime
-} from '~/src/tl'
-import { geographyLayerQuery } from '~/src/tl/census'
+} from '~~/src/tl'
+import { geographyLayerQuery } from '~~/src/tl/census'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000

@@ -117,10 +117,10 @@
 
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
-import { WSDOTReportDataReceiver } from '~/src/analysis/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~/src/scenario'
-import { SCENARIO_DEFAULTS } from '~/src/core/constants'
+import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { SCENARIO_DEFAULTS } from '~~/src/core/constants'
 
 interface ExampleConfig {
   filename: string

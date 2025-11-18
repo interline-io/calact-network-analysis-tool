@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames } from '~/src/core'
+import { routeTypeNames } from '~~/src/core'
 
 //////////
 // Stops

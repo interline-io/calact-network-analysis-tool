@@ -1,8 +1,8 @@
 import type { Command } from 'commander'
 import { format, nextMonday, nextSunday } from 'date-fns'
-import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~/src/core'
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
-import { runScenarioFetcher } from '~/src/scenario'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~~/src/core'
+import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
+import { runScenarioFetcher } from '~~/src/scenario'
 
 export function scenarioOptionsAdd (program: Command): Command {
   return program

@@ -1,8 +1,8 @@
-import type { WSDOTReport, WSDOTReportConfig } from '~/src/analysis/wsdot'
-import type { GraphQLClient } from '~/src/core'
-import type { ScenarioData } from '~/src/scenario'
+import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import type { GraphQLClient } from '~~/src/core'
+import type { ScenarioData } from '~~/src/scenario'
 
-import { runAnalysis as runWsdotAnalysis } from '~/src/analysis/wsdot'
+import { runAnalysis as runWsdotAnalysis } from '~~/src/analysis/wsdot'
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]

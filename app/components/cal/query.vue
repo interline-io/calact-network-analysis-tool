@@ -171,9 +171,9 @@
 import { nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
-import type { Bbox, Point } from '~/src/core'
-import { cannedBboxes, geomSources } from '~/src/core'
-import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~/src/tl'
+import type { Bbox, Point } from '~~/src/core'
+import { cannedBboxes, geomSources } from '~~/src/core'
+import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
 
 const emit = defineEmits([
   'setBbox',
