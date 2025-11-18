@@ -378,12 +378,12 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles } from '~/src/core'
-import type { ScenarioFilterResult } from '~/src/scenario'
+import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles } from '~~/src/core'
+import type { ScenarioFilterResult } from '~~/src/scenario'
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '~/src/core'
+import { fmtDate } from '~~/src/core'
 
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },

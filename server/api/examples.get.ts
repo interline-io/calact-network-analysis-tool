@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { join } from 'node:path'
-import { GenericStreamReceiver } from '~/src/core'
+import { GenericStreamReceiver } from '~~/src/core'
 
 interface ProgressData {
   isLoading: boolean

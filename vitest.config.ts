@@ -1,9 +1,12 @@
 import { defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'node:url'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 const _dirname = dirname(fileURLToPath(import.meta.url))
-const alias = [{ find: '~', replacement: _dirname }]
+const alias = [
+  { find: '~', replacement: resolve(_dirname, 'app') },
+  { find: '~~', replacement: _dirname },
+]
 
 export default defineConfig({
   test: {

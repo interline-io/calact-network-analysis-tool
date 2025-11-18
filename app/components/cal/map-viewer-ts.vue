@@ -7,7 +7,7 @@ import { nextTick, ref, watch, onMounted } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { Feature, PopupFeature, Point, MarkerFeature } from '~/src/core'
+import type { Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 
 //////////////////////
 // Component setup

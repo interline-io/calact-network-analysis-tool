@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from 'vitest'
-import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, SCENARIO_DEFAULTS } from '~/src/core'
-import { runScenarioFetcher, ScenarioStreamSender } from '~/src/scenario'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~/src/analysis/wsdot'
+import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, SCENARIO_DEFAULTS } from '~~/src/core'
+import { runScenarioFetcher, ScenarioStreamSender } from '~~/src/scenario'
+import { WSDOTReportFetcher, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {

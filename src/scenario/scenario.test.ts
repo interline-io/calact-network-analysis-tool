@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher } from './scenario'
-import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~/src/core'
+import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 
 /**
  * Mock GraphQL client for testing without real API calls

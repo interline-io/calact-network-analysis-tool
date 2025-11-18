@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag'
-import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox, chunkArray } from '~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~/src/scenario'
-import type { RouteGql, StopTime } from '~/src/tl'
+import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox, chunkArray } from '~~/src/core'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~~/src/scenario'
+import type { RouteGql, StopTime } from '~~/src/tl'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000

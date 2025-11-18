@@ -38,7 +38,7 @@
 
 <script lang="ts" setup>
 import { defineAsyncComponent, computed, ref, watch } from 'vue'
-import type { ScenarioData, ScenarioConfig } from '~/src/scenario'
+import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 
 const route = useRoute()
 const router = useRouter()
