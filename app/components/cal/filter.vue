@@ -515,7 +515,7 @@ const minFare = defineModel<number>('minFare')
 ///////////////////
 // Tab
 
-function setTab(v: string) {
+function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = ''
     return
@@ -528,12 +528,12 @@ function setTab(v: string) {
 
 const agencySearch = ref('')
 
-function agencySelectNone() {
+function agencySelectNone () {
   agencySearch.value = ''
   selectedAgencies.value = []
 }
 
-function agencySelectAll() {
+function agencySelectAll () {
   agencySearch.value = ''
   selectedAgencies.value = knownAgencies.value
 }
