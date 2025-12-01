@@ -59,13 +59,20 @@
       v-if="activeTab"
       class="cal-filter-sub"
     >
-      <div>
-        <o-icon
-          icon="chevron-left"
-          class="is-pulled-right"
-          size="large"
+      <div class="is-flex is-justify-content-flex-end mb-4">
+        <button
+          type="button"
+          class="button is-text"
+          aria-label="Close filter panel"
+          title="Close filter panel"
           @click="setTab('')"
-        />
+        >
+          <o-icon
+            icon="chevron-left"
+            size="large"
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
       <!-- TIMEFRAMES -->
@@ -690,6 +697,12 @@ const dowAvailable = computed((): Set<string> => {
 }
 
 .cal-filter-sub {
+  .button.is-text {
+    &:hover {
+      color: var(--bulma-primary);
+    }
+  }
+
   .menu {
     width: 100%;
     max-width: 100%;
