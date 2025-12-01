@@ -7,18 +7,32 @@
         <p class="menu-label">
           Filters
         </p>
-        <o-button class="mx-4 mb-4" icon-left="delete" @click="emit('resetFilters')">
+        <o-button
+          class="mx-4 mb-4"
+          icon-left="delete"
+          @click="emit('resetFilters')"
+        >
           Clear all
         </o-button>
         <ul class="menu-list">
-          <li v-for="item of menuItems" :key="item.tab">
-            <a :class="{ 'is-active': activeTab === item.tab }" @click="setTab(item.tab)">
+          <li
+            v-for="item of menuItems"
+            :key="item.tab"
+          >
+            <a
+              :class="{ 'is-active': activeTab === item.tab }"
+              @click="setTab(item.tab)"
+            >
               <o-icon
                 :icon="item.icon"
                 class="is-fullwidth"
               />
               {{ item.label }}
-              <o-icon class="right-chev" icon="chevron-right" size="small" />
+              <o-icon
+                class="right-chev"
+                icon="chevron-right"
+                size="small"
+              />
             </a>
           </li>
         </ul>
@@ -41,7 +55,10 @@
       </div>
     </div>
 
-    <div v-if="activeTab" class="cal-filter-sub">
+    <div
+      v-if="activeTab"
+      class="cal-filter-sub"
+    >
       <div>
         <o-icon
           icon="chevron-left"
@@ -78,7 +95,10 @@
           </section>
 
           <ul>
-            <li v-for="dowValue of dowValues" :key="dowValue">
+            <li
+              v-for="dowValue of dowValues"
+              :key="dowValue"
+            >
               <o-checkbox
                 v-model="selectedDays"
                 :native-value="dowValue"
@@ -189,7 +209,10 @@
           </o-field>
 
           <p class="menu-label">
-            Fares <o-tooltip label="Fare filtering is planned for future implementation" multiline>
+            Fares <o-tooltip
+              label="Fare filtering is planned for future implementation"
+              multiline
+            >
               <i class="mdi mdi-information-outline" />
             </o-tooltip>
           </p>
@@ -239,8 +262,14 @@
             Modes
           </p>
           <ul>
-            <li v-for="[routeType, routeTypeDesc] of routeTypeNames" :key="routeType">
-              <o-checkbox v-model="selectedRouteTypes" :native-value="routeType">
+            <li
+              v-for="[routeType, routeTypeDesc] of routeTypeNames"
+              :key="routeType"
+            >
+              <o-checkbox
+                v-model="selectedRouteTypes"
+                :native-value="routeType"
+              >
                 {{ routeTypeDesc }}
               </o-checkbox>
             </li>
@@ -253,8 +282,8 @@
             Agencies
           </p>
 
-          <p class="menu-label">
-            <o-field grouped>
+          <div class="cal-agency-search">
+            <o-field>
               <o-input
                 v-model="agencySearch"
                 type="Search"
@@ -262,20 +291,35 @@
                 icon-right="magnify"
                 icon-right-clickable
               />
-              <o-field addons>
-                <o-button @click="agencySelectNone">
-                  None
-                </o-button>
-                <o-button @click="agencySelectAll">
-                  All
-                </o-button>
-              </o-field>
             </o-field>
-          </p>
+            <o-field
+              grouped
+              class="cal-agency-buttons"
+            >
+              <o-button
+                size="small"
+                @click="agencySelectNone"
+              >
+                None
+              </o-button>
+              <o-button
+                size="small"
+                @click="agencySelectAll"
+              >
+                All
+              </o-button>
+            </o-field>
+          </div>
 
           <ul>
-            <li v-for="agencyName of knownAgencies" :key="agencyName">
-              <o-checkbox v-model="selectedAgencies" :native-value="agencyName">
+            <li
+              v-for="agencyName of knownAgencies"
+              :key="agencyName"
+            >
+              <o-checkbox
+                v-model="selectedAgencies"
+                :native-value="agencyName"
+              >
                 {{ agencyName }}
               </o-checkbox>
             </li>
@@ -293,8 +337,14 @@
             Show data by:
           </p>
           <ul>
-            <li v-for="dataDisplayModeOption of dataDisplayModes" :key="dataDisplayModeOption">
-              <o-radio v-model="dataDisplayMode" :native-value="dataDisplayModeOption">
+            <li
+              v-for="dataDisplayModeOption of dataDisplayModes"
+              :key="dataDisplayModeOption"
+            >
+              <o-radio
+                v-model="dataDisplayMode"
+                :native-value="dataDisplayModeOption"
+              >
                 {{ dataDisplayModeOption }}
               </o-radio>
             </li>
@@ -305,32 +355,62 @@
           </p>
           <ul>
             <li>
-              <o-radio v-model="colorKey" native-value="Mode" :disabled="dataDisplayMode === 'Agency'">
+              <o-radio
+                v-model="colorKey"
+                native-value="Mode"
+                :disabled="dataDisplayMode === 'Agency'"
+              >
                 Mode
               </o-radio>
             </li>
             <li>
-              <o-radio v-model="colorKey" native-value="Frequency" :disabled="dataDisplayMode === 'Agency'">
+              <o-radio
+                v-model="colorKey"
+                native-value="Frequency"
+                :disabled="dataDisplayMode === 'Agency'"
+              >
                 Frequency
               </o-radio>
             </li>
             <li>
-              <o-radio v-model="colorKey" native-value="Fare" :disabled="true /* this is future functionality */">
-                Fare <o-tooltip label="This is planned for future implementation" multiline>
+              <o-radio
+                v-model="colorKey"
+                native-value="Fare"
+                :disabled="true /* this is future functionality */"
+              >
+                Fare <o-tooltip
+                  label="This is planned for future implementation"
+                  multiline
+                >
                   <i class="mdi mdi-information-outline" />
                 </o-tooltip>
               </o-radio>
             </li>
           </ul>
           <p class="menu-label">
-            Base map <o-tooltip label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future" multiline>
+            Base map <o-tooltip
+              label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future"
+              multiline
+            >
               <i class="mdi mdi-information-outline" />
             </o-tooltip>
           </p>
           <ul>
-            <li v-for="baseMapStyle of baseMapStyles" :key="baseMapStyle.name">
-              <o-radio v-model="baseMap" :native-value="baseMapStyle.name" :disabled="!baseMapStyle.available">
-                <o-icon :icon="baseMapStyle.icon" size="medium" /> {{ baseMapStyle.name }}
+            <li
+              v-for="baseMapStyle of baseMapStyles"
+              :key="baseMapStyle.name"
+            >
+              <o-radio
+                v-model="baseMap"
+                :native-value="baseMapStyle.name"
+                :disabled="!baseMapStyle.available"
+              >
+                <span class="cal-radio-with-icon">
+                  <o-icon
+                    :icon="baseMapStyle.icon"
+                    size="small"
+                  /> {{ baseMapStyle.name }}
+                </span>
               </o-radio>
             </li>
           </ul>
@@ -345,12 +425,18 @@
           </p>
           <ul>
             <li>
-              <o-radio v-model="unitSystem" native-value="us">
+              <o-radio
+                v-model="unitSystem"
+                native-value="us"
+              >
                 🇺🇸 USA
               </o-radio>
             </li>
             <li>
-              <o-radio v-model="unitSystem" native-value="eu">
+              <o-radio
+                v-model="unitSystem"
+                native-value="eu"
+              >
                 🇪🇺 Metric
               </o-radio>
             </li>
@@ -398,7 +484,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits([
-  'resetFilters'
+  'resetFilters',
 ])
 const activeTab = defineModel<string>('activeTab')
 
@@ -488,14 +574,16 @@ const dowAvailable = computed((): Set<string> => {
 <style scoped lang="scss">
 .cal-filter {
   display:flex;
-  flex-direction:green;
+  flex-direction: row;
   background: var(--bulma-scheme-main);
   margin:0px;
   height:100%;
   padding-left:20px;
+  min-width: 250px; /* Minimum width for main panel */
   .cal-filter-main {
     display:flex;
     flex-direction: column;
+    flex-shrink: 0; /* Don't shrink main panel */
     .menu {
       flex-grow:1;
       width:250px;
@@ -503,12 +591,17 @@ const dowAvailable = computed((): Set<string> => {
   }
   .cal-filter-sub {
     display:flex;
-    width:400px;
+    width: 400px;
+    min-width: 350px; /* Minimum reasonable width */
+    flex-shrink: 0; /* Don't shrink sub-panel */
     flex-direction: column;
     background: var(--bulma-scheme-main-ter);
     margin:0px;
     padding-left:20px;
-    /* removed overflow styling so we don't cut off tooltips */
+    padding-right:20px;
+    overflow-x: hidden; /* Prevent horizontal overflow */
+    overflow-y: visible; /* No vertical scrollbar */
+    box-sizing: border-box; /* Include padding in width calculation */
   }
 }
 
@@ -554,5 +647,81 @@ const dowAvailable = computed((): Set<string> => {
   font-size:10pt;
   margin-top:10px;
   margin-bottom:40px;
+}
+
+.cal-agency-search {
+  margin-bottom: 1rem;
+  width: 100%;
+  max-width: 100%;
+
+  .o-field {
+    width: 100%;
+    max-width: 100%;
+
+    .o-input {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+
+  .cal-agency-buttons {
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    width: 100%;
+
+    .o-button {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+}
+
+.cal-radio-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: normal;
+  word-wrap: break-word;
+  max-width: 100%;
+
+  .o-icon {
+    flex-shrink: 0;
+  }
+}
+
+.cal-filter-sub {
+  .menu {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    .menu-label {
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    ul {
+      width: 100%;
+      min-width: 0;
+
+      li {
+        width: 100%;
+        min-width: 0;
+
+        .o-radio,
+        .o-checkbox {
+          width: 100%;
+          min-width: 0;
+          white-space: normal;
+          word-wrap: break-word;
+
+          .o-tooltip {
+            display: inline-block;
+            margin-left: 0.25rem;
+          }
+        }
+      }
+    }
+  }
 }
 </style>

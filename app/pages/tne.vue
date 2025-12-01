@@ -88,7 +88,10 @@
           />
         </div>
 
-        <div v-if="activeTab.tab === 'filter'" class="cal-tab-content cal-tab-filter">
+        <div
+          v-if="activeTab.tab === 'filter'"
+          :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
+        >
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -946,7 +949,13 @@ function toTitleCase (str: string): string {
 }
 
 .cal-tab-filter {
-  width: 270px;
+  width: 270px; /* Default width when no subtab is open */
+  min-width: 270px;
+
+  &.has-subtab {
+    width: 670px; /* Expanded width when subtab is open: main panel (250px) + sub-panel (400px) + padding (20px) */
+    min-width: 670px;
+  }
 }
 
 .cal-tab-report {
