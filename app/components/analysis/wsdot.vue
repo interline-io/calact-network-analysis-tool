@@ -224,8 +224,7 @@ const loadExampleConfigs = async () => {
     exampleConfigs.value = data.files.filter((file: ExampleConfig) =>
       file.filename.includes('.wsdot.') && !file.hasError,
     )
-  }
-  catch (err) {
+  } catch (err) {
     console.error('Failed to load example configurations:', err)
   }
 }
@@ -254,8 +253,7 @@ watch(selectedExample, (newValue) => {
   const currentQuery = { ...route.query }
   if (newValue) {
     currentQuery.selectedExample = newValue
-  }
-  else {
+  } else {
     delete currentQuery.selectedExample
   }
   router.replace({ query: currentQuery })
@@ -283,8 +281,7 @@ const runQuery = async () => {
   showLoadingModal.value = true
   try {
     await fetchScenario()
-  }
-  catch (err: any) {
+  } catch (err: any) {
     error.value = err
   }
   if (!error.value) {
@@ -327,8 +324,7 @@ const fetchScenario = async () => {
   if (selectedExample.value) {
     // Load example data from public JSON file
     response = await fetch(`/examples/${selectedExample.value}`)
-  }
-  else {
+  } else {
   // Make request to streaming scenario endpoint
     const apiFetch = await useApiFetch()
     response = await apiFetch('/api/wsdot', {
