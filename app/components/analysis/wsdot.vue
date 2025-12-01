@@ -8,15 +8,28 @@
       title="About this Analysis"
     >
       <p class="mb-3">
-        The Washington State Department of Transportation (WSDOT) Frequent Transit Service Study analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
+        The Washington State Department of Transportation (WSDOT) <a
+          href="https://wsdot.wa.gov/construction-planning/search-studies/frequent-transit-service-study"
+          target="_blank"
+        >Frequent Transit Service Study</a> analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
         This study defines seven levels of transit frequency based on headway, span, and days of service.
+        Generally, this website uses the word "frequency" to describe the intensity of service on transit routes, and "visits" to describe intensity of service at individual stops. This specific analysis uses the word frequency to describe service intensity at individual stops because of the past definition of the process determined by a group of WSDOT partners, but bases these calculations only on the most frequent route with service at each stop.
       </p>
       <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
+        To change the analysis area, navigate to the <o-icon
+          icon="magnify"
+          style="vertical-align:middle;"
+        /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
       </p>
     </tl-msg-info>
 
-    <tl-msg-error v-if="error" class="mt-4" style="width:400px" :title="error.message">
+    <tl-msg-error
+      v-if="error"
+      class="mt-4"
+      style="width:400px"
+      :title="error.message"
+    >
       An error occurred while running the WSDOT analysis.
     </tl-msg-error>
     <div v-else-if="loading">
@@ -36,13 +49,21 @@
           </p>
         </header>
 
-        <tl-msg-warning v-if="debugMenu" class="mt-4" title="Debug menu">
+        <tl-msg-warning
+          v-if="debugMenu"
+          class="mt-4"
+          title="Debug menu"
+        >
           <o-field label="Example configuration">
             <o-select v-model="selectedExample">
               <option value="">
                 Select an example...
               </option>
-              <option v-for="example of exampleConfigs" :key="example.filename" :value="example.filename">
+              <option
+                v-for="example of exampleConfigs"
+                :key="example.filename"
+                :value="example.filename"
+              >
                 {{ example.config.reportName }}
               </option>
             </o-select>
@@ -53,7 +74,10 @@
         <div class="card-content">
           <o-field>
             <template #label>
-              <o-tooltip multiline label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
+              <o-tooltip
+                multiline
+                label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations."
+              >
                 Weekday date
                 <o-icon icon="information" />
               </o-tooltip>
@@ -63,7 +87,10 @@
 
           <o-field>
             <template #label>
-              <o-tooltip multiline label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
+              <o-tooltip
+                multiline
+                label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations."
+              >
                 Weekend date
                 <o-icon icon="information" />
               </o-tooltip>
@@ -73,23 +100,39 @@
 
           <o-field label="Stop buffer radius (m)">
             <template #label>
-              <o-tooltip multiline label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
+              <o-tooltip
+                multiline
+                label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics."
+              >
                 Stop buffer radius (meters)
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
-            <o-slider v-model="wsdotReportConfig!.stopBufferRadius" :min="0" :max="1000" />
+            <o-slider
+              v-model="wsdotReportConfig!.stopBufferRadius"
+              :min="0"
+              :max="1000"
+            />
           </o-field>
         </div>
         <footer class="card-footer">
-          <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
+          <div
+            class="field is-grouped is-grouped-right"
+            style="width: 100%; padding: 0.75rem;"
+          >
             <div class="control">
-              <o-button variant="outlined" @click="handleCancel">
+              <o-button
+                variant="outlined"
+                @click="handleCancel"
+              >
                 Cancel
               </o-button>
             </div>
             <div class="control">
-              <o-button variant="primary" @click="runQuery">
+              <o-button
+                variant="primary"
+                @click="runQuery"
+              >
                 Run Report
               </o-button>
             </div>
@@ -151,7 +194,7 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   weekendDate: scenarioConfig.value!.endDate!,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
-  aggregateLayer: 'state'
+  aggregateLayer: 'state',
 })
 
 const emit = defineEmits<{
@@ -179,7 +222,7 @@ const loadExampleConfigs = async () => {
     }
     const data = await response.json()
     exampleConfigs.value = data.files.filter((file: ExampleConfig) =>
-      file.filename.includes('.wsdot.') && !file.hasError
+      file.filename.includes('.wsdot.') && !file.hasError,
     )
   } catch (err) {
     console.error('Failed to load example configurations:', err)
@@ -200,7 +243,7 @@ watch(selectedExample, (newValue) => {
       ...example.config,
       // Convert date strings back to Date objects if needed
       weekdayDate: new Date(example.config.weekdayDate),
-      weekendDate: new Date(example.config.weekendDate)
+      weekendDate: new Date(example.config.weekendDate),
     })
   }
 })
@@ -231,7 +274,7 @@ onMounted(() => {
 
 // Expose hasResults to parent component
 defineExpose({
-  hasResults
+  hasResults,
 })
 
 const runQuery = async () => {
@@ -274,7 +317,7 @@ const fetchScenario = async () => {
     onError: (err: any) => {
       loadingProgress.value = null
       error.value = err
-    }
+    },
   })
 
   let response: Response
@@ -286,7 +329,7 @@ const fetchScenario = async () => {
     const apiFetch = await useApiFetch()
     response = await apiFetch('/api/wsdot', {
       method: 'POST',
-      body: JSON.stringify({ config: wsdotReportConfig.value })
+      body: JSON.stringify({ config: wsdotReportConfig.value }),
     })
   }
 
