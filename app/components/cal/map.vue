@@ -590,7 +590,7 @@ const hasFlexData = computed((): boolean => {
 
 /**
  * Style data for flex service areas in the legend
- * - Agency mode: Single generic "Flex Service Area" swatch (user clicks/hovers for agency info)
+ * - Agency mode: No color swatches (too many agencies, user clicks/hovers for details)
  * - Advance notice mode: Three swatches for booking categories
  */
 const flexStyleData = computed(() => {
@@ -608,11 +608,8 @@ const flexStyleData = computed(() => {
       { label: 'More than 24 hours', color: flexColors.advanceNotice['More than 24 hours'] },
     ]
   } else {
-    // Agency mode: Just show a single generic swatch
-    // Users can click/hover on individual polygons to see agency names
-    return [
-      { label: 'Colored by agency', color: categoricalColors[0] || '#888888' },
-    ]
+    // Agency mode: No color swatches - users click/hover on polygons to see agency names
+    return []
   }
 })
 

@@ -201,13 +201,12 @@ import {
 import {
   createCategoryColorScale,
   flexColors,
-  getFlexPolygonProperties,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
-import type { FlexAdvanceNotice, FlexAreaType } from '~~/src/flex'
+import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature } from '~~/src/flex'
 
 definePageMeta({
   layout: false
@@ -663,56 +662,43 @@ const flexAgencyColorScale = computed(() => {
   return createCategoryColorScale(flexAgencyNames.value, flexColors.agency)
 })
 
-const flexFilteredFeatures = computed(() => {
-  if (!flexServicesEnabled.value) return []
-
+// Check if a flex area matches the current filters
+// Returns true if it matches, false if it should be "downplayed"
+const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
   const advanceNoticeFilter = flexAdvanceNotice.value as FlexAdvanceNotice[]
   const areaTypesFilter = flexAreaTypesSelected.value as FlexAreaType[]
 
-  // Time filtering - only apply if user selected a custom time range
+  const featureAreaType = getFlexAreaType(feature)
+  if (!areaTypesFilter.includes(featureAreaType)) return false
+
+  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
+  if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+
+  // Time-of-day filtering for flex areas
   const applyTimeFilter = selectedTimeOfDayMode.value !== 'All'
-  const userStartSeconds = applyTimeFilter ? dateToSeconds(startTime.value) : 0
-  const userEndSeconds = applyTimeFilter ? dateToSeconds(endTime.value) : 86399
-
-  const allFlexAreas = scenarioData.value?.flexAreas || []
-
-  // Debug logging for time filter
-  if (applyTimeFilter && allFlexAreas.length > 0) {
-    console.log(`[FlexFilter] Time filter active: ${userStartSeconds}s - ${userEndSeconds}s (mode: ${selectedTimeOfDayMode.value})`)
-    const sample = allFlexAreas[0]
-    console.log(`[FlexFilter] Sample flex area time_window: ${sample?.properties.time_window_start} - ${sample?.properties.time_window_end}`)
-  }
-
-  const filtered = allFlexAreas.filter((feature) => {
-    const featureAreaType = getFlexAreaType(feature)
-    if (!areaTypesFilter.includes(featureAreaType)) return false
-
-    const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-    if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
-
-    // Time-of-day filtering for flex areas
-    // Check if the flex area's service window overlaps with the user's selected time range
-    if (applyTimeFilter) {
-      const flexStart = feature.properties.time_window_start
-      const flexEnd = feature.properties.time_window_end
-
-      // If flex area has time windows defined, check for overlap
-      if (flexStart !== undefined && flexEnd !== undefined) {
-        // No overlap if: flex ends before user starts OR flex starts after user ends
-        const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
-        if (noOverlap) return false
-      }
-      // If no time windows defined, include the area (assume all-day service)
-    }
-
-    return true
-  })
-
   if (applyTimeFilter) {
-    console.log(`[FlexFilter] Filtered ${allFlexAreas.length} -> ${filtered.length} flex areas`)
+    const userStartSeconds = dateToSeconds(startTime.value)
+    const userEndSeconds = dateToSeconds(endTime.value)
+    const flexStart = feature.properties.time_window_start
+    const flexEnd = feature.properties.time_window_end
+
+    // If flex area has time windows defined, check for overlap
+    if (flexStart !== undefined && flexEnd !== undefined) {
+      const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
+      if (noOverlap) return false
+    }
   }
 
-  return filtered
+  return true
+}
+
+// All flex areas with their "marked" status (matches filters)
+const flexAreasWithMarked = computed(() => {
+  if (!flexServicesEnabled.value) return []
+  return (scenarioData.value?.flexAreas || []).map(feature => ({
+    feature,
+    marked: flexAreaMatchesFilters(feature)
+  }))
 })
 
 const flexDisplayFeatures = computed((): Feature[] => {
@@ -720,39 +706,55 @@ const flexDisplayFeatures = computed((): Feature[] => {
 
   const colorBy = flexColorBy.value
 
-  return flexFilteredFeatures.value.map((feature) => {
-    // Determine color based on colorBy mode
-    let color: string
-    if (colorBy === 'Advance notice') {
-      const advanceNotice = getFlexAdvanceNotice(feature)
-      color = flexColors.advanceNotice[advanceNotice] || flexColors.default
-    } else {
-      const agencyName = getFlexAgencyName(feature)
-      color = flexAgencyColorScale.value(agencyName)
-    }
-
-    // Get booking info for popup
-    const bookingRule = feature.properties.pickup_booking_rules?.[0]
-      || feature.properties.drop_off_booking_rules?.[0]
-
-    return {
-      type: 'Feature',
-      id: feature.id,
-      geometry: feature.geometry,
-      properties: {
-        location_id: feature.properties.location_id,
-        location_name: feature.properties.location_name,
-        agency_name: getFlexAgencyName(feature),
-        agency_names: feature.properties.agencies?.map((a: { agency_name: string }) => a.agency_name).join(', '),
-        route_names: feature.properties.routes?.map((r: { route_long_name?: string, route_short_name?: string }) => r.route_long_name || r.route_short_name).join(', '),
-        area_type: getFlexAreaType(feature),
-        advance_notice: getFlexAdvanceNotice(feature),
-        phone_number: bookingRule?.phone_number,
-        booking_message: bookingRule?.message,
-        ...getFlexPolygonProperties(color),
+  return flexAreasWithMarked.value
+    .filter(({ marked }) => !hideUnmarked.value || marked) // Hide unmarked if toggle is on
+    .map(({ feature, marked }) => {
+      // Determine color based on colorBy mode
+      let color: string
+      if (colorBy === 'Advance notice') {
+        const advanceNotice = getFlexAdvanceNotice(feature)
+        color = flexColors.advanceNotice[advanceNotice] || flexColors.default
+      } else {
+        const agencyName = getFlexAgencyName(feature)
+        color = flexAgencyColorScale.value(agencyName)
       }
-    } as Feature
-  })
+
+      // Get booking info for popup
+      const bookingRule = feature.properties.pickup_booking_rules?.[0]
+        || feature.properties.drop_off_booking_rules?.[0]
+
+      // Style based on marked status
+      // Marked: filled polygon with solid outline
+      // Unmarked: no fill, dashed outline, reduced opacity
+      const fillOpacity = marked ? 0.3 : 0
+      const strokeOpacity = marked ? 0.8 : 0.4
+      const strokeDasharray = marked ? undefined : '4,4'
+
+      return {
+        type: 'Feature',
+        id: feature.id,
+        geometry: feature.geometry,
+        properties: {
+          'location_id': feature.properties.location_id,
+          'location_name': feature.properties.location_name,
+          'agency_name': getFlexAgencyName(feature),
+          'agency_names': feature.properties.agencies?.map((a: { agency_name: string }) => a.agency_name).join(', '),
+          'route_names': feature.properties.routes?.map((r: { route_long_name?: string, route_short_name?: string }) => r.route_long_name || r.route_short_name).join(', '),
+          'area_type': getFlexAreaType(feature),
+          'advance_notice': getFlexAdvanceNotice(feature),
+          'phone_number': bookingRule?.phone_number,
+          'booking_message': bookingRule?.message,
+          'marked': marked,
+          // Custom styling for marked/unmarked
+          'fill': color,
+          'fill-opacity': fillOpacity,
+          'stroke': color,
+          'stroke-width': 2,
+          'stroke-opacity': strokeOpacity,
+          'stroke-dasharray': strokeDasharray,
+        }
+      } as Feature
+    })
 })
 
 /////////////////

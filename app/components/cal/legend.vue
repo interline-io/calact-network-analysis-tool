@@ -98,6 +98,30 @@
             </div>
           </div>
         </div>
+        <!-- Flex filter status legend -->
+        <div v-if="props.hasFlexData" class="cal-map-legend-section">
+          <div>
+            <div
+              class="legend-item legend-flex-area"
+              :style="{
+                background: '#666',
+                opacity: 0.3,
+                border: '2px solid #666',
+              }"
+            />
+            <div>Satisfying all filters</div>
+          </div>
+          <div v-if="!props.hideUnmarked">
+            <div
+              class="legend-item legend-flex-area-dashed"
+              :style="{
+                background: 'transparent',
+                border: '2px dashed #999',
+              }"
+            />
+            <div><em>Not</em> satisfying all filters</div>
+          </div>
+        </div>
 
         <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
           <p class="legend-loading">
@@ -234,6 +258,10 @@ const props = defineProps<{
 }
 
 .legend-flex-area {
+  border-radius: 3px;
+}
+
+.legend-flex-area-dashed {
   border-radius: 3px;
 }
 
