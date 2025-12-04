@@ -635,25 +635,41 @@ const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
   const a: PopupFeature[] = []
+  const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
+
+  console.log(`[MapClick] ${features.length} raw features at point`)
+
   for (const feature of features) {
+    const featureId = feature.id?.toString() || ''
+
+    // Only dedupe if we have a valid ID (skip deduplication for empty IDs)
+    if (featureId && seenIds.has(featureId)) {
+      continue // Skip duplicate
+    }
+    if (featureId) {
+      seenIds.add(featureId)
+    }
+
     const ft = feature.geometry.type
     const fp = feature.properties
 
     let text = ''
+
     if (ft === 'Point') {
-      const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
+      const stopLookup = stopFeatureLookup.value.get(featureId)
       if (!stopLookup) {
         continue
       }
       const sp = stopLookup
-      // FIXME: THIS IS TEMPORARY - THIS IS NOT SAFE
       text = `
+        <div class="popup-feature-type">🚏 Stop</div>
         Stop ID: ${sp.stop_id}<br>
         <strong>${sp.stop_name}</strong><br>
         Routes: ${sp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
         Agencies: ${sp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
       text = `
+        <div class="popup-feature-type">🚌 Route</div>
         Route ID: ${fp.route_id}<br>
         <strong>${fp.route_short_name || ''} ${fp.route_long_name}</strong><br>
         Type: ${routeTypeNames.get(fp.route_type) || 'Unknown'}<br>
@@ -662,23 +678,31 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       // Flex service area popup
       const areaType = fp.area_type || 'Unknown'
       const advanceNotice = fp.advance_notice || 'Unknown'
+      const filterStatusBar = fp.marked === false
+        ? '<div class="notification is-warning is-light popup-status-bar">⚠️ Doesn\'t match current filters</div>'
+        : '<div class="notification is-success is-light popup-status-bar">✅ Matches all filters</div>'
       text = `
-        <strong>Flex Service Area</strong><br>
-        ${fp.location_name ? `Name: ${fp.location_name}<br>` : ''}
-        Agency: ${fp.agency_name || fp.agency_names || 'Unknown'}<br>
-        Routes: ${fp.route_names || 'Unknown'}<br>
-        Service: ${areaType}<br>
-        Booking: ${advanceNotice}${fp.phone_number ? `<br>Phone: ${fp.phone_number}` : ''}`
+        <div class="popup-feature-type">📍 Flex Service Area</div>
+        ${filterStatusBar}
+        ${fp.location_name ? `<div class="popup-location-name">${fp.location_name}</div>` : ''}
+        <div class="popup-details">
+          <div><strong>Agency:</strong> ${fp.agency_name || fp.agency_names || 'Unknown'}</div>
+          <div><strong>Routes:</strong> ${fp.route_names || 'Unknown'}</div>
+          <div><strong>Service:</strong> ${areaType}</div>
+          <div><strong>Booking:</strong> ${advanceNotice}</div>
+          ${fp.phone_number ? `<div><strong>Phone:</strong> ${fp.phone_number}</div>` : ''}
+        </div>`
     }
 
     if (text) {
       a.push({
         point: { lon: pt.lng, lat: pt.lat },
-        text: text
+        text: text,
       })
     }
   }
 
+  console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
 }
 </script>

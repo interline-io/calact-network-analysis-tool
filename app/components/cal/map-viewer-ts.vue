@@ -359,22 +359,120 @@ function fitFeatures (features: Feature[]) {
 //////////////////////
 // Map redraw
 
+// Track the current popup and its state for multi-feature navigation
+let currentPopup: maplibre.Popup | null = null
+let currentPopupFeatures: PopupFeature[] = []
+let currentPopupIndex = 0
+
 function drawPopupFeatures (features: PopupFeature[]) {
-  // TODO: FIXME
-  // HTML is not escaped
+  // Close existing popup
+  if (currentPopup) {
+    currentPopup.remove()
+    currentPopup = null
+  }
+
   if (features.length === 0) {
+    currentPopupFeatures = []
+    currentPopupIndex = 0
     return
   }
-  const first = features[0]
-  if (!first) {
-    return
+
+  currentPopupFeatures = features
+  currentPopupIndex = 0
+  showPopupAtIndex(0)
+}
+
+function showPopupAtIndex (index: number) {
+  if (currentPopupFeatures.length === 0) return
+
+  // Close existing popup
+  if (currentPopup) {
+    currentPopup.remove()
   }
-  const p = first.point
-  const description = first.text
-  new maplibre.Popup()
-    .setLngLat([p.lon, p.lat])
-    .setHTML(description)
+
+  currentPopupIndex = index
+  const feature = currentPopupFeatures[index]
+  if (!feature) return
+
+  const total = currentPopupFeatures.length
+  const hasMultiple = total > 1
+
+  let navHtml = ''
+  if (hasMultiple) {
+    navHtml = `
+      <div class="popup-nav-bar">
+        <button class="button is-small popup-prev" ${index === 0 ? 'disabled' : ''}>
+          <span class="icon is-small"><i class="mdi mdi-chevron-left"></i></span>
+        </button>
+        <span class="popup-nav-label">${index + 1} of ${total}</span>
+        <button class="button is-small popup-next" ${index === total - 1 ? 'disabled' : ''}>
+          <span class="icon is-small"><i class="mdi mdi-chevron-right"></i></span>
+        </button>
+      </div>
+    `
+  }
+
+  const html = `
+    <div class="card popup-card">
+      <header class="card-header">
+        <p class="card-header-title popup-header-title">
+          ${hasMultiple ? 'Features' : 'Feature'} at this point
+        </p>
+        <button class="delete popup-close" aria-label="close"></button>
+      </header>
+      <div class="card-content">
+        <div class="popup-content">
+          ${feature.text}
+        </div>
+        ${navHtml}
+      </div>
+    </div>
+  `
+
+  const popup = new maplibre.Popup({
+    closeButton: false, // We use our own close button
+    closeOnClick: false, // Let our button handle it
+    maxWidth: '380px',
+    className: 'bulma-popup',
+  })
+    .setLngLat([feature.point.lon, feature.point.lat])
+    .setHTML(html)
     .addTo(map!)
+
+  currentPopup = popup
+
+  // Add click handlers after popup is added to DOM
+  setTimeout(() => {
+    // Close button
+    const closeBtn = document.querySelector('.popup-close')
+    closeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (currentPopup) {
+        currentPopup.remove()
+        currentPopup = null
+      }
+    })
+
+    // Navigation buttons
+    if (hasMultiple) {
+      const prevBtn = document.querySelector('.popup-prev')
+      const nextBtn = document.querySelector('.popup-next')
+
+      prevBtn?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (currentPopupIndex > 0) {
+          showPopupAtIndex(currentPopupIndex - 1)
+        }
+      })
+
+      nextBtn?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (currentPopupIndex < currentPopupFeatures.length - 1) {
+          showPopupAtIndex(currentPopupIndex + 1)
+        }
+      })
+    }
+  }, 0)
 }
 
 function drawMarkers (markers: MarkerFeature[]) {
@@ -408,8 +506,13 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  // Include flex-polygons layer for clicking on flex service areas
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines', 'flex-polygons'] })
+  // Query all existing layers for click detection
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline', 'flex-polygons-outline-dashed']
+    .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
+
+  if (layersToQuery.length === 0) return
+
+  const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
     emit('mapClickFeatures', e.lngLat, features)
   }
@@ -424,8 +527,13 @@ function mapMove () {
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {
-  // Include flex-polygons layer for hovering over flex service areas
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines', 'flex-polygons'] })
+  // Query all existing layers for hover detection
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline', 'flex-polygons-outline-dashed']
+    .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
+
+  if (layersToQuery.length === 0) return
+
+  const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
     emit('mapHoverFeatures', features)
   }
@@ -439,5 +547,108 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   }
   .tall {
     height: 100vh;
+  }
+
+  /* Bulma-styled popup */
+  .bulma-popup .maplibregl-popup-content {
+    padding: 0;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+  }
+
+  .popup-card {
+    margin: 0;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .popup-card .card-header {
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .popup-header-title {
+    font-size: 13px;
+    padding: 0;
+    margin: 0;
+    color: #333;
+  }
+
+  .popup-close {
+    position: relative;
+    top: 0;
+    right: 0;
+    flex-shrink: 0;
+  }
+
+  .popup-card .card-content {
+    padding: 12px;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+
+  .popup-nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+  }
+
+  .popup-nav-label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .popup-content {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Feature type header in popup */
+  .popup-feature-type {
+    font-weight: bold;
+    font-size: 15px;
+    color: #333;
+    margin-bottom: 8px;
+  }
+
+  /* Filter status bar */
+  .popup-status-bar {
+    padding: 8px 12px;
+    margin-bottom: 4px !important;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+  }
+
+  .popup-location-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #222;
+  }
+
+  .popup-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .popup-details div {
+    font-size: 13px;
+  }
+
+  /* Hide the default maplibre popup tip/arrow for cleaner look */
+  .bulma-popup .maplibregl-popup-tip {
+    border-top-color: #f5f5f5;
   }
   </style>
