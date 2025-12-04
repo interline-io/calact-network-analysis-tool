@@ -669,15 +669,50 @@ const flexFilteredFeatures = computed(() => {
   const advanceNoticeFilter = flexAdvanceNotice.value as FlexAdvanceNotice[]
   const areaTypesFilter = flexAreaTypesSelected.value as FlexAreaType[]
 
-  return (scenarioData.value?.flexAreas || []).filter((feature) => {
+  // Time filtering - only apply if user selected a custom time range
+  const applyTimeFilter = selectedTimeOfDayMode.value !== 'All'
+  const userStartSeconds = applyTimeFilter ? dateToSeconds(startTime.value) : 0
+  const userEndSeconds = applyTimeFilter ? dateToSeconds(endTime.value) : 86399
+
+  const allFlexAreas = scenarioData.value?.flexAreas || []
+
+  // Debug logging for time filter
+  if (applyTimeFilter && allFlexAreas.length > 0) {
+    console.log(`[FlexFilter] Time filter active: ${userStartSeconds}s - ${userEndSeconds}s (mode: ${selectedTimeOfDayMode.value})`)
+    const sample = allFlexAreas[0]
+    console.log(`[FlexFilter] Sample flex area time_window: ${sample?.properties.time_window_start} - ${sample?.properties.time_window_end}`)
+  }
+
+  const filtered = allFlexAreas.filter((feature) => {
     const featureAreaType = getFlexAreaType(feature)
     if (!areaTypesFilter.includes(featureAreaType)) return false
 
     const featureAdvanceNotice = getFlexAdvanceNotice(feature)
     if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
 
+    // Time-of-day filtering for flex areas
+    // Check if the flex area's service window overlaps with the user's selected time range
+    if (applyTimeFilter) {
+      const flexStart = feature.properties.time_window_start
+      const flexEnd = feature.properties.time_window_end
+
+      // If flex area has time windows defined, check for overlap
+      if (flexStart !== undefined && flexEnd !== undefined) {
+        // No overlap if: flex ends before user starts OR flex starts after user ends
+        const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
+        if (noOverlap) return false
+      }
+      // If no time windows defined, include the area (assume all-day service)
+    }
+
     return true
   })
+
+  if (applyTimeFilter) {
+    console.log(`[FlexFilter] Filtered ${allFlexAreas.length} -> ${filtered.length} flex areas`)
+  }
+
+  return filtered
 })
 
 const flexDisplayFeatures = computed((): Feature[] => {

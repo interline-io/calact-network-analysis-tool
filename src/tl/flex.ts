@@ -6,6 +6,7 @@ import type {
   FlexRoute,
   FlexBookingRule
 } from '~~/src/flex'
+import { parseHMS } from '~~/src/core'
 
 //////////
 // GraphQL Query for Flex Locations
@@ -108,8 +109,8 @@ export interface FlexBookingRuleGql {
 export interface FlexStopTimeGql {
   pickup_type: number
   drop_off_type: number
-  start_pickup_drop_off_window?: number // seconds
-  end_pickup_drop_off_window?: number // seconds
+  start_pickup_drop_off_window?: string // HH:MM:SS from GraphQL, parsed to seconds during transform
+  end_pickup_drop_off_window?: string // HH:MM:SS from GraphQL, parsed to seconds during transform
   pickup_booking_rule?: FlexBookingRuleGql
   drop_off_booking_rule?: FlexBookingRuleGql
   trip: {
@@ -257,17 +258,24 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
   }
 
   // Aggregate time windows (find min start and max end)
+  // GraphQL returns HH:MM:SS strings, parse to seconds
   let timeWindowStart: number | undefined
   let timeWindowEnd: number | undefined
   for (const st of stopTimes) {
-    if (st.start_pickup_drop_off_window !== undefined) {
-      if (timeWindowStart === undefined || st.start_pickup_drop_off_window < timeWindowStart) {
-        timeWindowStart = st.start_pickup_drop_off_window
+    if (st.start_pickup_drop_off_window) {
+      const startSeconds = parseHMS(st.start_pickup_drop_off_window)
+      if (startSeconds >= 0) {
+        if (timeWindowStart === undefined || startSeconds < timeWindowStart) {
+          timeWindowStart = startSeconds
+        }
       }
     }
-    if (st.end_pickup_drop_off_window !== undefined) {
-      if (timeWindowEnd === undefined || st.end_pickup_drop_off_window > timeWindowEnd) {
-        timeWindowEnd = st.end_pickup_drop_off_window
+    if (st.end_pickup_drop_off_window) {
+      const endSeconds = parseHMS(st.end_pickup_drop_off_window)
+      if (endSeconds >= 0) {
+        if (timeWindowEnd === undefined || endSeconds > timeWindowEnd) {
+          timeWindowEnd = endSeconds
+        }
       }
     }
   }

@@ -119,6 +119,14 @@
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
+            <o-tooltip
+              label="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
+              multiline
+              size="small"
+              position="left"
+            >
+              <i class="mdi mdi-information-outline" />
+            </o-tooltip>
           </p>
 
           <o-field class="cal-time-of-day-mode">
