@@ -265,75 +265,210 @@
       <!-- LAYERS -->
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
-          <p class="menu-label">
-            Modes
-          </p>
-          <ul>
-            <li
-              v-for="[routeType, routeTypeDesc] of routeTypeNames"
-              :key="routeType"
+          <o-field class="cal-fixed-route-toggle">
+            <o-checkbox
+              v-model="fixedRouteEnabled"
+              label="Include Fixed-Route Transit"
+            />
+            <o-tooltip
+              label="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services."
+              multiline
             >
-              <o-checkbox
-                v-model="selectedRouteTypes"
-                :native-value="routeType"
+              <i class="mdi mdi-help-circle-outline" />
+            </o-tooltip>
+          </o-field>
+
+          <div
+            class="cal-fixed-route-options"
+            :class="{ 'is-disabled': !fixedRouteEnabled }"
+          >
+            <p class="menu-label">
+              Modes
+            </p>
+            <ul>
+              <li
+                v-for="[routeType, routeTypeDesc] of routeTypeNames"
+                :key="routeType"
               >
-                {{ routeTypeDesc }}
-              </o-checkbox>
-            </li>
-          </ul>
-          <p class="filter-legend">
-            * Stops served by any of the selected route types
-          </p>
+                <o-checkbox
+                  v-model="selectedRouteTypes"
+                  :native-value="routeType"
+                  :disabled="!fixedRouteEnabled"
+                >
+                  {{ routeTypeDesc }}
+                </o-checkbox>
+              </li>
+            </ul>
+            <p class="filter-legend">
+              * Stops served by any of the selected route types
+            </p>
 
-          <p class="menu-label">
-            Agencies
-          </p>
+            <p class="menu-label">
+              Agencies
+            </p>
 
-          <div class="cal-agency-search">
-            <o-field>
-              <o-input
-                v-model="agencySearch"
-                type="Search"
-                placeholder="search"
-                icon-right="magnify"
-                icon-right-clickable
-              />
-            </o-field>
-            <o-field
-              grouped
-              class="cal-agency-buttons"
+            <div class="cal-agency-search">
+              <o-field>
+                <o-input
+                  v-model="agencySearch"
+                  type="Search"
+                  placeholder="search"
+                  icon-right="magnify"
+                  icon-right-clickable
+                  :disabled="!fixedRouteEnabled"
+                />
+              </o-field>
+              <o-field
+                grouped
+                class="cal-agency-buttons"
+              >
+                <o-button
+                  size="small"
+                  :disabled="!fixedRouteEnabled"
+                  @click="agencySelectNone"
+                >
+                  None
+                </o-button>
+                <o-button
+                  size="small"
+                  :disabled="!fixedRouteEnabled"
+                  @click="agencySelectAll"
+                >
+                  All
+                </o-button>
+              </o-field>
+            </div>
+
+            <ul>
+              <li
+                v-for="agencyName of knownAgencies"
+                :key="agencyName"
+              >
+                <o-checkbox
+                  v-model="selectedAgencies"
+                  :native-value="agencyName"
+                  :disabled="!fixedRouteEnabled"
+                >
+                  {{ agencyName }}
+                </o-checkbox>
+              </li>
+            </ul>
+            <p class="filter-legend">
+              * Stops served by any of the selected agencies
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
+      <!--
+        TODO: Integrate with transitland-server GraphQL resolvers for GTFS-Flex data
+        See GTFS spec: https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md
+        Related PR: https://github.com/interline-io/transitland-lib/pull/527
+        Flex areas are polygons from locations.geojson, linked via stop_times.txt location_id
+      -->
+      <div v-if="activeTab === 'flex-services'">
+        <aside class="menu">
+          <o-field class="cal-flex-toggle">
+            <o-checkbox
+              v-model="flexServicesEnabled"
+              label="Include Flex Services"
+            />
+            <o-tooltip
+              label="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds."
+              multiline
             >
-              <o-button
-                size="small"
-                @click="agencySelectNone"
-              >
-                None
-              </o-button>
-              <o-button
-                size="small"
-                @click="agencySelectAll"
-              >
-                All
-              </o-button>
-            </o-field>
+              <i class="mdi mdi-help-circle-outline" />
+            </o-tooltip>
+          </o-field>
+
+          <div
+            v-if="flexServicesEnabled"
+            class="cal-flex-warning"
+          >
+            <o-icon icon="alert" size="small" />
+            <span>
+              Flex service data may be incomplete. Please contact relevant agencies for additional information.
+            </span>
           </div>
 
-          <ul>
-            <li
-              v-for="agencyName of knownAgencies"
-              :key="agencyName"
-            >
-              <o-checkbox
-                v-model="selectedAgencies"
-                :native-value="agencyName"
+          <div
+            class="cal-flex-options"
+            :class="{ 'is-disabled': !flexServicesEnabled }"
+          >
+            <p class="menu-label">
+              Advance notice
+            </p>
+            <ul>
+              <!--
+                TODO: Filter flex areas by booking_rules.booking_type from GTFS-Flex:
+                  - On-Demand: booking_type = 0 (real time booking)
+                  - Same Day: booking_type = 1 (same-day with advance notice)
+                  - More than 24 hours: booking_type = 2 (prior day(s) booking)
+              -->
+              <li
+                v-for="noticeType of flexAdvanceNoticeTypes"
+                :key="noticeType"
               >
-                {{ agencyName }}
-              </o-checkbox>
-            </li>
-          </ul>
-          <p class="filter-legend">
-            * Stops served by any of the selected agencies
-          </p>
+                <o-checkbox
+                  v-model="flexAdvanceNotice"
+                  :native-value="noticeType"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ noticeType }}
+                </o-checkbox>
+              </li>
+            </ul>
+
+            <p class="menu-label">
+              Show areas that allow:
+            </p>
+            <ul>
+              <!--
+                TODO: Filter by pickup_type and drop_off_type in stop_times.txt:
+                  - PU only: pickup_type = 2, drop_off_type = 1
+                  - DO only: pickup_type = 1, drop_off_type = 2
+                  - PU and DO: Both available (pickup_type = 2 AND/OR drop_off_type = 2
+                    across entries for same location_id)
+              -->
+              <li
+                v-for="areaType of flexAreaTypes"
+                :key="areaType"
+              >
+                <o-checkbox
+                  v-model="flexAreaTypesSelected"
+                  :native-value="areaType"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ areaType }}
+                </o-checkbox>
+              </li>
+            </ul>
+
+            <p class="menu-label">
+              Color by:
+            </p>
+            <ul>
+              <!--
+                TODO: Apply polygon styling on MapLibre GL map:
+                  - Agency: Color each set of polygons by agency
+                  - Advance notice: Color by booking_type category
+                  - Future: Add heatmap option using safe_duration_factor/safe_duration_offset
+              -->
+              <li
+                v-for="colorMode of flexColorByModes"
+                :key="colorMode"
+              >
+                <o-radio
+                  v-model="flexColorBy"
+                  :native-value="colorMode"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ colorMode }}
+                </o-radio>
+              </li>
+            </ul>
+          </div>
         </aside>
       </div>
 
@@ -471,7 +606,7 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles } from '~~/src/core'
+import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles, flexAdvanceNoticeTypes, flexAreaTypes, flexColorByModes } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 </script>
 
@@ -481,8 +616,9 @@ import { fmtDate } from '~~/src/core'
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
-  { icon: 'bus', label: 'Transit Layers', tab: 'transit-layers' },
-  { icon: 'layers-outline', label: 'Data Display', tab: 'data-display' },
+  { icon: 'bus', label: 'Transit Services', tab: 'transit-layers' },
+  { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services' },
+  { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
@@ -518,6 +654,17 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
+
+// Fixed-Route Transit toggle
+const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
+
+// Flex Services (DRT) filter models
+// TODO: Connect these to the API/GraphQL resolvers when implemented in transitland-server
+// These filters will query GTFS-Flex data: booking_rules.booking_type, stop_times pickup_type/drop_off_type
+const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
+const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled
+const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 
 ///////////////////
 // Tab
@@ -734,6 +881,82 @@ const dowAvailable = computed((): Set<string> => {
           }
         }
       }
+    }
+  }
+}
+
+// Flex Services styles
+// Shared toggle styles for fixed-route and flex services
+.cal-fixed-route-toggle,
+.cal-flex-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+
+  .o-checkbox {
+    margin-bottom: 0;
+  }
+
+  .mdi-help-circle-outline {
+    color: var(--bulma-text-weak);
+    cursor: help;
+
+    &:hover {
+      color: var(--bulma-primary);
+    }
+  }
+}
+
+.cal-fixed-route-options {
+  transition: opacity 0.2s ease;
+
+  &.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+.cal-flex-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+  font-size: 0.85rem;
+  line-height: 1.4;
+
+  .o-icon {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+}
+
+.cal-flex-options {
+  transition: opacity 0.2s ease;
+
+  &.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .menu-label {
+    margin-top: 1rem;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  ul {
+    margin-left: 0.5rem;
+
+    li {
+      margin-bottom: 0.25rem;
     }
   }
 }

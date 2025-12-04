@@ -51,12 +51,21 @@
               label="Agency"
             />
           </o-field>
+
+          <o-field v-if="props.flexServicesEnabled" class="mb-0">
+            <o-radio
+              v-model="dataDisplayMode"
+              name="dataDisplayMode"
+              native-value="Flex area"
+              label="Flex area"
+            />
+          </o-field>
         </section>
       </div>
 
       <div class="cal-report-download">
         <cal-geojson-download
-          :data="exportFeatures"
+          :data="downloadFeatures"
         />
       </div>
     </div>
@@ -94,9 +103,23 @@ const props = defineProps<{
   filterSummary: string[]
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
+  exportFeatures?: Feature[]
+  // Flex Services props
+  flexServicesEnabled?: boolean
+  flexDisplayFeatures?: Feature[]
 }>()
 
-const exportFeatures = ref<Feature[]>([])
+/**
+ * Features to export as GeoJSON based on current view mode
+ * - Fixed-route modes use exportFeatures from parent (map component)
+ * - Flex area mode uses flexDisplayFeatures
+ */
+const downloadFeatures = computed((): Feature[] => {
+  if (dataDisplayMode.value === 'Flex area') {
+    return props.flexDisplayFeatures || []
+  }
+  return props.exportFeatures || []
+})
 
 const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
@@ -162,6 +185,32 @@ const agencyColumns: TableColumn[] = [
   { key: 'stops_count', label: 'Number of Stops', sortable: true },
 ]
 
+const flexAreaColumns: TableColumn[] = [
+  { key: 'location_id', label: 'Location ID', sortable: true },
+  { key: 'location_name', label: 'Location Name', sortable: true },
+  { key: 'agency_names', label: 'Agencies', sortable: true },
+  { key: 'route_names', label: 'Routes', sortable: true },
+  { key: 'area_type', label: 'Service Type', sortable: true },
+  { key: 'advance_notice', label: 'Booking', sortable: true },
+  { key: 'phone_number', label: 'Phone', sortable: true },
+]
+
+/**
+ * Convert flex feature to CSV row data
+ */
+function flexFeatureToCsv (feature: Feature): Record<string, string | number | undefined> {
+  const props = feature.properties || {}
+  return {
+    location_id: props.location_id,
+    location_name: props.location_name || '',
+    agency_names: props.agency_names || props.agency_name || '',
+    route_names: props.route_names || '',
+    area_type: props.area_type || '',
+    advance_notice: props.advance_notice || '',
+    phone_number: props.phone_number || '',
+  }
+}
+
 // const agencyColumnsAggregate: TableColumn[] = [
 //   { key: 'aggregate_name', label: 'Name', sortable: true },
 //   { key: 'aggregate_total', label: 'Number of Agencies', sortable: true },
@@ -200,6 +249,11 @@ const reportData = computed((): TableReport => {
       data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
+  } else if (dataDisplayMode.value === 'Flex area') {
+    return {
+      data: (props.flexDisplayFeatures || []).map(flexFeatureToCsv),
+      columns: flexAreaColumns
+    }
   }
   return { data: [], columns: [] }
 })
@@ -211,6 +265,8 @@ const reportTitle = computed(() => {
     return 'stops'
   } else if (dataDisplayMode.value === 'Agency') {
     return 'agencies'
+  } else if (dataDisplayMode.value === 'Flex area') {
+    return 'flex service areas'
   }
   return ''
 })

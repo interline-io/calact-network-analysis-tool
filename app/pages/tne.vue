@@ -116,6 +116,11 @@
             v-model:max-fare="maxFare"
             v-model:min-fare-enabled="minFareEnabled"
             v-model:min-fare="minFare"
+            v-model:fixed-route-enabled="fixedRouteEnabled"
+            v-model:flex-services-enabled="flexServicesEnabled"
+            v-model:flex-advance-notice="flexAdvanceNotice"
+            v-model:flex-area-types-selected="flexAreaTypesSelected"
+            v-model:flex-color-by="flexColorBy"
             :scenario-filter-result="scenarioFilterResult"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
@@ -130,6 +135,8 @@
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
+            :flex-services-enabled="flexServicesEnabled"
+            :flex-display-features="flexDisplayFeatures"
             @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
@@ -151,6 +158,10 @@
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
+          :fixed-route-enabled="fixedRouteEnabled"
+          :flex-services-enabled="flexServicesEnabled"
+          :flex-color-by="flexColorBy"
+          :flex-display-features="flexDisplayFeatures"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -180,10 +191,12 @@ import { nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { useFlexAreas, type FlexFilterConfig } from '~/composables/useFlexAreas'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import type { FlexAdvanceNotice, FlexAreaType } from '~~/src/flex'
 
 definePageMeta({
   layout: false
@@ -508,6 +521,118 @@ const minFare = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, minFare: v.toString() })
+  }
+})
+
+/////////////////
+// Fixed-Route Transit toggle
+/////////////////
+
+const fixedRouteEnabled = computed({
+  get () {
+    // On by default - only false if explicitly set to 'false'
+    return route.query.fixedRouteEnabled?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, fixedRouteEnabled: v ? '' : 'false' })
+  }
+})
+
+/////////////////
+// Flex Services (DRT) filters
+// TODO: Integrate with transitland-server GraphQL resolvers for GTFS-Flex data
+// Related PR: https://github.com/interline-io/transitland-lib/pull/527
+// Will query: booking_rules.booking_type, stop_times.pickup_type/drop_off_type
+// Polygons come from locations.geojson linked via stop_times.location_id
+/////////////////
+
+const flexServicesEnabled = computed({
+  get () {
+    // Off by default per PRD
+    return route.query.flexServicesEnabled?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : '' })
+  }
+})
+
+const flexAdvanceNotice = computed({
+  get (): string[] {
+    // All selected by default per PRD (when param is not present)
+    // Maps to booking_rules.booking_type: 0=On-Demand, 1=Same Day, 2=More than 24 hours
+    // Use special marker '__none__' to indicate user explicitly unchecked all
+    const param = route.query.flexAdvanceNotice?.toString()
+    if (param === '__none__') {
+      return [] // User explicitly unchecked all
+    }
+    if (!param) {
+      return ['On-demand', 'Same day', 'More than 24 hours'] // Default: all selected
+    }
+    return param.split(',').filter(Boolean)
+  },
+  set (v: string[]) {
+    // Use special marker when all are unchecked to distinguish from "not set"
+    const value = v.length === 0 ? '__none__' : v.join(',')
+    setQuery({ ...route.query, flexAdvanceNotice: value })
+  }
+})
+
+const flexAreaTypesSelected = computed({
+  get (): string[] {
+    // All selected by default per PRD (when param is not present)
+    // Based on stop_times.pickup_type and drop_off_type
+    // Use special marker '__none__' to indicate user explicitly unchecked all
+    const param = route.query.flexAreaTypesSelected?.toString()
+    if (param === '__none__') {
+      return [] // User explicitly unchecked all
+    }
+    if (!param) {
+      return ['PU only', 'DO only', 'PU and DO'] // Default: all selected
+    }
+    return param.split(',').filter(Boolean)
+  },
+  set (v: string[]) {
+    // Use special marker when all are unchecked to distinguish from "not set"
+    const value = v.length === 0 ? '__none__' : v.join(',')
+    setQuery({ ...route.query, flexAreaTypesSelected: value })
+  }
+})
+
+const flexColorBy = computed({
+  get () {
+    // Agency coloring by default per PRD
+    // Can also color by Advance notice (booking_type category)
+    // Future: add service quality heatmap using safe_duration_factor/safe_duration_offset
+    return route.query.flexColorBy?.toString() || 'Agency'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, flexColorBy: v === 'Agency' ? '' : v })
+  }
+})
+
+// Flex filter configuration for the composable
+// Combines all flex filter state into a single reactive object
+const flexFilterConfig = computed<FlexFilterConfig>(() => ({
+  enabled: flexServicesEnabled.value,
+  advanceNotice: flexAdvanceNotice.value as FlexAdvanceNotice[],
+  areaTypes: flexAreaTypesSelected.value as FlexAreaType[],
+  colorBy: flexColorBy.value as 'Agency' | 'Advance notice',
+}))
+
+// Use the flex areas composable
+// TEMPORARY: Loads from static GeoJSON file for development/testing
+// TODO: Replace with transitland-server GraphQL API when resolvers are ready
+const {
+  displayFeatures: flexDisplayFeatures,
+  stats: flexStats,
+  isLoading: _flexIsLoading, // TODO: Use for loading indicator
+  error: _flexError, // TODO: Display error to user
+} = useFlexAreas(flexFilterConfig)
+
+// Log flex stats for debugging (can be removed later)
+watch(flexStats, (stats) => {
+  if (stats.total > 0) {
+    console.log('[Flex Services] Stats:', stats)
   }
 })
 
@@ -891,6 +1016,12 @@ async function resetFilters () {
     unitSystem: '',
     hideUnmarked: '',
     baseMap: '',
+    // Fixed-Route and Flex Services filters
+    fixedRouteEnabled: '',
+    flexServicesEnabled: '',
+    flexAdvanceNotice: '',
+    flexAreaTypesSelected: '',
+    flexColorBy: '',
   })
   // Note, `selectedDays` is special, see note below.
   // When clearing filters, it should removed, not set to ''

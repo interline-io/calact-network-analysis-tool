@@ -62,7 +62,7 @@
             Agencies:
           </div>
           <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
-            Modes:
+            Transit Modes:
           </div>
           <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
             Avg. minutes:
@@ -79,7 +79,27 @@
           </div>
         </div>
 
-        <div v-if="!props.hasData && !props.displayEditBboxMode">
+        <!-- Flex Services Color Style -->
+        <div v-if="props.hasFlexData" class="legend-heading">
+          Flex Service Areas:
+        </div>
+        <div v-if="props.hasFlexData" class="cal-map-legend-section">
+          <div v-for="s of props.flexStyleData" :key="s.label">
+            <div
+              class="legend-item legend-flex-area"
+              :style="{
+                background: s.color,
+                opacity: 0.4,
+                border: `2px solid ${s.color}`,
+              }"
+            />
+            <div class="legend-flex-label">
+              {{ s.label }}
+            </div>
+          </div>
+        </div>
+
+        <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
           <p class="legend-loading">
             <o-loading
               :active="true"
@@ -93,13 +113,23 @@
 </template>
 
 <script setup lang="ts">
+interface StyleItem {
+  label: string
+  color: string
+}
+
 const props = defineProps<{
   dataDisplayMode: string
   colorKey: string
-  styleData: any
+  styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
   hideUnmarked?: boolean
+  // Flex Services props
+  flexEnabled?: boolean
+  flexColorBy?: string
+  flexStyleData?: StyleItem[]
+  hasFlexData?: boolean
 }>()
 </script>
 
@@ -195,5 +225,22 @@ const props = defineProps<{
 .legend-loading {
   position: relative;
   height: 40px;
+}
+
+.legend-subheading {
+  font-weight: normal;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.legend-flex-area {
+  border-radius: 3px;
+}
+
+.legend-flex-label {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -20,6 +20,10 @@
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
       :hide-unmarked="hideUnmarked"
+      :flex-enabled="flexServicesEnabled"
+      :flex-color-by="flexColorBy"
+      :flex-style-data="flexStyleData"
+      :has-flex-data="hasFlexData"
     />
 
     <cal-map-viewer-ts
@@ -28,6 +32,7 @@
       :zoom="14"
       :overlay-features="overlayFeatures"
       :features="displayFeatures"
+      :flex-features="flexFeaturesForMap"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       @map-move="mapMove"
@@ -41,7 +46,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
-import { colors, routeTypeNames } from '~~/src/core'
+import { colors, routeTypeNames, flexColors, categoricalColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -59,6 +64,13 @@ const props = defineProps<{
   hideUnmarked: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
+  // Fixed-Route Transit toggle (on by default)
+  fixedRouteEnabled?: boolean
+  // Flex Services props
+  flexServicesEnabled?: boolean
+  flexColorBy?: string
+  // Flex display features (pre-filtered and styled from useFlexAreas composable)
+  flexDisplayFeatures?: Feature[]
 }>()
 
 const showShareMenu = ref(false)
@@ -416,6 +428,12 @@ const overlayFeatures = computed((): Feature[] => {
 })
 
 const displayFeatures = computed((): Feature[] => {
+  // Return empty array if fixed-route transit is disabled
+  // (allows user to focus on flex services only)
+  if (props.fixedRouteEnabled === false) {
+    return []
+  }
+
   const bgColor = '#aaa'
   const bgOpacity = 0.4
   const styleRules = styleData.value || []
@@ -538,9 +556,64 @@ watch(exportFeatures, () => {
   emit('setExportFeatures', exportFeatures.value)
 })
 
-// Is there data to display?
+/**
+ * Flex service area features for display on the map
+ * Features come pre-filtered and styled from the useFlexAreas composable in tne.vue
+ *
+ * Data flow:
+ * 1. useFlexAreas composable loads flex areas (currently from static file, TODO: from API)
+ * 2. Filters by advanceNotice and areaTypes based on user selections
+ * 3. Applies styling (colors, opacity) based on colorBy mode
+ * 4. Returns styled features via flexDisplayFeatures prop
+ */
+const flexFeaturesForMap = computed((): Feature[] => {
+  // Return empty array if flex services are disabled or no features provided
+  if (!props.flexServicesEnabled || !props.flexDisplayFeatures) {
+    return []
+  }
+
+  return props.flexDisplayFeatures
+})
+
+// Is there fixed-route data to display?
 const hasData = computed((): boolean => {
+  if (props.fixedRouteEnabled === false) {
+    return false
+  }
   return !!(props.scenarioFilterResult?.stops.length || props.scenarioFilterResult?.routes.length)
+})
+
+// Does flex have data to display?
+const hasFlexData = computed((): boolean => {
+  return !!(props.flexServicesEnabled && props.flexDisplayFeatures?.length)
+})
+
+/**
+ * Style data for flex service areas in the legend
+ * - Agency mode: Single generic "Flex Service Area" swatch (user clicks/hovers for agency info)
+ * - Advance notice mode: Three swatches for booking categories
+ */
+const flexStyleData = computed(() => {
+  if (!props.flexServicesEnabled || !props.flexDisplayFeatures?.length) {
+    return []
+  }
+
+  const colorBy = props.flexColorBy || 'Agency'
+
+  if (colorBy === 'Advance notice') {
+    // Show advance notice categories with their semantic colors
+    return [
+      { label: 'On-demand', color: flexColors.advanceNotice['On-demand'] },
+      { label: 'Same day', color: flexColors.advanceNotice['Same day'] },
+      { label: 'More than 24 hours', color: flexColors.advanceNotice['More than 24 hours'] },
+    ]
+  } else {
+    // Agency mode: Just show a single generic swatch
+    // Users can click/hover on individual polygons to see agency names
+    return [
+      { label: 'Colored by agency', color: categoricalColors[0] || '#888888' },
+    ]
+  }
 })
 
 /////////////////
@@ -567,6 +640,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   const a: PopupFeature[] = []
   for (const feature of features) {
     const ft = feature.geometry.type
+    const fp = feature.properties
 
     let text = ''
     if (ft === 'Point') {
@@ -574,20 +648,30 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       if (!stopLookup) {
         continue
       }
-      const fp = stopLookup
+      const sp = stopLookup
       // FIXME: THIS IS TEMPORARY - THIS IS NOT SAFE
       text = `
-        Stop ID: ${fp.stop_id}<br>
-        <strong>${fp.stop_name}</strong><br>
-        Routes: ${fp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
-        Agencies: ${fp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
+        Stop ID: ${sp.stop_id}<br>
+        <strong>${sp.stop_name}</strong><br>
+        Routes: ${sp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
+        Agencies: ${sp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
-      const rp = feature.properties
       text = `
-        Route ID: ${rp.route_id}<br>
-        <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
-        Type: ${routeTypeNames.get(rp.route_type) || 'Unknown'}<br>
-        Agency: ${rp.agency_name}`
+        Route ID: ${fp.route_id}<br>
+        <strong>${fp.route_short_name || ''} ${fp.route_long_name}</strong><br>
+        Type: ${routeTypeNames.get(fp.route_type) || 'Unknown'}<br>
+        Agency: ${fp.agency_name}`
+    } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
+      // Flex service area popup
+      const areaType = fp.area_type || 'Unknown'
+      const advanceNotice = fp.advance_notice || 'Unknown'
+      text = `
+        <strong>Flex Service Area</strong><br>
+        ${fp.location_name ? `Name: ${fp.location_name}<br>` : ''}
+        Agency: ${fp.agency_name || fp.agency_names || 'Unknown'}<br>
+        Routes: ${fp.route_names || 'Unknown'}<br>
+        Service: ${areaType}<br>
+        Booking: ${advanceNotice}${fp.phone_number ? `<br>Phone: ${fp.phone_number}` : ''}`
     }
 
     if (text) {

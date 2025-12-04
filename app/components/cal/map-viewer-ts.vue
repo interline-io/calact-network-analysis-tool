@@ -24,6 +24,7 @@ const emit = defineEmits([
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
+const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
@@ -52,6 +53,10 @@ watch(() => popupFeatures.value, (v) => {
 
 watch(() => features.value, (v) => {
   updateFeatures(v)
+})
+
+watch(() => flexFeatures.value, (v) => {
+  updateFlexFeatures(v)
 })
 
 watch(() => center, (oldVal, newVal) => {
@@ -103,6 +108,7 @@ function initMap () {
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
     updateFeatures(features.value)
+    updateFlexFeatures(flexFeatures.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
     map?.on('zoom', mapZoom)
@@ -125,6 +131,13 @@ function createSources () {
     data: { type: 'FeatureCollection', features: [] }
   })
   map?.addSource('polygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  // Flex Services (DRT) polygon source
+  // TODO: Populate with flex area polygons from GTFS-Flex locations.geojson
+  // when transitland-server GraphQL resolvers are implemented
+  map?.addSource('flexPolygons', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -176,6 +189,35 @@ function createLayers () {
       'line-opacity': 0.6
     }
   })
+
+  // Flex Services (DRT) polygon layers
+  // TODO: These layers will display GTFS-Flex service areas from locations.geojson
+  // Fill styling uses transparency for overlapping polygons
+  // Colors come from feature properties set by the styling logic in map.vue
+  map?.addLayer({
+    id: 'flex-polygons',
+    type: 'fill',
+    source: 'flexPolygons',
+    layout: {},
+    paint: {
+      // Color from feature properties, fallback to gray
+      'fill-color': ['coalesce', ['get', 'fill'], '#888888'],
+      // Lower opacity for overlapping areas - can see through to fixed routes
+      'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.25],
+    }
+  })
+  map?.addLayer({
+    id: 'flex-polygons-outline',
+    type: 'line',
+    source: 'flexPolygons',
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.8],
+    }
+  })
+
   map?.addLayer({
     id: 'lines',
     type: 'line',
@@ -248,6 +290,26 @@ function updateFeatures (features: Feature[]) {
   if (polygonSource) {
     polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
+}
+
+/**
+ * Update flex service area polygons on the map
+ * TODO: Called when flex areas are fetched from transitland-server GraphQL API
+ * Features should have properties set by getFlexPolygonProperties() from colors.ts
+ */
+function updateFlexFeatures (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const flexSource = map.getSource('flexPolygons') as maplibre.GeoJSONSource
+  if (!flexSource) {
+    return
+  }
+  // Filter to only polygon/multipolygon geometries (flex areas are polygons)
+  const polygons = features.filter((s) => {
+    return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon'
+  })
+  flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
 }
 
 function fitFeatures (features: Feature[]) {
@@ -346,7 +408,8 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
+  // Include flex-polygons layer for clicking on flex service areas
+  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines', 'flex-polygons'] })
   if (features) {
     emit('mapClickFeatures', e.lngLat, features)
   }
@@ -361,7 +424,8 @@ function mapMove () {
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
+  // Include flex-polygons layer for hovering over flex service areas
+  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines', 'flex-polygons'] })
   if (features) {
     emit('mapHoverFeatures', features)
   }
