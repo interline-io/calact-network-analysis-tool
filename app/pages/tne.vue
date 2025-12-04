@@ -191,7 +191,16 @@ import { nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
-import { useFlexAreas, type FlexFilterConfig } from '~/composables/useFlexAreas'
+import {
+  getFlexAreaType,
+  getFlexAdvanceNotice,
+  getFlexAgencyName,
+} from '~~/src/flex'
+import {
+  createCategoryColorScale,
+  flexColors,
+  getFlexPolygonProperties,
+} from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~~/src/core'
@@ -610,30 +619,81 @@ const flexColorBy = computed({
   }
 })
 
-// Flex filter configuration for the composable
-// Combines all flex filter state into a single reactive object
-const flexFilterConfig = computed<FlexFilterConfig>(() => ({
-  enabled: flexServicesEnabled.value,
-  advanceNotice: flexAdvanceNotice.value as FlexAdvanceNotice[],
-  areaTypes: flexAreaTypesSelected.value as FlexAreaType[],
-  colorBy: flexColorBy.value as 'Agency' | 'Advance notice',
-}))
+// Scenario data ref - defined early so flex computed properties can reference it
+// This is populated when fetchScenario runs
+const scenarioData = ref<ScenarioData | null>(null)
 
-// Use the flex areas composable
-// TEMPORARY: Loads from static GeoJSON file for development/testing
-// TODO: Replace with transitland-server GraphQL API when resolvers are ready
-const {
-  displayFeatures: flexDisplayFeatures,
-  stats: flexStats,
-  isLoading: _flexIsLoading, // TODO: Use for loading indicator
-  error: _flexError, // TODO: Display error to user
-} = useFlexAreas(flexFilterConfig)
+// Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
+// Raw data comes from scenario stream via scenarioData.flexAreas
 
-// Log flex stats for debugging (can be removed later)
-watch(flexStats, (stats) => {
-  if (stats.total > 0) {
-    console.log('[Flex Services] Stats:', stats)
+const flexAgencyNames = computed(() => {
+  const names = new Set<string>()
+  for (const feature of scenarioData.value?.flexAreas || []) {
+    const name = getFlexAgencyName(feature)
+    if (name) names.add(name)
   }
+  return Array.from(names).sort()
+})
+
+const flexAgencyColorScale = computed(() => {
+  return createCategoryColorScale(flexAgencyNames.value, flexColors.agency)
+})
+
+const flexFilteredFeatures = computed(() => {
+  if (!flexServicesEnabled.value) return []
+
+  const advanceNoticeFilter = flexAdvanceNotice.value as FlexAdvanceNotice[]
+  const areaTypesFilter = flexAreaTypesSelected.value as FlexAreaType[]
+
+  return (scenarioData.value?.flexAreas || []).filter((feature) => {
+    const featureAreaType = getFlexAreaType(feature)
+    if (!areaTypesFilter.includes(featureAreaType)) return false
+
+    const featureAdvanceNotice = getFlexAdvanceNotice(feature)
+    if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+
+    return true
+  })
+})
+
+const flexDisplayFeatures = computed((): Feature[] => {
+  if (!flexServicesEnabled.value) return []
+
+  const colorBy = flexColorBy.value
+
+  return flexFilteredFeatures.value.map((feature) => {
+    // Determine color based on colorBy mode
+    let color: string
+    if (colorBy === 'Advance notice') {
+      const advanceNotice = getFlexAdvanceNotice(feature)
+      color = flexColors.advanceNotice[advanceNotice] || flexColors.default
+    } else {
+      const agencyName = getFlexAgencyName(feature)
+      color = flexAgencyColorScale.value(agencyName)
+    }
+
+    // Get booking info for popup
+    const bookingRule = feature.properties.pickup_booking_rules?.[0]
+      || feature.properties.drop_off_booking_rules?.[0]
+
+    return {
+      type: 'Feature',
+      id: feature.id,
+      geometry: feature.geometry,
+      properties: {
+        location_id: feature.properties.location_id,
+        location_name: feature.properties.location_name,
+        agency_name: getFlexAgencyName(feature),
+        agency_names: feature.properties.agencies?.map((a: { agency_name: string }) => a.agency_name).join(', '),
+        route_names: feature.properties.routes?.map((r: { route_long_name?: string, route_short_name?: string }) => r.route_long_name || r.route_short_name).join(', '),
+        area_type: getFlexAreaType(feature),
+        advance_notice: getFlexAdvanceNotice(feature),
+        phone_number: bookingRule?.phone_number,
+        booking_message: bookingRule?.message,
+        ...getFlexPolygonProperties(color),
+      }
+    } as Feature
+  })
 })
 
 /////////////////
@@ -789,6 +849,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
+  // Include flex areas when flex services toggle is enabled
+  // The server will fetch from static GeoJSON (TODO: GraphQL when ready)
+  includeFlexAreas: flexServicesEnabled.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -806,7 +869,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 }))
 
 // Internal state for streaming scenario data
-const scenarioData = ref<ScenarioData | null>(null)
+// Note: scenarioData is defined earlier in the file (before useFlexAreas)
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
