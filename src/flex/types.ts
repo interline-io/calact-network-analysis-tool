@@ -2,8 +2,35 @@
  * Flex Services (DRT/Demand-Responsive Transit) TypeScript types
  * Based on GTFS-Flex extension data structure
  *
- * TODO: These types should align with transitland-server GraphQL schema
- * when the GTFS-Flex resolvers are implemented
+ * GraphQL Schema Mapping (transitland-server):
+ * ============================================
+ *
+ * Location (GraphQL) -> FlexAreaFeature (this file)
+ *   - location.id -> feature.id
+ *   - location.location_id -> properties.location_id
+ *   - location.stop_name -> properties.location_name
+ *   - location.geometry -> feature.geometry
+ *   - location.feed_onestop_id -> (used for feed association)
+ *
+ * FlexStopTime (GraphQL) -> Aggregated into FlexAreaProperties
+ *   - stop_time.pickup_type -> properties.pickup_types[], pickup_available
+ *   - stop_time.drop_off_type -> properties.drop_off_types[], drop_off_available
+ *   - stop_time.start_pickup_drop_off_window -> properties.time_window_start
+ *   - stop_time.end_pickup_drop_off_window -> properties.time_window_end
+ *   - stop_time.pickup_booking_rule -> properties.pickup_booking_rules[]
+ *   - stop_time.drop_off_booking_rule -> properties.drop_off_booking_rules[]
+ *   - stop_time.trip.route.agency -> properties.agencies[]
+ *
+ * BookingRule (GraphQL) -> FlexBookingRule (this file)
+ *   - booking_rule.booking_type -> booking_type (0=realtime, 1=same-day, 2=prior-day)
+ *   - booking_rule.phone_number -> phone_number
+ *   - booking_rule.info_url -> info_url
+ *   - booking_rule.message -> message
+ *
+ * The transformation is implemented in src/tl/flex.ts:
+ *   - transformLocationToFlexArea(): Location -> FlexAreaFeature
+ *   - transformLocationsToFlexAreas(): filters and transforms multiple locations
+ *
  * Related PR: https://github.com/interline-io/transitland-lib/pull/527
  */
 

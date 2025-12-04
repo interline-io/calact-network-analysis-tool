@@ -19,12 +19,15 @@ import {
   stopDepartureQuery,
   stopTimeQuery,
   stopQuery,
+  flexLocationQuery,
+  transformLocationsToFlexAreas,
   type FeedGql,
   type FeedVersion,
   type RouteGql,
   type StopDeparture,
   type StopGql,
-  type StopTime
+  type StopTime,
+  type FlexLocationQueryResponse
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
 import type { FlexAreaFeature } from '~~/src/flex'
@@ -53,11 +56,6 @@ export interface ScenarioConfig {
    * When true, flex areas will be loaded and included in the scenario data
    */
   includeFlexAreas?: boolean
-  /**
-   * URL to fetch flex areas from (temporary static GeoJSON)
-   * TODO: Remove when GraphQL resolvers are ready - will query API instead
-   */
-  flexAreasUrl?: string
 }
 
 export interface ScenarioFilter {
@@ -74,27 +72,22 @@ export interface ScenarioFilter {
   frequencyOverEnabled: boolean
 }
 
-// TODO: Flex service (GTFS-Flex / DRT) filtering
-// When the transitland-server GraphQL API supports flex areas, we'll want to:
-//
-// 1. Query flex areas with date range filtering:
-//    - Flex services are linked to trips via stop_times.txt
-//    - Trips have service_id which links to calendar/calendar_dates
-//    - Query should filter to flex areas active on the selected date range
-//
-// 2. Time-of-day filtering:
-//    - GTFS-Flex uses start_pickup_drop_off_window and end_pickup_drop_off_window
-//      in stop_times.txt to define when service is available
-//    - Filter flex areas where time windows overlap with user's selected time range
-//    - Use overlap logic: flex_end > user_start AND flex_start < user_end
-//
-// 3. Day-of-week filtering:
-//    - Unlike the current static GeoJSON, API responses can include calendar info
-//    - Apply same day-of-week logic as fixed-route services
-//
-// Related: useFlexAreas.ts composable will need to accept date/time filter params
-// and pass them to the GraphQL query when API integration is complete.
+// =============================================================================
+// Flex service (GTFS-Flex / DRT) GraphQL integration
 // See: https://github.com/interline-io/transitland-lib/pull/527
+// =============================================================================
+//
+// Flex areas are fetched via GraphQL in fetchFlexAreas():
+// - Queries Location type for each feed version
+// - Filters by date via StopTimeFilter.date on Location.stop_times
+// - Transforms Location -> FlexAreaFeature in BFF before streaming
+// - Frontend applies user filters (advance notice, area type, color mode)
+//
+// GraphQL types used:
+// - Location: flex service areas (polygons from locations.geojson)
+// - FlexStopTime: stop times with pickup/dropoff types and booking rules
+// - BookingRule: booking_type (0=real-time, 1=same-day, 2=prior-day)
+//
 
 /**
  * Scenario results
@@ -352,6 +345,7 @@ export class ScenarioFetcher {
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
+  private feedVersions: FeedVersion[] = []
 
   constructor (
     config: ScenarioConfig,
@@ -399,12 +393,12 @@ export class ScenarioFetcher {
   // Start the scenario fetching process
   private async fetchMain () {
     // FIRST STAGE: Fetch active feed versions in the area
-    const feedVersions = await this.fetchFeedVersions()
-    console.log(`Found ${feedVersions.length} feed versions`)
-    for (const fv of feedVersions) {
+    this.feedVersions = await this.fetchFeedVersions()
+    console.log(`Found ${this.feedVersions.length} feed versions`)
+    for (const fv of this.feedVersions) {
       console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
     }
-    for (const fv of feedVersions) {
+    for (const fv of this.feedVersions) {
       this.stopFetchQueue.enqueueOne({
         after: 0,
         feedOnestopId: fv.feed.onestop_id,
@@ -431,50 +425,77 @@ export class ScenarioFetcher {
   }
 
   /**
-   * Fetch flex service areas (GTFS-Flex / DRT)
+   * Fetch flex service areas (GTFS-Flex / DRT) via GraphQL
    *
-   * TEMPORARY: Loads from static GeoJSON file via URL
-   * TODO: Replace with GraphQL query when transitland-server resolvers are ready
-   *       Query should accept bbox, date range, and other filters
-   *       See: https://github.com/interline-io/transitland-lib/pull/527
+   * Queries locations for each feed version, filters out those without
+   * active service on the selected date, and transforms to FlexAreaFeature format.
    */
   private async fetchFlexAreas (): Promise<void> {
-    const flexUrl = this.config.flexAreasUrl
-    if (!flexUrl) {
-      console.log('[FlexAreas] No flexAreasUrl configured, skipping flex area fetch')
+    if (this.feedVersions.length === 0) {
+      console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
       return
     }
 
     this.updateProgress('flex-areas', true)
-    console.log(`[FlexAreas] Fetching flex areas from ${flexUrl}`)
+    console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
 
-    try {
-      const response = await fetch(flexUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch flex areas: ${response.status} ${response.statusText}`)
+    // Use the start date for filtering stop_times
+    // Format as YYYY-MM-DD for the GraphQL Date scalar
+    const queryDate = this.config.startDate
+      ? format(this.config.startDate, 'yyyy-MM-dd')
+      : format(new Date(), 'yyyy-MM-dd')
+
+    let totalLocations = 0
+    let totalFlexAreas = 0
+
+    // Query locations for each feed version
+    for (const fv of this.feedVersions) {
+      try {
+        const variables = {
+          fvSha1: fv.sha1,
+          limit: 1000, // TODO: Add pagination for large datasets
+          date: queryDate,
+        }
+
+        console.log(`[FlexAreas] Querying locations for ${fv.feed.onestop_id} (${fv.sha1}) on ${queryDate}`)
+        const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
+
+        const feedVersionData = response.data?.feed_versions?.[0]
+        if (!feedVersionData) {
+          console.log(`[FlexAreas] No data returned for ${fv.feed.onestop_id}`)
+          continue
+        }
+
+        const locations = feedVersionData.locations || []
+        totalLocations += locations.length
+        console.log(`[FlexAreas] Found ${locations.length} locations in ${fv.feed.onestop_id}`)
+
+        // Transform locations to FlexAreaFeatures
+        // This also filters out locations with no stop_times (no service on selected date)
+        const flexAreas = transformLocationsToFlexAreas(locations)
+        totalFlexAreas += flexAreas.length
+
+        if (flexAreas.length > 0) {
+          console.log(`[FlexAreas] Transformed ${flexAreas.length} flex areas from ${fv.feed.onestop_id}`)
+
+          // Stream flex areas to frontend
+          this.updateProgress('flex-areas', true, {
+            stops: [],
+            routes: [],
+            feedVersions: [],
+            stopDepartures: [],
+            flexAreas
+          })
+        } else {
+          console.log(`[FlexAreas] No active flex areas on ${queryDate} in ${fv.feed.onestop_id}`)
+        }
+      } catch (error) {
+        console.error(`[FlexAreas] Error fetching locations for ${fv.feed.onestop_id}:`, error)
+        // Continue with other feed versions even if one fails
       }
-
-      const data = await response.json()
-      const flexAreas: FlexAreaFeature[] = data.features || []
-      console.log(`[FlexAreas] Loaded ${flexAreas.length} flex areas`)
-
-      // TODO: When GraphQL API is ready, filtering will happen server-side
-      // For now with static data, we send all features and filter client-side
-      // Future: Apply bbox, date range, and time-of-day filters here
-
-      // Send flex areas as progress update
-      this.updateProgress('flex-areas', true, {
-        stops: [],
-        routes: [],
-        feedVersions: [],
-        stopDepartures: [],
-        flexAreas
-      })
-    } catch (error) {
-      console.error('[FlexAreas] Error fetching flex areas:', error)
-      // Don't fail the whole scenario if flex fails - just log and continue
-      this.callbacks.onError?.(error)
     }
+
+    console.log(`[FlexAreas] Complete: ${totalFlexAreas} flex areas from ${totalLocations} locations`)
   }
 
   // Fetch active feed versions in the specified area

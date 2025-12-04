@@ -3,18 +3,12 @@
  * Uses new ScenarioDataSender class for streaming implementation
  */
 
-import { createError, getRequestURL } from 'h3'
+import { createError } from 'h3'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~~/src/scenario'
 import { runScenarioFetcher } from '~~/src/scenario'
 import { BasicGraphQLClient } from '~~/src/core'
-
-/**
- * TEMPORARY: Static flex areas GeoJSON file path
- * TODO: Remove when transitland-server GraphQL resolvers for GTFS-Flex are ready
- */
-const FLEX_AREAS_GEOJSON_PATH = '/wsdot-all-flex-areas.geojson'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -26,13 +20,6 @@ export default defineEventHandler(async (event) => {
       statusCode: 400,
       statusMessage: 'Either bbox or geographyIds must be provided'
     })
-  }
-
-  // If flex areas are requested, construct the URL to the static GeoJSON
-  // TEMPORARY: This will be replaced with GraphQL query when API is ready
-  if (config.includeFlexAreas && !config.flexAreasUrl) {
-    const requestUrl = getRequestURL(event)
-    config.flexAreasUrl = `${requestUrl.origin}${FLEX_AREAS_GEOJSON_PATH}`
   }
 
   // Set streaming headers
