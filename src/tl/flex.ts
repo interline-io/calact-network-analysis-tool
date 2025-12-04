@@ -4,7 +4,8 @@ import type {
   FlexAreaProperties,
   FlexAgency,
   FlexRoute,
-  FlexBookingRule
+  FlexBookingRule,
+  FlexBookingDays
 } from '~~/src/flex'
 
 //////////
@@ -47,6 +48,16 @@ query FlexLocations($fvSha1: String!, $limit: Int, $date: Date) {
           phone_number
           info_url
           booking_url
+          prior_notice_service {
+            service_id
+            monday
+            tuesday
+            wednesday
+            thursday
+            friday
+            saturday
+            sunday
+          }
         }
         drop_off_booking_rule {
           id
@@ -62,6 +73,16 @@ query FlexLocations($fvSha1: String!, $limit: Int, $date: Date) {
           phone_number
           info_url
           booking_url
+          prior_notice_service {
+            service_id
+            monday
+            tuesday
+            wednesday
+            thursday
+            friday
+            saturday
+            sunday
+          }
         }
         trip {
           trip_id
@@ -89,6 +110,17 @@ query FlexLocations($fvSha1: String!, $limit: Int, $date: Date) {
 // GraphQL Response Types
 //////////
 
+export interface FlexBookingServiceGql {
+  service_id: string
+  monday: number
+  tuesday: number
+  wednesday: number
+  thursday: number
+  friday: number
+  saturday: number
+  sunday: number
+}
+
 export interface FlexBookingRuleGql {
   id: number
   booking_rule_id: string
@@ -96,20 +128,22 @@ export interface FlexBookingRuleGql {
   prior_notice_duration_min?: number
   prior_notice_duration_max?: number
   prior_notice_last_day?: number
-  prior_notice_last_time?: number // seconds
+  prior_notice_last_time?: string // GraphQL Seconds scalar returns HH:MM:SS
   message?: string
   pickup_message?: string
   drop_off_message?: string
   phone_number?: string
   info_url?: string
   booking_url?: string
+  prior_notice_service?: FlexBookingServiceGql
 }
 
 export interface FlexStopTimeGql {
   pickup_type: number
   drop_off_type: number
-  start_pickup_drop_off_window?: number // seconds
-  end_pickup_drop_off_window?: number // seconds
+  // GraphQL Seconds scalar returns HH:MM:SS string format
+  start_pickup_drop_off_window?: string
+  end_pickup_drop_off_window?: string
   pickup_booking_rule?: FlexBookingRuleGql
   drop_off_booking_rule?: FlexBookingRuleGql
   trip: {
@@ -158,13 +192,31 @@ export interface FlexLocationQueryResponse {
 //////////
 
 /**
- * Format seconds as HH:MM:SS
+ * Parse HH:MM:SS string to seconds
  */
-function formatSeconds (seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':')
+function parseHMS (hms: string): number {
+  const parts = hms.split(':')
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return 0
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  const s = parseInt(parts[2], 10)
+  if (isNaN(h) || isNaN(m) || isNaN(s)) return 0
+  return h * 3600 + m * 60 + s
+}
+
+/**
+ * Transform a GraphQL BookingService to FlexBookingDays
+ */
+function transformBookingService (service: FlexBookingServiceGql): FlexBookingDays {
+  return {
+    monday: service.monday === 1,
+    tuesday: service.tuesday === 1,
+    wednesday: service.wednesday === 1,
+    thursday: service.thursday === 1,
+    friday: service.friday === 1,
+    saturday: service.saturday === 1,
+    sunday: service.sunday === 1,
+  }
 }
 
 /**
@@ -177,11 +229,32 @@ function transformBookingRule (rule: FlexBookingRuleGql): FlexBookingRule {
     message: rule.message,
     phone_number: rule.phone_number,
     info_url: rule.info_url,
+    booking_url: rule.booking_url,
     prior_notice_last_day: rule.prior_notice_last_day,
-    prior_notice_last_time: rule.prior_notice_last_time,
-    prior_notice_last_time_formatted: rule.prior_notice_last_time
-      ? formatSeconds(rule.prior_notice_last_time)
+    // GraphQL Seconds scalar returns HH:MM:SS string, so use it directly
+    prior_notice_last_time: rule.prior_notice_last_time ? parseHMS(rule.prior_notice_last_time) : undefined,
+    prior_notice_last_time_formatted: rule.prior_notice_last_time,
+    booking_days: rule.prior_notice_service
+      ? transformBookingService(rule.prior_notice_service)
       : undefined,
+  }
+}
+
+/**
+ * Merge multiple booking days - if any rule allows booking on a day, that day is available
+ */
+function mergeBookingDays (days: (FlexBookingDays | undefined)[]): FlexBookingDays | undefined {
+  const validDays = days.filter((d): d is FlexBookingDays => d !== undefined)
+  if (validDays.length === 0) return undefined
+
+  return {
+    monday: validDays.some(d => d.monday),
+    tuesday: validDays.some(d => d.tuesday),
+    wednesday: validDays.some(d => d.wednesday),
+    thursday: validDays.some(d => d.thursday),
+    friday: validDays.some(d => d.friday),
+    saturday: validDays.some(d => d.saturday),
+    sunday: validDays.some(d => d.sunday),
   }
 }
 
@@ -257,23 +330,34 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
   }
 
   // Aggregate time windows (find min start and max end)
-  let timeWindowStart: number | undefined
-  let timeWindowEnd: number | undefined
+  // GraphQL returns Seconds as HH:MM:SS strings, which sort lexicographically correctly
+  let timeWindowStartStr: string | undefined
+  let timeWindowEndStr: string | undefined
   for (const st of stopTimes) {
-    if (st.start_pickup_drop_off_window !== undefined) {
-      if (timeWindowStart === undefined || st.start_pickup_drop_off_window < timeWindowStart) {
-        timeWindowStart = st.start_pickup_drop_off_window
+    if (st.start_pickup_drop_off_window) {
+      if (timeWindowStartStr === undefined || st.start_pickup_drop_off_window < timeWindowStartStr) {
+        timeWindowStartStr = st.start_pickup_drop_off_window
       }
     }
-    if (st.end_pickup_drop_off_window !== undefined) {
-      if (timeWindowEnd === undefined || st.end_pickup_drop_off_window > timeWindowEnd) {
-        timeWindowEnd = st.end_pickup_drop_off_window
+    if (st.end_pickup_drop_off_window) {
+      if (timeWindowEndStr === undefined || st.end_pickup_drop_off_window > timeWindowEndStr) {
+        timeWindowEndStr = st.end_pickup_drop_off_window
       }
     }
   }
+  // Convert to seconds for numeric comparisons (e.g., time filtering)
+  const timeWindowStart = timeWindowStartStr ? parseHMS(timeWindowStartStr) : undefined
+  const timeWindowEnd = timeWindowEndStr ? parseHMS(timeWindowEndStr) : undefined
 
   // Collect unique trip IDs
   const tripIds = [...new Set(stopTimes.map(st => st.trip.trip_id))]
+
+  // Aggregate booking days from all rules
+  const allBookingDays = [
+    ...[...pickupBookingRuleMap.values()].map(r => r.booking_days),
+    ...[...dropOffBookingRuleMap.values()].map(r => r.booking_days),
+  ]
+  const mergedBookingDays = mergeBookingDays(allBookingDays)
 
   // Build properties
   const properties: FlexAreaProperties = {
@@ -302,20 +386,23 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     drop_off_booking_rule_ids: [...dropOffBookingRuleMap.keys()],
     drop_off_booking_rules: [...dropOffBookingRuleMap.values()],
 
-    // Time windows
+    // Time windows (stored as seconds for filtering, formatted strings for display)
     time_window_start: timeWindowStart,
-    time_window_start_formatted: timeWindowStart !== undefined
-      ? formatSeconds(timeWindowStart)
-      : undefined,
+    time_window_start_formatted: timeWindowStartStr,
     time_window_end: timeWindowEnd,
-    time_window_end_formatted: timeWindowEnd !== undefined
-      ? formatSeconds(timeWindowEnd)
-      : undefined,
+    time_window_end_formatted: timeWindowEndStr,
 
     // Trip/schedule information
     trip_ids: tripIds,
     trip_count: tripIds.length,
     stop_time_count: stopTimes.length,
+
+    // Booking availability by day of week
+    booking_days: mergedBookingDays,
+
+    // Additional metadata (for CSV export)
+    zone_id: location.zone_id,
+    feed_onestop_id: location.feed_onestop_id,
   }
 
   return {

@@ -56,6 +56,20 @@ export interface FlexRoute {
 }
 
 /**
+ * Days of week when booking is available
+ * Values are 0 (not available) or 1 (available)
+ */
+export interface FlexBookingDays {
+  monday: boolean
+  tuesday: boolean
+  wednesday: boolean
+  thursday: boolean
+  friday: boolean
+  saturday: boolean
+  sunday: boolean
+}
+
+/**
  * Booking rule information from GTFS-Flex booking_rules.txt
  */
 export interface FlexBookingRule {
@@ -68,11 +82,17 @@ export interface FlexBookingRule {
    */
   booking_type: number
   info_url?: string
+  booking_url?: string
   message?: string
   phone_number?: string
   prior_notice_last_day?: number
   prior_notice_last_time?: number
   prior_notice_last_time_formatted?: string
+  /**
+   * Days of week when booking is available
+   * Derived from prior_notice_service calendar
+   */
+  booking_days?: FlexBookingDays
 }
 
 /**
@@ -115,6 +135,14 @@ export interface FlexAreaProperties {
   trip_ids?: string[]
   trip_count?: number
   stop_time_count?: number
+
+  // Booking availability by day of week (aggregated from all booking rules)
+  // If any booking rule allows booking on a day, that day is true
+  booking_days?: FlexBookingDays
+
+  // Additional metadata (for CSV export)
+  zone_id?: string
+  feed_onestop_id?: string
 }
 
 /**
@@ -232,4 +260,74 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
  */
 export function getFlexAgencyNames (feature: FlexAreaFeature): string[] {
   return feature.properties.agencies?.map(a => a.agency_name) || []
+}
+
+/**
+ * Day of week names matching JavaScript Date.getDay() values
+ * Sunday = 0, Monday = 1, ..., Saturday = 6
+ */
+const DAY_KEYS: (keyof FlexBookingDays)[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
+]
+
+/**
+ * Check if booking is available on a specific day of week
+ * @param feature - Flex area feature
+ * @param dayOfWeek - Day of week (0 = Sunday, 6 = Saturday) - matches Date.getDay()
+ * @returns true if booking is available, false otherwise
+ */
+export function isBookingAvailableOnDay (feature: FlexAreaFeature, dayOfWeek: number): boolean {
+  const bookingDays = feature.properties.booking_days
+  // If no booking_days info, assume booking is always available
+  if (!bookingDays) return true
+
+  // Ensure dayOfWeek is valid (0-6)
+  if (dayOfWeek < 0 || dayOfWeek > 6) return true
+
+  const dayKey = DAY_KEYS[dayOfWeek] as keyof FlexBookingDays
+  return bookingDays[dayKey]
+}
+
+/**
+ * Check if booking is available today
+ * @param feature - Flex area feature
+ * @returns true if booking is available today
+ */
+export function isBookingAvailableToday (feature: FlexAreaFeature): boolean {
+  return isBookingAvailableOnDay(feature, new Date().getDay())
+}
+
+/**
+ * Get a human-readable string of booking days
+ * @param bookingDays - Booking days object
+ * @returns String like "Mon-Fri" or "Mon, Wed, Fri"
+ */
+export function formatBookingDays (bookingDays: FlexBookingDays | undefined): string {
+  if (!bookingDays) return 'Any day'
+
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const available = [
+    bookingDays.monday,
+    bookingDays.tuesday,
+    bookingDays.wednesday,
+    bookingDays.thursday,
+    bookingDays.friday,
+    bookingDays.saturday,
+    bookingDays.sunday
+  ]
+
+  // Check for common patterns
+  const weekdays = available.slice(0, 5).every(d => d) && !available[5] && !available[6]
+  const everyday = available.every(d => d)
+  const weekend = !available.slice(0, 5).some(d => d) && available[5] && available[6]
+
+  if (everyday) return 'Any day'
+  if (weekdays) return 'Mon-Fri'
+  if (weekend) return 'Sat-Sun'
+
+  // Check for consecutive ranges
+  const activeDays = days.filter((_, i) => available[i])
+  if (activeDays.length === 0) return 'No days'
+
+  return activeDays.join(', ')
 }

@@ -689,7 +689,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           <div><strong>Agency:</strong> ${fp.agency_name || fp.agency_names || 'Unknown'}</div>
           <div><strong>Routes:</strong> ${fp.route_names || 'Unknown'}</div>
           <div><strong>Service:</strong> ${areaType}</div>
-          <div><strong>Booking:</strong> ${advanceNotice}</div>
+          <div><strong>Advance Notice:</strong> ${advanceNotice}</div>
           ${fp.phone_number ? `<div><strong>Phone:</strong> ${fp.phone_number}</div>` : ''}
         </div>`
     }
