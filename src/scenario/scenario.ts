@@ -52,8 +52,13 @@ export interface ScenarioConfig {
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
   /**
+   * Whether to fetch fixed-route transit data (stops, routes, departures)
+   * Defaults to true
+   */
+  includeFixedRoute?: boolean
+  /**
    * Whether to fetch flex service areas
-   * When true, flex areas will be loaded and included in the scenario data
+   * Defaults to true
    */
   includeFlexAreas?: boolean
 }
@@ -398,25 +403,37 @@ export class ScenarioFetcher {
     for (const fv of this.feedVersions) {
       console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
     }
-    for (const fv of this.feedVersions) {
-      this.stopFetchQueue.enqueueOne({
-        after: 0,
-        feedOnestopId: fv.feed.onestop_id,
-        feedVersionSha1: fv.sha1
-      })
+
+    // Fetch fixed-route transit data if enabled (default: true)
+    const includeFixedRoute = this.config.includeFixedRoute !== false
+    console.log(`[Scenario] includeFixedRoute = ${includeFixedRoute}`)
+    if (includeFixedRoute) {
+      for (const fv of this.feedVersions) {
+        this.stopFetchQueue.enqueueOne({
+          after: 0,
+          feedOnestopId: fv.feed.onestop_id,
+          feedVersionSha1: fv.sha1
+        })
+      }
+
+      // Wait for all stop fetching to complete
+      this.stopFetchQueue.run()
+      this.routeFetchQueue.run()
+      this.stopDepartureQueue.run()
+      await this.stopFetchQueue.wait()
+      await this.routeFetchQueue.wait()
+      await this.stopDepartureQueue.wait()
+    } else {
+      console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
-    // Wait for all stop fetching to complete
-    this.stopFetchQueue.run()
-    this.routeFetchQueue.run()
-    this.stopDepartureQueue.run()
-    await this.stopFetchQueue.wait()
-    await this.routeFetchQueue.wait()
-    await this.stopDepartureQueue.wait()
-
-    // Fetch flex service areas if enabled
-    if (this.config.includeFlexAreas) {
+    // Fetch flex service areas if enabled (default: true)
+    const includeFlexAreas = this.config.includeFlexAreas !== false
+    console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
+    if (includeFlexAreas) {
       await this.fetchFlexAreas()
+    } else {
+      console.log('[Scenario] Skipping flex areas (not enabled)')
     }
 
     // Done - send completion progress event (client will handle onComplete)

@@ -77,6 +77,8 @@
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:include-fixed-route="includeFixedRoute"
+            v-model:include-flex-areas="includeFlexAreas"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -203,7 +205,7 @@ import {
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 import type { FlexAdvanceNotice, FlexAreaType } from '~~/src/flex'
 
@@ -356,6 +358,28 @@ const aggregateLayer = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, aggregateLayer: v })
+  }
+})
+
+// Data loading toggles (Query tab > Advanced Settings)
+// These control what data is fetched from the API
+const includeFixedRoute = computed({
+  get () {
+    // Default to true (on) if not specified
+    return route.query.includeFixedRoute?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, includeFixedRoute: v ? '' : 'false' })
+  }
+})
+
+const includeFlexAreas = computed({
+  get () {
+    // Default to true (on) if not specified
+    return route.query.includeFlexAreas?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, includeFlexAreas: v ? '' : 'false' })
   }
 })
 
@@ -849,9 +873,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
-  // Include flex areas when flex services toggle is enabled
-  // The server will fetch from static GeoJSON (TODO: GraphQL when ready)
-  includeFlexAreas: flexServicesEnabled.value,
+  // Data loading toggles from Query tab > Advanced Settings
+  includeFixedRoute: includeFixedRoute.value,
+  includeFlexAreas: includeFlexAreas.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({

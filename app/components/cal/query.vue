@@ -139,6 +139,25 @@
         >
           <div class="message-body">
             <div class="container is-max-tablet">
+              <p class="menu-label">
+                Data to load
+              </p>
+              <o-field>
+                <o-checkbox
+                  v-model="includeFixedRoute"
+                  label="Include Fixed-Route Transit"
+                />
+              </o-field>
+              <o-field>
+                <o-checkbox
+                  v-model="includeFlexAreas"
+                  label="Include Flex Service Areas"
+                />
+              </o-field>
+
+              <p class="menu-label mt-4">
+                Aggregation
+              </p>
               <o-field>
                 <template #label>
                   <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
@@ -195,6 +214,8 @@ const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
+const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
+const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const debugMenu = useDebugMenu()
