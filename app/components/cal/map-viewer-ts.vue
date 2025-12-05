@@ -206,15 +206,31 @@ function createLayers () {
       'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.25],
     }
   })
+  // Solid outline layer for marked features
   map?.addLayer({
-    id: 'flex-polygons-outline',
+    id: 'flex-polygons-outline-solid',
     type: 'line',
     source: 'flexPolygons',
+    filter: ['==', ['get', 'marked'], true],
     layout: {},
     paint: {
       'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
       'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
       'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.8],
+    }
+  })
+  // Dashed outline layer for unmarked features
+  map?.addLayer({
+    id: 'flex-polygons-outline-dashed',
+    type: 'line',
+    source: 'flexPolygons',
+    filter: ['==', ['get', 'marked'], false],
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.8],
+      'line-dasharray': [4, 4],
     }
   })
 
@@ -507,7 +523,7 @@ function drawMarkers (markers: MarkerFeature[]) {
 
 function mapClick (e: maplibre.MapMouseEvent) {
   // Query all existing layers for click detection
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline', 'flex-polygons-outline-dashed']
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) return
@@ -528,7 +544,7 @@ function mapMove () {
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {
   // Query all existing layers for hover detection
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline', 'flex-polygons-outline-dashed']
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) return

@@ -729,43 +729,48 @@ const flexDisplayFeatures = computed((): Feature[] => {
       // Unmarked: no fill, dashed outline, reduced opacity
       const fillOpacity = marked ? 0.3 : 0
       const strokeOpacity = marked ? 0.8 : 0.4
-      const strokeDasharray = marked ? undefined : '4,4'
+
+      const properties: Record<string, any> = {
+        'location_id': feature.properties.location_id,
+        'location_name': feature.properties.location_name,
+        'agency_name': getFlexAgencyName(feature),
+        'agency_names': feature.properties.agencies?.map((a: { agency_name: string }) => a.agency_name).join(', '),
+        'route_names': feature.properties.routes?.map((r: { route_long_name?: string, route_short_name?: string }) => r.route_long_name || r.route_short_name).join(', '),
+        'area_type': getFlexAreaType(feature),
+        'time_window_start_formatted': feature.properties.time_window_start_formatted,
+        'time_window_end_formatted': feature.properties.time_window_end_formatted,
+        'advance_notice': getFlexAdvanceNotice(feature),
+        'phone_number': bookingRule?.phone_number,
+        'booking_message': bookingRule?.message,
+        'info_url': bookingRule?.info_url,
+        'booking_url': feature.properties.pickup_booking_rules?.[0]?.booking_url
+          || feature.properties.drop_off_booking_rules?.[0]?.booking_url,
+        'trip_count': feature.properties.trip_count,
+        // Additional fields for CSV export (not shown in UI table)
+        'zone_id': feature.properties.zone_id,
+        'feed_onestop_id': feature.properties.feed_onestop_id,
+        'prior_notice_last_day': bookingRule?.prior_notice_last_day,
+        'prior_notice_last_time': bookingRule?.prior_notice_last_time_formatted,
+        'booking_instructions': bookingRule?.message,
+        'marked': marked,
+        // Custom styling for marked/unmarked
+        'fill': color,
+        'fill-opacity': fillOpacity,
+        'stroke': color,
+        'stroke-width': 2,
+        'stroke-opacity': strokeOpacity,
+      }
+
+      // Only set stroke-dasharray for unmarked features (dashed outline)
+      if (!marked) {
+        properties['stroke-dasharray'] = true
+      }
 
       return {
         type: 'Feature',
         id: feature.id,
         geometry: feature.geometry,
-        properties: {
-          'location_id': feature.properties.location_id,
-          'location_name': feature.properties.location_name,
-          'agency_name': getFlexAgencyName(feature),
-          'agency_names': feature.properties.agencies?.map((a: { agency_name: string }) => a.agency_name).join(', '),
-          'route_names': feature.properties.routes?.map((r: { route_long_name?: string, route_short_name?: string }) => r.route_long_name || r.route_short_name).join(', '),
-          'area_type': getFlexAreaType(feature),
-          'time_window_start_formatted': feature.properties.time_window_start_formatted,
-          'time_window_end_formatted': feature.properties.time_window_end_formatted,
-          'advance_notice': getFlexAdvanceNotice(feature),
-          'phone_number': bookingRule?.phone_number,
-          'booking_message': bookingRule?.message,
-          'info_url': bookingRule?.info_url,
-          'booking_url': feature.properties.pickup_booking_rules?.[0]?.booking_url
-            || feature.properties.drop_off_booking_rules?.[0]?.booking_url,
-          'trip_count': feature.properties.trip_count,
-          // Additional fields for CSV export (not shown in UI table)
-          'zone_id': feature.properties.zone_id,
-          'feed_onestop_id': feature.properties.feed_onestop_id,
-          'prior_notice_last_day': bookingRule?.prior_notice_last_day,
-          'prior_notice_last_time': bookingRule?.prior_notice_last_time_formatted,
-          'booking_instructions': bookingRule?.message,
-          'marked': marked,
-          // Custom styling for marked/unmarked
-          'fill': color,
-          'fill-opacity': fillOpacity,
-          'stroke': color,
-          'stroke-width': 2,
-          'stroke-opacity': strokeOpacity,
-          'stroke-dasharray': strokeDasharray,
-        }
+        properties
       } as Feature
     })
 })
