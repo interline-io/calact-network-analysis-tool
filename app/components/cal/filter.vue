@@ -483,20 +483,19 @@
       <!-- DATA DISPLAY -->
       <div v-if="activeTab === 'data-display'">
         <aside class="menu">
-          <p
-            v-for="dataDisplayModeOption of dataDisplayModes"
-            :key="dataDisplayModeOption"
-            class="menu-label"
-          >
-            {{ dataDisplayModeOption }}
-
-            <o-radio
-              v-model="dataDisplayMode"
-              :native-value="dataDisplayModeOption"
+          <ul>
+            <li
+              v-for="dataDisplayModeOption of dataDisplayModes"
+              :key="dataDisplayModeOption"
             >
-              {{ dataDisplayModeOption }}
-            </o-radio>
-          </p>
+              <o-radio
+                v-model="dataDisplayMode"
+                :native-value="dataDisplayModeOption"
+              >
+                {{ dataDisplayModeOption }}
+              </o-radio>
+            </li>
+          </ul>
           <p class="menu-label">
             Display map elements by:
           </p>
