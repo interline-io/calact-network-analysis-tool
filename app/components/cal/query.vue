@@ -139,17 +139,48 @@
         >
           <div class="message-body">
             <div class="container is-max-tablet">
-              <o-field>
-                <template #label>
-                  <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                    Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
-                  </o-tooltip>
-                </template>
-                <o-select
-                  v-model="aggregateLayer"
-                  :options="censusGeographyLayerOptions"
-                />
-              </o-field>
+              <!-- Data to Load Section -->
+              <div class="mb-5">
+                <p class="has-text-weight-semibold is-size-6 mb-3">
+                  Data to Load
+                </p>
+                <div class="pl-3">
+                  <o-field class="mb-2">
+                    <o-checkbox
+                      v-model="includeFixedRoute"
+                      label="Include Fixed-Route Transit"
+                    />
+                  </o-field>
+                  <o-field class="mb-0">
+                    <o-checkbox
+                      v-model="includeFlexAreas"
+                      label="Include Flex Service Areas"
+                    />
+                  </o-field>
+                </div>
+              </div>
+
+              <!-- Aggregation Section -->
+              <div>
+                <p class="has-text-weight-semibold is-size-6 mb-3">
+                  Aggregation
+                </p>
+                <div class="pl-3">
+                  <o-field>
+                    <template #label>
+                      <span class="has-text-weight-normal">
+                        <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                          Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
+                        </o-tooltip>
+                      </span>
+                    </template>
+                    <o-select
+                      v-model="aggregateLayer"
+                      :options="censusGeographyLayerOptions"
+                    />
+                  </o-field>
+                </div>
+              </div>
             </div>
           </div>
         </o-collapse>
@@ -195,6 +226,8 @@ const bbox = defineModel<Bbox>('bbox', { default: null })
 const geographyIds = defineModel<number[]>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
+const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
+const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: null })
 const debugMenu = useDebugMenu()

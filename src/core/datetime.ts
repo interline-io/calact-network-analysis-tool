@@ -52,6 +52,16 @@ export function parseHMS (value: string): number {
 }
 
 /**
+ * Convert a Date object (representing a time) to seconds since midnight
+ * @param time - Date object representing a time of day
+ * @returns Seconds since midnight (0-86399)
+ */
+export function dateToSeconds (time: Date | undefined): number {
+  if (!time) return 0
+  return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
+}
+
+/**
  * Get current date in YYYY-MM-DD format
  */
 export function getCurrentDate (): string {

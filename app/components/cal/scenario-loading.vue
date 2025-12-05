@@ -31,10 +31,10 @@
     </div>
 
     <!-- Results Display -->
-    <div class="columns">
-      <div class="column is-one-third">
+    <div class="columns is-multiline">
+      <div class="column is-one-quarter">
         <tl-msg-info title="Stops" no-icon>
-          <p><strong>{{ scenarioData?.stops.length }}</strong> loaded</p>
+          <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
             <div v-for="stop in scenarioData?.stops.slice(0, 5)" :key="stop.id" class="stop-item">
               {{ stop.stop_name }}
@@ -45,9 +45,9 @@
           </div>
         </tl-msg-info>
       </div>
-      <div class="column is-one-third">
+      <div class="column is-one-quarter">
         <tl-msg-info title="Routes" no-icon>
-          <p><strong>{{ scenarioData?.routes.length }}</strong> loaded</p>
+          <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
             <div v-for="route in scenarioData?.routes.slice(0, 5)" :key="route.id" class="route-item">
               {{ route.route_short_name || route.route_long_name }}
@@ -58,9 +58,22 @@
           </div>
         </tl-msg-info>
       </div>
-      <div class="column is-one-third">
+      <div class="column is-one-quarter">
         <tl-msg-info title="Departures" no-icon>
           <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
+        </tl-msg-info>
+      </div>
+      <div class="column is-one-quarter">
+        <tl-msg-info title="Flex Areas" no-icon>
+          <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
+          <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
+            <div v-for="area in scenarioData?.flexAreas.slice(0, 5)" :key="area.id" class="flex-item">
+              {{ area.properties.location_name || area.properties.location_id }}
+            </div>
+            <div v-if="scenarioData?.flexAreas.length > 5" class="more-label">
+              ... and {{ scenarioData.flexAreas.length - 5 }} more
+            </div>
+          </div>
         </tl-msg-info>
       </div>
     </div>
@@ -109,6 +122,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
     'schedules': 'Loading schedules...',
+    'flex-areas': 'Loading flex service areas...',
     'complete': 'Complete',
     'ready': 'Ready',
   }
@@ -148,11 +162,11 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   margin: 0;
 }
 
-.stop-list, .route-list {
+.stop-list, .route-list, .flex-list {
   margin-top: 0.5rem;
 }
 
-.stop-item, .route-item {
+.stop-item, .route-item, .flex-item {
   font-size: 0.85rem;
   color: #6c757d;
   margin-bottom: 0.2rem;

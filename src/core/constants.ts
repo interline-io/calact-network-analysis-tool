@@ -49,6 +49,11 @@ export const routeTypeNames = new Map<RouteType, string>([
   [RouteType.Ferry, 'Ferry'],
 ])
 
+/**
+ * Legacy color array for backward compatibility
+ * For new code, prefer using categoricalColors from colors.ts
+ * which uses d3-scale-chromatic for better color schemes
+ */
 export const colors = [
   '#e41a1c', // red
   '#ff7f00', // orange
@@ -102,3 +107,70 @@ export const baseMapStyles = [
   { name: 'Streets', icon: 'map-search', available: true },
   { name: 'Satellite', icon: 'satellite', available: false },
 ] as const
+
+// Flex Services (DRT/Demand-Responsive Transit) constants
+// Maps to GTFS-Flex extension fields from booking_rules.txt, stop_times.txt, and locations.geojson
+// See: https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md
+// TODO: Connect to transitland-server GraphQL resolvers when implemented
+// Related PR: https://github.com/interline-io/transitland-lib/pull/527
+
+/**
+ * Advance notice categories for flex/DRT services.
+ * Maps to booking_rules.booking_type field in GTFS-Flex:
+ *   0 = Real time booking (On-Demand)
+ *   1 = Up to same-day booking with advance notice (Same Day)
+ *   2 = Up to prior day(s) booking (More than 24 hours)
+ */
+export const flexAdvanceNoticeTypes = [
+  'On-demand', // booking_type = 0: Real time booking
+  'Same day', // booking_type = 1: Up to same-day booking with advance notice
+  'More than 24 hours', // booking_type = 2: Up to prior day(s) booking
+] as const
+
+export type FlexAdvanceNoticeType = typeof flexAdvanceNoticeTypes[number]
+
+/**
+ * Maps advance notice UI labels to GTFS-Flex booking_type values
+ */
+export const flexAdvanceNoticeToBookingType: Record<FlexAdvanceNoticeType, number> = {
+  'On-demand': 0,
+  'Same day': 1,
+  'More than 24 hours': 2,
+}
+
+/**
+ * Pickup/Dropoff area types for flex services.
+ * Based on pickup_type and drop_off_type fields in stop_times.txt:
+ *
+ * pickup_type/drop_off_type values in GTFS-Flex:
+ *   0 = Regularly scheduled (not flex)
+ *   1 = Not available
+ *   2 = Must coordinate with driver/operator (flex service)
+ *   3 = Must coordinate with driver (rare)
+ *
+ * Filter logic:
+ *   - PU only: pickup_type = 2, drop_off_type = 1 (for all instances of location_id)
+ *   - DO only: pickup_type = 1, drop_off_type = 2
+ *   - PU and DO: Areas where both pickup and dropoff are available within the area.
+ *     This includes entries where pickup_type = 2 AND drop_off_type = 2,
+ *     or multiple entries for the same location_id with mixed types.
+ */
+export const flexAreaTypes = [
+  'PU only', // Only pickups available (pickup_type=2, drop_off_type=1)
+  'DO only', // Only dropoffs available (pickup_type=1, drop_off_type=2)
+  'PU and DO', // Both pickup and dropoff available within area
+] as const
+
+export type FlexAreaType = typeof flexAreaTypes[number]
+
+/**
+ * Color/styling modes for flex service areas on the map
+ */
+export const flexColorByModes = [
+  'Agency', // Color areas by operating agency
+  'Advance notice', // Color areas by booking_type category
+  // TODO: Future feature - add 'Service Quality' option using
+  // safe_duration_factor and safe_duration_offset for heatmap styling
+] as const
+
+export type FlexColorByMode = typeof flexColorByModes[number]
