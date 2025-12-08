@@ -66,7 +66,7 @@
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Flex area"
+              native-value="area"
               label="Area"
             />
           </o-field>
@@ -148,10 +148,10 @@ const props = defineProps<{
 /**
  * Features to export as GeoJSON based on current view mode
  * - Fixed-route modes use exportFeatures from parent (map component)
- * - Flex area mode uses flexDisplayFeatures
+ * - Area mode (dataDisplayMode='area') uses flexDisplayFeatures
  */
 const downloadFeatures = computed((): Feature[] => {
-  if (dataDisplayMode.value === 'Flex area') {
+  if (dataDisplayMode.value === 'area') {
     return props.flexDisplayFeatures || []
   }
   return props.exportFeatures || []
@@ -307,7 +307,7 @@ const reportData = computed((): TableReport => {
       data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
-  } else if (dataDisplayMode.value === 'Flex area') {
+  } else if (dataDisplayMode.value === 'area') {
     return {
       data: (props.flexDisplayFeatures || []).map(flexFeatureToCsv),
       columns: flexAreaColumns
@@ -323,7 +323,7 @@ const reportTitle = computed(() => {
     return 'stops'
   } else if (dataDisplayMode.value === 'Agency') {
     return 'agencies'
-  } else if (dataDisplayMode.value === 'Flex area') {
+  } else if (dataDisplayMode.value === 'area') {
     return 'flex service areas'
   }
   return ''
