@@ -13,7 +13,7 @@ import type {
 //////////
 
 export const flexLocationQuery = gql`
-query FlexLocations($fvSha1: String!, $limit: Int, $date: Date) {
+query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
   feed_versions(where: { sha1: $fvSha1 }) {
     id
     sha1
@@ -29,7 +29,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $date: Date) {
       zone_id
       geometry
       feed_onestop_id
-      stop_times(where: { date: $date }, limit: 1000) {
+      stop_times(where: { service_date: $serviceDate }, limit: 1000) {
         pickup_type
         drop_off_type
         start_pickup_drop_off_window

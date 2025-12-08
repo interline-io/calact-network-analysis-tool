@@ -471,7 +471,7 @@ export class ScenarioFetcher {
         const variables = {
           fvSha1: fv.sha1,
           limit: 1000, // TODO: Add pagination for large datasets
-          date: queryDate,
+          serviceDate: queryDate,
         }
 
         console.log(`[FlexAreas] Querying locations for ${fv.feed.onestop_id} (${fv.sha1}) on ${queryDate}`)
