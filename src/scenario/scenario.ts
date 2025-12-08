@@ -470,7 +470,7 @@ export class ScenarioFetcher {
       try {
         const variables = {
           fvSha1: fv.sha1,
-          limit: 1000, // TODO: Add pagination for large datasets
+          limit: 100000, // max hardcoded in tlib
           serviceDate: queryDate,
         }
 
