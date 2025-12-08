@@ -134,9 +134,6 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
-  // Flex Services (DRT) polygon source
-  // TODO: Populate with flex area polygons from GTFS-Flex locations.geojson
-  // when transitland-server GraphQL resolvers are implemented
   map?.addSource('flexPolygons', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
@@ -191,9 +188,6 @@ function createLayers () {
   })
 
   // Flex Services (DRT) polygon layers
-  // TODO: These layers will display GTFS-Flex service areas from locations.geojson
-  // Fill styling uses transparency for overlapping polygons
-  // Colors come from feature properties set by the styling logic in map.vue
   map?.addLayer({
     id: 'flex-polygons',
     type: 'fill',
@@ -310,8 +304,6 @@ function updateFeatures (features: Feature[]) {
 
 /**
  * Update flex service area polygons on the map
- * TODO: Called when flex areas are fetched from transitland-server GraphQL API
- * Features should have properties set by getFlexPolygonProperties() from colors.ts
  */
 function updateFlexFeatures (features: Feature[]) {
   if (!map) {

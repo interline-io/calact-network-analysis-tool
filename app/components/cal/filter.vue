@@ -369,12 +369,6 @@
       </div>
 
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
-      <!--
-        TODO: Integrate with transitland-server GraphQL resolvers for GTFS-Flex data
-        See GTFS spec: https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md
-        Related PR: https://github.com/interline-io/transitland-lib/pull/527
-        Flex areas are polygons from locations.geojson, linked via stop_times.txt location_id
-      -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
           <o-field class="cal-flex-toggle">
@@ -408,12 +402,6 @@
               Advance notice
             </p>
             <ul>
-              <!--
-                TODO: Filter flex areas by booking_rules.booking_type from GTFS-Flex:
-                  - On-Demand: booking_type = 0 (real time booking)
-                  - Same Day: booking_type = 1 (same-day with advance notice)
-                  - More than 24 hours: booking_type = 2 (prior day(s) booking)
-              -->
               <li
                 v-for="noticeType of flexAdvanceNoticeTypes"
                 :key="noticeType"
@@ -432,13 +420,6 @@
               Show areas that allow:
             </p>
             <ul>
-              <!--
-                TODO: Filter by pickup_type and drop_off_type in stop_times.txt:
-                  - PU only: pickup_type = 2, drop_off_type = 1
-                  - DO only: pickup_type = 1, drop_off_type = 2
-                  - PU and DO: Both available (pickup_type = 2 AND/OR drop_off_type = 2
-                    across entries for same location_id)
-              -->
               <li
                 v-for="areaType of flexAreaTypes"
                 :key="areaType"
@@ -457,12 +438,6 @@
               Color by:
             </p>
             <ul>
-              <!--
-                TODO: Apply polygon styling on MapLibre GL map:
-                  - Agency: Color each set of polygons by agency
-                  - Advance notice: Color by booking_type category
-                  - Future: Add heatmap option using safe_duration_factor/safe_duration_offset
-              -->
               <li
                 v-for="colorMode of flexColorByModes"
                 :key="colorMode"
@@ -663,8 +638,6 @@ const minFare = defineModel<number>('minFare')
 const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-// TODO: Connect these to the API/GraphQL resolvers when implemented in transitland-server
-// These filters will query GTFS-Flex data: booking_rules.booking_type, stop_times pickup_type/drop_off_type
 const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
 const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
 const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled

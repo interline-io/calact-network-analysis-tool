@@ -559,12 +559,6 @@ watch(exportFeatures, () => {
 /**
  * Flex service area features for display on the map
  * Features come pre-filtered and styled from the useFlexAreas composable in tne.vue
- *
- * Data flow:
- * 1. useFlexAreas composable loads flex areas (currently from static file, TODO: from API)
- * 2. Filters by advanceNotice and areaTypes based on user selections
- * 3. Applies styling (colors, opacity) based on colorBy mode
- * 4. Returns styled features via flexDisplayFeatures prop
  */
 const flexFeaturesForMap = computed((): Feature[] => {
   // Return empty array if flex services are disabled or no features provided
