@@ -19,8 +19,8 @@
 
       <div class="cal-report-option-section">
         <!-- Fixed-route service options -->
-        <section v-if="props.fixedRouteEnabled">
-          <div class="has-text-weight-semibold mb-3 is-flex is-justify-content-space-between is-align-items-center">
+        <section v-if="props.fixedRouteEnabled" class="mb-2">
+          <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing fixed-route service by:</span>
             <o-tooltip multiline label="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
               <o-icon icon="information" />
@@ -34,7 +34,6 @@
               label="Route"
             />
           </o-field>
-
           <o-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
@@ -43,7 +42,6 @@
               label="Stop"
             />
           </o-field>
-
           <o-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
@@ -55,8 +53,8 @@
         </section>
 
         <!-- Flex service options -->
-        <section v-if="props.hasFlexData">
-          <div class="has-text-weight-semibold mb-3 is-flex is-justify-content-space-between is-align-items-center">
+        <section v-if="props.hasFlexData" class="mb-0">
+          <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing flex service by:</span>
             <o-tooltip multiline label="The selected view determines what rows and associated columns appear in the report.">
               <o-icon icon="information" />
