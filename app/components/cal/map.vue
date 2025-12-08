@@ -32,7 +32,7 @@
       :zoom="14"
       :overlay-features="overlayFeatures"
       :features="displayFeatures"
-      :flex-features="flexFeaturesForMap"
+      :flex-features="flexFeatures"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       @map-move="mapMove"
@@ -557,16 +557,12 @@ watch(exportFeatures, () => {
 })
 
 /**
- * Flex service area features for display on the map
- * Features come pre-filtered and styled from the useFlexAreas composable in tne.vue
+ * Flex service area features for the map layer
+ * Returns empty array if flex is disabled (similar to how displayFeatures handles fixedRouteEnabled)
  */
-const flexFeaturesForMap = computed((): Feature[] => {
-  // Return empty array if flex services are disabled or no features provided
-  if (!props.flexServicesEnabled || !props.flexDisplayFeatures) {
-    return []
-  }
-
-  return props.flexDisplayFeatures
+const flexFeatures = computed((): Feature[] => {
+  if (!props.flexServicesEnabled) return []
+  return props.flexDisplayFeatures || []
 })
 
 // Is there fixed-route data to display?
