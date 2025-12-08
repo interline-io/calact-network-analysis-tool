@@ -124,6 +124,8 @@
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
             :scenario-filter-result="scenarioFilterResult"
+            :has-fixed-route-data="hasFixedRouteData"
+            :has-flex-data="hasFlexData"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
           />
@@ -951,6 +953,14 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 // Note: scenarioData is defined earlier in the file (before useFlexAreas)
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
+
+// Data availability indicators for filter panel
+const hasFixedRouteData = computed(() => {
+  return !!(scenarioFilterResult.value?.stops?.length || scenarioFilterResult.value?.routes?.length)
+})
+const hasFlexData = computed(() => {
+  return !!(scenarioData.value?.flexAreas?.length)
+})
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress | null>(null)

@@ -28,6 +28,16 @@
                 class="is-fullwidth"
               />
               {{ item.label }}
+              <span
+                v-if="item.tab === 'transit-layers' && hasFixedRouteData"
+                class="data-indicator has-background-info"
+                title="Fixed-route data loaded and available for filtering"
+              />
+              <span
+                v-if="item.tab === 'flex-services' && hasFlexData"
+                class="data-indicator has-background-info"
+                title="Flex service data loaded and available for filtering"
+              />
               <o-icon
                 class="right-chev"
                 icon="chevron-right"
@@ -603,6 +613,8 @@ const menuItems = [
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
+  hasFixedRouteData?: boolean
+  hasFlexData?: boolean
 }>()
 
 const emit = defineEmits([
@@ -642,6 +654,10 @@ const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off b
 const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
 const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled
 const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
+
+// Data availability indicators
+const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
+const hasFlexData = computed(() => props.hasFlexData ?? false)
 
 ///////////////////
 // Tab
@@ -772,6 +788,14 @@ const dowAvailable = computed((): Set<string> => {
   }
   .right-chev {
     float:right;
+  }
+  .data-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 6px;
+    vertical-align: middle;
   }
 }
 .filter-legend {
