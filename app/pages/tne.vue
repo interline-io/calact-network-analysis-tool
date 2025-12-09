@@ -1031,8 +1031,11 @@ const fetchScenario = async (loadExample: string) => {
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
 
       // Apply filters to partial data and emit (without schedule-dependent features)
-      // Skip if no route/stop data
-      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+      // Skip if no route/stop/flex data in this progress update
+      const hasRoutes = (progress.partialData?.routes.length || 0) > 0
+      const hasStops = (progress.partialData?.stops.length || 0) > 0
+      const hasFlexAreas = (progress.partialData?.flexAreas.length || 0) > 0
+      if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }
       scenarioData.value = receiver.getCurrentData()

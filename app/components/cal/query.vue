@@ -125,18 +125,20 @@
       </tl-msg-box>
 
       <article class="message mb-4 is-text">
-        <div class="message-header collapsible-header" @click="() => toggleAdvancedSettings()">
-          <span class="message-header-title">
-            Advanced Settings
-          </span>
-          <span class="message-header-icon">
-            <o-icon :icon="showAdvancedSettings ? 'menu-up' : 'menu-down'" />
-          </span>
-        </div>
         <o-collapse
-          :open="showAdvancedSettings"
+          v-model:open="showAdvancedSettings"
           animation="slide"
         >
+          <template #trigger="{ open }">
+            <div class="message-header collapsible-header">
+              <span class="message-header-title">
+                Advanced Settings
+              </span>
+              <span class="message-header-icon">
+                <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
+              </span>
+            </div>
+          </template>
           <div class="message-body">
             <div class="container is-max-tablet">
               <!-- Data to Load Section -->
@@ -238,7 +240,6 @@ const selectSingleDay = ref(true)
 const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
-const toggleAdvancedSettings = useToggle(showAdvancedSettings)
 
 const geomSearchVars = computed(() => {
   return {
