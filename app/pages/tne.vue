@@ -592,11 +592,15 @@ const fixedRouteEnabled = computed({
 
 const flexServicesEnabled = computed({
   get () {
-    // Off by default per PRD
-    return route.query.flexServicesEnabled?.toString() === 'true'
+    // Default: off when showing fixed-route, on when only showing flex
+    const param = route.query.flexServicesEnabled?.toString()
+    if (param === 'true') return true
+    if (param === 'false') return false
+    // No explicit param - default based on includeFixedRoute
+    return !includeFixedRoute.value
   },
   set (v: boolean) {
-    setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : '' })
+    setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : 'false' })
   }
 })
 
