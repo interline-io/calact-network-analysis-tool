@@ -1,4 +1,5 @@
 import { gql } from 'graphql-tag'
+import { parseHMS } from '~~/src/core'
 import type {
   FlexAreaFeature,
   FlexAreaProperties,
@@ -190,19 +191,6 @@ export interface FlexLocationQueryResponse {
 //////////
 // Transformer: Location -> FlexAreaFeature
 //////////
-
-/**
- * Parse HH:MM:SS string to seconds
- */
-function parseHMS (hms: string): number {
-  const parts = hms.split(':')
-  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return 0
-  const h = parseInt(parts[0], 10)
-  const m = parseInt(parts[1], 10)
-  const s = parseInt(parts[2], 10)
-  if (isNaN(h) || isNaN(m) || isNaN(s)) return 0
-  return h * 3600 + m * 60 + s
-}
 
 /**
  * Transform a GraphQL BookingService to FlexBookingDays
