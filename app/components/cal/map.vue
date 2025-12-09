@@ -46,7 +46,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
-import { colors, routeTypeNames, flexColors } from '~~/src/core'
+import { colors, routeTypeNames, flexColors, escapeHtml } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -653,34 +653,34 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       const sp = stopLookup
       text = `
         <div class="popup-feature-type">🚏 Stop</div>
-        Stop ID: ${sp.stop_id}<br>
-        <strong>${sp.stop_name}</strong><br>
-        Routes: ${sp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
-        Agencies: ${sp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
+        Stop ID: ${escapeHtml(sp.stop_id)}<br>
+        <strong>${escapeHtml(sp.stop_name)}</strong><br>
+        Routes: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.route_short_name)).join(', ')}<br>
+        Agencies: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.agency.agency_name)).join(', ')}`
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
       text = `
         <div class="popup-feature-type">🚌 Route</div>
-        Route ID: ${fp.route_id}<br>
-        <strong>${fp.route_short_name || ''} ${fp.route_long_name}</strong><br>
-        Type: ${routeTypeNames.get(fp.route_type) || 'Unknown'}<br>
-        Agency: ${fp.agency_name}`
+        Route ID: ${escapeHtml(fp.route_id)}<br>
+        <strong>${escapeHtml(fp.route_short_name || '')} ${escapeHtml(fp.route_long_name || '')}</strong><br>
+        Type: ${escapeHtml(routeTypeNames.get(fp.route_type) || 'Unknown')}<br>
+        Agency: ${escapeHtml(fp.agency_name)}`
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
-      const areaType = fp.area_type || 'Unknown'
-      const advanceNotice = fp.advance_notice || 'Unknown'
+      const areaType = escapeHtml(fp.area_type || 'Unknown')
+      const advanceNotice = escapeHtml(fp.advance_notice || 'Unknown')
       const filterStatusBar = fp.marked === false
         ? '<div class="notification is-warning is-light popup-status-bar">⚠️ Doesn\'t match current filters</div>'
         : '<div class="notification is-success is-light popup-status-bar">✅ Matches all filters</div>'
       text = `
         <div class="popup-feature-type">📍 Flex Service Area</div>
         ${filterStatusBar}
-        ${fp.location_name ? `<div class="popup-location-name">${fp.location_name}</div>` : ''}
+        ${fp.location_name ? `<div class="popup-location-name">${escapeHtml(fp.location_name)}</div>` : ''}
         <div class="popup-details">
-          <div><strong>Agency:</strong> ${fp.agency_name || fp.agency_names || 'Unknown'}</div>
-          <div><strong>Routes:</strong> ${fp.route_names || 'Unknown'}</div>
+          <div><strong>Agency:</strong> ${escapeHtml(fp.agency_name || fp.agency_names || 'Unknown')}</div>
+          <div><strong>Routes:</strong> ${escapeHtml(fp.route_names || 'Unknown')}</div>
           <div><strong>Service:</strong> ${areaType}</div>
           <div><strong>Advance Notice:</strong> ${advanceNotice}</div>
-          ${fp.phone_number ? `<div><strong>Phone:</strong> ${fp.phone_number}</div>` : ''}
+          ${fp.phone_number ? `<div><strong>Phone:</strong> ${escapeHtml(fp.phone_number)}</div>` : ''}
         </div>`
     }
 
