@@ -57,7 +57,6 @@ export interface FlexRoute {
 
 /**
  * Days of week when booking is available
- * Values are 0 (not available) or 1 (available)
  */
 export interface FlexBookingDays {
   monday: boolean
