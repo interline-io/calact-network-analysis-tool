@@ -257,7 +257,14 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
-const cannedBbox = ref('downtown-portland')
+const cannedBbox = computed({
+  get () {
+    return route.query.example?.toString() || ''
+  },
+  set (v: string) {
+    setQuery({ ...route.query, example: v || undefined })
+  }
+})
 const error = ref(null as Error | string | null)
 
 // Runs on explore event from query (when user clicks "Run Query")
