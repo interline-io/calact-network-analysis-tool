@@ -60,7 +60,10 @@
       </div>
       <div class="column is-one-quarter">
         <tl-msg-info title="Departures" no-icon>
-          <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
+          <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
+          <div class="more-label">
+            {{ (stopDepartureCount || 0).toLocaleString() }} total departures
+          </div>
         </tl-msg-info>
       </div>
       <div class="column is-one-quarter">
@@ -110,6 +113,16 @@ const progressPercentage = computed(() => {
     completed += props.progress.stopDepartureProgress.completed
   }
   return Math.round((completed / total) * 100)
+})
+
+// Total number of stops loaded
+const totalStops = computed(() => {
+  return props.scenarioData?.stops?.length || 0
+})
+
+// Number of stops that have departures loaded (stops in the departure cache)
+const stopsWithDepartures = computed(() => {
+  return props.scenarioData?.stopDepartureCache?.cache?.size || 0
 })
 
 // Helper functions
