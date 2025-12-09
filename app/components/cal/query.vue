@@ -4,12 +4,12 @@
       Transit Network Explorer
     </tl-title>
 
-    <tl-msg-info>
+    <t-msg variant="info">
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
-    </tl-msg-info>
+    </t-msg>
 
     <div class="cal-body">
-      <tl-msg-box title="Date range">
+      <t-msg title="Date range">
         <o-field>
           <template #label>
             <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
@@ -31,11 +31,12 @@
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
         </o-field>
-      </tl-msg-box>
+      </t-msg>
 
-      <tl-msg-box title="Geographic Bounds">
-        <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+      <t-msg title="Geographic Bounds">
+        <t-msg v-if="debugMenu" variant="danger" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
+            <!-- @vue-skip -->
             <o-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
@@ -46,7 +47,7 @@
             </o-button>
           </o-field>
           <br>
-        </tl-msg-warning>
+        </t-msg>
 
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
@@ -69,6 +70,7 @@
               <template #label>
                 Administrative boundary layer to search
               </template>
+              <!-- @vue-skip -->
               <o-select
                 v-model="geomLayer"
                 :options="props.censusGeographyLayerOptions"
@@ -84,6 +86,7 @@
             </template>
             <div class="field has-addons">
               <div class="control is-expanded">
+                <!-- @vue-skip -->
                 <o-taginput
                   v-model="geographyIds"
                   v-model:input="geomSearch"
@@ -102,13 +105,19 @@
                       <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
                     </strong>
                   </template>
-                  <template #option="{ option }">
-                    <div class="is-flex is-align-items-center">
-                      <span>{{ option.label }}</span>
-                      <span class="tag is-light is-small ml-2">
-                        {{ option.geographyType }}
-                      </span>
-                    </div>
+                  <template #selected="{ items, removeItem }">
+                    <span
+                      v-for="(item, index) in items"
+                      :key="index"
+                      class="tag is-primary"
+                    >
+                      {{ selectedGeographyTagOptions.find(opt => opt.value === item)?.label || item }}
+                      <button
+                        type="button"
+                        class="delete is-small"
+                        @click="removeItem(index)"
+                      />
+                    </span>
                   </template>
                 </o-taginput>
               </div>
@@ -116,13 +125,12 @@
                 <o-loading
                   :active="true"
                   :full-page="false"
-                  size="small"
                 />
               </div>
             </div>
           </o-field>
         </div>
-      </tl-msg-box>
+      </t-msg>
 
       <article class="message mb-4 is-text">
         <div class="message-header collapsible-header" @click="() => toggleAdvancedSettings()">
@@ -145,6 +153,7 @@
                     Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
                   </o-tooltip>
                 </template>
+                <!-- @vue-skip -->
                 <o-select
                   v-model="aggregateLayer"
                   :options="censusGeographyLayerOptions"

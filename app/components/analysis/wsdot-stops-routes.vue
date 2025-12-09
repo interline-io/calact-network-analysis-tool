@@ -2,7 +2,8 @@
   <div>
     <tl-title title="WSDOT Transit Stops and Routes" />
 
-    <tl-msg-info
+    <t-msg
+      variant="info"
       collapsible
       :collapsed="hasResults"
       title="About this Analysis"
@@ -26,11 +27,11 @@
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
-    </tl-msg-info>
+    </t-msg>
 
-    <tl-msg-error v-if="error" class="mt-4" style="width:400px" :title="error.message">
+    <t-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
-    </tl-msg-error>
+    </t-msg>
     <div v-else-if="loading" class="has-text-centered">
       <o-loading :active="true" :full-page="false" />
       <p class="mt-4">
@@ -57,6 +58,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
+            <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </o-field>
 
@@ -67,6 +69,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
+            <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </o-field>
         </div>
@@ -88,11 +91,10 @@
     </div>
 
     <!-- Loading Progress Modal -->
-    <tl-modal
+    <t-modal
       v-model="showLoadingModal"
       title="Loading"
       :closable="false"
-      :active="showLoadingModal"
     >
       <cal-scenario-loading
         :progress="loadingProgress"
@@ -100,7 +102,7 @@
         :stop-departure-count="stopDepartureCount"
         :scenario-data="scenarioData"
       />
-    </tl-modal>
+    </t-modal>
   </div>
 </template>
 

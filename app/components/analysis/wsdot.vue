@@ -2,7 +2,8 @@
   <div>
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
-    <tl-msg-info
+    <t-msg
+      variant="info"
       collapsible
       :collapsed="hasResults"
       title="About this Analysis"
@@ -22,16 +23,17 @@
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
       </p>
-    </tl-msg-info>
+    </t-msg>
 
-    <tl-msg-error
+    <t-msg
       v-if="error"
+      variant="error"
       class="mt-4"
       style="width:400px"
       :title="error.message"
     >
       An error occurred while running the WSDOT analysis.
-    </tl-msg-error>
+    </t-msg>
     <div v-else-if="loading">
       Loading...
     </div>
@@ -49,12 +51,14 @@
           </p>
         </header>
 
-        <tl-msg-warning
+        <t-msg
           v-if="debugMenu"
+          variant="danger"
           class="mt-4"
           title="Debug menu"
         >
           <o-field label="Example configuration">
+            <!-- @vue-skip -->
             <o-select v-model="selectedExample">
               <option value="">
                 Select an example...
@@ -69,7 +73,7 @@
             </o-select>
           </o-field>
           <br>
-        </tl-msg-warning>
+        </t-msg>
 
         <div class="card-content">
           <o-field>
@@ -82,6 +86,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
+            <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </o-field>
 
@@ -95,6 +100,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
+            <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </o-field>
 
@@ -108,6 +114,7 @@
                 <o-icon icon="information" />
               </o-tooltip>
             </template>
+            <!-- @vue-skip -->
             <o-slider
               v-model="wsdotReportConfig!.stopBufferRadius"
               :min="0"
@@ -142,11 +149,10 @@
     </div>
 
     <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-    <tl-modal
+    <t-modal
       v-model="showLoadingModal"
       title="Loading"
       :closable="false"
-      :active="showLoadingModal"
     >
       <cal-scenario-loading
         :progress="loadingProgress"
@@ -154,7 +160,7 @@
         :stop-departure-count="stopDepartureCount"
         :scenario-data="scenarioData"
       />
-    </tl-modal>
+    </t-modal>
   </div>
 </template>
 

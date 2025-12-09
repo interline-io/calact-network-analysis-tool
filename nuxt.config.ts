@@ -71,7 +71,7 @@ export default defineNuxtConfig({
     tsConfig: {
       vueCompilerOptions: {
         // This is critical for checking component props in templates
-        // strictTemplates: true,
+        strictTemplates: true,
       },
     },
   },
