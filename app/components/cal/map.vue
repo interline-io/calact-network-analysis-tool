@@ -647,6 +647,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const fp = feature.properties
 
     let text = ''
+    let sourceLayer = ''
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -654,6 +655,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         continue
       }
       const sp = stopLookup
+      sourceLayer = 'points'
       text = `
         <div class="popup-feature-type">🚏 Stop</div>
         Stop ID: ${escapeHtml(sp.stop_id)}<br>
@@ -661,6 +663,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         Routes: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.route_short_name)).join(', ')}<br>
         Agencies: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.agency.agency_name)).join(', ')}`
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
+      sourceLayer = 'lines'
       text = `
         <div class="popup-feature-type">🚌 Route</div>
         Route ID: ${escapeHtml(fp.route_id)}<br>
@@ -669,6 +672,9 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         Agency: ${escapeHtml(fp.agency_name)}`
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
+      // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
+      sourceLayer = 'flexPolygons'
+      const flexFeatureId = fp.location_id?.toString() || featureId
       const areaType = escapeHtml(fp.area_type || 'Unknown')
       const advanceNotice = escapeHtml(fp.advance_notice || 'Unknown')
       const filterStatusBar = fp.marked === false
@@ -685,12 +691,26 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           <div><strong>Advance Notice:</strong> ${advanceNotice}</div>
           ${fp.phone_number ? `<div><strong>Phone:</strong> ${escapeHtml(fp.phone_number)}</div>` : ''}
         </div>`
+      // Override featureId for flex areas to use location_id
+      if (text) {
+        console.log(`[MapClick] Adding popup feature: featureId=${flexFeatureId}, sourceLayer=${sourceLayer}`)
+        a.push({
+          point: { lon: pt.lng, lat: pt.lat },
+          text: text,
+          featureId: flexFeatureId,
+          sourceLayer: sourceLayer,
+        })
+        continue // Skip the default push below
+      }
     }
 
     if (text) {
+      console.log(`[MapClick] Adding popup feature: featureId=${featureId}, sourceLayer=${sourceLayer}`)
       a.push({
         point: { lon: pt.lng, lat: pt.lat },
         text: text,
+        featureId: featureId,
+        sourceLayer: sourceLayer,
       })
     }
   }

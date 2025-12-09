@@ -162,6 +162,11 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
+  // Highlight source for selected features
+  map?.addSource('highlight', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
 }
 
 function createLayers () {
@@ -271,6 +276,53 @@ function createLayers () {
       'circle-color': ['coalesce', ['get', 'marker-color'], '#888888'], // gray is the fallback color for stop points while routes or other data that may be needed for styling logic is still loading
       'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
       'circle-opacity': ['coalesce', ['get', 'marker-opacity'], 1.0],
+    }
+  })
+
+  // Highlight layers for selected features (rendered on top)
+  map?.addLayer({
+    id: 'highlight-polygon',
+    type: 'fill',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Polygon'],
+    paint: {
+      'fill-color': '#00FF00',
+      'fill-opacity': 0.2,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-polygon-outline',
+    type: 'line',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Polygon'],
+    paint: {
+      'line-color': '#00FF00',
+      'line-width': 4,
+      'line-opacity': 1.0,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-line',
+    type: 'line',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: {
+      'line-color': '#00FF00',
+      'line-width': 6,
+      'line-opacity': 1.0,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-point',
+    type: 'circle',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Point'],
+    paint: {
+      'circle-color': '#00FF00',
+      'circle-radius': 14,
+      'circle-opacity': 1.0,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 3,
     }
   })
 }
@@ -396,6 +448,69 @@ let currentPopup: maplibre.Popup | null = null
 let currentPopupFeatures: PopupFeature[] = []
 let currentPopupIndex = 0
 
+/**
+ * Update the highlight layer to show the selected feature
+ */
+function updateHighlight (popupFeature: PopupFeature | null) {
+  if (!map) return
+
+  const highlightSource = map.getSource('highlight') as maplibre.GeoJSONSource
+  if (!highlightSource) return
+
+  if (!popupFeature || !popupFeature.featureId || !popupFeature.sourceLayer) {
+    // Clear highlight
+    console.log('[Highlight] Clearing highlight (no feature selected)')
+    highlightSource.setData({ type: 'FeatureCollection', features: [] })
+    return
+  }
+
+  // Find the feature in the appropriate source
+  const sourceLayer = popupFeature.sourceLayer
+  const featureId = popupFeature.featureId
+  console.log(`[Highlight] Selecting feature: id=${featureId}, source=${sourceLayer}`)
+
+  // Look up the feature from our stored feature arrays based on source layer
+  let matchingFeature: Feature | undefined
+
+  if (sourceLayer === 'flexPolygons') {
+    // For flex features, match by location_id in properties (since that's what we use as featureId)
+    matchingFeature = flexFeatures.value.find(f =>
+      f.properties?.location_id?.toString() === featureId.toString()
+      || f.id?.toString() === featureId.toString()
+    )
+  } else if (sourceLayer === 'lines') {
+    matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'))
+  } else if (sourceLayer === 'points') {
+    matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && f.geometry?.type === 'Point')
+  }
+
+  if (matchingFeature) {
+    console.log(`[Highlight] Found matching feature:`, matchingFeature.geometry?.type, matchingFeature.properties)
+    highlightSource.setData({
+      type: 'FeatureCollection',
+      features: [matchingFeature as any]
+    })
+  } else {
+    console.log(`[Highlight] No matching feature found for id=${featureId} in source=${sourceLayer}`)
+    // Fallback: try querySourceFeatures for rendered tiles
+    const renderedFeatures = map.querySourceFeatures(sourceLayer, {})
+    console.log(`[Highlight] Fallback: Found ${renderedFeatures.length} rendered features in source '${sourceLayer}'`)
+    const renderedMatch = renderedFeatures.find(f =>
+      f.properties?.location_id?.toString() === featureId.toString()
+      || f.id?.toString() === featureId.toString()
+    )
+    if (renderedMatch) {
+      console.log(`[Highlight] Fallback found matching feature:`, renderedMatch.geometry?.type)
+      highlightSource.setData({
+        type: 'FeatureCollection',
+        features: [renderedMatch as any]
+      })
+    } else {
+      highlightSource.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }
+}
+
 function drawPopupFeatures (features: PopupFeature[]) {
   // Close existing popup
   if (currentPopup) {
@@ -406,6 +521,8 @@ function drawPopupFeatures (features: PopupFeature[]) {
   if (features.length === 0) {
     currentPopupFeatures = []
     currentPopupIndex = 0
+    // Clear highlight when closing popup
+    updateHighlight(null)
     return
   }
 
@@ -425,6 +542,12 @@ function showPopupAtIndex (index: number) {
   currentPopupIndex = index
   const feature = currentPopupFeatures[index]
   if (!feature) return
+
+  // Debug: log the feature to see what properties it has
+  console.log('[Highlight] showPopupAtIndex feature:', feature, 'featureId:', feature.featureId, 'sourceLayer:', feature.sourceLayer)
+
+  // Update highlight to show the selected feature
+  updateHighlight(feature)
 
   const total = currentPopupFeatures.length
   const hasMultiple = total > 1
@@ -482,6 +605,8 @@ function showPopupAtIndex (index: number) {
       if (currentPopup) {
         currentPopup.remove()
         currentPopup = null
+        // Clear highlight when closing popup
+        updateHighlight(null)
       }
     })
 
@@ -587,6 +712,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    width: 380px;
   }
 
   .popup-card {

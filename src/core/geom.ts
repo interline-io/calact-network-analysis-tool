@@ -51,6 +51,8 @@ export function bboxString (bbox: Bbox): string {
 export interface PopupFeature {
   point: Point
   text: string
+  featureId?: string | number // Feature ID for highlighting
+  sourceLayer?: string // Source layer name for highlighting (e.g., 'flexPolygons', 'lines', 'points')
 }
 
 export interface MarkerFeature {
