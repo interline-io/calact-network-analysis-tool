@@ -16,6 +16,7 @@ export default defineNuxtConfig({
   devtools: {
     enabled: isDev,
   },
+  css: ['~/assets/main.scss'],
 
   runtimeConfig: {
     tlv2: {
