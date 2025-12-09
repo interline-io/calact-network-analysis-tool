@@ -35,6 +35,7 @@
       :flex-features="flexFeatures"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
+      :loading-stage="props.loadingStage"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
     />
@@ -71,6 +72,8 @@ const props = defineProps<{
   flexColorBy?: string
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
+  // Loading stage - allow map updates during geometry stages, skip during schedules
+  loadingStage?: string
 }>()
 
 const showShareMenu = ref(false)

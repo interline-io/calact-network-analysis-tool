@@ -168,6 +168,7 @@
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
           :flex-display-features="flexDisplayFeatures"
+          :loading-stage="loadingProgress?.currentStage"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"

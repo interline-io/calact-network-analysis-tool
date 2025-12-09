@@ -31,6 +31,15 @@ const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
+// Props for loading state
+const props = defineProps<{
+  // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
+  loadingStage?: string
+}>()
+
+// Stages during which we should skip expensive map updates
+const skipUpdateStages = new Set(['schedules'])
+
 let map: (maplibre.Map | null) = null
 const markerLayer = ref<maplibre.Marker[]>([])
 
@@ -51,12 +60,27 @@ watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
 })
 
+// Skip feature updates during heavy loading stages (schedules) to prevent browser crashes
+// Allow updates during geometry stages (feed-versions, stops, routes, flex-areas)
 watch(() => features.value, (v) => {
-  updateFeatures(v)
+  if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
+    updateFeatures(v)
+  }
 })
 
 watch(() => flexFeatures.value, (v) => {
-  updateFlexFeatures(v)
+  if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
+    updateFlexFeatures(v)
+  }
+})
+
+// When exiting a skip stage (e.g., schedules -> complete), render all features
+watch(() => props.loadingStage, (newStage, oldStage) => {
+  if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
+    // Exited a skip stage - render the features
+    updateFeatures(features.value)
+    updateFlexFeatures(flexFeatures.value)
+  }
 })
 
 watch(() => center, (oldVal, newVal) => {
