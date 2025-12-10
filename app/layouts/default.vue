@@ -10,14 +10,6 @@
     <div class="main">
       <slot name="main">
         <div class="container is-fluid">
-          <div v-if="!slots.breadcrumbs">
-            <!-- <tl-breadcrumbs
-              :extra-route-names="{
-              }"
-              :extra-route-tags="{
-              }"
-            /> -->
-          </div>
           <tl-login-gate role="tl_calact_nat">
             <template #roleText>
               <o-notification icon="lock" class="mt-4">
