@@ -38,6 +38,13 @@ const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 
 /**
+ * Maximum number of flex locations to fetch per feed version.
+ * This limit is enforced server-side by transitland-server.
+ * If a feed version has more locations than this, some will be silently skipped.
+ */
+const MAX_FLEX_LOCATIONS_PER_FEED_VERSION = 100_000
+
+/**
  * Configuration for scenario fetching
  */
 
@@ -470,7 +477,7 @@ export class ScenarioFetcher {
       try {
         const variables = {
           fvSha1: fv.sha1,
-          limit: 100000, // max hardcoded in tlib
+          limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
           serviceDate: queryDate,
         }
 
@@ -507,7 +514,10 @@ export class ScenarioFetcher {
           console.log(`[FlexAreas] No active flex areas on ${queryDate} in ${fv.feed.onestop_id}`)
         }
       } catch (error) {
-        console.error(`[FlexAreas] Error fetching locations for ${fv.feed.onestop_id}:`, error)
+        // Log detailed error information to help diagnose issues
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        const errorName = error instanceof Error ? error.name : 'UnknownError'
+        console.error(`[FlexAreas] Error fetching locations for feed ${fv.feed.onestop_id} (sha1: ${fv.sha1}, date: ${queryDate}): [${errorName}] ${errorMsg}. This feed will be skipped.`)
         // Continue with other feed versions even if one fails
       }
     }

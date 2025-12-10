@@ -3,11 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted } from 'vue'
+import { nextTick, ref, watch, onMounted, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
 import type { Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import CalMapPopup from './map-popup.vue'
 
 //////////////////////
 // Component setup
@@ -445,6 +446,7 @@ function fitFeatures (features: Feature[]) {
 
 // Track the current popup and its state for multi-feature navigation
 let currentPopup: maplibre.Popup | null = null
+let currentPopupApp: ReturnType<typeof createApp> | null = null
 let currentPopupFeatures: PopupFeature[] = []
 let currentPopupIndex = 0
 
@@ -512,10 +514,14 @@ function updateHighlight (popupFeature: PopupFeature | null) {
 }
 
 function drawPopupFeatures (features: PopupFeature[]) {
-  // Close existing popup
+  // Close existing popup and unmount Vue app
   if (currentPopup) {
     currentPopup.remove()
     currentPopup = null
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = null
   }
 
   if (features.length === 0) {
@@ -534,14 +540,24 @@ function drawPopupFeatures (features: PopupFeature[]) {
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) return
 
-  // Close existing popup
+  // Close existing popup and unmount Vue app
   if (currentPopup) {
     currentPopup.remove()
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = null
   }
 
   currentPopupIndex = index
   const feature = currentPopupFeatures[index]
   if (!feature) return
+
+  // Ensure feature has required data for Vue component
+  if (!feature.featureType || !feature.data) {
+    console.warn('[Popup] Feature missing featureType or data, skipping:', feature)
+    return
+  }
 
   // Debug: log the feature to see what properties it has
   console.log('[Highlight] showPopupAtIndex feature:', feature, 'featureId:', feature.featureId, 'sourceLayer:', feature.sourceLayer)
@@ -550,40 +566,49 @@ function showPopupAtIndex (index: number) {
   updateHighlight(feature)
 
   const total = currentPopupFeatures.length
-  const hasMultiple = total > 1
 
-  let navHtml = ''
-  if (hasMultiple) {
-    navHtml = `
-      <div class="popup-nav-bar">
-        <button class="button is-small popup-prev" ${index === 0 ? 'disabled' : ''}>
-          <span class="icon is-small"><i class="mdi mdi-chevron-left"></i></span>
-        </button>
-        <span class="popup-nav-label">${index + 1} of ${total}</span>
-        <button class="button is-small popup-next" ${index === total - 1 ? 'disabled' : ''}>
-          <span class="icon is-small"><i class="mdi mdi-chevron-right"></i></span>
-        </button>
-      </div>
-    `
-  }
+  // Create a container for the Vue component
+  const container = document.createElement('div')
+  container.className = 'popup-vue-container'
 
-  const html = `
-    <div class="card popup-card">
-      <header class="card-header">
-        <p class="card-header-title popup-header-title">
-          ${hasMultiple ? 'Features' : 'Feature'} at this point
-        </p>
-        <button class="delete popup-close" aria-label="close"></button>
-      </header>
-      <div class="card-content">
-        <div class="popup-content">
-          ${feature.text}
-        </div>
-        ${navHtml}
-      </div>
-    </div>
-  `
+  // Create and mount the Vue popup component
+  const app = createApp({
+    render: () => h(CalMapPopup, {
+      feature: {
+        featureType: feature.featureType!,
+        featureId: feature.featureId || '',
+        sourceLayer: feature.sourceLayer || '',
+        data: feature.data!,
+      },
+      currentIndex: currentPopupIndex,
+      total: total,
+      onClose: () => {
+        if (currentPopup) {
+          currentPopup.remove()
+          currentPopup = null
+        }
+        if (currentPopupApp) {
+          currentPopupApp.unmount()
+          currentPopupApp = null
+        }
+        updateHighlight(null)
+      },
+      onPrev: () => {
+        if (currentPopupIndex > 0) {
+          showPopupAtIndex(currentPopupIndex - 1)
+        }
+      },
+      onNext: () => {
+        if (currentPopupIndex < currentPopupFeatures.length - 1) {
+          showPopupAtIndex(currentPopupIndex + 1)
+        }
+      },
+    })
+  })
+  app.mount(container)
+  currentPopupApp = app
 
+  // Create MapLibre popup with DOM content
   const popup = new maplibre.Popup({
     closeButton: false, // We use our own close button
     closeOnClick: false, // Let our button handle it
@@ -591,64 +616,17 @@ function showPopupAtIndex (index: number) {
     className: 'bulma-popup',
   })
     .setLngLat([feature.point.lon, feature.point.lat])
-    .setHTML(html)
+    .setDOMContent(container)
 
-  // Attach event handlers before adding to map, using 'open' event
-  // This ensures handlers are ready when popup opens
-  popup.on('open', () => {
-    const popupElem = popup.getElement()
-    if (!popupElem) return
-
-    // Close button handler
-    const closeBtn = popupElem.querySelector('.popup-close')
-    const closeHandler = (e: Event) => {
-      e.stopPropagation()
-      if (currentPopup) {
-        currentPopup.remove()
-        currentPopup = null
-        updateHighlight(null)
-      }
+  // Clean up Vue app when popup closes
+  popup.once('close', () => {
+    if (currentPopupApp) {
+      currentPopupApp.unmount()
+      currentPopupApp = null
     }
-    closeBtn?.addEventListener('click', closeHandler)
-
-    // Navigation button handlers
-    let prevHandler: ((e: Event) => void) | null = null
-    let nextHandler: ((e: Event) => void) | null = null
-
-    if (hasMultiple) {
-      const prevBtn = popupElem.querySelector('.popup-prev')
-      const nextBtn = popupElem.querySelector('.popup-next')
-
-      prevHandler = (e: Event) => {
-        e.stopPropagation()
-        if (currentPopupIndex > 0) {
-          showPopupAtIndex(currentPopupIndex - 1)
-        }
-      }
-      prevBtn?.addEventListener('click', prevHandler)
-
-      nextHandler = (e: Event) => {
-        e.stopPropagation()
-        if (currentPopupIndex < currentPopupFeatures.length - 1) {
-          showPopupAtIndex(currentPopupIndex + 1)
-        }
-      }
-      nextBtn?.addEventListener('click', nextHandler)
-
-      // Clean up navigation listeners when popup closes
-      popup.once('close', () => {
-        if (prevHandler) prevBtn?.removeEventListener('click', prevHandler)
-        if (nextHandler) nextBtn?.removeEventListener('click', nextHandler)
-      })
-    }
-
-    // Clean up close button listener when popup closes
-    popup.once('close', () => {
-      closeBtn?.removeEventListener('click', closeHandler)
-    })
   })
 
-  // Now add to map - this triggers the 'open' event
+  // Add to map
   popup.addTo(map!)
   currentPopup = popup
 }
@@ -727,7 +705,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     height: 100vh;
   }
 
-  /* Bulma-styled popup */
+  /* MapLibre popup container styles (component styles are in map-popup.vue) */
   .bulma-popup .maplibregl-popup-content {
     padding: 0;
     border-radius: 6px;
@@ -736,97 +714,6 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     width: 380px;
   }
 
-  .popup-card {
-    margin: 0;
-    border-radius: 6px;
-    box-shadow: none;
-  }
-
-  .popup-card .card-header {
-    padding: 8px 12px;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .popup-header-title {
-    font-size: 13px;
-    padding: 0;
-    margin: 0;
-    color: #333;
-  }
-
-  .popup-close {
-    position: relative;
-    top: 0;
-    right: 0;
-    flex-shrink: 0;
-  }
-
-  .popup-card .card-content {
-    padding: 12px;
-    max-height: 350px;
-    overflow-y: auto;
-  }
-
-  .popup-nav-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid #eee;
-  }
-
-  .popup-nav-label {
-    font-size: 13px;
-    color: #666;
-    font-weight: 500;
-  }
-
-  .popup-content {
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  /* Feature type header in popup */
-  .popup-feature-type {
-    font-weight: bold;
-    font-size: 15px;
-    color: #333;
-    margin-bottom: 8px;
-  }
-
-  /* Filter status bar */
-  .popup-status-bar {
-    padding: 8px 12px;
-    margin-bottom: 4px !important;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 4px;
-  }
-
-  .popup-location-name {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #222;
-  }
-
-  .popup-details {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .popup-details div {
-    font-size: 13px;
-  }
-
-  /* Hide the default maplibre popup tip/arrow for cleaner look */
   .bulma-popup .maplibregl-popup-tip {
     border-top-color: #f5f5f5;
   }

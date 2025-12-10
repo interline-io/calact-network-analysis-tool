@@ -147,52 +147,37 @@
           <div class="message-body">
             <div class="container is-max-tablet">
               <!-- Data to Load Section -->
-              <div class="mb-5">
-                <p class="has-text-weight-semibold is-size-6 mb-3">
-                  Data to Load
-                </p>
-                <div class="pl-3">
-                  <o-field class="mb-2">
-                    <!-- @vue-skip -->
-                    <o-checkbox
-                      v-model="includeFixedRoute"
-                      label="Include Fixed-Route Transit"
-                      aria-label="Include Fixed-Route Transit data in query results"
-                    />
-                  </o-field>
-                  <o-field class="mb-0">
-                    <!-- @vue-skip -->
-                    <o-checkbox
-                      v-model="includeFlexAreas"
-                      label="Include Flex Service Areas"
-                      aria-label="Include Flex Service Areas data in query results"
-                    />
-                  </o-field>
-                </div>
-              </div>
+              <o-field label="Data to Load">
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="includeFixedRoute"
+                  aria-label="Include Fixed-Route Transit data in query results"
+                >
+                  Include Fixed-Route Transit
+                </o-checkbox>
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="includeFlexAreas"
+                  aria-label="Include Flex Service Areas data in query results"
+                >
+                  Include Flex Service Areas
+                </o-checkbox>
+              </o-field>
 
               <!-- Aggregation Section -->
-              <div>
-                <p class="has-text-weight-semibold is-size-6 mb-3">
-                  Aggregation
-                </p>
-                <div class="pl-3">
-                  <o-field>
-                    <template #label>
-                      <span class="has-text-weight-normal">
-                        <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                          Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
-                        </o-tooltip>
-                      </span>
-                    </template>
-                    <!-- @vue-skip -->
-                    <o-select
-                      v-model="aggregateLayer"
-                      :options="censusGeographyLayerOptions"
-                    />
-                  </o-field>
-                </div>
-              </div>
+              <o-field>
+                <template #label>
+                  <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                    Aggregate by Census geographic hierarchy level
+                    <o-icon icon="information" />
+                  </o-tooltip>
+                </template>
+                <!-- @vue-skip -->
+                <o-select
+                  v-model="aggregateLayer"
+                  :options="censusGeographyLayerOptions"
+                />
+              </o-field>
             </div>
           </div>
         </o-collapse>

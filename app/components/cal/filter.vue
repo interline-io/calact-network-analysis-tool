@@ -298,7 +298,7 @@
       <!-- LAYERS -->
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
-          <o-field class="cal-fixed-route-toggle">
+          <o-field grouped class="mb-4">
             <!-- @vue-skip -->
             <o-checkbox
               v-model="fixedRouteEnabled"
@@ -312,10 +312,7 @@
             </o-tooltip>
           </o-field>
 
-          <div
-            class="cal-fixed-route-options"
-            :class="{ 'is-disabled': !fixedRouteEnabled }"
-          >
+          <div :class="{ 'is-disabled': !fixedRouteEnabled }">
             <p class="menu-label">
               Modes
             </p>
@@ -400,7 +397,7 @@
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
-          <o-field class="cal-flex-toggle">
+          <o-field grouped class="mb-4">
             <!-- @vue-skip -->
             <o-checkbox
               v-model="flexServicesEnabled"
@@ -423,10 +420,7 @@
             </span>
           </t-notification>
 
-          <div
-            class="cal-flex-options"
-            :class="{ 'is-disabled': !flexServicesEnabled }"
-          >
+          <div :class="{ 'is-disabled': !flexServicesEnabled }">
             <p class="menu-label">
               Advance notice
             </p>
@@ -742,74 +736,51 @@ const dowAvailable = computed((): Set<string> => {
 
 <style scoped lang="scss">
 .cal-filter {
-  display:flex;
-  flex-direction: row;
+  display: flex;
   background: var(--bulma-scheme-main);
-  margin:0px;
-  height:100%;
-  padding-left:20px;
-  min-width: 250px; /* Minimum width for main panel */
-  .cal-filter-main {
-    display:flex;
-    flex-direction: column;
-    flex-shrink: 0; /* Don't shrink main panel */
-    .menu {
-      flex-grow:1;
-      width:250px;
-    }
+  height: 100%;
+  padding-left: 20px;
+}
+
+.cal-filter-main {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+
+  .menu {
+    flex-grow: 1;
+    width: 250px;
   }
-  .cal-filter-sub {
-    display:flex;
-    width: 400px;
-    min-width: 350px; /* Minimum reasonable width */
-    flex-shrink: 0; /* Don't shrink sub-panel */
-    flex-direction: column;
-    background: var(--bulma-scheme-main-ter);
-    margin:0px;
-    padding-left:20px;
-    padding-right:20px;
-    overflow-x: hidden; /* Prevent horizontal overflow */
-    overflow-y: visible; /* No vertical scrollbar */
-    box-sizing: border-box; /* Include padding in width calculation */
-  }
+}
+
+.cal-filter-sub {
+  width: 400px;
+  flex-shrink: 0;
+  background: var(--bulma-scheme-main-ter);
+  padding: 0 20px;
 }
 
 .cal-day-of-week-mode {
-  margin-left:20px;
-  margin-bottom:15px;
-
-  > div {
-    margin-bottom: unset;
-  }
+  margin-left: 20px;
+  margin-bottom: 15px;
 }
 
 .cal-service-levels {
-  .is-grouped div {
-    display: flex;
-    align-items: center;
-  }
-  .is-grouped .checkbox {
-    width: 185px;
-  }
   .cal-input-width-80 {
     max-width: 80px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
   }
   .cal-input-width-100 {
     max-width: 100px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
   }
 }
 
 .menu-list {
   a.is-active {
-    color:var(--bulma-text-main-ter);
-    background:var(--bulma-scheme-main-ter);
+    color: var(--bulma-text-main-ter);
+    background: var(--bulma-scheme-main-ter);
   }
   .right-chev {
-    float:right;
+    float: right;
   }
   .data-indicator {
     display: inline-block;
@@ -817,151 +788,17 @@ const dowAvailable = computed((): Set<string> => {
     height: 8px;
     border-radius: 50%;
     margin-left: 6px;
-    vertical-align: middle;
   }
 }
+
 .filter-legend {
-  font-size:10pt;
-  margin-top:10px;
-  margin-bottom:40px;
+  font-size: 10pt;
+  margin-top: 10px;
+  margin-bottom: 40px;
 }
 
-.cal-agency-search {
-  margin-bottom: 1rem;
-  width: 100%;
-  max-width: 100%;
-
-  .o-field {
-    width: 100%;
-    max-width: 100%;
-
-    .o-input {
-      width: 100%;
-      max-width: 100%;
-    }
-  }
-
-  .cal-agency-buttons {
-    margin-top: 0.5rem;
-    flex-wrap: wrap;
-    width: 100%;
-
-    .o-button {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-  }
-}
-
-.cal-radio-with-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: normal;
-  word-wrap: break-word;
-  max-width: 100%;
-
-  .o-icon {
-    flex-shrink: 0;
-  }
-}
-
-.cal-filter-sub {
-  .button.is-text {
-    &:hover {
-      color: var(--bulma-primary);
-    }
-  }
-
-  .menu {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-
-    .menu-label {
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-
-    ul {
-      width: 100%;
-      min-width: 0;
-
-      li {
-        width: 100%;
-        min-width: 0;
-
-        .o-radio,
-        .o-checkbox {
-          width: 100%;
-          min-width: 0;
-          white-space: normal;
-          word-wrap: break-word;
-
-          .o-tooltip {
-            display: inline-block;
-            margin-left: 0.25rem;
-          }
-        }
-      }
-    }
-  }
-}
-
-// Flex Services styles
-// Shared toggle styles for fixed-route and flex services
-.cal-fixed-route-toggle,
-.cal-flex-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-
-  .o-checkbox {
-    margin-bottom: 0;
-  }
-
-  .mdi-help-circle-outline {
-    color: var(--bulma-text-weak);
-    cursor: help;
-
-    &:hover {
-      color: var(--bulma-primary);
-    }
-  }
-}
-
-.cal-fixed-route-options {
-  transition: opacity 0.2s ease;
-
-  &.is-disabled {
-    opacity: 0.5;
-    pointer-events: none;
-  }
-}
-
-.cal-flex-options {
-  transition: opacity 0.2s ease;
-
-  &.is-disabled {
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  .menu-label {
-    margin-top: 1rem;
-
-    &:first-child {
-      margin-top: 0;
-    }
-  }
-
-  ul {
-    margin-left: 0.5rem;
-
-    li {
-      margin-bottom: 0.25rem;
-    }
-  }
+.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>

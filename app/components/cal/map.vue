@@ -47,7 +47,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
-import { colors, routeTypeNames, flexColors, escapeHtml } from '~~/src/core'
+import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -646,8 +646,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const ft = feature.geometry.type
     const fp = feature.properties
 
-    let text = ''
-    let sourceLayer = ''
+    let popupFeature: PopupFeature | null = null
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -655,65 +654,57 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         continue
       }
       const sp = stopLookup
-      sourceLayer = 'points'
-      text = `
-        <div class="popup-feature-type">🚏 Stop</div>
-        Stop ID: ${escapeHtml(sp.stop_id)}<br>
-        <strong>${escapeHtml(sp.stop_name)}</strong><br>
-        Routes: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.route_short_name)).join(', ')}<br>
-        Agencies: ${sp.route_stops.map((rs: any) => escapeHtml(rs.route.agency.agency_name)).join(', ')}`
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: featureId,
+        sourceLayer: 'points',
+        featureType: 'stop',
+        data: {
+          stop_id: sp.stop_id,
+          stop_name: sp.stop_name,
+          routes: sp.route_stops.map((rs: any) => rs.route.route_short_name),
+          agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
+        }
+      }
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
-      sourceLayer = 'lines'
-      text = `
-        <div class="popup-feature-type">🚌 Route</div>
-        Route ID: ${escapeHtml(fp.route_id)}<br>
-        <strong>${escapeHtml(fp.route_short_name || '')} ${escapeHtml(fp.route_long_name || '')}</strong><br>
-        Type: ${escapeHtml(routeTypeNames.get(fp.route_type) || 'Unknown')}<br>
-        Agency: ${escapeHtml(fp.agency_name)}`
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: featureId,
+        sourceLayer: 'lines',
+        featureType: 'route',
+        data: {
+          route_id: fp.route_id,
+          route_short_name: fp.route_short_name || '',
+          route_long_name: fp.route_long_name || '',
+          route_type_name: routeTypeNames.get(fp.route_type) || 'Unknown',
+          agency_name: fp.agency_name,
+        }
+      }
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
       // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
-      sourceLayer = 'flexPolygons'
       const flexFeatureId = fp.location_id?.toString() || featureId
-      const areaType = escapeHtml(fp.area_type || 'Unknown')
-      const advanceNotice = escapeHtml(fp.advance_notice || 'Unknown')
-      const filterStatusBar = fp.marked === false
-        ? '<div class="notification is-warning is-light popup-status-bar">⚠️ Doesn\'t match current filters</div>'
-        : '<div class="notification is-success is-light popup-status-bar">✅ Matches all filters</div>'
-      // IMPORTANT: MapLibre popups require raw HTML strings. Always use escapeHtml() for
-      // any user-provided or data-sourced values to prevent XSS attacks.
-      text = `
-        <div class="popup-feature-type">📍 Flex Service Area</div>
-        ${filterStatusBar}
-        ${fp.location_name ? `<div class="popup-location-name">${escapeHtml(fp.location_name)}</div>` : ''}
-        <div class="popup-details">
-          <div><strong>Agency:</strong> ${escapeHtml(fp.agency_name || fp.agency_names || 'Unknown')}</div>
-          <div><strong>Routes:</strong> ${escapeHtml(fp.route_names || 'Unknown')}</div>
-          <div><strong>Service:</strong> ${areaType}</div>
-          <div><strong>Advance Notice:</strong> ${advanceNotice}</div>
-          ${fp.phone_number ? `<div><strong>Phone:</strong> ${escapeHtml(fp.phone_number)}</div>` : ''}
-        </div>`
-      // Override featureId for flex areas to use location_id
-      if (text) {
-        console.log(`[MapClick] Adding popup feature: featureId=${flexFeatureId}, sourceLayer=${sourceLayer}`)
-        a.push({
-          point: { lon: pt.lng, lat: pt.lat },
-          text: text,
-          featureId: flexFeatureId,
-          sourceLayer: sourceLayer,
-        })
-        continue // Skip the default push below
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: flexFeatureId,
+        sourceLayer: 'flexPolygons',
+        featureType: 'flex',
+        data: {
+          location_id: fp.location_id,
+          location_name: fp.location_name,
+          agency_name: fp.agency_name || fp.agency_names || 'Unknown',
+          route_names: fp.route_names || 'Unknown',
+          area_type: fp.area_type || 'Unknown',
+          advance_notice: fp.advance_notice || 'Unknown',
+          phone_number: fp.phone_number,
+          marked: fp.marked,
+        }
       }
     }
 
-    if (text) {
-      console.log(`[MapClick] Adding popup feature: featureId=${featureId}, sourceLayer=${sourceLayer}`)
-      a.push({
-        point: { lon: pt.lng, lat: pt.lat },
-        text: text,
-        featureId: featureId,
-        sourceLayer: sourceLayer,
-      })
+    if (popupFeature) {
+      console.log(`[MapClick] Adding popup feature: featureId=${popupFeature.featureId}, sourceLayer=${popupFeature.sourceLayer}`)
+      a.push(popupFeature)
     }
   }
 
