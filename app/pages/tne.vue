@@ -209,7 +209,7 @@ import {
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS } from '~~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature } from '~~/src/flex'
 
@@ -681,8 +681,13 @@ const flexAgencyColorScale = computed(() => {
 // Check if a flex area matches the current filters
 // Returns true if it matches, false if it should be "downplayed"
 const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
-  const advanceNoticeFilter = flexAdvanceNotice.value as FlexAdvanceNotice[]
-  const areaTypesFilter = flexAreaTypesSelected.value as FlexAreaType[]
+  // Filter to only valid values to handle potential invalid URL query params
+  const advanceNoticeFilter = flexAdvanceNotice.value.filter(
+    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
+  )
+  const areaTypesFilter = flexAreaTypesSelected.value.filter(
+    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
+  )
 
   const featureAreaType = getFlexAreaType(feature)
   if (!areaTypesFilter.includes(featureAreaType)) return false
