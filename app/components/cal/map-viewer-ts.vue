@@ -461,7 +461,6 @@ function updateHighlight (popupFeature: PopupFeature | null) {
 
   if (!popupFeature || !popupFeature.featureId || !popupFeature.sourceLayer) {
     // Clear highlight
-    console.log('[Highlight] Clearing highlight (no feature selected)')
     highlightSource.setData({ type: 'FeatureCollection', features: [] })
     return
   }
@@ -469,7 +468,6 @@ function updateHighlight (popupFeature: PopupFeature | null) {
   // Find the feature in the appropriate source
   const sourceLayer = popupFeature.sourceLayer
   const featureId = popupFeature.featureId
-  console.log(`[Highlight] Selecting feature: id=${featureId}, source=${sourceLayer}`)
 
   // Look up the feature from our stored feature arrays based on source layer
   let matchingFeature: Feature | undefined
@@ -487,22 +485,18 @@ function updateHighlight (popupFeature: PopupFeature | null) {
   }
 
   if (matchingFeature) {
-    console.log(`[Highlight] Found matching feature:`, matchingFeature.geometry?.type, matchingFeature.properties)
     highlightSource.setData({
       type: 'FeatureCollection',
       features: [matchingFeature as any]
     })
   } else {
-    console.log(`[Highlight] No matching feature found for id=${featureId} in source=${sourceLayer}`)
     // Fallback: try querySourceFeatures for rendered tiles
     const renderedFeatures = map.querySourceFeatures(sourceLayer, {})
-    console.log(`[Highlight] Fallback: Found ${renderedFeatures.length} rendered features in source '${sourceLayer}'`)
     const renderedMatch = renderedFeatures.find(f =>
       f.properties?.location_id?.toString() === featureId.toString()
       || f.id?.toString() === featureId.toString()
     )
     if (renderedMatch) {
-      console.log(`[Highlight] Fallback found matching feature:`, renderedMatch.geometry?.type)
       highlightSource.setData({
         type: 'FeatureCollection',
         features: [renderedMatch as any]
@@ -558,9 +552,6 @@ function showPopupAtIndex (index: number) {
     console.warn('[Popup] Feature missing featureType or data, skipping:', feature)
     return
   }
-
-  // Debug: log the feature to see what properties it has
-  console.log('[Highlight] showPopupAtIndex feature:', feature, 'featureId:', feature.featureId, 'sourceLayer:', feature.sourceLayer)
 
   // Update highlight to show the selected feature
   updateHighlight(feature)

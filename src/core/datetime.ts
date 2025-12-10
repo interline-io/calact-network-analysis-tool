@@ -54,10 +54,10 @@ export function parseHMS (value: string): number {
 /**
  * Convert a Date object (representing a time) to seconds since midnight
  * @param time - Date object representing a time of day
- * @returns Seconds since midnight (0-86399)
+ * @returns Seconds since midnight (0-86399), or undefined if time is undefined
  */
-export function dateToSeconds (time: Date | undefined): number {
-  if (!time) return 0
+export function dateToSeconds (time: Date | undefined): number | undefined {
+  if (!time) return undefined
   return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
 }
 

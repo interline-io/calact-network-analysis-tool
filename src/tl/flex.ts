@@ -277,14 +277,17 @@ const DAY_KEYS: (keyof FlexBookingDays)[] = [
  * @param feature - Flex area feature
  * @param dayOfWeek - Day of week (0 = Sunday, 6 = Saturday) - matches Date.getDay()
  * @returns true if booking is available, false otherwise
+ * @throws Error if dayOfWeek is not in valid range (0-6)
  */
 export function isBookingAvailableOnDay (feature: FlexAreaFeature, dayOfWeek: number): boolean {
   const bookingDays = feature.properties.booking_days
   // If no booking_days info, assume booking is always available
   if (!bookingDays) return true
 
-  // Ensure dayOfWeek is valid (0-6)
-  if (dayOfWeek < 0 || dayOfWeek > 6) return true
+  // Validate dayOfWeek is in valid range
+  if (dayOfWeek < 0 || dayOfWeek > 6) {
+    throw new Error(`Invalid dayOfWeek: ${dayOfWeek}. Must be 0-6 (Sunday=0, Saturday=6)`)
+  }
 
   const dayKey = DAY_KEYS[dayOfWeek] as keyof FlexBookingDays
   return bookingDays[dayKey]
@@ -338,6 +341,14 @@ export function formatBookingDays (bookingDays: FlexBookingDays | undefined): st
 // GraphQL Query for Flex Locations
 //////////
 
+/**
+ * Maximum number of stop_times to fetch per location in the GraphQL query.
+ * This limit prevents excessive data transfer for locations with many trips.
+ * The value of 1000 should cover most flex service areas while keeping
+ * response sizes manageable.
+ */
+export const MAX_STOP_TIMES_PER_LOCATION = 1000
+
 export const flexLocationQuery = gql`
 query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
   feed_versions(where: { sha1: $fvSha1 }) {
@@ -355,6 +366,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
       zone_id
       geometry
       feed_onestop_id
+      # Note: limit must match MAX_STOP_TIMES_PER_LOCATION constant
       stop_times(where: { service_date: $serviceDate }, limit: 1000) {
         pickup_type
         drop_off_type
