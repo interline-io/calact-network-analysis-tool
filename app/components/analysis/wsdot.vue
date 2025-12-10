@@ -27,7 +27,7 @@
 
     <t-msg
       v-if="error"
-      variant="error"
+      variant="danger"
       class="mt-4"
       style="width:400px"
       :title="error.message"

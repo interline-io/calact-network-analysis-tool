@@ -125,6 +125,7 @@
                 <o-loading
                   :active="true"
                   :full-page="false"
+                  size="small"
                 />
               </div>
             </div>
