@@ -11,17 +11,18 @@
     <!-- Analysis selection interface -->
     <div v-else>
       <tl-title title="Analysis" />
-      <tl-msg-info>
+      <t-msg variant="info">
         <p>For richer metrics than included in the <o-icon icon="file-chart" style="vertical-align:middle;" /> <strong>Report tab</strong> by default, run an analysis.</p>
         <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
-      </tl-msg-info>
+      </t-msg>
 
       <!-- Warning when no scenario data is available -->
-      <tl-msg-warning v-if="!scenarioConfig">
+      <t-msg v-if="!scenarioConfig" variant="danger">
         You need to define the geographic extent before running analyses. Please go to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
-      </tl-msg-warning>
+      </t-msg>
 
       <o-field label="Start an analysis">
+        <!-- @vue-skip -->
         <o-select
           v-model="selectedReportType"
           placeholder="Select an analysis to run"

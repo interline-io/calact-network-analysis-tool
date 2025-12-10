@@ -4,7 +4,7 @@
       {{ total }} results found
     </div>
 
-    <o-field grouped expanded>
+    <o-field grouped>
       <o-field>
         <cal-csv-download
           :data="tableReport.data"
@@ -15,9 +15,9 @@
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
+      <!-- @vue-skip -->
       <o-pagination
         v-model:current="current"
-        expanded
         :total="total"
         order="centered"
         :per-page="perPage"

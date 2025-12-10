@@ -39,6 +39,7 @@
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
               <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
+                <!-- @vue-skip -->
                 <o-checkbox v-model="selectedLevels" :native-value="levelKey">
                   {{ levelDetail.label }}
                 </o-checkbox>
@@ -73,9 +74,11 @@
         </o-field>
 
         <o-field label="Map display options" class="mt-4">
+          <!-- @vue-skip -->
           <o-checkbox v-model="showStopBuffers">
             Show stop buffers
           </o-checkbox>
+          <!-- @vue-skip -->
           <o-dropdown
             v-model:model-value="selectedStates"
             selectable
@@ -100,9 +103,11 @@
           </o-dropdown>
         </o-field>
         <o-field label="Population options">
+          <!-- @vue-skip -->
           <o-radio v-model="popMethod" native-value="state">
             Percent of state population
           </o-radio>
+          <!-- @vue-skip -->
           <o-radio v-model="popMethod" native-value="bboxIntersection">
             Percent of population in bounding box
           </o-radio>

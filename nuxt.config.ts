@@ -17,6 +17,8 @@ export default defineNuxtConfig({
     enabled: isDev,
   },
 
+  css: ['~/assets/main.scss'],
+
   runtimeConfig: {
     tlv2: {
       graphqlApikey: '',
@@ -70,7 +72,7 @@ export default defineNuxtConfig({
     tsConfig: {
       vueCompilerOptions: {
         // This is critical for checking component props in templates
-        // strictTemplates: true,
+        strictTemplates: true,
       },
     },
   },

@@ -1,6 +1,6 @@
 <template>
   <div>
     <tl-title title="My User Profile" />
-    <tl-user-icon />
+    <!-- TODO: Add tl-user-icon component when available -->
   </div>
 </template>
