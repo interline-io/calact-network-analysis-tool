@@ -20,7 +20,6 @@ import type { FlexAreaFeature,
   StopGql,
   StopTime,
   FlexLocationQueryResponse
-
 } from '~~/src/tl'
 import {
   StopDepartureCache,

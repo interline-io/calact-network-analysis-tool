@@ -75,17 +75,7 @@ export function useFlexAreaFormatting () {
     }
   }
 
-  /**
-   * Get route display name with fallback to route_id
-   * @param route - Route object with optional name fields
-   * @returns Best available name for the route
-   */
-  function getRouteDisplayName (route: { route_long_name?: string, route_short_name?: string, route_id: string }): string {
-    return route.route_long_name || route.route_short_name || route.route_id
-  }
-
   return {
     buildFlexAreaProperties,
-    getRouteDisplayName,
   }
 }
