@@ -592,44 +592,65 @@ function showPopupAtIndex (index: number) {
   })
     .setLngLat([feature.point.lon, feature.point.lat])
     .setHTML(html)
-    .addTo(map!)
 
-  currentPopup = popup
+  // Attach event handlers before adding to map, using 'open' event
+  // This ensures handlers are ready when popup opens
+  popup.on('open', () => {
+    const popupElem = popup.getElement()
+    if (!popupElem) return
 
-  // Add click handlers after popup is added to DOM
-  setTimeout(() => {
-    // Close button
-    const closeBtn = document.querySelector('.popup-close')
-    closeBtn?.addEventListener('click', (e) => {
+    // Close button handler
+    const closeBtn = popupElem.querySelector('.popup-close')
+    const closeHandler = (e: Event) => {
       e.stopPropagation()
       if (currentPopup) {
         currentPopup.remove()
         currentPopup = null
-        // Clear highlight when closing popup
         updateHighlight(null)
       }
-    })
+    }
+    closeBtn?.addEventListener('click', closeHandler)
 
-    // Navigation buttons
+    // Navigation button handlers
+    let prevHandler: ((e: Event) => void) | null = null
+    let nextHandler: ((e: Event) => void) | null = null
+
     if (hasMultiple) {
-      const prevBtn = document.querySelector('.popup-prev')
-      const nextBtn = document.querySelector('.popup-next')
+      const prevBtn = popupElem.querySelector('.popup-prev')
+      const nextBtn = popupElem.querySelector('.popup-next')
 
-      prevBtn?.addEventListener('click', (e) => {
+      prevHandler = (e: Event) => {
         e.stopPropagation()
         if (currentPopupIndex > 0) {
           showPopupAtIndex(currentPopupIndex - 1)
         }
-      })
+      }
+      prevBtn?.addEventListener('click', prevHandler)
 
-      nextBtn?.addEventListener('click', (e) => {
+      nextHandler = (e: Event) => {
         e.stopPropagation()
         if (currentPopupIndex < currentPopupFeatures.length - 1) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
+      }
+      nextBtn?.addEventListener('click', nextHandler)
+
+      // Clean up navigation listeners when popup closes
+      popup.once('close', () => {
+        if (prevHandler) prevBtn?.removeEventListener('click', prevHandler)
+        if (nextHandler) nextBtn?.removeEventListener('click', nextHandler)
       })
     }
-  }, 0)
+
+    // Clean up close button listener when popup closes
+    popup.once('close', () => {
+      closeBtn?.removeEventListener('click', closeHandler)
+    })
+  })
+
+  // Now add to map - this triggers the 'open' event
+  popup.addTo(map!)
+  currentPopup = popup
 }
 
 function drawMarkers (markers: MarkerFeature[]) {

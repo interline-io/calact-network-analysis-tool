@@ -414,15 +414,14 @@
             </o-tooltip>
           </o-field>
 
-          <div
+          <t-notification
             v-if="flexServicesEnabled"
-            class="cal-flex-warning"
+            variant="warning"
           >
-            <o-icon icon="alert" size="small" />
             <span>
               Flex service data may be incomplete. Please contact relevant agencies for additional information.
             </span>
-          </div>
+          </t-notification>
 
           <div
             class="cal-flex-options"
@@ -938,25 +937,6 @@ const dowAvailable = computed((): Set<string> => {
   &.is-disabled {
     opacity: 0.5;
     pointer-events: none;
-  }
-}
-
-.cal-flex-warning {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  margin-bottom: 1rem;
-  background-color: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 4px;
-  color: #856404;
-  font-size: 0.85rem;
-  line-height: 1.4;
-
-  .o-icon {
-    flex-shrink: 0;
-    margin-top: 0.1rem;
   }
 }
 

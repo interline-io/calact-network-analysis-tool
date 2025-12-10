@@ -157,6 +157,7 @@
                     <o-checkbox
                       v-model="includeFixedRoute"
                       label="Include Fixed-Route Transit"
+                      aria-label="Include Fixed-Route Transit data in query results"
                     />
                   </o-field>
                   <o-field class="mb-0">
@@ -164,6 +165,7 @@
                     <o-checkbox
                       v-model="includeFlexAreas"
                       label="Include Flex Service Areas"
+                      aria-label="Include Flex Service Areas data in query results"
                     />
                   </o-field>
                 </div>

@@ -680,6 +680,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       const filterStatusBar = fp.marked === false
         ? '<div class="notification is-warning is-light popup-status-bar">⚠️ Doesn\'t match current filters</div>'
         : '<div class="notification is-success is-light popup-status-bar">✅ Matches all filters</div>'
+      // IMPORTANT: MapLibre popups require raw HTML strings. Always use escapeHtml() for
+      // any user-provided or data-sourced values to prevent XSS attacks.
       text = `
         <div class="popup-feature-type">📍 Flex Service Area</div>
         ${filterStatusBar}
