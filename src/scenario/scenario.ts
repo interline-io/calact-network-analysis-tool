@@ -30,7 +30,7 @@ import {
   type FlexLocationQueryResponse
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
-import type { FlexAreaFeature } from '~~/src/flex'
+import type { FlexAreaFeature } from '~~/src/tl'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
