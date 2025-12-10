@@ -20,9 +20,9 @@
     </div>
 
     <!-- Error Display -->
-    <tl-msg-error v-if="error">
+    <t-msg v-if="error" variant="danger">
       {{ typeof error === 'string' ? error : error?.message }}
-    </tl-msg-error>
+    </t-msg>
 
     <!-- Completion Status -->
     <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
@@ -33,7 +33,7 @@
     <!-- Results Display -->
     <div class="columns is-multiline">
       <div class="column is-one-quarter">
-        <tl-msg-info title="Stops" no-icon>
+        <t-msg variant="info" title="Stops">
           <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
             <div v-for="stop in scenarioData?.stops.slice(0, 5)" :key="stop.id" class="stop-item">
@@ -43,10 +43,10 @@
               ... and {{ scenarioData.stops.length - 5 }} more
             </div>
           </div>
-        </tl-msg-info>
+        </t-msg>
       </div>
       <div class="column is-one-quarter">
-        <tl-msg-info title="Routes" no-icon>
+        <t-msg variant="info" title="Routes">
           <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
             <div v-for="route in scenarioData?.routes.slice(0, 5)" :key="route.id" class="route-item">
@@ -56,18 +56,18 @@
               ... and {{ scenarioData.routes.length - 5 }} more
             </div>
           </div>
-        </tl-msg-info>
+        </t-msg>
       </div>
       <div class="column is-one-quarter">
-        <tl-msg-info title="Departures" no-icon>
+        <t-msg variant="info" title="Departures">
           <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
           <div class="more-label">
             {{ (stopDepartureCount || 0).toLocaleString() }} total departures
           </div>
-        </tl-msg-info>
+        </t-msg>
       </div>
       <div class="column is-one-quarter">
-        <tl-msg-info title="Flex Areas" no-icon>
+        <t-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
             <div v-for="area in scenarioData?.flexAreas.slice(0, 5)" :key="area.id" class="flex-item">
@@ -77,7 +77,7 @@
               ... and {{ scenarioData.flexAreas.length - 5 }} more
             </div>
           </div>
-        </tl-msg-info>
+        </t-msg>
       </div>
     </div>
   </div>

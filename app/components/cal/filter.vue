@@ -77,6 +77,7 @@
           title="Close filter panel"
           @click="setTab('')"
         >
+          <!-- @vue-skip -->
           <o-icon
             icon="chevron-left"
             size="large"
@@ -116,6 +117,7 @@
               v-for="dowValue of dowValues"
               :key="dowValue"
             >
+              <!-- @vue-skip -->
               <o-checkbox
                 v-model="selectedDays"
                 :native-value="dowValue"
@@ -129,6 +131,7 @@
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
+            <!-- @vue-skip -->
             <o-tooltip
               label="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
               multiline
@@ -140,6 +143,7 @@
           </p>
 
           <o-field class="cal-time-of-day-mode">
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="selectedTimeOfDayMode"
               label="All Day"
@@ -153,6 +157,7 @@
           </p>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-timepicker
               v-model="startTime"
               inline
@@ -168,6 +173,7 @@
           </p>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-timepicker
               v-model="endTime"
               inline
@@ -188,11 +194,13 @@
           </p>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
+              <!-- @vue-skip -->
               <o-input
                 v-model="frequencyUnder"
                 number
@@ -207,11 +215,13 @@
           </o-field>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
+              <!-- @vue-skip -->
               <o-input
                 v-model="frequencyOver"
                 number
@@ -226,6 +236,7 @@
           </o-field>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
@@ -243,12 +254,14 @@
           </p>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
+              <!-- @vue-skip -->
               <o-input
                 v-model="maxFare"
                 number
@@ -261,12 +274,14 @@
           </o-field>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
+              <!-- @vue-skip -->
               <o-input
                 v-model="minFare"
                 number
@@ -284,6 +299,7 @@
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
           <o-field class="cal-fixed-route-toggle">
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="fixedRouteEnabled"
               label="Include Fixed-Route Transit"
@@ -308,6 +324,7 @@
                 v-for="[routeType, routeTypeDesc] of routeTypeNames"
                 :key="routeType"
               >
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="selectedRouteTypes"
                   :native-value="routeType"
@@ -327,6 +344,7 @@
 
             <div class="cal-agency-search">
               <o-field>
+                <!-- @vue-skip -->
                 <o-input
                   v-model="agencySearch"
                   type="Search"
@@ -362,6 +380,7 @@
                 v-for="agencyName of knownAgencies"
                 :key="agencyName"
               >
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="selectedAgencies"
                   :native-value="agencyName"
@@ -382,6 +401,7 @@
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
           <o-field class="cal-flex-toggle">
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="flexServicesEnabled"
               label="Include Flex Services"
@@ -416,6 +436,7 @@
                 v-for="noticeType of flexAdvanceNoticeTypes"
                 :key="noticeType"
               >
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="flexAdvanceNotice"
                   :native-value="noticeType"
@@ -434,6 +455,7 @@
                 v-for="areaType of flexAreaTypes"
                 :key="areaType"
               >
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="flexAreaTypesSelected"
                   :native-value="areaType"
@@ -579,6 +601,7 @@
           <ul>
             <li>
               <o-field grouped>
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"
@@ -622,38 +645,38 @@ const emit = defineEmits([
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date>('startDate')
-const endDate = defineModel<Date>('endDate')
-const startTime = defineModel<Date | null>('startTime')
-const endTime = defineModel<Date | null>('endTime')
-const unitSystem = defineModel<string>('unitSystem')
-const hideUnmarked = defineModel<boolean>('hideUnmarked')
-const colorKey = defineModel<string>('colorKey')
-const dataDisplayMode = defineModel<string>('dataDisplayMode')
-const baseMap = defineModel<string>('baseMap')
-const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
-const selectedDays = defineModel<dow[]>('selectedDays')
-const selectedAgencies = defineModel<string[]>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
-const frequencyUnder = defineModel<number>('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
-const frequencyOver = defineModel<number>('frequencyOver')
-const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
-const maxFare = defineModel<number>('maxFare')
-const minFareEnabled = defineModel<boolean>('minFareEnabled')
-const minFare = defineModel<number>('minFare')
+const startDate = defineModel<Date | undefined>('startDate')
+const endDate = defineModel<Date | undefined>('endDate')
+const startTime = defineModel<Date | null | undefined>('startTime')
+const endTime = defineModel<Date | null | undefined>('endTime')
+const unitSystem = defineModel<string | undefined>('unitSystem')
+const hideUnmarked = defineModel<boolean | undefined>('hideUnmarked')
+const colorKey = defineModel<string | undefined>('colorKey')
+const dataDisplayMode = defineModel<string | undefined>('dataDisplayMode')
+const baseMap = defineModel<string | undefined>('baseMap')
+const selectedDayOfWeekMode = defineModel<string | undefined>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string | undefined>('selectedTimeOfDayMode')
+const selectedRouteTypes = defineModel<number[] | undefined>('selectedRouteTypes')
+const selectedDays = defineModel<dow[] | undefined>('selectedDays')
+const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
+const frequencyUnderEnabled = defineModel<boolean | undefined>('frequencyUnderEnabled')
+const frequencyUnder = defineModel<number | undefined>('frequencyUnder')
+const frequencyOverEnabled = defineModel<boolean | undefined>('frequencyOverEnabled')
+const frequencyOver = defineModel<number | undefined>('frequencyOver')
+const calculateFrequencyMode = defineModel<boolean | undefined>('calculateFrequencyMode')
+const maxFareEnabled = defineModel<boolean | undefined>('maxFareEnabled')
+const maxFare = defineModel<number | undefined>('maxFare')
+const minFareEnabled = defineModel<boolean | undefined>('minFareEnabled')
+const minFare = defineModel<number | undefined>('minFare')
 
 // Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
+const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
-const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled
-const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
+const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // All selected by default when enabled
+const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // All selected by default when enabled
+const flexColorBy = defineModel<string | undefined>('flexColorBy') // 'Agency' by default
 
 // Data availability indicators
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)

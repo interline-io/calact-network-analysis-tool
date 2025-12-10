@@ -4,12 +4,12 @@
       Transit Network Explorer
     </tl-title>
 
-    <tl-msg-info>
+    <t-msg variant="info">
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
-    </tl-msg-info>
+    </t-msg>
 
     <div class="cal-body">
-      <tl-msg-box title="Date range">
+      <t-msg title="Date range">
         <o-field>
           <template #label>
             <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
@@ -31,11 +31,12 @@
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
         </o-field>
-      </tl-msg-box>
+      </t-msg>
 
-      <tl-msg-box title="Geographic Bounds">
-        <tl-msg-warning v-if="debugMenu" class="mt-4" style="width:400px" title="Debug menu">
+      <t-msg title="Geographic Bounds">
+        <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
+            <!-- @vue-skip -->
             <o-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
@@ -46,7 +47,7 @@
             </o-button>
           </o-field>
           <br>
-        </tl-msg-warning>
+        </t-msg>
 
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
@@ -69,6 +70,7 @@
               <template #label>
                 Administrative boundary layer to search
               </template>
+              <!-- @vue-skip -->
               <o-select
                 v-model="geomLayer"
                 :options="props.censusGeographyLayerOptions"
@@ -84,6 +86,7 @@
             </template>
             <div class="field has-addons">
               <div class="control is-expanded">
+                <!-- @vue-skip -->
                 <o-taginput
                   v-model="geographyIds"
                   v-model:input="geomSearch"
@@ -113,6 +116,7 @@
                 </o-taginput>
               </div>
               <div v-if="geomResultLoading" class="control">
+                <!-- @vue-skip -->
                 <o-loading
                   :active="true"
                   :full-page="false"
@@ -122,9 +126,10 @@
             </div>
           </o-field>
         </div>
-      </tl-msg-box>
+      </t-msg>
 
       <article class="message mb-4 is-text">
+        <!-- @vue-skip -->
         <o-collapse
           v-model:open="showAdvancedSettings"
           animation="slide"
@@ -148,12 +153,14 @@
                 </p>
                 <div class="pl-3">
                   <o-field class="mb-2">
+                    <!-- @vue-skip -->
                     <o-checkbox
                       v-model="includeFixedRoute"
                       label="Include Fixed-Route Transit"
                     />
                   </o-field>
                   <o-field class="mb-0">
+                    <!-- @vue-skip -->
                     <o-checkbox
                       v-model="includeFlexAreas"
                       label="Include Flex Service Areas"
@@ -176,6 +183,7 @@
                         </o-tooltip>
                       </span>
                     </template>
+                    <!-- @vue-skip -->
                     <o-select
                       v-model="aggregateLayer"
                       :options="censusGeographyLayerOptions"
@@ -225,20 +233,20 @@ const props = defineProps<{
 }>()
 
 const bbox = defineModel<Bbox>('bbox', { default: null })
-const geographyIds = defineModel<number[]>('geographyIds')
+const geographyIds = defineModel<number[] | undefined>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
 const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geomLayer = ref('place')
-const cannedBbox = defineModel<string>('cannedBbox', { default: null })
+const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date>('endDate')
+const endDate = defineModel<Date | undefined>('endDate')
 const geomSearch = ref('')
-const geomSource = defineModel<string>('geomSource')
+const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
 const showAdvancedSettings = ref(false)
-const startDate = defineModel<Date>('startDate')
+const startDate = defineModel<Date | undefined>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 const geomSearchVars = computed(() => {
