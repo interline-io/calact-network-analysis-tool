@@ -70,6 +70,7 @@
     <template #main>
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
+          <!-- @vue-skip -->
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -92,6 +93,7 @@
           v-if="activeTab.tab === 'filter'"
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
+          <!-- @vue-skip -->
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -128,9 +130,7 @@
             v-model:aggregate-layer="aggregateLayer"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
-            :export-features="exportFeatures"
             :filter-summary="filterSummary"
-            @click-filter-link="setTab({ tab: 'filter', sub: 'data-display' })"
           />
         </div>
 
@@ -158,11 +158,10 @@
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-      <tl-modal
+      <t-modal
         v-model="showLoadingModal"
         title="Loading"
         :closable="false"
-        :active="showLoadingModal"
       >
         <cal-scenario-loading
           :progress="loadingProgress"
@@ -170,7 +169,7 @@
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
         />
-      </tl-modal>
+      </t-modal>
     </template>
   </NuxtLayout>
 </template>
@@ -987,7 +986,7 @@ function toTitleCase (str: string): string {
 
 <style>
 /* Ensure modal is always on top */
-.tl-modal {
+.t-modal {
   z-index: 99999 !important;
 }
 </style>

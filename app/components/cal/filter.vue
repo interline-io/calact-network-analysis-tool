@@ -70,7 +70,6 @@
           <o-icon
             icon="chevron-left"
             size="large"
-            aria-hidden="true"
           />
         </button>
       </div>
@@ -106,6 +105,7 @@
               v-for="dowValue of dowValues"
               :key="dowValue"
             >
+              <!-- @vue-skip -->
               <o-checkbox
                 v-model="selectedDays"
                 :native-value="dowValue"
@@ -122,6 +122,7 @@
           </p>
 
           <o-field class="cal-time-of-day-mode">
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="selectedTimeOfDayMode"
               label="All Day"
@@ -135,6 +136,7 @@
           </p>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-timepicker
               v-model="startTime"
               inline
@@ -150,6 +152,7 @@
           </p>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-timepicker
               v-model="endTime"
               inline
@@ -170,16 +173,17 @@
           </p>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
+              <!-- @vue-skip -->
               <o-input
                 v-model="frequencyUnder"
                 number
                 type="number"
-                min="0"
                 :disabled="!frequencyUnderEnabled"
               />
             </div>
@@ -189,16 +193,17 @@
           </o-field>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
+              <!-- @vue-skip -->
               <o-input
                 v-model="frequencyOver"
                 number
                 type="number"
-                min="0"
                 :disabled="!frequencyOverEnabled"
               />
             </div>
@@ -208,6 +213,7 @@
           </o-field>
 
           <o-field>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
@@ -225,17 +231,18 @@
           </p>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
+              <!-- @vue-skip -->
               <o-input
                 v-model="maxFare"
                 number
                 type="number"
-                min="0"
                 step="0.01"
                 :disabled="true"
               />
@@ -243,17 +250,18 @@
           </o-field>
 
           <o-field grouped>
+            <!-- @vue-skip -->
             <o-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
+              <!-- @vue-skip -->
               <o-input
                 v-model="minFare"
                 number
                 type="number"
-                min="0"
                 step="0.01"
                 :disabled="true"
               />
@@ -273,6 +281,7 @@
               v-for="[routeType, routeTypeDesc] of routeTypeNames"
               :key="routeType"
             >
+              <!-- @vue-skip -->
               <o-checkbox
                 v-model="selectedRouteTypes"
                 :native-value="routeType"
@@ -291,6 +300,7 @@
 
           <div class="cal-agency-search">
             <o-field>
+              <!-- @vue-skip -->
               <o-input
                 v-model="agencySearch"
                 type="Search"
@@ -323,6 +333,7 @@
               v-for="agencyName of knownAgencies"
               :key="agencyName"
             >
+              <!-- @vue-skip -->
               <o-checkbox
                 v-model="selectedAgencies"
                 :native-value="agencyName"
@@ -455,6 +466,7 @@
           <ul>
             <li>
               <o-field grouped>
+                <!-- @vue-skip -->
                 <o-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"
