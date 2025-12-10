@@ -122,7 +122,6 @@ import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { Feature } from '~~/src/core'
-import { sanitizeUrl } from '~~/src/core'
 
 const props = defineProps<{
   filterSummary: string[]
@@ -236,9 +235,8 @@ function flexFeatureToCsv (feature: Feature): Record<string, string | number | u
     timeWindow = `${props.time_window_start_formatted} - ${props.time_window_end_formatted}`
   }
 
-  // Sanitize URLs to ensure only http/https protocols are allowed
-  const safeInfoUrl = sanitizeUrl(props.info_url)
-  const safeBookingUrl = sanitizeUrl(props.booking_url)
+  const infoUrl = props.info_url || ''
+  const bookingUrl = props.booking_url || ''
 
   return {
     location_id: props.location_id,
@@ -251,9 +249,9 @@ function flexFeatureToCsv (feature: Feature): Record<string, string | number | u
     advance_notice: props.advance_notice || '',
     phone_number: props.phone_number || '',
     // For table display, we use a combined 'urls' field; for CSV, we use separate columns
-    urls: [safeInfoUrl, safeBookingUrl].filter(Boolean).join(' | ') || '',
-    info_url: safeInfoUrl,
-    booking_url: safeBookingUrl,
+    urls: [infoUrl, bookingUrl].filter(Boolean).join(' | ') || '',
+    info_url: infoUrl,
+    booking_url: bookingUrl,
     trip_count: props.trip_count || 0,
     // Additional metadata for CSV export (not shown in UI table)
     zone_id: props.zone_id || '',
