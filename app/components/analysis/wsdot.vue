@@ -53,7 +53,7 @@
 
         <t-msg
           v-if="debugMenu"
-          variant="danger"
+          variant="warning"
           class="mt-4"
           title="Debug menu"
         >

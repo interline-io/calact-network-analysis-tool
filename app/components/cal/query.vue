@@ -34,7 +34,7 @@
       </t-msg>
 
       <t-msg title="Geographic Bounds">
-        <t-msg v-if="debugMenu" variant="danger" class="mt-4" style="width:400px" title="Debug menu">
+        <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
           <o-field label="Preset bounding box">
             <!-- @vue-skip -->
             <o-select v-model="cannedBbox">
