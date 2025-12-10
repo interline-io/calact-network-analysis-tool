@@ -259,7 +259,7 @@ router.beforeEach((to, from, next) => {
 
 const cannedBbox = computed({
   get () {
-    return route.query.example?.toString() || ''
+    return route.query.example?.toString() || 'downtown-portland'
   },
   set (v: string) {
     setQuery({ ...route.query, example: v || undefined })
@@ -1274,9 +1274,6 @@ function toTitleCase (str: string): string {
 }
 
 // Individual tab width classes
-.cal-tab-query {
-  width: calc(50vw); // Query tab - half width, map visible
-}
 
 .cal-tab-filter {
   width: 270px; /* Default width when no subtab is open */
