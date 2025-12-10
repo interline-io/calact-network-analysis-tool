@@ -12,6 +12,16 @@ import {
   convertBbox,
   chunkArray
 } from '~~/src/core'
+import type { FlexAreaFeature,
+  FeedGql,
+  FeedVersion,
+  RouteGql,
+  StopDeparture,
+  StopGql,
+  StopTime,
+  FlexLocationQueryResponse
+
+} from '~~/src/tl'
 import {
   StopDepartureCache,
   feedVersionQuery,
@@ -21,16 +31,8 @@ import {
   stopQuery,
   flexLocationQuery,
   transformLocationsToFlexAreas,
-  type FeedGql,
-  type FeedVersion,
-  type RouteGql,
-  type StopDeparture,
-  type StopGql,
-  type StopTime,
-  type FlexLocationQueryResponse
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
-import type { FlexAreaFeature } from '~~/src/tl'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000

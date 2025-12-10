@@ -201,17 +201,16 @@ import { useApiFetch } from '~/composables/useApiFetch'
 import {
   getFlexAreaType,
   getFlexAdvanceNotice,
-  getFlexAgencyName,
+  getFlexAgencyName, geographyLayerQuery
 } from '~~/src/tl'
 import {
   createCategoryColorScale,
   flexColors,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
+import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
 import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
-import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature } from '~~/src/tl'
 
 definePageMeta({
   layout: false
