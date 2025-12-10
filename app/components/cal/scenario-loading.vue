@@ -20,7 +20,7 @@
     </div>
 
     <!-- Error Display -->
-    <t-msg v-if="error" variant="info">
+    <t-msg v-if="error" variant="danger">
       {{ typeof error === 'string' ? error : error?.message }}
     </t-msg>
 
