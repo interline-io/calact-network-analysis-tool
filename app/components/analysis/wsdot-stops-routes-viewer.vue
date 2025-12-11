@@ -55,42 +55,42 @@
                 </span>
               </template>
               <template #column-level1="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level2="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level3="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level4="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level5="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level6="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-levelNights="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="stopFeatures"
                     filename="wsdot-stops"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>
@@ -122,14 +122,14 @@
                 <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="routeFeatures"
                     filename="wsdot-routes"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>

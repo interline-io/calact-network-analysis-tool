@@ -34,7 +34,7 @@
     </div>
     <div class="columns">
       <div class="column is-one-half">
-        <o-field label="Frequency level selection and stats" class="mt-4" />
+        <t-field label="Frequency level selection and stats" class="mt-4" />
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
@@ -66,20 +66,20 @@
           </tbody>
         </table>
 
-        <o-field class="py-2">
+        <t-field class="py-2">
           <cal-csv-download
             :data="populationDatagrid.data"
             button-text="Download Population Data as CSV"
           />
-        </o-field>
+        </t-field>
 
-        <o-field label="Map display options" class="mt-4">
+        <t-field label="Map display options" class="mt-4">
           <!-- @vue-skip -->
           <o-checkbox v-model="showStopBuffers">
             Show stop buffers
           </o-checkbox>
           <!-- @vue-skip -->
-          <o-dropdown
+          <t-dropdown
             v-model:model-value="selectedStates"
             selectable
             multiple
@@ -93,16 +93,16 @@
               </o-button>
             </template>
 
-            <o-dropdown-item
+            <t-dropdown-item
               v-for="state in Object.keys(StatePopulations).sort()"
               :key="state"
               :value="state"
             >
               {{ state }}
-            </o-dropdown-item>
-          </o-dropdown>
-        </o-field>
-        <o-field label="Population options">
+            </t-dropdown-item>
+          </t-dropdown>
+        </t-field>
+        <t-field label="Population options">
           <!-- @vue-skip -->
           <o-radio v-model="popMethod" native-value="state">
             Percent of state population
@@ -111,7 +111,7 @@
           <o-radio v-model="popMethod" native-value="bboxIntersection">
             Percent of population in bounding box
           </o-radio>
-        </o-field>
+        </t-field>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -126,13 +126,13 @@
       :table-report="stopDatagrid"
     >
       <template #additional-downloads>
-        <o-field>
+        <t-field>
           <cal-geojson-download
             :data="stopFeatures"
             filename="wsdot-frequent-transit-stops"
             button-text="Download as GeoJSON"
           />
-        </o-field>
+        </t-field>
       </template>
 
       <template #column-highestLevel="{ value }">
@@ -144,31 +144,31 @@
         </span>
       </template>
       <template #column-level1="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level2="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level3="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level4="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level5="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level6="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-levelNights="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
     </cal-datagrid>

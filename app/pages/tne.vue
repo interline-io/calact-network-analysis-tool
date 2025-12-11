@@ -6,7 +6,7 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <o-icon
+            <t-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
@@ -20,7 +20,7 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'filter', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
@@ -34,7 +34,7 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'map', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="map"
               class="is-fullwidth"
               size="large"
@@ -48,7 +48,7 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'report', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
@@ -57,7 +57,7 @@
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <o-icon
+            <t-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"

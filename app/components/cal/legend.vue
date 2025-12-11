@@ -10,7 +10,7 @@
             Legend
           </span>
           <span class="message-header-icon">
-            <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
+            <t-icon :icon="open ? 'menu-up' : 'menu-down'" />
           </span>
         </div>
       </template>
@@ -125,7 +125,7 @@
 
         <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
           <p class="legend-loading">
-            <o-loading
+            <t-loading
               :active="true"
               :full-page="false"
             />

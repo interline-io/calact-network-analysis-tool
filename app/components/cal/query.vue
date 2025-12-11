@@ -10,32 +10,32 @@
 
     <div class="cal-body">
       <t-msg title="Date range">
-        <o-field>
+        <t-field>
           <template #label>
-            <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
+            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
               Start date
-              <o-icon icon="information" />
-            </o-tooltip>
+              <t-icon icon="information" />
+            </t-tooltip>
           </template>
           <o-datepicker v-model="startDate" />
-        </o-field>
-        <o-field addons>
+        </t-field>
+        <t-field addons>
           <template #label>
-            <o-tooltip multiline label="By default, the end date is one week after the start date.">
+            <t-tooltip text="By default, the end date is one week after the start date.">
               End date
-              <o-icon icon="information" />
-            </o-tooltip>
+              <t-icon icon="information" />
+            </t-tooltip>
           </template>
           <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
           <o-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </o-button>
-        </o-field>
+        </t-field>
       </t-msg>
 
       <t-msg title="Geographic Bounds">
         <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
-          <o-field label="Preset bounding box">
+          <t-field label="Preset bounding box">
             <!-- @vue-skip -->
             <o-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
@@ -45,28 +45,28 @@
             <o-button @click="loadExampleData">
               Load example
             </o-button>
-          </o-field>
+          </t-field>
           <br>
         </t-msg>
 
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
-            <o-field>
+            <t-field>
               <template #label>
-                <o-tooltip multiline label="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
+                <t-tooltip text="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
                   Select geography by
-                  <o-icon icon="information" />
-                </o-tooltip>
+                  <t-icon icon="information" />
+                </t-tooltip>
               </template>
               <o-select
                 v-model="geomSource"
                 :options="geomSources"
               />
-            </o-field>
+            </t-field>
           </div>
 
           <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
-            <o-field>
+            <t-field>
               <template #label>
                 Administrative boundary layer to search
               </template>
@@ -75,12 +75,12 @@
                 v-model="geomLayer"
                 :options="props.censusGeographyLayerOptions"
               />
-            </o-field>
+            </t-field>
           </div>
         </div>
 
         <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
-          <o-field>
+          <t-field>
             <template #label>
               Selected administrative boundaries
             </template>
@@ -117,14 +117,14 @@
               </div>
               <div v-if="geomResultLoading" class="control">
                 <!-- @vue-skip -->
-                <o-loading
+                <t-loading
                   :active="true"
                   :full-page="false"
                   size="small"
                 />
               </div>
             </div>
-          </o-field>
+          </t-field>
         </div>
       </t-msg>
 
@@ -140,14 +140,14 @@
                 Advanced Settings
               </span>
               <span class="message-header-icon">
-                <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
+                <t-icon :icon="open ? 'menu-up' : 'menu-down'" />
               </span>
             </div>
           </template>
           <div class="message-body">
             <div class="container is-max-tablet">
               <!-- Data to Load Section -->
-              <o-field label="Data to Load">
+              <t-field label="Data to Load">
                 <!-- @vue-skip -->
                 <o-checkbox
                   v-model="includeFixedRoute"
@@ -162,22 +162,22 @@
                 >
                   Include Flex Service Areas
                 </o-checkbox>
-              </o-field>
+              </t-field>
 
               <!-- Aggregation Section -->
-              <o-field>
+              <t-field>
                 <template #label>
-                  <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                  <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
                     Aggregate by Census geographic hierarchy level
-                    <o-icon icon="information" />
-                  </o-tooltip>
+                    <t-icon icon="information" />
+                  </t-tooltip>
                 </template>
                 <!-- @vue-skip -->
                 <o-select
                   v-model="aggregateLayer"
                   :options="censusGeographyLayerOptions"
                 />
-              </o-field>
+              </t-field>
             </div>
           </div>
         </o-collapse>

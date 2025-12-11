@@ -22,52 +22,52 @@
         <section v-if="props.fixedRouteEnabled" class="mb-2">
           <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing fixed-route service by:</span>
-            <o-tooltip multiline label="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
-              <o-icon icon="information" />
-            </o-tooltip>
+            <t-tooltip text="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
+              <t-icon icon="information" />
+            </t-tooltip>
           </div>
-          <o-field class="mb-0">
+          <t-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Route"
               label="Route"
             />
-          </o-field>
-          <o-field class="mb-0">
+          </t-field>
+          <t-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Stop"
               label="Stop"
             />
-          </o-field>
-          <o-field class="mb-0">
+          </t-field>
+          <t-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Agency"
               label="Agency"
             />
-          </o-field>
+          </t-field>
         </section>
 
         <!-- Flex service options -->
         <section v-if="props.hasFlexData" class="mb-0">
           <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing flex service by:</span>
-            <o-tooltip multiline label="The selected view determines what rows and associated columns appear in the report.">
-              <o-icon icon="information" />
-            </o-tooltip>
+            <t-tooltip text="The selected view determines what rows and associated columns appear in the report.">
+              <t-icon icon="information" />
+            </t-tooltip>
           </div>
-          <o-field class="mb-0">
+          <t-field class="mb-0">
             <o-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="area"
               label="Area"
             />
-          </o-field>
+          </t-field>
         </section>
       </div>
 
@@ -80,10 +80,10 @@
 
     <div v-if="geoReportData.columns.length > 0">
       <h4 class="title is-5 mb-4">
-        <o-tooltip multiline label="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
+        <t-tooltip text="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
           Aggregated by {{ getGeographyLabel(aggregateLayer) }}
-          <o-icon icon="information" />
-        </o-tooltip>
+          <t-icon icon="information" />
+        </t-tooltip>
       </h4>
       <cal-datagrid
         :table-report="geoReportData"
@@ -102,12 +102,12 @@
         <span class="flex-url-links">
           <span v-if="row.info_url" title="Service Information" class="mr-2">
             <tl-safelink :url="row.info_url">
-              <o-icon icon="information-outline" size="small" />
+              <t-icon icon="information-outline" size="small" />
             </tl-safelink>
           </span>
           <span v-if="row.booking_url" title="Book Online">
             <tl-safelink :url="row.booking_url">
-              <o-icon icon="calendar-check" size="small" />
+              <t-icon icon="calendar-check" size="small" />
             </tl-safelink>
           </span>
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>

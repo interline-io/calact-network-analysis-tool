@@ -12,16 +12,16 @@
     <div v-else>
       <tl-title title="Analysis" />
       <t-msg variant="info">
-        <p>For richer metrics than included in the <o-icon icon="file-chart" style="vertical-align:middle;" /> <strong>Report tab</strong> by default, run an analysis.</p>
+        <p>For richer metrics than included in the <t-icon icon="file-chart" style="vertical-align:middle;" /> <strong>Report tab</strong> by default, run an analysis.</p>
         <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
       </t-msg>
 
       <!-- Warning when no scenario data is available -->
       <t-msg v-if="!scenarioConfig" variant="danger">
-        You need to define the geographic extent before running analyses. Please go to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
+        You need to define the geographic extent before running analyses. Please go to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
       </t-msg>
 
-      <o-field label="Start an analysis">
+      <t-field label="Start an analysis">
         <!-- @vue-skip -->
         <o-select
           v-model="selectedReportType"
@@ -32,7 +32,7 @@
             {{ reportLabel }}
           </option>
         </o-select>
-      </o-field>
+      </t-field>
     </div>
   </div>
 </template>

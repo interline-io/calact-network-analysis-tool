@@ -18,7 +18,7 @@
       </p>
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
-        To change the analysis area, navigate to the <o-icon
+        To change the analysis area, navigate to the <t-icon
           icon="magnify"
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
@@ -57,7 +57,7 @@
           class="mt-4"
           title="Debug menu"
         >
-          <o-field label="Example configuration">
+          <t-field label="Example configuration">
             <!-- @vue-skip -->
             <o-select v-model="selectedExample">
               <option value="">
@@ -71,48 +71,39 @@
                 {{ example.config.reportName }}
               </option>
             </o-select>
-          </o-field>
+          </t-field>
           <br>
         </t-msg>
 
         <div class="card-content">
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
                 Weekday date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
             <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </o-field>
+          </t-field>
 
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
                 Weekend date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
             <!-- @vue-skip -->
             <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </o-field>
+          </t-field>
 
-          <o-field label="Stop buffer radius (m)">
+          <t-field label="Stop buffer radius (m)">
             <template #label>
-              <o-tooltip
-                multiline
-                label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics."
-              >
+              <t-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
                 Stop buffer radius (meters)
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
             <!-- @vue-skip -->
             <o-slider
@@ -120,7 +111,7 @@
               :min="0"
               :max="1000"
             />
-          </o-field>
+          </t-field>
         </div>
         <footer class="card-footer">
           <div

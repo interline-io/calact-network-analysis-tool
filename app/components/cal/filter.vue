@@ -23,7 +23,7 @@
               :class="{ 'is-active': activeTab === item.tab }"
               @click="setTab(item.tab)"
             >
-              <o-icon
+              <t-icon
                 :icon="item.icon"
                 class="is-fullwidth"
               />
@@ -38,7 +38,7 @@
                 class="data-indicator has-background-info"
                 title="Flex service data loaded and available for filtering"
               />
-              <o-icon
+              <t-icon
                 class="right-chev"
                 icon="chevron-right"
                 size="small"
@@ -78,7 +78,7 @@
           @click="setTab('')"
         >
           <!-- @vue-skip -->
-          <o-icon
+          <t-icon
             icon="chevron-left"
             size="large"
             aria-hidden="true"
@@ -94,22 +94,22 @@
           </p>
 
           <section class="cal-day-of-week-mode menu-list">
-            <o-field>
+            <t-field>
               <o-radio
                 v-model="selectedDayOfWeekMode"
                 name="selectedDayOfWeekMode"
                 native-value="Any"
                 label="Any of the following days"
               />
-            </o-field>
-            <o-field>
+            </t-field>
+            <t-field>
               <o-radio
                 v-model="selectedDayOfWeekMode"
                 name="selectedDayOfWeekMode"
                 native-value="All"
                 label="All of the following days"
               />
-            </o-field>
+            </t-field>
           </section>
 
           <ul>
@@ -132,17 +132,15 @@
           <p class="menu-label">
             Time of Day
             <!-- @vue-skip -->
-            <o-tooltip
-              label="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
-              multiline
-              size="small"
+            <t-tooltip
+              text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
               position="left"
             >
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
 
-          <o-field class="cal-time-of-day-mode">
+          <t-field class="cal-time-of-day-mode">
             <!-- @vue-skip -->
             <o-checkbox
               v-model="selectedTimeOfDayMode"
@@ -150,13 +148,13 @@
               true-value="All"
               false-value="Partial"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
             Starting
           </p>
 
-          <o-field>
+          <t-field>
             <!-- @vue-skip -->
             <o-timepicker
               v-model="startTime"
@@ -166,13 +164,13 @@
               hour-format="24"
               :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
             Ending
           </p>
 
-          <o-field>
+          <t-field>
             <!-- @vue-skip -->
             <o-timepicker
               v-model="endTime"
@@ -182,7 +180,7 @@
               hour-format="24"
               :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
-          </o-field>
+          </t-field>
         </aside>
       </div>
 
@@ -193,7 +191,7 @@
             Frequency
           </p>
 
-          <o-field grouped>
+          <t-field grouped>
             <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyUnderEnabled"
@@ -212,9 +210,9 @@
             <div>
               minutes
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field grouped>
+          <t-field grouped>
             <!-- @vue-skip -->
             <o-checkbox
               v-model="frequencyOverEnabled"
@@ -233,27 +231,24 @@
             <div>
               minutes
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field>
+          <t-field>
             <!-- @vue-skip -->
             <o-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
               :disabled="true"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
-            Fares <o-tooltip
-              label="Fare filtering is planned for future implementation"
-              multiline
-            >
+            Fares <t-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
 
-          <o-field grouped>
+          <t-field grouped>
             <!-- @vue-skip -->
             <o-checkbox
               v-model="maxFareEnabled"
@@ -271,9 +266,9 @@
                 :disabled="true"
               />
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field grouped>
+          <t-field grouped>
             <!-- @vue-skip -->
             <o-checkbox
               v-model="minFareEnabled"
@@ -291,26 +286,23 @@
                 :disabled="true"
               />
             </div>
-          </o-field>
+          </t-field>
         </aside>
       </div>
 
       <!-- LAYERS -->
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
-          <o-field grouped class="mb-4">
+          <t-field grouped class="mb-4">
             <!-- @vue-skip -->
             <o-checkbox
               v-model="fixedRouteEnabled"
               label="Include Fixed-Route Transit"
             />
-            <o-tooltip
-              label="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services."
-              multiline
-            >
+            <t-tooltip text="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services.">
               <i class="mdi mdi-help-circle-outline" />
-            </o-tooltip>
-          </o-field>
+            </t-tooltip>
+          </t-field>
 
           <div :class="{ 'is-disabled': !fixedRouteEnabled }">
             <p class="menu-label">
@@ -340,7 +332,7 @@
             </p>
 
             <div class="cal-agency-search">
-              <o-field>
+              <t-field>
                 <!-- @vue-skip -->
                 <o-input
                   v-model="agencySearch"
@@ -350,8 +342,8 @@
                   icon-right-clickable
                   :disabled="!fixedRouteEnabled"
                 />
-              </o-field>
-              <o-field
+              </t-field>
+              <t-field
                 grouped
                 class="cal-agency-buttons"
               >
@@ -369,7 +361,7 @@
                 >
                   All
                 </o-button>
-              </o-field>
+              </t-field>
             </div>
 
             <ul>
@@ -397,19 +389,16 @@
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
-          <o-field grouped class="mb-4">
+          <t-field grouped class="mb-4">
             <!-- @vue-skip -->
             <o-checkbox
               v-model="flexServicesEnabled"
               label="Include Flex Services"
             />
-            <o-tooltip
-              label="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds."
-              multiline
-            >
+            <t-tooltip text="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds.">
               <i class="mdi mdi-help-circle-outline" />
-            </o-tooltip>
-          </o-field>
+            </t-tooltip>
+          </t-field>
 
           <t-notification
             v-if="flexServicesEnabled"
@@ -524,22 +513,16 @@
                 native-value="Fare"
                 :disabled="true /* this is future functionality */"
               >
-                Fare <o-tooltip
-                  label="This is planned for future implementation"
-                  multiline
-                >
+                Fare <t-tooltip text="This is planned for future implementation">
                   <i class="mdi mdi-information-outline" />
-                </o-tooltip>
+                </t-tooltip>
               </o-radio>
             </li>
           </ul>
           <p class="menu-label">
-            Base map <o-tooltip
-              label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future"
-              multiline
-            >
+            Base map <t-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
           <ul>
             <li
@@ -552,7 +535,7 @@
                 :disabled="!baseMapStyle.available"
               >
                 <span class="cal-radio-with-icon">
-                  <o-icon
+                  <t-icon
                     :icon="baseMapStyle.icon"
                     size="small"
                   /> {{ baseMapStyle.name }}
@@ -593,13 +576,13 @@
           </p>
           <ul>
             <li>
-              <o-field grouped>
+              <t-field grouped>
                 <!-- @vue-skip -->
                 <o-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"
                 />
-              </o-field>
+              </t-field>
             </li>
           </ul>
         </aside>

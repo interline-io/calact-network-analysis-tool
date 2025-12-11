@@ -4,13 +4,13 @@
       {{ total }} results found
     </div>
 
-    <o-field grouped>
-      <o-field>
+    <t-field grouped>
+      <t-field>
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
         />
-      </o-field>
+      </t-field>
 
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
@@ -22,7 +22,7 @@
         order="centered"
         :per-page="perPage"
       />
-    </o-field>
+    </t-field>
 
     <div class="table-container">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
