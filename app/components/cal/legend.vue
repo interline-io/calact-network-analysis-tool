@@ -1,20 +1,10 @@
 <template>
-  <article class="cal-map-legend message is-dark">
-    <o-collapse
+  <div class="cal-map-legend">
+    <t-card
+      label="Legend"
+      collapsible
       :open="true"
-      animation="slide"
     >
-      <template #trigger="{ open }">
-        <div class="message-header">
-          <span class="message-header-title">
-            Legend
-          </span>
-          <span class="message-header-icon">
-            <t-icon :icon="open ? 'menu-up' : 'menu-down'" />
-          </span>
-        </div>
-      </template>
-
       <div class="cal-map-legend-box">
         <!-- BBOX -->
         <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
@@ -132,8 +122,8 @@
           </p>
         </div>
       </div>
-    </o-collapse>
-  </article>
+    </t-card>
+  </div>
 </template>
 
 <script setup lang="ts">
