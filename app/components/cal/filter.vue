@@ -77,7 +77,6 @@
           title="Close filter panel"
           @click="setTab('')"
         >
-          <!-- @vue-skip -->
           <t-icon
             icon="chevron-left"
             size="large"
@@ -131,7 +130,6 @@
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
-            <!-- @vue-skip -->
             <t-tooltip
               text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
               position="left"

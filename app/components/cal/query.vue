@@ -116,7 +116,6 @@
                 </o-taginput>
               </div>
               <div v-if="geomResultLoading" class="control">
-                <!-- @vue-skip -->
                 <t-loading
                   :active="true"
                   :full-page="false"
