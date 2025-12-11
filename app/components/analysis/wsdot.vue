@@ -102,7 +102,7 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <o-slider
+            <t-slider
               v-model="wsdotReportConfig!.stopBufferRadius"
               :min="0"
               :max="1000"

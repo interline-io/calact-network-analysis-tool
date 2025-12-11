@@ -113,57 +113,43 @@
         </div>
       </t-msg>
 
-      <article class="message mb-4 is-text">
-        <!-- @vue-skip -->
-        <o-collapse
-          v-model:open="showAdvancedSettings"
-          animation="slide"
-        >
-          <template #trigger="{ open }">
-            <div class="message-header collapsible-header">
-              <span class="message-header-title">
-                Advanced Settings
-              </span>
-              <span class="message-header-icon">
-                <t-icon :icon="open ? 'menu-up' : 'menu-down'" />
-              </span>
-            </div>
-          </template>
-          <div class="message-body">
-            <div class="container is-max-tablet">
-              <!-- Data to Load Section -->
-              <t-field label="Data to Load">
-                <t-checkbox
-                  v-model="includeFixedRoute"
-                  aria-label="Include Fixed-Route Transit data in query results"
-                >
-                  Include Fixed-Route Transit
-                </t-checkbox>
-                <t-checkbox
-                  v-model="includeFlexAreas"
-                  aria-label="Include Flex Service Areas data in query results"
-                >
-                  Include Flex Service Areas
-                </t-checkbox>
-              </t-field>
+      <t-card
+        v-model:open="showAdvancedSettings"
+        label="Advanced Settings"
+        collapsible
+      >
+        <div class="container is-max-tablet">
+          <!-- Data to Load Section -->
+          <t-field label="Data to Load">
+            <t-checkbox
+              v-model="includeFixedRoute"
+              aria-label="Include Fixed-Route Transit data in query results"
+            >
+              Include Fixed-Route Transit
+            </t-checkbox>
+            <t-checkbox
+              v-model="includeFlexAreas"
+              aria-label="Include Flex Service Areas data in query results"
+            >
+              Include Flex Service Areas
+            </t-checkbox>
+          </t-field>
 
-              <!-- Aggregation Section -->
-              <t-field>
-                <template #label>
-                  <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                    Aggregate by Census geographic hierarchy level
-                    <t-icon icon="information" />
-                  </t-tooltip>
-                </template>
-                <t-select
-                  v-model="aggregateLayer"
-                  :options="censusGeographyLayerOptions"
-                />
-              </t-field>
-            </div>
-          </div>
-        </o-collapse>
-      </article>
+          <!-- Aggregation Section -->
+          <t-field>
+            <template #label>
+              <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                Aggregate by Census geographic hierarchy level
+                <t-icon icon="information" />
+              </t-tooltip>
+            </template>
+            <t-select
+              v-model="aggregateLayer"
+              :options="censusGeographyLayerOptions"
+            />
+          </t-field>
+        </div>
+      </t-card>
 
       <div class="field has-addons">
         <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
