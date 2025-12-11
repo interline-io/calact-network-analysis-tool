@@ -17,7 +17,7 @@
               <t-icon icon="information" />
             </t-tooltip>
           </template>
-          <o-datepicker v-model="startDate" />
+          <t-datepicker v-model="startDate" />
         </t-field>
         <t-field addons>
           <template #label>
@@ -26,7 +26,7 @@
               <t-icon icon="information" />
             </t-tooltip>
           </template>
-          <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <t-datepicker v-if="!selectSingleDay" v-model="endDate" />
           <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </t-button>

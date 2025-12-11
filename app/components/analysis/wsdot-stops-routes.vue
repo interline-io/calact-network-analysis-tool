@@ -59,7 +59,7 @@
               </t-tooltip>
             </template>
             <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </t-field>
 
           <t-field>
@@ -70,7 +70,7 @@
               </t-tooltip>
             </template>
             <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
+            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </t-field>
         </div>
         <footer class="card-footer">
