@@ -15,11 +15,10 @@
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
-      <!-- @vue-skip -->
-      <o-pagination
+      <t-pagination
         v-model:current="current"
         :total="total"
-        order="centered"
+        position="centered"
         :per-page="perPage"
       />
     </t-field>

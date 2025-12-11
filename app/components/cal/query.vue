@@ -86,16 +86,15 @@
             </template>
             <div class="field has-addons">
               <div class="control is-expanded">
-                <!-- @vue-skip -->
-                <o-taginput
+                <t-taginput
                   v-model="geographyIds"
                   v-model:input="geomSearch"
                   :open-on-focus="true"
                   :options="selectedGeographyTagOptions"
-                  close-icon=""
                   icon="magnify"
                   placeholder="Search..."
-                  expanded
+                  fullwidth
+                  :loading="geomResultLoading"
                 >
                   <template #header>
                     <strong>
@@ -113,7 +112,7 @@
                       </span>
                     </div>
                   </template>
-                </o-taginput>
+                </t-taginput>
               </div>
               <div v-if="geomResultLoading" class="control">
                 <t-loading
