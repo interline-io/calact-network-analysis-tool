@@ -148,13 +148,10 @@
           </p>
 
           <t-field>
-            <!-- @vue-skip -->
-            <o-timepicker
+            <cal-timepicker
               v-model="startTime"
-              inline
               size="small"
               icon="clock"
-              hour-format="24"
               :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
           </t-field>
@@ -164,13 +161,10 @@
           </p>
 
           <t-field>
-            <!-- @vue-skip -->
-            <o-timepicker
+            <cal-timepicker
               v-model="endTime"
-              inline
               size="small"
               icon="clock"
-              hour-format="24"
               :disabled="selectedTimeOfDayMode !== 'Partial'"
             />
           </t-field>
