@@ -84,43 +84,33 @@
             <template #label>
               Selected administrative boundaries
             </template>
-            <div class="field has-addons">
-              <div class="control is-expanded">
-                <t-taginput
-                  v-model="geographyIds"
-                  v-model:input="geomSearch"
-                  :open-on-focus="true"
-                  :options="selectedGeographyTagOptions"
-                  icon="magnify"
-                  placeholder="Search..."
-                  fullwidth
-                  :loading="geomResultLoading"
-                >
-                  <template #header>
-                    <strong>
-                      <span v-if="geomSearch.length < 2">Type to search...</span>
-                      <span v-else-if="geomResultLoading">Loading...</span>
-                      <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
-                      <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
-                    </strong>
-                  </template>
-                  <template #option="{ option }">
-                    <div class="is-flex is-align-items-center">
-                      <span>{{ option.label }}</span>
-                      <span class="tag is-light is-small ml-2">
-                        {{ option.geographyType }}
-                      </span>
-                    </div>
-                  </template>
-                </t-taginput>
-              </div>
-              <div v-if="geomResultLoading" class="control">
-                <t-loading
-                  :active="true"
-                  :full-page="false"
-                />
-              </div>
-            </div>
+            <t-taginput
+              v-model="geographyIds"
+              v-model:input="geomSearch"
+              :open-on-focus="true"
+              :options="selectedGeographyTagOptions"
+              icon="magnify"
+              placeholder="Search..."
+              fullwidth
+              :loading="geomResultLoading"
+            >
+              <template #header>
+                <strong>
+                  <span v-if="geomSearch.length < 2">Type to search...</span>
+                  <span v-else-if="geomResultLoading">Loading...</span>
+                  <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
+                  <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
+                </strong>
+              </template>
+              <template #option="{ option }">
+                <div class="is-flex is-align-items-center">
+                  <span>{{ option.label }}</span>
+                  <span class="tag is-light is-small ml-2">
+                    {{ option.geographyType }}
+                  </span>
+                </div>
+              </template>
+            </t-taginput>
           </t-field>
         </div>
       </t-msg>
