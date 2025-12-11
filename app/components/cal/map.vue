@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-outer">
     <div class="cal-map-share-button">
-      <o-button icon-left="share" @click="toggleShareMenu()">
+      <t-button icon-left="share" @click="toggleShareMenu()">
         {{ showShareMenu ? 'Close' : 'Share' }}
-      </o-button>
+      </t-button>
     </div>
 
     <div v-if="showShareMenu" class="cal-map-share">

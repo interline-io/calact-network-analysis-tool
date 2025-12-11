@@ -23,7 +23,7 @@
 
       <t-field label="Start an analysis">
         <!-- @vue-skip -->
-        <o-select
+        <t-select
           v-model="selectedReportType"
           placeholder="Select an analysis to run"
           :disabled="!scenarioConfig"
@@ -31,7 +31,7 @@
           <option v-for="[reportType, reportLabel] of Object.entries(analysisTypes)" :key="reportType" :value="reportType">
             {{ reportLabel }}
           </option>
-        </o-select>
+        </t-select>
       </t-field>
     </div>
   </div>

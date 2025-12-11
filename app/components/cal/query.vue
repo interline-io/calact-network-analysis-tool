@@ -27,9 +27,9 @@
             </t-tooltip>
           </template>
           <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
-          <o-button @click="toggleSelectSingleDay()">
+          <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
-          </o-button>
+          </t-button>
         </t-field>
       </t-msg>
 
@@ -37,14 +37,14 @@
         <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
           <t-field label="Preset bounding box">
             <!-- @vue-skip -->
-            <o-select v-model="cannedBbox">
+            <t-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
               </option>
-            </o-select>
-            <o-button @click="loadExampleData">
+            </t-select>
+            <t-button @click="loadExampleData">
               Load example
-            </o-button>
+            </t-button>
           </t-field>
           <br>
         </t-msg>
@@ -58,7 +58,7 @@
                   <t-icon icon="information" />
                 </t-tooltip>
               </template>
-              <o-select
+              <t-select
                 v-model="geomSource"
                 :options="geomSources"
               />
@@ -71,7 +71,7 @@
                 Administrative boundary layer to search
               </template>
               <!-- @vue-skip -->
-              <o-select
+              <t-select
                 v-model="geomLayer"
                 :options="props.censusGeographyLayerOptions"
               />
@@ -119,7 +119,6 @@
                 <t-loading
                   :active="true"
                   :full-page="false"
-                  size="small"
                 />
               </div>
             </div>
@@ -148,19 +147,19 @@
               <!-- Data to Load Section -->
               <t-field label="Data to Load">
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="includeFixedRoute"
                   aria-label="Include Fixed-Route Transit data in query results"
                 >
                   Include Fixed-Route Transit
-                </o-checkbox>
+                </t-checkbox>
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="includeFlexAreas"
                   aria-label="Include Flex Service Areas data in query results"
                 >
                   Include Flex Service Areas
-                </o-checkbox>
+                </t-checkbox>
               </t-field>
 
               <!-- Aggregation Section -->
@@ -172,7 +171,7 @@
                   </t-tooltip>
                 </template>
                 <!-- @vue-skip -->
-                <o-select
+                <t-select
                   v-model="aggregateLayer"
                   :options="censusGeographyLayerOptions"
                 />
@@ -183,12 +182,12 @@
       </article>
 
       <div class="field has-addons">
-        <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
+        <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
           Run Browse Query
-        </o-button>
-        <o-button variant="primary-outline" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
+        </t-button>
+        <t-button variant="primary" outlined :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
           Run Advanced Analysis
-        </o-button>
+        </t-button>
       </div>
     </div>
   </div>

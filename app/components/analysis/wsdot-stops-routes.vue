@@ -76,14 +76,14 @@
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
             <div class="control">
-              <o-button variant="outlined" @click="handleCancel">
+              <t-button outlined @click="handleCancel">
                 Cancel
-              </o-button>
+              </t-button>
             </div>
             <div class="control">
-              <o-button variant="primary" @click="runQuery">
+              <t-button variant="primary" @click="runQuery">
                 Run Report
-              </o-button>
+              </t-button>
             </div>
           </div>
         </footer>

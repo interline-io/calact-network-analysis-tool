@@ -40,9 +40,9 @@
             <tr>
               <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
                 <!-- @vue-skip -->
-                <o-checkbox v-model="selectedLevels" :native-value="levelKey">
+                <t-checkbox v-model="selectedLevels" :native-value="levelKey">
                   {{ levelDetail.label }}
-                </o-checkbox>
+                </t-checkbox>
               </td>
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
@@ -75,9 +75,9 @@
 
         <t-field label="Map display options" class="mt-4">
           <!-- @vue-skip -->
-          <o-checkbox v-model="showStopBuffers">
+          <t-checkbox v-model="showStopBuffers">
             Show stop buffers
-          </o-checkbox>
+          </t-checkbox>
           <!-- @vue-skip -->
           <t-dropdown
             v-model:model-value="selectedStates"
@@ -85,12 +85,12 @@
             multiple
           >
             <template #trigger>
-              <o-button
+              <t-button
                 type="button"
                 icon-right="caret-down"
               >
                 States ({{ selectedStates.length }})
-              </o-button>
+              </t-button>
             </template>
 
             <t-dropdown-item
@@ -104,13 +104,13 @@
         </t-field>
         <t-field label="Population options">
           <!-- @vue-skip -->
-          <o-radio v-model="popMethod" native-value="state">
+          <t-radio v-model="popMethod" native-value="state">
             Percent of state population
-          </o-radio>
+          </t-radio>
           <!-- @vue-skip -->
-          <o-radio v-model="popMethod" native-value="bboxIntersection">
+          <t-radio v-model="popMethod" native-value="bboxIntersection">
             Percent of population in bounding box
-          </o-radio>
+          </t-radio>
         </t-field>
       </div>
       <div class="column">

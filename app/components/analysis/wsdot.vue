@@ -59,7 +59,7 @@
         >
           <t-field label="Example configuration">
             <!-- @vue-skip -->
-            <o-select v-model="selectedExample">
+            <t-select v-model="selectedExample">
               <option value="">
                 Select an example...
               </option>
@@ -70,7 +70,7 @@
               >
                 {{ example.config.reportName }}
               </option>
-            </o-select>
+            </t-select>
           </t-field>
           <br>
         </t-msg>
@@ -119,20 +119,20 @@
             style="width: 100%; padding: 0.75rem;"
           >
             <div class="control">
-              <o-button
-                variant="outlined"
+              <t-button
+                outlined
                 @click="handleCancel"
               >
                 Cancel
-              </o-button>
+              </t-button>
             </div>
             <div class="control">
-              <o-button
+              <t-button
                 variant="primary"
                 @click="runQuery"
               >
                 Run Report
-              </o-button>
+              </t-button>
             </div>
           </div>
         </footer>

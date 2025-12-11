@@ -7,13 +7,13 @@
         <p class="menu-label">
           Filters
         </p>
-        <o-button
+        <t-button
           class="mx-4 mb-4"
           icon-left="delete"
           @click="emit('resetFilters')"
         >
           Clear all
-        </o-button>
+        </t-button>
         <ul class="menu-list">
           <li
             v-for="item of menuItems"
@@ -57,7 +57,7 @@
           </span>
         </p>
         <p>
-          <o-button>bounding box</o-button>
+          <t-button>bounding box</t-button>
         </p>
         <p>
           <a>Change date or region</a>
@@ -80,7 +80,6 @@
           <t-icon
             icon="chevron-left"
             size="large"
-            aria-hidden="true"
           />
         </button>
       </div>
@@ -94,7 +93,7 @@
 
           <section class="cal-day-of-week-mode menu-list">
             <t-field>
-              <o-radio
+              <t-radio
                 v-model="selectedDayOfWeekMode"
                 name="selectedDayOfWeekMode"
                 native-value="Any"
@@ -102,7 +101,7 @@
               />
             </t-field>
             <t-field>
-              <o-radio
+              <t-radio
                 v-model="selectedDayOfWeekMode"
                 name="selectedDayOfWeekMode"
                 native-value="All"
@@ -117,7 +116,7 @@
               :key="dowValue"
             >
               <!-- @vue-skip -->
-              <o-checkbox
+              <t-checkbox
                 v-model="selectedDays"
                 :native-value="dowValue"
                 :label="dowValue"
@@ -140,11 +139,9 @@
 
           <t-field class="cal-time-of-day-mode">
             <!-- @vue-skip -->
-            <o-checkbox
-              v-model="selectedTimeOfDayMode"
+            <t-checkbox
+              v-model="isAllDayMode"
               label="All Day"
-              true-value="All"
-              false-value="Partial"
             />
           </t-field>
 
@@ -191,15 +188,14 @@
 
           <t-field grouped>
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
               <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="frequencyUnder"
-                number
                 type="number"
                 min="0"
                 :disabled="!frequencyUnderEnabled"
@@ -212,15 +208,14 @@
 
           <t-field grouped>
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
               <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="frequencyOver"
-                number
                 type="number"
                 min="0"
                 :disabled="!frequencyOverEnabled"
@@ -233,7 +228,7 @@
 
           <t-field>
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
               :disabled="true"
@@ -248,16 +243,15 @@
 
           <t-field grouped>
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
               <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="maxFare"
-                number
                 type="number"
                 min="0"
                 step="0.01"
@@ -268,16 +262,15 @@
 
           <t-field grouped>
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
               <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="minFare"
-                number
                 type="number"
                 min="0"
                 step="0.01"
@@ -293,7 +286,7 @@
         <aside class="menu">
           <t-field grouped class="mb-4">
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="fixedRouteEnabled"
               label="Include Fixed-Route Transit"
             />
@@ -312,13 +305,13 @@
                 :key="routeType"
               >
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="selectedRouteTypes"
                   :native-value="routeType"
                   :disabled="!fixedRouteEnabled"
                 >
                   {{ routeTypeDesc }}
-                </o-checkbox>
+                </t-checkbox>
               </li>
             </ul>
             <p class="filter-legend">
@@ -332,7 +325,7 @@
             <div class="cal-agency-search">
               <t-field>
                 <!-- @vue-skip -->
-                <o-input
+                <t-input
                   v-model="agencySearch"
                   type="Search"
                   placeholder="search"
@@ -345,20 +338,20 @@
                 grouped
                 class="cal-agency-buttons"
               >
-                <o-button
+                <t-button
                   size="small"
                   :disabled="!fixedRouteEnabled"
                   @click="agencySelectNone"
                 >
                   None
-                </o-button>
-                <o-button
+                </t-button>
+                <t-button
                   size="small"
                   :disabled="!fixedRouteEnabled"
                   @click="agencySelectAll"
                 >
                   All
-                </o-button>
+                </t-button>
               </t-field>
             </div>
 
@@ -368,13 +361,13 @@
                 :key="agencyName"
               >
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="selectedAgencies"
                   :native-value="agencyName"
                   :disabled="!fixedRouteEnabled"
                 >
                   {{ agencyName }}
-                </o-checkbox>
+                </t-checkbox>
               </li>
             </ul>
             <p class="filter-legend">
@@ -389,7 +382,7 @@
         <aside class="menu">
           <t-field grouped class="mb-4">
             <!-- @vue-skip -->
-            <o-checkbox
+            <t-checkbox
               v-model="flexServicesEnabled"
               label="Include Flex Services"
             />
@@ -417,13 +410,13 @@
                 :key="noticeType"
               >
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="flexAdvanceNotice"
                   :native-value="noticeType"
                   :disabled="!flexServicesEnabled"
                 >
                   {{ noticeType }}
-                </o-checkbox>
+                </t-checkbox>
               </li>
             </ul>
 
@@ -436,13 +429,13 @@
                 :key="areaType"
               >
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="flexAreaTypesSelected"
                   :native-value="areaType"
                   :disabled="!flexServicesEnabled"
                 >
                   {{ areaType }}
-                </o-checkbox>
+                </t-checkbox>
               </li>
             </ul>
 
@@ -454,13 +447,13 @@
                 v-for="colorMode of flexColorByModes"
                 :key="colorMode"
               >
-                <o-radio
+                <t-radio
                   v-model="flexColorBy"
                   :native-value="colorMode"
                   :disabled="!flexServicesEnabled"
                 >
                   {{ colorMode }}
-                </o-radio>
+                </t-radio>
               </li>
             </ul>
           </div>
@@ -475,12 +468,12 @@
               v-for="dataDisplayModeOption of dataDisplayModes"
               :key="dataDisplayModeOption"
             >
-              <o-radio
+              <t-radio
                 v-model="dataDisplayMode"
                 :native-value="dataDisplayModeOption"
               >
                 {{ dataDisplayModeOption }}
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
           <p class="menu-label">
@@ -488,25 +481,25 @@
           </p>
           <ul>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Mode"
                 :disabled="dataDisplayMode === 'Agency'"
               >
                 Mode
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Frequency"
                 :disabled="dataDisplayMode === 'Agency'"
               >
                 Frequency
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Fare"
                 :disabled="true /* this is future functionality */"
@@ -514,7 +507,7 @@
                 Fare <t-tooltip text="This is planned for future implementation">
                   <i class="mdi mdi-information-outline" />
                 </t-tooltip>
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
           <p class="menu-label">
@@ -527,7 +520,7 @@
               v-for="baseMapStyle of baseMapStyles"
               :key="baseMapStyle.name"
             >
-              <o-radio
+              <t-radio
                 v-model="baseMap"
                 :native-value="baseMapStyle.name"
                 :disabled="!baseMapStyle.available"
@@ -538,7 +531,7 @@
                     size="small"
                   /> {{ baseMapStyle.name }}
                 </span>
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
         </aside>
@@ -552,20 +545,20 @@
           </p>
           <ul>
             <li>
-              <o-radio
+              <t-radio
                 v-model="unitSystem"
                 native-value="us"
               >
                 🇺🇸 USA
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="unitSystem"
                 native-value="eu"
               >
                 🇪🇺 Metric
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
 
@@ -576,7 +569,7 @@
             <li>
               <t-field grouped>
                 <!-- @vue-skip -->
-                <o-checkbox
+                <t-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"
                 />
@@ -655,6 +648,14 @@ const flexColorBy = defineModel<string | undefined>('flexColorBy') // 'Agency' b
 // Data availability indicators
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
 const hasFlexData = computed(() => props.hasFlexData ?? false)
+
+// Computed property to convert selectedTimeOfDayMode between 'All'/'Partial' and boolean
+const isAllDayMode = computed({
+  get: () => selectedTimeOfDayMode.value === 'All',
+  set: (val: boolean) => {
+    selectedTimeOfDayMode.value = val ? 'All' : 'Partial'
+  }
+})
 
 ///////////////////
 // Tab

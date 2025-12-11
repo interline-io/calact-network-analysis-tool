@@ -27,7 +27,7 @@
             </t-tooltip>
           </div>
           <t-field class="mb-0">
-            <o-radio
+            <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Route"
@@ -35,7 +35,7 @@
             />
           </t-field>
           <t-field class="mb-0">
-            <o-radio
+            <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Stop"
@@ -43,7 +43,7 @@
             />
           </t-field>
           <t-field class="mb-0">
-            <o-radio
+            <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Agency"
@@ -61,7 +61,7 @@
             </t-tooltip>
           </div>
           <t-field class="mb-0">
-            <o-radio
+            <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="area"
