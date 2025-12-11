@@ -50,7 +50,33 @@ export function bboxString (bbox: Bbox): string {
 
 export interface PopupFeature {
   point: Point
-  text: string
+  featureId?: string | number // Feature ID for highlighting
+  sourceLayer?: string // Source layer name for highlighting (e.g., 'flexPolygons', 'lines', 'points')
+  // Structured data for Vue component rendering (preferred - avoids XSS concerns)
+  featureType?: 'stop' | 'route' | 'flex'
+  data?: {
+    // Stop fields
+    stop_id?: string
+    stop_name?: string
+    routes?: string[]
+    agencies?: string[]
+    // Route fields
+    route_id?: string
+    route_short_name?: string
+    route_long_name?: string
+    route_type_name?: string
+    agency_name?: string
+    // Flex fields
+    location_id?: string
+    location_name?: string
+    route_names?: string
+    area_type?: string
+    advance_notice?: string
+    phone_number?: string
+    marked?: boolean
+  }
+  // Legacy HTML text (deprecated - use structured data instead)
+  text?: string
 }
 
 export interface MarkerFeature {

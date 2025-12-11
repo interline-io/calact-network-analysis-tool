@@ -78,6 +78,8 @@
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:include-fixed-route="includeFixedRoute"
+            v-model:include-flex-areas="includeFlexAreas"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -118,7 +120,14 @@
             v-model:max-fare="maxFare"
             v-model:min-fare-enabled="minFareEnabled"
             v-model:min-fare="minFare"
+            v-model:fixed-route-enabled="fixedRouteEnabled"
+            v-model:flex-services-enabled="flexServicesEnabled"
+            v-model:flex-advance-notice="flexAdvanceNotice"
+            v-model:flex-area-types-selected="flexAreaTypesSelected"
+            v-model:flex-color-by="flexColorBy"
             :scenario-filter-result="scenarioFilterResult"
+            :has-fixed-route-data="hasFixedRouteData"
+            :has-flex-data="hasFlexData"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
           />
@@ -130,7 +139,12 @@
             v-model:aggregate-layer="aggregateLayer"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
+            :export-features="exportFeatures"
             :filter-summary="filterSummary"
+            :fixed-route-enabled="fixedRouteEnabled"
+            :flex-services-enabled="flexServicesEnabled"
+            :has-flex-data="hasFlexData"
+            :flex-display-features="flexFeaturesForReport"
           />
         </div>
 
@@ -151,6 +165,11 @@
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
+          :fixed-route-enabled="fixedRouteEnabled"
+          :flex-services-enabled="flexServicesEnabled"
+          :flex-color-by="flexColorBy"
+          :flex-display-features="flexDisplayFeatures"
+          :loading-stage="loadingProgress?.currentStage"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -179,10 +198,23 @@ import { nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
+import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
+import {
+  getFlexAreaType,
+  getFlexAdvanceNotice,
+  getFlexAgencyName, geographyLayerQuery
+} from '~~/src/tl'
+import {
+  createCategoryColorScale,
+  flexColors,
+} from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
-import { type CensusDataset, type CensusGeography, geographyLayerQuery } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, SCENARIO_DEFAULTS } from '~~/src/core'
+import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+
+// Initialize composables
+const { buildFlexAreaProperties } = useFlexAreaFormatting()
 
 definePageMeta({
   layout: false
@@ -228,7 +260,14 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
-const cannedBbox = ref('downtown-portland')
+const cannedBbox = computed({
+  get () {
+    return route.query.example?.toString() || 'downtown-portland'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, example: v || undefined })
+  }
+})
 const error = ref(null as Error | string | null)
 
 // Runs on explore event from query (when user clicks "Run Query")
@@ -333,6 +372,28 @@ const aggregateLayer = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, aggregateLayer: v })
+  }
+})
+
+// Data loading toggles (Query tab > Advanced Settings)
+// These control what data is fetched from the API
+const includeFixedRoute = computed({
+  get () {
+    // Default to true (on) if not specified
+    return route.query.includeFixedRoute?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, includeFixedRoute: v ? '' : 'false' })
+  }
+})
+
+const includeFlexAreas = computed({
+  get () {
+    // Default to true (on) if not specified
+    return route.query.includeFlexAreas?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, includeFlexAreas: v ? '' : 'false' })
   }
 })
 
@@ -511,6 +572,232 @@ const minFare = computed({
 })
 
 /////////////////
+// Fixed-Route Transit toggle
+/////////////////
+
+const fixedRouteEnabled = computed({
+  get () {
+    // On by default - only false if explicitly set to 'false'
+    return route.query.fixedRouteEnabled?.toString() !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, fixedRouteEnabled: v ? '' : 'false' })
+  }
+})
+
+/////////////////
+// Flex Services (DRT) filters
+// TODO: Integrate with transitland-server GraphQL resolvers for GTFS-Flex data
+// Related PR: https://github.com/interline-io/transitland-lib/pull/527
+// Will query: booking_rules.booking_type, stop_times.pickup_type/drop_off_type
+// Polygons come from locations.geojson linked via stop_times.location_id
+/////////////////
+
+const flexServicesEnabled = computed({
+  get () {
+    // Default: off when showing fixed-route, on when only showing flex
+    const param = route.query.flexServicesEnabled?.toString()
+    if (param === 'true') return true
+    if (param === 'false') return false
+    // No explicit param - default based on includeFixedRoute
+    return !includeFixedRoute.value
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : 'false' })
+  }
+})
+
+const flexAdvanceNotice = computed({
+  get (): string[] {
+    // All selected by default per PRD (when param is not present)
+    // Maps to booking_rules.booking_type: 0=On-Demand, 1=Same Day, 2=More than 24 hours
+    // Use special marker '__none__' to indicate user explicitly unchecked all
+    const param = route.query.flexAdvanceNotice?.toString()
+    if (param === '__none__') {
+      return [] // User explicitly unchecked all
+    }
+    if (!param) {
+      return ['On-demand', 'Same day', 'More than 24 hours'] // Default: all selected
+    }
+    return param.split(',').filter(Boolean)
+  },
+  set (v: string[]) {
+    // Use special marker when all are unchecked to distinguish from "not set"
+    const value = v.length === 0 ? '__none__' : v.join(',')
+    setQuery({ ...route.query, flexAdvanceNotice: value })
+  }
+})
+
+const flexAreaTypesSelected = computed({
+  get (): string[] {
+    // All selected by default per PRD (when param is not present)
+    // Based on stop_times.pickup_type and drop_off_type
+    // Use special marker '__none__' to indicate user explicitly unchecked all
+    const param = route.query.flexAreaTypesSelected?.toString()
+    if (param === '__none__') {
+      return [] // User explicitly unchecked all
+    }
+    if (!param) {
+      return ['PU only', 'DO only', 'PU and DO'] // Default: all selected
+    }
+    return param.split(',').filter(Boolean)
+  },
+  set (v: string[]) {
+    // Use special marker when all are unchecked to distinguish from "not set"
+    const value = v.length === 0 ? '__none__' : v.join(',')
+    setQuery({ ...route.query, flexAreaTypesSelected: value })
+  }
+})
+
+const flexColorBy = computed({
+  get () {
+    // Agency coloring by default per PRD
+    // Can also color by Advance notice (booking_type category)
+    // Future: add service quality heatmap using safe_duration_factor/safe_duration_offset
+    return route.query.flexColorBy?.toString() || 'Agency'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, flexColorBy: v === 'Agency' ? '' : v })
+  }
+})
+
+// Scenario data ref - defined early so flex computed properties can reference it
+// This is populated when fetchScenario runs
+const scenarioData = ref<ScenarioData | null>(null)
+
+// Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
+// Raw data comes from scenario stream via scenarioData.flexAreas
+
+const flexAgencyNames = computed(() => {
+  const names = new Set<string>()
+  for (const feature of scenarioData.value?.flexAreas || []) {
+    const name = getFlexAgencyName(feature)
+    if (name) names.add(name)
+  }
+  return Array.from(names).sort()
+})
+
+const flexAgencyColorScale = computed(() => {
+  return createCategoryColorScale(flexAgencyNames.value, flexColors.agency)
+})
+
+// Check if a flex area matches the current filters
+// Returns true if it matches, false if it should be "downplayed"
+const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
+  // Filter to only valid values to handle potential invalid URL query params
+  const advanceNoticeFilter = flexAdvanceNotice.value.filter(
+    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
+  )
+  const areaTypesFilter = flexAreaTypesSelected.value.filter(
+    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
+  )
+
+  const featureAreaType = getFlexAreaType(feature)
+  if (!areaTypesFilter.includes(featureAreaType)) return false
+
+  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
+  if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+
+  // Time-of-day filtering for flex areas
+  const applyTimeFilter = selectedTimeOfDayMode.value !== 'All'
+  if (applyTimeFilter) {
+    const userStartSeconds = dateToSeconds(startTime.value)
+    const userEndSeconds = dateToSeconds(endTime.value)
+    const flexStart = feature.properties.time_window_start
+    const flexEnd = feature.properties.time_window_end
+
+    // If flex area has time windows defined and user has set time filters, check for overlap
+    if (flexStart !== undefined && flexEnd !== undefined
+      && userStartSeconds !== undefined && userEndSeconds !== undefined) {
+      const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
+      if (noOverlap) return false
+    }
+  }
+
+  return true
+}
+
+// All flex areas with their "marked" status (matches filters)
+// Base computed that always calculates marked status (independent of map toggle)
+const flexAreasWithMarkedBase = computed(() => {
+  return (scenarioData.value?.flexAreas || []).map(feature => ({
+    feature,
+    marked: flexAreaMatchesFilters(feature)
+  }))
+})
+
+// Flex areas for map display (respects flexServicesEnabled toggle)
+const flexAreasWithMarked = computed(() => {
+  if (!flexServicesEnabled.value) return []
+  return flexAreasWithMarkedBase.value
+})
+
+// Flex areas for Reports tab (always available if data exists, independent of map toggle)
+const flexAreasWithMarkedForReport = computed(() => {
+  return flexAreasWithMarkedBase.value
+})
+
+const flexDisplayFeatures = computed((): Feature[] => {
+  if (!flexServicesEnabled.value) return []
+
+  const colorBy = flexColorBy.value
+
+  return flexAreasWithMarked.value
+    .filter(({ marked }) => !hideUnmarked.value || marked) // Hide unmarked if toggle is on
+    .map(({ feature, marked }) => {
+      // Determine color based on colorBy mode
+      let color: string
+      if (colorBy === 'Advance notice') {
+        const advanceNotice = getFlexAdvanceNotice(feature)
+        color = flexColors.advanceNotice[advanceNotice] || flexColors.default
+      } else {
+        const agencyName = getFlexAgencyName(feature)
+        color = flexAgencyColorScale.value(agencyName)
+      }
+
+      // Style based on marked status
+      // Marked: filled polygon with solid outline
+      // Unmarked: no fill, dashed outline, reduced opacity
+      const fillOpacity = marked ? 0.3 : 0
+      const strokeOpacity = marked ? 0.8 : 0.4
+
+      const properties: Record<string, any> = {
+        ...buildFlexAreaProperties(feature, marked),
+        // Custom styling for marked/unmarked
+        'fill': color,
+        'fill-opacity': fillOpacity,
+        'stroke': color,
+        'stroke-width': 2,
+        'stroke-opacity': strokeOpacity,
+      }
+
+      // Only set stroke-dasharray for unmarked features (dashed outline)
+      if (!marked) {
+        properties['stroke-dasharray'] = true
+      }
+
+      return {
+        type: 'Feature',
+        id: feature.id,
+        geometry: feature.geometry,
+        properties
+      } as Feature
+    })
+})
+
+// Flex features for Reports tab (always available if data exists, independent of map toggle)
+const flexFeaturesForReport = computed((): Feature[] => {
+  return flexAreasWithMarkedForReport.value.map(({ feature, marked }) => {
+    return {
+      type: 'Feature',
+      id: feature.id,
+      geometry: feature.geometry,
+      properties: buildFlexAreaProperties(feature, marked)
+    } as Feature
+  })
+})
+
+/////////////////
 // Geography datasets
 /////////////////
 
@@ -663,6 +950,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
+  // Data loading toggles from Query tab > Advanced Settings
+  includeFixedRoute: includeFixedRoute.value,
+  includeFlexAreas: includeFlexAreas.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -680,9 +970,17 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 }))
 
 // Internal state for streaming scenario data
-const scenarioData = ref<ScenarioData | null>(null)
+// Note: scenarioData is defined earlier in the file (before useFlexAreas)
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
+
+// Data availability indicators for filter panel
+const hasFixedRouteData = computed(() => {
+  return !!(scenarioFilterResult.value?.stops?.length || scenarioFilterResult.value?.routes?.length)
+})
+const hasFlexData = computed(() => {
+  return !!(scenarioData.value?.flexAreas?.length)
+})
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress | null>(null)
@@ -713,8 +1011,11 @@ const fetchScenario = async (loadExample: string) => {
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
 
       // Apply filters to partial data and emit (without schedule-dependent features)
-      // Skip if no route/stop data
-      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+      // Skip if no route/stop/flex data in this progress update
+      const hasRoutes = (progress.partialData?.routes.length || 0) > 0
+      const hasStops = (progress.partialData?.stops.length || 0) > 0
+      const hasFlexAreas = (progress.partialData?.flexAreas.length || 0) > 0
+      if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }
       scenarioData.value = receiver.getCurrentData()
@@ -890,6 +1191,12 @@ async function resetFilters () {
     unitSystem: '',
     hideUnmarked: '',
     baseMap: '',
+    // Fixed-Route and Flex Services filters
+    fixedRouteEnabled: '',
+    flexServicesEnabled: '',
+    flexAdvanceNotice: '',
+    flexAreaTypesSelected: '',
+    flexColorBy: '',
   })
   // Note, `selectedDays` is special, see note below.
   // When clearing filters, it should removed, not set to ''
@@ -943,9 +1250,6 @@ function toTitleCase (str: string): string {
 }
 
 // Individual tab width classes
-.cal-tab-query {
-  width: calc(50vw); // Query tab - half width, map visible
-}
 
 .cal-tab-filter {
   width: 270px; /* Default width when no subtab is open */
@@ -986,7 +1290,7 @@ function toTitleCase (str: string): string {
 
 <style>
 /* Ensure modal is always on top */
-.t-modal {
+.tl-modal {
   z-index: 99999 !important;
 }
 </style>

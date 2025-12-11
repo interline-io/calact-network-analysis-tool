@@ -28,6 +28,16 @@
                 class="is-fullwidth"
               />
               {{ item.label }}
+              <span
+                v-if="item.tab === 'transit-layers' && hasFixedRouteData"
+                class="data-indicator has-background-info"
+                title="Fixed-route data loaded and available for filtering"
+              />
+              <span
+                v-if="item.tab === 'flex-services' && hasFlexData"
+                class="data-indicator has-background-info"
+                title="Flex service data loaded and available for filtering"
+              />
               <o-icon
                 class="right-chev"
                 icon="chevron-right"
@@ -67,9 +77,11 @@
           title="Close filter panel"
           @click="setTab('')"
         >
+          <!-- @vue-skip -->
           <o-icon
             icon="chevron-left"
             size="large"
+            aria-hidden="true"
           />
         </button>
       </div>
@@ -119,6 +131,15 @@
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
+            <!-- @vue-skip -->
+            <o-tooltip
+              label="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
+              multiline
+              size="small"
+              position="left"
+            >
+              <i class="mdi mdi-information-outline" />
+            </o-tooltip>
           </p>
 
           <o-field class="cal-time-of-day-mode">
@@ -184,6 +205,7 @@
                 v-model="frequencyUnder"
                 number
                 type="number"
+                min="0"
                 :disabled="!frequencyUnderEnabled"
               />
             </div>
@@ -204,6 +226,7 @@
                 v-model="frequencyOver"
                 number
                 type="number"
+                min="0"
                 :disabled="!frequencyOverEnabled"
               />
             </div>
@@ -243,6 +266,7 @@
                 v-model="maxFare"
                 number
                 type="number"
+                min="0"
                 step="0.01"
                 :disabled="true"
               />
@@ -262,6 +286,7 @@
                 v-model="minFare"
                 number
                 type="number"
+                min="0"
                 step="0.01"
                 :disabled="true"
               />
@@ -273,87 +298,191 @@
       <!-- LAYERS -->
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
-          <p class="menu-label">
-            Modes
-          </p>
-          <ul>
-            <li
-              v-for="[routeType, routeTypeDesc] of routeTypeNames"
-              :key="routeType"
+          <o-field grouped class="mb-4">
+            <!-- @vue-skip -->
+            <o-checkbox
+              v-model="fixedRouteEnabled"
+              label="Include Fixed-Route Transit"
+            />
+            <o-tooltip
+              label="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services."
+              multiline
             >
-              <!-- @vue-skip -->
-              <o-checkbox
-                v-model="selectedRouteTypes"
-                :native-value="routeType"
-              >
-                {{ routeTypeDesc }}
-              </o-checkbox>
-            </li>
-          </ul>
-          <p class="filter-legend">
-            * Stops served by any of the selected route types
-          </p>
+              <i class="mdi mdi-help-circle-outline" />
+            </o-tooltip>
+          </o-field>
 
-          <p class="menu-label">
-            Agencies
-          </p>
+          <div :class="{ 'is-disabled': !fixedRouteEnabled }">
+            <p class="menu-label">
+              Modes
+            </p>
+            <ul>
+              <li
+                v-for="[routeType, routeTypeDesc] of routeTypeNames"
+                :key="routeType"
+              >
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="selectedRouteTypes"
+                  :native-value="routeType"
+                  :disabled="!fixedRouteEnabled"
+                >
+                  {{ routeTypeDesc }}
+                </o-checkbox>
+              </li>
+            </ul>
+            <p class="filter-legend">
+              * Stops served by any of the selected route types
+            </p>
 
-          <div class="cal-agency-search">
-            <o-field>
-              <!-- @vue-skip -->
-              <o-input
-                v-model="agencySearch"
-                type="Search"
-                placeholder="search"
-                icon-right="magnify"
-                icon-right-clickable
-              />
-            </o-field>
-            <o-field
-              grouped
-              class="cal-agency-buttons"
-            >
-              <o-button
-                size="small"
-                @click="agencySelectNone"
+            <p class="menu-label">
+              Agencies
+            </p>
+
+            <div class="cal-agency-search">
+              <o-field>
+                <!-- @vue-skip -->
+                <o-input
+                  v-model="agencySearch"
+                  type="Search"
+                  placeholder="search"
+                  icon-right="magnify"
+                  icon-right-clickable
+                  :disabled="!fixedRouteEnabled"
+                />
+              </o-field>
+              <o-field
+                grouped
+                class="cal-agency-buttons"
               >
-                None
-              </o-button>
-              <o-button
-                size="small"
-                @click="agencySelectAll"
+                <o-button
+                  size="small"
+                  :disabled="!fixedRouteEnabled"
+                  @click="agencySelectNone"
+                >
+                  None
+                </o-button>
+                <o-button
+                  size="small"
+                  :disabled="!fixedRouteEnabled"
+                  @click="agencySelectAll"
+                >
+                  All
+                </o-button>
+              </o-field>
+            </div>
+
+            <ul>
+              <li
+                v-for="agencyName of knownAgencies"
+                :key="agencyName"
               >
-                All
-              </o-button>
-            </o-field>
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="selectedAgencies"
+                  :native-value="agencyName"
+                  :disabled="!fixedRouteEnabled"
+                >
+                  {{ agencyName }}
+                </o-checkbox>
+              </li>
+            </ul>
+            <p class="filter-legend">
+              * Stops served by any of the selected agencies
+            </p>
           </div>
+        </aside>
+      </div>
 
-          <ul>
-            <li
-              v-for="agencyName of knownAgencies"
-              :key="agencyName"
+      <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
+      <div v-if="activeTab === 'flex-services'">
+        <aside class="menu">
+          <o-field grouped class="mb-4">
+            <!-- @vue-skip -->
+            <o-checkbox
+              v-model="flexServicesEnabled"
+              label="Include Flex Services"
+            />
+            <o-tooltip
+              label="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds."
+              multiline
             >
-              <!-- @vue-skip -->
-              <o-checkbox
-                v-model="selectedAgencies"
-                :native-value="agencyName"
+              <i class="mdi mdi-help-circle-outline" />
+            </o-tooltip>
+          </o-field>
+
+          <t-notification
+            v-if="flexServicesEnabled"
+            variant="warning"
+          >
+            <span>
+              Flex service data may be incomplete. Please contact relevant agencies for additional information.
+            </span>
+          </t-notification>
+
+          <div :class="{ 'is-disabled': !flexServicesEnabled }">
+            <p class="menu-label">
+              Advance notice
+            </p>
+            <ul>
+              <li
+                v-for="noticeType of flexAdvanceNoticeTypes"
+                :key="noticeType"
               >
-                {{ agencyName }}
-              </o-checkbox>
-            </li>
-          </ul>
-          <p class="filter-legend">
-            * Stops served by any of the selected agencies
-          </p>
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="flexAdvanceNotice"
+                  :native-value="noticeType"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ noticeType }}
+                </o-checkbox>
+              </li>
+            </ul>
+
+            <p class="menu-label">
+              Show areas that allow:
+            </p>
+            <ul>
+              <li
+                v-for="areaType of flexAreaTypes"
+                :key="areaType"
+              >
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="flexAreaTypesSelected"
+                  :native-value="areaType"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ areaType }}
+                </o-checkbox>
+              </li>
+            </ul>
+
+            <p class="menu-label">
+              Color by:
+            </p>
+            <ul>
+              <li
+                v-for="colorMode of flexColorByModes"
+                :key="colorMode"
+              >
+                <o-radio
+                  v-model="flexColorBy"
+                  :native-value="colorMode"
+                  :disabled="!flexServicesEnabled"
+                >
+                  {{ colorMode }}
+                </o-radio>
+              </li>
+            </ul>
+          </div>
         </aside>
       </div>
 
       <!-- DATA DISPLAY -->
       <div v-if="activeTab === 'data-display'">
         <aside class="menu">
-          <p class="menu-label">
-            Show data by:
-          </p>
           <ul>
             <li
               v-for="dataDisplayModeOption of dataDisplayModes"
@@ -367,7 +496,6 @@
               </o-radio>
             </li>
           </ul>
-
           <p class="menu-label">
             Display map elements by:
           </p>
@@ -483,7 +611,7 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles } from '~~/src/core'
+import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles, flexAdvanceNoticeTypes, flexAreaTypes, flexColorByModes } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 </script>
 
@@ -493,13 +621,16 @@ import { fmtDate } from '~~/src/core'
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
-  { icon: 'bus', label: 'Transit Layers', tab: 'transit-layers' },
-  { icon: 'layers-outline', label: 'Data Display', tab: 'data-display' },
+  { icon: 'bus', label: 'Transit Services', tab: 'transit-layers' },
+  { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services' },
+  { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
+  hasFixedRouteData?: boolean
+  hasFlexData?: boolean
 }>()
 
 const emit = defineEmits([
@@ -507,29 +638,42 @@ const emit = defineEmits([
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date>('startDate')
-const endDate = defineModel<Date>('endDate')
-const startTime = defineModel<Date | null>('startTime')
-const endTime = defineModel<Date | null>('endTime')
-const unitSystem = defineModel<string>('unitSystem')
-const hideUnmarked = defineModel<boolean>('hideUnmarked')
-const colorKey = defineModel<string>('colorKey')
-const dataDisplayMode = defineModel<string>('dataDisplayMode')
-const baseMap = defineModel<string>('baseMap')
-const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
-const selectedDays = defineModel<dow[]>('selectedDays')
-const selectedAgencies = defineModel<string[]>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
-const frequencyUnder = defineModel<number>('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
-const frequencyOver = defineModel<number>('frequencyOver')
-const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
-const maxFare = defineModel<number>('maxFare')
-const minFareEnabled = defineModel<boolean>('minFareEnabled')
-const minFare = defineModel<number>('minFare')
+const startDate = defineModel<Date | undefined>('startDate')
+const endDate = defineModel<Date | undefined>('endDate')
+const startTime = defineModel<Date | null | undefined>('startTime')
+const endTime = defineModel<Date | null | undefined>('endTime')
+const unitSystem = defineModel<string | undefined>('unitSystem')
+const hideUnmarked = defineModel<boolean | undefined>('hideUnmarked')
+const colorKey = defineModel<string | undefined>('colorKey')
+const dataDisplayMode = defineModel<string | undefined>('dataDisplayMode')
+const baseMap = defineModel<string | undefined>('baseMap')
+const selectedDayOfWeekMode = defineModel<string | undefined>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string | undefined>('selectedTimeOfDayMode')
+const selectedRouteTypes = defineModel<number[] | undefined>('selectedRouteTypes')
+const selectedDays = defineModel<dow[] | undefined>('selectedDays')
+const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
+const frequencyUnderEnabled = defineModel<boolean | undefined>('frequencyUnderEnabled')
+const frequencyUnder = defineModel<number | undefined>('frequencyUnder')
+const frequencyOverEnabled = defineModel<boolean | undefined>('frequencyOverEnabled')
+const frequencyOver = defineModel<number | undefined>('frequencyOver')
+const calculateFrequencyMode = defineModel<boolean | undefined>('calculateFrequencyMode')
+const maxFareEnabled = defineModel<boolean | undefined>('maxFareEnabled')
+const maxFare = defineModel<number | undefined>('maxFare')
+const minFareEnabled = defineModel<boolean | undefined>('minFareEnabled')
+const minFare = defineModel<number | undefined>('minFare')
+
+// Fixed-Route Transit toggle
+const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
+
+// Flex Services (DRT) filter models
+const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // All selected by default when enabled
+const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // All selected by default when enabled
+const flexColorBy = defineModel<string | undefined>('flexColorBy') // 'Agency' by default
+
+// Data availability indicators
+const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
+const hasFlexData = computed(() => props.hasFlexData ?? false)
 
 ///////////////////
 // Tab
@@ -592,161 +736,69 @@ const dowAvailable = computed((): Set<string> => {
 
 <style scoped lang="scss">
 .cal-filter {
-  display:flex;
-  flex-direction: row;
+  display: flex;
   background: var(--bulma-scheme-main);
-  margin:0px;
-  height:100%;
-  padding-left:20px;
-  min-width: 250px; /* Minimum width for main panel */
-  .cal-filter-main {
-    display:flex;
-    flex-direction: column;
-    flex-shrink: 0; /* Don't shrink main panel */
-    .menu {
-      flex-grow:1;
-      width:250px;
-    }
+  height: 100%;
+  padding-left: 20px;
+}
+
+.cal-filter-main {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+
+  .menu {
+    flex-grow: 1;
+    width: 250px;
   }
-  .cal-filter-sub {
-    display:flex;
-    width: 400px;
-    min-width: 350px; /* Minimum reasonable width */
-    flex-shrink: 0; /* Don't shrink sub-panel */
-    flex-direction: column;
-    background: var(--bulma-scheme-main-ter);
-    margin:0px;
-    padding-left:20px;
-    padding-right:20px;
-    overflow-x: hidden; /* Prevent horizontal overflow */
-    overflow-y: visible; /* No vertical scrollbar */
-    box-sizing: border-box; /* Include padding in width calculation */
-  }
+}
+
+.cal-filter-sub {
+  width: 400px;
+  flex-shrink: 0;
+  background: var(--bulma-scheme-main-ter);
+  padding: 0 20px;
 }
 
 .cal-day-of-week-mode {
-  margin-left:20px;
-  margin-bottom:15px;
-
-  > div {
-    margin-bottom: unset;
-  }
+  margin-left: 20px;
+  margin-bottom: 15px;
 }
 
 .cal-service-levels {
-  .is-grouped div {
-    display: flex;
-    align-items: center;
-  }
-  .is-grouped .checkbox {
-    width: 185px;
-  }
   .cal-input-width-80 {
     max-width: 80px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
   }
   .cal-input-width-100 {
     max-width: 100px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
   }
 }
 
 .menu-list {
   a.is-active {
-    color:var(--bulma-text-main-ter);
-    background:var(--bulma-scheme-main-ter);
+    color: var(--bulma-text-main-ter);
+    background: var(--bulma-scheme-main-ter);
   }
   .right-chev {
-    float:right;
+    float: right;
+  }
+  .data-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 6px;
   }
 }
+
 .filter-legend {
-  font-size:10pt;
-  margin-top:10px;
-  margin-bottom:40px;
+  font-size: 10pt;
+  margin-top: 10px;
+  margin-bottom: 40px;
 }
 
-.cal-agency-search {
-  margin-bottom: 1rem;
-  width: 100%;
-  max-width: 100%;
-
-  .o-field {
-    width: 100%;
-    max-width: 100%;
-
-    .o-input {
-      width: 100%;
-      max-width: 100%;
-    }
-  }
-
-  .cal-agency-buttons {
-    margin-top: 0.5rem;
-    flex-wrap: wrap;
-    width: 100%;
-
-    .o-button {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-  }
-}
-
-.cal-radio-with-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: normal;
-  word-wrap: break-word;
-  max-width: 100%;
-
-  .o-icon {
-    flex-shrink: 0;
-  }
-}
-
-.cal-filter-sub {
-  .button.is-text {
-    &:hover {
-      color: var(--bulma-primary);
-    }
-  }
-
-  .menu {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-
-    .menu-label {
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-
-    ul {
-      width: 100%;
-      min-width: 0;
-
-      li {
-        width: 100%;
-        min-width: 0;
-
-        .o-radio,
-        .o-checkbox {
-          width: 100%;
-          min-width: 0;
-          white-space: normal;
-          word-wrap: break-word;
-
-          .o-tooltip {
-            display: inline-block;
-            margin-left: 0.25rem;
-          }
-        }
-      }
-    }
-  }
+.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>

@@ -31,10 +31,10 @@
     </div>
 
     <!-- Results Display -->
-    <div class="columns">
-      <div class="column is-one-third">
-        <t-msg variant="info" title="Stops" :show-icon="false">
-          <p><strong>{{ scenarioData?.stops.length }}</strong> loaded</p>
+    <div class="columns is-multiline">
+      <div class="column is-one-quarter">
+        <t-msg variant="info" title="Stops">
+          <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
             <div v-for="stop in scenarioData?.stops.slice(0, 5)" :key="stop.id" class="stop-item">
               {{ stop.stop_name }}
@@ -45,9 +45,9 @@
           </div>
         </t-msg>
       </div>
-      <div class="column is-one-third">
-        <t-msg variant="info" title="Routes" :show-icon="false">
-          <p><strong>{{ scenarioData?.routes.length }}</strong> loaded</p>
+      <div class="column is-one-quarter">
+        <t-msg variant="info" title="Routes">
+          <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
             <div v-for="route in scenarioData?.routes.slice(0, 5)" :key="route.id" class="route-item">
               {{ route.route_short_name || route.route_long_name }}
@@ -58,9 +58,25 @@
           </div>
         </t-msg>
       </div>
-      <div class="column is-one-third">
-        <t-msg variant="info" title="Departures" :show-icon="false">
-          <p><strong>{{ stopDepartureCount || 0 }}</strong> loaded</p>
+      <div class="column is-one-quarter">
+        <t-msg variant="info" title="Departures">
+          <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
+          <div class="more-label">
+            {{ (stopDepartureCount || 0).toLocaleString() }} total departures
+          </div>
+        </t-msg>
+      </div>
+      <div class="column is-one-quarter">
+        <t-msg variant="info" title="Flex Areas">
+          <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
+          <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
+            <div v-for="area in scenarioData?.flexAreas.slice(0, 5)" :key="area.id" class="flex-item">
+              {{ area.properties.location_name || area.properties.location_id }}
+            </div>
+            <div v-if="scenarioData?.flexAreas.length > 5" class="more-label">
+              ... and {{ scenarioData.flexAreas.length - 5 }} more
+            </div>
+          </div>
         </t-msg>
       </div>
     </div>
@@ -99,6 +115,16 @@ const progressPercentage = computed(() => {
   return Math.round((completed / total) * 100)
 })
 
+// Total number of stops loaded
+const totalStops = computed(() => {
+  return props.scenarioData?.stops?.length || 0
+})
+
+// Number of stops that have departures loaded (stops in the departure cache)
+const stopsWithDepartures = computed(() => {
+  return props.scenarioData?.stopDepartureCache?.cache?.size || 0
+})
+
 // Helper functions
 function formatStage (stage: ScenarioProgress['currentStage'], stageText: string): string {
   if (stageText) {
@@ -109,6 +135,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
     'schedules': 'Loading schedules...',
+    'flex-areas': 'Loading flex service areas...',
     'complete': 'Complete',
     'ready': 'Ready',
   }
@@ -148,11 +175,11 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   margin: 0;
 }
 
-.stop-list, .route-list {
+.stop-list, .route-list, .flex-list {
   margin-top: 0.5rem;
 }
 
-.stop-item, .route-item {
+.stop-item, .route-item, .flex-item {
   font-size: 0.85rem;
   color: #6c757d;
   margin-bottom: 0.2rem;

@@ -3,11 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted } from 'vue'
+import { nextTick, ref, watch, onMounted, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
 import type { Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import CalMapPopup from './map-popup.vue'
 
 //////////////////////
 // Component setup
@@ -24,11 +25,21 @@ const emit = defineEmits([
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
+const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
 const zoom = defineModel<number>('zoom', { default: 12 })
+
+// Props for loading state
+const props = defineProps<{
+  // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
+  loadingStage?: string
+}>()
+
+// Stages during which we should skip expensive map updates
+const skipUpdateStages = new Set(['schedules'])
 
 let map: (maplibre.Map | null) = null
 const markerLayer = ref<maplibre.Marker[]>([])
@@ -50,8 +61,27 @@ watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
 })
 
+// Skip feature updates during heavy loading stages (schedules) to prevent browser crashes
+// Allow updates during geometry stages (feed-versions, stops, routes, flex-areas)
 watch(() => features.value, (v) => {
-  updateFeatures(v)
+  if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
+    updateFeatures(v)
+  }
+})
+
+watch(() => flexFeatures.value, (v) => {
+  if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
+    updateFlexFeatures(v)
+  }
+})
+
+// When exiting a skip stage (e.g., schedules -> complete), render all features
+watch(() => props.loadingStage, (newStage, oldStage) => {
+  if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
+    // Exited a skip stage - render the features
+    updateFeatures(features.value)
+    updateFlexFeatures(flexFeatures.value)
+  }
 })
 
 watch(() => center, (oldVal, newVal) => {
@@ -103,6 +133,7 @@ function initMap () {
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
     updateFeatures(features.value)
+    updateFlexFeatures(flexFeatures.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
     map?.on('zoom', mapZoom)
@@ -125,6 +156,15 @@ function createSources () {
     data: { type: 'FeatureCollection', features: [] }
   })
   map?.addSource('polygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('flexPolygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  // Highlight source for selected features
+  map?.addSource('highlight', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -176,6 +216,48 @@ function createLayers () {
       'line-opacity': 0.6
     }
   })
+
+  // Flex Services (DRT) polygon layers
+  map?.addLayer({
+    id: 'flex-polygons',
+    type: 'fill',
+    source: 'flexPolygons',
+    layout: {},
+    paint: {
+      // Color from feature properties, fallback to gray
+      'fill-color': ['coalesce', ['get', 'fill'], '#888888'],
+      // Lower opacity for overlapping areas - can see through to fixed routes
+      'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.25],
+    }
+  })
+  // Solid outline layer for marked features
+  map?.addLayer({
+    id: 'flex-polygons-outline-solid',
+    type: 'line',
+    source: 'flexPolygons',
+    filter: ['==', ['get', 'marked'], true],
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.8],
+    }
+  })
+  // Dashed outline layer for unmarked features
+  map?.addLayer({
+    id: 'flex-polygons-outline-dashed',
+    type: 'line',
+    source: 'flexPolygons',
+    filter: ['==', ['get', 'marked'], false],
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.8],
+      'line-dasharray': [4, 4],
+    }
+  })
+
   map?.addLayer({
     id: 'lines',
     type: 'line',
@@ -195,6 +277,53 @@ function createLayers () {
       'circle-color': ['coalesce', ['get', 'marker-color'], '#888888'], // gray is the fallback color for stop points while routes or other data that may be needed for styling logic is still loading
       'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
       'circle-opacity': ['coalesce', ['get', 'marker-opacity'], 1.0],
+    }
+  })
+
+  // Highlight layers for selected features (rendered on top)
+  map?.addLayer({
+    id: 'highlight-polygon',
+    type: 'fill',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Polygon'],
+    paint: {
+      'fill-color': '#00FF00',
+      'fill-opacity': 0.2,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-polygon-outline',
+    type: 'line',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Polygon'],
+    paint: {
+      'line-color': '#00FF00',
+      'line-width': 4,
+      'line-opacity': 1.0,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-line',
+    type: 'line',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: {
+      'line-color': '#00FF00',
+      'line-width': 6,
+      'line-opacity': 1.0,
+    }
+  })
+  map?.addLayer({
+    id: 'highlight-point',
+    type: 'circle',
+    source: 'highlight',
+    filter: ['==', ['geometry-type'], 'Point'],
+    paint: {
+      'circle-color': '#00FF00',
+      'circle-radius': 14,
+      'circle-opacity': 1.0,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 3,
     }
   })
 }
@@ -250,6 +379,24 @@ function updateFeatures (features: Feature[]) {
   }
 }
 
+/**
+ * Update flex service area polygons on the map
+ */
+function updateFlexFeatures (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const flexSource = map.getSource('flexPolygons') as maplibre.GeoJSONSource
+  if (!flexSource) {
+    return
+  }
+  // Filter to only polygon/multipolygon geometries (flex areas are polygons)
+  const polygons = features.filter((s) => {
+    return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon'
+  })
+  flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
+}
+
 function fitFeatures (features: Feature[]) {
   const coords = []
   for (const f of features) {
@@ -297,22 +444,182 @@ function fitFeatures (features: Feature[]) {
 //////////////////////
 // Map redraw
 
+// Track the current popup and its state for multi-feature navigation
+let currentPopup: maplibre.Popup | null = null
+let currentPopupApp: ReturnType<typeof createApp> | null = null
+let currentPopupFeatures: PopupFeature[] = []
+let currentPopupIndex = 0
+
+/**
+ * Update the highlight layer to show the selected feature
+ */
+function updateHighlight (popupFeature: PopupFeature | null) {
+  if (!map) return
+
+  const highlightSource = map.getSource('highlight') as maplibre.GeoJSONSource
+  if (!highlightSource) return
+
+  if (!popupFeature || !popupFeature.featureId || !popupFeature.sourceLayer) {
+    // Clear highlight
+    highlightSource.setData({ type: 'FeatureCollection', features: [] })
+    return
+  }
+
+  // Find the feature in the appropriate source
+  const sourceLayer = popupFeature.sourceLayer
+  const featureId = popupFeature.featureId
+
+  // Look up the feature from our stored feature arrays based on source layer
+  let matchingFeature: Feature | undefined
+
+  if (sourceLayer === 'flexPolygons') {
+    // For flex features, match by location_id in properties (since that's what we use as featureId)
+    matchingFeature = flexFeatures.value.find(f =>
+      f.properties?.location_id?.toString() === featureId.toString()
+      || f.id?.toString() === featureId.toString()
+    )
+  } else if (sourceLayer === 'lines') {
+    matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && (f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'))
+  } else if (sourceLayer === 'points') {
+    matchingFeature = features.value.find(f => f.id?.toString() === featureId.toString() && f.geometry?.type === 'Point')
+  }
+
+  if (matchingFeature) {
+    highlightSource.setData({
+      type: 'FeatureCollection',
+      features: [matchingFeature as any]
+    })
+  } else {
+    // Fallback: try querySourceFeatures for rendered tiles
+    const renderedFeatures = map.querySourceFeatures(sourceLayer, {})
+    const renderedMatch = renderedFeatures.find(f =>
+      f.properties?.location_id?.toString() === featureId.toString()
+      || f.id?.toString() === featureId.toString()
+    )
+    if (renderedMatch) {
+      highlightSource.setData({
+        type: 'FeatureCollection',
+        features: [renderedMatch as any]
+      })
+    } else {
+      highlightSource.setData({ type: 'FeatureCollection', features: [] })
+    }
+  }
+}
+
 function drawPopupFeatures (features: PopupFeature[]) {
-  // TODO: FIXME
-  // HTML is not escaped
+  // Close existing popup and unmount Vue app
+  if (currentPopup) {
+    currentPopup.remove()
+    currentPopup = null
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = null
+  }
+
   if (features.length === 0) {
+    currentPopupFeatures = []
+    currentPopupIndex = 0
+    // Clear highlight when closing popup
+    updateHighlight(null)
     return
   }
-  const first = features[0]
-  if (!first) {
+
+  currentPopupFeatures = features
+  currentPopupIndex = 0
+  showPopupAtIndex(0)
+}
+
+function showPopupAtIndex (index: number) {
+  if (currentPopupFeatures.length === 0) return
+
+  // Close existing popup and unmount Vue app
+  if (currentPopup) {
+    currentPopup.remove()
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = null
+  }
+
+  currentPopupIndex = index
+  const feature = currentPopupFeatures[index]
+  if (!feature) return
+
+  // Ensure feature has required data for Vue component
+  if (!feature.featureType || !feature.data) {
+    console.warn('[Popup] Feature missing featureType or data, skipping:', feature)
     return
   }
-  const p = first.point
-  const description = first.text
-  new maplibre.Popup()
-    .setLngLat([p.lon, p.lat])
-    .setHTML(description)
-    .addTo(map!)
+
+  // Update highlight to show the selected feature
+  updateHighlight(feature)
+
+  const total = currentPopupFeatures.length
+
+  // Create a container for the Vue component
+  const container = document.createElement('div')
+  container.className = 'popup-vue-container'
+
+  // Create and mount the Vue popup component
+  const app = createApp({
+    render: () => h(CalMapPopup, {
+      feature: {
+        featureType: feature.featureType!,
+        featureId: feature.featureId || '',
+        sourceLayer: feature.sourceLayer || '',
+        data: feature.data!,
+      },
+      currentIndex: currentPopupIndex,
+      total: total,
+      onClose: () => {
+        if (currentPopup) {
+          currentPopup.remove()
+          currentPopup = null
+        }
+        if (currentPopupApp) {
+          currentPopupApp.unmount()
+          currentPopupApp = null
+        }
+        updateHighlight(null)
+      },
+      onPrev: () => {
+        if (currentPopupIndex > 0) {
+          showPopupAtIndex(currentPopupIndex - 1)
+        }
+      },
+      onNext: () => {
+        if (currentPopupIndex < currentPopupFeatures.length - 1) {
+          showPopupAtIndex(currentPopupIndex + 1)
+        }
+      },
+    })
+  })
+  app.mount(container)
+  currentPopupApp = app
+
+  // Create MapLibre popup with DOM content
+  const popup = new maplibre.Popup({
+    closeButton: false, // We use our own close button
+    closeOnClick: false, // Let our button handle it
+    maxWidth: '380px',
+    className: 'bulma-popup',
+  })
+    .setLngLat([feature.point.lon, feature.point.lat])
+    .setDOMContent(container)
+
+  // Clean up Vue app when popup closes
+  popup.once('close', () => {
+    if (currentPopupApp) {
+      currentPopupApp.unmount()
+      currentPopupApp = null
+    }
+  })
+
+  // Add to map
+  popup.addTo(map!)
+  currentPopup = popup
 }
 
 function drawMarkers (markers: MarkerFeature[]) {
@@ -346,7 +653,13 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
+  // Query all existing layers for click detection
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
+    .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
+
+  if (layersToQuery.length === 0) return
+
+  const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
     emit('mapClickFeatures', e.lngLat, features)
   }
@@ -361,7 +674,13 @@ function mapMove () {
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {
-  const features = map?.queryRenderedFeatures(e.point, { layers: ['points', 'lines'] })
+  // Query all existing layers for hover detection
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
+    .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
+
+  if (layersToQuery.length === 0) return
+
+  const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
     emit('mapHoverFeatures', features)
   }
@@ -375,5 +694,18 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   }
   .tall {
     height: 100vh;
+  }
+
+  /* MapLibre popup container styles (component styles are in map-popup.vue) */
+  .bulma-popup .maplibregl-popup-content {
+    padding: 0;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    width: 380px;
+  }
+
+  .bulma-popup .maplibregl-popup-tip {
+    border-top-color: #f5f5f5;
   }
   </style>

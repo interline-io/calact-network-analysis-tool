@@ -20,6 +20,10 @@
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
       :hide-unmarked="hideUnmarked"
+      :flex-enabled="flexServicesEnabled"
+      :flex-color-by="flexColorBy"
+      :flex-style-data="flexStyleData"
+      :has-flex-data="hasFlexData"
     />
 
     <cal-map-viewer-ts
@@ -28,8 +32,10 @@
       :zoom="14"
       :overlay-features="overlayFeatures"
       :features="displayFeatures"
+      :flex-features="flexFeatures"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
+      :loading-stage="props.loadingStage"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
     />
@@ -41,7 +47,7 @@ import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
-import { colors, routeTypeNames } from '~~/src/core'
+import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -59,6 +65,15 @@ const props = defineProps<{
   hideUnmarked: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
+  // Fixed-Route Transit toggle (on by default)
+  fixedRouteEnabled?: boolean
+  // Flex Services props
+  flexServicesEnabled?: boolean
+  flexColorBy?: string
+  // Flex display features (pre-filtered and styled from useFlexAreas composable)
+  flexDisplayFeatures?: Feature[]
+  // Loading stage - allow map updates during geometry stages, skip during schedules
+  loadingStage?: string
 }>()
 
 const showShareMenu = ref(false)
@@ -416,6 +431,12 @@ const overlayFeatures = computed((): Feature[] => {
 })
 
 const displayFeatures = computed((): Feature[] => {
+  // Return empty array if fixed-route transit is disabled
+  // (allows user to focus on flex services only)
+  if (props.fixedRouteEnabled === false) {
+    return []
+  }
+
   const bgColor = '#aaa'
   const bgOpacity = 0.4
   const styleRules = styleData.value || []
@@ -538,9 +559,51 @@ watch(exportFeatures, () => {
   emit('setExportFeatures', exportFeatures.value)
 })
 
-// Is there data to display?
+/**
+ * Flex service area features for the map layer
+ * Returns empty array if flex is disabled (similar to how displayFeatures handles fixedRouteEnabled)
+ */
+const flexFeatures = computed((): Feature[] => {
+  if (!props.flexServicesEnabled) return []
+  return props.flexDisplayFeatures || []
+})
+
+// Is there fixed-route data to display?
 const hasData = computed((): boolean => {
+  if (props.fixedRouteEnabled === false) {
+    return false
+  }
   return !!(props.scenarioFilterResult?.stops.length || props.scenarioFilterResult?.routes.length)
+})
+
+// Does flex have data to display?
+const hasFlexData = computed((): boolean => {
+  return !!(props.flexServicesEnabled && props.flexDisplayFeatures?.length)
+})
+
+/**
+ * Style data for flex service areas in the legend
+ * - Agency mode: No color swatches (too many agencies, user clicks/hovers for details)
+ * - Advance notice mode: Three swatches for booking categories
+ */
+const flexStyleData = computed(() => {
+  if (!props.flexServicesEnabled || !props.flexDisplayFeatures?.length) {
+    return []
+  }
+
+  const colorBy = props.flexColorBy || 'Agency'
+
+  if (colorBy === 'Advance notice') {
+    // Show advance notice categories with their semantic colors
+    return [
+      { label: 'On-demand', color: flexColors.advanceNotice['On-demand'] },
+      { label: 'Same day', color: flexColors.advanceNotice['Same day'] },
+      { label: 'More than 24 hours', color: flexColors.advanceNotice['More than 24 hours'] },
+    ]
+  } else {
+    // Agency mode: No color swatches - users click/hover on polygons to see agency names
+    return []
+  }
 })
 
 /////////////////
@@ -565,39 +628,87 @@ const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
   const a: PopupFeature[] = []
-  for (const feature of features) {
-    const ft = feature.geometry.type
+  const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
 
-    let text = ''
+  console.log(`[MapClick] ${features.length} raw features at point`)
+
+  for (const feature of features) {
+    const featureId = feature.id?.toString() || ''
+
+    // Only dedupe if we have a valid ID (skip deduplication for empty IDs)
+    if (featureId && seenIds.has(featureId)) {
+      continue // Skip duplicate
+    }
+    if (featureId) {
+      seenIds.add(featureId)
+    }
+
+    const ft = feature.geometry.type
+    const fp = feature.properties
+
+    let popupFeature: PopupFeature | null = null
+
     if (ft === 'Point') {
-      const stopLookup = stopFeatureLookup.value.get(feature.id.toString())
+      const stopLookup = stopFeatureLookup.value.get(featureId)
       if (!stopLookup) {
         continue
       }
-      const fp = stopLookup
-      // FIXME: THIS IS TEMPORARY - THIS IS NOT SAFE
-      text = `
-        Stop ID: ${fp.stop_id}<br>
-        <strong>${fp.stop_name}</strong><br>
-        Routes: ${fp.route_stops.map((rs: any) => rs.route.route_short_name).join(', ')}<br>
-        Agencies: ${fp.route_stops.map((rs: any) => rs.route.agency.agency_name).join(', ')}`
+      const sp = stopLookup
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: featureId,
+        sourceLayer: 'points',
+        featureType: 'stop',
+        data: {
+          stop_id: sp.stop_id,
+          stop_name: sp.stop_name,
+          routes: sp.route_stops.map((rs: any) => rs.route.route_short_name),
+          agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
+        }
+      }
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
-      const rp = feature.properties
-      text = `
-        Route ID: ${rp.route_id}<br>
-        <strong>${rp.route_short_name || ''} ${rp.route_long_name}</strong><br>
-        Type: ${routeTypeNames.get(rp.route_type) || 'Unknown'}<br>
-        Agency: ${rp.agency_name}`
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: featureId,
+        sourceLayer: 'lines',
+        featureType: 'route',
+        data: {
+          route_id: fp.route_id,
+          route_short_name: fp.route_short_name || '',
+          route_long_name: fp.route_long_name || '',
+          route_type_name: routeTypeNames.get(fp.route_type) || 'Unknown',
+          agency_name: fp.agency_name,
+        }
+      }
+    } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
+      // Flex service area popup
+      // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
+      const flexFeatureId = fp.location_id?.toString() || featureId
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: flexFeatureId,
+        sourceLayer: 'flexPolygons',
+        featureType: 'flex',
+        data: {
+          location_id: fp.location_id,
+          location_name: fp.location_name,
+          agency_name: fp.agency_name || fp.agency_names || 'Unknown',
+          route_names: fp.route_names || 'Unknown',
+          area_type: fp.area_type || 'Unknown',
+          advance_notice: fp.advance_notice || 'Unknown',
+          phone_number: fp.phone_number,
+          marked: fp.marked,
+        }
+      }
     }
 
-    if (text) {
-      a.push({
-        point: { lon: pt.lng, lat: pt.lat },
-        text: text
-      })
+    if (popupFeature) {
+      console.log(`[MapClick] Adding popup feature: featureId=${popupFeature.featureId}, sourceLayer=${popupFeature.sourceLayer}`)
+      a.push(popupFeature)
     }
   }
 
+  console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
 }
 </script>

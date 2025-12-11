@@ -12,6 +12,15 @@ import {
   convertBbox,
   chunkArray
 } from '~~/src/core'
+import type { FlexAreaFeature,
+  FeedGql,
+  FeedVersion,
+  RouteGql,
+  StopDeparture,
+  StopGql,
+  StopTime,
+  FlexLocationQueryResponse
+} from '~~/src/tl'
 import {
   StopDepartureCache,
   feedVersionQuery,
@@ -19,12 +28,8 @@ import {
   stopDepartureQuery,
   stopTimeQuery,
   stopQuery,
-  type FeedGql,
-  type FeedVersion,
-  type RouteGql,
-  type StopDeparture,
-  type StopGql,
-  type StopTime
+  flexLocationQuery,
+  transformLocationsToFlexAreas,
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
 
@@ -32,6 +37,13 @@ import { geographyLayerQuery } from '~~/src/tl/census'
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
+
+/**
+ * Maximum number of flex locations to fetch per feed version.
+ * This limit is enforced server-side by transitland-server.
+ * If a feed version has more locations than this, some will be silently skipped.
+ */
+const MAX_FLEX_LOCATIONS_PER_FEED_VERSION = 100_000
 
 /**
  * Configuration for scenario fetching
@@ -47,6 +59,16 @@ export interface ScenarioConfig {
   aggregateLayer?: string
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
+  /**
+   * Whether to fetch fixed-route transit data (stops, routes, departures)
+   * Defaults to true
+   */
+  includeFixedRoute?: boolean
+  /**
+   * Whether to fetch flex service areas
+   * Defaults to true
+   */
+  includeFlexAreas?: boolean
 }
 
 export interface ScenarioFilter {
@@ -63,6 +85,23 @@ export interface ScenarioFilter {
   frequencyOverEnabled: boolean
 }
 
+// =============================================================================
+// Flex service (GTFS-Flex / DRT) GraphQL integration
+// See: https://github.com/interline-io/transitland-lib/pull/527
+// =============================================================================
+//
+// Flex areas are fetched via GraphQL in fetchFlexAreas():
+// - Queries Location type for each feed version
+// - Filters by date via StopTimeFilter.date on Location.stop_times
+// - Transforms Location -> FlexAreaFeature in BFF before streaming
+// - Frontend applies user filters (advance notice, area type, color mode)
+//
+// GraphQL types used:
+// - Location: flex service areas (polygons from locations.geojson)
+// - FlexStopTime: stop times with pickup/dropoff types and booking rules
+// - BookingRule: booking_type (0=real-time, 1=same-day, 2=prior-day)
+//
+
 /**
  * Scenario results
  */
@@ -71,6 +110,11 @@ export interface ScenarioData {
   stops: StopGql[]
   feedVersions: FeedVersion[]
   stopDepartureCache: StopDepartureCache
+  /**
+   * Flex service areas (GTFS-Flex / DRT)
+   * Currently loaded from static GeoJSON, will come from GraphQL API later
+   */
+  flexAreas: FlexAreaFeature[]
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -114,7 +158,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -124,6 +168,7 @@ export interface ScenarioProgress {
     stops: StopGql[]
     routes: RouteGql[]
     feedVersions: FeedVersion[]
+    flexAreas: FlexAreaFeature[]
     stopDepartures: StopDepartureTuple[]
   }
   extraData?: any
@@ -313,6 +358,7 @@ export class ScenarioFetcher {
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
+  private feedVersions: FeedVersion[] = []
 
   constructor (
     config: ScenarioConfig,
@@ -360,30 +406,124 @@ export class ScenarioFetcher {
   // Start the scenario fetching process
   private async fetchMain () {
     // FIRST STAGE: Fetch active feed versions in the area
-    const feedVersions = await this.fetchFeedVersions()
-    console.log(`Found ${feedVersions.length} feed versions`)
-    for (const fv of feedVersions) {
+    this.feedVersions = await this.fetchFeedVersions()
+    console.log(`Found ${this.feedVersions.length} feed versions`)
+    for (const fv of this.feedVersions) {
       console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
     }
-    for (const fv of feedVersions) {
-      this.stopFetchQueue.enqueueOne({
-        after: 0,
-        feedOnestopId: fv.feed.onestop_id,
-        feedVersionSha1: fv.sha1
-      })
+
+    // Fetch fixed-route transit data if enabled (default: true)
+    const includeFixedRoute = this.config.includeFixedRoute !== false
+    console.log(`[Scenario] includeFixedRoute = ${includeFixedRoute}`)
+    if (includeFixedRoute) {
+      for (const fv of this.feedVersions) {
+        this.stopFetchQueue.enqueueOne({
+          after: 0,
+          feedOnestopId: fv.feed.onestop_id,
+          feedVersionSha1: fv.sha1
+        })
+      }
+
+      // Wait for all stop fetching to complete
+      this.stopFetchQueue.run()
+      this.routeFetchQueue.run()
+      this.stopDepartureQueue.run()
+      await this.stopFetchQueue.wait()
+      await this.routeFetchQueue.wait()
+      await this.stopDepartureQueue.wait()
+    } else {
+      console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
-    // Wait for all stop fetching to complete
-    this.stopFetchQueue.run()
-    this.routeFetchQueue.run()
-    this.stopDepartureQueue.run()
-    await this.stopFetchQueue.wait()
-    await this.routeFetchQueue.wait()
-    await this.stopDepartureQueue.wait()
+    // Fetch flex service areas if enabled (default: true)
+    const includeFlexAreas = this.config.includeFlexAreas !== false
+    console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
+    if (includeFlexAreas) {
+      await this.fetchFlexAreas()
+    } else {
+      console.log('[Scenario] Skipping flex areas (not enabled)')
+    }
 
     // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
     console.log(`🎉 Scenario complete`)
+  }
+
+  /**
+   * Fetch flex service areas (GTFS-Flex / DRT) via GraphQL
+   *
+   * Queries locations for each feed version, filters out those without
+   * active service on the selected date, and transforms to FlexAreaFeature format.
+   */
+  private async fetchFlexAreas (): Promise<void> {
+    if (this.feedVersions.length === 0) {
+      console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
+      return
+    }
+
+    this.updateProgress('flex-areas', true)
+    console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
+
+    // Use the start date for filtering stop_times
+    // Format as YYYY-MM-DD for the GraphQL Date scalar
+    const queryDate = this.config.startDate
+      ? format(this.config.startDate, 'yyyy-MM-dd')
+      : format(new Date(), 'yyyy-MM-dd')
+
+    let totalLocations = 0
+    let totalFlexAreas = 0
+
+    // Query locations for each feed version
+    for (const fv of this.feedVersions) {
+      try {
+        const variables = {
+          fvSha1: fv.sha1,
+          limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
+          serviceDate: queryDate,
+        }
+
+        console.log(`[FlexAreas] Querying locations for ${fv.feed.onestop_id} (${fv.sha1}) on ${queryDate}`)
+        const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
+
+        const feedVersionData = response.data?.feed_versions?.[0]
+        if (!feedVersionData) {
+          console.log(`[FlexAreas] No data returned for ${fv.feed.onestop_id}`)
+          continue
+        }
+
+        const locations = feedVersionData.locations || []
+        totalLocations += locations.length
+        console.log(`[FlexAreas] Found ${locations.length} locations in ${fv.feed.onestop_id}`)
+
+        // Transform locations to FlexAreaFeatures
+        // This also filters out locations with no stop_times (no service on selected date)
+        const flexAreas = transformLocationsToFlexAreas(locations)
+        totalFlexAreas += flexAreas.length
+
+        if (flexAreas.length > 0) {
+          console.log(`[FlexAreas] Transformed ${flexAreas.length} flex areas from ${fv.feed.onestop_id}`)
+
+          // Stream flex areas to frontend
+          this.updateProgress('flex-areas', true, {
+            stops: [],
+            routes: [],
+            feedVersions: [],
+            stopDepartures: [],
+            flexAreas
+          })
+        } else {
+          console.log(`[FlexAreas] No active flex areas on ${queryDate} in ${fv.feed.onestop_id}`)
+        }
+      } catch (error) {
+        // Log detailed error information to help diagnose issues
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        const errorName = error instanceof Error ? error.name : 'UnknownError'
+        console.error(`[FlexAreas] Error fetching locations for feed ${fv.feed.onestop_id} (sha1: ${fv.sha1}, date: ${queryDate}): [${errorName}] ${errorMsg}. This feed will be skipped.`)
+        // Continue with other feed versions even if one fails
+      }
+    }
+
+    console.log(`[FlexAreas] Complete: ${totalFlexAreas} flex areas from ${totalLocations} locations`)
   }
 
   // Fetch active feed versions in the specified area
@@ -432,7 +572,7 @@ export class ScenarioFetcher {
     const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
 
-    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [] })
+    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
     return feedVersions
   }
@@ -463,7 +603,7 @@ export class ScenarioFetcher {
 
     // Send progress updates in batches using the generic helper function
     for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
-      this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [] })
+      this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [], flexAreas: [] })
     }
 
     // Extract route IDs and fetch routes
@@ -520,7 +660,7 @@ export class ScenarioFetcher {
 
     // Send progress updates in batches using the generic helper function
     for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
-      this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [] })
+      this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [], flexAreas: [] })
     }
 
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
@@ -572,7 +712,7 @@ export class ScenarioFetcher {
 
     // Send progress updates in batches using the generic helper function
     for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
-      this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch })
+      this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch, flexAreas: [] })
     }
   }
 
@@ -606,6 +746,7 @@ export class ScenarioDataReceiver {
       routes: [],
       feedVersions: [],
       stopDepartureCache: new StopDepartureCache(),
+      flexAreas: [],
     }
   }
 
@@ -645,6 +786,11 @@ export class ScenarioDataReceiver {
           StopDepartureTuple.departureDate(event),
           [st],
         )
+      }
+
+      // Append new flex areas
+      if (progress.partialData.flexAreas) {
+        this.accumulatedData.flexAreas.push(...progress.partialData.flexAreas)
       }
     }
 

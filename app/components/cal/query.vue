@@ -105,26 +105,22 @@
                       <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
                     </strong>
                   </template>
-                  <template #selected="{ items, removeItem }">
-                    <span
-                      v-for="(item, index) in items"
-                      :key="index"
-                      class="tag is-primary"
-                    >
-                      {{ selectedGeographyTagOptions.find(opt => opt.value === item)?.label || item }}
-                      <button
-                        type="button"
-                        class="delete is-small"
-                        @click="removeItem(index)"
-                      />
-                    </span>
+                  <template #option="{ option }">
+                    <div class="is-flex is-align-items-center">
+                      <span>{{ option.label }}</span>
+                      <span class="tag is-light is-small ml-2">
+                        {{ option.geographyType }}
+                      </span>
+                    </div>
                   </template>
                 </o-taginput>
               </div>
               <div v-if="geomResultLoading" class="control">
+                <!-- @vue-skip -->
                 <o-loading
                   :active="true"
                   :full-page="false"
+                  size="small"
                 />
               </div>
             </div>
@@ -133,24 +129,47 @@
       </t-msg>
 
       <article class="message mb-4 is-text">
-        <div class="message-header collapsible-header" @click="() => toggleAdvancedSettings()">
-          <span class="message-header-title">
-            Advanced Settings
-          </span>
-          <span class="message-header-icon">
-            <o-icon :icon="showAdvancedSettings ? 'menu-up' : 'menu-down'" />
-          </span>
-        </div>
+        <!-- @vue-skip -->
         <o-collapse
-          :open="showAdvancedSettings"
+          v-model:open="showAdvancedSettings"
           animation="slide"
         >
+          <template #trigger="{ open }">
+            <div class="message-header collapsible-header">
+              <span class="message-header-title">
+                Advanced Settings
+              </span>
+              <span class="message-header-icon">
+                <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
+              </span>
+            </div>
+          </template>
           <div class="message-body">
             <div class="container is-max-tablet">
+              <!-- Data to Load Section -->
+              <o-field label="Data to Load">
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="includeFixedRoute"
+                  aria-label="Include Fixed-Route Transit data in query results"
+                >
+                  Include Fixed-Route Transit
+                </o-checkbox>
+                <!-- @vue-skip -->
+                <o-checkbox
+                  v-model="includeFlexAreas"
+                  aria-label="Include Flex Service Areas data in query results"
+                >
+                  Include Flex Service Areas
+                </o-checkbox>
+              </o-field>
+
+              <!-- Aggregation Section -->
               <o-field>
                 <template #label>
                   <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                    Aggregate by Census geographic hierarchy level: <o-icon icon="information" />
+                    Aggregate by Census geographic hierarchy level
+                    <o-icon icon="information" />
                   </o-tooltip>
                 </template>
                 <!-- @vue-skip -->
@@ -201,20 +220,21 @@ const props = defineProps<{
 }>()
 
 const bbox = defineModel<Bbox>('bbox', { default: null })
-const geographyIds = defineModel<number[]>('geographyIds')
+const geographyIds = defineModel<number[] | undefined>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
+const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
+const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geomLayer = ref('place')
-const cannedBbox = defineModel<string>('cannedBbox', { default: null })
+const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date>('endDate')
+const endDate = defineModel<Date | undefined>('endDate')
 const geomSearch = ref('')
-const geomSource = defineModel<string>('geomSource')
+const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
 const showAdvancedSettings = ref(false)
-const startDate = defineModel<Date>('startDate')
+const startDate = defineModel<Date | undefined>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
-const toggleAdvancedSettings = useToggle(showAdvancedSettings)
 
 const geomSearchVars = computed(() => {
   return {

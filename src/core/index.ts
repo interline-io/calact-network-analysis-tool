@@ -1,4 +1,5 @@
 export * from './constants'
+export * from './colors'
 export * from './geom'
 export * from './graphql'
 export * from './datetime'
