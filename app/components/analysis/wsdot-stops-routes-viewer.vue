@@ -3,8 +3,8 @@
     <!-- Tabbed Interface -->
     <div class="mt-4">
       <!-- @vue-skip -->
-      <o-tabs v-model="activeTab" expanded>
-        <o-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
+      <t-tabs v-model="activeTab" expanded>
+        <t-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
           <div class="mt-4">
             <h4 class="title is-4">
               Agency Summary
@@ -22,9 +22,9 @@
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
+        <t-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Stops
@@ -94,9 +94,9 @@
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
+        <t-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Routes
@@ -133,8 +133,8 @@
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
-      </o-tabs>
+        </t-tab-item>
+      </t-tabs>
     </div>
   </div>
 </template>
