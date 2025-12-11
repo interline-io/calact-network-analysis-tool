@@ -22,7 +22,6 @@
       </t-msg>
 
       <t-field label="Start an analysis">
-        <!-- @vue-skip -->
         <t-select
           v-model="selectedReportType"
           placeholder="Select an analysis to run"

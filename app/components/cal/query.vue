@@ -36,7 +36,6 @@
       <t-msg title="Geographic Bounds">
         <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
           <t-field label="Preset bounding box">
-            <!-- @vue-skip -->
             <t-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
@@ -70,7 +69,6 @@
               <template #label>
                 Administrative boundary layer to search
               </template>
-              <!-- @vue-skip -->
               <t-select
                 v-model="geomLayer"
                 :options="props.censusGeographyLayerOptions"
@@ -135,14 +133,12 @@
             <div class="container is-max-tablet">
               <!-- Data to Load Section -->
               <t-field label="Data to Load">
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="includeFixedRoute"
                   aria-label="Include Fixed-Route Transit data in query results"
                 >
                   Include Fixed-Route Transit
                 </t-checkbox>
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="includeFlexAreas"
                   aria-label="Include Flex Service Areas data in query results"
@@ -159,7 +155,6 @@
                     <t-icon icon="information" />
                   </t-tooltip>
                 </template>
-                <!-- @vue-skip -->
                 <t-select
                   v-model="aggregateLayer"
                   :options="censusGeographyLayerOptions"

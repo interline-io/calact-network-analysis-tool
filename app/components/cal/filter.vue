@@ -115,7 +115,6 @@
               v-for="dowValue of dowValues"
               :key="dowValue"
             >
-              <!-- @vue-skip -->
               <t-checkbox
                 v-model="selectedDays"
                 :native-value="dowValue"
@@ -138,7 +137,6 @@
           </p>
 
           <t-field class="cal-time-of-day-mode">
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="isAllDayMode"
               label="All Day"
@@ -187,13 +185,11 @@
           </p>
 
           <t-field grouped>
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
-              <!-- @vue-skip -->
               <t-input
                 v-model="frequencyUnder"
                 type="number"
@@ -207,13 +203,11 @@
           </t-field>
 
           <t-field grouped>
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
-              <!-- @vue-skip -->
               <t-input
                 v-model="frequencyOver"
                 type="number"
@@ -227,7 +221,6 @@
           </t-field>
 
           <t-field>
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
@@ -242,14 +235,12 @@
           </p>
 
           <t-field grouped>
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <!-- @vue-skip -->
               <t-input
                 v-model="maxFare"
                 type="number"
@@ -261,14 +252,12 @@
           </t-field>
 
           <t-field grouped>
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <!-- @vue-skip -->
               <t-input
                 v-model="minFare"
                 type="number"
@@ -285,7 +274,6 @@
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
           <t-field grouped class="mb-4">
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="fixedRouteEnabled"
               label="Include Fixed-Route Transit"
@@ -304,7 +292,6 @@
                 v-for="[routeType, routeTypeDesc] of routeTypeNames"
                 :key="routeType"
               >
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="selectedRouteTypes"
                   :native-value="routeType"
@@ -324,7 +311,6 @@
 
             <div class="cal-agency-search">
               <t-field>
-                <!-- @vue-skip -->
                 <t-input
                   v-model="agencySearch"
                   type="Search"
@@ -360,7 +346,6 @@
                 v-for="agencyName of knownAgencies"
                 :key="agencyName"
               >
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="selectedAgencies"
                   :native-value="agencyName"
@@ -381,7 +366,6 @@
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
           <t-field grouped class="mb-4">
-            <!-- @vue-skip -->
             <t-checkbox
               v-model="flexServicesEnabled"
               label="Include Flex Services"
@@ -409,7 +393,6 @@
                 v-for="noticeType of flexAdvanceNoticeTypes"
                 :key="noticeType"
               >
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="flexAdvanceNotice"
                   :native-value="noticeType"
@@ -428,7 +411,6 @@
                 v-for="areaType of flexAreaTypes"
                 :key="areaType"
               >
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="flexAreaTypesSelected"
                   :native-value="areaType"
@@ -568,7 +550,6 @@
           <ul>
             <li>
               <t-field grouped>
-                <!-- @vue-skip -->
                 <t-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"

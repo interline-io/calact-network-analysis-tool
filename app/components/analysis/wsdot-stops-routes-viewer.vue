@@ -2,7 +2,6 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <!-- @vue-skip -->
       <t-tabs v-model="activeTab" expanded>
         <t-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
           <div class="mt-4">

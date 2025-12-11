@@ -58,7 +58,6 @@
           title="Debug menu"
         >
           <t-field label="Example configuration">
-            <!-- @vue-skip -->
             <t-select v-model="selectedExample">
               <option value="">
                 Select an example...
@@ -83,7 +82,6 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <!-- @vue-skip -->
             <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </t-field>
 
@@ -94,7 +92,6 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <!-- @vue-skip -->
             <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </t-field>
 
@@ -105,7 +102,6 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <!-- @vue-skip -->
             <o-slider
               v-model="wsdotReportConfig!.stopBufferRadius"
               :min="0"

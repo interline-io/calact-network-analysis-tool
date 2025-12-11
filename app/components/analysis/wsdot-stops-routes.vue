@@ -58,7 +58,6 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <!-- @vue-skip -->
             <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
           </t-field>
 
@@ -69,7 +68,6 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <!-- @vue-skip -->
             <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </t-field>
         </div>
