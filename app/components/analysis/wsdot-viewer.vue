@@ -39,7 +39,7 @@
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
               <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
-                <t-checkbox v-model="selectedLevels" :native-value="levelKey">
+                <t-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
                   {{ levelDetail.label }}
                 </t-checkbox>
               </td>

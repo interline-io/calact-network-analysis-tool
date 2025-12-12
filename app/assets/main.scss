@@ -8,6 +8,39 @@ $duration: 1000ms;
     $link: $link,
 );
 
+// Sidebar styles (previously from @oruga-ui/theme-bulma)
+.sidebar {
+    .sidebar-content {
+        position: fixed;
+        z-index: 40;
+        background-color: var(--bulma-background);
+        box-shadow: var(--bulma-shadow);
+
+        &.is-left {
+            top: 0;
+            left: 0;
+            bottom: 0;
+            height: 100%;
+        }
+
+        &.is-right {
+            top: 0;
+            right: 0;
+            bottom: 0;
+            height: 100%;
+        }
+
+        &.is-fullheight {
+            height: 100%;
+        }
+
+        &.is-mini,
+        &.is-reduced {
+            width: 80px;
+        }
+    }
+}
+
 .tooltip-trigger {
     border: none;
 }

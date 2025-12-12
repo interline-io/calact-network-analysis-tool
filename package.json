@@ -24,13 +24,13 @@
     "@types/big-json": "3.2.0",
     "@types/node": "latest",
     "big-json": "3.2.0",
-    "csv-stringify": "6.5.2",
+    "csv-stringify": "6.6.0",
     "d3-scale": "4.0.2",
     "d3-scale-chromatic": "3.1.0",
     "eslint": "9.39.1",
     "nuxt": "4.2.0",
     "sass-embedded": "1.93.3",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=913c326514219462d5629ab0f58645b512c96d04",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=e9c2c61ce8e513abbb3470697864ad193eddf640",
     "tsx": "4.20.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.46.3",
@@ -42,5 +42,8 @@
   "devDependencies": {
     "@types/d3-scale": "4.0.9",
     "@types/d3-scale-chromatic": "3.1.0"
+  },
+  "resolutions": {
+    "tlv2-ui": "portal:/Users/irees/src/interline-io/tlv2-ui"
   }
 }

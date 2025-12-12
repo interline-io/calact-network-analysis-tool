@@ -2,12 +2,12 @@
   <div>
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
-    <t-msg
-      variant="info"
-      collapsible
-      :collapsed="hasResults"
-      title="About this Analysis"
+    <t-card
+      label="About this Analysis"
+      expandable
+      :open="!hasResults"
     >
+      <t-msg variant="info">
       <p class="mb-3">
         The Washington State Department of Transportation (WSDOT) <a
           href="https://wsdot.wa.gov/construction-planning/search-studies/frequent-transit-service-study"
@@ -23,7 +23,8 @@
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
       </p>
-    </t-msg>
+      </t-msg>
+    </t-card>
 
     <t-msg
       v-if="error"

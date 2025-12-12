@@ -307,7 +307,7 @@
               <t-field>
                 <t-input
                   v-model="agencySearch"
-                  type="Search"
+                  type="search"
                   placeholder="search"
                   icon-right="magnify"
                   icon-right-clickable

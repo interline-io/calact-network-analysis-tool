@@ -24,9 +24,9 @@
       <t-field label="Start an analysis">
         <t-select
           v-model="selectedReportType"
-          placeholder="Select an analysis to run"
           :disabled="!scenarioConfig"
         >
+          <option value="" disabled selected>Select an analysis to run</option>
           <option v-for="[reportType, reportLabel] of Object.entries(analysisTypes)" :key="reportType" :value="reportType">
             {{ reportLabel }}
           </option>

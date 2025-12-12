@@ -10,6 +10,7 @@
               icon="magnify"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>
@@ -24,6 +25,7 @@
               icon="filter"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -38,6 +40,7 @@
               icon="map"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -52,6 +55,7 @@
               icon="file-chart"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -61,6 +65,7 @@
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>

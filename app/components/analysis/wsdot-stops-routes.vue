@@ -2,12 +2,12 @@
   <div>
     <tl-title title="WSDOT Transit Stops and Routes" />
 
-    <t-msg
-      variant="info"
-      collapsible
-      :collapsed="hasResults"
-      title="About this Analysis"
+    <t-card
+      label="About this Analysis"
+      expandable
+      :open="!hasResults"
     >
+      <t-msg variant="info">
       <p class="mb-3">
         This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
       </p>
@@ -27,7 +27,8 @@
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
-    </t-msg>
+      </t-msg>
+    </t-card>
 
     <t-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.

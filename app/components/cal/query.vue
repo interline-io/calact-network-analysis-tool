@@ -14,16 +14,16 @@
           <template #label>
             <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
               Start date
-              <t-icon icon="information" />
+              <t-icon size="small" icon="information" />
             </t-tooltip>
           </template>
           <t-datepicker v-model="startDate" />
         </t-field>
-        <t-field addons>
+        <t-field>
           <template #label>
             <t-tooltip text="By default, the end date is one week after the start date.">
               End date
-              <t-icon icon="information" />
+              <t-icon size="small" icon="information" />
             </t-tooltip>
           </template>
           <t-datepicker v-if="!selectSingleDay" v-model="endDate" />
@@ -34,20 +34,6 @@
       </t-msg>
 
       <t-msg title="Geographic Bounds">
-        <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
-          <t-field label="Preset bounding box">
-            <t-select v-model="cannedBbox">
-              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
-                {{ cannedBboxDetails.label }}
-              </option>
-            </t-select>
-            <t-button @click="loadExampleData">
-              Load example
-            </t-button>
-          </t-field>
-          <br>
-        </t-msg>
-
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
             <t-field>
@@ -57,10 +43,15 @@
                   <t-icon icon="information" />
                 </t-tooltip>
               </template>
-              <t-select
-                v-model="geomSource"
-                :options="geomSources"
-              />
+              <t-select v-model="geomSource">
+                <option
+                  v-for="[key, label] of Object.entries(geomSources)"
+                  :key="key"
+                  :value="key"
+                >
+                  {{ label }}
+                </option>
+              </t-select>
             </t-field>
           </div>
 
@@ -69,10 +60,15 @@
               <template #label>
                 Administrative boundary layer to search
               </template>
-              <t-select
-                v-model="geomLayer"
-                :options="props.censusGeographyLayerOptions"
-              />
+              <t-select v-model="geomLayer">
+                <option
+                  v-for="option of props.censusGeographyLayerOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </t-select>
             </t-field>
           </div>
         </div>
@@ -113,23 +109,21 @@
         </div>
       </t-msg>
 
-      <t-card
-        v-model:open="showAdvancedSettings"
-        label="Advanced Settings"
-        collapsible
+      <t-msg
+        title="Advanced Settings"
+        variant="dark"
+        expandable
       >
         <div class="container is-max-tablet">
           <!-- Data to Load Section -->
           <t-field label="Data to Load">
             <t-checkbox
               v-model="includeFixedRoute"
-              aria-label="Include Fixed-Route Transit data in query results"
             >
               Include Fixed-Route Transit
             </t-checkbox>
             <t-checkbox
               v-model="includeFlexAreas"
-              aria-label="Include Flex Service Areas data in query results"
             >
               Include Flex Service Areas
             </t-checkbox>
@@ -143,13 +137,31 @@
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <t-select
-              v-model="aggregateLayer"
-              :options="censusGeographyLayerOptions"
-            />
+            <t-select v-model="aggregateLayer">
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </t-select>
           </t-field>
         </div>
-      </t-card>
+      </t-msg>
+
+      <t-msg v-if="debugMenu" title="Debug menu" variant="warning">
+        <t-field label="Preset bounding box">
+          <t-select v-model="cannedBbox">
+            <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
+              {{ cannedBboxDetails.label }}
+            </option>
+          </t-select>
+          <t-button @click="loadExampleData">
+            Load example
+          </t-button>
+        </t-field>
+      </t-msg>
 
       <div class="field has-addons">
         <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
@@ -200,7 +212,6 @@ const endDate = defineModel<Date | undefined>('endDate')
 const geomSearch = ref('')
 const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
-const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date | undefined>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 

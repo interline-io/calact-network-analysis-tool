@@ -1,9 +1,10 @@
 <template>
   <div class="cal-map-legend">
-    <t-card
-      label="Legend"
-      collapsible
+    <t-msg
+      title="Legend"
+      expandable
       :open="true"
+      variant="dark"
     >
       <div class="cal-map-legend-box">
         <!-- BBOX -->
@@ -122,7 +123,7 @@
           </p>
         </div>
       </div>
-    </t-card>
+    </t-msg>
   </div>
 </template>
 
