@@ -1938,28 +1938,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@oruga-ui/oruga-next@npm:0.11.6":
-  version: 0.11.6
-  resolution: "@oruga-ui/oruga-next@npm:0.11.6"
-  dependencies:
-    vue-component-type-helpers: "npm:^3.0.5"
-  peerDependencies:
-    vue: ^3.0.0
-  checksum: 10/83ac4299065a0ffd95b3d7936e0ad4d689d81b5169d99042dc4ad4424d26438982689dca2db577570554ac8eb434920d834d2a8d0a7d884accd246f92fac04a0
-  languageName: node
-  linkType: hard
-
-"@oruga-ui/theme-bulma@npm:0.7.3":
-  version: 0.7.3
-  resolution: "@oruga-ui/theme-bulma@npm:0.7.3"
-  dependencies:
-    bulma: "npm:1.0.4"
-  peerDependencies:
-    "@oruga-ui/oruga-next": ^0.11.0
-  checksum: 10/bc4fb8c7ba7232c3b6dd53c0c83932a47b1989c4be5b2ba33b14dd4438591dd439b1d071db5644eaf8784f36b4238f6b1490b99181b3dff41f20f9657e27b099
-  languageName: node
-  linkType: hard
-
 "@oxc-minify/binding-android-arm64@npm:0.95.0":
   version: 0.95.0
   resolution: "@oxc-minify/binding-android-arm64@npm:0.95.0"
@@ -4868,8 +4846,6 @@ __metadata:
     "@aitodotai/json-stringify-pretty-compact": "npm:1.3.0"
     "@nuxt/eslint": "npm:1.10.0"
     "@nuxt/eslint-config": "npm:1.10.0"
-    "@oruga-ui/oruga-next": "npm:0.11.6"
-    "@oruga-ui/theme-bulma": "npm:0.7.3"
     "@turf/bbox": "npm:7.2.0"
     "@types/big-json": "npm:3.2.0"
     "@types/d3-scale": "npm:4.0.9"
@@ -13817,13 +13793,6 @@ __metadata:
   dependencies:
     ufo: "npm:^1.6.1"
   checksum: 10/21ab29700a531b1a60e558c677b84bcb3e8131be5ea44d3ef6e0200c5915b1983ace0a52ad6a583f470afa44e0453313a8c9cdb5331a43ab6f7046881f80d65b
-  languageName: node
-  linkType: hard
-
-"vue-component-type-helpers@npm:^3.0.5":
-  version: 3.1.8
-  resolution: "vue-component-type-helpers@npm:3.1.8"
-  checksum: 10/957b6a24ed90b236b97b6f54adc75f3caf1693b551a6a8ed0521359a8f65076bacb344def617ea93dd44420c2432f27f88fd3e5b8a594dde6b9005e6f31b11b7
   languageName: node
   linkType: hard
 
