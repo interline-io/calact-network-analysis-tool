@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-outer">
     <div class="cal-map-share-button">
-      <o-button icon-left="share" @click="toggleShareMenu()">
+      <t-button icon-left="share" @click="toggleShareMenu()">
         {{ showShareMenu ? 'Close' : 'Share' }}
-      </o-button>
+      </t-button>
     </div>
 
     <div v-if="showShareMenu" class="cal-map-share">
@@ -721,7 +721,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   position:absolute;
   right:50px;
   top:6px;
-  z-index:101;
+  z-index:10;
 }
 .cal-map-share {
   position:absolute;
@@ -731,7 +731,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   color:black;
   padding:5px;
   height:150px;
-  z-index:101;
+  z-index:10;
 }
 
 /* Custom marker styles */

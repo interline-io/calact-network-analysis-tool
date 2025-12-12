@@ -2,9 +2,8 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <!-- @vue-skip -->
-      <o-tabs v-model="activeTab" expanded>
-        <o-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
+      <t-tabs v-model="activeTab" expanded>
+        <t-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
           <div class="mt-4">
             <h4 class="title is-4">
               Agency Summary
@@ -22,9 +21,9 @@
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
+        <t-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Stops
@@ -55,48 +54,48 @@
                 </span>
               </template>
               <template #column-level1="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level2="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level3="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level4="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level5="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-level6="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #column-levelNights="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon v-if="value == 1" icon="check" />
                 <span v-else />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="stopFeatures"
                     filename="wsdot-stops"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
+        <t-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Routes
@@ -122,19 +121,19 @@
                 <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="routeFeatures"
                     filename="wsdot-routes"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
-      </o-tabs>
+        </t-tab-item>
+      </t-tabs>
     </div>
   </div>
 </template>

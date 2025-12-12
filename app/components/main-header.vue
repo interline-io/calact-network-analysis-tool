@@ -2,7 +2,7 @@
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
       <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" role="button">
-        <o-icon icon="home" size="large" class="is-fullwidth" />
+        <t-icon icon="home" size="large" class="is-fullwidth" variant="white" />
       </nuxt-link>
       <aside class="menu">
         <slot name="menu-items" />
@@ -10,21 +10,21 @@
           <ul class="menu-list">
             <li>
               <a role="button" :title="debugMenu ? 'Turn off debug' : 'Turn on debug'" @click="debugMenuToggle()">
-                <o-icon
-                  class="icon-group"
+                <t-icon
                   size="large"
                   icon="application-cog"
-                  :variant="debugMenu ? 'warning' : ''"
+                  :variant="debugMenu ? 'warning' : 'white'"
                 />
               </a>
             </li>
 
             <li>
               <a role="button" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDarkMode()">
-                <o-icon
+                <t-icon
                   class="icon-group"
                   size="large"
                   :icon="isDark ? 'weather-night' : 'weather-sunny'"
+                  variant="white"
                 />
               </a>
             </li>
@@ -35,7 +35,7 @@
                 title="Help"
                 role="button"
               >
-                <o-icon icon="help" size="large" class="is-fullwidth" />
+                <t-icon icon="help" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
 
@@ -46,7 +46,7 @@
                 title="My user profile"
                 role="button"
               >
-                <o-icon icon="account" size="large" class="is-fullwidth" />
+                <t-icon icon="account" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
           </ul>
@@ -102,19 +102,8 @@ function itemHelper (p: string): string {
     border-bottom:solid 1px #eee;
     padding-top:10px;
     padding-bottom:10px;
-  }
-
-  .is-active {
-    background:var(--bulma-primary);
-    color:var(--bulma-white);
-  }
-
-  .icon {
-    font-size: 1.75em;
-    color: var(--bulma-white);
-    &.is-fullwidth {
-      width: 100%;
-    }
+    display: flex;
+    justify-content: center;
   }
 
   .bottom-group {
@@ -134,6 +123,8 @@ function itemHelper (p: string): string {
   a {
     background: none;
     color: var(--bulma-text-on-theme);
+    display: flex;
+    justify-content: center;
     &:hover {
       background:var(--bulma-primary);
     }

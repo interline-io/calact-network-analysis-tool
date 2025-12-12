@@ -26,7 +26,7 @@
 
     <!-- Completion Status -->
     <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
-      <o-icon icon="check-circle" class="mr-2" />
+      <t-icon icon="check-circle" class="mr-2" />
       Scenario data loading completed successfully!
     </div>
 

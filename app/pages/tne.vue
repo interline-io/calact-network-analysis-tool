@@ -6,10 +6,11 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <o-icon
+            <t-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>
@@ -20,10 +21,11 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'filter', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -34,10 +36,11 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'map', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="map"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -48,19 +51,21 @@
             role="button"
             @click="hasScenarioData ? setTab({ tab: 'report', sub: '' }) : null"
           >
-            <o-icon
+            <t-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
+              :variant="hasScenarioData ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <o-icon
+            <t-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>
@@ -474,16 +479,20 @@ const selectedAgencies = computed({
 })
 
 const selectedDays = computed({
-  get (): dow[] {
+  get (): dow[] | null {
     if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
-      // if no `selectedDays` param present, check them all
-      return dowValues.slice()
+      // if no `selectedDays` param present, return null to indicate all selected
+      return null
     } else {
       return arrayParam('selectedDays', []) as dow[]
     }
   },
-  set (v: string[]) {
-    // if all days are checked, just omit the param
+  set (v: string[] | null) {
+    // if null or all days are checked, just omit the param
+    if (v === null) {
+      setQuery({ ...route.query, selectedDays: '' })
+      return
+    }
     const days = new Set(v)
     const omit = dowValues.every(day => days.has(day))
     setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })

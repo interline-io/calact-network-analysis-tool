@@ -2,12 +2,12 @@
   <div>
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
-    <t-msg
-      variant="info"
-      collapsible
-      :collapsed="hasResults"
-      title="About this Analysis"
+    <t-card
+      label="About this Analysis"
+      expandable
+      :open="!hasResults"
     >
+      <t-msg variant="info">
       <p class="mb-3">
         The Washington State Department of Transportation (WSDOT) <a
           href="https://wsdot.wa.gov/construction-planning/search-studies/frequent-transit-service-study"
@@ -18,12 +18,13 @@
       </p>
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
-        To change the analysis area, navigate to the <o-icon
+        To change the analysis area, navigate to the <t-icon
           icon="magnify"
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
       </p>
-    </t-msg>
+      </t-msg>
+    </t-card>
 
     <t-msg
       v-if="error"
@@ -57,9 +58,8 @@
           class="mt-4"
           title="Debug menu"
         >
-          <o-field label="Example configuration">
-            <!-- @vue-skip -->
-            <o-select v-model="selectedExample">
+          <t-field label="Example configuration">
+            <t-select v-model="selectedExample">
               <option value="">
                 Select an example...
               </option>
@@ -70,57 +70,45 @@
               >
                 {{ example.config.reportName }}
               </option>
-            </o-select>
-          </o-field>
+            </t-select>
+          </t-field>
           <br>
         </t-msg>
 
         <div class="card-content">
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
                 Weekday date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </t-field>
 
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
                 Weekend date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </t-field>
 
-          <o-field label="Stop buffer radius (m)">
+          <t-field label="Stop buffer radius (m)">
             <template #label>
-              <o-tooltip
-                multiline
-                label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics."
-              >
+              <t-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
                 Stop buffer radius (meters)
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-slider
+            <t-slider
               v-model="wsdotReportConfig!.stopBufferRadius"
               :min="0"
               :max="1000"
             />
-          </o-field>
+          </t-field>
         </div>
         <footer class="card-footer">
           <div
@@ -128,20 +116,20 @@
             style="width: 100%; padding: 0.75rem;"
           >
             <div class="control">
-              <o-button
-                variant="outlined"
+              <t-button
+                outlined
                 @click="handleCancel"
               >
                 Cancel
-              </o-button>
+              </t-button>
             </div>
             <div class="control">
-              <o-button
+              <t-button
                 variant="primary"
                 @click="runQuery"
               >
                 Run Report
-              </o-button>
+              </t-button>
             </div>
           </div>
         </footer>

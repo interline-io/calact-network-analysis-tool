@@ -2,12 +2,12 @@
   <div>
     <tl-title title="WSDOT Transit Stops and Routes" />
 
-    <t-msg
-      variant="info"
-      collapsible
-      :collapsed="hasResults"
-      title="About this Analysis"
+    <t-card
+      label="About this Analysis"
+      expandable
+      :open="!hasResults"
     >
+      <t-msg variant="info">
       <p class="mb-3">
         This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
       </p>
@@ -25,15 +25,16 @@
         The data can be downloaded in CSV format (for spreadsheet analysis) or GeoJSON format (for GIS mapping and spatial analysis). All downloads include the same comprehensive field set, with geographic coordinates preserved for spatial operations.
       </p>
       <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <o-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
       </p>
-    </t-msg>
+      </t-msg>
+    </t-card>
 
     <t-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
     </t-msg>
     <div v-else-if="loading" class="has-text-centered">
-      <o-loading :active="true" :full-page="false" />
+      <t-loading :active="true" :full-page="false" />
       <p class="mt-4">
         Running WSDOT Transit Stops and Routes Analysis...
       </p>
@@ -51,39 +52,37 @@
           </p>
         </header>
         <div class="card-content">
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip multiline label="The weekday date is used to analyze transit service. This determines which specific Monday-Friday schedule is used.">
+              <t-tooltip text="The weekday date is used to analyze transit service. This determines which specific Monday-Friday schedule is used.">
                 Weekday date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </t-field>
 
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip multiline label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used.">
+              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used.">
                 Weekend date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </t-field>
         </div>
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
             <div class="control">
-              <o-button variant="outlined" @click="handleCancel">
+              <t-button outlined @click="handleCancel">
                 Cancel
-              </o-button>
+              </t-button>
             </div>
             <div class="control">
-              <o-button variant="primary" @click="runQuery">
+              <t-button variant="primary" @click="runQuery">
                 Run Report
-              </o-button>
+              </t-button>
             </div>
           </div>
         </footer>

@@ -1,20 +1,11 @@
 <template>
-  <article class="cal-map-legend message is-dark">
-    <o-collapse
+  <div class="cal-map-legend">
+    <t-msg
+      title="Legend"
+      expandable
       :open="true"
-      animation="slide"
+      variant="dark"
     >
-      <template #trigger="{ open }">
-        <div class="message-header">
-          <span class="message-header-title">
-            Legend
-          </span>
-          <span class="message-header-icon">
-            <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
-          </span>
-        </div>
-      </template>
-
       <div class="cal-map-legend-box">
         <!-- BBOX -->
         <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
@@ -125,15 +116,15 @@
 
         <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
           <p class="legend-loading">
-            <o-loading
+            <t-loading
               :active="true"
               :full-page="false"
             />
           </p>
         </div>
       </div>
-    </o-collapse>
-  </article>
+    </t-msg>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -164,7 +155,7 @@ const props = defineProps<{
   bottom: 30px;
   width: 300px;
   color: black;
-  z-index: 100;
+  z-index: 10;
 }
 
 .message-header {

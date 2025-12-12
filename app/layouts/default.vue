@@ -12,9 +12,9 @@
         <div class="container is-fluid">
           <tl-login-gate role="tl_calact_nat">
             <template #roleText>
-              <o-notification icon="lock" class="mt-4">
-                Your account does not have permission to access this page. To gain access, contact the project managers.
-              </o-notification>
+              <t-notification class="mt-4">
+                <t-icon icon="lock" /> Your account does not have permission to access this page. To gain access, contact the project managers.
+              </t-notification>
             </template>
             <slot />
           </tl-login-gate>

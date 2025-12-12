@@ -1,7 +1,7 @@
 <template>
-  <o-button icon-left="download" :disabled="disabled" @click="saveFile">
+  <t-button icon-left="download" :disabled="disabled" @click="saveFile">
     {{ buttonText }}
-  </o-button>
+  </t-button>
 </template>
 
 <script>
