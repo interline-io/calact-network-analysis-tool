@@ -155,7 +155,7 @@ const props = defineProps<{
   bottom: 30px;
   width: 300px;
   color: black;
-  z-index: 100;
+  z-index: 10;
 }
 
 .message-header {

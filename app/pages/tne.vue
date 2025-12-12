@@ -479,16 +479,20 @@ const selectedAgencies = computed({
 })
 
 const selectedDays = computed({
-  get (): dow[] {
+  get (): dow[] | null {
     if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
-      // if no `selectedDays` param present, check them all
-      return dowValues.slice()
+      // if no `selectedDays` param present, return null to indicate all selected
+      return null
     } else {
       return arrayParam('selectedDays', []) as dow[]
     }
   },
-  set (v: string[]) {
-    // if all days are checked, just omit the param
+  set (v: string[] | null) {
+    // if null or all days are checked, just omit the param
+    if (v === null) {
+      setQuery({ ...route.query, selectedDays: '' })
+      return
+    }
     const days = new Set(v)
     const omit = dowValues.every(day => days.has(day))
     setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })

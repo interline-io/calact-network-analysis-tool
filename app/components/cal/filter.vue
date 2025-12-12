@@ -110,19 +110,10 @@
             </t-field>
           </section>
 
-          <ul>
-            <li
-              v-for="dowValue of dowValues"
-              :key="dowValue"
-            >
-              <t-checkbox
-                v-model="selectedDays"
-                :native-value="dowValue"
-                :label="dowValue"
-                :disabled="!dowAvailable.has(dowValue)"
-              />
-            </li>
-          </ul>
+          <t-checkbox-group
+            v-model="selectedDays"
+            :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
+          />
         </aside>
 
         <aside class="cal-filter-times menu block">
@@ -599,7 +590,7 @@ const baseMap = defineModel<string | undefined>('baseMap')
 const selectedDayOfWeekMode = defineModel<string | undefined>('selectedDayOfWeekMode')
 const selectedTimeOfDayMode = defineModel<string | undefined>('selectedTimeOfDayMode')
 const selectedRouteTypes = defineModel<number[] | undefined>('selectedRouteTypes')
-const selectedDays = defineModel<dow[] | undefined>('selectedDays')
+const selectedDays = defineModel<dow[] | null>('selectedDays')
 const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
 const frequencyUnderEnabled = defineModel<boolean | undefined>('frequencyUnderEnabled')
 const frequencyUnder = defineModel<number | undefined>('frequencyUnder')

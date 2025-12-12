@@ -152,14 +152,16 @@
 
       <t-msg v-if="debugMenu" title="Debug menu" variant="warning">
         <t-field label="Preset bounding box">
-          <t-select v-model="cannedBbox">
-            <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
-              {{ cannedBboxDetails.label }}
-            </option>
-          </t-select>
-          <t-button @click="loadExampleData">
-            Load example
-          </t-button>
+          <div class="is-flex is-align-items-center" style="gap: 0.5rem;">
+            <t-select v-model="cannedBbox">
+              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
+                {{ cannedBboxDetails.label }}
+              </option>
+            </t-select>
+            <t-button @click="loadExampleData">
+              Load example
+            </t-button>
+          </div>
         </t-field>
       </t-msg>
 
