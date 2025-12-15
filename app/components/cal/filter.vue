@@ -578,38 +578,38 @@ const emit = defineEmits([
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date >('startDate')
-const endDate = defineModel<Date >('endDate')
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
 const startTime = defineModel<Date | null>('startTime')
 const endTime = defineModel<Date | null>('endTime')
-const unitSystem = defineModel<string >('unitSystem')
-const hideUnmarked = defineModel<boolean >('hideUnmarked')
-const colorKey = defineModel<string >('colorKey')
-const dataDisplayMode = defineModel<string >('dataDisplayMode')
-const baseMap = defineModel<string >('baseMap')
-const selectedDayOfWeekMode = defineModel<string >('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string >('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[] >('selectedRouteTypes')
+const unitSystem = defineModel<string>('unitSystem')
+const hideUnmarked = defineModel<boolean>('hideUnmarked')
+const colorKey = defineModel<string>('colorKey')
+const dataDisplayMode = defineModel<string>('dataDisplayMode')
+const baseMap = defineModel<string>('baseMap')
+const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
+const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
 const selectedDays = defineModel<dow[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean >('frequencyUnderEnabled')
-const frequencyUnder = defineModel<number >('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean >('frequencyOverEnabled')
-const frequencyOver = defineModel<number >('frequencyOver')
+const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
+const frequencyUnder = defineModel<number>('frequencyUnder')
+const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
+const frequencyOver = defineModel<number>('frequencyOver')
 const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean >('maxFareEnabled')
-const maxFare = defineModel<number >('maxFare')
-const minFareEnabled = defineModel<boolean >('minFareEnabled')
-const minFare = defineModel<number >('minFare')
+const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
+const maxFare = defineModel<number>('maxFare')
+const minFareEnabled = defineModel<boolean>('minFareEnabled')
+const minFare = defineModel<number>('minFare')
 
 // Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean >('fixedRouteEnabled') // On by default
+const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean >('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[] >('flexAdvanceNotice') // All selected by default when enabled
-const flexAreaTypesSelected = defineModel<string[] >('flexAreaTypesSelected') // All selected by default when enabled
-const flexColorBy = defineModel<string >('flexColorBy') // 'Agency' by default
+const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
+const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled
+const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 
 // Data availability indicators
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)

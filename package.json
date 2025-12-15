@@ -30,7 +30,7 @@
     "eslint": "9.39.1",
     "nuxt": "4.2.0",
     "sass-embedded": "1.93.3",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=e9c2c61ce8e513abbb3470697864ad193eddf640",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=1eb4d0d1411a7ad2dd846cc9e313f76f5ff7f77b",
     "tsx": "4.20.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.46.3",
@@ -42,8 +42,5 @@
   "devDependencies": {
     "@types/d3-scale": "4.0.9",
     "@types/d3-scale-chromatic": "3.1.0"
-  },
-  "resolutions": {
-    "tlv2-ui": "portal:/Users/irees/src/interline-io/tlv2-ui"
   }
 }
