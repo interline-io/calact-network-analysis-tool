@@ -1071,13 +1071,13 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
+  const rtypes = (scenarioFilter.value.selectedRouteTypes ?? []).map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
   if (rtypes.length !== routeTypeNames.size) {
     results.push('with route types ' + rtypes.join(', '))
   }
 
   // agencies
-  const agencies = scenarioFilter.value.selectedAgencies
+  const agencies = scenarioFilter.value.selectedAgencies ?? []
   if (agencies.length) {
     results.push('operated by ' + agencies.join(', '))
   }
@@ -1095,7 +1095,7 @@ const filterSummary = computed((): string[] => {
   }
 
   // days of week  (always show something here)
-  const days = scenarioFilter.value.selectedDays.map(val => toTitleCase(val))
+  const days = (scenarioFilter.value.selectedDays ?? []).map(val => toTitleCase(val))
   const dowMode = scenarioFilter.value.selectedDayOfWeekMode
   if (dowMode === 'All' /* && days.length !== 7 */) {
     results.push('operating all of ' + days.join(', '))
