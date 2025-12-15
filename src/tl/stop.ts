@@ -69,13 +69,13 @@ export interface StopGtfs {
 
 export interface StopDerived {
   marked: boolean
-  visits: StopVisitSummary | null
+  visits?: StopVisitSummary
 }
 
 export interface StopVisitCounts {
   date_count: number
   visit_count: number
-  visit_average: number | null
+  visit_average?: number
   all_date_service: boolean
 }
 
@@ -102,7 +102,7 @@ export type StopGql = {
   }]
   parent?: {
     stop_id: string
-  } | null
+  }
   feed_version: {
     sha1: string
     feed: {
@@ -131,14 +131,14 @@ export type StopCsv = StopGtfs & {
   routes_count: number
   agencies_count: number
   marked: boolean
-  visit_count_daily_average: number | null
-  visit_count_monday_average: number | null
-  visit_count_tuesday_average: number | null
-  visit_count_wednesday_average: number | null
-  visit_count_thursday_average: number | null
-  visit_count_friday_average: number | null
-  visit_count_saturday_average: number | null
-  visit_count_sunday_average: number | null
+  visit_count_daily_average?: number
+  visit_count_monday_average?: number
+  visit_count_tuesday_average?: number
+  visit_count_wednesday_average?: number
+  visit_count_thursday_average?: number
+  visit_count_friday_average?: number
+  visit_count_saturday_average?: number
+  visit_count_sunday_average?: number
 }
 
 interface StopGeoAggregateCsv {
@@ -149,7 +149,7 @@ interface StopGeoAggregateCsv {
   routes_modes: string
   stops_count: number
   agencies_count: number
-  visit_count_daily_average: number | null
+  visit_count_daily_average?: number
 }
 
 export type Stop = StopGql & StopDerived
@@ -251,10 +251,10 @@ export function stopToStopCsv (stop: Stop): StopCsv {
   }
 }
 
-function roundOr (value: number | null | undefined): number | null {
+function roundOr (value?: number): number | undefined {
   const digits = 2
   if (value == null) {
-    return null
+    return undefined
   }
   const factor = Math.pow(10, digits)
   return Math.round(value * factor) / factor

@@ -16,7 +16,7 @@ export function routeSetDerived (
   selectedAgencies: string[],
   frequencyUnder: number,
   frequencyOver: number,
-  sdCache: StopDepartureCache | null,
+  sdCache?: StopDepartureCache,
 ) {
   // Set derived properties
   if (sdCache) {
@@ -34,12 +34,12 @@ export function routeSetDerived (
     }
     if (hw.headways_seconds.length > 0) {
       route.average_frequency = (hw.headways_seconds.reduce((a, b) => a + b) / hw.headways_seconds.length)
-      route.fastest_frequency = hw.headways_seconds[0] ?? null
-      route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1] ?? null
+      route.fastest_frequency = hw.headways_seconds[0] ?? undefined
+      route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1] ?? undefined
     } else {
-      route.average_frequency = null
-      route.fastest_frequency = null
-      route.slowest_frequency = null
+      route.average_frequency = undefined
+      route.fastest_frequency = undefined
+      route.slowest_frequency = undefined
     }
   }
   // Mark after setting frequency values
@@ -60,7 +60,7 @@ function routeMarked (
   selectedAgencies: string[],
   frequencyUnder: number,
   frequencyOver: number,
-  sdCache: StopDepartureCache | null,
+  sdCache?: StopDepartureCache,
 ): boolean {
   // Check route types
   if (selectedRouteTypes.length > 0) {
@@ -97,7 +97,7 @@ export function routeHeadways (
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
-  sdCache: StopDepartureCache | null
+  sdCache?: StopDepartureCache
 ): RouteHeadwaySummary {
   const result = newRouteHeadwaySummary()
   if (!sdCache) {
@@ -139,7 +139,7 @@ export function routeHeadways (
       resultDir.stop_id = stopId
       resultDir.headways_seconds.push(...headways)
 
-      let resultDay: RouteHeadwayDirections | null = null
+      let resultDay: RouteHeadwayDirections | undefined
       switch (d.getDay()) {
         case 0:
           resultDay = result.sunday
@@ -163,7 +163,7 @@ export function routeHeadways (
           resultDay = result.saturday
           break
       }
-      if (resultDay) {
+      if (resultDay != undefined) {
         const dayDir = dir ? resultDay.dir1 : resultDay.dir0
         dayDir.stop_id = stopId
         dayDir.headways_seconds.push(...headways)
@@ -212,7 +212,7 @@ export function stopSetDerived (
   frequencyUnder: number,
   frequencyOver: number,
   markedRoutes: Set<number>,
-  sdCache: StopDepartureCache | null,) {
+  sdCache?: StopDepartureCache) {
   // Apply filters
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
@@ -255,7 +255,7 @@ function stopVisits (
   selectedDateRange: Date[],
   selectedStartTime: string,
   selectedEndTime: string,
-  sdCache: StopDepartureCache | null,
+  sdCache?: StopDepartureCache,
 ): StopVisitSummary {
   const result = newStopVisitSummary()
   if (!sdCache) {
@@ -324,7 +324,7 @@ function stopMarked (
   frequencyUnder: number,
   frequencyOver: number,
   markedRoutes: Set<number>,
-  sdCache: StopDepartureCache | null,
+  sdCache?: StopDepartureCache,
 ): boolean {
   // Check departure days
   if (sdCache) {
@@ -334,23 +334,23 @@ function stopMarked (
     let hasAll = true
     for (const sd of selectedDays) {
       // if-else tree required to avoid arbitrary index into type
-      let r: StopVisitCounts | null = null
+      let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
-        r = stop.visits?.sunday || null
+        r = stop.visits?.sunday || undefined
       } else if (sd === 'monday') {
-        r = stop.visits?.monday || null
+        r = stop.visits?.monday || undefined
       } else if (sd === 'tuesday') {
-        r = stop.visits?.tuesday || null
+        r = stop.visits?.tuesday || undefined
       } else if (sd === 'wednesday') {
-        r = stop.visits?.wednesday || null
+        r = stop.visits?.wednesday || undefined
       } else if (sd === 'thursday') {
-        r = stop.visits?.thursday || null
+        r = stop.visits?.thursday || undefined
       } else if (sd === 'friday') {
-        r = stop.visits?.friday || null
+        r = stop.visits?.friday || undefined
       } else if (sd === 'saturday') {
-        r = stop.visits?.saturday || null
+        r = stop.visits?.saturday || undefined
       }
-      if (!r) { continue }
+      if (r == undefined) { continue }
       if (r.visit_count > 0) {
         hasAny = true
       }
@@ -389,7 +389,7 @@ function newStopVisitCounts (): StopVisitCounts {
   return {
     visit_count: 0,
     date_count: 0,
-    visit_average: null,
+    visit_average: undefined,
     all_date_service: true
   }
 }
@@ -431,9 +431,9 @@ export function applyScenarioResultFilter (
       agency_name: routeGql.agency?.agency_name || 'Unknown',
       route_mode: routeTypeNames.get(routeGql.route_type) || 'Unknown',
       marked: true,
-      average_frequency: null,
-      fastest_frequency: null,
-      slowest_frequency: null,
+      average_frequency: undefined,
+      fastest_frequency: undefined,
+      slowest_frequency: undefined,
       headways: newRouteHeadwaySummary(),
       __typename: 'Route', // backwards compat
     }
@@ -457,7 +457,7 @@ export function applyScenarioResultFilter (
     const stop: Stop = {
       ...stopGql,
       marked: true,
-      visits: null,
+      visits: undefined,
       __typename: 'Stop', // backwards compat
     }
     stopSetDerived(

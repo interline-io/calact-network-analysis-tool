@@ -88,15 +88,11 @@ import type { ScenarioProgress, ScenarioData } from '~~/src/scenario'
 
 // Props
 const props = withDefaults(defineProps<{
-  progress?: ScenarioProgress | null
-  error?: Error | string | null
-  scenarioData?: ScenarioData | null
+  progress?: ScenarioProgress
+  error?: Error | string
+  scenarioData?: ScenarioData
   stopDepartureCount?: number
-}>(), {
-  progress: null,
-  error: null,
-  scenarioData: null,
-})
+}>(), {})
 
 // Computed values
 const progressPercentage = computed(() => {

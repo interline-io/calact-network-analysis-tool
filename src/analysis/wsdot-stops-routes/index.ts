@@ -13,18 +13,18 @@ export interface WSDOTStopsRoutesReport {
 export interface WSDOTStopResult {
   // GTFS stop fields (using existing camelCase convention)
   stopId: string
-  stopCode: string | null
-  platformCode: string | null
+  stopCode?: string
+  platformCode?: string
   stopName: string
-  stopDesc: string | null
+  stopDesc?: string
   stopLat: number
   stopLon: number
-  zoneId: string | null
-  stopUrl: string | null
+  zoneId?: string
+  stopUrl?: string
   locationType: number
-  parentStation: string | null
+  parentStation?: string
   wheelchairBoarding: number
-  ttsStopName: string | null
+  ttsStopName?: string
   stopTimezone: string
 
   // Service level columns (from WSDOT analysis)
@@ -46,16 +46,16 @@ export interface WSDOTStopResult {
 export interface WSDOTRouteResult {
   // GTFS route fields (using existing camelCase convention)
   routeId: string
-  routeShortName: string | null
-  routeLongName: string | null
-  routeDesc: string | null
+  routeShortName?: string
+  routeLongName?: string
+  routeDesc?: string
   routeType: number
-  routeUrl: string | null
-  routeColor: string | null
-  routeTextColor: string | null
-  routeSortOrder: number | null
-  continuousPickup: number | null
-  continuousDropOff: number | null
+  routeUrl?: string
+  routeColor?: string
+  routeTextColor?: string
+  routeSortOrder?: number
+  continuousPickup?: number
+  continuousDropOff?: number
 
   // Additional fields for our internal use
   agencyId: string
@@ -105,7 +105,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   const stops = currentData.stops
     .filter(stop => stop.route_stops && stop.route_stops.length > 0)
     .map((stop) => {
-      const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id || null
+      const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id
       const agencyName = stop.route_stops?.[0]?.route?.agency?.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
       const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
@@ -143,18 +143,18 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
       return {
         // GTFS stop fields (using existing camelCase convention)
         stopId: stop.stop_id,
-        stopCode: stop.stop_code || null,
-        platformCode: stop.platform_code || null,
+        stopCode: stop.stop_code,
+        platformCode: stop.platform_code,
         stopName: stop.stop_name || '',
-        stopDesc: stop.stop_desc || null,
+        stopDesc: stop.stop_desc,
         stopLon: stop.geometry?.coordinates[0] || 0,
         stopLat: stop.geometry?.coordinates[1] || 0,
-        zoneId: stop.zone_id || null,
-        stopUrl: stop.stop_url || null,
-        locationType: stop.location_type || 0,
-        parentStation: stop.parent?.stop_id || null,
+        zoneId: stop.zone_id,
+        stopUrl: stop.stop_url,
+        locationType: stop.location_type,
+        parentStation: stop.parent?.stop_id,
         wheelchairBoarding: stop.wheelchair_boarding || 0,
-        ttsStopName: stop.tts_stop_name || null,
+        ttsStopName: stop.tts_stop_name,
         stopTimezone: stop.stop_timezone || 'America/Los_Angeles', // Default timezone for WSDOT
 
         // Service level columns (populated from WSDOT analysis)
@@ -209,16 +209,16 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     return {
       // GTFS route fields (using existing camelCase convention)
       routeId: route.route_id,
-      routeShortName: route.route_short_name || null,
-      routeLongName: route.route_long_name || null,
-      routeDesc: route.route_desc || null,
+      routeShortName: route.route_short_name,
+      routeLongName: route.route_long_name,
+      routeDesc: route.route_desc,
       routeType: route.route_type,
-      routeUrl: route.route_url || null,
-      routeColor: route.route_color || null,
-      routeTextColor: route.route_text_color || null,
-      routeSortOrder: route.route_sort_order || null,
-      continuousPickup: route.continuous_pickup || null,
-      continuousDropOff: route.continuous_drop_off || null,
+      routeUrl: route.route_url,
+      routeColor: route.route_color,
+      routeTextColor: route.route_text_color,
+      routeSortOrder: route.route_sort_order,
+      continuousPickup: route.continuous_pickup,
+      continuousDropOff: route.continuous_drop_off,
 
       // Additional fields for our internal use
       agencyId: uniqueAgencyId,

@@ -198,10 +198,10 @@ const loadExampleData = async () => {
 
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
-  mapExtentCenter: Point | null
+  mapExtentCenter?: Point
 }>()
 
-const bbox = defineModel<Bbox>('bbox', { default: null })
+const bbox = defineModel<Bbox>('bbox')
 const geographyIds = defineModel<number[] | undefined>('geographyIds')
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })

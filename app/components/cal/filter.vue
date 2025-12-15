@@ -109,7 +109,7 @@
               />
             </t-field>
           </section>
-
+          selectedDays: {{ JSON.stringify(selectedDays) }} (type: {{ selectedDays === null ? 'null' : selectedDays === undefined ? 'undefined' : 'array' }})
           <t-checkbox-group
             v-model="selectedDays"
             :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
@@ -578,38 +578,38 @@ const emit = defineEmits([
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date | undefined>('startDate')
-const endDate = defineModel<Date | undefined>('endDate')
-const startTime = defineModel<Date | null | undefined>('startTime')
-const endTime = defineModel<Date | null | undefined>('endTime')
-const unitSystem = defineModel<string | undefined>('unitSystem')
-const hideUnmarked = defineModel<boolean | undefined>('hideUnmarked')
-const colorKey = defineModel<string | undefined>('colorKey')
-const dataDisplayMode = defineModel<string | undefined>('dataDisplayMode')
-const baseMap = defineModel<string | undefined>('baseMap')
-const selectedDayOfWeekMode = defineModel<string | undefined>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string | undefined>('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[] | undefined>('selectedRouteTypes')
-const selectedDays = defineModel<dow[] | null>('selectedDays')
-const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean | undefined>('frequencyUnderEnabled')
-const frequencyUnder = defineModel<number | undefined>('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean | undefined>('frequencyOverEnabled')
-const frequencyOver = defineModel<number | undefined>('frequencyOver')
-const calculateFrequencyMode = defineModel<boolean | undefined>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean | undefined>('maxFareEnabled')
-const maxFare = defineModel<number | undefined>('maxFare')
-const minFareEnabled = defineModel<boolean | undefined>('minFareEnabled')
-const minFare = defineModel<number | undefined>('minFare')
+const startDate = defineModel<Date >('startDate')
+const endDate = defineModel<Date >('endDate')
+const startTime = defineModel<Date>('startTime')
+const endTime = defineModel<Date>('endTime')
+const unitSystem = defineModel<string >('unitSystem')
+const hideUnmarked = defineModel<boolean >('hideUnmarked')
+const colorKey = defineModel<string >('colorKey')
+const dataDisplayMode = defineModel<string >('dataDisplayMode')
+const baseMap = defineModel<string >('baseMap')
+const selectedDayOfWeekMode = defineModel<string >('selectedDayOfWeekMode')
+const selectedTimeOfDayMode = defineModel<string >('selectedTimeOfDayMode')
+const selectedRouteTypes = defineModel<number[] >('selectedRouteTypes')
+const selectedDays = defineModel<dow[]>('selectedDays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const frequencyUnderEnabled = defineModel<boolean >('frequencyUnderEnabled')
+const frequencyUnder = defineModel<number >('frequencyUnder')
+const frequencyOverEnabled = defineModel<boolean >('frequencyOverEnabled')
+const frequencyOver = defineModel<number >('frequencyOver')
+const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
+const maxFareEnabled = defineModel<boolean >('maxFareEnabled')
+const maxFare = defineModel<number >('maxFare')
+const minFareEnabled = defineModel<boolean >('minFareEnabled')
+const minFare = defineModel<number >('minFare')
 
 // Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
+const fixedRouteEnabled = defineModel<boolean >('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // All selected by default when enabled
-const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // All selected by default when enabled
-const flexColorBy = defineModel<string | undefined>('flexColorBy') // 'Agency' by default
+const flexServicesEnabled = defineModel<boolean >('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[] >('flexAdvanceNotice') // All selected by default when enabled
+const flexAreaTypesSelected = defineModel<string[] >('flexAreaTypesSelected') // All selected by default when enabled
+const flexColorBy = defineModel<string >('flexColorBy') // 'Agency' by default
 
 // Data availability indicators
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)

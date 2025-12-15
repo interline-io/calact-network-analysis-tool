@@ -16,46 +16,46 @@
         </li>
         <li>
           <a
-            :class="[itemHelper('filter'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Filter' : 'Filter (Run a query first)'"
+            :class="[itemHelper('filter'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'filter', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
             <t-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
-              :variant="hasScenarioData ? 'white' : 'dark'"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a
-            :class="[itemHelper('map'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Map' : 'Map (Run a query first)'"
+            :class="[itemHelper('map'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'map', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
             <t-icon
               icon="map"
               class="is-fullwidth"
               size="large"
-              :variant="hasScenarioData ? 'white' : 'dark'"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a
-            :class="[itemHelper('report'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Report' : 'Report (Run a query first)'"
+            :class="[itemHelper('report'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'report', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
             <t-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
-              :variant="hasScenarioData ? 'white' : 'dark'"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
@@ -273,7 +273,7 @@ const cannedBbox = computed({
     setQuery({ ...route.query, example: v || undefined })
   }
 })
-const error = ref(null as Error | string | null)
+const error = ref(undefined as Error | string | undefined)
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
@@ -288,7 +288,7 @@ const runQuery = async () => {
     useToastNotification().showToast('Browsing query data loaded successfully!')
     showLoadingModal.value = false
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
 }
 
 const geomSource = computed({
@@ -479,23 +479,11 @@ const selectedAgencies = computed({
 })
 
 const selectedDays = computed({
-  get (): dow[] | null {
-    if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
-      // if no `selectedDays` param present, return null to indicate all selected
-      return null
-    } else {
-      return arrayParam('selectedDays', []) as dow[]
-    }
+  get (): dow[] | undefined {
+    return arrayParamOrUndefined('selectedDays') as dow[]
   },
-  set (v: string[] | null) {
-    // if null or all days are checked, just omit the param
-    if (v === null) {
-      setQuery({ ...route.query, selectedDays: '' })
-      return
-    }
-    const days = new Set(v)
-    const omit = dowValues.every(day => days.has(day))
-    setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })
+  set (v?: string[]) {
+    setQuery({ ...route.query, selectedDays: v ? v.join(',') : undefined })
   }
 })
 
@@ -672,7 +660,7 @@ const flexColorBy = computed({
 
 // Scenario data ref - defined early so flex computed properties can reference it
 // This is populated when fetchScenario runs
-const scenarioData = ref<ScenarioData | null>(null)
+const scenarioData = ref<ScenarioData>()
 
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
@@ -859,11 +847,6 @@ const advancedReport = computed({
   }
 })
 
-// Check if there's scenario data to display in reports
-const hasScenarioData = computed(() => {
-  return scenarioData.value !== null && scenarioFilterResult.value !== undefined
-})
-
 watch([activeTab, geomSource], () => {
   if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
     displayEditBboxMode.value = true
@@ -920,9 +903,9 @@ function setTab (v: Tab) {
 /////////////////////////////
 
 // We need to keep reference to the map extent
-const mapExtent = ref<Bbox | null>(null)
+const mapExtent = ref<Bbox>()
 
-const mapExtentCenter = computed((): Point | null => {
+const mapExtentCenter = computed((): Point | undefined => {
   const bbox = mapExtent.value
   if (bbox?.valid) {
     return {
@@ -930,7 +913,7 @@ const mapExtentCenter = computed((): Point | null => {
       lat: (bbox.ne.lat + bbox.sw.lat) / 2
     }
   }
-  return null
+  return undefined
 })
 
 watch(geomSource, () => {
@@ -992,7 +975,7 @@ const hasFlexData = computed(() => {
 })
 
 // Loading progress tracking for modal
-const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
@@ -1009,7 +992,7 @@ const fetchScenario = async (loadExample: string) => {
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs, unless loading example
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
   stopDepartureCount.value = 0
 
   // Create receiver to accumulate scenario data
@@ -1031,7 +1014,7 @@ const fetchScenario = async (loadExample: string) => {
     },
     onComplete: () => {
       // Get final accumulated data and apply filters
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       scenarioData.value = receiver.getCurrentData()
     },
     onError: (err: any) => {
@@ -1237,6 +1220,14 @@ function itemHelper (p: string): string {
 function arrayParam (p: string, def: string[]): string[] {
   const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
   return a.length > 0 ? a : def
+}
+
+function arrayParamOrUndefined (p: string): string[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
+    return undefined
+  }
+  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
+  return a
 }
 
 function toTitleCase (str: string): string {

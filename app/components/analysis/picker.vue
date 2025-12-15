@@ -43,8 +43,8 @@ import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 const route = useRoute()
 const router = useRouter()
 
-const scenarioConfig = defineModel<ScenarioConfig | null>('scenarioConfig')
-const scenarioData = defineModel<ScenarioData | null>('scenarioData')
+const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig')
+const scenarioData = defineModel<ScenarioData>('scenarioData')
 
 // Analysis type registry - easily add new analyses here
 const analysisTypes: Record<string, string> = {

@@ -130,15 +130,15 @@ import type {
   ScenarioProgress,
 } from '~~/src/scenario'
 
-const error = ref<Error | null>(null)
+const error = ref<Error>()
 const loading = ref(false)
 const showLoadingModal = ref(false)
-const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
-const scenarioData = defineModel<ScenarioData | null>('scenarioData')
-const wsdotReport = ref<WSDOTReport | null>(null)
-const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport | null>(null)
+const scenarioData = defineModel<ScenarioData>('scenarioData')
+const wsdotReport = ref<WSDOTReport>()
+const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport>()
 const wsdotReportConfig = ref<WSDOTReportConfig>({
   // WSDOT-specific required properties (not in ScenarioConfig)
   ...SCENARIO_DEFAULTS,
@@ -155,7 +155,7 @@ const emit = defineEmits<{
 // Track if results are loaded, to collapse the about message, also for navigation guard
 const { setHasResults } = useAnalysisResults()
 const hasResults = computed(() => {
-  const hasResultsValue = wsdotStopsRoutesReport.value !== null
+  const hasResultsValue = wsdotStopsRoutesReport.value !== undefined
   setHasResults('wsdot-stops-routes', hasResultsValue)
   return hasResultsValue
 })
@@ -181,7 +181,7 @@ const runQuery = async () => {
     useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
     showLoadingModal.value = false
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
 }
 
 // Based on components/analysis/wsdot.vue fetchScenario
@@ -192,7 +192,7 @@ const fetchScenario = async (loadExample: string) => {
     useToastNotification().showToast('Please provide a bounding box or geography IDs.')
     return
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
   stopDepartureCount.value = 0
 
   // Create receiver to accumulate scenario data and WSDOT report
@@ -211,7 +211,7 @@ const fetchScenario = async (loadExample: string) => {
       }
     },
     onComplete: () => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
       wsdotReport.value = receiver.getCurrentWSDOTReport()
@@ -220,7 +220,7 @@ const fetchScenario = async (loadExample: string) => {
       }
     },
     onError: (err: any) => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       error.value = err
     }
   })

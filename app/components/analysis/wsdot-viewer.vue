@@ -247,10 +247,10 @@ const StatePopulations = computed((): Record<string, StatePopulation> => {
   return statePopulations
 })
 
-const selectedStatesShadow = ref<string[] | null>(null)
+const selectedStatesShadow = ref<string[]>()
 const selectedStates = computed({
   get: () => {
-    if (selectedStatesShadow.value !== null) {
+    if (selectedStatesShadow.value !== undefined) {
       return selectedStatesShadow.value
     }
     return Object.keys(StatePopulations.value).sort()
@@ -327,7 +327,7 @@ const stopFeatures = computed(() => {
     if (!s.properties.stateName) {
       return false
     }
-    if (selectedStates.value != null && !selectedStates.value.includes(s.properties.stateName)) {
+    if (selectedStates.value !== undefined && !selectedStates.value.includes(s.properties.stateName)) {
       return false
     }
     for (const levelKey of selectedLevels.value) {

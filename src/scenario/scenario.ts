@@ -74,15 +74,15 @@ export interface ScenarioConfig {
 export interface ScenarioFilter {
   startTime?: Date
   endTime?: Date
-  selectedRouteTypes: number[]
-  selectedDays: dow[]
-  selectedAgencies: string[]
-  selectedDayOfWeekMode: string
-  selectedTimeOfDayMode: string
+  selectedRouteTypes?: number[]
+  selectedDays?: dow[]
+  selectedAgencies?: string[]
+  selectedDayOfWeekMode?: string
+  selectedTimeOfDayMode?: string
   frequencyUnder?: number
   frequencyOver?: number
-  frequencyUnderEnabled: boolean
-  frequencyOverEnabled: boolean
+  frequencyUnderEnabled?: boolean
+  frequencyOverEnabled?: boolean
 }
 
 // =============================================================================

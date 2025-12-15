@@ -168,14 +168,14 @@ interface ExampleConfig {
 const debugMenu = useDebugMenu()
 const route = useRoute()
 const router = useRouter()
-const error = ref<Error | null>(null)
+const error = ref<Error>()
 const loading = ref(false)
 const showLoadingModal = ref(false)
-const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
-const scenarioData = shallowRef<ScenarioData | null>(null)
-const wsdotReport = shallowRef<WSDOTReport | null>(null)
+const scenarioData = shallowRef<ScenarioData>()
+const wsdotReport = shallowRef<WSDOTReport>()
 
 // Example configurations from index.json
 const exampleConfigs = ref<ExampleConfig[]>([])
@@ -198,7 +198,7 @@ const emit = defineEmits<{
 // Track if results are loaded, to collapse the about message, also for navigation guard
 const { setHasResults } = useAnalysisResults()
 const hasResults = computed(() => {
-  const hasResultsValue = wsdotReport.value !== null
+  const hasResultsValue = wsdotReport.value !== undefined
   setHasResults('wsdot', hasResultsValue)
   return hasResultsValue
 })
@@ -282,7 +282,7 @@ const runQuery = async () => {
     useToastNotification().showToast('WSDOT analysis completed successfully!')
     showLoadingModal.value = false
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
 }
 
 const fetchScenario = async () => {
@@ -292,7 +292,7 @@ const fetchScenario = async () => {
     useToastNotification().showToast('Please provide a bounding box or geography IDs.')
     return
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
   stopDepartureCount.value = 0
 
   // Create receiver to accumulate scenario data and WSDOT report
@@ -303,13 +303,13 @@ const fetchScenario = async () => {
       scenarioData.value = receiver.getCurrentData()
     },
     onComplete: () => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
       wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onError: (err: any) => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       error.value = err
     },
   })

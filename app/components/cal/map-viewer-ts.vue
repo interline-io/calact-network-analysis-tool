@@ -41,7 +41,7 @@ const props = defineProps<{
 // Stages during which we should skip expensive map updates
 const skipUpdateStages = new Set(['schedules'])
 
-let map: (maplibre.Map | null) = null
+let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 
 //////////////////////
@@ -445,15 +445,15 @@ function fitFeatures (features: Feature[]) {
 // Map redraw
 
 // Track the current popup and its state for multi-feature navigation
-let currentPopup: maplibre.Popup | null = null
-let currentPopupApp: ReturnType<typeof createApp> | null = null
+let currentPopup: maplibre.Popup | undefined = undefined
+let currentPopupApp: ReturnType<typeof createApp> | undefined = undefined
 let currentPopupFeatures: PopupFeature[] = []
 let currentPopupIndex = 0
 
 /**
  * Update the highlight layer to show the selected feature
  */
-function updateHighlight (popupFeature: PopupFeature | null) {
+function updateHighlight (popupFeature: PopupFeature | undefined) {
   if (!map) return
 
   const highlightSource = map.getSource('highlight') as maplibre.GeoJSONSource
@@ -511,18 +511,18 @@ function drawPopupFeatures (features: PopupFeature[]) {
   // Close existing popup and unmount Vue app
   if (currentPopup) {
     currentPopup.remove()
-    currentPopup = null
+    currentPopup = undefined
   }
   if (currentPopupApp) {
     currentPopupApp.unmount()
-    currentPopupApp = null
+    currentPopupApp = undefined
   }
 
   if (features.length === 0) {
     currentPopupFeatures = []
     currentPopupIndex = 0
     // Clear highlight when closing popup
-    updateHighlight(null)
+    updateHighlight(undefined)
     return
   }
 
@@ -540,7 +540,7 @@ function showPopupAtIndex (index: number) {
   }
   if (currentPopupApp) {
     currentPopupApp.unmount()
-    currentPopupApp = null
+    currentPopupApp = undefined
   }
 
   currentPopupIndex = index
@@ -576,13 +576,13 @@ function showPopupAtIndex (index: number) {
       onClose: () => {
         if (currentPopup) {
           currentPopup.remove()
-          currentPopup = null
+          currentPopup = undefined
         }
         if (currentPopupApp) {
           currentPopupApp.unmount()
-          currentPopupApp = null
+          currentPopupApp = undefined
         }
-        updateHighlight(null)
+        updateHighlight(undefined)
       },
       onPrev: () => {
         if (currentPopupIndex > 0) {
@@ -613,7 +613,7 @@ function showPopupAtIndex (index: number) {
   popup.once('close', () => {
     if (currentPopupApp) {
       currentPopupApp.unmount()
-      currentPopupApp = null
+      currentPopupApp = undefined
     }
   })
 

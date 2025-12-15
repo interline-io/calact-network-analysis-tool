@@ -268,11 +268,7 @@ const styleData = computed((): Matcher[] => {
       if (v.__typename === 'Stop') {
         // Filter out routes with null/undefined route_type to avoid false matches
         // Also check that route data exists (may still be loading)
-        const validRoutes = (v as Stop).route_stops.filter((rs: any) =>
-          rs.route
-          && rs.route.route_type !== null
-          && rs.route.route_type !== undefined
-        )
+        const validRoutes = (v as Stop).route_stops.filter((rs: any) => rs.route && rs.route.route_type != null)
         // If no valid routes, don't match any mode (routes may still be loading)
         if (validRoutes.length === 0) {
           return false
@@ -280,7 +276,7 @@ const styleData = computed((): Matcher[] => {
         return validRoutes.every((rs: any) => rs.route.route_type === val)
       } else if (v.__typename === 'Route') {
         // For routes, also check for null/undefined
-        if ((v as Route).route_type === null || (v as Route).route_type === undefined) {
+        if ((v as Route).route_type == null || (v as Route).route_type == undefined) {
           return false
         }
         return (v as Route).route_type === val
@@ -646,7 +642,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const ft = feature.geometry.type
     const fp = feature.properties
 
-    let popupFeature: PopupFeature | null = null
+    let popupFeature: PopupFeature | undefined = undefined
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)

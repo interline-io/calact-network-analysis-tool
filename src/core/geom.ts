@@ -25,7 +25,7 @@ export function ptString (p: Point): string {
   return `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`
 }
 
-export function parseBbox (bbox: string | null): Bbox {
+export function parseBbox (bbox?: string): Bbox {
   const p = (bbox || '').split(',').map(Number.parseFloat).filter(s => (!Number.isNaN(s)))
   const sw = { lon: 0, lat: 0 }
   const ne = { lon: 0, lat: 0 }
@@ -87,12 +87,12 @@ export interface MarkerFeature {
   element?: HTMLElement // Optional HTML element for custom marker
 }
 
-export function convertBbox (bbox: Bbox | undefined): { min_lon: number | null, min_lat: number | null, max_lon: number | null, max_lat: number | null } | null {
-  if (!bbox) { return null }
+export function convertBbox (bbox?: Bbox): { min_lon?: number, min_lat?: number, max_lon?: number, max_lat?: number } | undefined {
+  if (!bbox) { return undefined }
   return {
-    min_lon: bbox ? bbox.sw.lon : null,
-    min_lat: bbox ? bbox.sw.lat : null,
-    max_lon: bbox ? bbox.ne.lon : null,
-    max_lat: bbox ? bbox.ne.lat : null
+    min_lon: bbox ? bbox.sw.lon : undefined,
+    min_lat: bbox ? bbox.sw.lat : undefined,
+    max_lon: bbox ? bbox.ne.lon : undefined,
+    max_lat: bbox ? bbox.ne.lat : undefined
   }
 }
