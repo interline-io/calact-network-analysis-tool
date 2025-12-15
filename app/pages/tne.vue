@@ -215,7 +215,7 @@ import {
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
+import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
@@ -470,11 +470,12 @@ const selectedRouteTypes = computed({
 })
 
 const selectedAgencies = computed({
-  get (): string[] {
-    return arrayParam('selectedAgencies', [])
+  get (): string[] | undefined {
+    return arrayParamOrUndefined('selectedAgencies') as dow[]
   },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedAgencies: v.join(',') })
+  set (v?: string[]) {
+    console.log('setting selectedAgencies to', v, '->', v ? v.join(',') : undefined)
+    setQuery({ ...route.query, selectedAgencies: v ? v.join(',') : undefined })
   }
 })
 
@@ -1163,47 +1164,38 @@ async function setQuery (params: Record<string, any>) {
 async function resetFilters () {
   const p = removeEmpty({
     ...route.query,
-    startTime: '',
-    endTime: '',
-    selectedAgencies: '',
-    // selectedDays: '',
-    selectedRouteTypes: '',
-    selectedDayOfWeekMode: '',
-    selectedTimeOfDayMode: '',
-    frequencyUnderEnabled: '',
-    frequencyUnder: '',
-    frequencyOverEnabled: '',
-    frequencyOver: '',
-    calculateFrequencyMode: '',
-    maxFareEnabled: '',
-    maxFare: '',
-    minFareEnabled: '',
-    minFare: '',
-    colorKey: '',
-    unitSystem: '',
-    hideUnmarked: '',
-    baseMap: '',
-    // Fixed-Route and Flex Services filters
-    fixedRouteEnabled: '',
-    flexServicesEnabled: '',
-    flexAdvanceNotice: '',
-    flexAreaTypesSelected: '',
-    flexColorBy: '',
+    startTime: undefined,
+    endTime: undefined,
+    selectedDays: undefined,
+    selectedRouteTypes: undefined,
+    selectedDayOfWeekMode: undefined,
+    selectedTimeOfDayMode: undefined,
+    frequencyUnderEnabled: undefined,
+    frequencyUnder: undefined,
+    frequencyOverEnabled: undefined,
+    frequencyOver: undefined,
+    calculateFrequencyMode: undefined,
+    maxFareEnabled: undefined,
+    maxFare: undefined,
+    minFareEnabled: undefined,
+    minFare: undefined,
+    colorKey: undefined,
+    unitSystem: undefined,
+    hideUnmarked: undefined,
+    baseMap: undefined,
+    fixedRouteEnabled: undefined,
+    flexServicesEnabled: undefined,
+    flexAdvanceNotice: undefined,
+    flexAreaTypesSelected: undefined,
+    flexColorBy: undefined,
   })
-  // Note, `selectedDays` is special, see note below.
-  // When clearing filters, it should removed, not set to ''
-  delete p.selectedDays
   await navigateTo({ replace: true, query: p })
 }
 
 function removeEmpty (v: Record<string, any>): Record<string, any> {
-  // Note, `selectedDays` is special - we want to allow it to be empty string ''.
-  // That means the user unchecked all the days.
-  // Removing it would re-check all the days.
-  // todo: improve?
   const r: Record<string, any> = {}
   for (const k in v) {
-    if (v[k] || k === 'selectedDays') {
+    if (v[k] !== null && v[k] !== undefined) {
       r[k] = v[k]
     }
   }

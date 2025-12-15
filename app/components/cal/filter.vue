@@ -305,41 +305,14 @@
                   :disabled="!fixedRouteEnabled"
                 />
               </t-field>
-              <t-field
-                grouped
-                class="cal-agency-buttons"
-              >
-                <t-button
-                  size="small"
-                  :disabled="!fixedRouteEnabled"
-                  @click="agencySelectNone"
-                >
-                  None
-                </t-button>
-                <t-button
-                  size="small"
-                  :disabled="!fixedRouteEnabled"
-                  @click="agencySelectAll"
-                >
-                  All
-                </t-button>
-              </t-field>
             </div>
 
-            <ul>
-              <li
-                v-for="agencyName of knownAgencies"
-                :key="agencyName"
-              >
-                <t-checkbox
-                  v-model="selectedAgencies"
-                  :native-value="agencyName"
-                  :disabled="!fixedRouteEnabled"
-                >
-                  {{ agencyName }}
-                </t-checkbox>
-              </li>
-            </ul>
+            selectedAgencies: {{ JSON.stringify(selectedAgencies) }} (type: {{ selectedAgencies === null ? 'null' : selectedAgencies === undefined ? 'undefined' : 'array' }})
+
+            <t-checkbox-group
+              v-model="selectedAgencies"
+              :options="knownAgencies.map(a => ({ value: a, label: a, disabled: !fixedRouteEnabled }))"
+            />
             <p class="filter-legend">
               * Stops served by any of the selected agencies
             </p>
@@ -638,16 +611,6 @@ function setTab (v: string) {
 // Agency selector
 
 const agencySearch = ref('')
-
-function agencySelectNone () {
-  agencySearch.value = ''
-  selectedAgencies.value = []
-}
-
-function agencySelectAll () {
-  agencySearch.value = ''
-  selectedAgencies.value = knownAgencies.value
-}
 
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
