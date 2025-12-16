@@ -100,7 +100,6 @@
           v-if="activeTab.tab === 'filter'"
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
-          <!-- @vue-skip -->
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -111,10 +110,10 @@
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
-            v-model:selected-days="selectedWeekdays"
+            v-model:selected-weekdays="selectedWeekdays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
-            v-model:selected-day-of-week-mode="selectedWeekdayMode"
+            v-model:selected-weekday-mode="selectedWeekdayMode"
             v-model:frequency-under="frequencyUnder"
             v-model:frequency-over="frequencyOver"
             v-model:calculate-frequency-mode="calculateFrequencyMode"
@@ -227,7 +226,8 @@ import {
   dateToSeconds,
   SCENARIO_DEFAULTS,
   flexAdvanceNoticeTypes,
-  flexAreaTypes
+  flexAreaTypes,
+  type DataDisplayMode
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
@@ -325,7 +325,7 @@ const geographyIds = computed({
 })
 
 const startDate = computed({
-  get () {
+  get (): Date | undefined {
     const today = new Date() // Or any starting date you desire
     return parseDate(route.query.startDate?.toString() || '') || nextMonday(today)
   },
@@ -335,7 +335,7 @@ const startDate = computed({
 })
 
 const endDate = computed({
-  get () {
+  get (): Date | undefined {
     if (route.query?.endDate) {
       return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
     }
@@ -393,11 +393,11 @@ const bbox = computed({
   }
 })
 
-const unitSystem = computed({
+const unitSystem = computed<string | undefined>({
   get () {
     return route.query.unitSystem?.toString() || 'us'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, unitSystem: v })
   }
 })
@@ -413,67 +413,67 @@ const aggregateLayer = computed({
 
 // Data loading toggles (Query tab > Advanced Settings)
 // These control what data is fetched from the API
-const includeFixedRoute = computed({
+const includeFixedRoute = computed<boolean | undefined>({
   get () {
     // Default to true (on) if not specified
     return route.query.includeFixedRoute?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, includeFixedRoute: v ? '' : 'false' })
   }
 })
 
-const includeFlexAreas = computed({
+const includeFlexAreas = computed<boolean | undefined>({
   get () {
     // Default to true (on) if not specified
     return route.query.includeFlexAreas?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, includeFlexAreas: v ? '' : 'false' })
   }
 })
 
-const hideUnmarked = computed({
+const hideUnmarked = computed<boolean | undefined>({
   get () {
     return route.query.hideUnmarked?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
   }
 })
 
-const dataDisplayMode = computed({
+const dataDisplayMode = computed<DataDisplayMode | undefined>({
   get () {
-    return route.query.dataDisplayMode?.toString() || 'Route'
+    return (route.query.dataDisplayMode?.toString() || 'Route') as DataDisplayMode
   },
-  set (v: string) {
+  set (v?: DataDisplayMode) {
     setQuery({ ...route.query, dataDisplayMode: v })
   }
 })
 
-const colorKey = computed({
+const colorKey = computed<string | undefined>({
   get () {
     return route.query.colorKey?.toString() || 'Mode'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, colorKey: v })
   }
 })
 
-const baseMap = computed({
+const baseMap = computed<string | undefined>({
   get () {
     return route.query.baseMap?.toString() || 'Streets'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, baseMap: v })
   }
 })
 
-const selectedWeekdayMode = computed({
-  get (): WeekdayMode {
+const selectedWeekdayMode = computed<WeekdayMode | undefined>({
+  get (): WeekdayMode | undefined {
     return (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode
   },
-  set (v: string) {
+  set (v?: WeekdayMode) {
     setQuery({ ...route.query, selectedWeekdayMode: v === 'Any' ? '' : v })
   }
 })
@@ -526,48 +526,48 @@ const frequencyOver = computed({
   }
 })
 
-const calculateFrequencyMode = computed({
+const calculateFrequencyMode = computed<boolean | undefined>({
   get () {
     return route.query.calculateFrequencyMode?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, calculateFrequencyMode: v ? 'true' : '' })
   }
 })
 
-const maxFareEnabled = computed({
+const maxFareEnabled = computed<boolean | undefined>({
   get () {
     return route.query.maxFareEnabled?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, maxFareEnabled: v ? 'true' : '' })
   }
 })
 
-const maxFare = computed({
+const maxFare = computed<number | undefined>({
   get () {
     return Number.parseInt(route.query.maxFare?.toString() || '') || 0
   },
-  set (v: number) {
-    setQuery({ ...route.query, maxFare: v.toString() })
+  set (v?: number) {
+    setQuery({ ...route.query, maxFare: (v || '').toString() })
   }
 })
 
-const minFareEnabled = computed({
+const minFareEnabled = computed<boolean | undefined>({
   get () {
     return route.query.minFareEnabled?.toString() === 'true'
   },
-  set (v: string) {
+  set (v?: boolean) {
     setQuery({ ...route.query, minFareEnabled: v ? 'true' : '' })
   }
 })
 
-const minFare = computed({
+const minFare = computed<number | undefined>({
   get () {
     return Number.parseInt(route.query.minFare?.toString() || '') || 0
   },
-  set (v: string) {
-    setQuery({ ...route.query, minFare: v.toString() })
+  set (v?: number) {
+    setQuery({ ...route.query, minFare: (v || '').toString() })
   }
 })
 
@@ -575,12 +575,12 @@ const minFare = computed({
 // Fixed-Route Transit toggle
 /////////////////
 
-const fixedRouteEnabled = computed({
+const fixedRouteEnabled = computed<boolean | undefined>({
   get () {
     // On by default - only false if explicitly set to 'false'
     return route.query.fixedRouteEnabled?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, fixedRouteEnabled: v ? '' : 'false' })
   }
 })
@@ -593,7 +593,7 @@ const fixedRouteEnabled = computed({
 // Polygons come from locations.geojson linked via stop_times.location_id
 /////////////////
 
-const flexServicesEnabled = computed({
+const flexServicesEnabled = computed<boolean | undefined> ({
   get () {
     // Default: off when showing fixed-route, on when only showing flex
     const param = route.query.flexServicesEnabled?.toString()
@@ -602,7 +602,7 @@ const flexServicesEnabled = computed({
     // No explicit param - default based on includeFixedRoute
     return !includeFixedRoute.value
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : 'false' })
   }
 })
@@ -649,14 +649,14 @@ const flexAreaTypesSelected = computed({
   }
 })
 
-const flexColorBy = computed({
+const flexColorBy = computed<string | undefined>({
   get () {
     // Agency coloring by default per PRD
     // Can also color by Advance notice (booking_type category)
     // Future: add service quality heatmap using safe_duration_factor/safe_duration_offset
     return route.query.flexColorBy?.toString() || 'Agency'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, flexColorBy: v === 'Agency' ? '' : v })
   }
 })
