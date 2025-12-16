@@ -121,7 +121,7 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import type { Feature } from '~~/src/core'
+import type { DataDisplayMode, Feature } from '~~/src/core'
 
 const props = defineProps<{
   filterSummary: string[]
@@ -137,17 +137,13 @@ const props = defineProps<{
 
 /**
  * Features to export as GeoJSON based on current view mode
- * - Fixed-route modes use exportFeatures from parent (map component)
- * - Area mode (dataDisplayMode='area') uses flexDisplayFeatures
+ * Uses exportFeatures from parent (map component)
  */
 const downloadFeatures = computed((): Feature[] => {
-  if (dataDisplayMode.value === 'area') {
-    return props.flexDisplayFeatures || []
-  }
   return props.exportFeatures || []
 })
 
-const dataDisplayMode = defineModel<string>('dataDisplayMode', { default: 'Stop' })
+const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 // TODO: For when we switch to datagrid

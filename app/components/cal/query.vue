@@ -202,7 +202,7 @@ const props = defineProps<{
 }>()
 
 const bbox = defineModel<Bbox>('bbox')
-const geographyIds = defineModel<number[] | undefined>('geographyIds')
+const geographyIds = defineModel<number[]>('geographyIds', { default: () => [] })
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })

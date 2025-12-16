@@ -28,7 +28,7 @@
         </div>
 
         <!-- Geometry Style -->
-        <div v-if="props.hasData && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
+        <div v-if="props.hasData && props.dataDisplayMode && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
@@ -128,14 +128,16 @@
 </template>
 
 <script setup lang="ts">
+import type { DataDisplayMode } from '~~/src/core'
+
 interface StyleItem {
   label: string
   color: string
 }
 
 const props = defineProps<{
-  dataDisplayMode: string
-  colorKey: string
+  dataDisplayMode?: DataDisplayMode
+  colorKey?: string
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean

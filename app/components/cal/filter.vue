@@ -586,8 +586,8 @@ const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by def
 
 // Flex Services (DRT) filter models
 const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[]>('flexAdvanceNotice') // All selected by default when enabled
-const flexAreaTypesSelected = defineModel<string[]>('flexAreaTypesSelected') // All selected by default when enabled
+const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // undefined = not set (default all), [] = none selected
+const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // undefined = not set (default all), [] = none selected
 const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 
 // Data availability indicators

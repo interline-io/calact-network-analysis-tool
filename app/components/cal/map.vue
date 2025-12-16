@@ -46,7 +46,7 @@
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
-import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
+import type { Bbox, Feature, PopupFeature, MarkerFeature, DataDisplayMode } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -59,10 +59,10 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   bbox: Bbox
-  dataDisplayMode: string
-  colorKey: string
+  dataDisplayMode?: DataDisplayMode
+  colorKey?: string
   displayEditBboxMode?: boolean
-  hideUnmarked: boolean
+  hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
   // Fixed-Route Transit toggle (on by default)

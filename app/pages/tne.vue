@@ -75,7 +75,6 @@
     <template #main>
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
-          <!-- @vue-skip -->
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -306,21 +305,21 @@ const runQuery = async () => {
   loadingProgress.value = undefined
 }
 
-const geomSource = computed({
+const geomSource = computed<string | undefined>({
   get () {
     return route.query.geomSource?.toString() || 'bbox'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, geomSource: v })
   }
 })
 
-const geographyIds = computed({
+const geographyIds = computed<number[]>({
   get () {
     return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
   },
   set (v: number[]) {
-    setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
+    setQuery({ ...route.query, geographyIds: v.length > 0 ? v.map(String).join(',') : undefined })
   }
 })
 
@@ -339,7 +338,8 @@ const endDate = computed({
     if (route.query?.endDate) {
       return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
     }
-    const n = new Date(startDate.value.valueOf())
+    const start = startDate.value ?? new Date()
+    const n = new Date(start.valueOf())
     n.setDate(n.getDate() + 6)
     return n
   },
@@ -607,45 +607,37 @@ const flexServicesEnabled = computed<boolean | undefined> ({
   }
 })
 
-const flexAdvanceNotice = computed({
-  get (): string[] {
+const flexAdvanceNotice = computed<string[] | undefined>({
+  get (): string[] | undefined {
     // All selected by default per PRD (when param is not present)
     // Maps to booking_rules.booking_type: 0=On-Demand, 1=Same Day, 2=More than 24 hours
-    // Use special marker '__none__' to indicate user explicitly unchecked all
-    const param = route.query.flexAdvanceNotice?.toString()
-    if (param === '__none__') {
-      return [] // User explicitly unchecked all
-    }
-    if (!param) {
-      return ['On-demand', 'Same day', 'More than 24 hours'] // Default: all selected
-    }
-    return param.split(',').filter(Boolean)
+    return arrayParamOrUndefined('flexAdvanceNotice')
   },
-  set (v: string[]) {
-    // Use special marker when all are unchecked to distinguish from "not set"
-    const value = v.length === 0 ? '__none__' : v.join(',')
-    setQuery({ ...route.query, flexAdvanceNotice: value })
+  set (v?: string[]) {
+    if (v === undefined) {
+      setQuery({ ...route.query, flexAdvanceNotice: undefined })
+    } else if (v.length === 0) {
+      setQuery({ ...route.query, flexAdvanceNotice: '' })
+    } else {
+      setQuery({ ...route.query, flexAdvanceNotice: v.join(',') })
+    }
   }
 })
 
-const flexAreaTypesSelected = computed({
-  get (): string[] {
+const flexAreaTypesSelected = computed<string[] | undefined>({
+  get (): string[] | undefined {
     // All selected by default per PRD (when param is not present)
     // Based on stop_times.pickup_type and drop_off_type
-    // Use special marker '__none__' to indicate user explicitly unchecked all
-    const param = route.query.flexAreaTypesSelected?.toString()
-    if (param === '__none__') {
-      return [] // User explicitly unchecked all
-    }
-    if (!param) {
-      return ['PU only', 'DO only', 'PU and DO'] // Default: all selected
-    }
-    return param.split(',').filter(Boolean)
+    return arrayParamOrUndefined('flexAreaTypesSelected')
   },
-  set (v: string[]) {
-    // Use special marker when all are unchecked to distinguish from "not set"
-    const value = v.length === 0 ? '__none__' : v.join(',')
-    setQuery({ ...route.query, flexAreaTypesSelected: value })
+  set (v?: string[]) {
+    if (v === undefined) {
+      setQuery({ ...route.query, flexAreaTypesSelected: undefined })
+    } else if (v.length === 0) {
+      setQuery({ ...route.query, flexAreaTypesSelected: '' })
+    } else {
+      setQuery({ ...route.query, flexAreaTypesSelected: v.join(',') })
+    }
   }
 })
 
@@ -685,18 +677,21 @@ const flexAgencyColorScale = computed(() => {
 // Returns true if it matches, false if it should be "downplayed"
 const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
   // Filter to only valid values to handle potential invalid URL query params
-  const advanceNoticeFilter = flexAdvanceNotice.value.filter(
+  // undefined means "not set" = all values match (no filter applied)
+  const advanceNoticeFilter = flexAdvanceNotice.value?.filter(
     (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
   )
-  const areaTypesFilter = flexAreaTypesSelected.value.filter(
+  const areaTypesFilter = flexAreaTypesSelected.value?.filter(
     (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
   )
 
   const featureAreaType = getFlexAreaType(feature)
-  if (!areaTypesFilter.includes(featureAreaType)) return false
+  // If filter is set (not undefined) and doesn't include this type, filter it out
+  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) return false
 
   const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-  if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+  // If filter is set (not undefined) and doesn't include this notice type, filter it out
+  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) return false
 
   // Time-of-day filtering for flex areas
   const applyTimeFilter = startTime.value != null || endTime.value != null
@@ -1208,10 +1203,13 @@ function itemHelper (p: string): string {
 
 function arrayParamOrUndefined (p: string): string[] | undefined {
   if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
-    return undefined
+    return undefined // Not set - no filter applied
   }
-  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
-  return a
+  const param = route.query[p]
+  if (!param) {
+    return [] // Explicitly empty - all unchecked (handles '', null, undefined)
+  }
+  return param.toString().split(',').filter(Boolean)
 }
 
 function toTitleCase (str: string): string {
