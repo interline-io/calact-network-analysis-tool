@@ -6,7 +6,7 @@
  * or unmarked (excluded) based on the active filters.
  *
  * FILTER SEMANTICS:
- * - Array filters (selectedDays, selectedRouteTypes, selectedAgencies):
+ * - Array filters (selectedWeekdays, selectedRouteTypes, selectedAgencies):
  *   - undefined/null = filter not applied, all items pass
  *   - [] (empty array) = filter applied with nothing selected, no items pass
  *   - [values...] = filter applied, only matching items pass
@@ -17,7 +17,7 @@
  *
  * FILTERING FLOW:
  * 1. Routes are filtered first based on:
- *    - selectedDays: route must have service (headways) on selected days (Any/All mode)
+ *    - selectedWeekdays: route must have service (headways) on selected days (Any/All mode)
  *    - selectedRouteTypes: route must have matching route_type
  *    - selectedAgencies: route must belong to matching agency
  *    - frequencyOver/frequencyUnder: route's average frequency must be within thresholds
@@ -44,8 +44,8 @@ import {
   calculateHeadwayStats
 } from './route-headway'
 import {
-  type DOW,
-  type SelectedDayOfWeekMode,
+  type Weekday,
+  type WeekdayMode,
   type RouteType,
   parseHMS,
   routeTypeNames,
@@ -71,8 +71,8 @@ function routeSetDerived (
   selectedDateRange: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
-  selectedDays?: DOW[],
-  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedWeekdays?: Weekday[],
+  selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
   selectedAgencies?: string[],
   frequencyUnder?: number,
@@ -120,8 +120,8 @@ function routeSetDerived (
   // Mark after setting frequency values
   route.marked = routeMarked(
     route,
-    selectedDays,
-    selectedDayMode,
+    selectedWeekdays,
+    selectedWeekdayMode,
     selectedRouteTypes,
     selectedAgencies,
     frequencyUnder,
@@ -133,8 +133,8 @@ function routeSetDerived (
 // Filter routes
 function routeMarked (
   route: Route,
-  selectedDays?: DOW[],
-  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedWeekdays?: Weekday[],
+  selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
   selectedAgencies?: string[],
   frequencyUnder?: number,
@@ -142,15 +142,15 @@ function routeMarked (
   sdCache?: StopDepartureCache,
 ): boolean {
   // Check selected days - route must have service on selected days
-  if (selectedDays != null) {
-    if (selectedDays.length === 0) {
-      console.debug('routeMarked:', route.id, 'unmarked: selectedDays is empty array')
+  if (selectedWeekdays != null) {
+    if (selectedWeekdays.length === 0) {
+      console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
       return false
     }
     // Check if route has service on selected days using headway data
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedDays) {
+    for (const sd of selectedWeekdays) {
       let dayHeadways: RouteHeadwayDirections | undefined
       if (sd === 'sunday') {
         dayHeadways = route.headways?.sunday
@@ -176,13 +176,13 @@ function routeMarked (
     }
     // Check mode
     let found = false
-    if (selectedDayMode === 'Any') {
+    if (selectedWeekdayMode === 'Any') {
       found = hasAny
-    } else if (selectedDayMode === 'All') {
+    } else if (selectedWeekdayMode === 'All') {
       found = hasAll
     }
     if (!found) {
-      console.debug('routeMarked:', route.id, 'unmarked: no service on selectedDays', selectedDays, 'mode:', selectedDayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
+      console.debug('routeMarked:', route.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
       return false
     }
   }
@@ -218,7 +218,7 @@ function routeMarked (
   return true
 }
 
-const dowDateString: DOW[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+const dowDateString: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 //////////////////////////////////////
 // Stop filtering
@@ -227,8 +227,8 @@ const dowDateString: DOW[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thurs
 // Mutates calculated fields on Stop
 function stopSetDerived (
   stop: Stop,
-  selectedDays?: DOW[],
-  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedWeekdays?: Weekday[],
+  selectedWeekdayMode?: WeekdayMode,
   selectedDateRange?: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
@@ -242,7 +242,7 @@ function stopSetDerived (
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop,
-    selectedDays,
+    selectedWeekdays,
     selectedDateRange,
     selectedStartTime,
     selectedEndTime,
@@ -250,8 +250,8 @@ function stopSetDerived (
   )
   stop.marked = stopMarked(
     stop,
-    selectedDays,
-    selectedDayMode,
+    selectedWeekdays,
+    selectedWeekdayMode,
     selectedRouteTypes,
     selectedAgencies,
     frequencyUnder,
@@ -276,7 +276,7 @@ function newStopVisitSummary (): StopVisitSummary {
 
 function stopVisits (
   stop: StopGql,
-  selectedDays?: DOW[],
+  selectedWeekdays?: Weekday[],
   selectedDateRange?: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
@@ -290,7 +290,7 @@ function stopVisits (
   const endTime = parseHMS(selectedEndTime)
   for (const sd of selectedDateRange || []) {
     const sdDow = dowDateString[sd.getDay()]
-    if (!sdDow || !selectedDays?.includes(sdDow)) {
+    if (!sdDow || !selectedWeekdays?.includes(sdDow)) {
       continue
     }
     // TODO: memoize formatted date
@@ -342,8 +342,8 @@ function stopVisits (
 // Filter stops
 function stopMarked (
   stop: Stop,
-  selectedDays?: DOW[],
-  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedWeekdays?: Weekday[],
+  selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
   selectedAgencies?: string[],
   frequencyUnder?: number,
@@ -351,13 +351,13 @@ function stopMarked (
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache,
 ): boolean {
-  // Check departure days - only apply if selectedDays is defined
-  if (sdCache && selectedDays != null) {
+  // Check departure days - only apply if selectedWeekdays is defined
+  if (sdCache && selectedWeekdays != null) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedDays) {
+    for (const sd of selectedWeekdays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
@@ -385,14 +385,14 @@ function stopMarked (
     }
     // Check mode
     let found = false
-    if (selectedDayMode === 'Any') {
+    if (selectedWeekdayMode === 'Any') {
       found = hasAny
-    } else if (selectedDayMode === 'All') {
+    } else if (selectedWeekdayMode === 'All') {
       found = hasAll
     }
     // Not found, no further processing
     if (!found) {
-      console.debug('stopMarked:', stop.id, 'unmarked: no service on selectedDays', selectedDays, 'mode:', selectedDayMode)
+      console.debug('stopMarked:', stop.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode)
       return false
     }
   }
@@ -440,8 +440,8 @@ export function applyScenarioResultFilter (
 ): ScenarioFilterResult {
   const sdCache = data.stopDepartureCache
   const selectedDateRangeValue = getSelectedDateRange(config)
-  const selectedDayOfWeekModeValue = filter.selectedDayOfWeekMode
-  const selectedDaysValue = filter.selectedDays
+  const selectedWeekdayModeValue = filter.selectedWeekdayMode
+  const selectedDaysValue = filter.selectedWeekdays
   const selectedRouteTypesValue = filter.selectedRouteTypes
   const selectedAgenciesValue = filter.selectedAgencies
   const startTimeValue = filter.startTime ? format(filter.startTime, 'HH:mm:ss') : '00:00:00'
@@ -470,7 +470,7 @@ export function applyScenarioResultFilter (
       startTimeValue,
       endTimeValue,
       selectedDaysValue,
-      selectedDayOfWeekModeValue,
+      selectedWeekdayModeValue,
       selectedRouteTypesValue,
       selectedAgenciesValue,
       frequencyUnderValue,
@@ -492,7 +492,7 @@ export function applyScenarioResultFilter (
     stopSetDerived(
       stop,
       selectedDaysValue,
-      selectedDayOfWeekModeValue,
+      selectedWeekdayModeValue,
       selectedDateRangeValue,
       startTimeValue,
       endTimeValue,

@@ -201,11 +201,11 @@ describe('isBookingAvailableOnDay', () => {
     expect(isBookingAvailableOnDay(feature, 3)).toBe(true)
   })
 
-  it('throws error for invalid dayOfWeek values', () => {
+  it('throws error for invalid weekday values', () => {
     const feature = createFlexFeature({ booking_days: weekdaysOnly })
-    expect(() => isBookingAvailableOnDay(feature, -1)).toThrow('Invalid dayOfWeek')
-    expect(() => isBookingAvailableOnDay(feature, 7)).toThrow('Invalid dayOfWeek')
-    expect(() => isBookingAvailableOnDay(feature, 100)).toThrow('Invalid dayOfWeek')
+    expect(() => isBookingAvailableOnDay(feature, -1)).toThrow('Invalid weekday')
+    expect(() => isBookingAvailableOnDay(feature, 7)).toThrow('Invalid weekday')
+    expect(() => isBookingAvailableOnDay(feature, 100)).toThrow('Invalid weekday')
   })
 })
 

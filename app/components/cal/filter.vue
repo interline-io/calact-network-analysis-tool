@@ -94,23 +94,23 @@
           <section class="cal-day-of-week-mode menu-list">
             <t-field>
               <t-radio
-                v-model="selectedDayOfWeekMode"
-                name="selectedDayOfWeekMode"
+                v-model="selectedWeekdayMode"
+                name="selectedWeekdayMode"
                 native-value="Any"
                 label="Any of the following days"
               />
             </t-field>
             <t-field>
               <t-radio
-                v-model="selectedDayOfWeekMode"
-                name="selectedDayOfWeekMode"
+                v-model="selectedWeekdayMode"
+                name="selectedWeekdayMode"
                 native-value="All"
                 label="All of the following days"
               />
             </t-field>
           </section>
           <t-checkbox-group
-            v-model="selectedDays"
+            v-model="selectedWeekdays"
             :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
           />
         </aside>
@@ -512,8 +512,8 @@
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
 import {
-  type SelectedDayOfWeekMode,
-  type DOW,
+  type WeekdayMode,
+  type Weekday,
   type DataDisplayMode,
   type RouteType,
   dowValues,
@@ -559,9 +559,9 @@ const hideUnmarked = defineModel<boolean>('hideUnmarked')
 const colorKey = defineModel<string>('colorKey')
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
-const selectedDayOfWeekMode = defineModel<SelectedDayOfWeekMode>('selectedDayOfWeekMode')
+const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')
 const selectedRouteTypes = defineModel<RouteType[]>('selectedRouteTypes')
-const selectedDays = defineModel<DOW[]>('selectedDays')
+const selectedWeekdays = defineModel<Weekday[]>('selectedWeekdays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
 const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
@@ -640,7 +640,7 @@ const knownAgencies = computed(() => {
 
 const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
-  const jsDowValues: DOW[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const jsDowValues: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const result = new Set<string>()
   if (!startDate.value || !endDate.value) {
     return result

@@ -111,10 +111,10 @@
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
-            v-model:selected-days="selectedDays"
+            v-model:selected-days="selectedWeekdays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
-            v-model:selected-day-of-week-mode="selectedDayOfWeekMode"
+            v-model:selected-day-of-week-mode="selectedWeekdayMode"
             v-model:frequency-under="frequencyUnder"
             v-model:frequency-over="frequencyOver"
             v-model:calculate-frequency-mode="calculateFrequencyMode"
@@ -208,11 +208,11 @@ import {
 } from '~~/src/tl'
 import {
   type RouteType,
-  type DOW,
+  type Weekday,
   type Bbox,
   type Point,
   type Feature,
-  type SelectedDayOfWeekMode,
+  type WeekdayMode,
   createCategoryColorScale,
   flexColors,
   parseBbox,
@@ -469,12 +469,12 @@ const baseMap = computed({
   }
 })
 
-const selectedDayOfWeekMode = computed({
-  get (): SelectedDayOfWeekMode {
-    return (route.query.selectedDayOfWeekMode?.toString() || 'Any') as SelectedDayOfWeekMode
+const selectedWeekdayMode = computed({
+  get (): WeekdayMode {
+    return (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode
   },
   set (v: string) {
-    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
+    setQuery({ ...route.query, selectedWeekdayMode: v === 'Any' ? '' : v })
   }
 })
 
@@ -497,12 +497,12 @@ const selectedAgencies = computed({
   }
 })
 
-const selectedDays = computed({
-  get (): DOW[] | undefined {
-    return arrayParamOrUndefined('selectedDays') as DOW[]
+const selectedWeekdays = computed({
+  get (): Weekday[] | undefined {
+    return arrayParamOrUndefined('selectedWeekdays') as Weekday[]
   },
-  set (v?: DOW[]) {
-    setQuery({ ...route.query, selectedDays: v ? v.join(',') : undefined })
+  set (v?: Weekday[]) {
+    setQuery({ ...route.query, selectedWeekdays: v ? v.join(',') : undefined })
   }
 })
 
@@ -954,8 +954,8 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   startTime: startTime.value,
   endTime: endTime.value,
   selectedRouteTypes: selectedRouteTypes.value,
-  selectedDays: selectedDays.value,
-  selectedDayOfWeekMode: selectedDayOfWeekMode.value,
+  selectedWeekdays: selectedWeekdays.value,
+  selectedWeekdayMode: selectedWeekdayMode.value,
   selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
@@ -1095,8 +1095,8 @@ const filterSummary = computed((): string[] => {
   }
 
   // days of week  (always show something here)
-  const days = (scenarioFilter.value.selectedDays ?? []).map(val => toTitleCase(val))
-  const dowMode = scenarioFilter.value.selectedDayOfWeekMode
+  const days = (scenarioFilter.value.selectedWeekdays ?? []).map(val => toTitleCase(val))
+  const dowMode = scenarioFilter.value.selectedWeekdayMode
   if (dowMode === 'All' /* && days.length !== 7 */) {
     results.push('operating all of ' + days.join(', '))
   } else if (dowMode === 'Any') {
@@ -1166,9 +1166,9 @@ async function resetFilters () {
     selectedAgencies: undefined,
     startTime: undefined,
     endTime: undefined,
-    selectedDays: undefined,
+    selectedWeekdays: undefined,
+    selectedWeekdayMode: undefined,
     selectedRouteTypes: undefined,
-    selectedDayOfWeekMode: undefined,
     frequencyUnder: undefined,
     frequencyOver: undefined,
     calculateFrequencyMode: undefined,

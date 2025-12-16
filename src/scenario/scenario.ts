@@ -1,9 +1,9 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
 import {
-  type SelectedDayOfWeekMode,
+  type WeekdayMode,
   type RouteType,
-  type DOW,
+  type Weekday,
   type Bbox,
   type GraphQLClient,
   GenericStreamReceiver,
@@ -77,8 +77,8 @@ export interface ScenarioFilter {
   startTime?: Date
   endTime?: Date
   selectedRouteTypes?: RouteType[]
-  selectedDays?: DOW[]
-  selectedDayOfWeekMode?: SelectedDayOfWeekMode
+  selectedWeekdays?: Weekday[]
+  selectedWeekdayMode?: WeekdayMode
   selectedAgencies?: string[]
   frequencyUnder?: number
   frequencyOver?: number
