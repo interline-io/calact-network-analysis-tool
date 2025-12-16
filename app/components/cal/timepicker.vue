@@ -22,7 +22,7 @@ interface Props {
   /**
    * The v-model value as a Date object.
    */
-  modelValue?: Date | null
+  modelValue?: Date
 
   /**
    * MDI icon name for left icon (without mdi- prefix).
@@ -47,7 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: Date | null]
+  'update:modelValue': [value: Date | undefined]
 }>()
 
 const inputRef = ref<HTMLInputElement>()
@@ -68,7 +68,7 @@ function handleInput (event: Event) {
   const value = target.value
 
   if (!value) {
-    emit('update:modelValue', null)
+    emit('update:modelValue', undefined)
     return
   }
 
