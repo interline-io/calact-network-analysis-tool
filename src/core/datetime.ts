@@ -57,7 +57,7 @@ export function parseHMS (value: string | undefined): number {
  * @returns Seconds since midnight (0-86399), or undefined if time is undefined
  */
 export function dateToSeconds (time: Date | undefined): number | undefined {
-  if (!time) return undefined
+  if (!time) { return undefined }
   return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
 }
 

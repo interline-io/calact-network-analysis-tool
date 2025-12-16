@@ -351,7 +351,7 @@ const endDate = computed({
 const startTime = computed({
   get () {
     const v = route.query.startTime?.toString()
-    if (!v) return undefined
+    if (!v) { return undefined }
     return parseTime(v) || undefined
   },
   set (v: Date | string | undefined) {
@@ -368,7 +368,7 @@ const startTime = computed({
 const endTime = computed({
   get () {
     const v = route.query.endTime?.toString()
-    if (!v) return undefined
+    if (!v) { return undefined }
     return parseTime(v) || undefined
   },
   set (v: Date | string | undefined) {
@@ -597,8 +597,8 @@ const flexServicesEnabled = computed<boolean | undefined> ({
   get () {
     // Default: off when showing fixed-route, on when only showing flex
     const param = route.query.flexServicesEnabled?.toString()
-    if (param === 'true') return true
-    if (param === 'false') return false
+    if (param === 'true') { return true }
+    if (param === 'false') { return false }
     // No explicit param - default based on includeFixedRoute
     return !includeFixedRoute.value
   },
@@ -664,7 +664,7 @@ const flexAgencyNames = computed(() => {
   const names = new Set<string>()
   for (const feature of scenarioData.value?.flexAreas || []) {
     const name = getFlexAgencyName(feature)
-    if (name) names.add(name)
+    if (name) { names.add(name) }
   }
   return Array.from(names).sort()
 })
@@ -687,11 +687,11 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
 
   const featureAreaType = getFlexAreaType(feature)
   // If filter is set (not undefined) and doesn't include this type, filter it out
-  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) return false
+  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
 
   const featureAdvanceNotice = getFlexAdvanceNotice(feature)
   // If filter is set (not undefined) and doesn't include this notice type, filter it out
-  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
 
   // Time-of-day filtering for flex areas
   const applyTimeFilter = startTime.value != null || endTime.value != null
@@ -705,7 +705,7 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
     if (flexStart !== undefined && flexEnd !== undefined
       && userStartSeconds !== undefined && userEndSeconds !== undefined) {
       const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
-      if (noOverlap) return false
+      if (noOverlap) { return false }
     }
   }
 
@@ -723,7 +723,7 @@ const flexAreasWithMarkedBase = computed(() => {
 
 // Flex areas for map display (respects flexServicesEnabled toggle)
 const flexAreasWithMarked = computed(() => {
-  if (!flexServicesEnabled.value) return []
+  if (!flexServicesEnabled.value) { return [] }
   return flexAreasWithMarkedBase.value
 })
 
@@ -733,7 +733,7 @@ const flexAreasWithMarkedForReport = computed(() => {
 })
 
 const flexDisplayFeatures = computed((): Feature[] => {
-  if (!flexServicesEnabled.value) return []
+  if (!flexServicesEnabled.value) { return [] }
 
   const colorBy = flexColorBy.value
 

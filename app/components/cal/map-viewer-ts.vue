@@ -454,10 +454,10 @@ let currentPopupIndex = 0
  * Update the highlight layer to show the selected feature
  */
 function updateHighlight (popupFeature: PopupFeature | undefined) {
-  if (!map) return
+  if (!map) { return }
 
   const highlightSource = map.getSource('highlight') as maplibre.GeoJSONSource
-  if (!highlightSource) return
+  if (!highlightSource) { return }
 
   if (!popupFeature || !popupFeature.featureId || !popupFeature.sourceLayer) {
     // Clear highlight
@@ -532,7 +532,7 @@ function drawPopupFeatures (features: PopupFeature[]) {
 }
 
 function showPopupAtIndex (index: number) {
-  if (currentPopupFeatures.length === 0) return
+  if (currentPopupFeatures.length === 0) { return }
 
   // Close existing popup and unmount Vue app
   if (currentPopup) {
@@ -545,7 +545,7 @@ function showPopupAtIndex (index: number) {
 
   currentPopupIndex = index
   const feature = currentPopupFeatures[index]
-  if (!feature) return
+  if (!feature) { return }
 
   // Ensure feature has required data for Vue component
   if (!feature.featureType || !feature.data) {
@@ -657,7 +657,7 @@ function mapClick (e: maplibre.MapMouseEvent) {
   const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
-  if (layersToQuery.length === 0) return
+  if (layersToQuery.length === 0) { return }
 
   const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
@@ -678,7 +678,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
-  if (layersToQuery.length === 0) return
+  if (layersToQuery.length === 0) { return }
 
   const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {

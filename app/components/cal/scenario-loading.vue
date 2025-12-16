@@ -96,7 +96,7 @@ const props = withDefaults(defineProps<{
 
 // Computed values
 const progressPercentage = computed(() => {
-  if (!props.progress) return 0
+  if (!props.progress) { return 0 }
   // Add feed version progress + stop departure progress
   let total = 0
   let completed = 0

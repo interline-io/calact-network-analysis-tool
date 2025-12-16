@@ -560,7 +560,7 @@ watch(exportFeatures, () => {
  * Returns empty array if flex is disabled (similar to how displayFeatures handles fixedRouteEnabled)
  */
 const flexFeatures = computed((): Feature[] => {
-  if (!props.flexServicesEnabled) return []
+  if (!props.flexServicesEnabled) { return [] }
   return props.flexDisplayFeatures || []
 })
 

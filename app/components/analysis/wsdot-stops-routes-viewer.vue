@@ -295,25 +295,25 @@ const _routeTableData = computed(() => {
 
 // Helper function to determine the highest service level for a stop (matching WSDOT viewer)
 const getHighestServiceLevel = (stop: any): string => {
-  if (stop.level6) return 'level6'
-  if (stop.level5) return 'level5'
-  if (stop.level4) return 'level4'
-  if (stop.level3) return 'level3'
-  if (stop.level2) return 'level2'
-  if (stop.level1) return 'level1'
-  if (stop.levelNights) return 'levelNights'
+  if (stop.level6) { return 'level6' }
+  if (stop.level5) { return 'level5' }
+  if (stop.level4) { return 'level4' }
+  if (stop.level3) { return 'level3' }
+  if (stop.level2) { return 'level2' }
+  if (stop.level1) { return 'level1' }
+  if (stop.levelNights) { return 'levelNights' }
   return 'unknown'
 }
 
 // Helper functions for styling (matching WSDOT viewer)
 const getFrequencyLevelClass = (level: string) => {
-  if (level === 'levelNights') return 'frequency-level-nights'
+  if (level === 'levelNights') { return 'frequency-level-nights' }
   return `frequency-level-${level.replace('level', '')}`
 }
 
 const formatHighestLevel = (level: string) => {
-  if (level === 'levelNights') return 'Night'
-  if (level === 'unknown') return 'No Service Level'
+  if (level === 'levelNights') { return 'Night' }
+  if (level === 'unknown') { return 'No Service Level' }
   return level.replace('level', 'Level ')
 }
 

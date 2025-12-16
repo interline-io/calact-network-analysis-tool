@@ -199,14 +199,14 @@ const popMethod = ref<'state' | 'bboxIntersection'>('state')
 
 // Helper functions for Highest Level column rendering
 const getFrequencyLevelClass = (level: string) => {
-  if (level === 'levelNights') return 'frequency-level-nights'
-  if (level === 'levelAll') return 'frequency-level-all'
+  if (level === 'levelNights') { return 'frequency-level-nights' }
+  if (level === 'levelAll') { return 'frequency-level-all' }
   return `frequency-level-${level.replace('level', '')}`
 }
 
 const formatHighestLevel = (level: string) => {
-  if (level === 'levelNights') return 'Night'
-  if (level === 'levelAll') return 'All'
+  if (level === 'levelNights') { return 'Night' }
+  if (level === 'levelAll') { return 'All' }
   return level.replace('level', 'Level ')
 }
 

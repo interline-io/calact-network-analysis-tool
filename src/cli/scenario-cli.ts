@@ -199,7 +199,7 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
       try {
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) { break }
 
           const text = decoder.decode(value)
           writeStream.write(text)

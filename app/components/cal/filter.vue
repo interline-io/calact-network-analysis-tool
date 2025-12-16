@@ -651,7 +651,7 @@ const dowAvailable = computed((): Set<string> => {
     if (dow) {
       result.add(dow)
     }
-    if (result.size === 7) break // we got them all
+    if (result.size === 7) { break } // we got them all
   }
   return result
 })

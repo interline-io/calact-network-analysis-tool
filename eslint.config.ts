@@ -25,6 +25,8 @@ export default createConfigForNuxt({
       rules: {
         ...eslintTypescriptRules,
         ...eslintStylisticRules,
+        // Require curly braces around all control statements
+        curly: ['error', 'all'],
       },
     },
   )
