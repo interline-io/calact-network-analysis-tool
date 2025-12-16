@@ -41,7 +41,7 @@ export function getUTCDateNoTime (): Date {
   return new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
 }
 
-export function parseHMS (value: string): number {
+export function parseHMS (value: string | undefined): number {
   const a = (value || '').split(':').map((s) => {
     return Number.parseInt(s)
   })

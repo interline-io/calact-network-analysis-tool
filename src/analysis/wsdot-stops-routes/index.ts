@@ -103,7 +103,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
 
   // Process stops to build agency map - filter out stops with no routes
   const stops = currentData.stops
-    .filter(stop => stop.route_stops && stop.route_stops.length > 0)
+    .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
       const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id
       const agencyName = stop.route_stops?.[0]?.route?.agency?.agency_name

@@ -115,10 +115,7 @@
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
             v-model:selected-day-of-week-mode="selectedDayOfWeekMode"
-            v-model:selected-time-of-day-mode="selectedTimeOfDayMode"
-            v-model:frequency-under-enabled="frequencyUnderEnabled"
             v-model:frequency-under="frequencyUnder"
-            v-model:frequency-over-enabled="frequencyOverEnabled"
             v-model:frequency-over="frequencyOver"
             v-model:calculate-frequency-mode="calculateFrequencyMode"
             v-model:max-fare-enabled="maxFareEnabled"
@@ -210,12 +207,30 @@ import {
   getFlexAgencyName, geographyLayerQuery
 } from '~~/src/tl'
 import {
+  type RouteType,
+  type DOW,
+  type Bbox,
+  type Point,
+  type Feature,
+  type SelectedDayOfWeekMode,
   createCategoryColorScale,
   flexColors,
+  parseBbox,
+  bboxString,
+  routeTypeNames,
+  cannedBboxes,
+  fmtDate,
+  fmtTime,
+  parseDate,
+  parseTime,
+  getLocalDateNoTime,
+  dateToSeconds,
+  SCENARIO_DEFAULTS,
+  flexAdvanceNoticeTypes,
+  flexAreaTypes
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
@@ -335,19 +350,35 @@ const endDate = computed({
 
 const startTime = computed({
   get () {
-    return parseTime(route.query.startTime?.toString() || '') || parseTime('00:00:00')
+    const v = route.query.startTime?.toString()
+    if (!v) return undefined
+    return parseTime(v) || undefined
   },
-  set (v: Date | undefined) {
-    setQuery({ ...route.query, startTime: fmtTime(v) })
+  set (v: Date | string | undefined) {
+    if (v == null) {
+      setQuery({ ...route.query, startTime: undefined })
+    } else if (typeof v === 'string') {
+      setQuery({ ...route.query, startTime: v })
+    } else {
+      setQuery({ ...route.query, startTime: fmtTime(v) })
+    }
   }
 })
 
 const endTime = computed({
   get () {
-    return parseTime(route.query.endTime?.toString() || '') || parseTime('23:59:00')
+    const v = route.query.endTime?.toString()
+    if (!v) return undefined
+    return parseTime(v) || undefined
   },
-  set (v: Date | undefined) {
-    setQuery({ ...route.query, endTime: fmtTime(v) })
+  set (v: Date | string | undefined) {
+    if (v == null) {
+      setQuery({ ...route.query, endTime: undefined })
+    } else if (typeof v === 'string') {
+      setQuery({ ...route.query, endTime: v })
+    } else {
+      setQuery({ ...route.query, endTime: fmtTime(v) })
+    }
   }
 })
 
@@ -439,88 +470,59 @@ const baseMap = computed({
 })
 
 const selectedDayOfWeekMode = computed({
-  get () {
-    return route.query.selectedDayOfWeekMode?.toString() || 'Any'
+  get (): SelectedDayOfWeekMode {
+    return (route.query.selectedDayOfWeekMode?.toString() || 'Any') as SelectedDayOfWeekMode
   },
   set (v: string) {
     setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
   }
 })
 
-const selectedTimeOfDayMode = computed({
-  get () {
-    return route.query.selectedTimeOfDayMode?.toString() || 'All'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, selectedTimeOfDayMode: v === 'All' ? '' : v })
-  }
-})
-
 const selectedRouteTypes = computed({
-  get () {
-    const d = arrayParam('selectedRouteTypes', [])
-    if (d.length) {
-      return d.map(p => Number.parseInt(p))
-    }
-    return Array.from(routeTypeNames.keys())
+  get (): RouteType[] | undefined {
+    const d = arrayParamOrUndefined('selectedRouteTypes')
+    return d ? d.map(s => Number.parseInt(s)) : undefined
   },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
+  set (v?: RouteType[]) {
+    setQuery({ ...route.query, selectedRouteTypes: v ? v.join(',') : undefined })
   }
 })
 
 const selectedAgencies = computed({
   get (): string[] | undefined {
-    return arrayParamOrUndefined('selectedAgencies') as dow[]
+    return arrayParamOrUndefined('selectedAgencies') as string[]
   },
   set (v?: string[]) {
-    console.log('setting selectedAgencies to', v, '->', v ? v.join(',') : undefined)
     setQuery({ ...route.query, selectedAgencies: v ? v.join(',') : undefined })
   }
 })
 
 const selectedDays = computed({
-  get (): dow[] | undefined {
-    return arrayParamOrUndefined('selectedDays') as dow[]
+  get (): DOW[] | undefined {
+    return arrayParamOrUndefined('selectedDays') as DOW[]
   },
-  set (v?: string[]) {
+  set (v?: DOW[]) {
     setQuery({ ...route.query, selectedDays: v ? v.join(',') : undefined })
   }
 })
 
-const frequencyUnderEnabled = computed({
-  get () {
-    return route.query.frequencyUnderEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyUnderEnabled: v ? 'true' : '' })
-  }
-})
-
 const frequencyUnder = computed({
-  get () {
-    return Number.parseInt(route.query.frequencyUnder?.toString() || '') || 15
+  get (): number | undefined {
+    const val = route.query.frequencyUnder?.toString()
+    return val ? Number.parseInt(val) : undefined
   },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyUnder: v.toString() })
-  }
-})
-
-const frequencyOverEnabled = computed({
-  get () {
-    return route.query.frequencyOverEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyOverEnabled: v ? 'true' : '' })
+  set (v: number | undefined) {
+    setQuery({ ...route.query, frequencyUnder: v != null ? v.toString() : undefined })
   }
 })
 
 const frequencyOver = computed({
-  get () {
-    return Number.parseInt(route.query.frequencyOver?.toString() || '') || 15
+  get (): number | undefined {
+    const val = route.query.frequencyOver?.toString()
+    return val ? Number.parseInt(val) : undefined
   },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyOver: v.toString() })
+  set (v: number | undefined) {
+    setQuery({ ...route.query, frequencyOver: v != null ? v.toString() : undefined })
   }
 })
 
@@ -697,7 +699,7 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
   if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
 
   // Time-of-day filtering for flex areas
-  const applyTimeFilter = selectedTimeOfDayMode.value !== 'All'
+  const applyTimeFilter = startTime.value != null || endTime.value != null
   if (applyTimeFilter) {
     const userStartSeconds = dateToSeconds(startTime.value)
     const userEndSeconds = dateToSeconds(endTime.value)
@@ -951,15 +953,12 @@ const scenarioConfig = computed((): ScenarioConfig => ({
 const scenarioFilter = computed((): ScenarioFilter => ({
   startTime: startTime.value,
   endTime: endTime.value,
-  selectedRouteTypes: selectedRouteTypes.value || [],
-  selectedDays: selectedDays.value || [],
-  selectedAgencies: selectedAgencies.value || [],
-  selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
-  selectedTimeOfDayMode: '', // Not used in the original component
+  selectedRouteTypes: selectedRouteTypes.value,
+  selectedDays: selectedDays.value,
+  selectedDayOfWeekMode: selectedDayOfWeekMode.value,
+  selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
-  frequencyUnderEnabled: frequencyUnderEnabled.value || false,
-  frequencyOverEnabled: frequencyOverEnabled.value || false
 }))
 
 // Internal state for streaming scenario data
@@ -988,7 +987,7 @@ const loadExampleData = async (exampleName: string) => {
 
 // Scenario fetching logic
 const fetchScenario = async (loadExample: string) => {
-  console.log('fetchScenario:', loadExample)
+  // console.log('fetchScenario:', loadExample)
   const config = scenarioConfig.value
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs, unless loading example
@@ -1105,7 +1104,7 @@ const filterSummary = computed((): string[] => {
   }
 
   // time range
-  if (scenarioFilter.value.selectedTimeOfDayMode !== 'All') {
+  if (scenarioFilter.value.startTime != null || scenarioFilter.value.endTime != null) {
     const stime = fmtTime(scenarioFilter.value.startTime, 'p')
     const etime = fmtTime(scenarioFilter.value.endTime, 'p')
     if (stime && etime && stime !== etime) {
@@ -1120,10 +1119,10 @@ const filterSummary = computed((): string[] => {
   }
 
   // frequencies
-  const hasMinFreq = scenarioFilter.value.frequencyOverEnabled
   const minFreq = scenarioFilter.value.frequencyOver
-  const hasMaxFreq = scenarioFilter.value.frequencyUnderEnabled
   const maxFreq = scenarioFilter.value.frequencyUnder
+  const hasMinFreq = minFreq != null
+  const hasMaxFreq = maxFreq != null
   if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
     results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
   } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
@@ -1164,15 +1163,13 @@ async function setQuery (params: Record<string, any>) {
 async function resetFilters () {
   const p = removeEmpty({
     ...route.query,
+    selectedAgencies: undefined,
     startTime: undefined,
     endTime: undefined,
     selectedDays: undefined,
     selectedRouteTypes: undefined,
     selectedDayOfWeekMode: undefined,
-    selectedTimeOfDayMode: undefined,
-    frequencyUnderEnabled: undefined,
     frequencyUnder: undefined,
-    frequencyOverEnabled: undefined,
     frequencyOver: undefined,
     calculateFrequencyMode: undefined,
     maxFareEnabled: undefined,
@@ -1207,11 +1204,6 @@ function itemHelper (p: string): string {
     return 'is-active'
   }
   return 'is-secondary'
-}
-
-function arrayParam (p: string, def: string[]): string[] {
-  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
-  return a.length > 0 ? a : def
 }
 
 function arrayParamOrUndefined (p: string): string[] | undefined {

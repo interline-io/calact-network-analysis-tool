@@ -1,21 +1,82 @@
+/**
+ * Scenario Filter Module
+ *
+ * This module filters transit route and stop data fetched from the Transitland API
+ * based on user-selected criteria in the UI. Each route and stop is marked (included)
+ * or unmarked (excluded) based on the active filters.
+ *
+ * FILTER SEMANTICS:
+ * - Array filters (selectedDays, selectedRouteTypes, selectedAgencies):
+ *   - undefined/null = filter not applied, all items pass
+ *   - [] (empty array) = filter applied with nothing selected, no items pass
+ *   - [values...] = filter applied, only matching items pass
+ *
+ * - Numeric filters (frequencyOver, frequencyUnder):
+ *   - undefined/null = filter not applied, all items pass
+ *   - number = filter applied, items must meet the threshold
+ *
+ * FILTERING FLOW:
+ * 1. Routes are filtered first based on:
+ *    - selectedDays: route must have service (headways) on selected days (Any/All mode)
+ *    - selectedRouteTypes: route must have matching route_type
+ *    - selectedAgencies: route must belong to matching agency
+ *    - frequencyOver/frequencyUnder: route's average frequency must be within thresholds
+ *
+ * 2. Stops are then filtered based on:
+ *    - Service availability: stop must have departures on selected days (Any/All mode)
+ *      within the selected time window (startTime/endTime)
+ *    - Marked routes: if route-level filters are active, stop must serve at least
+ *      one marked route
+ *
+ * 3. Agencies are derived from the filtered stops and routes
+ */
+
 import { format } from 'date-fns'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter } from './scenario'
-import { parseHMS, routeTypeNames, type dow } from '~~/src/core'
-import type { Agency, FeedVersion, Route, RouteHeadwayDirections, RouteHeadwaySummary, Stop, StopDepartureCache, StopGql, StopTime, StopVisitCounts, StopVisitSummary } from '~~/src/tl'
+import {
+  getSelectedDateRange,
+  type ScenarioConfig,
+  type ScenarioData,
+  type ScenarioFilter
+} from './scenario'
+import {
+  routeHeadways,
+  newRouteHeadwaySummary,
+  calculateHeadwayStats
+} from './route-headway'
+import {
+  type DOW,
+  type SelectedDayOfWeekMode,
+  type RouteType,
+  parseHMS,
+  routeTypeNames,
+} from '~~/src/core'
+import type {
+  Agency,
+  FeedVersion,
+  Route,
+  RouteHeadwayDirections,
+  Stop,
+  StopDepartureCache,
+  StopGql,
+  StopVisitCounts,
+  StopVisitSummary
+} from '~~/src/tl'
 
 ////////////////////
 // Route filtering
 ////////////////////
 
-export function routeSetDerived (
+function routeSetDerived (
   route: Route,
   selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
+  selectedStartTime?: string,
+  selectedEndTime?: string,
+  selectedDays?: DOW[],
+  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedRouteTypes?: RouteType[],
+  selectedAgencies?: string[],
+  frequencyUnder?: number,
+  frequencyOver?: number,
   sdCache?: StopDepartureCache,
 ) {
   // Set derived properties
@@ -27,24 +88,40 @@ export function routeSetDerived (
       selectedEndTime,
       sdCache,
     )
+    // Assign headways to route so it can be used in filtering
+    route.headways = headwayResult
     const hwTotal = headwayResult.total
-    let hw = hwTotal.dir0
-    if (hwTotal.dir1.headways_seconds.length > hwTotal.dir0.headways_seconds.length) {
-      hw = hwTotal.dir1
+    let deps = hwTotal.dir0.departures
+    if (hwTotal.dir1.departures.length > hwTotal.dir0.departures.length) {
+      deps = hwTotal.dir1.departures
     }
-    if (hw.headways_seconds.length > 0) {
-      route.average_frequency = (hw.headways_seconds.reduce((a, b) => a + b) / hw.headways_seconds.length)
-      route.fastest_frequency = hw.headways_seconds[0] ?? undefined
-      route.slowest_frequency = hw.headways_seconds[hw.headways_seconds.length - 1] ?? undefined
+    // Calculate headways from departures
+    const stats = calculateHeadwayStats(deps)
+    if (stats) {
+      route.average_frequency = stats.average
+      route.fastest_frequency = stats.fastest
+      route.slowest_frequency = stats.slowest
+      console.debug('routeSetDerived:', route.id,
+        'departures:', deps.length,
+        'avg:', Math.round(stats.average / 60), 'min',
+        'fastest:', Math.round(stats.fastest / 60), 'min',
+        'slowest:', Math.round(stats.slowest / 60), 'min'
+      )
     } else {
       route.average_frequency = undefined
       route.fastest_frequency = undefined
       route.slowest_frequency = undefined
+      console.debug('routeSetDerived:', route.id,
+        'departures:', deps.length,
+        'headways: none (need 2+ departures to calculate headways)'
+      )
     }
   }
   // Mark after setting frequency values
   route.marked = routeMarked(
     route,
+    selectedDays,
+    selectedDayMode,
     selectedRouteTypes,
     selectedAgencies,
     frequencyUnder,
@@ -56,162 +133,110 @@ export function routeSetDerived (
 // Filter routes
 function routeMarked (
   route: Route,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
+  selectedDays?: DOW[],
+  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedRouteTypes?: RouteType[],
+  selectedAgencies?: string[],
+  frequencyUnder?: number,
+  frequencyOver?: number,
   sdCache?: StopDepartureCache,
 ): boolean {
-  // Check route types
-  if (selectedRouteTypes.length > 0) {
-    if (!selectedRouteTypes.includes(route.route_type)) {
+  // Check selected days - route must have service on selected days
+  if (selectedDays != null) {
+    if (selectedDays.length === 0) {
+      console.debug('routeMarked:', route.id, 'unmarked: selectedDays is empty array')
       return false
     }
+    // Check if route has service on selected days using headway data
+    let hasAny = false
+    let hasAll = true
+    for (const sd of selectedDays) {
+      let dayHeadways: RouteHeadwayDirections | undefined
+      if (sd === 'sunday') {
+        dayHeadways = route.headways?.sunday
+      } else if (sd === 'monday') {
+        dayHeadways = route.headways?.monday
+      } else if (sd === 'tuesday') {
+        dayHeadways = route.headways?.tuesday
+      } else if (sd === 'wednesday') {
+        dayHeadways = route.headways?.wednesday
+      } else if (sd === 'thursday') {
+        dayHeadways = route.headways?.thursday
+      } else if (sd === 'friday') {
+        dayHeadways = route.headways?.friday
+      } else if (sd === 'saturday') {
+        dayHeadways = route.headways?.saturday
+      }
+      const hasService = dayHeadways && (dayHeadways.dir0.departures.length > 0 || dayHeadways.dir1.departures.length > 0)
+      if (hasService) {
+        hasAny = true
+      } else {
+        hasAll = false
+      }
+    }
+    // Check mode
+    let found = false
+    if (selectedDayMode === 'Any') {
+      found = hasAny
+    } else if (selectedDayMode === 'All') {
+      found = hasAll
+    }
+    if (!found) {
+      console.debug('routeMarked:', route.id, 'unmarked: no service on selectedDays', selectedDays, 'mode:', selectedDayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
+      return false
+    }
+  }
+
+  // Check route types
+  if (selectedRouteTypes != null && !selectedRouteTypes.includes(route.route_type)) {
+    console.debug('routeMarked:', route.id, 'unmarked: route_type', route.route_type, 'not in', selectedRouteTypes)
+    return false
   }
 
   // Check agencies
-  if (selectedAgencies.length > 0) {
-    if (!selectedAgencies.includes(route.agency.agency_name)) {
-      return false
-    }
+  if (selectedAgencies != null && !selectedAgencies.includes(route.agency.agency_name)) {
+    console.debug('routeMarked:', route.id, 'unmarked: agency', route.agency.agency_name, 'not in', selectedAgencies)
+    return false
   }
 
-  if (sdCache && frequencyOver >= 0) {
+  if (sdCache && frequencyOver != null) {
     if (!route.average_frequency || route.average_frequency < frequencyOver * 60) {
+      console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '< frequencyOver', frequencyOver * 60)
       return false
     }
   }
 
-  if (sdCache && frequencyUnder >= 0) {
+  if (sdCache && frequencyUnder != null) {
     if (!route.average_frequency || route.average_frequency > frequencyUnder * 60) {
+      console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '> frequencyUnder', frequencyUnder * 60)
       return false
     }
   }
 
   // Default is to return true
+  // console.debug('routeMarked:', route.id, 'marked: passed all filters')
   return true
 }
 
-export function routeHeadways (
-  route: Route,
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  sdCache?: StopDepartureCache
-): RouteHeadwaySummary {
-  const result = newRouteHeadwaySummary()
-  if (!sdCache) {
-    return result
-  }
-  const startTime = parseHMS(selectedStartTime)
-  const endTime = parseHMS(selectedEndTime)
-  for (const dir of [0, 1]) {
-    for (const d of selectedDateRange) {
-      // Get the stop with the most departures
-      let stopId: number = 0
-      let stopDepartures: StopTime[] = []
-      const dateStopDeps = sdCache.getRouteDate(route.id, dir, format(d, 'yyyy-MM-dd'))
-      for (const [depStopId, deps] of dateStopDeps.entries()) {
-        if (deps.length > stopDepartures.length) {
-          stopId = depStopId
-          stopDepartures = deps
-        }
-      }
-
-      // Convert HH:MM:SS to seconds and calculate headways
-      const stSecs = stopDepartures
-        .map((st) => { return parseHMS(st.departure_time) })
-        .filter((depTime) => { return depTime >= startTime && depTime <= endTime })
-      stSecs.sort((a, b) => a - b)
-
-      const headways: number[] = []
-      for (let i = 0; i < stSecs.length - 1; i++) {
-        const curr = stSecs[i]
-        const next = stSecs[i + 1]
-        if (curr !== undefined && next !== undefined) {
-          headways.push(next - curr)
-        }
-      }
-      headways.sort((a, b) => a - b)
-
-      // Add to result
-      const resultDir = dir ? result.total.dir1 : result.total.dir0
-      resultDir.stop_id = stopId
-      resultDir.headways_seconds.push(...headways)
-
-      let resultDay: RouteHeadwayDirections | undefined
-      switch (d.getDay()) {
-        case 0:
-          resultDay = result.sunday
-          break
-        case 1:
-          resultDay = result.monday
-          break
-        case 2:
-          resultDay = result.tuesday
-          break
-        case 3:
-          resultDay = result.wednesday
-          break
-        case 4:
-          resultDay = result.thursday
-          break
-        case 5:
-          resultDay = result.friday
-          break
-        case 6:
-          resultDay = result.saturday
-          break
-      }
-      if (resultDay != undefined) {
-        const dayDir = dir ? resultDay.dir1 : resultDay.dir0
-        dayDir.stop_id = stopId
-        dayDir.headways_seconds.push(...headways)
-      }
-    }
-  }
-  return result
-}
-
-export function newRouteHeadwaySummary (): RouteHeadwaySummary {
-  return {
-    total: newRouteHeadwayDirections(),
-    sunday: newRouteHeadwayDirections(),
-    monday: newRouteHeadwayDirections(),
-    tuesday: newRouteHeadwayDirections(),
-    wednesday: newRouteHeadwayDirections(),
-    thursday: newRouteHeadwayDirections(),
-    friday: newRouteHeadwayDirections(),
-    saturday: newRouteHeadwayDirections(),
-  }
-}
-
-function newRouteHeadwayDirections () {
-  return {
-    dir0: { stop_id: 0, headways_seconds: [] },
-    dir1: { stop_id: 0, headways_seconds: [] }
-  }
-}
-
-const dowDateString: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+const dowDateString: DOW[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 //////////////////////////////////////
 // Stop filtering
 //////////////////////////////////////
 
 // Mutates calculated fields on Stop
-export function stopSetDerived (
+function stopSetDerived (
   stop: Stop,
-  selectedDays: dow[],
-  selectedDayMode: string,
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
-  markedRoutes: Set<number>,
+  selectedDays?: DOW[],
+  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedDateRange?: Date[],
+  selectedStartTime?: string,
+  selectedEndTime?: string,
+  selectedRouteTypes?: RouteType[],
+  selectedAgencies?: string[],
+  frequencyUnder?: number,
+  frequencyOver?: number,
+  markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
   // Make sure to run stopVisits before stopMarked
@@ -236,7 +261,7 @@ export function stopSetDerived (
   )
 }
 
-export function newStopVisitSummary (): StopVisitSummary {
+function newStopVisitSummary (): StopVisitSummary {
   return {
     total: newStopVisitCounts(),
     monday: newStopVisitCounts(),
@@ -251,10 +276,10 @@ export function newStopVisitSummary (): StopVisitSummary {
 
 function stopVisits (
   stop: StopGql,
-  selectedDays: dow[],
-  selectedDateRange: Date[],
-  selectedStartTime: string,
-  selectedEndTime: string,
+  selectedDays?: DOW[],
+  selectedDateRange?: Date[],
+  selectedStartTime?: string,
+  selectedEndTime?: string,
   sdCache?: StopDepartureCache,
 ): StopVisitSummary {
   const result = newStopVisitSummary()
@@ -263,9 +288,9 @@ function stopVisits (
   }
   const startTime = parseHMS(selectedStartTime)
   const endTime = parseHMS(selectedEndTime)
-  for (const sd of selectedDateRange) {
+  for (const sd of selectedDateRange || []) {
     const sdDow = dowDateString[sd.getDay()]
-    if (!sdDow || !selectedDays.includes(sdDow)) {
+    if (!sdDow || !selectedDays?.includes(sdDow)) {
       continue
     }
     // TODO: memoize formatted date
@@ -317,17 +342,17 @@ function stopVisits (
 // Filter stops
 function stopMarked (
   stop: Stop,
-  selectedDays: dow[],
-  selectedDayMode: string,
-  selectedRouteTypes: number[],
-  selectedAgencies: string[],
-  frequencyUnder: number,
-  frequencyOver: number,
-  markedRoutes: Set<number>,
+  selectedDays?: DOW[],
+  selectedDayMode?: SelectedDayOfWeekMode,
+  selectedRouteTypes?: RouteType[],
+  selectedAgencies?: string[],
+  frequencyUnder?: number,
+  frequencyOver?: number,
+  markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache,
 ): boolean {
-  // Check departure days
-  if (sdCache) {
+  // Check departure days - only apply if selectedDays is defined
+  if (sdCache && selectedDays != null) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
@@ -367,21 +392,23 @@ function stopMarked (
     }
     // Not found, no further processing
     if (!found) {
+      console.debug('stopMarked:', stop.id, 'unmarked: no service on selectedDays', selectedDays, 'mode:', selectedDayMode)
       return false
     }
   }
 
   // Check marked routes
-  // Must match at least one marked route
-  if (selectedAgencies.length > 0 || selectedRouteTypes.length > 0 || frequencyUnder > 0 || frequencyOver > 0) {
+  // Must match at least one marked route if any route-level filters are applied
+  if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
     const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
     if (!hasMarkedRoute) {
-      console.log('no marked route', stop.id)
+      console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
       return false
     }
   }
 
   // Default is to return true
+  // console.debug('stopMarked:', stop.id, 'marked: passed all filters')
   return true
 }
 
@@ -413,14 +440,14 @@ export function applyScenarioResultFilter (
 ): ScenarioFilterResult {
   const sdCache = data.stopDepartureCache
   const selectedDateRangeValue = getSelectedDateRange(config)
-  const selectedDayOfWeekModeValue = filter.selectedDayOfWeekMode || ''
-  const selectedDaysValue = filter.selectedDays || []
-  const selectedRouteTypesValue = filter.selectedRouteTypes || []
-  const selectedAgenciesValue = filter.selectedAgencies || []
+  const selectedDayOfWeekModeValue = filter.selectedDayOfWeekMode
+  const selectedDaysValue = filter.selectedDays
+  const selectedRouteTypesValue = filter.selectedRouteTypes
+  const selectedAgenciesValue = filter.selectedAgencies
   const startTimeValue = filter.startTime ? format(filter.startTime, 'HH:mm:ss') : '00:00:00'
   const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
-  const frequencyUnderValue = (filter.frequencyUnderEnabled ? filter.frequencyUnder : -1) || -1
-  const frequencyOverValue = (filter.frequencyOverEnabled ? filter.frequencyOver : -1) || -1
+  const frequencyUnderValue = filter.frequencyUnder
+  const frequencyOverValue = filter.frequencyOver
   ///////////
 
   // Apply route filters
@@ -442,6 +469,8 @@ export function applyScenarioResultFilter (
       selectedDateRangeValue,
       startTimeValue,
       endTimeValue,
+      selectedDaysValue,
+      selectedDayOfWeekModeValue,
       selectedRouteTypesValue,
       selectedAgenciesValue,
       frequencyUnderValue,

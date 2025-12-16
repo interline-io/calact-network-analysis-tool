@@ -86,7 +86,7 @@ export interface RouteDerived {
 
 export type RouteHeadwayCount = {
   stop_id: number
-  headways_seconds: number[]
+  departures: number[]
 }
 
 export type RouteHeadwayDirections = {

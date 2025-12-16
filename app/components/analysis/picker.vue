@@ -26,7 +26,9 @@
           v-model="selectedReportType"
           :disabled="!scenarioConfig"
         >
-          <option value="" disabled selected>Select an analysis to run</option>
+          <option value="" disabled selected>
+            Select an analysis to run
+          </option>
           <option v-for="[reportType, reportLabel] of Object.entries(analysisTypes)" :key="reportType" :value="reportType">
             {{ reportLabel }}
           </option>

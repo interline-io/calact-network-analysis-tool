@@ -8,25 +8,25 @@
       :open="!hasResults"
     >
       <t-msg variant="info">
-      <p class="mb-3">
-        This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
-      </p>
-      <p class="mb-3">
-        <strong>Key Features:</strong>
-      </p>
-      <ul class="mb-3">
-        <li><strong>Complete GTFS Compliance:</strong> All standard GTFS stop and route fields are included for maximum compatibility with transit planning tools</li>
-        <li><strong>Service Level Integration:</strong> WSDOT frequency analysis results are embedded as additional columns (Level 1-6, Night service)</li>
-        <li><strong>Data Provenance:</strong> Feed Onestop IDs and version SHA1 hashes ensure data traceability and version control, with links to Transitland's historical feed archive</li>
-        <li><strong>Agency Consolidation:</strong> Handles multiple feeds with consistent agency identification across the region</li>
-        <li><strong>Network Filtering:</strong> Only includes stops that are connected to active transit routes</li>
-      </ul>
-      <p class="mb-3">
-        The data can be downloaded in CSV format (for spreadsheet analysis) or GeoJSON format (for GIS mapping and spatial analysis). All downloads include the same comprehensive field set, with geographic coordinates preserved for spatial operations.
-      </p>
-      <p>
-        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
-      </p>
+        <p class="mb-3">
+          This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
+        </p>
+        <p class="mb-3">
+          <strong>Key Features:</strong>
+        </p>
+        <ul class="mb-3">
+          <li><strong>Complete GTFS Compliance:</strong> All standard GTFS stop and route fields are included for maximum compatibility with transit planning tools</li>
+          <li><strong>Service Level Integration:</strong> WSDOT frequency analysis results are embedded as additional columns (Level 1-6, Night service)</li>
+          <li><strong>Data Provenance:</strong> Feed Onestop IDs and version SHA1 hashes ensure data traceability and version control, with links to Transitland's historical feed archive</li>
+          <li><strong>Agency Consolidation:</strong> Handles multiple feeds with consistent agency identification across the region</li>
+          <li><strong>Network Filtering:</strong> Only includes stops that are connected to active transit routes</li>
+        </ul>
+        <p class="mb-3">
+          The data can be downloaded in CSV format (for spreadsheet analysis) or GeoJSON format (for GIS mapping and spatial analysis). All downloads include the same comprehensive field set, with geographic coordinates preserved for spatial operations.
+        </p>
+        <p>
+          This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+        </p>
       </t-msg>
     </t-card>
 
@@ -117,7 +117,7 @@ import {
 import {
   processWsdotStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
-import { SCENARIO_DEFAULTS } from '~~/src/core/constants'
+import { SCENARIO_DEFAULTS } from '~~/src/core'
 import type {
   WSDOTStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'

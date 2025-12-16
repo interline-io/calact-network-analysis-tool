@@ -73,7 +73,7 @@ export const dowValues = [
   'sunday'
 ] as const
 
-export type dow = typeof dowValues[number]
+export type DOW = typeof dowValues[number]
 
 export const geomSources = {
   mapExtent: 'Covering extent of map',
@@ -87,21 +87,29 @@ export const routeColorModes = [
   'Fare',
 ] as const
 
+export type RouteColorMode = typeof routeColorModes[number]
+
 export const dataDisplayModes = [
   'Agency',
   'Route',
   'Stop',
 ] as const
 
+export type DataDisplayMode = typeof dataDisplayModes[number]
+
 export const selectedDayOfWeekModes = [
   'All',
   'Any',
 ] as const
 
+export type SelectedDayOfWeekMode = typeof selectedDayOfWeekModes[number]
+
 export const selectedTimeOfDayModes = [
   'All',
   'Partial',
 ] as const
+
+export type SelectedTimeOfDayMode = typeof selectedTimeOfDayModes[number]
 
 export const baseMapStyles = [
   { name: 'Streets', icon: 'map-search', available: true },

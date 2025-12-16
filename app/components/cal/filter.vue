@@ -109,7 +109,6 @@
               />
             </t-field>
           </section>
-          selectedDays: {{ JSON.stringify(selectedDays) }} (type: {{ selectedDays === null ? 'null' : selectedDays === undefined ? 'undefined' : 'array' }})
           <t-checkbox-group
             v-model="selectedDays"
             :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
@@ -143,7 +142,7 @@
               v-model="startTime"
               size="small"
               icon="clock"
-              :disabled="selectedTimeOfDayMode !== 'Partial'"
+              :disabled="isAllDayMode"
             />
           </t-field>
 
@@ -156,7 +155,7 @@
               v-model="endTime"
               size="small"
               icon="clock"
-              :disabled="selectedTimeOfDayMode !== 'Partial'"
+              :disabled="isAllDayMode"
             />
           </t-field>
         </aside>
@@ -272,20 +271,10 @@
             <p class="menu-label">
               Modes
             </p>
-            <ul>
-              <li
-                v-for="[routeType, routeTypeDesc] of routeTypeNames"
-                :key="routeType"
-              >
-                <t-checkbox
-                  v-model="selectedRouteTypes"
-                  :native-value="routeType"
-                  :disabled="!fixedRouteEnabled"
-                >
-                  {{ routeTypeDesc }}
-                </t-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="selectedRouteTypes"
+              :options="[...routeTypeNames].map(([routeType, routeTypeDesc]) => ({ value: routeType, label: routeTypeDesc, disabled: !fixedRouteEnabled }))"
+            />
             <p class="filter-legend">
               * Stops served by any of the selected route types
             </p>
@@ -306,8 +295,6 @@
                 />
               </t-field>
             </div>
-
-            selectedAgencies: {{ JSON.stringify(selectedAgencies) }} (type: {{ selectedAgencies === null ? 'null' : selectedAgencies === undefined ? 'undefined' : 'array' }})
 
             <t-checkbox-group
               v-model="selectedAgencies"
@@ -524,13 +511,25 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles, flexAdvanceNoticeTypes, flexAreaTypes, flexColorByModes } from '~~/src/core'
+import {
+  type SelectedDayOfWeekMode,
+  type DOW,
+  type DataDisplayMode,
+  type RouteType,
+  dowValues,
+  routeTypeNames,
+  dataDisplayModes,
+  baseMapStyles,
+  flexAdvanceNoticeTypes,
+  flexAreaTypes,
+  flexColorByModes,
+  fmtDate,
+  parseTime
+} from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '~~/src/core'
-
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
@@ -553,22 +552,29 @@ const activeTab = defineModel<string>('activeTab')
 
 const startDate = defineModel<Date>('startDate')
 const endDate = defineModel<Date>('endDate')
-const startTime = defineModel<Date | null>('startTime')
-const endTime = defineModel<Date | null>('endTime')
+const startTime = defineModel<Date>('startTime')
+const endTime = defineModel<Date>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
 const hideUnmarked = defineModel<boolean>('hideUnmarked')
 const colorKey = defineModel<string>('colorKey')
-const dataDisplayMode = defineModel<string>('dataDisplayMode')
+const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
-const selectedDayOfWeekMode = defineModel<string>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string>('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[]>('selectedRouteTypes')
-const selectedDays = defineModel<dow[]>('selectedDays')
+const selectedDayOfWeekMode = defineModel<SelectedDayOfWeekMode>('selectedDayOfWeekMode')
+const selectedRouteTypes = defineModel<RouteType[]>('selectedRouteTypes')
+const selectedDays = defineModel<DOW[]>('selectedDays')
 const selectedAgencies = defineModel<string[]>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean>('frequencyUnderEnabled')
 const frequencyUnder = defineModel<number>('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean>('frequencyOverEnabled')
 const frequencyOver = defineModel<number>('frequencyOver')
+
+// Derived checkbox state: checked when value is defined, unchecked sets to undefined
+const frequencyUnderEnabled = computed({
+  get: () => frequencyUnder.value != null,
+  set: (checked: boolean) => { frequencyUnder.value = checked ? 15 : undefined }
+})
+const frequencyOverEnabled = computed({
+  get: () => frequencyOver.value != null,
+  set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
+})
 const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
 const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
@@ -588,11 +594,17 @@ const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
 const hasFlexData = computed(() => props.hasFlexData ?? false)
 
-// Computed property to convert selectedTimeOfDayMode between 'All'/'Partial' and boolean
+// Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({
-  get: () => selectedTimeOfDayMode.value === 'All',
-  set: (val: boolean) => {
-    selectedTimeOfDayMode.value = val ? 'All' : 'Partial'
+  get: () => startTime.value == null && endTime.value == null,
+  set: (checked: boolean) => {
+    if (checked) {
+      startTime.value = undefined
+      endTime.value = undefined
+    } else {
+      startTime.value = parseTime('00:00:00')
+      endTime.value = parseTime('23:59:00')
+    }
   }
 })
 
@@ -628,7 +640,7 @@ const knownAgencies = computed(() => {
 
 const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
-  const jsDowValues: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const jsDowValues: DOW[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const result = new Set<string>()
   if (!startDate.value || !endDate.value) {
     return result
