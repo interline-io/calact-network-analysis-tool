@@ -6,61 +6,66 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <o-icon
+            <t-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>
         <li>
           <a
-            :class="[itemHelper('filter'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Filter' : 'Filter (Run a query first)'"
+            :class="[itemHelper('filter'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'filter', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
-            <o-icon
+            <t-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a
-            :class="[itemHelper('map'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Map' : 'Map (Run a query first)'"
+            :class="[itemHelper('map'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'map', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
-            <o-icon
+            <t-icon
               icon="map"
               class="is-fullwidth"
               size="large"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a
-            :class="[itemHelper('report'), { 'is-disabled': !hasScenarioData }]"
-            :title="hasScenarioData ? 'Report' : 'Report (Run a query first)'"
+            :class="[itemHelper('report'), { 'is-disabled': !scenarioFilterResult }]"
+            :title="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
             role="button"
-            @click="hasScenarioData ? setTab({ tab: 'report', sub: '' }) : null"
+            @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
-            <o-icon
+            <t-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
+              :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
           </a>
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <o-icon
+            <t-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
+              variant="white"
             />
           </a>
         </li>
@@ -70,7 +75,6 @@
     <template #main>
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
-          <!-- @vue-skip -->
           <cal-query
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -95,7 +99,6 @@
           v-if="activeTab.tab === 'filter'"
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
-          <!-- @vue-skip -->
           <cal-filter
             v-model:start-date="startDate"
             v-model:end-date="endDate"
@@ -106,14 +109,11 @@
             v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
-            v-model:selected-days="selectedDays"
+            v-model:selected-weekdays="selectedWeekdays"
             v-model:selected-route-types="selectedRouteTypes"
             v-model:selected-agencies="selectedAgencies"
-            v-model:selected-day-of-week-mode="selectedDayOfWeekMode"
-            v-model:selected-time-of-day-mode="selectedTimeOfDayMode"
-            v-model:frequency-under-enabled="frequencyUnderEnabled"
+            v-model:selected-weekday-mode="selectedWeekdayMode"
             v-model:frequency-under="frequencyUnder"
-            v-model:frequency-over-enabled="frequencyOverEnabled"
             v-model:frequency-over="frequencyOver"
             v-model:calculate-frequency-mode="calculateFrequencyMode"
             v-model:max-fare-enabled="maxFareEnabled"
@@ -130,6 +130,7 @@
             :has-flex-data="hasFlexData"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
+            @set-time-range="setTimeRange"
           />
         </div>
 
@@ -205,12 +206,31 @@ import {
   getFlexAgencyName, geographyLayerQuery
 } from '~~/src/tl'
 import {
+  type RouteType,
+  type Weekday,
+  type Bbox,
+  type Point,
+  type Feature,
+  type WeekdayMode,
   createCategoryColorScale,
   flexColors,
+  parseBbox,
+  bboxString,
+  routeTypeNames,
+  cannedBboxes,
+  fmtDate,
+  fmtTime,
+  parseDate,
+  parseTime,
+  getLocalDateNoTime,
+  dateToSeconds,
+  SCENARIO_DEFAULTS,
+  flexAdvanceNoticeTypes,
+  flexAreaTypes,
+  type DataDisplayMode
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
-import { type Bbox, type Point, type Feature, parseBbox, bboxString, type dow, dowValues, routeTypeNames, cannedBboxes, fmtDate, fmtTime, parseDate, parseTime, getLocalDateNoTime, dateToSeconds, SCENARIO_DEFAULTS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
@@ -268,7 +288,7 @@ const cannedBbox = computed({
     setQuery({ ...route.query, example: v || undefined })
   }
 })
-const error = ref(null as Error | string | null)
+const error = ref(undefined as Error | string | undefined)
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
@@ -283,29 +303,29 @@ const runQuery = async () => {
     useToastNotification().showToast('Browsing query data loaded successfully!')
     showLoadingModal.value = false
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
 }
 
-const geomSource = computed({
+const geomSource = computed<string | undefined>({
   get () {
     return route.query.geomSource?.toString() || 'bbox'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, geomSource: v })
   }
 })
 
-const geographyIds = computed({
+const geographyIds = computed<number[]>({
   get () {
     return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
   },
   set (v: number[]) {
-    setQuery({ ...route.query, geographyIds: v.map(String).join(',') })
+    setQuery({ ...route.query, geographyIds: v.length > 0 ? v.map(String).join(',') : undefined })
   }
 })
 
 const startDate = computed({
-  get () {
+  get (): Date | undefined {
     const today = new Date() // Or any starting date you desire
     return parseDate(route.query.startDate?.toString() || '') || nextMonday(today)
   },
@@ -315,11 +335,12 @@ const startDate = computed({
 })
 
 const endDate = computed({
-  get () {
+  get (): Date | undefined {
     if (route.query?.endDate) {
       return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
     }
-    const n = new Date(startDate.value.valueOf())
+    const start = startDate.value ?? new Date()
+    const n = new Date(start.valueOf())
     n.setDate(n.getDate() + 6)
     return n
   },
@@ -330,19 +351,35 @@ const endDate = computed({
 
 const startTime = computed({
   get () {
-    return parseTime(route.query.startTime?.toString() || '') || parseTime('00:00:00')
+    const v = route.query.startTime?.toString()
+    if (!v) { return undefined }
+    return parseTime(v) || undefined
   },
-  set (v: Date | undefined) {
-    setQuery({ ...route.query, startTime: fmtTime(v) })
+  set (v: Date | string | undefined) {
+    if (v == null) {
+      setQuery({ ...route.query, startTime: undefined })
+    } else if (typeof v === 'string') {
+      setQuery({ ...route.query, startTime: v })
+    } else {
+      setQuery({ ...route.query, startTime: fmtTime(v) })
+    }
   }
 })
 
 const endTime = computed({
   get () {
-    return parseTime(route.query.endTime?.toString() || '') || parseTime('23:59:00')
+    const v = route.query.endTime?.toString()
+    if (!v) { return undefined }
+    return parseTime(v) || undefined
   },
-  set (v: Date | undefined) {
-    setQuery({ ...route.query, endTime: fmtTime(v) })
+  set (v: Date | string | undefined) {
+    if (v == null) {
+      setQuery({ ...route.query, endTime: undefined })
+    } else if (typeof v === 'string') {
+      setQuery({ ...route.query, endTime: v })
+    } else {
+      setQuery({ ...route.query, endTime: fmtTime(v) })
+    }
   }
 })
 
@@ -357,11 +394,11 @@ const bbox = computed({
   }
 })
 
-const unitSystem = computed({
+const unitSystem = computed<string | undefined>({
   get () {
     return route.query.unitSystem?.toString() || 'us'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, unitSystem: v })
   }
 })
@@ -377,197 +414,161 @@ const aggregateLayer = computed({
 
 // Data loading toggles (Query tab > Advanced Settings)
 // These control what data is fetched from the API
-const includeFixedRoute = computed({
+const includeFixedRoute = computed<boolean | undefined>({
   get () {
     // Default to true (on) if not specified
     return route.query.includeFixedRoute?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, includeFixedRoute: v ? '' : 'false' })
   }
 })
 
-const includeFlexAreas = computed({
+const includeFlexAreas = computed<boolean | undefined>({
   get () {
     // Default to true (on) if not specified
     return route.query.includeFlexAreas?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, includeFlexAreas: v ? '' : 'false' })
   }
 })
 
-const hideUnmarked = computed({
+const hideUnmarked = computed<boolean | undefined>({
   get () {
     return route.query.hideUnmarked?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
   }
 })
 
-const dataDisplayMode = computed({
+const dataDisplayMode = computed<DataDisplayMode | undefined>({
   get () {
-    return route.query.dataDisplayMode?.toString() || 'Route'
+    return (route.query.dataDisplayMode?.toString() || 'Route') as DataDisplayMode
   },
-  set (v: string) {
+  set (v?: DataDisplayMode) {
     setQuery({ ...route.query, dataDisplayMode: v })
   }
 })
 
-const colorKey = computed({
+const colorKey = computed<string | undefined>({
   get () {
     return route.query.colorKey?.toString() || 'Mode'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, colorKey: v })
   }
 })
 
-const baseMap = computed({
+const baseMap = computed<string | undefined>({
   get () {
     return route.query.baseMap?.toString() || 'Streets'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, baseMap: v })
   }
 })
 
-const selectedDayOfWeekMode = computed({
-  get () {
-    return route.query.selectedDayOfWeekMode?.toString() || 'Any'
+const selectedWeekdayMode = computed<WeekdayMode | undefined>({
+  get (): WeekdayMode | undefined {
+    return (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode
   },
-  set (v: string) {
-    setQuery({ ...route.query, selectedDayOfWeekMode: v === 'Any' ? '' : v })
-  }
-})
-
-const selectedTimeOfDayMode = computed({
-  get () {
-    return route.query.selectedTimeOfDayMode?.toString() || 'All'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, selectedTimeOfDayMode: v === 'All' ? '' : v })
+  set (v?: WeekdayMode) {
+    setQuery({ ...route.query, selectedWeekdayMode: v === 'Any' ? '' : v })
   }
 })
 
 const selectedRouteTypes = computed({
-  get () {
-    const d = arrayParam('selectedRouteTypes', [])
-    if (d.length) {
-      return d.map(p => Number.parseInt(p))
-    }
-    return Array.from(routeTypeNames.keys())
+  get (): RouteType[] | undefined {
+    const d = arrayParamOrUndefined('selectedRouteTypes')
+    return d ? d.map(s => Number.parseInt(s)) : undefined
   },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedRouteTypes: v.join(',') })
+  set (v?: RouteType[]) {
+    setQuery({ ...route.query, selectedRouteTypes: v ? v.join(',') : undefined })
   }
 })
 
 const selectedAgencies = computed({
-  get (): string[] {
-    return arrayParam('selectedAgencies', [])
+  get (): string[] | undefined {
+    return arrayParamOrUndefined('selectedAgencies') as string[]
   },
-  set (v: string[]) {
-    setQuery({ ...route.query, selectedAgencies: v.join(',') })
+  set (v?: string[]) {
+    setQuery({ ...route.query, selectedAgencies: v ? v.join(',') : undefined })
   }
 })
 
-const selectedDays = computed({
-  get (): dow[] {
-    if (!Object.prototype.hasOwnProperty.call(route.query, 'selectedDays')) {
-      // if no `selectedDays` param present, check them all
-      return dowValues.slice()
-    } else {
-      return arrayParam('selectedDays', []) as dow[]
-    }
+const selectedWeekdays = computed({
+  get (): Weekday[] | undefined {
+    return arrayParamOrUndefined('selectedWeekdays') as Weekday[]
   },
-  set (v: string[]) {
-    // if all days are checked, just omit the param
-    const days = new Set(v)
-    const omit = dowValues.every(day => days.has(day))
-    setQuery({ ...route.query, selectedDays: omit ? '' : v.join(',') })
-  }
-})
-
-const frequencyUnderEnabled = computed({
-  get () {
-    return route.query.frequencyUnderEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyUnderEnabled: v ? 'true' : '' })
+  set (v?: Weekday[]) {
+    setQuery({ ...route.query, selectedWeekdays: v ? v.join(',') : undefined })
   }
 })
 
 const frequencyUnder = computed({
-  get () {
-    return Number.parseInt(route.query.frequencyUnder?.toString() || '') || 15
+  get (): number | undefined {
+    const val = route.query.frequencyUnder?.toString()
+    return val ? Number.parseInt(val) : undefined
   },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyUnder: v.toString() })
-  }
-})
-
-const frequencyOverEnabled = computed({
-  get () {
-    return route.query.frequencyOverEnabled?.toString() === 'true'
-  },
-  set (v: boolean) {
-    setQuery({ ...route.query, frequencyOverEnabled: v ? 'true' : '' })
+  set (v: number | undefined) {
+    setQuery({ ...route.query, frequencyUnder: v != null ? v.toString() : undefined })
   }
 })
 
 const frequencyOver = computed({
-  get () {
-    return Number.parseInt(route.query.frequencyOver?.toString() || '') || 15
+  get (): number | undefined {
+    const val = route.query.frequencyOver?.toString()
+    return val ? Number.parseInt(val) : undefined
   },
-  set (v: number) {
-    setQuery({ ...route.query, frequencyOver: v.toString() })
+  set (v: number | undefined) {
+    setQuery({ ...route.query, frequencyOver: v != null ? v.toString() : undefined })
   }
 })
 
-const calculateFrequencyMode = computed({
+const calculateFrequencyMode = computed<boolean | undefined>({
   get () {
     return route.query.calculateFrequencyMode?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, calculateFrequencyMode: v ? 'true' : '' })
   }
 })
 
-const maxFareEnabled = computed({
+const maxFareEnabled = computed<boolean | undefined>({
   get () {
     return route.query.maxFareEnabled?.toString() === 'true'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, maxFareEnabled: v ? 'true' : '' })
   }
 })
 
-const maxFare = computed({
+const maxFare = computed<number | undefined>({
   get () {
     return Number.parseInt(route.query.maxFare?.toString() || '') || 0
   },
-  set (v: number) {
-    setQuery({ ...route.query, maxFare: v.toString() })
+  set (v?: number) {
+    setQuery({ ...route.query, maxFare: (v || '').toString() })
   }
 })
 
-const minFareEnabled = computed({
+const minFareEnabled = computed<boolean | undefined>({
   get () {
     return route.query.minFareEnabled?.toString() === 'true'
   },
-  set (v: string) {
+  set (v?: boolean) {
     setQuery({ ...route.query, minFareEnabled: v ? 'true' : '' })
   }
 })
 
-const minFare = computed({
+const minFare = computed<number | undefined>({
   get () {
     return Number.parseInt(route.query.minFare?.toString() || '') || 0
   },
-  set (v: string) {
-    setQuery({ ...route.query, minFare: v.toString() })
+  set (v?: number) {
+    setQuery({ ...route.query, minFare: (v || '').toString() })
   }
 })
 
@@ -575,12 +576,12 @@ const minFare = computed({
 // Fixed-Route Transit toggle
 /////////////////
 
-const fixedRouteEnabled = computed({
+const fixedRouteEnabled = computed<boolean | undefined>({
   get () {
     // On by default - only false if explicitly set to 'false'
     return route.query.fixedRouteEnabled?.toString() !== 'false'
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, fixedRouteEnabled: v ? '' : 'false' })
   }
 })
@@ -593,77 +594,69 @@ const fixedRouteEnabled = computed({
 // Polygons come from locations.geojson linked via stop_times.location_id
 /////////////////
 
-const flexServicesEnabled = computed({
+const flexServicesEnabled = computed<boolean | undefined> ({
   get () {
     // Default: off when showing fixed-route, on when only showing flex
     const param = route.query.flexServicesEnabled?.toString()
-    if (param === 'true') return true
-    if (param === 'false') return false
+    if (param === 'true') { return true }
+    if (param === 'false') { return false }
     // No explicit param - default based on includeFixedRoute
     return !includeFixedRoute.value
   },
-  set (v: boolean) {
+  set (v?: boolean) {
     setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : 'false' })
   }
 })
 
-const flexAdvanceNotice = computed({
-  get (): string[] {
+const flexAdvanceNotice = computed<string[] | undefined>({
+  get (): string[] | undefined {
     // All selected by default per PRD (when param is not present)
     // Maps to booking_rules.booking_type: 0=On-Demand, 1=Same Day, 2=More than 24 hours
-    // Use special marker '__none__' to indicate user explicitly unchecked all
-    const param = route.query.flexAdvanceNotice?.toString()
-    if (param === '__none__') {
-      return [] // User explicitly unchecked all
-    }
-    if (!param) {
-      return ['On-demand', 'Same day', 'More than 24 hours'] // Default: all selected
-    }
-    return param.split(',').filter(Boolean)
+    return arrayParamOrUndefined('flexAdvanceNotice')
   },
-  set (v: string[]) {
-    // Use special marker when all are unchecked to distinguish from "not set"
-    const value = v.length === 0 ? '__none__' : v.join(',')
-    setQuery({ ...route.query, flexAdvanceNotice: value })
+  set (v?: string[]) {
+    if (v === undefined) {
+      setQuery({ ...route.query, flexAdvanceNotice: undefined })
+    } else if (v.length === 0) {
+      setQuery({ ...route.query, flexAdvanceNotice: '' })
+    } else {
+      setQuery({ ...route.query, flexAdvanceNotice: v.join(',') })
+    }
   }
 })
 
-const flexAreaTypesSelected = computed({
-  get (): string[] {
+const flexAreaTypesSelected = computed<string[] | undefined>({
+  get (): string[] | undefined {
     // All selected by default per PRD (when param is not present)
     // Based on stop_times.pickup_type and drop_off_type
-    // Use special marker '__none__' to indicate user explicitly unchecked all
-    const param = route.query.flexAreaTypesSelected?.toString()
-    if (param === '__none__') {
-      return [] // User explicitly unchecked all
-    }
-    if (!param) {
-      return ['PU only', 'DO only', 'PU and DO'] // Default: all selected
-    }
-    return param.split(',').filter(Boolean)
+    return arrayParamOrUndefined('flexAreaTypesSelected')
   },
-  set (v: string[]) {
-    // Use special marker when all are unchecked to distinguish from "not set"
-    const value = v.length === 0 ? '__none__' : v.join(',')
-    setQuery({ ...route.query, flexAreaTypesSelected: value })
+  set (v?: string[]) {
+    if (v === undefined) {
+      setQuery({ ...route.query, flexAreaTypesSelected: undefined })
+    } else if (v.length === 0) {
+      setQuery({ ...route.query, flexAreaTypesSelected: '' })
+    } else {
+      setQuery({ ...route.query, flexAreaTypesSelected: v.join(',') })
+    }
   }
 })
 
-const flexColorBy = computed({
+const flexColorBy = computed<string | undefined>({
   get () {
     // Agency coloring by default per PRD
     // Can also color by Advance notice (booking_type category)
     // Future: add service quality heatmap using safe_duration_factor/safe_duration_offset
     return route.query.flexColorBy?.toString() || 'Agency'
   },
-  set (v: string) {
+  set (v?: string) {
     setQuery({ ...route.query, flexColorBy: v === 'Agency' ? '' : v })
   }
 })
 
 // Scenario data ref - defined early so flex computed properties can reference it
 // This is populated when fetchScenario runs
-const scenarioData = ref<ScenarioData | null>(null)
+const scenarioData = ref<ScenarioData>()
 
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
@@ -672,7 +665,7 @@ const flexAgencyNames = computed(() => {
   const names = new Set<string>()
   for (const feature of scenarioData.value?.flexAreas || []) {
     const name = getFlexAgencyName(feature)
-    if (name) names.add(name)
+    if (name) { names.add(name) }
   }
   return Array.from(names).sort()
 })
@@ -685,21 +678,24 @@ const flexAgencyColorScale = computed(() => {
 // Returns true if it matches, false if it should be "downplayed"
 const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
   // Filter to only valid values to handle potential invalid URL query params
-  const advanceNoticeFilter = flexAdvanceNotice.value.filter(
+  // undefined means "not set" = all values match (no filter applied)
+  const advanceNoticeFilter = flexAdvanceNotice.value?.filter(
     (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
   )
-  const areaTypesFilter = flexAreaTypesSelected.value.filter(
+  const areaTypesFilter = flexAreaTypesSelected.value?.filter(
     (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
   )
 
   const featureAreaType = getFlexAreaType(feature)
-  if (!areaTypesFilter.includes(featureAreaType)) return false
+  // If filter is set (not undefined) and doesn't include this type, filter it out
+  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
 
   const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-  if (!advanceNoticeFilter.includes(featureAdvanceNotice)) return false
+  // If filter is set (not undefined) and doesn't include this notice type, filter it out
+  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
 
   // Time-of-day filtering for flex areas
-  const applyTimeFilter = selectedTimeOfDayMode.value !== 'All'
+  const applyTimeFilter = startTime.value != null || endTime.value != null
   if (applyTimeFilter) {
     const userStartSeconds = dateToSeconds(startTime.value)
     const userEndSeconds = dateToSeconds(endTime.value)
@@ -710,7 +706,7 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
     if (flexStart !== undefined && flexEnd !== undefined
       && userStartSeconds !== undefined && userEndSeconds !== undefined) {
       const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
-      if (noOverlap) return false
+      if (noOverlap) { return false }
     }
   }
 
@@ -728,7 +724,7 @@ const flexAreasWithMarkedBase = computed(() => {
 
 // Flex areas for map display (respects flexServicesEnabled toggle)
 const flexAreasWithMarked = computed(() => {
-  if (!flexServicesEnabled.value) return []
+  if (!flexServicesEnabled.value) { return [] }
   return flexAreasWithMarkedBase.value
 })
 
@@ -738,7 +734,7 @@ const flexAreasWithMarkedForReport = computed(() => {
 })
 
 const flexDisplayFeatures = computed((): Feature[] => {
-  if (!flexServicesEnabled.value) return []
+  if (!flexServicesEnabled.value) { return [] }
 
   const colorBy = flexColorBy.value
 
@@ -850,11 +846,6 @@ const advancedReport = computed({
   }
 })
 
-// Check if there's scenario data to display in reports
-const hasScenarioData = computed(() => {
-  return scenarioData.value !== null && scenarioFilterResult.value !== undefined
-})
-
 watch([activeTab, geomSource], () => {
   if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
     displayEditBboxMode.value = true
@@ -911,9 +902,9 @@ function setTab (v: Tab) {
 /////////////////////////////
 
 // We need to keep reference to the map extent
-const mapExtent = ref<Bbox | null>(null)
+const mapExtent = ref<Bbox>()
 
-const mapExtentCenter = computed((): Point | null => {
+const mapExtentCenter = computed((): Point | undefined => {
   const bbox = mapExtent.value
   if (bbox?.valid) {
     return {
@@ -921,7 +912,7 @@ const mapExtentCenter = computed((): Point | null => {
       lat: (bbox.ne.lat + bbox.sw.lat) / 2
     }
   }
-  return null
+  return undefined
 })
 
 watch(geomSource, () => {
@@ -958,15 +949,12 @@ const scenarioConfig = computed((): ScenarioConfig => ({
 const scenarioFilter = computed((): ScenarioFilter => ({
   startTime: startTime.value,
   endTime: endTime.value,
-  selectedRouteTypes: selectedRouteTypes.value || [],
-  selectedDays: selectedDays.value || [],
-  selectedAgencies: selectedAgencies.value || [],
-  selectedDayOfWeekMode: selectedDayOfWeekMode.value || '',
-  selectedTimeOfDayMode: '', // Not used in the original component
+  selectedRouteTypes: selectedRouteTypes.value,
+  selectedWeekdays: selectedWeekdays.value,
+  selectedWeekdayMode: selectedWeekdayMode.value,
+  selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
-  frequencyUnderEnabled: frequencyUnderEnabled.value || false,
-  frequencyOverEnabled: frequencyOverEnabled.value || false
 }))
 
 // Internal state for streaming scenario data
@@ -983,7 +971,7 @@ const hasFlexData = computed(() => {
 })
 
 // Loading progress tracking for modal
-const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
@@ -995,12 +983,12 @@ const loadExampleData = async (exampleName: string) => {
 
 // Scenario fetching logic
 const fetchScenario = async (loadExample: string) => {
-  console.log('fetchScenario:', loadExample)
+  // console.log('fetchScenario:', loadExample)
   const config = scenarioConfig.value
   if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
     return // Need either bbox or geography IDs, unless loading example
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
   stopDepartureCount.value = 0
 
   // Create receiver to accumulate scenario data
@@ -1022,7 +1010,7 @@ const fetchScenario = async (loadExample: string) => {
     },
     onComplete: () => {
       // Get final accumulated data and apply filters
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       scenarioData.value = receiver.getCurrentData()
     },
     onError: (err: any) => {
@@ -1079,44 +1067,57 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = scenarioFilter.value.selectedRouteTypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
-  if (rtypes.length !== routeTypeNames.size) {
+  const selectedRtypes = scenarioFilter.value.selectedRouteTypes
+  if (selectedRtypes == null || selectedRtypes.length === 0) {
+    results.push('with any route type')
+  } else if (selectedRtypes.length !== routeTypeNames.size) {
+    const rtypes = selectedRtypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
     results.push('with route types ' + rtypes.join(', '))
   }
 
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
-  if (agencies.length) {
+  if (agencies == null || agencies.length === 0) {
+    results.push('operated by any agency')
+  } else {
     results.push('operated by ' + agencies.join(', '))
   }
 
   // date range
-  const today = fmtDate(getLocalDateNoTime(), 'P')
-  const sdate = fmtDate(scenarioConfig.value.startDate, 'P') || today
-  const edate = fmtDate(scenarioConfig.value.endDate, 'P') || today
-  if (sdate !== today && edate !== today && sdate !== edate) {
-    results.push('operating between ' + sdate + ' and ' + edate)
-  } else if (sdate !== today && edate !== today && sdate === edate) {
-    results.push('operating on ' + sdate)
-  } else if (sdate !== today && edate === today) {
-    results.push('operating after ' + sdate)
+  const rawStartDate = scenarioConfig.value.startDate
+  const rawEndDate = scenarioConfig.value.endDate
+  if (rawStartDate == null && rawEndDate == null) {
+    results.push('operating on any date')
+  } else {
+    const today = fmtDate(getLocalDateNoTime(), 'P')
+    const sdate = fmtDate(rawStartDate, 'P') || today
+    const edate = fmtDate(rawEndDate, 'P') || today
+    if (sdate !== today && edate !== today && sdate !== edate) {
+      results.push('operating between ' + sdate + ' and ' + edate)
+    } else if (sdate !== today && edate !== today && sdate === edate) {
+      results.push('operating on ' + sdate)
+    } else if (sdate !== today && edate === today) {
+      results.push('operating after ' + sdate)
+    }
   }
 
   // days of week  (always show something here)
-  const days = scenarioFilter.value.selectedDays.map(val => toTitleCase(val))
-  const dowMode = scenarioFilter.value.selectedDayOfWeekMode
-  if (dowMode === 'All' /* && days.length !== 7 */) {
-    results.push('operating all of ' + days.join(', '))
+  const days = scenarioFilter.value.selectedWeekdays
+  const dowMode = scenarioFilter.value.selectedWeekdayMode
+  if (days == null || days.length === 0) {
+    // Any day of the week
+  } else if (dowMode === 'All') {
+    results.push('operating all of ' + days.map(val => toTitleCase(val)).join(', '))
   } else if (dowMode === 'Any') {
-    results.push('operating any of ' + days.join(', '))
+    results.push('operating any of ' + days.map(val => toTitleCase(val)).join(', '))
   }
 
   // time range
-  if (scenarioFilter.value.selectedTimeOfDayMode !== 'All') {
+  if (scenarioFilter.value.startTime != null || scenarioFilter.value.endTime != null) {
     const stime = fmtTime(scenarioFilter.value.startTime, 'p')
     const etime = fmtTime(scenarioFilter.value.endTime, 'p')
     if (stime && etime && stime !== etime) {
-      results.push('operating between ' + stime + ' and ' + etime)
+      // Any time
     } else if (stime && etime && stime === etime) {
       results.push('operating at ' + stime)
     } else if (stime && !etime) {
@@ -1127,10 +1128,10 @@ const filterSummary = computed((): string[] => {
   }
 
   // frequencies
-  const hasMinFreq = scenarioFilter.value.frequencyOverEnabled
   const minFreq = scenarioFilter.value.frequencyOver
-  const hasMaxFreq = scenarioFilter.value.frequencyUnderEnabled
   const maxFreq = scenarioFilter.value.frequencyUnder
+  const hasMinFreq = minFreq != null
+  const hasMaxFreq = maxFreq != null
   if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
     results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
   } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
@@ -1168,50 +1169,48 @@ async function setQuery (params: Record<string, any>) {
   await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
 }
 
+// Handle time range updates from filter component (both start and end in single navigation)
+async function setTimeRange (times: { startTime: Date | undefined, endTime: Date | undefined }) {
+  await setQuery({
+    ...route.query,
+    startTime: times.startTime ? fmtTime(times.startTime) : undefined,
+    endTime: times.endTime ? fmtTime(times.endTime) : undefined,
+  })
+}
+
 async function resetFilters () {
   const p = removeEmpty({
     ...route.query,
-    startTime: '',
-    endTime: '',
-    selectedAgencies: '',
-    // selectedDays: '',
-    selectedRouteTypes: '',
-    selectedDayOfWeekMode: '',
-    selectedTimeOfDayMode: '',
-    frequencyUnderEnabled: '',
-    frequencyUnder: '',
-    frequencyOverEnabled: '',
-    frequencyOver: '',
-    calculateFrequencyMode: '',
-    maxFareEnabled: '',
-    maxFare: '',
-    minFareEnabled: '',
-    minFare: '',
-    colorKey: '',
-    unitSystem: '',
-    hideUnmarked: '',
-    baseMap: '',
-    // Fixed-Route and Flex Services filters
-    fixedRouteEnabled: '',
-    flexServicesEnabled: '',
-    flexAdvanceNotice: '',
-    flexAreaTypesSelected: '',
-    flexColorBy: '',
+    selectedAgencies: undefined,
+    startTime: undefined,
+    endTime: undefined,
+    selectedWeekdays: undefined,
+    selectedWeekdayMode: undefined,
+    selectedRouteTypes: undefined,
+    frequencyUnder: undefined,
+    frequencyOver: undefined,
+    calculateFrequencyMode: undefined,
+    maxFareEnabled: undefined,
+    maxFare: undefined,
+    minFareEnabled: undefined,
+    minFare: undefined,
+    colorKey: undefined,
+    unitSystem: undefined,
+    hideUnmarked: undefined,
+    baseMap: undefined,
+    fixedRouteEnabled: undefined,
+    flexServicesEnabled: undefined,
+    flexAdvanceNotice: undefined,
+    flexAreaTypesSelected: undefined,
+    flexColorBy: undefined,
   })
-  // Note, `selectedDays` is special, see note below.
-  // When clearing filters, it should removed, not set to ''
-  delete p.selectedDays
   await navigateTo({ replace: true, query: p })
 }
 
 function removeEmpty (v: Record<string, any>): Record<string, any> {
-  // Note, `selectedDays` is special - we want to allow it to be empty string ''.
-  // That means the user unchecked all the days.
-  // Removing it would re-check all the days.
-  // todo: improve?
   const r: Record<string, any> = {}
   for (const k in v) {
-    if (v[k] || k === 'selectedDays') {
+    if (v[k] !== null && v[k] !== undefined) {
       r[k] = v[k]
     }
   }
@@ -1225,9 +1224,15 @@ function itemHelper (p: string): string {
   return 'is-secondary'
 }
 
-function arrayParam (p: string, def: string[]): string[] {
-  const a = route.query[p]?.toString().split(',').filter(p => (p)) || []
-  return a.length > 0 ? a : def
+function arrayParamOrUndefined (p: string): string[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
+    return undefined // Not set - no filter applied
+  }
+  const param = route.query[p]
+  if (!param) {
+    return [] // Explicitly empty - all unchecked (handles '', null, undefined)
+  }
+  return param.toString().split(',').filter(Boolean)
 }
 
 function toTitleCase (str: string): string {

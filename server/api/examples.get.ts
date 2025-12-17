@@ -13,14 +13,14 @@ interface ProgressData {
 
 interface ExampleFileData {
   filename: string
-  config: any | null
+  config?: any
   error?: string
 }
 
 // Stream data receiver that looks for config in progress events
 class ConfigReceiver {
-  private config: any | null = null
-  private error: string | null = null
+  private config?: any
+  private error?: string
 
   onProgress (progress: ProgressData): void {
     if (progress.config) {
@@ -39,7 +39,7 @@ class ConfigReceiver {
     this.error = error.message || 'Stream processing error'
   }
 
-  getCurrentData (): { config: any | null, error: string | null } {
+  getCurrentData (): { config?: any, error?: string } {
     return { config: this.config, error: this.error }
   }
 }
@@ -75,7 +75,7 @@ async function processJsonFile (filePath: string, examplesDir: string): Promise<
     })
 
     const receiver = new ConfigReceiver()
-    const streamReceiver = new GenericStreamReceiver<ProgressData, { config: any | null, error: string | null }>()
+    const streamReceiver = new GenericStreamReceiver<ProgressData, { config?: any, error?: string }>()
     const result = await streamReceiver.processStream(stream, receiver)
 
     return {
@@ -86,7 +86,7 @@ async function processJsonFile (filePath: string, examplesDir: string): Promise<
   } catch (error) {
     return {
       filename,
-      config: null,
+      config: undefined,
       error: error instanceof Error ? error.message : 'Unknown error processing file'
     }
   }

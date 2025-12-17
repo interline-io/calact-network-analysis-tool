@@ -1,14 +1,16 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
 import {
+  type WeekdayMode,
+  type RouteType,
+  type Weekday,
+  type Bbox,
+  type GraphQLClient,
   GenericStreamReceiver,
   GenericStreamSender,
   multiplexStream,
   requestStream,
   TaskQueue,
-  type dow,
-  type Bbox,
-  type GraphQLClient,
   convertBbox,
   chunkArray
 } from '~~/src/core'
@@ -74,15 +76,12 @@ export interface ScenarioConfig {
 export interface ScenarioFilter {
   startTime?: Date
   endTime?: Date
-  selectedRouteTypes: number[]
-  selectedDays: dow[]
-  selectedAgencies: string[]
-  selectedDayOfWeekMode: string
-  selectedTimeOfDayMode: string
+  selectedRouteTypes?: RouteType[]
+  selectedWeekdays?: Weekday[]
+  selectedWeekdayMode?: WeekdayMode
+  selectedAgencies?: string[]
   frequencyUnder?: number
   frequencyOver?: number
-  frequencyUnderEnabled: boolean
-  frequencyOverEnabled: boolean
 }
 
 // =============================================================================

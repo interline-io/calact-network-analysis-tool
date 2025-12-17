@@ -7,13 +7,13 @@
         <p class="menu-label">
           Filters
         </p>
-        <o-button
+        <t-button
           class="mx-4 mb-4"
           icon-left="delete"
           @click="emit('resetFilters')"
         >
           Clear all
-        </o-button>
+        </t-button>
         <ul class="menu-list">
           <li
             v-for="item of menuItems"
@@ -23,7 +23,7 @@
               :class="{ 'is-active': activeTab === item.tab }"
               @click="setTab(item.tab)"
             >
-              <o-icon
+              <t-icon
                 :icon="item.icon"
                 class="is-fullwidth"
               />
@@ -38,7 +38,7 @@
                 class="data-indicator has-background-info"
                 title="Flex service data loaded and available for filtering"
               />
-              <o-icon
+              <t-icon
                 class="right-chev"
                 icon="chevron-right"
                 size="small"
@@ -57,7 +57,7 @@
           </span>
         </p>
         <p>
-          <o-button>bounding box</o-button>
+          <t-button>bounding box</t-button>
         </p>
         <p>
           <a>Change date or region</a>
@@ -77,11 +77,9 @@
           title="Close filter panel"
           @click="setTab('')"
         >
-          <!-- @vue-skip -->
-          <o-icon
+          <t-icon
             icon="chevron-left"
             size="large"
-            aria-hidden="true"
           />
         </button>
       </div>
@@ -94,95 +92,72 @@
           </p>
 
           <section class="cal-day-of-week-mode menu-list">
-            <o-field>
-              <o-radio
-                v-model="selectedDayOfWeekMode"
-                name="selectedDayOfWeekMode"
+            <t-field>
+              <t-radio
+                v-model="selectedWeekdayMode"
+                name="selectedWeekdayMode"
                 native-value="Any"
                 label="Any of the following days"
               />
-            </o-field>
-            <o-field>
-              <o-radio
-                v-model="selectedDayOfWeekMode"
-                name="selectedDayOfWeekMode"
+            </t-field>
+            <t-field>
+              <t-radio
+                v-model="selectedWeekdayMode"
+                name="selectedWeekdayMode"
                 native-value="All"
                 label="All of the following days"
               />
-            </o-field>
+            </t-field>
           </section>
-
-          <ul>
-            <li
-              v-for="dowValue of dowValues"
-              :key="dowValue"
-            >
-              <!-- @vue-skip -->
-              <o-checkbox
-                v-model="selectedDays"
-                :native-value="dowValue"
-                :label="dowValue"
-                :disabled="!dowAvailable.has(dowValue)"
-              />
-            </li>
-          </ul>
+          <t-checkbox-group
+            v-model="selectedWeekdays"
+            :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
+          />
         </aside>
 
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
-            <!-- @vue-skip -->
-            <o-tooltip
-              label="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
-              multiline
-              size="small"
+            <t-tooltip
+              text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
               position="left"
             >
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
 
-          <o-field class="cal-time-of-day-mode">
-            <!-- @vue-skip -->
-            <o-checkbox
-              v-model="selectedTimeOfDayMode"
+          <t-field class="cal-time-of-day-mode">
+            <t-checkbox
+              v-model="isAllDayMode"
               label="All Day"
-              true-value="All"
-              false-value="Partial"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
             Starting
           </p>
 
-          <o-field>
-            <!-- @vue-skip -->
-            <o-timepicker
+          <t-field>
+            <cal-timepicker
               v-model="startTime"
-              inline
               size="small"
               icon="clock"
-              hour-format="24"
-              :disabled="selectedTimeOfDayMode !== 'Partial'"
+              :disabled="isAllDayMode"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
             Ending
           </p>
 
-          <o-field>
-            <!-- @vue-skip -->
-            <o-timepicker
+          <t-field>
+            <cal-timepicker
               v-model="endTime"
-              inline
               size="small"
               icon="clock"
-              hour-format="24"
-              :disabled="selectedTimeOfDayMode !== 'Partial'"
+              :disabled="isAllDayMode"
             />
-          </o-field>
+          </t-field>
         </aside>
       </div>
 
@@ -193,17 +168,14 @@
             Frequency
           </p>
 
-          <o-field grouped>
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped>
+            <t-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
-              <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="frequencyUnder"
-                number
                 type="number"
                 min="0"
                 :disabled="!frequencyUnderEnabled"
@@ -212,19 +184,16 @@
             <div>
               minutes
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field grouped>
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped>
+            <t-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
-              <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="frequencyOver"
-                number
                 type="number"
                 min="0"
                 :disabled="!frequencyOverEnabled"
@@ -233,104 +202,79 @@
             <div>
               minutes
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field>
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field>
+            <t-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
               :disabled="true"
             />
-          </o-field>
+          </t-field>
 
           <p class="menu-label">
-            Fares <o-tooltip
-              label="Fare filtering is planned for future implementation"
-              multiline
-            >
+            Fares <t-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
 
-          <o-field grouped>
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped>
+            <t-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="maxFare"
-                number
                 type="number"
                 min="0"
                 step="0.01"
                 :disabled="true"
               />
             </div>
-          </o-field>
+          </t-field>
 
-          <o-field grouped>
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped>
+            <t-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <!-- @vue-skip -->
-              <o-input
+              <t-input
                 v-model="minFare"
-                number
                 type="number"
                 min="0"
                 step="0.01"
                 :disabled="true"
               />
             </div>
-          </o-field>
+          </t-field>
         </aside>
       </div>
 
       <!-- LAYERS -->
       <div v-if="activeTab === 'transit-layers'">
         <aside class="menu">
-          <o-field grouped class="mb-4">
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped class="mb-4">
+            <t-checkbox
               v-model="fixedRouteEnabled"
               label="Include Fixed-Route Transit"
             />
-            <o-tooltip
-              label="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services."
-              multiline
-            >
+            <t-tooltip text="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services.">
               <i class="mdi mdi-help-circle-outline" />
-            </o-tooltip>
-          </o-field>
+            </t-tooltip>
+          </t-field>
 
           <div :class="{ 'is-disabled': !fixedRouteEnabled }">
             <p class="menu-label">
               Modes
             </p>
-            <ul>
-              <li
-                v-for="[routeType, routeTypeDesc] of routeTypeNames"
-                :key="routeType"
-              >
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="selectedRouteTypes"
-                  :native-value="routeType"
-                  :disabled="!fixedRouteEnabled"
-                >
-                  {{ routeTypeDesc }}
-                </o-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="selectedRouteTypes"
+              :options="[...routeTypeNames].map(([routeType, routeTypeDesc]) => ({ value: routeType, label: routeTypeDesc, disabled: !fixedRouteEnabled }))"
+            />
             <p class="filter-legend">
               * Stops served by any of the selected route types
             </p>
@@ -339,54 +283,21 @@
               Agencies
             </p>
 
-            <div class="cal-agency-search">
-              <o-field>
-                <!-- @vue-skip -->
-                <o-input
-                  v-model="agencySearch"
-                  type="Search"
-                  placeholder="search"
-                  icon-right="magnify"
-                  icon-right-clickable
-                  :disabled="!fixedRouteEnabled"
-                />
-              </o-field>
-              <o-field
-                grouped
-                class="cal-agency-buttons"
-              >
-                <o-button
-                  size="small"
-                  :disabled="!fixedRouteEnabled"
-                  @click="agencySelectNone"
-                >
-                  None
-                </o-button>
-                <o-button
-                  size="small"
-                  :disabled="!fixedRouteEnabled"
-                  @click="agencySelectAll"
-                >
-                  All
-                </o-button>
-              </o-field>
-            </div>
+            <t-field>
+              <t-input
+                v-model="agencySearch"
+                type="search"
+                placeholder="search"
+                icon-right="magnify"
+                icon-right-clickable
+                :disabled="!fixedRouteEnabled"
+              />
+            </t-field>
 
-            <ul>
-              <li
-                v-for="agencyName of knownAgencies"
-                :key="agencyName"
-              >
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="selectedAgencies"
-                  :native-value="agencyName"
-                  :disabled="!fixedRouteEnabled"
-                >
-                  {{ agencyName }}
-                </o-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="selectedAgencies"
+              :options="knownAgencies.map(a => ({ value: a, label: a, disabled: !fixedRouteEnabled }))"
+            />
             <p class="filter-legend">
               * Stops served by any of the selected agencies
             </p>
@@ -397,19 +308,15 @@
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
-          <o-field grouped class="mb-4">
-            <!-- @vue-skip -->
-            <o-checkbox
+          <t-field grouped class="mb-4">
+            <t-checkbox
               v-model="flexServicesEnabled"
               label="Include Flex Services"
             />
-            <o-tooltip
-              label="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds."
-              multiline
-            >
+            <t-tooltip text="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds.">
               <i class="mdi mdi-help-circle-outline" />
-            </o-tooltip>
-          </o-field>
+            </t-tooltip>
+          </t-field>
 
           <t-notification
             v-if="flexServicesEnabled"
@@ -424,40 +331,18 @@
             <p class="menu-label">
               Advance notice
             </p>
-            <ul>
-              <li
-                v-for="noticeType of flexAdvanceNoticeTypes"
-                :key="noticeType"
-              >
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="flexAdvanceNotice"
-                  :native-value="noticeType"
-                  :disabled="!flexServicesEnabled"
-                >
-                  {{ noticeType }}
-                </o-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="flexAdvanceNotice"
+              :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+            />
 
             <p class="menu-label">
               Show areas that allow:
             </p>
-            <ul>
-              <li
-                v-for="areaType of flexAreaTypes"
-                :key="areaType"
-              >
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="flexAreaTypesSelected"
-                  :native-value="areaType"
-                  :disabled="!flexServicesEnabled"
-                >
-                  {{ areaType }}
-                </o-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="flexAreaTypesSelected"
+              :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+            />
 
             <p class="menu-label">
               Color by:
@@ -467,13 +352,13 @@
                 v-for="colorMode of flexColorByModes"
                 :key="colorMode"
               >
-                <o-radio
+                <t-radio
                   v-model="flexColorBy"
                   :native-value="colorMode"
                   :disabled="!flexServicesEnabled"
                 >
                   {{ colorMode }}
-                </o-radio>
+                </t-radio>
               </li>
             </ul>
           </div>
@@ -488,12 +373,12 @@
               v-for="dataDisplayModeOption of dataDisplayModes"
               :key="dataDisplayModeOption"
             >
-              <o-radio
+              <t-radio
                 v-model="dataDisplayMode"
                 :native-value="dataDisplayModeOption"
               >
                 {{ dataDisplayModeOption }}
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
           <p class="menu-label">
@@ -501,63 +386,57 @@
           </p>
           <ul>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Mode"
                 :disabled="dataDisplayMode === 'Agency'"
               >
                 Mode
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Frequency"
                 :disabled="dataDisplayMode === 'Agency'"
               >
                 Frequency
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="colorKey"
                 native-value="Fare"
                 :disabled="true /* this is future functionality */"
               >
-                Fare <o-tooltip
-                  label="This is planned for future implementation"
-                  multiline
-                >
+                Fare <t-tooltip text="This is planned for future implementation">
                   <i class="mdi mdi-information-outline" />
-                </o-tooltip>
-              </o-radio>
+                </t-tooltip>
+              </t-radio>
             </li>
           </ul>
           <p class="menu-label">
-            Base map <o-tooltip
-              label="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future"
-              multiline
-            >
+            Base map <t-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
               <i class="mdi mdi-information-outline" />
-            </o-tooltip>
+            </t-tooltip>
           </p>
           <ul>
             <li
               v-for="baseMapStyle of baseMapStyles"
               :key="baseMapStyle.name"
             >
-              <o-radio
+              <t-radio
                 v-model="baseMap"
                 :native-value="baseMapStyle.name"
                 :disabled="!baseMapStyle.available"
               >
                 <span class="cal-radio-with-icon">
-                  <o-icon
+                  <t-icon
                     :icon="baseMapStyle.icon"
                     size="small"
                   /> {{ baseMapStyle.name }}
                 </span>
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
         </aside>
@@ -571,20 +450,20 @@
           </p>
           <ul>
             <li>
-              <o-radio
+              <t-radio
                 v-model="unitSystem"
                 native-value="us"
               >
                 🇺🇸 USA
-              </o-radio>
+              </t-radio>
             </li>
             <li>
-              <o-radio
+              <t-radio
                 v-model="unitSystem"
                 native-value="eu"
               >
                 🇪🇺 Metric
-              </o-radio>
+              </t-radio>
             </li>
           </ul>
 
@@ -593,13 +472,12 @@
           </p>
           <ul>
             <li>
-              <o-field grouped>
-                <!-- @vue-skip -->
-                <o-checkbox
+              <t-field grouped>
+                <t-checkbox
                   v-model="hideUnmarked"
                   label="Hide unmarked routes/stops"
                 />
-              </o-field>
+              </t-field>
             </li>
           </ul>
         </aside>
@@ -611,13 +489,25 @@
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
 import { defineEmits } from 'vue'
-import { type dow, dowValues, routeTypeNames, dataDisplayModes, baseMapStyles, flexAdvanceNoticeTypes, flexAreaTypes, flexColorByModes } from '~~/src/core'
+import {
+  type WeekdayMode,
+  type Weekday,
+  type DataDisplayMode,
+  type RouteType,
+  dowValues,
+  routeTypeNames,
+  dataDisplayModes,
+  baseMapStyles,
+  flexAdvanceNoticeTypes,
+  flexAreaTypes,
+  flexColorByModes,
+  fmtDate,
+  parseTime
+} from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 </script>
 
 <script setup lang="ts">
-import { fmtDate } from '~~/src/core'
-
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
@@ -635,45 +525,67 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'resetFilters',
+  'setTimeRange',
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date | undefined>('startDate')
-const endDate = defineModel<Date | undefined>('endDate')
-const startTime = defineModel<Date | null | undefined>('startTime')
-const endTime = defineModel<Date | null | undefined>('endTime')
-const unitSystem = defineModel<string | undefined>('unitSystem')
-const hideUnmarked = defineModel<boolean | undefined>('hideUnmarked')
-const colorKey = defineModel<string | undefined>('colorKey')
-const dataDisplayMode = defineModel<string | undefined>('dataDisplayMode')
-const baseMap = defineModel<string | undefined>('baseMap')
-const selectedDayOfWeekMode = defineModel<string | undefined>('selectedDayOfWeekMode')
-const selectedTimeOfDayMode = defineModel<string | undefined>('selectedTimeOfDayMode')
-const selectedRouteTypes = defineModel<number[] | undefined>('selectedRouteTypes')
-const selectedDays = defineModel<dow[] | undefined>('selectedDays')
-const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
-const frequencyUnderEnabled = defineModel<boolean | undefined>('frequencyUnderEnabled')
-const frequencyUnder = defineModel<number | undefined>('frequencyUnder')
-const frequencyOverEnabled = defineModel<boolean | undefined>('frequencyOverEnabled')
-const frequencyOver = defineModel<number | undefined>('frequencyOver')
-const calculateFrequencyMode = defineModel<boolean | undefined>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean | undefined>('maxFareEnabled')
-const maxFare = defineModel<number | undefined>('maxFare')
-const minFareEnabled = defineModel<boolean | undefined>('minFareEnabled')
-const minFare = defineModel<number | undefined>('minFare')
+const startDate = defineModel<Date>('startDate')
+const endDate = defineModel<Date>('endDate')
+const startTime = defineModel<Date>('startTime')
+const endTime = defineModel<Date>('endTime')
+const unitSystem = defineModel<string>('unitSystem')
+const hideUnmarked = defineModel<boolean>('hideUnmarked')
+const colorKey = defineModel<string>('colorKey')
+const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
+const baseMap = defineModel<string>('baseMap')
+const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')
+const selectedRouteTypes = defineModel<RouteType[]>('selectedRouteTypes')
+const selectedWeekdays = defineModel<Weekday[]>('selectedWeekdays')
+const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const frequencyUnder = defineModel<number>('frequencyUnder')
+const frequencyOver = defineModel<number>('frequencyOver')
+
+// Derived checkbox state: checked when value is defined, unchecked sets to undefined
+const frequencyUnderEnabled = computed({
+  get: () => frequencyUnder.value != null,
+  set: (checked: boolean) => { frequencyUnder.value = checked ? 15 : undefined }
+})
+const frequencyOverEnabled = computed({
+  get: () => frequencyOver.value != null,
+  set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
+})
+const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
+const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
+const maxFare = defineModel<number>('maxFare')
+const minFareEnabled = defineModel<boolean>('minFareEnabled')
+const minFare = defineModel<number>('minFare')
 
 // Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
+const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // All selected by default when enabled
-const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // All selected by default when enabled
-const flexColorBy = defineModel<string | undefined>('flexColorBy') // 'Agency' by default
+const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
+const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // undefined = not set (default all), [] = none selected
+const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // undefined = not set (default all), [] = none selected
+const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 
 // Data availability indicators
 const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
 const hasFlexData = computed(() => props.hasFlexData ?? false)
+
+// Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
+const isAllDayMode = computed({
+  get: () => startTime.value == null && endTime.value == null,
+  set: (checked: boolean) => {
+    if (checked) {
+      // Emit event to parent to update both params in single navigation
+      emit('setTimeRange', { startTime: undefined, endTime: undefined })
+    } else {
+      // Emit event to parent to update both params in single navigation
+      emit('setTimeRange', { startTime: parseTime('00:00:00'), endTime: parseTime('23:59:00') })
+    }
+  }
+})
 
 ///////////////////
 // Tab
@@ -691,16 +603,6 @@ function setTab (v: string) {
 
 const agencySearch = ref('')
 
-function agencySelectNone () {
-  agencySearch.value = ''
-  selectedAgencies.value = []
-}
-
-function agencySelectAll () {
-  agencySearch.value = ''
-  selectedAgencies.value = knownAgencies.value
-}
-
 const knownAgencies = computed(() => {
   const agencies = new Set<string>()
   for (const feature of props.scenarioFilterResult?.stops || []) {
@@ -717,7 +619,7 @@ const knownAgencies = computed(() => {
 
 const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
-  const jsDowValues: dow[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const jsDowValues: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const result = new Set<string>()
   if (!startDate.value || !endDate.value) {
     return result
@@ -728,7 +630,7 @@ const dowAvailable = computed((): Set<string> => {
     if (dow) {
       result.add(dow)
     }
-    if (result.size === 7) break // we got them all
+    if (result.size === 7) { break } // we got them all
   }
   return result
 })

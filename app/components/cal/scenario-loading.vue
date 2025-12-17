@@ -26,7 +26,7 @@
 
     <!-- Completion Status -->
     <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
-      <o-icon icon="check-circle" class="mr-2" />
+      <t-icon icon="check-circle" class="mr-2" />
       Scenario data loading completed successfully!
     </div>
 
@@ -88,19 +88,15 @@ import type { ScenarioProgress, ScenarioData } from '~~/src/scenario'
 
 // Props
 const props = withDefaults(defineProps<{
-  progress?: ScenarioProgress | null
-  error?: Error | string | null
-  scenarioData?: ScenarioData | null
+  progress?: ScenarioProgress
+  error?: Error | string
+  scenarioData?: ScenarioData
   stopDepartureCount?: number
-}>(), {
-  progress: null,
-  error: null,
-  scenarioData: null,
-})
+}>(), {})
 
 // Computed values
 const progressPercentage = computed(() => {
-  if (!props.progress) return 0
+  if (!props.progress) { return 0 }
   // Add feed version progress + stop departure progress
   let total = 0
   let completed = 0

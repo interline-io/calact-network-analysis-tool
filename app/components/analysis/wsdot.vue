@@ -4,9 +4,9 @@
 
     <t-msg
       variant="info"
-      collapsible
-      :collapsed="hasResults"
       title="About this Analysis"
+      expandable
+      :open="!hasResults"
     >
       <p class="mb-3">
         The Washington State Department of Transportation (WSDOT) <a
@@ -18,7 +18,7 @@
       </p>
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
-        To change the analysis area, navigate to the <o-icon
+        To change the analysis area, navigate to the <t-icon
           icon="magnify"
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
@@ -57,9 +57,8 @@
           class="mt-4"
           title="Debug menu"
         >
-          <o-field label="Example configuration">
-            <!-- @vue-skip -->
-            <o-select v-model="selectedExample">
+          <t-field label="Example configuration">
+            <t-select v-model="selectedExample">
               <option value="">
                 Select an example...
               </option>
@@ -70,57 +69,45 @@
               >
                 {{ example.config.reportName }}
               </option>
-            </o-select>
-          </o-field>
+            </t-select>
+          </t-field>
           <br>
         </t-msg>
 
         <div class="card-content">
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
                 Weekday date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </t-field>
 
-          <o-field>
+          <t-field>
             <template #label>
-              <o-tooltip
-                multiline
-                label="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations."
-              >
+              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
                 Weekend date
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </o-field>
+            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </t-field>
 
-          <o-field label="Stop buffer radius (m)">
+          <t-field label="Stop buffer radius (m)">
             <template #label>
-              <o-tooltip
-                multiline
-                label="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics."
-              >
+              <t-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
                 Stop buffer radius (meters)
-                <o-icon icon="information" />
-              </o-tooltip>
+                <t-icon icon="information" />
+              </t-tooltip>
             </template>
-            <!-- @vue-skip -->
-            <o-slider
+            <t-slider
               v-model="wsdotReportConfig!.stopBufferRadius"
               :min="0"
               :max="1000"
             />
-          </o-field>
+          </t-field>
         </div>
         <footer class="card-footer">
           <div
@@ -128,20 +115,20 @@
             style="width: 100%; padding: 0.75rem;"
           >
             <div class="control">
-              <o-button
-                variant="outlined"
+              <t-button
+                outlined
                 @click="handleCancel"
               >
                 Cancel
-              </o-button>
+              </t-button>
             </div>
             <div class="control">
-              <o-button
+              <t-button
                 variant="primary"
                 @click="runQuery"
               >
                 Run Report
-              </o-button>
+              </t-button>
             </div>
           </div>
         </footer>
@@ -169,7 +156,7 @@ import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~~/src/scenario'
-import { SCENARIO_DEFAULTS } from '~~/src/core/constants'
+import { SCENARIO_DEFAULTS } from '~~/src/core'
 
 interface ExampleConfig {
   filename: string
@@ -180,14 +167,14 @@ interface ExampleConfig {
 const debugMenu = useDebugMenu()
 const route = useRoute()
 const router = useRouter()
-const error = ref<Error | null>(null)
+const error = ref<Error>()
 const loading = ref(false)
 const showLoadingModal = ref(false)
-const loadingProgress = ref<ScenarioProgress | null>(null)
+const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
-const scenarioData = shallowRef<ScenarioData | null>(null)
-const wsdotReport = shallowRef<WSDOTReport | null>(null)
+const scenarioData = shallowRef<ScenarioData>()
+const wsdotReport = shallowRef<WSDOTReport>()
 
 // Example configurations from index.json
 const exampleConfigs = ref<ExampleConfig[]>([])
@@ -210,7 +197,7 @@ const emit = defineEmits<{
 // Track if results are loaded, to collapse the about message, also for navigation guard
 const { setHasResults } = useAnalysisResults()
 const hasResults = computed(() => {
-  const hasResultsValue = wsdotReport.value !== null
+  const hasResultsValue = wsdotReport.value !== undefined
   setHasResults('wsdot', hasResultsValue)
   return hasResultsValue
 })
@@ -294,7 +281,7 @@ const runQuery = async () => {
     useToastNotification().showToast('WSDOT analysis completed successfully!')
     showLoadingModal.value = false
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
 }
 
 const fetchScenario = async () => {
@@ -304,7 +291,7 @@ const fetchScenario = async () => {
     useToastNotification().showToast('Please provide a bounding box or geography IDs.')
     return
   }
-  loadingProgress.value = null
+  loadingProgress.value = undefined
   stopDepartureCount.value = 0
 
   // Create receiver to accumulate scenario data and WSDOT report
@@ -315,13 +302,13 @@ const fetchScenario = async () => {
       scenarioData.value = receiver.getCurrentData()
     },
     onComplete: () => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       // Get final data from receiver
       scenarioData.value = receiver.getCurrentData()
       wsdotReport.value = receiver.getCurrentWSDOTReport()
     },
     onError: (err: any) => {
-      loadingProgress.value = null
+      loadingProgress.value = undefined
       error.value = err
     },
   })
@@ -352,3 +339,10 @@ const fetchScenario = async () => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
+
+<style>
+/* Ensure modal is always on top */
+.tl-modal {
+  z-index: 99999 !important;
+}
+</style>

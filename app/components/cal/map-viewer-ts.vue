@@ -41,7 +41,7 @@ const props = defineProps<{
 // Stages during which we should skip expensive map updates
 const skipUpdateStages = new Set(['schedules'])
 
-let map: (maplibre.Map | null) = null
+let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 
 //////////////////////
@@ -445,19 +445,19 @@ function fitFeatures (features: Feature[]) {
 // Map redraw
 
 // Track the current popup and its state for multi-feature navigation
-let currentPopup: maplibre.Popup | null = null
-let currentPopupApp: ReturnType<typeof createApp> | null = null
+let currentPopup: maplibre.Popup | undefined = undefined
+let currentPopupApp: ReturnType<typeof createApp> | undefined = undefined
 let currentPopupFeatures: PopupFeature[] = []
 let currentPopupIndex = 0
 
 /**
  * Update the highlight layer to show the selected feature
  */
-function updateHighlight (popupFeature: PopupFeature | null) {
-  if (!map) return
+function updateHighlight (popupFeature: PopupFeature | undefined) {
+  if (!map) { return }
 
   const highlightSource = map.getSource('highlight') as maplibre.GeoJSONSource
-  if (!highlightSource) return
+  if (!highlightSource) { return }
 
   if (!popupFeature || !popupFeature.featureId || !popupFeature.sourceLayer) {
     // Clear highlight
@@ -511,18 +511,18 @@ function drawPopupFeatures (features: PopupFeature[]) {
   // Close existing popup and unmount Vue app
   if (currentPopup) {
     currentPopup.remove()
-    currentPopup = null
+    currentPopup = undefined
   }
   if (currentPopupApp) {
     currentPopupApp.unmount()
-    currentPopupApp = null
+    currentPopupApp = undefined
   }
 
   if (features.length === 0) {
     currentPopupFeatures = []
     currentPopupIndex = 0
     // Clear highlight when closing popup
-    updateHighlight(null)
+    updateHighlight(undefined)
     return
   }
 
@@ -532,7 +532,7 @@ function drawPopupFeatures (features: PopupFeature[]) {
 }
 
 function showPopupAtIndex (index: number) {
-  if (currentPopupFeatures.length === 0) return
+  if (currentPopupFeatures.length === 0) { return }
 
   // Close existing popup and unmount Vue app
   if (currentPopup) {
@@ -540,12 +540,12 @@ function showPopupAtIndex (index: number) {
   }
   if (currentPopupApp) {
     currentPopupApp.unmount()
-    currentPopupApp = null
+    currentPopupApp = undefined
   }
 
   currentPopupIndex = index
   const feature = currentPopupFeatures[index]
-  if (!feature) return
+  if (!feature) { return }
 
   // Ensure feature has required data for Vue component
   if (!feature.featureType || !feature.data) {
@@ -576,13 +576,13 @@ function showPopupAtIndex (index: number) {
       onClose: () => {
         if (currentPopup) {
           currentPopup.remove()
-          currentPopup = null
+          currentPopup = undefined
         }
         if (currentPopupApp) {
           currentPopupApp.unmount()
-          currentPopupApp = null
+          currentPopupApp = undefined
         }
-        updateHighlight(null)
+        updateHighlight(undefined)
       },
       onPrev: () => {
         if (currentPopupIndex > 0) {
@@ -613,7 +613,7 @@ function showPopupAtIndex (index: number) {
   popup.once('close', () => {
     if (currentPopupApp) {
       currentPopupApp.unmount()
-      currentPopupApp = null
+      currentPopupApp = undefined
     }
   })
 
@@ -657,7 +657,7 @@ function mapClick (e: maplibre.MapMouseEvent) {
   const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
-  if (layersToQuery.length === 0) return
+  if (layersToQuery.length === 0) { return }
 
   const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {
@@ -678,7 +678,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
-  if (layersToQuery.length === 0) return
+  if (layersToQuery.length === 0) { return }
 
   const features = map?.queryRenderedFeatures(e.point, { layers: layersToQuery })
   if (features) {

@@ -32,17 +32,6 @@ describe('ScenarioFetcher', () => {
     geographyIds: [],
     geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
   }
-  // const filter: ScenarioFilter = {
-  //   startTime: parseTime('06:00:00'),
-  //   endTime: parseTime('22:00:00'),
-  //   selectedRouteTypes: [3],
-  //   selectedDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-  //   selectedAgencies: [],
-  //   selectedDayOfWeekMode: 'Any',
-  //   selectedTimeOfDayMode: 'All',
-  //   frequencyUnderEnabled: false,
-  //   frequencyOverEnabled: false,
-  // }
 
   afterEach(async () => {
     // Cleanup if needed

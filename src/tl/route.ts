@@ -79,14 +79,14 @@ export interface RouteDerived {
   agency_name: string
   route_mode: string
   headways: RouteHeadwaySummary
-  average_frequency: number | null
-  fastest_frequency: number | null
-  slowest_frequency: number | null
+  average_frequency?: number
+  fastest_frequency?: number
+  slowest_frequency?: number
 }
 
 export type RouteHeadwayCount = {
   stop_id: number
-  headways_seconds: number[]
+  departures: number[]
 }
 
 export type RouteHeadwayDirections = {
@@ -111,9 +111,9 @@ export type RouteCsv = RouteGtfs & {
   route_name: string
   agency_name: string
   route_mode: string
-  average_frequency: number | null
-  fastest_frequency: number | null
-  slowest_frequency: number | null
+  average_frequency?: number
+  fastest_frequency?: number
+  slowest_frequency?: number
 }
 
 export type Route = RouteGql & RouteDerived
@@ -126,9 +126,9 @@ export function routeToRouteCsv (route: Route): RouteCsv {
   return {
     id: route.id,
     marked: route.marked,
-    average_frequency: route.average_frequency ? Math.round(route.average_frequency) : null,
-    fastest_frequency: route.fastest_frequency ? Math.round(route.fastest_frequency) : null,
-    slowest_frequency: route.slowest_frequency ? Math.round(route.slowest_frequency) : null,
+    average_frequency: route.average_frequency ? Math.round(route.average_frequency) : undefined,
+    fastest_frequency: route.fastest_frequency ? Math.round(route.fastest_frequency) : undefined,
+    slowest_frequency: route.slowest_frequency ? Math.round(route.slowest_frequency) : undefined,
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,

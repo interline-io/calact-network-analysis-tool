@@ -34,15 +34,14 @@
     </div>
     <div class="columns">
       <div class="column is-one-half">
-        <o-field label="Frequency level selection and stats" class="mt-4" />
+        <t-field label="Frequency level selection and stats" class="mt-4" />
         <table class="wsdot-level-details">
           <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
             <tr>
               <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
-                <!-- @vue-skip -->
-                <o-checkbox v-model="selectedLevels" :native-value="levelKey">
+                <t-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
                   {{ levelDetail.label }}
-                </o-checkbox>
+                </t-checkbox>
               </td>
             </tr>
             <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
@@ -66,52 +65,48 @@
           </tbody>
         </table>
 
-        <o-field class="py-2">
+        <t-field class="py-2">
           <cal-csv-download
             :data="populationDatagrid.data"
             button-text="Download Population Data as CSV"
           />
-        </o-field>
+        </t-field>
 
-        <o-field label="Map display options" class="mt-4">
-          <!-- @vue-skip -->
-          <o-checkbox v-model="showStopBuffers">
+        <t-field label="Map display options" class="mt-4">
+          <t-checkbox v-model="showStopBuffers">
             Show stop buffers
-          </o-checkbox>
-          <!-- @vue-skip -->
-          <o-dropdown
+          </t-checkbox>
+          <t-dropdown
             v-model:model-value="selectedStates"
             selectable
             multiple
           >
             <template #trigger>
-              <o-button
+              <t-button
                 type="button"
                 icon-right="caret-down"
               >
                 States ({{ selectedStates.length }})
-              </o-button>
+              </t-button>
             </template>
 
-            <o-dropdown-item
+            <t-dropdown-item
               v-for="state in Object.keys(StatePopulations).sort()"
               :key="state"
               :value="state"
             >
               {{ state }}
-            </o-dropdown-item>
-          </o-dropdown>
-        </o-field>
-        <o-field label="Population options">
-          <!-- @vue-skip -->
-          <o-radio v-model="popMethod" native-value="state">
+            </t-dropdown-item>
+          </t-dropdown>
+        </t-field>
+        <t-field label="Population options">
+          <t-radio v-model="popMethod" native-value="state">
             Percent of state population
-          </o-radio>
-          <!-- @vue-skip -->
-          <o-radio v-model="popMethod" native-value="bboxIntersection">
+          </t-radio>
+          <t-radio v-model="popMethod" native-value="bboxIntersection">
             Percent of population in bounding box
-          </o-radio>
-        </o-field>
+          </t-radio>
+        </t-field>
       </div>
       <div class="column">
         <cal-map-viewer-ts
@@ -126,13 +121,13 @@
       :table-report="stopDatagrid"
     >
       <template #additional-downloads>
-        <o-field>
+        <t-field>
           <cal-geojson-download
             :data="stopFeatures"
             filename="wsdot-frequent-transit-stops"
             button-text="Download as GeoJSON"
           />
-        </o-field>
+        </t-field>
       </template>
 
       <template #column-highestLevel="{ value }">
@@ -144,31 +139,31 @@
         </span>
       </template>
       <template #column-level1="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level2="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level3="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level4="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level5="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level6="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-levelNights="{ value }">
-        <o-icon v-if="value == 1" icon="check" />
+        <t-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
     </cal-datagrid>
@@ -204,14 +199,14 @@ const popMethod = ref<'state' | 'bboxIntersection'>('state')
 
 // Helper functions for Highest Level column rendering
 const getFrequencyLevelClass = (level: string) => {
-  if (level === 'levelNights') return 'frequency-level-nights'
-  if (level === 'levelAll') return 'frequency-level-all'
+  if (level === 'levelNights') { return 'frequency-level-nights' }
+  if (level === 'levelAll') { return 'frequency-level-all' }
   return `frequency-level-${level.replace('level', '')}`
 }
 
 const formatHighestLevel = (level: string) => {
-  if (level === 'levelNights') return 'Night'
-  if (level === 'levelAll') return 'All'
+  if (level === 'levelNights') { return 'Night' }
+  if (level === 'levelAll') { return 'All' }
   return level.replace('level', 'Level ')
 }
 
@@ -252,10 +247,10 @@ const StatePopulations = computed((): Record<string, StatePopulation> => {
   return statePopulations
 })
 
-const selectedStatesShadow = ref<string[] | null>(null)
+const selectedStatesShadow = ref<string[]>()
 const selectedStates = computed({
   get: () => {
-    if (selectedStatesShadow.value !== null) {
+    if (selectedStatesShadow.value !== undefined) {
       return selectedStatesShadow.value
     }
     return Object.keys(StatePopulations.value).sort()
@@ -332,7 +327,7 @@ const stopFeatures = computed(() => {
     if (!s.properties.stateName) {
       return false
     }
-    if (selectedStates.value != null && !selectedStates.value.includes(s.properties.stateName)) {
+    if (selectedStates.value !== undefined && !selectedStates.value.includes(s.properties.stateName)) {
       return false
     }
     for (const levelKey of selectedLevels.value) {

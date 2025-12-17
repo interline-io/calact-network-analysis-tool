@@ -1,20 +1,11 @@
 <template>
-  <article class="cal-map-legend message is-dark">
-    <o-collapse
+  <div class="cal-map-legend">
+    <t-msg
+      title="Legend"
+      expandable
       :open="true"
-      animation="slide"
+      variant="dark"
     >
-      <template #trigger="{ open }">
-        <div class="message-header">
-          <span class="message-header-title">
-            Legend
-          </span>
-          <span class="message-header-icon">
-            <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
-          </span>
-        </div>
-      </template>
-
       <div class="cal-map-legend-box">
         <!-- BBOX -->
         <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
@@ -37,7 +28,7 @@
         </div>
 
         <!-- Geometry Style -->
-        <div v-if="props.hasData && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
+        <div class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
@@ -125,26 +116,28 @@
 
         <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
           <p class="legend-loading">
-            <o-loading
+            <t-loading
               :active="true"
               :full-page="false"
             />
           </p>
         </div>
       </div>
-    </o-collapse>
-  </article>
+    </t-msg>
+  </div>
 </template>
 
 <script setup lang="ts">
+import type { DataDisplayMode } from '~~/src/core'
+
 interface StyleItem {
   label: string
   color: string
 }
 
 const props = defineProps<{
-  dataDisplayMode: string
-  colorKey: string
+  dataDisplayMode?: DataDisplayMode
+  colorKey?: string
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
@@ -164,19 +157,11 @@ const props = defineProps<{
   bottom: 30px;
   width: 300px;
   color: black;
-  z-index: 100;
+  z-index: 10;
 }
 
 .message-header {
   cursor: pointer;
-}
-
-.cal-map-legend-box {
-  display: flex;
-  flex-direction: column;
-  padding: 10px 15px;
-  color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l), 1.0);
-  background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-scheme-main-l), 0.95);
 }
 
 .cal-map-legend-section {

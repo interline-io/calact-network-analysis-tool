@@ -10,186 +10,168 @@
 
     <div class="cal-body">
       <t-msg title="Date range">
-        <o-field>
+        <t-field>
           <template #label>
-            <o-tooltip multiline label="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
+            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
               Start date
-              <o-icon icon="information" />
-            </o-tooltip>
+              <t-icon size="small" icon="information" />
+            </t-tooltip>
           </template>
-          <o-datepicker v-model="startDate" />
-        </o-field>
-        <o-field addons>
+          <t-datepicker v-model="startDate" />
+        </t-field>
+        <t-field>
           <template #label>
-            <o-tooltip multiline label="By default, the end date is one week after the start date.">
+            <t-tooltip text="By default, the end date is one week after the start date.">
               End date
-              <o-icon icon="information" />
-            </o-tooltip>
+              <t-icon size="small" icon="information" />
+            </t-tooltip>
           </template>
-          <o-datepicker v-if="!selectSingleDay" v-model="endDate" />
-          <o-button @click="toggleSelectSingleDay()">
+          <t-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
-          </o-button>
-        </o-field>
+          </t-button>
+        </t-field>
       </t-msg>
 
       <t-msg title="Geographic Bounds">
-        <t-msg v-if="debugMenu" variant="warning" class="mt-4" style="width:400px" title="Debug menu">
-          <o-field label="Preset bounding box">
-            <!-- @vue-skip -->
-            <o-select v-model="cannedBbox">
-              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
-                {{ cannedBboxDetails.label }}
-              </option>
-            </o-select>
-            <o-button @click="loadExampleData">
-              Load example
-            </o-button>
-          </o-field>
-          <br>
-        </t-msg>
-
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
-            <o-field>
+            <t-field>
               <template #label>
-                <o-tooltip multiline label="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
+                <t-tooltip text="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
                   Select geography by
-                  <o-icon icon="information" />
-                </o-tooltip>
+                  <t-icon icon="information" />
+                </t-tooltip>
               </template>
-              <o-select
-                v-model="geomSource"
-                :options="geomSources"
-              />
-            </o-field>
+              <t-select v-model="geomSource">
+                <option
+                  v-for="[key, label] of Object.entries(geomSources)"
+                  :key="key"
+                  :value="key"
+                >
+                  {{ label }}
+                </option>
+              </t-select>
+            </t-field>
           </div>
 
           <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
-            <o-field>
+            <t-field>
               <template #label>
                 Administrative boundary layer to search
               </template>
-              <!-- @vue-skip -->
-              <o-select
-                v-model="geomLayer"
-                :options="props.censusGeographyLayerOptions"
-              />
-            </o-field>
+              <t-select v-model="geomLayer">
+                <option
+                  v-for="option of props.censusGeographyLayerOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </t-select>
+            </t-field>
           </div>
         </div>
 
         <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
-          <o-field>
+          <t-field>
             <template #label>
               Selected administrative boundaries
             </template>
-            <div class="field has-addons">
-              <div class="control is-expanded">
-                <!-- @vue-skip -->
-                <o-taginput
-                  v-model="geographyIds"
-                  v-model:input="geomSearch"
-                  :open-on-focus="true"
-                  :options="selectedGeographyTagOptions"
-                  close-icon=""
-                  icon="magnify"
-                  placeholder="Search..."
-                  expanded
-                >
-                  <template #header>
-                    <strong>
-                      <span v-if="geomSearch.length < 2">Type to search...</span>
-                      <span v-else-if="geomResultLoading">Loading...</span>
-                      <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
-                      <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
-                    </strong>
-                  </template>
-                  <template #option="{ option }">
-                    <div class="is-flex is-align-items-center">
-                      <span>{{ option.label }}</span>
-                      <span class="tag is-light is-small ml-2">
-                        {{ option.geographyType }}
-                      </span>
-                    </div>
-                  </template>
-                </o-taginput>
-              </div>
-              <div v-if="geomResultLoading" class="control">
-                <!-- @vue-skip -->
-                <o-loading
-                  :active="true"
-                  :full-page="false"
-                  size="small"
-                />
-              </div>
-            </div>
-          </o-field>
+            <t-taginput
+              v-model="geographyIds"
+              v-model:input="geomSearch"
+              :open-on-focus="true"
+              :options="selectedGeographyTagOptions"
+              icon="magnify"
+              placeholder="Search..."
+              fullwidth
+              :loading="geomResultLoading"
+            >
+              <template #header>
+                <strong>
+                  <span v-if="geomSearch.length < 2">Type to search...</span>
+                  <span v-else-if="geomResultLoading">Loading...</span>
+                  <span v-else-if="selectedGeographyTagOptions.length === 0">No results found</span>
+                  <span v-else>{{ selectedGeographyTagOptions.length }} results found</span>
+                </strong>
+              </template>
+              <template #option="{ option }">
+                <div class="is-flex is-align-items-center">
+                  <span>{{ option.label }}</span>
+                  <span class="tag is-light is-small ml-2">
+                    {{ option.geographyType }}
+                  </span>
+                </div>
+              </template>
+            </t-taginput>
+          </t-field>
         </div>
       </t-msg>
 
-      <article class="message mb-4 is-text">
-        <!-- @vue-skip -->
-        <o-collapse
-          v-model:open="showAdvancedSettings"
-          animation="slide"
-        >
-          <template #trigger="{ open }">
-            <div class="message-header collapsible-header">
-              <span class="message-header-title">
-                Advanced Settings
-              </span>
-              <span class="message-header-icon">
-                <o-icon :icon="open ? 'menu-up' : 'menu-down'" />
-              </span>
-            </div>
-          </template>
-          <div class="message-body">
-            <div class="container is-max-tablet">
-              <!-- Data to Load Section -->
-              <o-field label="Data to Load">
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="includeFixedRoute"
-                  aria-label="Include Fixed-Route Transit data in query results"
-                >
-                  Include Fixed-Route Transit
-                </o-checkbox>
-                <!-- @vue-skip -->
-                <o-checkbox
-                  v-model="includeFlexAreas"
-                  aria-label="Include Flex Service Areas data in query results"
-                >
-                  Include Flex Service Areas
-                </o-checkbox>
-              </o-field>
+      <t-msg
+        title="Advanced Settings"
+        variant="dark"
+        expandable
+      >
+        <div class="container is-max-tablet">
+          <!-- Data to Load Section -->
+          <t-field label="Data to Load">
+            <t-checkbox
+              v-model="includeFixedRoute"
+            >
+              Include Fixed-Route Transit
+            </t-checkbox>
+            <t-checkbox
+              v-model="includeFlexAreas"
+            >
+              Include Flex Service Areas
+            </t-checkbox>
+          </t-field>
 
-              <!-- Aggregation Section -->
-              <o-field>
-                <template #label>
-                  <o-tooltip multiline label="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                    Aggregate by Census geographic hierarchy level
-                    <o-icon icon="information" />
-                  </o-tooltip>
-                </template>
-                <!-- @vue-skip -->
-                <o-select
-                  v-model="aggregateLayer"
-                  :options="censusGeographyLayerOptions"
-                />
-              </o-field>
-            </div>
+          <!-- Aggregation Section -->
+          <t-field>
+            <template #label>
+              <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+                Aggregate by Census geographic hierarchy level
+                <t-icon icon="information" />
+              </t-tooltip>
+            </template>
+            <t-select v-model="aggregateLayer">
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </t-select>
+          </t-field>
+        </div>
+      </t-msg>
+
+      <t-msg v-if="debugMenu" title="Debug menu" variant="warning">
+        <t-field label="Preset bounding box">
+          <div class="is-flex is-align-items-center" style="gap: 0.5rem;">
+            <t-select v-model="cannedBbox">
+              <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
+                {{ cannedBboxDetails.label }}
+              </option>
+            </t-select>
+            <t-button @click="loadExampleData">
+              Load example
+            </t-button>
           </div>
-        </o-collapse>
-      </article>
+        </t-field>
+      </t-msg>
 
       <div class="field has-addons">
-        <o-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
+        <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
           Run Browse Query
-        </o-button>
-        <o-button variant="primary-outline" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
+        </t-button>
+        <t-button variant="primary" outlined :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
           Run Advanced Analysis
-        </o-button>
+        </t-button>
       </div>
     </div>
   </div>
@@ -216,11 +198,11 @@ const loadExampleData = async () => {
 
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
-  mapExtentCenter: Point | null
+  mapExtentCenter?: Point
 }>()
 
-const bbox = defineModel<Bbox>('bbox', { default: null })
-const geographyIds = defineModel<number[] | undefined>('geographyIds')
+const bbox = defineModel<Bbox>('bbox')
+const geographyIds = defineModel<number[]>('geographyIds', { default: () => [] })
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
@@ -232,7 +214,6 @@ const endDate = defineModel<Date | undefined>('endDate')
 const geomSearch = ref('')
 const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
-const showAdvancedSettings = ref(false)
 const startDate = defineModel<Date | undefined>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 

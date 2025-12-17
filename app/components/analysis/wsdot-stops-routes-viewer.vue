@@ -2,9 +2,15 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <!-- @vue-skip -->
-      <o-tabs v-model="activeTab" expanded>
-        <o-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
+      <t-tabs
+        v-model="activeTab"
+        expanded
+      >
+        <t-tab-item
+          :value="0"
+          :label="`Agencies (${computedAgencies.length})`"
+          icon="domain"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Agency Summary
@@ -15,16 +21,26 @@
               :show-results-count="false"
             >
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
+        <t-tab-item
+          :value="1"
+          :label="`Transit Stops (${report.stops.length})`"
+          icon="map-marker"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Stops
@@ -35,16 +51,29 @@
               :show-results-count="false"
             >
               <template #column-stopId="{ value }">
-                <tl-safelink :text="value" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="100px"
+                />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feed-versions/${value}`"
+                  max-width="100px"
+                />
               </template>
               <template #column-highestLevel="{ value }">
                 <span
@@ -55,48 +84,73 @@
                 </span>
               </template>
               <template #column-level1="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level2="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level3="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level4="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level5="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level6="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-levelNights="{ value }">
-                <o-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="stopFeatures"
                     filename="wsdot-stops"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
+        </t-tab-item>
 
-        <o-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
+        <t-tab-item
+          :value="2"
+          :label="`Transit Routes (${report.routes.length})`"
+          icon="bus"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Routes
@@ -107,34 +161,47 @@
               :show-results-count="false"
             >
               <template #column-routeId="{ value }">
-                <tl-safelink :text="value" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="100px"
+                />
               </template>
               <template #column-routeType="{ value }">
                 <tl-route-icon :route-type="value" />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feed-versions/${value}`"
+                  max-width="100px"
+                />
               </template>
               <template #additional-downloads="{ loading }">
-                <o-field>
+                <t-field>
                   <cal-geojson-download
                     :data="routeFeatures"
                     filename="wsdot-routes"
                     button-text="Download as GeoJSON"
                     :disabled="loading"
                   />
-                </o-field>
+                </t-field>
               </template>
             </cal-datagrid>
           </div>
-        </o-tab-item>
-      </o-tabs>
+        </t-tab-item>
+      </t-tabs>
     </div>
   </div>
 </template>
@@ -201,7 +268,7 @@ const stopFeatures = computed((): Feature[] => {
       feedOnestopId: stop.feedOnestopId,
       feedVersionSha1: stop.feedVersionSha1,
     },
-    geometry: stop.geometry
+    geometry: stop.geometry,
   }))
 })
 
@@ -266,7 +333,7 @@ const routeFeatures = computed((): Feature[] => {
       feedOnestopId: route.feedOnestopId,
       feedVersionSha1: route.feedVersionSha1,
     },
-    geometry: route.geometry
+    geometry: route.geometry,
   }))
 })
 
@@ -296,25 +363,25 @@ const _routeTableData = computed(() => {
 
 // Helper function to determine the highest service level for a stop (matching WSDOT viewer)
 const getHighestServiceLevel = (stop: any): string => {
-  if (stop.level6) return 'level6'
-  if (stop.level5) return 'level5'
-  if (stop.level4) return 'level4'
-  if (stop.level3) return 'level3'
-  if (stop.level2) return 'level2'
-  if (stop.level1) return 'level1'
-  if (stop.levelNights) return 'levelNights'
+  if (stop.level6) { return 'level6' }
+  if (stop.level5) { return 'level5' }
+  if (stop.level4) { return 'level4' }
+  if (stop.level3) { return 'level3' }
+  if (stop.level2) { return 'level2' }
+  if (stop.level1) { return 'level1' }
+  if (stop.levelNights) { return 'levelNights' }
   return 'unknown'
 }
 
 // Helper functions for styling (matching WSDOT viewer)
 const getFrequencyLevelClass = (level: string) => {
-  if (level === 'levelNights') return 'frequency-level-nights'
+  if (level === 'levelNights') { return 'frequency-level-nights' }
   return `frequency-level-${level.replace('level', '')}`
 }
 
 const formatHighestLevel = (level: string) => {
-  if (level === 'levelNights') return 'Night'
-  if (level === 'unknown') return 'No Service Level'
+  if (level === 'levelNights') { return 'Night' }
+  if (level === 'unknown') { return 'No Service Level' }
   return level.replace('level', 'Level ')
 }
 
@@ -369,7 +436,7 @@ const stopDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 
@@ -394,7 +461,7 @@ const agencyDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 
@@ -439,7 +506,7 @@ const routeDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 </script>

@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-outer">
     <div class="cal-map-share-button">
-      <o-button icon-left="share" @click="toggleShareMenu()">
+      <t-button icon-left="share" @click="toggleShareMenu()">
         {{ showShareMenu ? 'Close' : 'Share' }}
-      </o-button>
+      </t-button>
     </div>
 
     <div v-if="showShareMenu" class="cal-map-share">
@@ -46,7 +46,7 @@
 import { ref, computed, toRaw } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
-import type { Bbox, Feature, PopupFeature, MarkerFeature } from '~~/src/core'
+import type { Bbox, Feature, PopupFeature, MarkerFeature, DataDisplayMode } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -59,10 +59,10 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   bbox: Bbox
-  dataDisplayMode: string
-  colorKey: string
+  dataDisplayMode?: DataDisplayMode
+  colorKey?: string
   displayEditBboxMode?: boolean
-  hideUnmarked: boolean
+  hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
   // Fixed-Route Transit toggle (on by default)
@@ -268,11 +268,7 @@ const styleData = computed((): Matcher[] => {
       if (v.__typename === 'Stop') {
         // Filter out routes with null/undefined route_type to avoid false matches
         // Also check that route data exists (may still be loading)
-        const validRoutes = (v as Stop).route_stops.filter((rs: any) =>
-          rs.route
-          && rs.route.route_type !== null
-          && rs.route.route_type !== undefined
-        )
+        const validRoutes = (v as Stop).route_stops.filter((rs: any) => rs.route && rs.route.route_type != null)
         // If no valid routes, don't match any mode (routes may still be loading)
         if (validRoutes.length === 0) {
           return false
@@ -280,7 +276,7 @@ const styleData = computed((): Matcher[] => {
         return validRoutes.every((rs: any) => rs.route.route_type === val)
       } else if (v.__typename === 'Route') {
         // For routes, also check for null/undefined
-        if ((v as Route).route_type === null || (v as Route).route_type === undefined) {
+        if ((v as Route).route_type == null || (v as Route).route_type == undefined) {
           return false
         }
         return (v as Route).route_type === val
@@ -564,7 +560,7 @@ watch(exportFeatures, () => {
  * Returns empty array if flex is disabled (similar to how displayFeatures handles fixedRouteEnabled)
  */
 const flexFeatures = computed((): Feature[] => {
-  if (!props.flexServicesEnabled) return []
+  if (!props.flexServicesEnabled) { return [] }
   return props.flexDisplayFeatures || []
 })
 
@@ -646,7 +642,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const ft = feature.geometry.type
     const fp = feature.properties
 
-    let popupFeature: PopupFeature | null = null
+    let popupFeature: PopupFeature | undefined = undefined
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -721,7 +717,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   position:absolute;
   right:50px;
   top:6px;
-  z-index:101;
+  z-index:10;
 }
 .cal-map-share {
   position:absolute;
@@ -731,7 +727,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   color:black;
   padding:5px;
   height:150px;
-  z-index:101;
+  z-index:10;
 }
 
 /* Custom marker styles */

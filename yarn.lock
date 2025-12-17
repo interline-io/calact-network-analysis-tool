@@ -1938,28 +1938,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@oruga-ui/oruga-next@npm:0.11.6":
-  version: 0.11.6
-  resolution: "@oruga-ui/oruga-next@npm:0.11.6"
-  dependencies:
-    vue-component-type-helpers: "npm:^3.0.5"
-  peerDependencies:
-    vue: ^3.0.0
-  checksum: 10/83ac4299065a0ffd95b3d7936e0ad4d689d81b5169d99042dc4ad4424d26438982689dca2db577570554ac8eb434920d834d2a8d0a7d884accd246f92fac04a0
-  languageName: node
-  linkType: hard
-
-"@oruga-ui/theme-bulma@npm:0.7.3":
-  version: 0.7.3
-  resolution: "@oruga-ui/theme-bulma@npm:0.7.3"
-  dependencies:
-    bulma: "npm:1.0.4"
-  peerDependencies:
-    "@oruga-ui/oruga-next": ^0.11.0
-  checksum: 10/bc4fb8c7ba7232c3b6dd53c0c83932a47b1989c4be5b2ba33b14dd4438591dd439b1d071db5644eaf8784f36b4238f6b1490b99181b3dff41f20f9657e27b099
-  languageName: node
-  linkType: hard
-
 "@oxc-minify/binding-android-arm64@npm:0.95.0":
   version: 0.95.0
   resolution: "@oxc-minify/binding-android-arm64@npm:0.95.0"
@@ -4868,21 +4846,19 @@ __metadata:
     "@aitodotai/json-stringify-pretty-compact": "npm:1.3.0"
     "@nuxt/eslint": "npm:1.10.0"
     "@nuxt/eslint-config": "npm:1.10.0"
-    "@oruga-ui/oruga-next": "npm:0.11.6"
-    "@oruga-ui/theme-bulma": "npm:0.7.3"
     "@turf/bbox": "npm:7.2.0"
     "@types/big-json": "npm:3.2.0"
     "@types/d3-scale": "npm:4.0.9"
     "@types/d3-scale-chromatic": "npm:3.1.0"
     "@types/node": "npm:latest"
     big-json: "npm:3.2.0"
-    csv-stringify: "npm:6.5.2"
+    csv-stringify: "npm:6.6.0"
     d3-scale: "npm:4.0.2"
     d3-scale-chromatic: "npm:3.1.0"
     eslint: "npm:9.39.1"
     nuxt: "npm:4.2.0"
     sass-embedded: "npm:1.93.3"
-    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=15ef7a498fa087a3dfb92b70e319cb047f565bd6"
+    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=1eb4d0d1411a7ad2dd846cc9e313f76f5ff7f77b"
     tsx: "npm:4.20.3"
     typescript: "npm:5.9.3"
     typescript-eslint: "npm:8.46.3"
@@ -5437,13 +5413,6 @@ __metadata:
   version: 3.1.3
   resolution: "csstype@npm:3.1.3"
   checksum: 10/f593cce41ff5ade23f44e77521e3a1bcc2c64107041e1bf6c3c32adc5187d0d60983292fda326154d20b01079e24931aa5b08e4467cc488b60bb1e7f6d478ade
-  languageName: node
-  linkType: hard
-
-"csv-stringify@npm:6.5.2":
-  version: 6.5.2
-  resolution: "csv-stringify@npm:6.5.2"
-  checksum: 10/7715664020d291ccece25a32ecca617cea8d7e320af0c4e58cabbfb52d914832c3ea63c77c9796ca032ce6b47b899c879140c55bfd380105c42038ec305607a3
   languageName: node
   linkType: hard
 
@@ -12239,9 +12208,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=15ef7a498fa087a3dfb92b70e319cb047f565bd6":
+"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=1eb4d0d1411a7ad2dd846cc9e313f76f5ff7f77b":
   version: 0.3.0
-  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=15ef7a498fa087a3dfb92b70e319cb047f565bd6"
+  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=1eb4d0d1411a7ad2dd846cc9e313f76f5ff7f77b"
   dependencies:
     "@apollo/client": "npm:3.13.4"
     "@auth0/auth0-spa-js": "npm:2.1.3"
@@ -12280,7 +12249,7 @@ __metadata:
   peerDependencies:
     nuxt: 4.2.0
     vue: 3.5.22
-  checksum: 10/1df7de9fc199570eabccbe7687ed65196494d2411e5bf13899341e7f75f99a62ef939e9b914210119d27695afebd6e13d2f9d5cf2cb4d79def25449557a3e61c
+  checksum: 10/ddf4b38c15a8b25ba56d0afeeb190d75af392de4adee9a291dbb92c32e375355e69c196e08e1479f254e0b750ca1288f238a4621b31f8c168bbb33e074186b80
   languageName: node
   linkType: hard
 
@@ -13817,13 +13786,6 @@ __metadata:
   dependencies:
     ufo: "npm:^1.6.1"
   checksum: 10/21ab29700a531b1a60e558c677b84bcb3e8131be5ea44d3ef6e0200c5915b1983ace0a52ad6a583f470afa44e0453313a8c9cdb5331a43ab6f7046881f80d65b
-  languageName: node
-  linkType: hard
-
-"vue-component-type-helpers@npm:^3.0.5":
-  version: 3.1.8
-  resolution: "vue-component-type-helpers@npm:3.1.8"
-  checksum: 10/957b6a24ed90b236b97b6f54adc75f3caf1693b551a6a8ed0521359a8f65076bacb344def617ea93dd44420c2432f27f88fd3e5b8a594dde6b9005e6f31b11b7
   languageName: node
   linkType: hard
 

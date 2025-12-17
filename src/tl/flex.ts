@@ -269,27 +269,27 @@ export function getFlexAgencyNames (feature: FlexAreaFeature): string[] {
  * Sunday = 0, Monday = 1, ..., Saturday = 6
  */
 const DAY_KEYS: (keyof FlexBookingDays)[] = [
-  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
 ]
 
 /**
  * Check if booking is available on a specific day of week
  * @param feature - Flex area feature
- * @param dayOfWeek - Day of week (0 = Sunday, 6 = Saturday) - matches Date.getDay()
+ * @param weekday - Day of week (0 = Sunday, 6 = Saturday) - matches Date.getDay()
  * @returns true if booking is available, false otherwise
- * @throws Error if dayOfWeek is not in valid range (0-6)
+ * @throws Error if weekday is not in valid range (0-6)
  */
-export function isBookingAvailableOnDay (feature: FlexAreaFeature, dayOfWeek: number): boolean {
+export function isBookingAvailableOnDay (feature: FlexAreaFeature, weekday: number): boolean {
   const bookingDays = feature.properties.booking_days
   // If no booking_days info, assume booking is always available
-  if (!bookingDays) return true
+  if (!bookingDays) { return true }
 
-  // Validate dayOfWeek is in valid range
-  if (dayOfWeek < 0 || dayOfWeek > 6) {
-    throw new Error(`Invalid dayOfWeek: ${dayOfWeek}. Must be 0-6 (Sunday=0, Saturday=6)`)
+  // Validate weekday is in valid range
+  if (weekday < 0 || weekday > 6) {
+    throw new Error(`Invalid weekday: ${weekday}. Must be 0-6 (Sunday=0, Saturday=6)`)
   }
 
-  const dayKey = DAY_KEYS[dayOfWeek] as keyof FlexBookingDays
+  const dayKey = DAY_KEYS[weekday] as keyof FlexBookingDays
   return bookingDays[dayKey]
 }
 
@@ -308,7 +308,7 @@ export function isBookingAvailableToday (feature: FlexAreaFeature): boolean {
  * @returns String like "Mon-Fri" or "Mon, Wed, Fri"
  */
 export function formatBookingDays (bookingDays: FlexBookingDays | undefined): string {
-  if (!bookingDays) return 'Any day'
+  if (!bookingDays) { return 'Any day' }
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const available = [
@@ -318,7 +318,7 @@ export function formatBookingDays (bookingDays: FlexBookingDays | undefined): st
     bookingDays.thursday,
     bookingDays.friday,
     bookingDays.saturday,
-    bookingDays.sunday
+    bookingDays.sunday,
   ]
 
   // Check for common patterns
@@ -326,13 +326,13 @@ export function formatBookingDays (bookingDays: FlexBookingDays | undefined): st
   const everyday = available.every(d => d)
   const weekend = !available.slice(0, 5).some(d => d) && available[5] && available[6]
 
-  if (everyday) return 'Any day'
-  if (weekdays) return 'Mon-Fri'
-  if (weekend) return 'Sat-Sun'
+  if (everyday) { return 'Any day' }
+  if (weekdays) { return 'Mon-Fri' }
+  if (weekend) { return 'Sat-Sun' }
 
   // Check for consecutive ranges
   const activeDays = days.filter((_, i) => available[i])
-  if (activeDays.length === 0) return 'No days'
+  if (activeDays.length === 0) { return 'No days' }
 
   return activeDays.join(', ')
 }
@@ -570,7 +570,7 @@ function transformBookingRule (rule: FlexBookingRuleGql): FlexBookingRule {
  */
 function mergeBookingDays (days: (FlexBookingDays | undefined)[]): FlexBookingDays | undefined {
   const validDays = days.filter((d): d is FlexBookingDays => d !== undefined)
-  if (validDays.length === 0) return undefined
+  if (validDays.length === 0) { return undefined }
 
   return {
     monday: validDays.some(d => d.monday),

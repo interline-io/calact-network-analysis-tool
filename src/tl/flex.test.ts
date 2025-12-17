@@ -21,7 +21,7 @@ function createFlexFeature (overrides: Partial<FlexAreaFeature['properties']> = 
     id: 'test-feature',
     geometry: {
       type: 'Polygon',
-      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]
+      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
     },
     properties: {
       location_id: 'loc-1',
@@ -38,8 +38,8 @@ function createFlexFeature (overrides: Partial<FlexAreaFeature['properties']> = 
       drop_off_types: [],
       drop_off_booking_rule_ids: [],
       drop_off_booking_rules: [],
-      ...overrides
-    }
+      ...overrides,
+    },
   }
 }
 
@@ -47,7 +47,7 @@ describe('getFlexAreaType', () => {
   it('returns "PU and DO" when both pickup and dropoff are available', () => {
     const feature = createFlexFeature({
       pickup_available: true,
-      drop_off_available: true
+      drop_off_available: true,
     })
     expect(getFlexAreaType(feature)).toBe('PU and DO')
   })
@@ -55,7 +55,7 @@ describe('getFlexAreaType', () => {
   it('returns "PU only" when only pickup is available', () => {
     const feature = createFlexFeature({
       pickup_available: true,
-      drop_off_available: false
+      drop_off_available: false,
     })
     expect(getFlexAreaType(feature)).toBe('PU only')
   })
@@ -63,7 +63,7 @@ describe('getFlexAreaType', () => {
   it('returns "DO only" when only dropoff is available', () => {
     const feature = createFlexFeature({
       pickup_available: false,
-      drop_off_available: true
+      drop_off_available: true,
     })
     expect(getFlexAreaType(feature)).toBe('DO only')
   })
@@ -71,7 +71,7 @@ describe('getFlexAreaType', () => {
   it('returns "PU and DO" as default when neither is available', () => {
     const feature = createFlexFeature({
       pickup_available: false,
-      drop_off_available: false
+      drop_off_available: false,
     })
     expect(getFlexAreaType(feature)).toBe('PU and DO')
   })
@@ -99,7 +99,7 @@ describe('bookingTypeToAdvanceNotice', () => {
 describe('getFlexAdvanceNotice', () => {
   it('uses pickup booking rule when available', () => {
     const feature = createFlexFeature({
-      pickup_booking_rules: [{ booking_rule_id: 'rule-1', booking_type: 0 }]
+      pickup_booking_rules: [{ booking_rule_id: 'rule-1', booking_type: 0 }],
     })
     expect(getFlexAdvanceNotice(feature)).toBe('On-demand')
   })
@@ -107,7 +107,7 @@ describe('getFlexAdvanceNotice', () => {
   it('falls back to dropoff booking rule when no pickup rule', () => {
     const feature = createFlexFeature({
       pickup_booking_rules: [],
-      drop_off_booking_rules: [{ booking_rule_id: 'rule-1', booking_type: 2 }]
+      drop_off_booking_rules: [{ booking_rule_id: 'rule-1', booking_type: 2 }],
     })
     expect(getFlexAdvanceNotice(feature)).toBe('More than 24 hours')
   })
@@ -115,7 +115,7 @@ describe('getFlexAdvanceNotice', () => {
   it('returns "Same day" when no booking rules exist', () => {
     const feature = createFlexFeature({
       pickup_booking_rules: [],
-      drop_off_booking_rules: []
+      drop_off_booking_rules: [],
     })
     expect(getFlexAdvanceNotice(feature)).toBe('Same day')
   })
@@ -124,8 +124,8 @@ describe('getFlexAdvanceNotice', () => {
     const feature = createFlexFeature({
       pickup_booking_rules: [
         { booking_rule_id: 'rule-1', booking_type: 0 },
-        { booking_rule_id: 'rule-2', booking_type: 2 }
-      ]
+        { booking_rule_id: 'rule-2', booking_type: 2 },
+      ],
     })
     expect(getFlexAdvanceNotice(feature)).toBe('On-demand')
   })
@@ -136,8 +136,8 @@ describe('getFlexAgencyName', () => {
     const feature = createFlexFeature({
       agencies: [
         { agency_id: 'a1', agency_name: 'Agency One' },
-        { agency_id: 'a2', agency_name: 'Agency Two' }
-      ]
+        { agency_id: 'a2', agency_name: 'Agency Two' },
+      ],
     })
     expect(getFlexAgencyName(feature)).toBe('Agency One')
   })
@@ -160,8 +160,8 @@ describe('getFlexAgencyNames', () => {
     const feature = createFlexFeature({
       agencies: [
         { agency_id: 'a1', agency_name: 'Agency One' },
-        { agency_id: 'a2', agency_name: 'Agency Two' }
-      ]
+        { agency_id: 'a2', agency_name: 'Agency Two' },
+      ],
     })
     expect(getFlexAgencyNames(feature)).toEqual(['Agency One', 'Agency Two'])
   })
@@ -180,7 +180,7 @@ describe('isBookingAvailableOnDay', () => {
     wednesday: true,
     thursday: true,
     friday: true,
-    saturday: false
+    saturday: false,
   }
 
   it('returns true when booking is available on the specified day', () => {
@@ -201,11 +201,11 @@ describe('isBookingAvailableOnDay', () => {
     expect(isBookingAvailableOnDay(feature, 3)).toBe(true)
   })
 
-  it('throws error for invalid dayOfWeek values', () => {
+  it('throws error for invalid weekday values', () => {
     const feature = createFlexFeature({ booking_days: weekdaysOnly })
-    expect(() => isBookingAvailableOnDay(feature, -1)).toThrow('Invalid dayOfWeek')
-    expect(() => isBookingAvailableOnDay(feature, 7)).toThrow('Invalid dayOfWeek')
-    expect(() => isBookingAvailableOnDay(feature, 100)).toThrow('Invalid dayOfWeek')
+    expect(() => isBookingAvailableOnDay(feature, -1)).toThrow('Invalid weekday')
+    expect(() => isBookingAvailableOnDay(feature, 7)).toThrow('Invalid weekday')
+    expect(() => isBookingAvailableOnDay(feature, 100)).toThrow('Invalid weekday')
   })
 })
 
@@ -218,7 +218,7 @@ describe('isBookingAvailableToday', () => {
       wednesday: true,
       thursday: true,
       friday: true,
-      saturday: true
+      saturday: true,
     }
     const feature = createFlexFeature({ booking_days: allDays })
     // Should always return true since all days are enabled
@@ -239,7 +239,7 @@ describe('formatBookingDays', () => {
       wednesday: true,
       thursday: true,
       friday: true,
-      saturday: true
+      saturday: true,
     }
     expect(formatBookingDays(allDays)).toBe('Any day')
   })
@@ -252,7 +252,7 @@ describe('formatBookingDays', () => {
       wednesday: true,
       thursday: true,
       friday: true,
-      saturday: false
+      saturday: false,
     }
     expect(formatBookingDays(weekdays)).toBe('Mon-Fri')
   })
@@ -265,7 +265,7 @@ describe('formatBookingDays', () => {
       wednesday: false,
       thursday: false,
       friday: false,
-      saturday: true
+      saturday: true,
     }
     expect(formatBookingDays(weekend)).toBe('Sat-Sun')
   })
@@ -278,7 +278,7 @@ describe('formatBookingDays', () => {
       wednesday: true,
       thursday: false,
       friday: true,
-      saturday: false
+      saturday: false,
     }
     expect(formatBookingDays(mixedDays)).toBe('Mon, Wed, Fri')
   })
@@ -291,7 +291,7 @@ describe('formatBookingDays', () => {
       wednesday: false,
       thursday: false,
       friday: false,
-      saturday: false
+      saturday: false,
     }
     expect(formatBookingDays(noDays)).toBe('No days')
   })

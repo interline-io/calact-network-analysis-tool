@@ -41,7 +41,7 @@ export function getUTCDateNoTime (): Date {
   return new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
 }
 
-export function parseHMS (value: string): number {
+export function parseHMS (value: string | undefined): number {
   const a = (value || '').split(':').map((s) => {
     return Number.parseInt(s)
   })
@@ -57,7 +57,7 @@ export function parseHMS (value: string): number {
  * @returns Seconds since midnight (0-86399), or undefined if time is undefined
  */
 export function dateToSeconds (time: Date | undefined): number | undefined {
-  if (!time) return undefined
+  if (!time) { return undefined }
   return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
 }
 
