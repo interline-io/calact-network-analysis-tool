@@ -2,29 +2,28 @@
   <div>
     <tl-title title="WSDOT Frequent Transit Service Study" />
 
-    <t-card
-      label="About this Analysis"
+    <t-msg
+      variant="info"
+      title="About this Analysis"
       expandable
       :open="!hasResults"
     >
-      <t-msg variant="info">
-        <p class="mb-3">
-          The Washington State Department of Transportation (WSDOT) <a
-            href="https://wsdot.wa.gov/construction-planning/search-studies/frequent-transit-service-study"
-            target="_blank"
-          >Frequent Transit Service Study</a> analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
-          This study defines seven levels of transit frequency based on headway, span, and days of service.
-          Generally, this website uses the word "frequency" to describe the intensity of service on transit routes, and "visits" to describe intensity of service at individual stops. This specific analysis uses the word frequency to describe service intensity at individual stops because of the past definition of the process determined by a group of WSDOT partners, but bases these calculations only on the most frequent route with service at each stop.
-        </p>
-        <p>
-          This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
-          To change the analysis area, navigate to the <t-icon
-            icon="magnify"
-            style="vertical-align:middle;"
-          /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
-        </p>
-      </t-msg>
-    </t-card>
+      <p class="mb-3">
+        The Washington State Department of Transportation (WSDOT) <a
+          href="https://wsdot.wa.gov/construction-planning/search-studies/frequent-transit-service-study"
+          target="_blank"
+        >Frequent Transit Service Study</a> analyzes statewide transit service benchmarks and identifies gaps in accessible, frequent fixed-route transit.
+        This study defines seven levels of transit frequency based on headway, span, and days of service.
+        Generally, this website uses the word "frequency" to describe the intensity of service on transit routes, and "visits" to describe intensity of service at individual stops. This specific analysis uses the word frequency to describe service intensity at individual stops because of the past definition of the process determined by a group of WSDOT partners, but bases these calculations only on the most frequent route with service at each stop.
+      </p>
+      <p>
+        This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
+        To change the analysis area, navigate to the <t-icon
+          icon="magnify"
+          style="vertical-align:middle;"
+        /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
+      </p>
+    </t-msg>
 
     <t-msg
       v-if="error"
@@ -340,3 +339,10 @@ const fetchScenario = async () => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
+
+<style>
+/* Ensure modal is always on top */
+.tl-modal {
+  z-index: 99999 !important;
+}
+</style>

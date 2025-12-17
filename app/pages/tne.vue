@@ -1066,36 +1066,49 @@ const filterSummary = computed((): string[] => {
   const results: string[] = []
 
   // route types
-  const rtypes = (scenarioFilter.value.selectedRouteTypes ?? []).map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
-  if (rtypes.length !== routeTypeNames.size) {
+  const selectedRtypes = scenarioFilter.value.selectedRouteTypes
+  if (selectedRtypes == null || selectedRtypes.length === 0) {
+    results.push('with any route type')
+  } else if (selectedRtypes.length !== routeTypeNames.size) {
+    const rtypes = selectedRtypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
     results.push('with route types ' + rtypes.join(', '))
   }
 
   // agencies
-  const agencies = scenarioFilter.value.selectedAgencies ?? []
-  if (agencies.length) {
+  const agencies = scenarioFilter.value.selectedAgencies
+  if (agencies == null || agencies.length === 0) {
+    results.push('operated by any agency')
+  } else {
     results.push('operated by ' + agencies.join(', '))
   }
 
   // date range
-  const today = fmtDate(getLocalDateNoTime(), 'P')
-  const sdate = fmtDate(scenarioConfig.value.startDate, 'P') || today
-  const edate = fmtDate(scenarioConfig.value.endDate, 'P') || today
-  if (sdate !== today && edate !== today && sdate !== edate) {
-    results.push('operating between ' + sdate + ' and ' + edate)
-  } else if (sdate !== today && edate !== today && sdate === edate) {
-    results.push('operating on ' + sdate)
-  } else if (sdate !== today && edate === today) {
-    results.push('operating after ' + sdate)
+  const rawStartDate = scenarioConfig.value.startDate
+  const rawEndDate = scenarioConfig.value.endDate
+  if (rawStartDate == null && rawEndDate == null) {
+    results.push('operating on any date')
+  } else {
+    const today = fmtDate(getLocalDateNoTime(), 'P')
+    const sdate = fmtDate(rawStartDate, 'P') || today
+    const edate = fmtDate(rawEndDate, 'P') || today
+    if (sdate !== today && edate !== today && sdate !== edate) {
+      results.push('operating between ' + sdate + ' and ' + edate)
+    } else if (sdate !== today && edate !== today && sdate === edate) {
+      results.push('operating on ' + sdate)
+    } else if (sdate !== today && edate === today) {
+      results.push('operating after ' + sdate)
+    }
   }
 
   // days of week  (always show something here)
-  const days = (scenarioFilter.value.selectedWeekdays ?? []).map(val => toTitleCase(val))
+  const days = scenarioFilter.value.selectedWeekdays
   const dowMode = scenarioFilter.value.selectedWeekdayMode
-  if (dowMode === 'All' /* && days.length !== 7 */) {
-    results.push('operating all of ' + days.join(', '))
+  if (days == null || days.length === 0) {
+    // Any day of the week
+  } else if (dowMode === 'All') {
+    results.push('operating all of ' + days.map(val => toTitleCase(val)).join(', '))
   } else if (dowMode === 'Any') {
-    results.push('operating any of ' + days.join(', '))
+    results.push('operating any of ' + days.map(val => toTitleCase(val)).join(', '))
   }
 
   // time range
@@ -1103,7 +1116,7 @@ const filterSummary = computed((): string[] => {
     const stime = fmtTime(scenarioFilter.value.startTime, 'p')
     const etime = fmtTime(scenarioFilter.value.endTime, 'p')
     if (stime && etime && stime !== etime) {
-      results.push('operating between ' + stime + ' and ' + etime)
+      // Any time
     } else if (stime && etime && stime === etime) {
       results.push('operating at ' + stime)
     } else if (stime && !etime) {
