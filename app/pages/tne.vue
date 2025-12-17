@@ -130,6 +130,7 @@
             :has-flex-data="hasFlexData"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
+            @set-time-range="setTimeRange"
           />
         </div>
 
@@ -1166,6 +1167,15 @@ const filterSummary = computed((): string[] => {
 // Handle query parameters
 async function setQuery (params: Record<string, any>) {
   await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
+}
+
+// Handle time range updates from filter component (both start and end in single navigation)
+async function setTimeRange (times: { startTime: Date | undefined, endTime: Date | undefined }) {
+  await setQuery({
+    ...route.query,
+    startTime: times.startTime ? fmtTime(times.startTime) : undefined,
+    endTime: times.endTime ? fmtTime(times.endTime) : undefined,
+  })
 }
 
 async function resetFilters () {

@@ -525,6 +525,7 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'resetFilters',
+  'setTimeRange',
 ])
 const activeTab = defineModel<string>('activeTab')
 
@@ -577,11 +578,11 @@ const isAllDayMode = computed({
   get: () => startTime.value == null && endTime.value == null,
   set: (checked: boolean) => {
     if (checked) {
-      startTime.value = undefined
-      endTime.value = undefined
+      // Emit event to parent to update both params in single navigation
+      emit('setTimeRange', { startTime: undefined, endTime: undefined })
     } else {
-      startTime.value = parseTime('00:00:00')
-      endTime.value = parseTime('23:59:00')
+      // Emit event to parent to update both params in single navigation
+      emit('setTimeRange', { startTime: parseTime('00:00:00'), endTime: parseTime('23:59:00') })
     }
   }
 })
