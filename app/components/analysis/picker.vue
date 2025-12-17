@@ -12,13 +12,24 @@
     <div v-else>
       <tl-title title="Analysis" />
       <t-msg variant="info">
-        <p>For richer metrics than included in the <t-icon icon="file-chart" style="vertical-align:middle;" /> <strong>Report tab</strong> by default, run an analysis.</p>
+        <p>
+          For richer metrics than included in the <t-icon
+            icon="file-chart"
+            style="vertical-align:middle;"
+          /> <strong>Report tab</strong> by default, run an analysis.
+        </p>
         <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
       </t-msg>
 
       <!-- Warning when no scenario data is available -->
-      <t-msg v-if="!scenarioConfig" variant="danger">
-        You need to define the geographic extent before running analyses. Please go to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
+      <t-msg
+        v-if="!scenarioConfig"
+        variant="danger"
+      >
+        You need to define the geographic extent before running analyses. Please go to the <t-icon
+          icon="magnify"
+          style="vertical-align:middle;"
+        /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
       </t-msg>
 
       <t-field label="Start an analysis">
@@ -26,10 +37,18 @@
           v-model="selectedReportType"
           :disabled="!scenarioConfig"
         >
-          <option value="" disabled selected>
+          <option
+            value=""
+            disabled
+            selected
+          >
             Select an analysis to run
           </option>
-          <option v-for="[reportType, reportLabel] of Object.entries(analysisTypes)" :key="reportType" :value="reportType">
+          <option
+            v-for="[reportType, reportLabel] of Object.entries(analysisTypes)"
+            :key="reportType"
+            :value="reportType"
+          >
             {{ reportLabel }}
           </option>
         </t-select>
@@ -105,7 +124,7 @@ const handleCancel = () => {
 
 // Expose hasAnalysisResults to parent component
 defineExpose({
-  hasAnalysisResults
+  hasAnalysisResults,
 })
 </script>
 

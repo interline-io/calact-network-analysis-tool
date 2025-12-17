@@ -2,8 +2,15 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <t-tabs v-model="activeTab" expanded>
-        <t-tab-item :value="0" :label="`Agencies (${computedAgencies.length})`" icon="domain">
+      <t-tabs
+        v-model="activeTab"
+        expanded
+      >
+        <t-tab-item
+          :value="0"
+          :label="`Agencies (${computedAgencies.length})`"
+          icon="domain"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Agency Summary
@@ -14,16 +21,26 @@
               :show-results-count="false"
             >
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
             </cal-datagrid>
           </div>
         </t-tab-item>
 
-        <t-tab-item :value="1" :label="`Transit Stops (${report.stops.length})`" icon="map-marker">
+        <t-tab-item
+          :value="1"
+          :label="`Transit Stops (${report.stops.length})`"
+          icon="map-marker"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Stops
@@ -34,16 +51,29 @@
               :show-results-count="false"
             >
               <template #column-stopId="{ value }">
-                <tl-safelink :text="value" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="100px"
+                />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feed-versions/${value}`"
+                  max-width="100px"
+                />
               </template>
               <template #column-highestLevel="{ value }">
                 <span
@@ -54,31 +84,52 @@
                 </span>
               </template>
               <template #column-level1="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level2="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level3="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level4="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level5="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-level6="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #column-levelNights="{ value }">
-                <t-icon v-if="value == 1" icon="check" />
+                <t-icon
+                  v-if="value == 1"
+                  icon="check"
+                />
                 <span v-else />
               </template>
               <template #additional-downloads="{ loading }">
@@ -95,7 +146,11 @@
           </div>
         </t-tab-item>
 
-        <t-tab-item :value="2" :label="`Transit Routes (${report.routes.length})`" icon="bus">
+        <t-tab-item
+          :value="2"
+          :label="`Transit Routes (${report.routes.length})`"
+          icon="bus"
+        >
           <div class="mt-4">
             <h4 class="title is-4">
               Transit Routes
@@ -106,19 +161,32 @@
               :show-results-count="false"
             >
               <template #column-routeId="{ value }">
-                <tl-safelink :text="value" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="100px"
+                />
               </template>
               <template #column-routeType="{ value }">
                 <tl-route-icon :route-type="value" />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink :text="value" max-width="150px" />
+                <tl-safelink
+                  :text="value"
+                  max-width="150px"
+                />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feeds/${value}`" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feeds/${value}`"
+                />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink :text="value" :url="`https://www.transit.land/feed-versions/${value}`" max-width="100px" />
+                <tl-safelink
+                  :text="value"
+                  :url="`https://www.transit.land/feed-versions/${value}`"
+                  max-width="100px"
+                />
               </template>
               <template #additional-downloads="{ loading }">
                 <t-field>
@@ -200,7 +268,7 @@ const stopFeatures = computed((): Feature[] => {
       feedOnestopId: stop.feedOnestopId,
       feedVersionSha1: stop.feedVersionSha1,
     },
-    geometry: stop.geometry
+    geometry: stop.geometry,
   }))
 })
 
@@ -265,7 +333,7 @@ const routeFeatures = computed((): Feature[] => {
       feedOnestopId: route.feedOnestopId,
       feedVersionSha1: route.feedVersionSha1,
     },
-    geometry: route.geometry
+    geometry: route.geometry,
   }))
 })
 
@@ -368,7 +436,7 @@ const stopDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 
@@ -393,7 +461,7 @@ const agencyDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 
@@ -438,7 +506,7 @@ const routeDatagrid = computed((): TableReport => {
 
   return {
     data,
-    columns
+    columns,
   }
 })
 </script>
