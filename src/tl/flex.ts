@@ -180,17 +180,15 @@ export type FlexAreaType = 'PU only' | 'DO only' | 'PU and DO'
  * @param feature - Flex area feature
  * @returns Area type for filtering
  */
-export function getFlexAreaType(feature: FlexAreaFeature): FlexAreaType {
+export function getFlexAreaType (feature: FlexAreaFeature): FlexAreaType {
   const hasPickup = feature.properties.pickup_available
   const hasDropoff = feature.properties.drop_off_available
 
   if (hasPickup && hasDropoff) {
     return 'PU and DO'
-  }
-  else if (hasPickup) {
+  } else if (hasPickup) {
     return 'PU only'
-  }
-  else if (hasDropoff) {
+  } else if (hasDropoff) {
     return 'DO only'
   }
   // Default to PU and DO if neither is set (shouldn't happen in valid data)
@@ -209,7 +207,7 @@ export type FlexAdvanceNotice = 'On-demand' | 'Same day' | 'More than 24 hours'
 /**
  * Map booking_type number to FlexAdvanceNotice string
  */
-export function bookingTypeToAdvanceNotice(bookingType: number): FlexAdvanceNotice {
+export function bookingTypeToAdvanceNotice (bookingType: number): FlexAdvanceNotice {
   switch (bookingType) {
     case 0:
       return 'On-demand'
@@ -228,7 +226,7 @@ export function bookingTypeToAdvanceNotice(bookingType: number): FlexAdvanceNoti
  * @param feature - Flex area feature
  * @returns Advance notice category
  */
-export function getFlexAdvanceNotice(feature: FlexAreaFeature): FlexAdvanceNotice {
+export function getFlexAdvanceNotice (feature: FlexAreaFeature): FlexAdvanceNotice {
   // Check pickup booking rules first
   const pickupRules = feature.properties.pickup_booking_rules || []
   const firstPickupRule = pickupRules[0]
@@ -253,7 +251,7 @@ export function getFlexAdvanceNotice(feature: FlexAreaFeature): FlexAdvanceNotic
  * @param feature - Flex area feature
  * @returns Agency name or 'Unknown'
  */
-export function getFlexAgencyName(feature: FlexAreaFeature): string {
+export function getFlexAgencyName (feature: FlexAreaFeature): string {
   return feature.properties.agencies?.[0]?.agency_name || 'Unknown Agency'
 }
 
@@ -262,7 +260,7 @@ export function getFlexAgencyName(feature: FlexAreaFeature): string {
  * @param feature - Flex area feature
  * @returns Array of agency names
  */
-export function getFlexAgencyNames(feature: FlexAreaFeature): string[] {
+export function getFlexAgencyNames (feature: FlexAreaFeature): string[] {
   return feature.properties.agencies?.map(a => a.agency_name) || []
 }
 
@@ -281,7 +279,7 @@ const DAY_KEYS: (keyof FlexBookingDays)[] = [
  * @returns true if booking is available, false otherwise
  * @throws Error if weekday is not in valid range (0-6)
  */
-export function isBookingAvailableOnDay(feature: FlexAreaFeature, weekday: number): boolean {
+export function isBookingAvailableOnDay (feature: FlexAreaFeature, weekday: number): boolean {
   const bookingDays = feature.properties.booking_days
   // If no booking_days info, assume booking is always available
   if (!bookingDays) { return true }
@@ -300,7 +298,7 @@ export function isBookingAvailableOnDay(feature: FlexAreaFeature, weekday: numbe
  * @param feature - Flex area feature
  * @returns true if booking is available today
  */
-export function isBookingAvailableToday(feature: FlexAreaFeature): boolean {
+export function isBookingAvailableToday (feature: FlexAreaFeature): boolean {
   return isBookingAvailableOnDay(feature, new Date().getDay())
 }
 
@@ -309,7 +307,7 @@ export function isBookingAvailableToday(feature: FlexAreaFeature): boolean {
  * @param bookingDays - Booking days object
  * @returns String like "Mon-Fri" or "Mon, Wed, Fri"
  */
-export function formatBookingDays(bookingDays: FlexBookingDays | undefined): string {
+export function formatBookingDays (bookingDays: FlexBookingDays | undefined): string {
   if (!bookingDays) { return 'Any day' }
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -534,7 +532,7 @@ export interface FlexLocationQueryResponse {
 /**
  * Transform a GraphQL BookingService to FlexBookingDays
  */
-function transformBookingService(service: FlexBookingServiceGql): FlexBookingDays {
+function transformBookingService (service: FlexBookingServiceGql): FlexBookingDays {
   return {
     monday: service.monday === 1,
     tuesday: service.tuesday === 1,
@@ -549,7 +547,7 @@ function transformBookingService(service: FlexBookingServiceGql): FlexBookingDay
 /**
  * Transform a GraphQL BookingRule to FlexBookingRule
  */
-function transformBookingRule(rule: FlexBookingRuleGql): FlexBookingRule {
+function transformBookingRule (rule: FlexBookingRuleGql): FlexBookingRule {
   return {
     booking_rule_id: rule.booking_rule_id,
     booking_type: rule.booking_type,
@@ -570,7 +568,7 @@ function transformBookingRule(rule: FlexBookingRuleGql): FlexBookingRule {
 /**
  * Merge multiple booking days - if any rule allows booking on a day, that day is available
  */
-function mergeBookingDays(days: (FlexBookingDays | undefined)[]): FlexBookingDays | undefined {
+function mergeBookingDays (days: (FlexBookingDays | undefined)[]): FlexBookingDays | undefined {
   const validDays = days.filter((d): d is FlexBookingDays => d !== undefined)
   if (validDays.length === 0) { return undefined }
 
@@ -594,7 +592,7 @@ function mergeBookingDays(days: (FlexBookingDays | undefined)[]): FlexBookingDay
  * - Collects booking rules
  * - Aggregates time windows
  */
-export function transformLocationToFlexArea(location: FlexLocationGql): FlexAreaFeature {
+export function transformLocationToFlexArea (location: FlexLocationGql): FlexAreaFeature {
   const stopTimes = location.stop_times || []
 
   // Collect unique agencies
@@ -744,7 +742,7 @@ export function transformLocationToFlexArea(location: FlexLocationGql): FlexArea
  * Transform multiple GraphQL Locations into FlexAreaFeatures
  * Filters out locations with no stop_times (no service on the queried date)
  */
-export function transformLocationsToFlexAreas(locations: FlexLocationGql[]): FlexAreaFeature[] {
+export function transformLocationsToFlexAreas (locations: FlexLocationGql[]): FlexAreaFeature[] {
   return locations
     .filter(loc => loc.stop_times && loc.stop_times.length > 0)
     .map(transformLocationToFlexArea)

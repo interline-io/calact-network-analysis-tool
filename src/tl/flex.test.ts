@@ -15,7 +15,7 @@ import {
 /**
  * Helper to create a minimal FlexAreaFeature for testing
  */
-function createFlexFeature(overrides: Partial<FlexAreaFeature['properties']> = {}): FlexAreaFeature {
+function createFlexFeature (overrides: Partial<FlexAreaFeature['properties']> = {}): FlexAreaFeature {
   return {
     type: 'Feature',
     id: 'test-feature',
