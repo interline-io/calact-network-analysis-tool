@@ -28,7 +28,7 @@
         </div>
 
         <!-- Geometry Style -->
-        <div v-if="props.hasData && props.dataDisplayMode && (['Route', 'Stop'].includes(props.dataDisplayMode))" class="cal-map-legend-section">
+        <div class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
@@ -162,14 +162,6 @@ const props = defineProps<{
 
 .message-header {
   cursor: pointer;
-}
-
-.cal-map-legend-box {
-  display: flex;
-  flex-direction: column;
-  padding: 10px 15px;
-  color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-l), 1.0);
-  background: hsla(var(--bulma-white-h), var(--bulma-white-s), var(--bulma-scheme-main-l), 0.95);
 }
 
 .cal-map-legend-section {

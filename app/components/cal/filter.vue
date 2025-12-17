@@ -283,18 +283,16 @@
               Agencies
             </p>
 
-            <div class="cal-agency-search">
-              <t-field>
-                <t-input
-                  v-model="agencySearch"
-                  type="search"
-                  placeholder="search"
-                  icon-right="magnify"
-                  icon-right-clickable
-                  :disabled="!fixedRouteEnabled"
-                />
-              </t-field>
-            </div>
+            <t-field>
+              <t-input
+                v-model="agencySearch"
+                type="search"
+                placeholder="search"
+                icon-right="magnify"
+                icon-right-clickable
+                :disabled="!fixedRouteEnabled"
+              />
+            </t-field>
 
             <t-checkbox-group
               v-model="selectedAgencies"
@@ -333,38 +331,18 @@
             <p class="menu-label">
               Advance notice
             </p>
-            <ul>
-              <li
-                v-for="noticeType of flexAdvanceNoticeTypes"
-                :key="noticeType"
-              >
-                <t-checkbox
-                  v-model="flexAdvanceNotice"
-                  :native-value="noticeType"
-                  :disabled="!flexServicesEnabled"
-                >
-                  {{ noticeType }}
-                </t-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="flexAdvanceNotice"
+              :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+            />
 
             <p class="menu-label">
               Show areas that allow:
             </p>
-            <ul>
-              <li
-                v-for="areaType of flexAreaTypes"
-                :key="areaType"
-              >
-                <t-checkbox
-                  v-model="flexAreaTypesSelected"
-                  :native-value="areaType"
-                  :disabled="!flexServicesEnabled"
-                >
-                  {{ areaType }}
-                </t-checkbox>
-              </li>
-            </ul>
+            <t-checkbox-group
+              v-model="flexAreaTypesSelected"
+              :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+            />
 
             <p class="menu-label">
               Color by:
