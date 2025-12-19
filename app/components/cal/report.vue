@@ -64,7 +64,7 @@
             <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="area"
+              native-value="Area"
               label="Area"
             />
           </t-field>
@@ -296,7 +296,7 @@ const reportData = computed((): TableReport => {
       data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
-  } else if (dataDisplayMode.value === 'area') {
+  } else if (dataDisplayMode.value === 'Area') {
     return {
       data: (props.flexDisplayFeatures || []).map(flexFeatureToCsv),
       columns: flexAreaColumns
@@ -312,7 +312,7 @@ const reportTitle = computed(() => {
     return 'stops'
   } else if (dataDisplayMode.value === 'Agency') {
     return 'agencies'
-  } else if (dataDisplayMode.value === 'area') {
+  } else if (dataDisplayMode.value === 'Area') {
     return 'flex service areas'
   }
   return ''
