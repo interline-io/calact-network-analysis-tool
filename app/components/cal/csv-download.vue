@@ -6,7 +6,7 @@
 
 <script>
 import { stringify } from 'csv-stringify/browser/esm/sync'
-import { sanitizeFilename } from 'tlv2-ui/lib'
+import { sanitizeFilename } from 'tlv2-ui/lib/util'
 
 function dataToBlob (csvData) {
   const keys = {}
