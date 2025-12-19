@@ -93,6 +93,7 @@ export const dataDisplayModes = [
   'Agency',
   'Route',
   'Stop',
+  'Area',
 ] as const
 
 export type DataDisplayMode = typeof dataDisplayModes[number]
