@@ -4858,7 +4858,7 @@ __metadata:
     eslint: "npm:9.39.1"
     nuxt: "npm:4.2.0"
     sass-embedded: "npm:1.93.3"
-    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=cf84f041250efcca2148131deb1eb67ef3a1cd93"
+    tlv2-ui: "https://github.com/interline-io/tlv2-ui.git#commit=cdc7c1aa692cfe8b827a45bd10971e6e41501526"
     tsx: "npm:4.20.3"
     typescript: "npm:5.9.3"
     typescript-eslint: "npm:8.46.3"
@@ -12208,9 +12208,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=cf84f041250efcca2148131deb1eb67ef3a1cd93":
+"tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=cdc7c1aa692cfe8b827a45bd10971e6e41501526":
   version: 0.3.0
-  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=cf84f041250efcca2148131deb1eb67ef3a1cd93"
+  resolution: "tlv2-ui@https://github.com/interline-io/tlv2-ui.git#commit=cdc7c1aa692cfe8b827a45bd10971e6e41501526"
   dependencies:
     "@apollo/client": "npm:3.13.4"
     "@auth0/auth0-spa-js": "npm:2.1.3"
@@ -12249,7 +12249,7 @@ __metadata:
   peerDependencies:
     nuxt: 4.2.0
     vue: 3.5.22
-  checksum: 10/3d7be011b49b552a27a772cc41e1f03b6fb83f9b77184f7328f9de9bda27c6b6f33c6b2858ffb1f33d992a5cf46e7543bc03b11a8f399fe4fce6abefc1aa804e
+  checksum: 10/d464b627811860accfa42683d579081a261b2b28ff51b2d24f9982a966bbd2e9514d689e6e55e1b2d2053b931f443084e42e564d1b71ff0e8282653b8801667d
   languageName: node
   linkType: hard
 
