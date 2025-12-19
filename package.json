@@ -30,7 +30,7 @@
     "eslint": "9.39.1",
     "nuxt": "4.2.0",
     "sass-embedded": "1.93.3",
-    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=7a30423cf3a9d17dffd17d10a7eeec9ea250173a",
+    "tlv2-ui": "https://github.com/interline-io/tlv2-ui.git#commit=cf84f041250efcca2148131deb1eb67ef3a1cd93",
     "tsx": "4.20.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.46.3",
