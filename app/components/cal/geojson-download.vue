@@ -6,6 +6,7 @@
 
 <script>
 import stringify from '@aitodotai/json-stringify-pretty-compact'
+import { sanitizeFilename } from 'tlv2-ui/lib'
 
 function dataToBlob (features) {
   const geojson = {
@@ -28,7 +29,7 @@ export default {
       const blob = await dataToBlob(this.data)
       const e = document.createEvent('MouseEvents')
       const a = document.createElement('a')
-      a.download = this.$filters.sanitizeFilename(this.filename + '.geojson')
+      a.download = sanitizeFilename(this.filename + '.geojson')
       a.href = window.URL.createObjectURL(blob)
       a.dataset.downloadurl = ['application/geo+json', a.download, a.href].join(':')
       e.initEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null)

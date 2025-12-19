@@ -6,6 +6,7 @@
 
 <script>
 import { stringify } from 'csv-stringify/browser/esm/sync'
+import { sanitizeFilename } from 'tlv2-ui/lib'
 
 function dataToBlob (csvData) {
   const keys = {}
@@ -36,7 +37,7 @@ export default {
       const blob = await dataToBlob(this.data)
       const e = document.createEvent('MouseEvents')
       const a = document.createElement('a')
-      a.download = this.$filters.sanitizeFilename(this.filename + '.csv')
+      a.download = sanitizeFilename(this.filename + '.csv')
       a.href = window.URL.createObjectURL(blob)
       a.dataset.downloadurl = ['text/csv', a.download, a.href].join(':')
       e.initEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null)
