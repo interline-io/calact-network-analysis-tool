@@ -34,6 +34,7 @@
                 :class="itemHelper('/help')"
                 title="Help"
                 role="button"
+                target="_blank"
               >
                 <t-icon icon="help" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
