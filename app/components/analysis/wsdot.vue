@@ -95,18 +95,29 @@
             <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </t-field>
 
-          <t-field label="Stop buffer radius (m)">
+          <t-field>
             <template #label>
               <t-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
                 Stop buffer radius (meters)
                 <t-icon icon="information" />
               </t-tooltip>
             </template>
-            <t-slider
-              v-model="wsdotReportConfig!.stopBufferRadius"
-              :min="0"
-              :max="1000"
-            />
+            <div class="level">
+              <div class="level-item">
+                <t-slider
+                  v-model="wsdotReportConfig!.stopBufferRadius"
+                  :min="0"
+                  :max="1000"
+                />
+              </div>
+              <div class="level-right">
+                <div class="ml-4 level-item">
+                  <span class="has-text-weight-semibold">
+                    {{ wsdotReportConfig!.stopBufferRadius }} m
+                  </span>
+                </div>
+              </div>
+            </div>
           </t-field>
         </div>
         <footer class="card-footer">
