@@ -215,32 +215,3 @@ const rawDatagrid = computed((): TableReport => {
   }
 })
 </script>
-
-<style scoped>
-/* Override Oruga tab styling to match Bulma's default behavior */
-:deep(.o-tabs) {
-  .o-tabs__nav {
-    border-bottom: 1px solid var(--bulma-border);
-    border-top: none;
-    border-left: none;
-    border-right: none;
-  }
-
-  .o-tabs__item {
-    border-bottom: none !important;
-
-    &.is-active {
-      border-bottom: none !important;
-    }
-  }
-
-  .o-tabs__link {
-    border-bottom: none !important;
-    padding: 0.5em 1em;
-
-    &:hover {
-      border-bottom: none !important;
-    }
-  }
-}
-</style>
