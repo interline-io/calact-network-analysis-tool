@@ -1,5 +1,5 @@
 <template>
-  <div class="cal-map-legend">
+  <div class="cal-map-legend" :class="{ 'is-hidden': !shouldShowLegend }">
     <t-msg
       title="Legend"
       expandable
@@ -28,7 +28,7 @@
         </div>
 
         <!-- Geometry Style -->
-        <div class="cal-map-legend-section">
+        <div v-if="props.hasData" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
@@ -89,6 +89,7 @@
             </div>
           </div>
         </div>
+
         <!-- Flex filter status legend -->
         <div v-if="props.hasFlexData" class="cal-map-legend-section">
           <div>
@@ -112,15 +113,6 @@
             />
             <div><em>Not</em> satisfying all filters</div>
           </div>
-        </div>
-
-        <div v-if="!props.hasData && !props.hasFlexData && !props.displayEditBboxMode">
-          <p class="legend-loading">
-            <t-loading
-              :active="true"
-              :full-page="false"
-            />
-          </p>
         </div>
       </div>
     </t-msg>
@@ -148,6 +140,8 @@ const props = defineProps<{
   flexStyleData?: StyleItem[]
   hasFlexData?: boolean
 }>()
+
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode)
 </script>
 
 <style scoped lang="scss">
