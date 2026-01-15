@@ -6,7 +6,7 @@
 
 <script>
 import stringify from '@aitodotai/json-stringify-pretty-compact'
-import { sanitizeFilename } from 'tlv2-ui/lib'
+import { sanitizeFilename } from 'tlv2-ui/lib/util'
 
 function dataToBlob (features) {
   const geojson = {

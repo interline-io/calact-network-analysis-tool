@@ -1,6 +1,6 @@
 // @ts-check
 import { createConfigForNuxt } from '@nuxt/eslint-config/flat'
-import { stylisticConfig, ignoreFiles, eslintStylisticRules, eslintTypescriptRules } from 'tlv2-ui/config'
+import { stylisticConfig, ignoreFiles, eslintStylisticRules, eslintTypescriptRules } from 'tlv2-ui/lib/config'
 
 // Run `npx @eslint/config-inspector` to inspect the resolved config interactively
 export default createConfigForNuxt({

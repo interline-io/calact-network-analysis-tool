@@ -117,16 +117,19 @@
         <div class="container is-max-tablet">
           <!-- Data to Load Section -->
           <t-field label="Data to Load">
-            <t-checkbox
-              v-model="includeFixedRoute"
-            >
-              Include Fixed-Route Transit
-            </t-checkbox>
-            <t-checkbox
-              v-model="includeFlexAreas"
-            >
-              Include Flex Service Areas
-            </t-checkbox>
+            <div class="is-flex">
+              <t-checkbox
+                v-model="includeFixedRoute"
+                class="mr-5"
+              >
+                Include Fixed-Route Transit
+              </t-checkbox>
+              <t-checkbox
+                v-model="includeFlexAreas"
+              >
+                Include Flex Service Areas
+              </t-checkbox>
+            </div>
           </t-field>
 
           <!-- Aggregation Section -->
