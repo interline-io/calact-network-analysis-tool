@@ -71,12 +71,14 @@ const scenarioData = defineModel<ScenarioData>('scenarioData')
 const analysisTypes: Record<string, string> = {
   'wsdot': 'WSDOT Frequent Transit Service Study',
   'wsdot-stops-routes': 'WSDOT Transit Stops and Transit Routes',
+  'visioneval': 'NTD annual agency metrics for VisionEval',
 }
 
 // Analysis component registry - maps analysis types to their components
 const analysisComponents: Record<string, { component: any }> = {
   'wsdot': { component: defineAsyncComponent(() => import('./wsdot.vue')) },
   'wsdot-stops-routes': { component: defineAsyncComponent(() => import('./wsdot-stops-routes.vue')) },
+  'visioneval': { component: defineAsyncComponent(() => import('./visioneval.vue')) },
 }
 
 // Initialize selectedReportType from query parameter
