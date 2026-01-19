@@ -128,6 +128,7 @@
             :scenario-filter-result="scenarioFilterResult"
             :has-fixed-route-data="hasFixedRouteData"
             :has-flex-data="hasFlexData"
+            :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
@@ -661,6 +662,37 @@ const scenarioData = ref<ScenarioData>()
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
 
+// Agency filter items with metadata about service types
+interface AgencyFilterItem {
+  name: string
+  hasFixedRoute: boolean
+  hasFlex: boolean
+}
+
+const agencyFilterItems = computed((): AgencyFilterItem[] => {
+  const agencyMap = new Map<string, AgencyFilterItem>()
+
+  // Collect from fixed-route data
+  for (const route of scenarioFilterResult.value?.routes || []) {
+    const name = route.agency.agency_name
+    const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+    item.hasFixedRoute = true
+    agencyMap.set(name, item)
+  }
+
+  // Collect from flex data
+  for (const feature of scenarioFilterResult.value?.flexAreas || []) {
+    for (const agency of feature.properties.agencies) {
+      const name = agency.agency_name
+      const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+      item.hasFlex = true
+      agencyMap.set(name, item)
+    }
+  }
+
+  return Array.from(agencyMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+})
+
 const flexAgencyNames = computed(() => {
   const names = new Set<string>()
   for (const feature of scenarioData.value?.flexAreas || []) {
@@ -715,10 +747,12 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
 
 // All flex areas with their "marked" status (matches filters)
 // Base computed that always calculates marked status (independent of map toggle)
+// Combines agency filtering from scenario-filter with advance notice, area type, and time filters
 const flexAreasWithMarkedBase = computed(() => {
-  return (scenarioData.value?.flexAreas || []).map(feature => ({
+  return (scenarioFilterResult.value?.flexAreas || []).map(feature => ({
     feature,
-    marked: flexAreaMatchesFilters(feature)
+    // Combine marked status from scenario-filter (agency) with local filters (advance notice, area type, time)
+    marked: (feature.properties.marked !== false) && flexAreaMatchesFilters(feature)
   }))
 })
 

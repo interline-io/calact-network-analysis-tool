@@ -145,6 +145,9 @@ export interface FlexAreaProperties {
   // Additional metadata (for CSV export)
   zone_id?: string
   feed_onestop_id?: string
+
+  // Filtering state (set by scenario-filter.ts)
+  marked?: boolean
 }
 
 /**

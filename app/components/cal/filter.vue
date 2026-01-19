@@ -278,29 +278,6 @@
             <p class="filter-legend">
               * Stops served by any of the selected route types
             </p>
-
-            <p class="menu-label">
-              Agencies
-            </p>
-
-            <t-field>
-              <t-input
-                v-model="agencySearch"
-                type="search"
-                placeholder="search"
-                icon-right="magnify"
-                icon-right-clickable
-                :disabled="!fixedRouteEnabled"
-              />
-            </t-field>
-
-            <t-checkbox-group
-              v-model="selectedAgencies"
-              :options="knownAgencies.map(a => ({ value: a, label: a, disabled: !fixedRouteEnabled }))"
-            />
-            <p class="filter-legend">
-              * Stops served by any of the selected agencies
-            </p>
           </div>
         </aside>
       </div>
@@ -361,6 +338,119 @@
                 </t-radio>
               </li>
             </ul>
+          </div>
+        </aside>
+      </div>
+
+      <!-- AGENCIES -->
+      <div v-if="activeTab === 'agencies'">
+        <aside class="menu">
+          <div class="mt-5 pt-4 agency-service-toggles">
+            <p class="menu-label">
+              Service Types
+            </p>
+            <t-field>
+              <t-checkbox
+                v-model="fixedRouteEnabled"
+              >
+                <span class="service-type-label">
+                  <t-icon icon="train-car" size="small" />
+                  Fixed-Route Transit
+                  <t-tooltip text="For more filtering controls, see the Fixed-Route Services tab.">
+                    <i class="mdi mdi-information-outline" />
+                  </t-tooltip>
+                </span>
+              </t-checkbox>
+            </t-field>
+
+            <t-field>
+              <t-checkbox
+                v-model="flexServicesEnabled"
+              >
+                <span class="service-type-label">
+                  <t-icon icon="van-utility" size="small" />
+                  Flex Services
+                  <t-tooltip text="For more filtering controls, see the Flex Services tab.">
+                    <i class="mdi mdi-information-outline" />
+                  </t-tooltip>
+                </span>
+              </t-checkbox>
+            </t-field>
+          </div>
+          <p class="menu-label">
+            Filter by Agency
+          </p>
+
+          <t-field>
+            <t-input
+              v-model="agencySearch"
+              type="search"
+              placeholder="search"
+              icon-right="magnify"
+              icon-right-clickable
+            />
+          </t-field>
+          <div class="buttons mb-4">
+            <t-button
+              size="small"
+              :disabled="allAgenciesSelected"
+              @click="selectAllAgencies"
+            >
+              Select All
+            </t-button>
+            <t-button
+              size="small"
+              :disabled="noAgenciesSelected"
+              @click="selectNoAgencies"
+            >
+              Select None
+            </t-button>
+          </div>
+
+          <p
+            v-if="!fixedRouteEnabled || !flexServicesEnabled"
+            class="filter-legend mb-3"
+          >
+            <em>Grayed out agencies don't have an enabled service type</em>
+          </p>
+
+          <div class="agency-checkbox-list">
+            <t-field
+              v-for="agency in agencyFilterOptions"
+              :key="agency.value"
+              :class="{ 'agency-disabled': isAgencyDisabled(agency) }"
+            >
+              <t-checkbox
+                v-model="localSelectedAgencies"
+                :native-value="agency.value"
+              >
+                <span class="agency-label">
+                  {{ agency.name }}
+                  <t-tooltip
+                    v-if="agency.hasFixedRoute"
+                    text="Has fixed-route service"
+                    position="right"
+                  >
+                    <t-icon
+                      icon="train-car"
+                      size="small"
+                      class="agency-icon"
+                    />
+                  </t-tooltip>
+                  <t-tooltip
+                    v-if="agency.hasFlex"
+                    text="Has flex service"
+                    position="right"
+                  >
+                    <t-icon
+                      icon="van-utility"
+                      size="small"
+                      class="agency-icon"
+                    />
+                  </t-tooltip>
+                </span>
+              </t-checkbox>
+            </t-field>
           </div>
         </aside>
       </div>
@@ -511,16 +601,24 @@ import type { ScenarioFilterResult } from '~~/src/scenario'
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
-  { icon: 'bus', label: 'Transit Services', tab: 'transit-layers' },
+  { icon: 'domain', label: 'Agencies', tab: 'agencies' },
+  { icon: 'bus', label: 'Fixed-Route Services', tab: 'transit-layers' },
   { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services' },
   { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
+interface AgencyFilterItem {
+  name: string
+  hasFixedRoute: boolean
+  hasFlex: boolean
+}
+
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   hasFixedRouteData?: boolean
   hasFlexData?: boolean
+  agencyFilterItems?: AgencyFilterItem[]
 }>()
 
 const emit = defineEmits([
@@ -603,19 +701,94 @@ function setTab (v: string) {
 
 const agencySearch = ref('')
 
-const knownAgencies = computed(() => {
-  const agencies = new Set<string>()
-  for (const feature of props.scenarioFilterResult?.stops || []) {
-    for (const rs of feature.route_stops) {
-      agencies.add(rs.route.agency.agency_name)
+const agencyFilterOptions = computed(() => {
+  const items = props.agencyFilterItems || []
+  return items
+    .filter((a) => {
+      const sv = agencySearch.value.toLowerCase()
+      return !sv || a.name.toLowerCase().includes(sv)
+    })
+    .map(a => ({
+      value: a.name,
+      name: a.name,
+      hasFixedRoute: a.hasFixedRoute,
+      hasFlex: a.hasFlex,
+    }))
+})
+
+// All available agency names (for checking if all are selected)
+const allAgencyNames = computed(() => {
+  return (props.agencyFilterItems || []).map(a => a.name)
+})
+
+// Local wrapper around selectedAgencies that handles undefined = "all selected"
+// When undefined, treat as all agencies selected (no filter applied)
+// When all are selected, store as undefined to maintain semantic meaning
+const localSelectedAgencies = computed<string[]>({
+  get () {
+    // If undefined, return all agency names (all are selected)
+    if (selectedAgencies.value === undefined) {
+      return allAgencyNames.value
+    }
+    return selectedAgencies.value
+  },
+  set (newValue: string[]) {
+    // If all agencies are selected, set to undefined (no filter)
+    const allSelected = allAgencyNames.value.length > 0
+      && newValue.length === allAgencyNames.value.length
+      && allAgencyNames.value.every(name => newValue.includes(name))
+
+    if (allSelected) {
+      selectedAgencies.value = undefined
+    } else {
+      selectedAgencies.value = newValue
     }
   }
-  const sv = agencySearch.value.toLowerCase()
-  if (sv) {
-    return Array.from(agencies).filter(a => a.toLowerCase().includes(sv))
-  }
-  return Array.from(agencies).toSorted((a, b) => a.localeCompare(b))
 })
+
+// Check if all agencies are currently selected
+const allAgenciesSelected = computed(() => {
+  return selectedAgencies.value === undefined
+    || (selectedAgencies.value.length === allAgencyNames.value.length
+      && allAgencyNames.value.every(name => selectedAgencies.value!.includes(name)))
+})
+
+// Check if no agencies are currently selected
+const noAgenciesSelected = computed(() => {
+  return selectedAgencies.value !== undefined && selectedAgencies.value.length === 0
+})
+
+function selectAllAgencies () {
+  selectedAgencies.value = undefined // undefined = all selected
+}
+
+function selectNoAgencies () {
+  selectedAgencies.value = []
+}
+
+// Check if an agency should be visually disabled based on service type toggles
+// An agency is disabled if ALL of its service types are turned off
+function isAgencyDisabled (agency: { hasFixedRoute: boolean, hasFlex: boolean }): boolean {
+  const fixedOff = !fixedRouteEnabled.value
+  const flexOff = !flexServicesEnabled.value
+
+  // If both service types are off, all agencies are disabled
+  if (fixedOff && flexOff) {
+    return true
+  }
+
+  // If fixed is off and agency only has fixed-route, it's disabled
+  if (fixedOff && agency.hasFixedRoute && !agency.hasFlex) {
+    return true
+  }
+
+  // If flex is off and agency only has flex, it's disabled
+  if (flexOff && agency.hasFlex && !agency.hasFixedRoute) {
+    return true
+  }
+
+  return false
+}
 
 const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
@@ -660,6 +833,9 @@ const dowAvailable = computed((): Set<string> => {
   flex-shrink: 0;
   background: var(--bulma-scheme-main-ter);
   padding: 0 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
 }
 
 .cal-day-of-week-mode {
@@ -702,5 +878,24 @@ const dowAvailable = computed((): Set<string> => {
 .is-disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.agency-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agency-icon {
+  opacity: 0.6;
+}
+
+.agency-disabled {
+  opacity: 0.4;
+
+  .agency-label {
+    text-decoration: line-through;
+    color: var(--bulma-text-weak);
+  }
 }
 </style>
