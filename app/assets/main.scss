@@ -48,3 +48,9 @@ $duration: 1000ms;
 .message .media-content{
     overflow: visible !important; /* so datetime picker isn't hidden */
 }
+
+// Tooltip fixes
+.t-tooltip::after {
+    text-transform: none; // Prevent inheriting text-transform from parent elements (e.g., menu-label)
+    font-weight: normal; // Reset font weight that might be inherited
+}
