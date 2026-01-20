@@ -24,15 +24,21 @@
       </t-msg>
     </t-card>
 
-    <t-msg v-if="error" variant="danger" class="mt-4" style="width:500px" :title="error.message">
+    <!-- Loading Modal -->
+    <t-modal
+      v-model="showLoadingModal"
+      title="Running VisionEval Analysis"
+      :closable="false"
+    >
+      <analysis-visioneval-loading
+        :progress="loadingProgress"
+        :error="error"
+      />
+    </t-modal>
+
+    <t-msg v-if="error && !loading" variant="danger" class="mt-4" style="width:500px" :title="error.message">
       An error occurred while running the VisionEval analysis.
     </t-msg>
-    <div v-else-if="loading" class="has-text-centered mt-4">
-      <t-loading :active="true" :full-page="false" />
-      <p class="mt-4">
-        {{ loadingMessage }}
-      </p>
-    </div>
     <div v-else-if="report">
       <analysis-visioneval-viewer
         v-model:report="report"
@@ -169,7 +175,8 @@ const AVAILABLE_YEARS = ['2024', '2023', '2022']
 
 const error = ref<Error>()
 const loading = ref(false)
-const loadingMessage = ref('Loading...')
+const loadingProgress = ref<VisionEvalProgress>()
+const showLoadingModal = ref(false)
 const report = ref<VisionEvalReport>()
 
 // Configuration state (per issue #260: one year and state at a time)
@@ -222,10 +229,8 @@ const processStream = async (stream: ReadableStream<Uint8Array>): Promise<Vision
         if (!line.trim()) { continue }
         const progress = JSON.parse(line) as VisionEvalProgress
 
-        // Update loading message
-        if (progress.message) {
-          loadingMessage.value = progress.message
-        }
+        // Update loading progress for the modal
+        loadingProgress.value = progress
 
         // Check for errors
         if (progress.error) {
@@ -249,7 +254,8 @@ const processStream = async (stream: ReadableStream<Uint8Array>): Promise<Vision
 const runQuery = async () => {
   loading.value = true
   error.value = undefined
-  loadingMessage.value = 'Initializing...'
+  loadingProgress.value = undefined
+  showLoadingModal.value = true
 
   try {
     const config: VisionEvalConfig = {
@@ -276,6 +282,7 @@ const runQuery = async () => {
     const result = await processStream(response.body)
     if (result) {
       report.value = result
+      showLoadingModal.value = false
       useToastNotification().showToast('VisionEval analysis completed successfully!')
     } else {
       throw new Error('No report received from server')
@@ -283,6 +290,7 @@ const runQuery = async () => {
   } catch (err: any) {
     console.error('VisionEval analysis error:', err)
     error.value = err
+    showLoadingModal.value = false
   } finally {
     loading.value = false
   }

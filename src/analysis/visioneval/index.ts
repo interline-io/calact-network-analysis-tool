@@ -369,7 +369,7 @@ export async function runVisionEvalAnalysisStreaming (
         sender.onProgress({
           isLoading: true,
           currentStage: 'fetching',
-          message: `Fetching NTD data... ${info.fetchedCount} fetched, ${info.filteredCount} matched`,
+          message: 'Fetching NTD data...',
           fetchedCount: info.fetchedCount,
           filteredCount: info.filteredCount,
         })
