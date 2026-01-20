@@ -126,8 +126,6 @@
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
             :scenario-filter-result="scenarioFilterResult"
-            :has-fixed-route-data="hasFixedRouteData"
-            :has-flex-data="hasFlexData"
             :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
