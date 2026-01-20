@@ -1,5 +1,6 @@
-import { gql } from 'graphql-tag'
 import type { GraphQLClient } from '~~/src/core'
+import { GenericStreamSender, requestStream, type StreamableProgress } from '~~/src/core/stream'
+import { fetchNTDData, type NTDRawValue } from '~~/src/analysis/ntd'
 
 // Default NTD census dataset and table configuration
 const NTD_DEFAULTS = {
@@ -125,96 +126,22 @@ export interface VisionEvalReport {
   rawRecords: NTDRecord[] // For debugging/detailed view
 }
 
-// GraphQL query to fetch NTD census values
-const ntdValuesQuery = gql`
-query($first: Int, $after: String, $dataset: String!, $table: String) {
-  census_datasets(where: {name: $dataset}) {
-    values: values_relay(first: $first, after: $after, where: {
-      table: $table
-    }) {
-      edges {
-        node {
-          geoid
-          dataset_name
-          values
-        }
-        cursor
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-}
-`
-
-interface NTDValuesResponse {
-  census_datasets: {
-    values: {
-      edges: {
-        node: NTDMetricValue
-        cursor: string
-      }[]
-      pageInfo: {
-        hasNextPage: boolean
-        endCursor: string
-      }
-    }
-  }[]
-}
-
-/**
- * Fetch all NTD metrics data with pagination
- */
-async function fetchNTDMetrics (
-  client: GraphQLClient,
-  config: VisionEvalConfig,
-  onProgress?: (count: number, hasMore: boolean) => void
-): Promise<NTDMetricValue[]> {
-  const allValues: NTDMetricValue[] = []
-  let hasNextPage = true
-  let afterCursor: string | null = null
-  const pageSize = 5000
-
-  const dataset = config.ntdDataset ?? NTD_DEFAULTS.dataset
-  const table = config.ntdTable ?? NTD_DEFAULTS.table
-
-  while (hasNextPage) {
-    const variables: Record<string, any> = {
-      first: pageSize,
-      dataset,
-      table,
-    }
-    if (afterCursor) {
-      variables.after = afterCursor
-    }
-
-    const result = await client.query<NTDValuesResponse>(ntdValuesQuery, variables)
-    const resultDataset = result.data?.census_datasets?.[0]
-    if (!resultDataset?.values?.edges) {
-      break
-    }
-
-    for (const edge of resultDataset.values.edges) {
-      allValues.push(edge.node)
-    }
-
-    hasNextPage = resultDataset.values.pageInfo.hasNextPage
-    afterCursor = resultDataset.values.pageInfo.endCursor
-
-    if (onProgress) {
-      onProgress(allValues.length, hasNextPage)
-    }
-  }
-
-  return allValues
+// Streaming progress for BFF endpoint
+export interface VisionEvalProgress extends StreamableProgress {
+  isLoading: boolean
+  currentStage: 'ready' | 'fetching' | 'processing' | 'complete' | 'error'
+  message?: string
+  fetchedCount?: number
+  filteredCount?: number
+  report?: VisionEvalReport
+  error?: any
 }
 
 /**
  * Process raw NTD values into typed records
+ * This is used both by the old client-side path and the new BFF path
  */
-function processNTDValues (values: NTDMetricValue[], config: VisionEvalConfig): NTDRecord[] {
+function processNTDValues (values: NTDRawValue[], config: VisionEvalConfig): NTDRecord[] {
   const records: NTDRecord[] = []
 
   // Resolve field names with defaults
@@ -237,22 +164,9 @@ function processNTDValues (values: NTDMetricValue[], config: VisionEvalConfig): 
     const mode = String(value.values[fields.mode] || '')
     const typeOfService = String(value.values[fields.typeOfService] || '')
 
-    // Filter by state
+    // State and year are already filtered by NTD fetcher, but validate
     const state = String(value.values[fields.state] || '').toUpperCase()
-    if (state !== config.state.toUpperCase()) {
-      continue
-    }
-
-    // Filter by year (single year per issue #260)
-    if (reportYear !== config.year) {
-      continue
-    }
-
-    // Skip entries without a valid UZA (rural areas without urbanized area designation)
     const uzaName = String(value.values[fields.uzaName] || '')
-    if (uzaName === '' || uzaName === 'N/A' || uzaName.includes('Non-UZA')) {
-      continue
-    }
 
     // Extract numeric values, handling potential string values
     const vehicleRevenueMiles = parseFloat(String(value.values[fields.vehicleRevenueMiles] || 0)) || 0
@@ -375,28 +289,13 @@ function generateCostPerRevenueMile (records: NTDRecord[]): CostPerRevenueMileRo
 }
 
 /**
- * Main analysis function - runs the VisionEval NTD analysis
+ * Generate the VisionEval report from filtered NTD records
  */
-export async function runVisionEvalAnalysis (
-  config: VisionEvalConfig,
-  client: GraphQLClient,
-  onProgress?: (message: string, count?: number) => void
-): Promise<VisionEvalReport> {
-  // Fetch all NTD metrics data
-  onProgress?.('Fetching NTD metrics data...', 0)
-  const rawValues = await fetchNTDMetrics(client, config, (count, hasMore) => {
-    onProgress?.(`Fetching NTD metrics data... ${count} records${hasMore ? ' (loading more)' : ' (complete)'}`, count)
-  })
-
-  // Process and filter records
-  onProgress?.('Processing and filtering records...', rawValues.length)
-  const records = processNTDValues(rawValues, config)
-
-  // Generate output tables
-  onProgress?.('Generating marea_transit_service table...', records.length)
+export function generateVisionEvalReport (
+  records: NTDRecord[],
+  config: VisionEvalConfig
+): VisionEvalReport {
   const mareaTransitService = generateMareaTransitService(records)
-
-  onProgress?.('Generating cost_per_revenue_mile table...', records.length)
   const costPerRevenueMile = generateCostPerRevenueMile(records)
 
   // Calculate summary statistics
@@ -411,8 +310,6 @@ export async function runVisionEvalAnalysis (
     totalRecords: records.length,
   }
 
-  onProgress?.('Analysis complete!', records.length)
-
   return {
     config,
     summary,
@@ -420,6 +317,138 @@ export async function runVisionEvalAnalysis (
     costPerRevenueMile,
     rawRecords: records,
   }
+}
+
+/**
+ * Run VisionEval analysis with streaming support for BFF endpoint
+ * This is the server-side entry point that uses the NTD fetcher
+ */
+export async function runVisionEvalAnalysisStreaming (
+  controller: ReadableStreamDefaultController,
+  config: VisionEvalConfig,
+  client: GraphQLClient
+): Promise<VisionEvalReport> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new GenericStreamSender<VisionEvalProgress>(writer)
+
+  try {
+    // Send initial progress
+    sender.onProgress({
+      isLoading: true,
+      currentStage: 'ready',
+      message: 'Initializing VisionEval analysis...',
+    })
+
+    // Fetch NTD data with server-side filtering
+    sender.onProgress({
+      isLoading: true,
+      currentStage: 'fetching',
+      message: 'Fetching NTD data...',
+      fetchedCount: 0,
+      filteredCount: 0,
+    })
+
+    const dataset = config.ntdDataset ?? NTD_DEFAULTS.dataset
+    const table = config.ntdTable ?? NTD_DEFAULTS.table
+
+    const filteredValues = await fetchNTDData(
+      client,
+      { dataset, table },
+      {
+        state: config.state,
+        year: config.year,
+        excludeNonUZA: true,
+      },
+      {
+        state: config.ntdFields?.state ?? NTD_DEFAULTS.fields.state,
+        reportYear: config.ntdFields?.reportYear ?? NTD_DEFAULTS.fields.reportYear,
+        uzaName: config.ntdFields?.uzaName ?? NTD_DEFAULTS.fields.uzaName,
+      },
+      (info) => {
+        sender.onProgress({
+          isLoading: true,
+          currentStage: 'fetching',
+          message: `Fetching NTD data... ${info.fetchedCount} fetched, ${info.filteredCount} matched`,
+          fetchedCount: info.fetchedCount,
+          filteredCount: info.filteredCount,
+        })
+      }
+    )
+
+    // Process records
+    sender.onProgress({
+      isLoading: true,
+      currentStage: 'processing',
+      message: 'Processing records...',
+      filteredCount: filteredValues.length,
+    })
+
+    const records = processNTDValues(filteredValues, config)
+    const report = generateVisionEvalReport(records, config)
+
+    // Send complete with report
+    sender.onProgress({
+      isLoading: false,
+      currentStage: 'complete',
+      message: 'Analysis complete!',
+      report,
+    })
+
+    await writer.close()
+    return report
+  } catch (error) {
+    sender.onError(error)
+    await writer.close()
+    throw error
+  }
+}
+
+/**
+ * Main analysis function - runs the VisionEval NTD analysis
+ * This is the client-side compatible version (legacy, still works but less efficient)
+ * @deprecated Use runVisionEvalAnalysisStreaming via the BFF endpoint for better performance
+ */
+export async function runVisionEvalAnalysis (
+  config: VisionEvalConfig,
+  client: GraphQLClient,
+  onProgress?: (message: string, count?: number) => void
+): Promise<VisionEvalReport> {
+  const dataset = config.ntdDataset ?? NTD_DEFAULTS.dataset
+  const table = config.ntdTable ?? NTD_DEFAULTS.table
+
+  // Fetch NTD data with server-side filtering (works the same from client, just less efficient)
+  onProgress?.('Fetching NTD metrics data...', 0)
+
+  const filteredValues = await fetchNTDData(
+    client,
+    { dataset, table },
+    {
+      state: config.state,
+      year: config.year,
+      excludeNonUZA: true,
+    },
+    {
+      state: config.ntdFields?.state ?? NTD_DEFAULTS.fields.state,
+      reportYear: config.ntdFields?.reportYear ?? NTD_DEFAULTS.fields.reportYear,
+      uzaName: config.ntdFields?.uzaName ?? NTD_DEFAULTS.fields.uzaName,
+    },
+    (info) => {
+      onProgress?.(`Fetching NTD data... ${info.fetchedCount} fetched, ${info.filteredCount} matched`, info.filteredCount)
+    }
+  )
+
+  // Process and filter records
+  onProgress?.('Processing records...', filteredValues.length)
+  const records = processNTDValues(filteredValues, config)
+
+  // Generate output tables
+  onProgress?.('Generating marea_transit_service table...', records.length)
+  const report = generateVisionEvalReport(records, config)
+
+  onProgress?.('Analysis complete!', records.length)
+
+  return report
 }
 
 // Export mode mappings for UI use

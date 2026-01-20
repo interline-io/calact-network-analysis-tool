@@ -102,12 +102,10 @@
 
 <script lang="ts" setup>
 import { useApiFetch } from '~/composables/useApiFetch'
-import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { BasicGraphQLClient } from '~~/src/core'
-import {
-  runVisionEvalAnalysis,
-  type VisionEvalConfig,
-  type VisionEvalReport,
+import type {
+  VisionEvalConfig,
+  VisionEvalReport,
+  VisionEvalProgress,
 } from '~~/src/analysis/visioneval'
 
 // US States for selection
@@ -204,6 +202,49 @@ defineExpose({
   hasResults
 })
 
+// Process the streaming response from the BFF endpoint
+const processStream = async (stream: ReadableStream<Uint8Array>): Promise<VisionEvalReport | null> => {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let result: VisionEvalReport | null = null
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) { break }
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.trim()) { continue }
+        const progress = JSON.parse(line) as VisionEvalProgress
+
+        // Update loading message
+        if (progress.message) {
+          loadingMessage.value = progress.message
+        }
+
+        // Check for errors
+        if (progress.error) {
+          throw new Error(progress.error.message || 'Unknown error')
+        }
+
+        // Check for completion with report
+        if (progress.currentStage === 'complete' && progress.report) {
+          result = progress.report
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  return result
+}
+
 // Run the analysis
 const runQuery = async () => {
   loading.value = true
@@ -216,19 +257,29 @@ const runQuery = async () => {
       year: parseInt(configYear.value, 10),
     }
 
-    // Create GraphQL client
+    // Call the BFF endpoint
     const apiFetch = await useApiFetch()
-    const client = new BasicGraphQLClient(
-      useTransitlandApiEndpoint('/query'),
-      apiFetch,
-    )
-
-    // Run the analysis
-    report.value = await runVisionEvalAnalysis(config, client, (message, _count) => {
-      loadingMessage.value = message
+    const response = await apiFetch('/api/visioneval', {
+      method: 'POST',
+      body: JSON.stringify({ config }),
     })
 
-    useToastNotification().showToast('VisionEval analysis completed successfully!')
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('No response body')
+    }
+
+    // Process the streaming response
+    const result = await processStream(response.body)
+    if (result) {
+      report.value = result
+      useToastNotification().showToast('VisionEval analysis completed successfully!')
+    } else {
+      throw new Error('No report received from server')
+    }
   } catch (err: any) {
     console.error('VisionEval analysis error:', err)
     error.value = err
