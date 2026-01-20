@@ -127,7 +127,7 @@
           >
             <div class="control">
               <t-button
-                outlined
+                variant="light"
                 @click="handleCancel"
               >
                 Cancel
