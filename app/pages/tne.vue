@@ -143,7 +143,6 @@
             :filter-summary="filterSummary"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
-            :has-flex-data="hasFlexData"
             :flex-display-features="flexFeaturesForReport"
           />
         </div>
@@ -994,13 +993,6 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
-// Data availability indicators for filter panel
-const hasFixedRouteData = computed(() => {
-  return !!(scenarioFilterResult.value?.stops?.length || scenarioFilterResult.value?.routes?.length)
-})
-const hasFlexData = computed(() => {
-  return !!(scenarioData.value?.flexAreas?.length)
-})
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()

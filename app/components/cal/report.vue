@@ -53,7 +53,7 @@
         </section>
 
         <!-- Flex service options -->
-        <section v-if="props.hasFlexData" class="mb-0">
+        <section v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" class="mb-0">
           <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing flex service by:</span>
             <t-tooltip text="The selected view determines what rows and associated columns appear in the report.">
@@ -131,7 +131,6 @@ const props = defineProps<{
   // Service type toggles
   fixedRouteEnabled?: boolean
   flexServicesEnabled?: boolean
-  hasFlexData?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
 
