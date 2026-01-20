@@ -7,30 +7,18 @@
       expandable
       :open="!hasResults"
     >
-      <t-msg variant="info">
+      <t-msg variant="info" class="content">
         <p class="mb-3">
-          This analysis generates transit service data files for use with <strong>VisionEval</strong>,
-          a strategic planning model framework used by state DOTs and MPOs to evaluate the
-          outcomes of policy and investment changes on transportation system performance.
+          This analysis uses US National Transit Database annual metrics datasets to generates CSV files to import into <strong>VisionEval</strong> policy modeling software.
         </p>
-        <p class="mb-3">
-          <strong>Data Source:</strong> National Transit Database (NTD) Annual Data - Metrics table,
-          which contains Vehicle Revenue Miles and Operating Expenses by agency, mode, and urbanized area.
-        </p>
-        <p class="mb-3">
-          <strong>Output Files:</strong>
-        </p>
-        <ul class="mb-3">
-          <li><strong>marea_transit_service.csv:</strong> Vehicle Revenue Miles aggregated by Urbanized Area (UZA) and VisionEval transit mode (DR, VP, MB, RB, MG, SR, HR, CR)</li>
-          <li><strong>cost_per_revenue_mile.csv:</strong> Statewide cost per revenue mile by mode, calculated from Total Operating Expenses divided by Vehicle Revenue Miles</li>
+        <ul>
+          <li><code>marea_transit_service.csv</code> Vehicle Revenue Miles by urbanized area and mode</li>
+          <li><code>cost_per_revenue_mile.csv</code> Operating cost per revenue mile by mode</li>
         </ul>
         <p class="mb-3">
-          <strong>Mode Mapping:</strong> NTD modes are mapped to VisionEval modes:
-          DR (Demand Response), VP (Vanpool), MB (Bus), RB (Bus Rapid Transit),
-          MG (Monorail/Automated Guideway), SR (Streetcar Rail), HR (Heavy Rail), CR (Commuter Rail).
+          NTD modes are mapped to VisionEval modes.
         </p>
         <p>
-          Select your state and report year below to generate the analysis.
           Non-urbanized area (Non-UZA) records are excluded from the output.
         </p>
       </t-msg>
@@ -60,7 +48,7 @@
         <div class="card-content">
           <t-field>
             <template #label>
-              <t-tooltip text="Select the state to filter NTD data. Only agencies in this state will be included.">
+              <t-tooltip text="Filter NTD data to agencies in this state.">
                 State
                 <t-icon icon="information" />
               </t-tooltip>
@@ -77,7 +65,7 @@
 
           <t-field>
             <template #label>
-              <t-tooltip text="Select the report year. Data for the previous calendar year is typically available in mid-November.">
+              <t-tooltip text="NTD report year. Prior year data is typically available each November.">
                 Report Year
                 <t-icon icon="information" />
               </t-tooltip>

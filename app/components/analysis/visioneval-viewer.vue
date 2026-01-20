@@ -47,12 +47,8 @@
         >
           <div class="mt-4">
             <h4 class="title is-4">
-              marea_transit_service.csv
-            </h4>
-            <p class="subtitle is-6 mb-4">
               Vehicle Revenue Miles by Urbanized Area and VisionEval Mode
-            </p>
-
+            </h4>
             <cal-datagrid
               :table-report="mareaDatagrid"
               :show-results-count="false"
@@ -93,17 +89,17 @@
         >
           <div class="mt-4">
             <h4 class="title is-4">
-              cost_per_revenue_mile.csv
-            </h4>
-            <p class="subtitle is-6 mb-4">
               Statewide Cost per Revenue Mile by Mode
-            </p>
+            </h4>
 
             <cal-datagrid
               :table-report="costDatagrid"
               :show-results-count="false"
               filename="cost_per_revenue_mile"
             >
+              <template #column-Mode="{ value }">
+                <abbr :title="VISIONEVAL_MODE_NAMES[value] || value">{{ value }}</abbr>
+              </template>
               <template #column-CostPerRevenueMile="{ value }">
                 ${{ value.toFixed(2) }}
               </template>
@@ -120,9 +116,6 @@
             <h4 class="title is-4">
               Raw NTD Records
             </h4>
-            <p class="subtitle is-6 mb-4">
-              Detailed NTD records used in the analysis (for verification)
-            </p>
 
             <cal-datagrid
               :table-report="rawDatagrid"
@@ -144,7 +137,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { VisionEvalReport } from '~~/src/analysis/visioneval'
+import { VISIONEVAL_MODE_NAMES, type VisionEvalReport } from '~~/src/analysis/visioneval'
 import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
 
 // Define models for props
