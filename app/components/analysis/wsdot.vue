@@ -350,10 +350,3 @@ const fetchScenario = async () => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
-
-<style>
-/* Ensure modal is always on top */
-.tl-modal {
-  z-index: 99999 !important;
-}
-</style>

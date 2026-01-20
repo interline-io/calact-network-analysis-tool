@@ -1292,10 +1292,3 @@ function toTitleCase (str: string): string {
   }
 }
 </style>
-
-<style>
-/* Ensure modal is always on top */
-.tl-modal {
-  z-index: 99999 !important;
-}
-</style>
