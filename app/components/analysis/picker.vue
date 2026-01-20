@@ -21,9 +21,9 @@
         <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
       </t-msg>
 
-      <!-- Warning when no scenario data is available -->
+      <!-- Warning when no scenario data is available (only if all analyses require it) -->
       <t-msg
-        v-if="!scenarioConfig"
+        v-if="!scenarioConfig && !hasStandaloneAnalyses"
         variant="danger"
       >
         You need to define the geographic extent before running analyses. Please go to the <t-icon
@@ -35,7 +35,6 @@
       <t-field label="Start an analysis">
         <t-select
           v-model="selectedReportType"
-          :disabled="!scenarioConfig"
         >
           <option
             value=""
@@ -45,11 +44,12 @@
             Select an analysis to run
           </option>
           <option
-            v-for="[reportType, reportLabel] of Object.entries(analysisTypes)"
+            v-for="[reportType, analysis] of Object.entries(analysisTypes)"
             :key="reportType"
             :value="reportType"
+            :disabled="analysis.requiresScenario && !scenarioConfig"
           >
-            {{ reportLabel }}
+            {{ analysis.label }}{{ analysis.requiresScenario && !scenarioConfig ? ' (requires geographic extent)' : '' }}
           </option>
         </t-select>
       </t-field>
@@ -68,11 +68,16 @@ const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData>('scenarioData')
 
 // Analysis type registry - easily add new analyses here
-const analysisTypes: Record<string, string> = {
-  'wsdot': 'WSDOT Frequent Transit Service Study',
-  'wsdot-stops-routes': 'WSDOT Transit Stops and Transit Routes',
-  'visioneval': 'NTD annual agency metrics for VisionEval',
+const analysisTypes: Record<string, { label: string, requiresScenario: boolean }> = {
+  'wsdot': { label: 'WSDOT Frequent Transit Service Study', requiresScenario: true },
+  'wsdot-stops-routes': { label: 'WSDOT Transit Stops and Transit Routes', requiresScenario: true },
+  'visioneval': { label: 'NTD annual agency metrics for VisionEval', requiresScenario: false },
 }
+
+// Check if any analysis that doesn't require scenario is available
+const hasStandaloneAnalyses = computed(() => {
+  return Object.values(analysisTypes).some(a => !a.requiresScenario)
+})
 
 // Analysis component registry - maps analysis types to their components
 const analysisComponents: Record<string, { component: any }> = {

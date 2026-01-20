@@ -9,6 +9,7 @@
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
+          :filename="props.filename"
         />
       </t-field>
 
@@ -70,6 +71,10 @@ const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
 const showResultsCount = defineModel<boolean>('showResultsCount', { default: true })
+
+const props = defineProps<{
+  filename?: string
+}>()
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage

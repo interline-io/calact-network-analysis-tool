@@ -1,5 +1,16 @@
 <template>
   <div>
+    <!-- Empty results warning -->
+    <t-msg
+      v-if="report.summary.totalRecords === 0"
+      variant="warning"
+      class="mt-4"
+    >
+      No matching NTD records found for {{ report.summary.state }} in {{ report.summary.year }}.
+      This may occur if the selected state has no transit agencies reporting data for this year,
+      or if all agencies are classified as Non-UZA (rural areas without urbanized area designation).
+    </t-msg>
+
     <!-- Summary Card -->
     <t-card label="Analysis Summary" class="mt-4">
       <div class="columns">
@@ -45,6 +56,7 @@
             <cal-datagrid
               :table-report="mareaDatagrid"
               :show-results-count="false"
+              filename="marea_transit_service"
             >
               <template #column-DRRevMi="{ value }">
                 {{ formatNumber(value) }}
@@ -90,6 +102,7 @@
             <cal-datagrid
               :table-report="costDatagrid"
               :show-results-count="false"
+              filename="cost_per_revenue_mile"
             >
               <template #column-CostPerRevenueMile="{ value }">
                 ${{ value.toFixed(2) }}
@@ -114,6 +127,7 @@
             <cal-datagrid
               :table-report="rawDatagrid"
               :show-results-count="false"
+              filename="ntd_raw_records"
             >
               <template #column-vehicleRevenueMiles="{ value }">
                 {{ formatNumber(value) }}

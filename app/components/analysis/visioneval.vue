@@ -178,7 +178,7 @@ const US_STATES = [
   { abbr: 'PR', name: 'Puerto Rico' },
 ]
 
-// Available years based on loaded NTD data
+// Available years based on loaded NTD data (strings for HTML select compatibility)
 const AVAILABLE_YEARS = ['2024', '2023', '2022']
 
 const error = ref<Error>()
@@ -196,11 +196,12 @@ const emit = defineEmits<{
 
 // Track if results are loaded
 const { setHasResults } = useAnalysisResults()
-const hasResults = computed(() => {
-  const hasResultsValue = report.value !== undefined
-  setHasResults('visioneval', hasResultsValue)
-  return hasResultsValue
-})
+const hasResults = computed(() => report.value !== undefined)
+
+// Sync hasResults state with the composable (using watch to avoid side-effects in computed)
+watch(hasResults, (value) => {
+  setHasResults('visioneval', value)
+}, { immediate: true })
 
 const canRun = computed(() => {
   return configState.value && configYear.value
