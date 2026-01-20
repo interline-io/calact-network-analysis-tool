@@ -993,7 +993,6 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
-
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
