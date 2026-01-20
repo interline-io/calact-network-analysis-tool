@@ -41,10 +41,19 @@ $duration: 1000ms;
     }
 }
 
+.message .media-content{
+    overflow: visible !important; /* so datetime picker isn't hidden */
+}
+
 .tooltip-trigger {
     border: none;
 }
+.t-tooltip::after {
+    text-transform: none; // Prevent inheriting text-transform from parent elements (e.g., menu-label)
+    font-weight: normal; // Reset font weight that might be inherited
+}
 
-.message .media-content{
-    overflow: visible !important; /* so datetime picker isn't hidden */
+// Ensure modal is always on top
+.t-modal {
+  z-index: 99999 !important;
 }

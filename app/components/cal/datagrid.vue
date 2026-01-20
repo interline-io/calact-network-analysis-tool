@@ -4,7 +4,7 @@
       {{ total }} results found
     </div>
 
-    <t-field grouped>
+    <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <t-field>
         <cal-csv-download
           :data="tableReport.data"
@@ -18,10 +18,10 @@
       <t-pagination
         v-model:current="current"
         :total="total"
-        position="centered"
         :per-page="perPage"
+        style="margin-left: auto;"
       />
-    </t-field>
+    </div>
 
     <div class="table-container">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
@@ -119,6 +119,19 @@ const total = computed(() => {
     position: sticky;
     top: 0;
     z-index: 10;
+  }
+}
+
+// Fix pagination element ordering
+:deep(.t-pagination) {
+  .pagination-previous {
+    order: 1;
+  }
+  .pagination-list {
+    order: 2;
+  }
+  .pagination-next {
+    order: 3;
   }
 }
 </style>

@@ -127,7 +127,7 @@
           >
             <div class="control">
               <t-button
-                outlined
+                variant="light"
                 @click="handleCancel"
               >
                 Cancel
@@ -350,10 +350,3 @@ const fetchScenario = async () => {
   await streamer.processStream(response.body, receiver)
 }
 </script>
-
-<style>
-/* Ensure modal is always on top */
-.tl-modal {
-  z-index: 99999 !important;
-}
-</style>

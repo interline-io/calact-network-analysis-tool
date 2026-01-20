@@ -34,81 +34,105 @@
     </div>
     <div class="columns">
       <div class="column is-one-half">
-        <t-field label="Frequency level selection and stats" class="mt-4" />
-        <table class="wsdot-level-details">
-          <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
-            <tr>
-              <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
-                <t-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
-                  {{ levelDetail.label }}
-                </t-checkbox>
-              </td>
-            </tr>
-            <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
-              <td style="width:50px" />
-              <td>
-                {{ adminKey }}
-              </td>
-              <td>
-                {{ pop.stopCount.toLocaleString() }} stops
-              </td>
-              <td>{{ Math.round(pop.intersectionPopulation).toLocaleString() }} pop</td>
-              <td>
-                <template v-if="popMethod === 'bboxIntersection'">
-                  {{ pop.bboxPopulation > 0 ? ((pop.intersectionPopulation / pop.bboxPopulation) * 100).toFixed(1) : '0' }}%
-                </template>
-                <template v-else>
-                  {{ pop.totalPopulation > 0 ? ((pop.intersectionPopulation / pop.totalPopulation) * 100).toFixed(1) : '0' }}%
-                </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- States & Population Settings (Collapsible) -->
+        <t-msg
+          title="State Filtering & Population Calculation"
+          expandable
+          :open="false"
+          class="mt-4"
+        >
+          <t-field>
+            <template #label>
+              <t-tooltip text="Filter results to specific states. Only stops and population data for selected states will appear in the analysis.">
+                Show results for state(s)
+                <t-icon icon="information" />
+              </t-tooltip>
+            </template>
+            <div v-for="state in Object.keys(StatePopulations).sort()" :key="state">
+              <t-checkbox
+                v-model="selectedStates"
+                :native-value="state"
+              >
+                {{ state }}
+              </t-checkbox>
+            </div>
+          </t-field>
 
-        <t-field class="py-2">
+          <t-field class="mt-4">
+            <template #label>
+              <t-tooltip text="Choose how population percentages are calculated in the statistics table">
+                Population Calculation
+                <t-icon icon="information" />
+              </t-tooltip>
+            </template>
+            <t-radio v-model="popMethod" native-value="state">
+              Percent of state population
+            </t-radio>
+            <t-radio v-model="popMethod" native-value="bboxIntersection">
+              Percent of population in bounding box
+            </t-radio>
+          </t-field>
+        </t-msg>
+        <!-- Frequency Levels Section -->
+        <t-field label="Stops by Frequency Level">
+          <template #label>
+            <t-tooltip text="Toggle on/off to show/hide stops at each level on the map">
+              Frequency Levels
+              <t-icon icon="information" />
+            </t-tooltip>
+          </template>
+          <table class="wsdot-level-details">
+            <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
+              <tr>
+                <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
+                  <t-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
+                    {{ levelDetail.label }}
+                  </t-checkbox>
+                </td>
+              </tr>
+              <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
+                <td style="width:50px" />
+                <td>
+                  {{ adminKey }}
+                </td>
+                <td>
+                  {{ pop.stopCount.toLocaleString() }} stops
+                </td>
+                <td>{{ Math.round(pop.intersectionPopulation).toLocaleString() }} pop</td>
+                <td>
+                  <template v-if="popMethod === 'bboxIntersection'">
+                    {{ pop.bboxPopulation > 0 ? ((pop.intersectionPopulation / pop.bboxPopulation) * 100).toFixed(1) : '0' }}%
+                  </template>
+                  <template v-else>
+                    {{ pop.totalPopulation > 0 ? ((pop.intersectionPopulation / pop.totalPopulation) * 100).toFixed(1) : '0' }}%
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </t-field>
+
+        <t-field class="mt-4">
           <cal-csv-download
             :data="populationDatagrid.data"
             button-text="Download Population Data as CSV"
+            :fullwidth="true"
           />
-        </t-field>
-
-        <t-field label="Map display options" class="mt-4">
-          <t-checkbox v-model="showStopBuffers">
-            Show stop buffers
-          </t-checkbox>
-          <t-dropdown
-            v-model:model-value="selectedStates"
-            selectable
-            multiple
-          >
-            <template #trigger>
-              <t-button
-                type="button"
-                icon-right="caret-down"
-              >
-                States ({{ selectedStates.length }})
-              </t-button>
-            </template>
-
-            <t-dropdown-item
-              v-for="state in Object.keys(StatePopulations).sort()"
-              :key="state"
-              :value="state"
-            >
-              {{ state }}
-            </t-dropdown-item>
-          </t-dropdown>
-        </t-field>
-        <t-field label="Population options">
-          <t-radio v-model="popMethod" native-value="state">
-            Percent of state population
-          </t-radio>
-          <t-radio v-model="popMethod" native-value="bboxIntersection">
-            Percent of population in bounding box
-          </t-radio>
         </t-field>
       </div>
       <div class="column">
+        <t-msg
+          title="Map Display"
+          expandable
+          :open="false"
+          class="mt-4"
+        >
+          <t-field>
+            <t-checkbox v-model="showStopBuffers">
+              Show stop buffers
+            </t-checkbox>
+          </t-field>
+        </t-msg>
         <cal-map-viewer-ts
           :features="displayFeatures"
           :center="bboxCenter"
@@ -119,6 +143,7 @@
 
     <cal-datagrid
       :table-report="stopDatagrid"
+      :show-results-count="false"
     >
       <template #additional-downloads>
         <t-field>
@@ -468,6 +493,17 @@ const stopDatagrid = computed((): TableReport => {
 </script>
 
 <style scoped>
+/* Section styling */
+.box {
+  box-shadow: 0 0.125em 0.25em rgba(10, 10, 10, 0.05);
+}
+
+.subtitle {
+  font-weight: 600;
+  margin-bottom: 1rem !important;
+}
+
+/* Level details table */
 .wsdot-level-details {
   width: 100%;
 }

@@ -75,7 +75,7 @@
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
             <div class="control">
-              <t-button outlined @click="handleCancel">
+              <t-button variant="light" @click="handleCancel">
                 Cancel
               </t-button>
             </div>
