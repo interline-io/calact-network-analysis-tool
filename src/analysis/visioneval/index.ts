@@ -1,6 +1,23 @@
 import { gql } from 'graphql-tag'
 import type { GraphQLClient } from '~~/src/core'
 
+// Default NTD census dataset and table configuration
+const NTD_DEFAULTS = {
+  dataset: 'ntd-annual-2024',
+  table: 'service_data_and_operating_expenses_by_mode',
+  fields: {
+    ntdId: 'ntd_id',
+    reportYear: 'report_year',
+    mode: 'mode',
+    typeOfService: 'type_of_service',
+    vehicleRevenueMiles: 'Vehicle Revenue Miles',
+    totalOperatingExpenses: 'Operating Expenses',
+    agency: 'agency_name',
+    state: 'state',
+    uzaName: 'primary_uza_name',
+  },
+}
+
 // NTD Mode to VisionEval mode mapping
 // Per issue #260: Only these specific modes are used in VisionEval modeling
 // Any NTD modes not listed should be IGNORED (not mapped)
@@ -33,24 +50,27 @@ const VISIONEVAL_MODE_NAMES: Record<string, string> = {
 export interface VisionEvalConfig {
   state: string // State abbreviation (e.g., "WA", "CA")
   year: number // Single report year
+  // NTD data source configuration (with defaults)
+  ntdDataset?: string
+  ntdTable?: string
+  ntdFields?: {
+    ntdId?: string
+    reportYear?: string
+    mode?: string
+    typeOfService?: string
+    vehicleRevenueMiles?: string
+    totalOperatingExpenses?: string
+    agency?: string
+    state?: string
+    uzaName?: string
+  }
 }
 
 // Raw NTD value from GraphQL
 export interface NTDMetricValue {
   geoid: string // Format: ntd:{ntd_id}:{year}:{mode}:{tos}
   dataset_name: string
-  values: {
-    agency?: string
-    city?: string
-    state?: string
-    uza_name?: string
-    mode_name?: string
-    vehicle_revenue_miles?: number
-    vehicle_revenue_miles_1?: number // questionable flag
-    total_operating_expenses?: number
-    total_operating_expenses_1?: number // questionable flag
-    [key: string]: any
-  }
+  values: Record<string, any>
 }
 
 // Processed NTD record after parsing geoid
@@ -62,7 +82,6 @@ export interface NTDRecord {
   agency: string
   state: string
   uzaName: string
-  modeName: string
   vehicleRevenueMiles: number
   totalOperatingExpenses: number
 }
@@ -108,11 +127,10 @@ export interface VisionEvalReport {
 
 // GraphQL query to fetch NTD census values
 const ntdValuesQuery = gql`
-query($first: Int, $after: String, $dataset: String!, $table: String, $geoidPrefix: String) {
+query($first: Int, $after: String, $dataset: String!, $table: String) {
   census_datasets(where: {name: $dataset}) {
-    values(first: $first, after: $after, where: {
-      table: $table,
-      geoid_prefix: $geoidPrefix
+    values: values_relay(first: $first, after: $after, where: {
+      table: $table
     }) {
       edges {
         node {
@@ -147,27 +165,11 @@ interface NTDValuesResponse {
 }
 
 /**
- * Parse NTD geoid into components
- * Format: ntd:{ntd_id}:{year}:{mode}:{tos}
- */
-function parseGeoid (geoid: string): { ntdId: string, year: number, mode: string, typeOfService: string } | null {
-  const parts = geoid.split(':')
-  if (parts.length !== 5 || parts[0] !== 'ntd') {
-    return null
-  }
-  return {
-    ntdId: parts[1]!,
-    year: parseInt(parts[2]!, 10),
-    mode: parts[3]!,
-    typeOfService: parts[4]!,
-  }
-}
-
-/**
  * Fetch all NTD metrics data with pagination
  */
 async function fetchNTDMetrics (
   client: GraphQLClient,
+  config: VisionEvalConfig,
   onProgress?: (count: number, hasMore: boolean) => void
 ): Promise<NTDMetricValue[]> {
   const allValues: NTDMetricValue[] = []
@@ -175,29 +177,31 @@ async function fetchNTDMetrics (
   let afterCursor: string | null = null
   const pageSize = 5000
 
+  const dataset = config.ntdDataset ?? NTD_DEFAULTS.dataset
+  const table = config.ntdTable ?? NTD_DEFAULTS.table
+
   while (hasNextPage) {
     const variables: Record<string, any> = {
       first: pageSize,
-      dataset: 'ntd-annual',
-      table: 'metrics',
-      geoidPrefix: 'ntd:',
+      dataset,
+      table,
     }
     if (afterCursor) {
       variables.after = afterCursor
     }
 
     const result = await client.query<NTDValuesResponse>(ntdValuesQuery, variables)
-    const dataset = result.data?.census_datasets?.[0]
-    if (!dataset?.values?.edges) {
+    const resultDataset = result.data?.census_datasets?.[0]
+    if (!resultDataset?.values?.edges) {
       break
     }
 
-    for (const edge of dataset.values.edges) {
+    for (const edge of resultDataset.values.edges) {
       allValues.push(edge.node)
     }
 
-    hasNextPage = dataset.values.pageInfo.hasNextPage
-    afterCursor = dataset.values.pageInfo.endCursor
+    hasNextPage = resultDataset.values.pageInfo.hasNextPage
+    afterCursor = resultDataset.values.pageInfo.endCursor
 
     if (onProgress) {
       onProgress(allValues.length, hasNextPage)
@@ -213,42 +217,55 @@ async function fetchNTDMetrics (
 function processNTDValues (values: NTDMetricValue[], config: VisionEvalConfig): NTDRecord[] {
   const records: NTDRecord[] = []
 
+  // Resolve field names with defaults
+  const fields = {
+    ntdId: config.ntdFields?.ntdId ?? NTD_DEFAULTS.fields.ntdId,
+    reportYear: config.ntdFields?.reportYear ?? NTD_DEFAULTS.fields.reportYear,
+    mode: config.ntdFields?.mode ?? NTD_DEFAULTS.fields.mode,
+    typeOfService: config.ntdFields?.typeOfService ?? NTD_DEFAULTS.fields.typeOfService,
+    vehicleRevenueMiles: config.ntdFields?.vehicleRevenueMiles ?? NTD_DEFAULTS.fields.vehicleRevenueMiles,
+    totalOperatingExpenses: config.ntdFields?.totalOperatingExpenses ?? NTD_DEFAULTS.fields.totalOperatingExpenses,
+    agency: config.ntdFields?.agency ?? NTD_DEFAULTS.fields.agency,
+    state: config.ntdFields?.state ?? NTD_DEFAULTS.fields.state,
+    uzaName: config.ntdFields?.uzaName ?? NTD_DEFAULTS.fields.uzaName,
+  }
+
   for (const value of values) {
-    const parsed = parseGeoid(value.geoid)
-    if (!parsed) {
-      continue
-    }
+    // Get values from table fields
+    const ntdId = String(value.values[fields.ntdId] || '')
+    const reportYear = parseInt(String(value.values[fields.reportYear] || 0), 10)
+    const mode = String(value.values[fields.mode] || '')
+    const typeOfService = String(value.values[fields.typeOfService] || '')
 
     // Filter by state
-    const state = String(value.values.state || '').toUpperCase()
+    const state = String(value.values[fields.state] || '').toUpperCase()
     if (state !== config.state.toUpperCase()) {
       continue
     }
 
     // Filter by year (single year per issue #260)
-    if (parsed.year !== config.year) {
+    if (reportYear !== config.year) {
       continue
     }
 
-    // Skip "Non-UZA" entries (rural areas without urbanized area designation)
-    const uzaName = String(value.values.uza_name || '')
-    if (uzaName.includes('Non-UZA') || uzaName === '') {
+    // Skip entries without a valid UZA (rural areas without urbanized area designation)
+    const uzaName = String(value.values[fields.uzaName] || '')
+    if (uzaName === '' || uzaName === 'N/A' || uzaName.includes('Non-UZA')) {
       continue
     }
 
     // Extract numeric values, handling potential string values
-    const vehicleRevenueMiles = parseFloat(String(value.values.vehicle_revenue_miles || 0)) || 0
-    const totalOperatingExpenses = parseFloat(String(value.values.total_operating_expenses || 0)) || 0
+    const vehicleRevenueMiles = parseFloat(String(value.values[fields.vehicleRevenueMiles] || 0)) || 0
+    const totalOperatingExpenses = parseFloat(String(value.values[fields.totalOperatingExpenses] || 0)) || 0
 
     records.push({
-      ntdId: parsed.ntdId,
-      year: parsed.year,
-      mode: parsed.mode,
-      typeOfService: parsed.typeOfService,
-      agency: String(value.values.agency || ''),
+      ntdId,
+      year: reportYear,
+      mode,
+      typeOfService,
+      agency: String(value.values[fields.agency] || ''),
       state,
       uzaName,
-      modeName: String(value.values.mode_name || ''),
       vehicleRevenueMiles,
       totalOperatingExpenses,
     })
@@ -367,7 +384,7 @@ export async function runVisionEvalAnalysis (
 ): Promise<VisionEvalReport> {
   // Fetch all NTD metrics data
   onProgress?.('Fetching NTD metrics data...', 0)
-  const rawValues = await fetchNTDMetrics(client, (count, hasMore) => {
+  const rawValues = await fetchNTDMetrics(client, config, (count, hasMore) => {
     onProgress?.(`Fetching NTD metrics data... ${count} records${hasMore ? ' (loading more)' : ' (complete)'}`, count)
   })
 
