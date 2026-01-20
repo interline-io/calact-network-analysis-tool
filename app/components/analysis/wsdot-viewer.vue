@@ -144,7 +144,6 @@
     <cal-datagrid
       :table-report="stopDatagrid"
       :show-results-count="false"
-      pagination-position="right"
     >
       <template #additional-downloads>
         <t-field>
