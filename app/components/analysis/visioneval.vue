@@ -9,7 +9,7 @@
     >
       <t-msg variant="info" class="content">
         <p class="mb-3">
-          This analysis uses US National Transit Database annual metrics datasets to generates CSV files to import into <strong>VisionEval</strong> policy modeling software.
+          This analysis uses US National Transit Database annual metrics datasets to generate CSV files to import into <strong>VisionEval</strong> policy modeling software.
         </p>
         <ul>
           <li><code>marea_transit_service.csv</code> Vehicle Revenue Miles by urbanized area and mode</li>
