@@ -799,9 +799,9 @@ const localSelectedRouteTypes = computed<RouteType[]>({
   },
   set (newValue: RouteType[]) {
     if (newValue.length === 0) {
-      // No modes selected
+      // No modes selected - store empty array but don't change fixedRouteEnabled
+      // The user may want to keep Fixed Route enabled while filtering to no specific modes
       selectedRouteTypes.value = []
-      fixedRouteEnabled.value = false
     } else {
       // Check if all modes are selected (similar to localSelectedAgencies check)
       const allSelected = allFixedRouteTypeIds.value.length > 0
@@ -809,13 +809,11 @@ const localSelectedRouteTypes = computed<RouteType[]>({
         && allFixedRouteTypeIds.value.every(id => newValue.includes(id))
 
       if (allSelected) {
-        // All modes selected
+        // All modes selected - use undefined to represent "all"
         selectedRouteTypes.value = undefined
-        fixedRouteEnabled.value = true
       } else {
         // Some modes selected
         selectedRouteTypes.value = newValue
-        fixedRouteEnabled.value = true
       }
     }
   }
