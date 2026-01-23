@@ -21,7 +21,7 @@
           >
             <a
               :class="{ 'is-active': activeTab === item.tab, 'is-disabled': isMenuItemDisabled(item) }"
-              @click="isMenuItemDisabled(item) ? null : setTab(item.tab)"
+              @click="!isMenuItemDisabled(item) && setTab(item.tab)"
             >
               <t-icon
                 :icon="item.icon"
@@ -553,8 +553,10 @@ import {
   type Weekday,
   type DataDisplayMode,
   type RouteType,
+  type AgencyFilterItem,
   dowValues,
   routeTypeNames,
+  routeTypeIcons,
   dataDisplayModes,
   baseMapStyles,
   flexAdvanceNoticeTypes,
@@ -575,12 +577,6 @@ const menuItems = [
   { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
-
-interface AgencyFilterItem {
-  name: string
-  hasFixedRoute: boolean
-  hasFlex: boolean
-}
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
@@ -782,7 +778,7 @@ const fixedRouteModeOptions = computed(() => {
   return [...routeTypeNames].map(([routeType, routeTypeDesc]) => ({
     value: routeType,
     label: routeTypeDesc,
-    icon: 'train-car',
+    icon: routeTypeIcons.get(routeType) || 'train-car',
   }))
 })
 

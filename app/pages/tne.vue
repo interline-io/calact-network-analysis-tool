@@ -210,6 +210,7 @@ import {
   type Point,
   type Feature,
   type WeekdayMode,
+  type AgencyFilterItem,
   createCategoryColorScale,
   flexColors,
   parseBbox,
@@ -660,12 +661,6 @@ const scenarioData = ref<ScenarioData>()
 // Raw data comes from scenario stream via scenarioData.flexAreas
 
 // Agency filter items with metadata about service types
-interface AgencyFilterItem {
-  name: string
-  hasFixedRoute: boolean
-  hasFlex: boolean
-}
-
 const agencyFilterItems = computed((): AgencyFilterItem[] => {
   const agencyMap = new Map<string, AgencyFilterItem>()
 
@@ -679,7 +674,7 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
 
   // Collect from flex data
   for (const feature of scenarioFilterResult.value?.flexAreas || []) {
-    for (const agency of feature.properties.agencies) {
+    for (const agency of feature.properties.agencies || []) {
       const name = agency.agency_name
       const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
       item.hasFlex = true

@@ -50,6 +50,26 @@ export const routeTypeNames = new Map<RouteType, string>([
 ])
 
 /**
+ * Icons for each route type (Material Design Icons)
+ */
+export const routeTypeIcons = new Map<RouteType, string>([
+  [RouteType.LightRail, 'tram'],
+  [RouteType.Subway, 'subway-variant'],
+  [RouteType.IntercityRail, 'train'],
+  [RouteType.Bus, 'bus'],
+  [RouteType.Ferry, 'ferry'],
+])
+
+/**
+ * Agency filter item with metadata about service types
+ */
+export interface AgencyFilterItem {
+  name: string
+  hasFixedRoute: boolean
+  hasFlex: boolean
+}
+
+/**
  * Legacy color array for backward compatibility
  * For new code, prefer using categoricalColors from colors.ts
  * which uses d3-scale-chromatic for better color schemes
