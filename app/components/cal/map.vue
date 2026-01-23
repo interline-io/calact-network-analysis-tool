@@ -273,7 +273,9 @@ const styleData = computed((): Matcher[] => {
         if (validRoutes.length === 0) {
           return false
         }
-        return validRoutes.every((rs: any) => rs.route.route_type === val)
+        // Match if ANY route at this stop has this mode (not every)
+        // This allows multi-modal stops to match their highest-priority mode
+        return validRoutes.some((rs: any) => rs.route.route_type === val)
       } else if (v.__typename === 'Route') {
         // For routes, also check for null/undefined
         if ((v as Route).route_type == null || (v as Route).route_type == undefined) {
