@@ -328,6 +328,9 @@ function createLayers () {
   })
 }
 
+// Track overlay feature IDs to detect meaningful changes (not just reactivity)
+let lastOverlayFeatureIds: string = ''
+
 function updateOverlayFeatures (features: Feature[]) {
   if (!map) {
     return
@@ -346,7 +349,13 @@ function updateOverlayFeatures (features: Feature[]) {
     const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
     polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
-  fitFeatures(features)
+  // Only fit if the set of features actually changed (not just object references)
+  // This prevents re-fitting when filters change but geographies stay the same
+  const currentIds = features.map(f => f.id).sort().join(',')
+  if (currentIds !== lastOverlayFeatureIds) {
+    lastOverlayFeatureIds = currentIds
+    fitFeatures(features)
+  }
 }
 
 function updateFeatures (features: Feature[]) {
