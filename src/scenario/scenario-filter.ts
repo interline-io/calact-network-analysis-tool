@@ -439,21 +439,21 @@ function flexAreaMarked (
   feature: FlexAreaFeature,
   selectedAgencies?: string[],
 ): boolean {
-  // Check agencies
-  // Match the logic from routeMarked(): if selectedAgencies is defined (not undefined/null),
-  // then the flex area must have at least one matching agency
-  if (selectedAgencies != null) {
-    const featureAgencyNames = getFlexAgencyNames(feature)
-    const hasMatchingAgency = featureAgencyNames.some(name =>
-      selectedAgencies.includes(name)
-    )
-    if (!hasMatchingAgency) {
-      console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
-      return false
-    }
+  // No filter applied - all pass
+  if (selectedAgencies == null) { return true }
+  // Empty filter - nothing passes
+  if (selectedAgencies.length === 0) { return false }
+
+  // Check if flex area matches any selected agency
+  const featureAgencyNames = getFlexAgencyNames(feature)
+  const hasMatchingAgency = featureAgencyNames.some(name =>
+    selectedAgencies.includes(name)
+  )
+  if (!hasMatchingAgency) {
+    console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
+    return false
   }
 
-  // Default is to return true
   return true
 }
 
@@ -592,7 +592,7 @@ export function applyScenarioResultFilter (
   })
 
   // Apply flex area filters
-  const flexAreaFeatures = data.flexAreas.map((flexArea): FlexAreaFeature => {
+  const flexAreaFeatures = (data.flexAreas || []).map((flexArea): FlexAreaFeature => {
     const marked = flexAreaMarked(
       flexArea,
       selectedAgenciesValue,

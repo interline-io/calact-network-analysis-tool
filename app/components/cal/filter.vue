@@ -360,6 +360,7 @@
             />
           </t-field>
           <div class="buttons mb-4">
+            <!-- Note: selects ALL agencies in the dataset, not just the filtered list -->
             <t-button
               size="small"
               :disabled="allAgenciesSelected"
@@ -801,14 +802,21 @@ const localSelectedRouteTypes = computed<RouteType[]>({
       // No modes selected
       selectedRouteTypes.value = []
       fixedRouteEnabled.value = false
-    } else if (newValue.length === allFixedRouteTypeIds.value.length) {
-      // All modes selected
-      selectedRouteTypes.value = undefined
-      fixedRouteEnabled.value = true
     } else {
-      // Some modes selected
-      selectedRouteTypes.value = newValue
-      fixedRouteEnabled.value = true
+      // Check if all modes are selected (similar to localSelectedAgencies check)
+      const allSelected = allFixedRouteTypeIds.value.length > 0
+        && newValue.length === allFixedRouteTypeIds.value.length
+        && allFixedRouteTypeIds.value.every(id => newValue.includes(id))
+
+      if (allSelected) {
+        // All modes selected
+        selectedRouteTypes.value = undefined
+        fixedRouteEnabled.value = true
+      } else {
+        // Some modes selected
+        selectedRouteTypes.value = newValue
+        fixedRouteEnabled.value = true
+      }
     }
   }
 })
