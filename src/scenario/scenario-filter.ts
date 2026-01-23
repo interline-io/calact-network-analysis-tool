@@ -59,8 +59,10 @@ import type {
   StopDepartureCache,
   StopGql,
   StopVisitCounts,
-  StopVisitSummary
+  StopVisitSummary,
+  FlexAreaFeature
 } from '~~/src/tl'
+import { getFlexAgencyNames } from '~~/src/tl/flex'
 
 ////////////////////
 // Route filtering
@@ -425,12 +427,43 @@ function checkDiv (a: number, b: number): number {
   return b === 0 ? 0 : a / b
 }
 
+//////////////////////////////////////
+// Flex area filtering
+//////////////////////////////////////
+
+/**
+ * Filter flex areas by agency
+ * Returns true if the flex area matches the selected agencies filter
+ */
+function flexAreaMarked (
+  feature: FlexAreaFeature,
+  selectedAgencies?: string[],
+): boolean {
+  // No filter applied - all pass
+  if (selectedAgencies == null) { return true }
+  // Empty filter - nothing passes
+  if (selectedAgencies.length === 0) { return false }
+
+  // Check if flex area matches any selected agency
+  const featureAgencyNames = getFlexAgencyNames(feature)
+  const hasMatchingAgency = featureAgencyNames.some(name =>
+    selectedAgencies.includes(name)
+  )
+  if (!hasMatchingAgency) {
+    console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
+    return false
+  }
+
+  return true
+}
+
 export interface ScenarioFilterResult {
   routes: Route[]
   stops: Stop[]
   agencies: Agency[]
   stopDepartureCache: StopDepartureCache
   feedVersions: FeedVersion[]
+  flexAreas: FlexAreaFeature[]
 }
 
 export function applyScenarioResultFilter (
@@ -558,6 +591,21 @@ export function applyScenarioResultFilter (
     }
   })
 
+  // Apply flex area filters
+  const flexAreaFeatures = (data.flexAreas || []).map((flexArea): FlexAreaFeature => {
+    const marked = flexAreaMarked(
+      flexArea,
+      selectedAgenciesValue,
+    )
+    return {
+      ...flexArea,
+      properties: {
+        ...flexArea.properties,
+        marked,
+      }
+    }
+  })
+
   ///////////
   const result: ScenarioFilterResult = {
     routes: routeFeatures,
@@ -565,6 +613,7 @@ export function applyScenarioResultFilter (
     agencies: agencyFeatures,
     feedVersions: [],
     stopDepartureCache: sdCache,
+    flexAreas: flexAreaFeatures,
   }
   return result
 }

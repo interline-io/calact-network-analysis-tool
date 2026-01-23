@@ -126,8 +126,7 @@
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
             :scenario-filter-result="scenarioFilterResult"
-            :has-fixed-route-data="hasFixedRouteData"
-            :has-flex-data="hasFlexData"
+            :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
@@ -144,7 +143,6 @@
             :filter-summary="filterSummary"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
-            :has-flex-data="hasFlexData"
             :flex-display-features="flexFeaturesForReport"
           />
         </div>
@@ -212,6 +210,7 @@ import {
   type Point,
   type Feature,
   type WeekdayMode,
+  type AgencyFilterItem,
   createCategoryColorScale,
   flexColors,
   parseBbox,
@@ -661,6 +660,31 @@ const scenarioData = ref<ScenarioData>()
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
 
+// Agency filter items with metadata about service types
+const agencyFilterItems = computed((): AgencyFilterItem[] => {
+  const agencyMap = new Map<string, AgencyFilterItem>()
+
+  // Collect from fixed-route data
+  for (const route of scenarioFilterResult.value?.routes || []) {
+    const name = route.agency.agency_name
+    const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+    item.hasFixedRoute = true
+    agencyMap.set(name, item)
+  }
+
+  // Collect from flex data
+  for (const feature of scenarioFilterResult.value?.flexAreas || []) {
+    for (const agency of feature.properties.agencies || []) {
+      const name = agency.agency_name
+      const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+      item.hasFlex = true
+      agencyMap.set(name, item)
+    }
+  }
+
+  return Array.from(agencyMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+})
+
 const flexAgencyNames = computed(() => {
   const names = new Set<string>()
   for (const feature of scenarioData.value?.flexAreas || []) {
@@ -715,10 +739,12 @@ const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
 
 // All flex areas with their "marked" status (matches filters)
 // Base computed that always calculates marked status (independent of map toggle)
+// Combines agency filtering from scenario-filter with advance notice, area type, and time filters
 const flexAreasWithMarkedBase = computed(() => {
-  return (scenarioData.value?.flexAreas || []).map(feature => ({
+  return (scenarioFilterResult.value?.flexAreas || []).map(feature => ({
     feature,
-    marked: flexAreaMatchesFilters(feature)
+    // Combine marked status from scenario-filter (agency) with local filters (advance notice, area type, time)
+    marked: (feature.properties.marked !== false) && flexAreaMatchesFilters(feature)
   }))
 })
 
@@ -961,14 +987,6 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 // Note: scenarioData is defined earlier in the file (before useFlexAreas)
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
-
-// Data availability indicators for filter panel
-const hasFixedRouteData = computed(() => {
-  return !!(scenarioFilterResult.value?.stops?.length || scenarioFilterResult.value?.routes?.length)
-})
-const hasFlexData = computed(() => {
-  return !!(scenarioData.value?.flexAreas?.length)
-})
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()
@@ -1257,12 +1275,10 @@ function toTitleCase (str: string): string {
 // Individual tab width classes
 
 .cal-tab-filter {
-  width: 270px; /* Default width when no subtab is open */
-  min-width: 270px;
 
   &.has-subtab {
-    width: 670px; /* Expanded width when subtab is open: main panel (250px) + sub-panel (400px) + padding (20px) */
-    min-width: 670px;
+    width: 720px; /* Expanded width when subtab is open: main panel (300px) + sub-panel (400px) + padding (20px) */
+    min-width: 720px;
   }
 }
 

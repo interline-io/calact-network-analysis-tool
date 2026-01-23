@@ -20,24 +20,14 @@
             :key="item.tab"
           >
             <a
-              :class="{ 'is-active': activeTab === item.tab }"
-              @click="setTab(item.tab)"
+              :class="{ 'is-active': activeTab === item.tab, 'is-disabled': isMenuItemDisabled(item) }"
+              @click="!isMenuItemDisabled(item) && setTab(item.tab)"
             >
               <t-icon
                 :icon="item.icon"
                 class="is-fullwidth"
               />
               {{ item.label }}
-              <span
-                v-if="item.tab === 'transit-layers' && hasFixedRouteData"
-                class="data-indicator has-background-info"
-                title="Fixed-route data loaded and available for filtering"
-              />
-              <span
-                v-if="item.tab === 'flex-services' && hasFlexData"
-                class="data-indicator has-background-info"
-                title="Flex service data loaded and available for filtering"
-              />
               <t-icon
                 class="right-chev"
                 icon="chevron-right"
@@ -111,7 +101,7 @@
           </section>
           <t-checkbox-group
             v-model="selectedWeekdays"
-            :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
+            :options="dowValues.map(d => ({ value: d, label: titleCase(d), disabled: !dowAvailable.has(d) }))"
           />
         </aside>
 
@@ -161,8 +151,8 @@
         </aside>
       </div>
 
-      <!-- SERVICE LEVELS -->
-      <div v-if="activeTab === 'service-levels'">
+      <!-- FIXED-ROUTE SERVICES -->
+      <div v-if="activeTab === 'transit-layers'">
         <aside class="cal-service-levels menu">
           <p class="menu-label">
             Frequency
@@ -254,72 +244,10 @@
         </aside>
       </div>
 
-      <!-- LAYERS -->
-      <div v-if="activeTab === 'transit-layers'">
-        <aside class="menu">
-          <t-field grouped class="mb-4">
-            <t-checkbox
-              v-model="fixedRouteEnabled"
-              label="Include Fixed-Route Transit"
-            />
-            <t-tooltip text="Show fixed-route transit services (buses, trains, ferries) with scheduled stops and routes. Turn off to focus only on flex/demand-responsive services.">
-              <i class="mdi mdi-help-circle-outline" />
-            </t-tooltip>
-          </t-field>
-
-          <div :class="{ 'is-disabled': !fixedRouteEnabled }">
-            <p class="menu-label">
-              Modes
-            </p>
-            <t-checkbox-group
-              v-model="selectedRouteTypes"
-              :options="[...routeTypeNames].map(([routeType, routeTypeDesc]) => ({ value: routeType, label: routeTypeDesc, disabled: !fixedRouteEnabled }))"
-            />
-            <p class="filter-legend">
-              * Stops served by any of the selected route types
-            </p>
-
-            <p class="menu-label">
-              Agencies
-            </p>
-
-            <t-field>
-              <t-input
-                v-model="agencySearch"
-                type="search"
-                placeholder="search"
-                icon-right="magnify"
-                icon-right-clickable
-                :disabled="!fixedRouteEnabled"
-              />
-            </t-field>
-
-            <t-checkbox-group
-              v-model="selectedAgencies"
-              :options="knownAgencies.map(a => ({ value: a, label: a, disabled: !fixedRouteEnabled }))"
-            />
-            <p class="filter-legend">
-              * Stops served by any of the selected agencies
-            </p>
-          </div>
-        </aside>
-      </div>
-
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
-          <t-field grouped class="mb-4">
-            <t-checkbox
-              v-model="flexServicesEnabled"
-              label="Include Flex Services"
-            />
-            <t-tooltip text="Flex services are demand-responsive transit (DRT) that operate within defined areas rather than fixed routes. Data comes from GTFS-Flex extension feeds.">
-              <i class="mdi mdi-help-circle-outline" />
-            </t-tooltip>
-          </t-field>
-
           <t-notification
-            v-if="flexServicesEnabled"
             variant="warning"
           >
             <span>
@@ -361,6 +289,138 @@
                 </t-radio>
               </li>
             </ul>
+          </div>
+        </aside>
+      </div>
+
+      <!-- MODES & AGENCIES -->
+      <div v-if="activeTab === 'agencies'">
+        <aside class="menu">
+          <p class="menu-label">
+            Service Types
+          </p>
+
+          <div class="service-type-checkboxes mb-4">
+            <t-field>
+              <t-checkbox
+                v-model="fixedRouteEnabled"
+              >
+                <span class="mode-label">
+                  <t-icon icon="train-car" size="small" />
+                  Fixed-Route
+                </span>
+              </t-checkbox>
+            </t-field>
+            <t-field>
+              <t-checkbox
+                v-model="flexServicesEnabled"
+              >
+                <span class="mode-label">
+                  <t-icon icon="van-utility" size="small" />
+                  Flex
+                </span>
+              </t-checkbox>
+            </t-field>
+          </div>
+
+          <template v-if="fixedRouteEnabled">
+            <p class="menu-label">
+              Fixed-Route Modes
+            </p>
+
+            <div class="mode-checkboxes mb-4">
+              <t-field
+                v-for="mode in fixedRouteModeOptions"
+                :key="mode.value"
+              >
+                <t-checkbox
+                  v-model="localSelectedRouteTypes"
+                  :native-value="mode.value"
+                >
+                  <span class="mode-label">
+                    <t-icon :icon="mode.icon" size="small" />
+                    {{ mode.label }}
+                  </span>
+                </t-checkbox>
+              </t-field>
+            </div>
+          </template>
+
+          <p class="menu-label">
+            Agencies
+          </p>
+
+          <t-field>
+            <t-input
+              v-model="agencySearch"
+              type="search"
+              placeholder="search"
+              icon-right="magnify"
+              icon-right-clickable
+            />
+          </t-field>
+          <div class="buttons mb-4">
+            <!-- Note: selects ALL agencies in the dataset, not just the filtered list -->
+            <t-button
+              size="small"
+              :disabled="allAgenciesSelected"
+              @click="selectAllAgencies"
+            >
+              Select All
+            </t-button>
+            <t-button
+              size="small"
+              :disabled="noAgenciesSelected"
+              @click="selectNoAgencies"
+            >
+              Select None
+            </t-button>
+          </div>
+
+          <p
+            v-if="!fixedRouteEnabled || !flexServicesEnabled"
+            class="filter-legend mb-3"
+          >
+            <em>Grayed-out agencies do not match selected service types</em>
+          </p>
+
+          <div class="agency-checkbox-list">
+            <t-field
+              v-for="agency in agencyFilterOptions"
+              :key="agency.value"
+              :class="{ 'agency-disabled': isAgencyDisabled(agency) }"
+            >
+              <t-checkbox
+                v-model="localSelectedAgencies"
+                :native-value="agency.value"
+              >
+                <span class="agency-label">
+                  {{ agency.name }}
+                  <t-tooltip
+                    v-if="agency.hasFixedRoute"
+                    text="Has fixed-route service"
+                    position="right"
+                  >
+                    <t-icon
+                      icon="train-car"
+                      size="small"
+                      class="agency-icon"
+                    />
+                  </t-tooltip>
+                  <t-tooltip
+                    v-if="agency.hasFlex"
+                    text="Has flex service"
+                    position="right"
+                  >
+                    <t-icon
+                      icon="van-utility"
+                      size="small"
+                      class="agency-icon"
+                    />
+                  </t-tooltip>
+                </span>
+              </t-checkbox>
+            </t-field>
           </div>
         </aside>
       </div>
@@ -494,8 +554,10 @@ import {
   type Weekday,
   type DataDisplayMode,
   type RouteType,
+  type AgencyFilterItem,
   dowValues,
   routeTypeNames,
+  routeTypeIcons,
   dataDisplayModes,
   baseMapStyles,
   flexAdvanceNoticeTypes,
@@ -510,17 +572,16 @@ import type { ScenarioFilterResult } from '~~/src/scenario'
 <script setup lang="ts">
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
-  { icon: 'chart-bar', label: 'Service Levels', tab: 'service-levels' },
-  { icon: 'bus', label: 'Transit Services', tab: 'transit-layers' },
-  { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services' },
+  { icon: 'domain', label: 'Modes & Agencies', tab: 'agencies' },
+  { icon: 'bus', label: 'Fixed-Route Services', tab: 'transit-layers', requiresFixedRoute: true },
+  { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services', requiresFlex: true },
   { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
-  hasFixedRouteData?: boolean
-  hasFlexData?: boolean
+  agencyFilterItems?: AgencyFilterItem[]
 }>()
 
 const emit = defineEmits([
@@ -539,9 +600,9 @@ const colorKey = defineModel<string>('colorKey')
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
 const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')
-const selectedRouteTypes = defineModel<RouteType[]>('selectedRouteTypes')
-const selectedWeekdays = defineModel<Weekday[]>('selectedWeekdays')
-const selectedAgencies = defineModel<string[]>('selectedAgencies')
+const selectedRouteTypes = defineModel<RouteType[] | undefined>('selectedRouteTypes')
+const selectedWeekdays = defineModel<Weekday[] | undefined>('selectedWeekdays')
+const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
 const frequencyUnder = defineModel<number>('frequencyUnder')
 const frequencyOver = defineModel<number>('frequencyOver')
 
@@ -561,17 +622,13 @@ const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
 
 // Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean>('fixedRouteEnabled') // On by default
+const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
 
 // Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean>('flexServicesEnabled') // Off by default
+const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
 const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // undefined = not set (default all), [] = none selected
 const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // undefined = not set (default all), [] = none selected
 const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
-
-// Data availability indicators
-const hasFixedRouteData = computed(() => props.hasFixedRouteData ?? false)
-const hasFlexData = computed(() => props.hasFlexData ?? false)
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({
@@ -598,24 +655,105 @@ function setTab (v: string) {
   activeTab.value = v
 }
 
+function titleCase (s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 ///////////////////
 // Agency selector
 
 const agencySearch = ref('')
 
-const knownAgencies = computed(() => {
-  const agencies = new Set<string>()
-  for (const feature of props.scenarioFilterResult?.stops || []) {
-    for (const rs of feature.route_stops) {
-      agencies.add(rs.route.agency.agency_name)
+const agencyFilterOptions = computed(() => {
+  const items = props.agencyFilterItems || []
+  return items
+    .filter((a) => {
+      const sv = agencySearch.value.toLowerCase()
+      return !sv || a.name.toLowerCase().includes(sv)
+    })
+    .map(a => ({
+      value: a.name,
+      name: a.name,
+      hasFixedRoute: a.hasFixedRoute,
+      hasFlex: a.hasFlex,
+    }))
+})
+
+// All available agency names (for checking if all are selected)
+const allAgencyNames = computed(() => {
+  return (props.agencyFilterItems || []).map(a => a.name)
+})
+
+// Local wrapper around selectedAgencies that handles undefined = "all selected"
+// When undefined, treat as all agencies selected (no filter applied)
+// When all are selected, store as undefined to maintain semantic meaning
+const localSelectedAgencies = computed<string[]>({
+  get () {
+    // If undefined, return all agency names (all are selected)
+    if (selectedAgencies.value === undefined) {
+      return allAgencyNames.value
+    }
+    return selectedAgencies.value
+  },
+  set (newValue: string[]) {
+    // If all agencies are selected, set to undefined (no filter)
+    const allSelected = allAgencyNames.value.length > 0
+      && newValue.length === allAgencyNames.value.length
+      && allAgencyNames.value.every(name => newValue.includes(name))
+
+    if (allSelected) {
+      selectedAgencies.value = undefined
+    } else {
+      selectedAgencies.value = newValue
     }
   }
-  const sv = agencySearch.value.toLowerCase()
-  if (sv) {
-    return Array.from(agencies).filter(a => a.toLowerCase().includes(sv))
-  }
-  return Array.from(agencies).toSorted((a, b) => a.localeCompare(b))
 })
+
+// Check if all agencies are currently selected
+const allAgenciesSelected = computed(() => {
+  return selectedAgencies.value === undefined
+    || (selectedAgencies.value.length === allAgencyNames.value.length
+      && allAgencyNames.value.every(name => selectedAgencies.value!.includes(name)))
+})
+
+// Check if no agencies are currently selected
+const noAgenciesSelected = computed(() => {
+  return selectedAgencies.value !== undefined && selectedAgencies.value.length === 0
+})
+
+function selectAllAgencies () {
+  selectedAgencies.value = undefined // undefined = all selected
+}
+
+function selectNoAgencies () {
+  selectedAgencies.value = []
+}
+
+// Check if an agency should be visually disabled based on service type toggles
+// An agency is disabled if ALL of its service types are turned off
+function isAgencyDisabled (agency: { hasFixedRoute: boolean, hasFlex: boolean }): boolean {
+  // Fixed-route is off if fixedRouteEnabled is false OR if no route types are selected
+  const fixedOff = fixedRouteEnabled.value === false
+    || (selectedRouteTypes.value !== undefined && selectedRouteTypes.value.length === 0)
+  const flexOff = flexServicesEnabled.value === false
+
+  // If both service types are off, all agencies are disabled
+  if (fixedOff && flexOff) {
+    return true
+  }
+
+  // If fixed is off and agency only has fixed-route, it's disabled
+  if (fixedOff && agency.hasFixedRoute && !agency.hasFlex) {
+    return true
+  }
+
+  // If flex is off and agency only has flex, it's disabled
+  if (flexOff && agency.hasFlex && !agency.hasFixedRoute) {
+    return true
+  }
+
+  return false
+}
 
 const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
@@ -634,6 +772,74 @@ const dowAvailable = computed((): Set<string> => {
   }
   return result
 })
+
+// Get all available fixed-route type IDs
+const allFixedRouteTypeIds = computed(() => {
+  return [...routeTypeNames.keys()]
+})
+
+// Fixed-route mode options (without flex)
+const fixedRouteModeOptions = computed(() => {
+  return [...routeTypeNames].map(([routeType, routeTypeDesc]) => ({
+    value: routeType,
+    label: routeTypeDesc,
+    icon: routeTypeIcons.get(routeType) || 'train-car',
+  }))
+})
+
+// Local selected route types for checkbox binding
+const localSelectedRouteTypes = computed<RouteType[]>({
+  get () {
+    // If undefined, all are selected
+    if (selectedRouteTypes.value === undefined) {
+      return allFixedRouteTypeIds.value
+    }
+    // Otherwise return the actual selection
+    return selectedRouteTypes.value
+  },
+  set (newValue: RouteType[]) {
+    if (newValue.length === 0) {
+      // No modes selected
+      selectedRouteTypes.value = []
+      fixedRouteEnabled.value = false
+    } else {
+      // Check if all modes are selected (similar to localSelectedAgencies check)
+      const allSelected = allFixedRouteTypeIds.value.length > 0
+        && newValue.length === allFixedRouteTypeIds.value.length
+        && allFixedRouteTypeIds.value.every(id => newValue.includes(id))
+
+      if (allSelected) {
+        // All modes selected
+        selectedRouteTypes.value = undefined
+        fixedRouteEnabled.value = true
+      } else {
+        // Some modes selected
+        selectedRouteTypes.value = newValue
+        fixedRouteEnabled.value = true
+      }
+    }
+  }
+})
+
+// Check if a menu item should be disabled
+function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, requiresFlex?: boolean }) {
+  // Fixed-route tab should be disabled when no fixed-route modes are selected
+  if (item.requiresFixedRoute) {
+    // Check if fixedRouteEnabled is false OR if all fixed route modes are unchecked
+    if (fixedRouteEnabled.value === false) {
+      return true
+    }
+    // Also disable if selectedRouteTypes is explicitly empty array
+    if (selectedRouteTypes.value !== undefined && selectedRouteTypes.value.length === 0) {
+      return true
+    }
+  }
+  // Flex tab should be disabled when flexServicesEnabled is explicitly false
+  if (item.requiresFlex && flexServicesEnabled.value === false) {
+    return true
+  }
+  return false
+}
 </script>
 
 <style scoped lang="scss">
@@ -648,10 +854,10 @@ const dowAvailable = computed((): Set<string> => {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  width: 300px;
 
   .menu {
     flex-grow: 1;
-    width: 250px;
   }
 }
 
@@ -660,6 +866,9 @@ const dowAvailable = computed((): Set<string> => {
   flex-shrink: 0;
   background: var(--bulma-scheme-main-ter);
   padding: 0 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
 }
 
 .cal-day-of-week-mode {
@@ -681,15 +890,13 @@ const dowAvailable = computed((): Set<string> => {
     color: var(--bulma-text-main-ter);
     background: var(--bulma-scheme-main-ter);
   }
+  a.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
   .right-chev {
     float: right;
-  }
-  .data-indicator {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-left: 6px;
   }
 }
 
@@ -702,5 +909,40 @@ const dowAvailable = computed((): Set<string> => {
 .is-disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.agency-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agency-icon {
+  opacity: 0.6;
+}
+
+.agency-disabled {
+  opacity: 0.4;
+
+  .agency-label {
+    text-decoration: line-through;
+    color: var(--bulma-text-weak);
+  }
+}
+
+.service-type-checkboxes {
+  .mode-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.mode-checkboxes {
+  .mode-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 </style>
