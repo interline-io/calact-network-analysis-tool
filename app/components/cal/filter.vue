@@ -854,10 +854,10 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  width: 300px;
 
   .menu {
     flex-grow: 1;
-    width: 250px;
   }
 }
 

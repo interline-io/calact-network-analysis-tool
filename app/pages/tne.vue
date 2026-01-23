@@ -1275,12 +1275,10 @@ function toTitleCase (str: string): string {
 // Individual tab width classes
 
 .cal-tab-filter {
-  width: 270px; /* Default width when no subtab is open */
-  min-width: 270px;
 
   &.has-subtab {
-    width: 670px; /* Expanded width when subtab is open: main panel (250px) + sub-panel (400px) + padding (20px) */
-    min-width: 670px;
+    width: 720px; /* Expanded width when subtab is open: main panel (300px) + sub-panel (400px) + padding (20px) */
+    min-width: 720px;
   }
 }
 
