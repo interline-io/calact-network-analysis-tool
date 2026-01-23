@@ -101,7 +101,7 @@
           </section>
           <t-checkbox-group
             v-model="selectedWeekdays"
-            :options="dowValues.map(d => ({ value: d, label: d, disabled: !dowAvailable.has(d) }))"
+            :options="dowValues.map(d => ({ value: d, label: titleCase(d), disabled: !dowAvailable.has(d) }))"
           />
         </aside>
 
@@ -380,7 +380,7 @@
             v-if="!fixedRouteEnabled || !flexServicesEnabled"
             class="filter-legend mb-3"
           >
-            <em>Grayed out agencies don't have any selected service type</em>
+            <em>Grayed-out agencies do not match selected service types</em>
           </p>
 
           <div class="agency-checkbox-list">
@@ -652,6 +652,10 @@ function setTab (v: string) {
     return
   }
   activeTab.value = v
+}
+
+function titleCase (s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 ///////////////////
