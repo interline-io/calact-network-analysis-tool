@@ -1,5 +1,8 @@
 import type { StopTime } from './departure'
 
+// Track instances that should skip route cache population (saves memory on server)
+const skipRouteCachesSet = new WeakSet<StopDepartureCache>()
+
 // TODO: faster representation than formatted string
 // (route, date) : stop = count
 class stopRouteCache {
@@ -25,6 +28,12 @@ export class StopDepartureCache {
   routeCache0: stopRouteCache = new stopRouteCache()
   routeCache1: stopRouteCache = new stopRouteCache()
 
+  constructor(skipRouteCaches = false) {
+    if (skipRouteCaches) {
+      skipRouteCachesSet.add(this)
+    }
+  }
+
   get (id: number, date: string): StopTime[] {
     const a = this.cache.get(id) || new Map()
     return a.get(date) || []
@@ -42,10 +51,12 @@ export class StopDepartureCache {
     a.set(date, b)
     this.cache.set(id, a)
 
-    // Populate route cache
-    for (const sd of value) {
-      const dirCache = sd.trip.direction_id ? this.routeCache1 : this.routeCache0
-      dirCache.add(sd.trip.route.id, id, date, sd)
+    // Populate route cache (skip on server to save memory)
+    if (!skipRouteCachesSet.has(this)) {
+      for (const sd of value) {
+        const dirCache = sd.trip.direction_id ? this.routeCache1 : this.routeCache0
+        dirCache.add(sd.trip.route.id, id, date, sd)
+      }
     }
   }
 

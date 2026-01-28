@@ -10,7 +10,18 @@ import type { ScenarioConfig } from '~~/src/scenario'
 import { runScenarioFetcher } from '~~/src/scenario'
 import { BasicGraphQLClient } from '~~/src/core'
 
+function logMemory(label: string) {
+  if (process.env.DEBUG_MEMORY) {
+    const usage = process.memoryUsage()
+    const heapMB = (usage.heapUsed / 1024 / 1024).toFixed(1)
+    const rssMB = (usage.rss / 1024 / 1024).toFixed(1)
+    console.log(`[MEM ${label}] heap: ${heapMB}MB, rss: ${rssMB}MB`)
+  }
+}
+
 export default defineEventHandler(async (event) => {
+  logMemory('request-start')
+
   // Parse the request body
   const config: ScenarioConfig = await readBody(event)
 
@@ -34,10 +45,13 @@ export default defineEventHandler(async (event) => {
     await useApiFetch(event),
   )
 
-  // Create a readable stream for the response
+  logMemory('before-stream')
+
   const stream = new ReadableStream({
     async start (controller) {
-      await runScenarioFetcher(controller, config, client)
+      // serverMode=true streams directly without accumulating data in memory
+      await runScenarioFetcher(controller, config, client, true)
+      logMemory('stream-complete')
     }
   })
 
