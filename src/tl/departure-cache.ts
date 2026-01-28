@@ -1,5 +1,8 @@
 import type { StopTime } from './departure'
 
+// Track instances that should skip route cache population (saves memory on server)
+const skipRouteCachesSet = new WeakSet<StopDepartureCache>()
+
 // TODO: faster representation than formatted string
 // (route, date) : stop = count
 class stopRouteCache {
@@ -25,6 +28,12 @@ export class StopDepartureCache {
   routeCache0: stopRouteCache = new stopRouteCache()
   routeCache1: stopRouteCache = new stopRouteCache()
 
+  constructor (skipRouteCaches = false) {
+    if (skipRouteCaches) {
+      skipRouteCachesSet.add(this)
+    }
+  }
+
   get (id: number, date: string): StopTime[] {
     const a = this.cache.get(id) || new Map()
     return a.get(date) || []
@@ -42,10 +51,12 @@ export class StopDepartureCache {
     a.set(date, b)
     this.cache.set(id, a)
 
-    // Populate route cache
-    for (const sd of value) {
-      const dirCache = sd.trip.direction_id ? this.routeCache1 : this.routeCache0
-      dirCache.add(sd.trip.route.id, id, date, sd)
+    // Populate route cache (skip on server to save memory)
+    if (!skipRouteCachesSet.has(this)) {
+      for (const sd of value) {
+        const dirCache = sd.trip.direction_id ? this.routeCache1 : this.routeCache0
+        dirCache.add(sd.trip.route.id, id, date, sd)
+      }
     }
   }
 
@@ -60,19 +71,5 @@ export class StopDepartureCache {
   getRouteDate (routeId: number, dir: number, date: string): Map<number, StopTime[]> {
     const dirCache = dir ? this.routeCache1 : this.routeCache0
     return dirCache.get(routeId, date)
-  }
-
-  debugStats () {
-    let total = 0
-    const dates = new Set()
-    for (const [_, stopDates] of this.cache) {
-      for (const [d, departures] of stopDates) {
-        dates.add(d)
-        total += departures.length
-      }
-    }
-    console.log('StopDepartureCache stats:', this.cache.size, 'stops', dates.size, 'dates', total, 'total departures')
-    console.log('StopDepartureCache routeCache 0:', this.routeCache0)
-    console.log('StopDepartureCache routeCache 1:', this.routeCache1)
   }
 }

@@ -65,24 +65,29 @@ export class GenericStreamSender<T extends StreamableProgress> implements Stream
 /**
  * Generic streaming client that processes readable streams
  */
+export interface StreamResult<TData> {
+  data: TData
+  completed: boolean
+}
+
 export class GenericStreamReceiver<T extends StreamableProgress, TData> {
   /**
    * Process a readable stream of progress data
+   * Returns { data, completed } where completed indicates if the stream
+   * ended normally with a 'complete' stage (vs early termination like OOM)
    */
   async processStream (
     stream: ReadableStream<Uint8Array>,
     receiver: StreamDataReceiver<T, TData>
-  ): Promise<TData> {
-    // console.log('GenericStreamReceiver: Starting to process stream...')
+  ): Promise<StreamResult<TData>> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let completed = false
     try {
       while (true) {
         const { done, value } = await reader.read()
-        // console.log('GenericStreamReceiver: ...read chunk', { done, valueLength: value?.length || 0 })
         if (done) {
-          // console.log('GenericStreamReceiver: Stream fully read')
           break
         }
         buffer += decoder.decode(value, { stream: true })
@@ -96,23 +101,21 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
             receiver.onError(progress.error)
           }
           if (progress.currentStage === 'complete') {
+            completed = true
             receiver.onComplete()
           }
         }
-        // console.log('GenericStreamReceiver: ...processed chunk')
       }
     } catch (error) {
-      // console.log('GenericStreamReceiver: Error reading stream', error)
       receiver.onError(error)
     } finally {
-      // console.log('GenericStreamReceiver: Finished reading stream')
-      receiver.onComplete()
+      if (!completed) {
+        receiver.onComplete()
+      }
       reader.releaseLock()
     }
 
-    // Return current accumulated data if stream ended without completion
-    // console.log('GenericStreamReceiver: Returning accumulated data')
-    return receiver.getCurrentData()
+    return { data: receiver.getCurrentData(), completed }
   }
 }
 

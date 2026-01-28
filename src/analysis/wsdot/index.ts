@@ -211,7 +211,10 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   writer.close()
 
   // Ensure all scenario client progress has been processed
-  await scenarioClientProgress
+  const { completed } = await scenarioClientProgress
+  if (!completed) {
+    console.warn('WSDOT stream ended without completion message')
+  }
 
   // Get the final accumulated data from the receiver
   const { scenarioData: finalScenarioData, wsdotReport } = receiver.getCurrentCombinedData()
@@ -397,10 +400,29 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
   constructor (callbacks: ScenarioCallbacks = {}) {
-    super(callbacks)
+    // skipRouteCaches=true saves memory since WSDOT iterates departures directly
+    super(callbacks, true)
   }
 
   override onProgress (progress: ScenarioProgress): void {
+    // Strip unused fields before accumulating to save memory
+    // TODO: Future optimization: skip fetching these fields in GraphQL queries instead
+    if (progress.partialData) {
+      progress.partialData.stops = progress.partialData.stops.map(stop => ({
+        id: stop.id,
+        stop_id: stop.stop_id,
+        stop_name: stop.stop_name,
+        geometry: stop.geometry,
+        feed_version: stop.feed_version,
+        census_geographies: stop.census_geographies,
+      } as typeof stop))
+
+      progress.partialData.routes = progress.partialData.routes.map(route => ({
+        id: route.id,
+        route_id: route.route_id,
+      } as typeof route))
+    }
+
     super.onProgress(progress)
 
     // Then handle WSDOT report extraData aggregation

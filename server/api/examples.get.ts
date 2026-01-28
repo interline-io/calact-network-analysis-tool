@@ -76,12 +76,12 @@ async function processJsonFile (filePath: string, examplesDir: string): Promise<
 
     const receiver = new ConfigReceiver()
     const streamReceiver = new GenericStreamReceiver<ProgressData, { config?: any, error?: string }>()
-    const result = await streamReceiver.processStream(stream, receiver)
+    const { data } = await streamReceiver.processStream(stream, receiver)
 
     return {
       filename,
-      config: result.config,
-      error: result.error || undefined
+      config: data.config,
+      error: data.error || undefined
     }
   } catch (error) {
     return {
