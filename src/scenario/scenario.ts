@@ -341,10 +341,10 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   writer.close()
 
   // Ensure all scenario client progress has been processed
-  await scenarioClientProgress
+  const { data } = await scenarioClientProgress
 
   // Return the accumulated data
-  return receiver.getCurrentData()
+  return data
 }
 
 /**
