@@ -402,6 +402,24 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   }
 
   override onProgress (progress: ScenarioProgress): void {
+    // Strip unused fields before accumulating to save memory
+    // TODO: Future optimization: skip fetching these fields in GraphQL queries instead
+    if (progress.partialData) {
+      progress.partialData.stops = progress.partialData.stops.map(stop => ({
+        id: stop.id,
+        stop_id: stop.stop_id,
+        stop_name: stop.stop_name,
+        geometry: stop.geometry,
+        feed_version: stop.feed_version,
+        census_geographies: stop.census_geographies,
+      } as typeof stop))
+
+      progress.partialData.routes = progress.partialData.routes.map(route => ({
+        id: route.id,
+        route_id: route.route_id,
+      } as typeof route))
+    }
+
     super.onProgress(progress)
 
     // Then handle WSDOT report extraData aggregation
