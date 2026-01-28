@@ -40,7 +40,7 @@ const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 
-function logMemory(label: string) {
+function logMemory (label: string) {
   if (process.env.DEBUG_MEMORY) {
     const usage = process.memoryUsage()
     const heapMB = (usage.heapUsed / 1024 / 1024).toFixed(1)

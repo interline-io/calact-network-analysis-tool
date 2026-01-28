@@ -10,7 +10,7 @@ import type { ScenarioConfig } from '~~/src/scenario'
 import { runScenarioFetcher } from '~~/src/scenario'
 import { BasicGraphQLClient } from '~~/src/core'
 
-function logMemory(label: string) {
+function logMemory (label: string) {
   if (process.env.DEBUG_MEMORY) {
     const usage = process.memoryUsage()
     const heapMB = (usage.heapUsed / 1024 / 1024).toFixed(1)

@@ -28,7 +28,7 @@ export class StopDepartureCache {
   routeCache0: stopRouteCache = new stopRouteCache()
   routeCache1: stopRouteCache = new stopRouteCache()
 
-  constructor(skipRouteCaches = false) {
+  constructor (skipRouteCaches = false) {
     if (skipRouteCaches) {
       skipRouteCachesSet.add(this)
     }
