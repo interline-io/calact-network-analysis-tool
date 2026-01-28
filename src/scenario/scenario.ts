@@ -804,11 +804,6 @@ export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
 
-  /**
-   * @param callbacks - Optional callbacks for progress/complete/error events
-   * @param skipRouteCaches - If true, skip populating route caches in StopDepartureCache.
-   *                          Use true on server-side to save ~2/3 memory on departures.
-   */
   constructor (callbacks: ScenarioCallbacks = {}, skipRouteCaches = false) {
     this.callbacks = callbacks
     this.accumulatedData = {
@@ -886,16 +881,17 @@ export class ScenarioDataReceiver {
    * Get the current accumulated data
    */
   getCurrentData (): ScenarioData {
-    // Log accumulated data stats
-    const stats = {
-      stops: this.accumulatedData.stops.length,
-      routes: this.accumulatedData.routes.length,
-      feedVersions: this.accumulatedData.feedVersions.length,
-      flexAreas: this.accumulatedData.flexAreas.length,
-      departureCacheStops: this.accumulatedData.stopDepartureCache.cache.size,
+    if (process.env.DEBUG_MEMORY) {
+      const stats = {
+        stops: this.accumulatedData.stops.length,
+        routes: this.accumulatedData.routes.length,
+        feedVersions: this.accumulatedData.feedVersions.length,
+        flexAreas: this.accumulatedData.flexAreas.length,
+        departureCacheStops: this.accumulatedData.stopDepartureCache.cache.size,
+      }
+      console.log('[ScenarioDataReceiver] accumulated data stats:', stats)
+      logMemory('getCurrentData')
     }
-    console.log('[ScenarioDataReceiver] accumulated data stats:', stats)
-    logMemory('getCurrentData')
     return { ...this.accumulatedData }
   }
 }
