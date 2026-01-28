@@ -72,18 +72,4 @@ export class StopDepartureCache {
     const dirCache = dir ? this.routeCache1 : this.routeCache0
     return dirCache.get(routeId, date)
   }
-
-  debugStats () {
-    let total = 0
-    const dates = new Set()
-    for (const [_, stopDates] of this.cache) {
-      for (const [d, departures] of stopDates) {
-        dates.add(d)
-        total += departures.length
-      }
-    }
-    console.log('StopDepartureCache stats:', this.cache.size, 'stops', dates.size, 'dates', total, 'total departures')
-    console.log('StopDepartureCache routeCache 0:', this.routeCache0)
-    console.log('StopDepartureCache routeCache 1:', this.routeCache1)
-  }
 }
