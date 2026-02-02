@@ -26,10 +26,17 @@
               <t-icon size="small" icon="information" />
             </t-tooltip>
           </template>
-          <t-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <t-datepicker
+            v-if="!selectSingleDay"
+            v-model="endDate"
+            :variant="isEndDateValid ? undefined : 'danger'"
+          />
           <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </t-button>
+          <p v-if="!isEndDateValid" class="help is-danger">
+            End date must be on or after the start date.
+          </p>
         </t-field>
       </t-msg>
 
@@ -185,7 +192,7 @@ import { nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Bbox, Point } from '~~/src/core'
-import { cannedBboxes, geomSources } from '~~/src/core'
+import { cannedBboxes, geomSources, normalizeDate } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
 
 const emit = defineEmits([
@@ -220,6 +227,19 @@ const selectSingleDay = ref(true)
 const startDate = defineModel<Date | undefined>('startDate')
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
+const isEndDateValid = computed(() => {
+  if (selectSingleDay.value) {
+    return true
+  }
+  // Both dates should already be normalized, but compare date portions to be safe
+  const start = normalizeDate(startDate.value)
+  const end = normalizeDate(endDate.value)
+  if (!start || !end) {
+    return true
+  }
+  return end >= start
+})
+
 const geomSearchVars = computed(() => {
   return {
     layer: geomLayer.value,
@@ -242,6 +262,15 @@ const {
     keepPreviousResult: true
   }
 )
+
+watch(selectSingleDay, (newVal) => {
+  if (newVal) { // Remove end date
+    endDate.value = undefined
+  } else { // Set end date
+    const d = endDate.value as Date
+    endDate.value = new Date(d) // make copy, so Vue thinks it changed
+  }
+})
 
 watch(geomSearchVars, () => {
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
@@ -310,12 +339,14 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
   return results
 })
 
-/////////////////////////////////////////
-/////////////////////////////////////////
-
 const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
+
+  // End date must be valid (on or after start date)
+  if (!isEndDateValid.value) {
+    return false
+  }
 
   // If using administrative boundaries, must have at least one geography selected
   if (geomSource.value === 'adminBoundary') {
