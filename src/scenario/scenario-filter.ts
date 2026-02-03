@@ -298,7 +298,8 @@ function stopVisits (
       continue
     }
     // TODO: memoize formatted date
-    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map((st) => { return parseHMS(st.departure_time) })
+    // Departures are already stored as seconds since midnight in CompactDeparture
+    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map(dep => dep[0])
     let count = 0
     for (const depTime of stopDepTimes) {
       if (depTime >= startTime && depTime <= endTime) {

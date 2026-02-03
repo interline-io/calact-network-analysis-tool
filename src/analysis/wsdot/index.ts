@@ -1,7 +1,8 @@
 import { gql } from 'graphql-tag'
 import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox, chunkArray } from '~~/src/core'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~~/src/scenario'
-import type { RouteGql, StopTime } from '~~/src/tl'
+import type { RouteGql } from '~~/src/tl'
+import { CompactDeparture, type CompactDeparture as CompactDepartureType } from '~~/src/tl/departure-cache'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
@@ -112,14 +113,14 @@ export const levelColors: Record<LevelKey, string> = {
 interface StopFrequencyData {
   stopId: number
   gtfsStopId: string
-  hourlyDepartures: Map<number, StopTime[]>
+  hourlyDepartures: Map<number, CompactDepartureType[]>
   routeIds: Set<number>
 }
 
 interface RouteFrequencyData {
   routeId: number
   route: RouteGql
-  hourlyDepartures: Map<number, StopTime[]>
+  hourlyDepartures: Map<number, CompactDepartureType[]>
   stopIds: Set<number>
 }
 
@@ -493,8 +494,8 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     const routeData = {
       routeId: route.id,
       route: route,
-      stopHourlyDepartures: new Map<number, Map<number, StopTime[]>>(),
-      hourlyDepartures: new Map<number, StopTime[]>(),
+      stopHourlyDepartures: new Map<number, Map<number, CompactDepartureType[]>>(),
+      hourlyDepartures: new Map<number, CompactDepartureType[]>(),
       stopIds: new Set<number>(),
     }
     routes.set(route.id, routeData)
@@ -510,23 +511,20 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     const stopData: StopFrequencyData = {
       stopId: stop.id,
       gtfsStopId: stop.stop_id,
-      hourlyDepartures: new Map<number, StopTime[]> (),
+      hourlyDepartures: new Map<number, CompactDepartureType[]>(),
       routeIds: new Set<number>()
     }
 
     // Count trips by hour
     for (const departure of departures) {
-      // console.log('\t\tdeparture:', departure)
-      if (!departure.departure_time) {
-        console.log('\t\t\tno departure time, skipping')
-        continue
-      }
+      // CompactDeparture: [departureSeconds, routeId, directionId, tripId]
+      const depSeconds = CompactDeparture.departureSeconds(departure)
       depCount += 1
       if (depCount % 1000 === 0) {
         console.log(`\tProcessed ${depCount} departures...`)
       }
-      const routeId = departure.trip.route.id
-      const hour = parseHour(departure.departure_time)
+      const routeId = CompactDeparture.routeId(departure)
+      const hour = Math.floor(depSeconds / 3600)
       const stopHourData = stopData.hourlyDepartures.get(hour) || []
       stopHourData.push(departure)
       stopData.hourlyDepartures.set(hour, stopHourData)
@@ -691,22 +689,23 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
   // Use route trips per hour per direction
   for (const routeData of routes.values()) {
     // console.log('\n===== Route', routeData.route.route_id)
-    const allTrips = new Set<string>()
+    const allTrips = new Set<number>()
 
     for (const directionId of [0, 1]) {
       // console.log('Direction', directionId)
 
       // Bucket route-direction trips into hours
-      const dirHourTrips: Map<number, Set<string>> = new Map()
-      const dirAllTrips = new Set<string>()
+      const dirHourTrips: Map<number, Set<number>> = new Map()
+      const dirAllTrips = new Set<number>()
       for (const hour of ALL_HOURS) {
         const deps = routeData.hourlyDepartures.get(hour) || []
-        const hourTrips = new Set<string>()
-        for (const dep of deps.filter(d => d.trip.direction_id === directionId)) {
+        const hourTrips = new Set<number>()
+        for (const dep of deps.filter(d => CompactDeparture.directionId(d) === directionId)) {
+          const tripId = CompactDeparture.tripId(dep)
           // ... to match python version, only use the first hour for each trip
-          if (!allTrips.has(dep.trip.trip_id)) {
-            hourTrips.add(dep.trip.trip_id)
-            allTrips.add(dep.trip.trip_id)
+          if (!allTrips.has(tripId)) {
+            hourTrips.add(tripId)
+            allTrips.add(tripId)
           }
         }
         dirHourTrips.set(hour, hourTrips)
@@ -715,7 +714,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       // Check if this route-direction meets the frequency requirements
       let dirTphMatches = true
       for (const hour of timeConfig.hours) {
-        const hourTrips = dirHourTrips.get(hour) || new Set<string>()
+        const hourTrips = dirHourTrips.get(hour) || new Set<number>()
         for (const tripId of hourTrips) {
           dirAllTrips.add(tripId)
         }
@@ -729,7 +728,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       // Outside of compat mode, all hours are checked for tph
       const routeHours = routeHourCompatMode ? timeConfig.hours.slice(-1) : timeConfig.hours
       for (const hour of routeHours) {
-        const hourTrips = dirHourTrips.get(hour) || new Set<string>()
+        const hourTrips = dirHourTrips.get(hour) || new Set<number>()
         if (hourTrips.size < timeConfig.min_tph) {
           // console.log(`\t\thour ${hour} does not meet tph requirement (${hourTrips.size} < ${timeConfig.min_tph})`)
           dirTphMatches = false
