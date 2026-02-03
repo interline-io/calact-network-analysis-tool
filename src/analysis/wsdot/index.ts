@@ -400,8 +400,7 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
   constructor (callbacks: ScenarioCallbacks = {}) {
-    // skipRouteCaches=true saves memory since WSDOT iterates departures directly
-    super(callbacks, true)
+    super(callbacks)
   }
 
   override onProgress (progress: ScenarioProgress): void {

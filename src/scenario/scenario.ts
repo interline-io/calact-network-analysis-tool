@@ -791,13 +791,13 @@ export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
 
-  constructor (callbacks: ScenarioCallbacks = {}, skipRouteCaches = false) {
+  constructor (callbacks: ScenarioCallbacks = {}) {
     this.callbacks = callbacks
     this.accumulatedData = {
       stops: [],
       routes: [],
       feedVersions: [],
-      stopDepartureCache: new StopDepartureCache(skipRouteCaches),
+      stopDepartureCache: new StopDepartureCache(),
       flexAreas: [],
     }
   }
