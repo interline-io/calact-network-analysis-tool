@@ -299,59 +299,13 @@ export class StopDepartureQueryVars {
 }
 
 /**
- * Run the scenario fetcher, streaming results to the controller.
- * @param controller - ReadableStream controller to write NDJSON to
- * @param config - Scenario configuration
- * @param client - GraphQL client
- * @param serverMode - If true, stream-only mode: skip accumulation entirely (saves ~90% memory).
- *                     The returned ScenarioData will be empty in server mode.
+ * Stream scenario data to a controller. This is the core streaming primitive.
+ * Does not accumulate data - just streams NDJSON to the controller.
+ *
+ * Use this directly for server/BFF endpoints where memory is constrained.
+ * For cases that need accumulated data, compose with multiplexStream + ScenarioStreamReceiver.
  */
-export async function runScenarioFetcher (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient, serverMode = false): Promise<ScenarioData> {
-  // In server mode, skip the multiplex and accumulation - just stream directly
-  if (serverMode) {
-    return runScenarioFetcherStreamOnly(controller, config, client)
-  }
-
-  // Client mode: multiplex stream for both response and accumulation
-  const { inputStream, outputStream } = multiplexStream(requestStream(controller))
-  const writer = inputStream.getWriter()
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Send config as initial extra data
-  scenarioDataSender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting scenario fetcher',
-    config: config,
-  })
-
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver({})
-  const scenarioDataClient = new ScenarioStreamReceiver()
-  const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
-
-  // Start the fetch process
-  await fetcher.fetch()
-
-  // Final complete - close the multiplexed stream
-  scenarioDataSender.onComplete()
-  writer.close()
-
-  // Ensure all scenario client progress has been processed
-  const { data } = await scenarioClientProgress
-
-  // Return the accumulated data
-  return data
-}
-
-/**
- * Stream-only version for server/BFF use. Does not accumulate data - just streams to controller.
- * Uses ~90% less memory than the full version.
- */
-async function runScenarioFetcherStreamOnly (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
+export async function streamScenario (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<void> {
   const stream = requestStream(controller)
   const writer = stream.getWriter()
 
@@ -373,15 +327,48 @@ async function runScenarioFetcherStreamOnly (controller: ReadableStreamDefaultCo
   // Final complete
   scenarioDataSender.onComplete()
   writer.close()
+}
 
-  // Return empty data (not used in server mode)
-  return {
-    routes: [],
-    stops: [],
-    feedVersions: [],
-    stopDepartureCache: new StopDepartureCache(),
-    flexAreas: [],
-  }
+/**
+ * Run the scenario fetcher, streaming results and accumulating data.
+ * This is a convenience wrapper that composes streamScenario with accumulation.
+ *
+ * For server/BFF use where memory is constrained, use streamScenario directly.
+ */
+export async function runScenarioFetcher (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
+  // Multiplex stream: one copy streams to controller, one copy accumulates
+  const { inputStream, outputStream } = multiplexStream(requestStream(controller))
+  const writer = inputStream.getWriter()
+
+  // Configure fetcher/sender
+  const scenarioDataSender = new ScenarioStreamSender(writer)
+  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting scenario fetcher',
+    config: config,
+  })
+
+  // Configure receiver for accumulation
+  const receiver = new ScenarioDataReceiver({})
+  const scenarioDataClient = new ScenarioStreamReceiver()
+  const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
+
+  // Start the fetch process
+  await fetcher.fetch()
+
+  // Final complete - close the multiplexed stream
+  scenarioDataSender.onComplete()
+  writer.close()
+
+  // Ensure all scenario client progress has been processed
+  const { data } = await scenarioClientProgress
+
+  // Return the accumulated data
+  return data
 }
 
 export class ScenarioFetcher {

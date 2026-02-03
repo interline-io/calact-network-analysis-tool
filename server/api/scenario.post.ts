@@ -7,7 +7,7 @@ import { createError } from 'h3'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~~/src/scenario'
-import { runScenarioFetcher } from '~~/src/scenario'
+import { streamScenario } from '~~/src/scenario'
 import { BasicGraphQLClient } from '~~/src/core'
 
 function logMemory (label: string) {
@@ -49,8 +49,7 @@ export default defineEventHandler(async (event) => {
 
   const stream = new ReadableStream({
     async start (controller) {
-      // serverMode=true streams directly without accumulating data in memory
-      await runScenarioFetcher(controller, config, client, true)
+      await streamScenario(controller, config, client)
       logMemory('stream-complete')
     }
   })
