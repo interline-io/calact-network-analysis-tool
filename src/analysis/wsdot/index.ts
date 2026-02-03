@@ -211,8 +211,8 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   writer.close()
 
   // Ensure all scenario client progress has been processed
-  const { completed } = await scenarioClientProgress
-  if (!completed) {
+  const { success } = await scenarioClientProgress
+  if (!success) {
     console.warn('WSDOT stream ended without completion message')
   }
 
