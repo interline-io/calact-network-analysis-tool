@@ -661,21 +661,25 @@ const scenarioData = ref<ScenarioData>()
 // Raw data comes from scenario stream via scenarioData.flexAreas
 
 // Agency filter items with metadata about service types
+// Uses raw scenarioData (not filtered scenarioFilterResult) so ALL agencies appear
+// in the filter list, even if their routes are currently filtered out
 const agencyFilterItems = computed((): AgencyFilterItem[] => {
   const agencyMap = new Map<string, AgencyFilterItem>()
 
-  // Collect from fixed-route data
-  for (const route of scenarioFilterResult.value?.routes || []) {
-    const name = route.agency.agency_name
+  // Collect from fixed-route data (raw, unfiltered)
+  for (const route of scenarioData.value?.routes || []) {
+    const name = route.agency?.agency_name
+    if (!name) { continue }
     const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
     item.hasFixedRoute = true
     agencyMap.set(name, item)
   }
 
-  // Collect from flex data
-  for (const feature of scenarioFilterResult.value?.flexAreas || []) {
+  // Collect from flex data (raw, unfiltered)
+  for (const feature of scenarioData.value?.flexAreas || []) {
     for (const agency of feature.properties.agencies || []) {
       const name = agency.agency_name
+      if (!name) { continue }
       const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
       item.hasFlex = true
       agencyMap.set(name, item)

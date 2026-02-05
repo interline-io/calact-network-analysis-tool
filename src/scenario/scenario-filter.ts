@@ -105,20 +105,20 @@ function routeSetDerived (
       route.average_frequency = stats.average
       route.fastest_frequency = stats.fastest
       route.slowest_frequency = stats.slowest
-      console.debug('routeSetDerived:', route.id,
-        'departures:', deps.length,
-        'avg:', Math.round(stats.average / 60), 'min',
-        'fastest:', Math.round(stats.fastest / 60), 'min',
-        'slowest:', Math.round(stats.slowest / 60), 'min'
-      )
+      // console.debug('routeSetDerived:', route.id,
+      //   'departures:', deps.length,
+      //   'avg:', Math.round(stats.average / 60), 'min',
+      //   'fastest:', Math.round(stats.fastest / 60), 'min',
+      //   'slowest:', Math.round(stats.slowest / 60), 'min'
+      // )
     } else {
       route.average_frequency = undefined
       route.fastest_frequency = undefined
       route.slowest_frequency = undefined
-      console.debug('routeSetDerived:', route.id,
-        'departures:', deps.length,
-        'headways: none (need 2+ departures to calculate headways)'
-      )
+      // console.debug('routeSetDerived:', route.id,
+      //   'departures:', deps.length,
+      //   'headways: none (need 2+ departures to calculate headways)'
+      // )
     }
   }
   // Mark after setting frequency values
@@ -148,7 +148,7 @@ function routeMarked (
   // Check selected days - route must have service on selected days
   if (selectedWeekdays != null) {
     if (selectedWeekdays.length === 0) {
-      console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
+      // console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
       return false
     }
     // Check if route has service on selected days using headway data
@@ -186,33 +186,33 @@ function routeMarked (
       found = hasAll
     }
     if (!found) {
-      console.debug('routeMarked:', route.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
+      // console.debug('routeMarked:', route.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
       return false
     }
   }
 
   // Check route types
   if (selectedRouteTypes != null && !selectedRouteTypes.includes(route.route_type)) {
-    console.debug('routeMarked:', route.id, 'unmarked: route_type', route.route_type, 'not in', selectedRouteTypes)
+    // console.debug('routeMarked:', route.id, 'unmarked: route_type', route.route_type, 'not in', selectedRouteTypes)
     return false
   }
 
   // Check agencies
   if (selectedAgencies != null && !selectedAgencies.includes(route.agency.agency_name)) {
-    console.debug('routeMarked:', route.id, 'unmarked: agency', route.agency.agency_name, 'not in', selectedAgencies)
+    // console.debug('routeMarked:', route.id, 'unmarked: agency', route.agency.agency_name, 'not in', selectedAgencies)
     return false
   }
 
   if (routeIndex && frequencyOver != null) {
     if (!route.average_frequency || route.average_frequency < frequencyOver * 60) {
-      console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '< frequencyOver', frequencyOver * 60)
+      // console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '< frequencyOver', frequencyOver * 60)
       return false
     }
   }
 
   if (routeIndex && frequencyUnder != null) {
     if (!route.average_frequency || route.average_frequency > frequencyUnder * 60) {
-      console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '> frequencyUnder', frequencyUnder * 60)
+      // console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '> frequencyUnder', frequencyUnder * 60)
       return false
     }
   }
@@ -396,7 +396,7 @@ function stopMarked (
     }
     // Not found, no further processing
     if (!found) {
-      console.debug('stopMarked:', stop.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode)
+      // console.debug('stopMarked:', stop.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode)
       return false
     }
   }
@@ -406,7 +406,7 @@ function stopMarked (
   if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
     const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
     if (!hasMarkedRoute) {
-      console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
+      // console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
       return false
     }
   }
@@ -452,7 +452,7 @@ function flexAreaMarked (
     selectedAgencies.includes(name)
   )
   if (!hasMatchingAgency) {
-    console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
+    // console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
     return false
   }
 
