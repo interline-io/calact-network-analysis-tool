@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { routeHeadways, newRouteHeadwaySummary, calculateHeadwayStats } from './route-headway'
-import { StopDepartureCache } from '../tl/departure-cache'
+import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
 
@@ -126,7 +126,8 @@ describe('routeHeadways', () => {
     ]))
 
     // Calculate headways
-    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', sdCache)
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', routeIndex)
 
     // Stop 2 should be selected as the representative stop (it has 3 departures, others have fewer)
     expect(result.total.dir0.stop_id).toBe(2)
@@ -158,7 +159,8 @@ describe('routeHeadways', () => {
     addTripToCache(sdCache, dateStr, makeTrip(routeId, '1005', 0, [{ stopId: 1, departure: '12:00:00' }]))
 
     // When startTime/endTime are undefined, no filtering occurs
-    const resultNoFilter = routeHeadways(route, [date], undefined, undefined, sdCache)
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const resultNoFilter = routeHeadways(route, [date], undefined, undefined, routeIndex)
     expect(resultNoFilter.total.dir0.departures.length).toBe(5)
     expect(resultNoFilter.total.dir0.departures).toContain(hms('08:00'))
     expect(resultNoFilter.total.dir0.departures).toContain(hms('09:00'))
@@ -167,25 +169,25 @@ describe('routeHeadways', () => {
     expect(resultNoFilter.total.dir0.departures).toContain(hms('12:00'))
 
     // When only startTime is set, filters "trips after X"
-    const resultStartOnly = routeHeadways(route, [date], '09:30:00', undefined, sdCache)
+    const resultStartOnly = routeHeadways(route, [date], '09:30:00', undefined, routeIndex)
     expect(resultStartOnly.total.dir0.departures.length).toBe(3)
     expect(resultStartOnly.total.dir0.departures).toContain(hms('10:00'))
     expect(resultStartOnly.total.dir0.departures).toContain(hms('11:00'))
     expect(resultStartOnly.total.dir0.departures).toContain(hms('12:00'))
 
     // When only endTime is set, filters "trips before Y"
-    const resultEndOnly = routeHeadways(route, [date], undefined, '10:30:00', sdCache)
+    const resultEndOnly = routeHeadways(route, [date], undefined, '10:30:00', routeIndex)
     expect(resultEndOnly.total.dir0.departures.length).toBe(3)
     expect(resultEndOnly.total.dir0.departures).toContain(hms('08:00'))
     expect(resultEndOnly.total.dir0.departures).toContain(hms('09:00'))
     expect(resultEndOnly.total.dir0.departures).toContain(hms('10:00'))
 
     // When time window doesn't match any departures, result is empty
-    const resultEmpty = routeHeadways(route, [date], '13:00:00', '14:00:00', sdCache)
+    const resultEmpty = routeHeadways(route, [date], '13:00:00', '14:00:00', routeIndex)
     expect(resultEmpty.total.dir0.departures.length).toBe(0)
 
     // Filter to 09:00-10:30 window
-    const result = routeHeadways(route, [date], '09:00:00', '10:30:00', sdCache)
+    const result = routeHeadways(route, [date], '09:00:00', '10:30:00', routeIndex)
 
     // Should only include 09:00 and 10:00 departures
     expect(result.total.dir0.departures.length).toBe(2)
@@ -210,7 +212,8 @@ describe('routeHeadways', () => {
     addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1004', 0, [{ stopId: 1, departure: '09:30:00' }]))
     addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1005', 0, [{ stopId: 1, departure: '10:00:00' }]))
 
-    const result = routeHeadways(route, [monday, tuesday], undefined, undefined, sdCache)
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const result = routeHeadways(route, [monday, tuesday], undefined, undefined, routeIndex)
 
     // Total should aggregate both days
     expect(result.total.dir0.departures.length).toBe(5)
@@ -247,8 +250,9 @@ describe('routeHeadways', () => {
 
     // Empty cache
     const sdCache = new StopDepartureCache()
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
 
-    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', sdCache)
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', routeIndex)
 
     expect(result.total.dir0.departures.length).toBe(0)
     expect(result.total.dir1.departures.length).toBe(0)

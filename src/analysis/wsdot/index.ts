@@ -211,7 +211,10 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   writer.close()
 
   // Ensure all scenario client progress has been processed
-  await scenarioClientProgress
+  const { success } = await scenarioClientProgress
+  if (!success) {
+    console.warn('WSDOT stream ended without completion message')
+  }
 
   // Get the final accumulated data from the receiver
   const { scenarioData: finalScenarioData, wsdotReport } = receiver.getCurrentCombinedData()
@@ -403,7 +406,7 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   override onProgress (progress: ScenarioProgress): void {
     super.onProgress(progress)
 
-    // Then handle WSDOT report extraData aggregation
+    // Handle WSDOT report extraData aggregation
     if (progress.extraData) {
       this.mergeWSDOTReportData(progress.extraData as WSDOTReport)
     }

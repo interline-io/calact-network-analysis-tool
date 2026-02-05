@@ -60,9 +60,11 @@ import type {
   StopGql,
   StopVisitCounts,
   StopVisitSummary,
-  FlexAreaFeature
+  FlexAreaFeature,
+  RouteDepartureIndex
 } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
+import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 
 ////////////////////
 // Route filtering
@@ -79,16 +81,16 @@ function routeSetDerived (
   selectedAgencies?: string[],
   frequencyUnder?: number,
   frequencyOver?: number,
-  sdCache?: StopDepartureCache,
+  routeIndex?: RouteDepartureIndex,
 ) {
   // Set derived properties
-  if (sdCache) {
+  if (routeIndex) {
     const headwayResult = routeHeadways(
       route,
       selectedDateRange,
       selectedStartTime,
       selectedEndTime,
-      sdCache,
+      routeIndex,
     )
     // Assign headways to route so it can be used in filtering
     route.headways = headwayResult
@@ -128,7 +130,7 @@ function routeSetDerived (
     selectedAgencies,
     frequencyUnder,
     frequencyOver,
-    sdCache,
+    routeIndex,
   )
 }
 
@@ -141,7 +143,7 @@ function routeMarked (
   selectedAgencies?: string[],
   frequencyUnder?: number,
   frequencyOver?: number,
-  sdCache?: StopDepartureCache,
+  routeIndex?: RouteDepartureIndex,
 ): boolean {
   // Check selected days - route must have service on selected days
   if (selectedWeekdays != null) {
@@ -201,14 +203,14 @@ function routeMarked (
     return false
   }
 
-  if (sdCache && frequencyOver != null) {
+  if (routeIndex && frequencyOver != null) {
     if (!route.average_frequency || route.average_frequency < frequencyOver * 60) {
       // console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '< frequencyOver', frequencyOver * 60)
       return false
     }
   }
 
-  if (sdCache && frequencyUnder != null) {
+  if (routeIndex && frequencyUnder != null) {
     if (!route.average_frequency || route.average_frequency > frequencyUnder * 60) {
       // console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '> frequencyUnder', frequencyUnder * 60)
       return false
@@ -472,6 +474,7 @@ export function applyScenarioResultFilter (
   filter: ScenarioFilter
 ): ScenarioFilterResult {
   const sdCache = data.stopDepartureCache
+  const routeIndex = RouteDepartureIndexClass.fromCache(sdCache)
   const selectedDateRangeValue = getSelectedDateRange(config)
   const selectedWeekdayModeValue = filter.selectedWeekdayMode
   const selectedDaysValue = filter.selectedWeekdays
@@ -508,7 +511,7 @@ export function applyScenarioResultFilter (
       selectedAgenciesValue,
       frequencyUnderValue,
       frequencyOverValue,
-      sdCache,
+      routeIndex,
     )
     return route
   })

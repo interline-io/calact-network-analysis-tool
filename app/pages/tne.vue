@@ -1064,7 +1064,10 @@ const fetchScenario = async (loadExample: string) => {
 
   // Process the streaming response
   const streamer = new ScenarioStreamReceiver()
-  await streamer.processStream(response.body, receiver)
+  const { success } = await streamer.processStream(response.body, receiver)
+  if (!success) {
+    error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
+  }
 }
 
 // Apply filters and emit results when data or filters change

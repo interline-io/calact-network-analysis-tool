@@ -65,24 +65,47 @@ export class GenericStreamSender<T extends StreamableProgress> implements Stream
 /**
  * Generic streaming client that processes readable streams
  */
+export interface StreamResult<TData> {
+  data: TData
+  /**
+   * True only if the server explicitly sent a 'complete' stage message.
+   * False if the stream ended without this message (e.g., server OOM kill,
+   * network disconnect, or other abnormal termination).
+   *
+   * Use this to distinguish:
+   * - `success: true` = server confirmed it finished successfully
+   * - `success: false` = stream ended but we don't know if server finished
+   */
+  success: boolean
+}
+
 export class GenericStreamReceiver<T extends StreamableProgress, TData> {
   /**
-   * Process a readable stream of progress data
+   * Process a readable stream of progress data.
+   *
+   * Returns { data, success } where:
+   * - `data`: accumulated data from all received progress messages
+   * - `success`: true only if we received an explicit 'complete' stage message
+   *
+   * IMPORTANT: The stream can end in two ways:
+   * 1. Server sends 'complete' stage, then closes connection -> success=true
+   * 2. Connection closes without 'complete' (OOM, crash, timeout) -> success=false
+   *
+   * In both cases, receiver.onComplete() is called to allow cleanup, but only
+   * case 1 means the server actually finished its work successfully.
    */
   async processStream (
     stream: ReadableStream<Uint8Array>,
     receiver: StreamDataReceiver<T, TData>
-  ): Promise<TData> {
-    // console.log('GenericStreamReceiver: Starting to process stream...')
+  ): Promise<StreamResult<TData>> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let receivedCompleteMessage = false
     try {
       while (true) {
         const { done, value } = await reader.read()
-        // console.log('GenericStreamReceiver: ...read chunk', { done, valueLength: value?.length || 0 })
         if (done) {
-          // console.log('GenericStreamReceiver: Stream fully read')
           break
         }
         buffer += decoder.decode(value, { stream: true })
@@ -96,23 +119,24 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
             receiver.onError(progress.error)
           }
           if (progress.currentStage === 'complete') {
+            receivedCompleteMessage = true
             receiver.onComplete()
           }
         }
-        // console.log('GenericStreamReceiver: ...processed chunk')
       }
     } catch (error) {
-      // console.log('GenericStreamReceiver: Error reading stream', error)
       receiver.onError(error)
     } finally {
-      // console.log('GenericStreamReceiver: Finished reading stream')
-      receiver.onComplete()
+      // Always call onComplete for cleanup, even if stream ended abnormally.
+      // The receivedCompleteMessage flag tells callers whether the server
+      // actually finished vs the connection was terminated unexpectedly.
+      if (!receivedCompleteMessage) {
+        receiver.onComplete()
+      }
       reader.releaseLock()
     }
 
-    // Return current accumulated data if stream ended without completion
-    // console.log('GenericStreamReceiver: Returning accumulated data')
-    return receiver.getCurrentData()
+    return { data: receiver.getCurrentData(), success: receivedCompleteMessage }
   }
 }
 

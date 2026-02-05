@@ -12,7 +12,8 @@ import {
   requestStream,
   TaskQueue,
   convertBbox,
-  chunkArray
+  chunkArray,
+  logMemory,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -290,8 +291,45 @@ export class StopDepartureQueryVars {
   }
 }
 
+/**
+ * Stream scenario data to a controller. This is the core streaming primitive.
+ * Does not accumulate data - just streams NDJSON to the controller.
+ *
+ * Use this directly for server/BFF endpoints where memory is constrained.
+ * For cases that need accumulated data, compose with multiplexStream + ScenarioStreamReceiver.
+ */
+export async function streamScenario (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+
+  // Configure fetcher/sender
+  const scenarioDataSender = new ScenarioStreamSender(writer)
+  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
+
+  // Send config as initial extra data
+  scenarioDataSender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting scenario fetcher',
+    config: config,
+  })
+
+  // Start the fetch process
+  await fetcher.fetch()
+
+  // Final complete
+  scenarioDataSender.onComplete()
+  writer.close()
+}
+
+/**
+ * Run the scenario fetcher, streaming results and accumulating data.
+ * This is a convenience wrapper that composes streamScenario with accumulation.
+ *
+ * For server/BFF use where memory is constrained, use streamScenario directly.
+ */
 export async function runScenarioFetcher (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
-  // Create a multiplex stream that writes to both the response and a new output stream
+  // Multiplex stream: one copy streams to controller, one copy accumulates
   const { inputStream, outputStream } = multiplexStream(requestStream(controller))
   const writer = inputStream.getWriter()
 
@@ -307,8 +345,8 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
     config: config,
   })
 
-  // Configure client/receiver
-  const receiver = new ScenarioDataReceiver()
+  // Configure receiver for accumulation
+  const receiver = new ScenarioDataReceiver({})
   const scenarioDataClient = new ScenarioStreamReceiver()
   const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
 
@@ -320,10 +358,10 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   writer.close()
 
   // Ensure all scenario client progress has been processed
-  await scenarioClientProgress
+  const { data } = await scenarioClientProgress
 
   // Return the accumulated data
-  return receiver.getCurrentData()
+  return data
 }
 
 export class ScenarioFetcher {
@@ -404,12 +442,15 @@ export class ScenarioFetcher {
 
   // Start the scenario fetching process
   private async fetchMain () {
+    logMemory('fetchMain-start')
+
     // FIRST STAGE: Fetch active feed versions in the area
     this.feedVersions = await this.fetchFeedVersions()
     console.log(`Found ${this.feedVersions.length} feed versions`)
     for (const fv of this.feedVersions) {
       console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
     }
+    logMemory('after-feed-versions')
 
     // Fetch fixed-route transit data if enabled (default: true)
     const includeFixedRoute = this.config.includeFixedRoute !== false
@@ -428,8 +469,11 @@ export class ScenarioFetcher {
       this.routeFetchQueue.run()
       this.stopDepartureQueue.run()
       await this.stopFetchQueue.wait()
+      logMemory('after-stops')
       await this.routeFetchQueue.wait()
+      logMemory('after-routes')
       await this.stopDepartureQueue.wait()
+      logMemory('after-departures')
     } else {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
@@ -439,12 +483,14 @@ export class ScenarioFetcher {
     console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
     if (includeFlexAreas) {
       await this.fetchFlexAreas()
+      logMemory('after-flex-areas')
     } else {
       console.log('[Scenario] Skipping flex areas (not enabled)')
     }
 
     // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
+    logMemory('fetchMain-complete')
     console.log(`🎉 Scenario complete`)
   }
 
@@ -815,6 +861,17 @@ export class ScenarioDataReceiver {
    * Get the current accumulated data
    */
   getCurrentData (): ScenarioData {
+    if (process.env.DEBUG_MEMORY) {
+      const stats = {
+        stops: this.accumulatedData.stops.length,
+        routes: this.accumulatedData.routes.length,
+        feedVersions: this.accumulatedData.feedVersions.length,
+        flexAreas: this.accumulatedData.flexAreas.length,
+        departureCacheStops: this.accumulatedData.stopDepartureCache.cache.size,
+      }
+      console.log('[ScenarioDataReceiver] accumulated data stats:', stats)
+      logMemory('getCurrentData')
+    }
     return { ...this.accumulatedData }
   }
 }

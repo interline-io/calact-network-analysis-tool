@@ -7,10 +7,12 @@ import { createError } from 'h3'
 import { useApiFetch } from '~/composables/useApiFetch'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~~/src/scenario'
-import { runScenarioFetcher } from '~~/src/scenario'
-import { BasicGraphQLClient } from '~~/src/core'
+import { streamScenario } from '~~/src/scenario'
+import { BasicGraphQLClient, logMemory } from '~~/src/core'
 
 export default defineEventHandler(async (event) => {
+  logMemory('request-start')
+
   // Parse the request body
   const config: ScenarioConfig = await readBody(event)
 
@@ -34,10 +36,12 @@ export default defineEventHandler(async (event) => {
     await useApiFetch(event),
   )
 
-  // Create a readable stream for the response
+  logMemory('before-stream')
+
   const stream = new ReadableStream({
     async start (controller) {
-      await runScenarioFetcher(controller, config, client)
+      await streamScenario(controller, config, client)
+      logMemory('stream-complete')
     }
   })
 

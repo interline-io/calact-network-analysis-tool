@@ -12,8 +12,8 @@ import type {
   Route,
   RouteHeadwayDirections,
   RouteHeadwaySummary,
-  StopDepartureCache,
-  StopTime
+  StopTime,
+  RouteDepartureIndex,
 } from '../tl'
 
 /**
@@ -44,10 +44,10 @@ export function routeHeadways (
   selectedDateRange: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
-  sdCache?: StopDepartureCache
+  routeIndex?: RouteDepartureIndex
 ): RouteHeadwaySummary {
   const result = newRouteHeadwaySummary()
-  if (!sdCache) {
+  if (!routeIndex) {
     return result
   }
   const startTime = parseHMS(selectedStartTime || '00:00:00')
@@ -58,7 +58,7 @@ export function routeHeadways (
       let stopId: number = 0
       let stopDepartures: StopTime[] = []
       const formattedDate = format(d, 'yyyy-MM-dd')
-      const dateStopDeps = sdCache.getRouteDate(route.id, dir, formattedDate)
+      const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
       for (const [depStopId, deps] of dateStopDeps.entries()) {
         if (deps.length > stopDepartures.length) {
           stopId = depStopId
