@@ -197,10 +197,10 @@ export const StopDepartureTuple = {
     trip_direction_id: number,
     trip_route_id: number,
   ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
-  fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime, parseTime: (s: string) => number) => StopDepartureTuple.create(
+  fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
     stopId,
     departureDate,
-    parseTime(stopDeparture.departure_time),
+    parseHMS(stopDeparture.departure_time),
     stopDeparture.trip.id,
     stopDeparture.trip.direction_id,
     stopDeparture.trip.route.id,
@@ -748,7 +748,7 @@ export class ScenarioFetcher {
           }
         })()
         stopDepartures.push(
-          ...stopTimes.map((st: StopTime) => StopDepartureTuple.fromStopTime(stop.id, dowDate, st, parseHMS))
+          ...stopTimes.map((st: StopTime) => StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
         )
       }
     }
