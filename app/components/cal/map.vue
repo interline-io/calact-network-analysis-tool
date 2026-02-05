@@ -436,7 +436,7 @@ const displayFeatures = computed((): Feature[] => {
   }
 
   const bgColor = '#aaa'
-  const bgOpacity = 0.4
+  const bgOpacity = 0.1
   const styleRules = styleData.value || []
   const forDisplay: Feature[] = []
 
@@ -455,7 +455,7 @@ const displayFeatures = computed((): Feature[] => {
         'id': rp.id,
         'stroke': style?.color || bgColor,
         'stroke-width': rp.marked ? 2 : 1.0,
-        'stroke-opacity': rp.marked ? 1 : 0.1,
+        'stroke-opacity': rp.marked ? 1 : bgOpacity,
         'route_id': rp.route_id,
         'route_type': rp.route_type,
         'route_short_name': rp.route_short_name,
@@ -483,7 +483,7 @@ const displayFeatures = computed((): Feature[] => {
         'id': sp.id,
         'marker-radius': sp.marked ? 8 : 3,
         'marker-color': style?.color || bgColor,
-        'marker-opacity': sp.marked ? 1 : 0.25,
+        'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked
       }
     }
