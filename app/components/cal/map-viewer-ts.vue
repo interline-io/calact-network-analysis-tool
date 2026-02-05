@@ -275,7 +275,18 @@ function createLayers () {
     source: 'points',
     paint: {
       'circle-color': ['coalesce', ['get', 'marker-color'], '#888888'], // gray is the fallback color for stop points while routes or other data that may be needed for styling logic is still loading
-      'circle-radius': ['coalesce', ['get', 'marker-radius'], 10],
+      // Zoom-dependent circle radius: smaller at low zooms, larger at high zooms
+      // Uses the marker-radius property as the base size at zoom 14
+      'circle-radius': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        8, ['*', ['coalesce', ['get', 'marker-radius'], 10], 0.3], // At zoom 8: 30% of base size
+        10, ['*', ['coalesce', ['get', 'marker-radius'], 10], 0.5], // At zoom 10: 50% of base size
+        12, ['*', ['coalesce', ['get', 'marker-radius'], 10], 0.75], // At zoom 12: 75% of base size
+        14, ['coalesce', ['get', 'marker-radius'], 10], // At zoom 14: full base size
+        16, ['*', ['coalesce', ['get', 'marker-radius'], 10], 1.25] // At zoom 16+: 125% of base size
+      ],
       'circle-opacity': ['coalesce', ['get', 'marker-opacity'], 1.0],
     }
   })

@@ -454,8 +454,8 @@ const displayFeatures = computed((): Feature[] => {
       properties: {
         'id': rp.id,
         'stroke': style?.color || bgColor,
-        'stroke-width': rp.marked ? 3 : 0.75,
-        'stroke-opacity': rp.marked ? 1 : bgOpacity,
+        'stroke-width': rp.marked ? 2 : 1.0,
+        'stroke-opacity': rp.marked ? 1 : 0.1,
         'route_id': rp.route_id,
         'route_type': rp.route_type,
         'route_short_name': rp.route_short_name,
@@ -481,9 +481,9 @@ const displayFeatures = computed((): Feature[] => {
       geometry: sp.geometry,
       properties: {
         'id': sp.id,
-        'marker-radius': sp.marked ? 8 : 4,
+        'marker-radius': sp.marked ? 8 : 3,
         'marker-color': style?.color || bgColor,
-        'marker-opacity': sp.marked ? 1 : bgOpacity,
+        'marker-opacity': sp.marked ? 1 : 0.25,
         'marked': sp.marked
       }
     }

@@ -75,12 +75,12 @@ export interface AgencyFilterItem {
  * which uses d3-scale-chromatic for better color schemes
  */
 export const colors = [
-  '#e41a1c', // red
-  '#ff7f00', // orange
-  '#fee08b', // yellow
-  '#1f78b4', // blue
-  '#984ea3', // purple
-  '#333333' // black
+  '#e41a1c', // red - Light Rail
+  '#ff7f00', // orange - Subway
+  '#4daf4a', // green - Intercity Rail
+  '#1f78b4', // blue - Bus
+  '#984ea3', // purple - Ferry
+  '#333333' // black - Other
 ] as const
 
 export const dowValues = [
