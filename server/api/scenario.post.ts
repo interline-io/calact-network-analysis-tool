@@ -8,16 +8,7 @@ import { useApiFetch } from '~/composables/useApiFetch'
 import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
 import type { ScenarioConfig } from '~~/src/scenario'
 import { streamScenario } from '~~/src/scenario'
-import { BasicGraphQLClient } from '~~/src/core'
-
-function logMemory (label: string) {
-  if (process.env.DEBUG_MEMORY) {
-    const usage = process.memoryUsage()
-    const heapMB = (usage.heapUsed / 1024 / 1024).toFixed(1)
-    const rssMB = (usage.rss / 1024 / 1024).toFixed(1)
-    console.log(`[MEM ${label}] heap: ${heapMB}MB, rss: ${rssMB}MB`)
-  }
-}
+import { BasicGraphQLClient, logMemory } from '~~/src/core'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')

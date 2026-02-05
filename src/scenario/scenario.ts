@@ -12,7 +12,8 @@ import {
   requestStream,
   TaskQueue,
   convertBbox,
-  chunkArray
+  chunkArray,
+  logMemory,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -39,14 +40,6 @@ import { geographyLayerQuery } from '~~/src/tl/census'
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
-
-function logMemory (label: string) {
-  if (process.env.DEBUG_MEMORY) {
-    const usage = process.memoryUsage()
-    const heapMB = (usage.heapUsed / 1024 / 1024).toFixed(1)
-    console.log(`[MEM ${label}] heap: ${heapMB}MB`)
-  }
-}
 
 /**
  * Maximum number of flex locations to fetch per feed version.
