@@ -12,7 +12,7 @@ import type {
   Route,
   RouteHeadwayDirections,
   RouteHeadwaySummary,
-  StopTime,
+  StopTimeCacheItem,
   RouteDepartureIndex,
 } from '../tl'
 
@@ -56,7 +56,7 @@ export function routeHeadways (
     for (const d of selectedDateRange) {
       // Get the stop with the most departures
       let stopId: number = 0
-      let stopDepartures: StopTime[] = []
+      let stopDepartures: StopTimeCacheItem[] = []
       const formattedDate = format(d, 'yyyy-MM-dd')
       const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
       for (const [depStopId, deps] of dateStopDeps.entries()) {
@@ -66,11 +66,10 @@ export function routeHeadways (
         }
       }
 
-      // Convert HH:MM:SS to seconds and filter by time window
+      // Filter by time window (departureTime is already in seconds)
       const stSecs = stopDepartures
-        .filter((st) => { return st.departure_time != null })
-        .map((st) => { return parseHMS(st.departure_time) })
-        .filter((depTime) => { return depTime >= startTime && depTime <= endTime })
+        .map(st => st.departureTime)
+        .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
 
       // Add to result
