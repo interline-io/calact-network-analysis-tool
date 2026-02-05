@@ -285,7 +285,7 @@ const runQuery = async () => {
       showLoadingModal.value = false
       useToastNotification().showToast('VisionEval analysis completed successfully!')
     } else {
-      throw new Error('No report received from server')
+      throw new Error('No report received from server. Try again or reduce query size.')
     }
   } catch (err: any) {
     console.error('VisionEval analysis error:', err)
