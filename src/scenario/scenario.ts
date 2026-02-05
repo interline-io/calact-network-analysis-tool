@@ -14,6 +14,7 @@ import {
   convertBbox,
   chunkArray,
   logMemory,
+  parseHMS,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -176,14 +177,14 @@ export interface ScenarioProgress {
 }
 
 // Define the tuple type with named fields
+// Optimized wire format: departure_time as seconds, no string trip_id
 export type StopDepartureTuple = readonly [
   stop_id: number,
   departure_date: string,
-  departure_time: string,
+  departure_time: number, // seconds since midnight
   trip_id: number,
   trip_direction_id: number,
-  trip_route_id: number,
-  trip_trip_id: string
+  trip_route_id: number
 ]
 
 // Helper functions for working with the tuple
@@ -191,20 +192,18 @@ export const StopDepartureTuple = {
   create: (
     stop_id: number,
     departure_date: string,
-    departure_time: string,
+    departure_time: number,
     trip_id: number,
     trip_direction_id: number,
     trip_route_id: number,
-    trip_trip_id: string,
-  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id, trip_trip_id],
+  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
   fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
     stopId,
     departureDate,
-    stopDeparture.departure_time,
+    parseHMS(stopDeparture.departure_time),
     stopDeparture.trip.id,
     stopDeparture.trip.direction_id,
     stopDeparture.trip.route.id,
-    stopDeparture.trip.trip_id,
   ),
   stopId: (tuple: StopDepartureTuple) => tuple[0],
   departureDate: (tuple: StopDepartureTuple) => tuple[1],
@@ -212,7 +211,6 @@ export const StopDepartureTuple = {
   tripId: (tuple: StopDepartureTuple) => tuple[3],
   tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
   tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
-  tripTripId: (tuple: StopDepartureTuple) => tuple[6],
 }
 
 // ============================================================================
@@ -811,25 +809,15 @@ export class ScenarioDataReceiver {
       // Append new feed versions
       this.accumulatedData.feedVersions.push(...progress.partialData.feedVersions)
 
-      // Append new stop departure events
+      // Append new stop departure events directly to cache (no intermediate StopTime)
       for (const event of progress.partialData.stopDepartures) {
-        const st: StopTime = {
-          departure_time: StopDepartureTuple.departureTime(event),
-          trip: {
-            id: StopDepartureTuple.tripId(event),
-            direction_id: StopDepartureTuple.tripDirectionId(event),
-            trip_id: StopDepartureTuple.tripTripId(event),
-            route: {
-              id: StopDepartureTuple.tripRouteId(event)
-            }
-          }
-        }
-        // const stopId = StopDepartureTuple.stopId(event)
-        // const departureDate = StopDepartureTuple.departureDate(event)
-        this.accumulatedData.stopDepartureCache.add(
+        this.accumulatedData.stopDepartureCache.addFromWire(
           StopDepartureTuple.stopId(event),
           StopDepartureTuple.departureDate(event),
-          [st],
+          StopDepartureTuple.departureTime(event),
+          StopDepartureTuple.tripId(event),
+          StopDepartureTuple.tripDirectionId(event),
+          StopDepartureTuple.tripRouteId(event),
         )
       }
 
