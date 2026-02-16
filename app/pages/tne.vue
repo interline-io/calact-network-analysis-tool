@@ -193,7 +193,7 @@
 </template>
 
 <script lang="ts" setup>
-import { addDays, nextMonday } from 'date-fns'
+import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
@@ -328,7 +328,7 @@ const geographyIds = computed<number[]>({
 const startDate = computed<Date | undefined>({
   get (): Date {
     const str = route.query.startDate?.toString()
-    return parseDate(str) || nextMonday(new Date())
+    return parseDate(str) || nextMonday(endOfYesterday())
   },
   set (v: unknown) {
     setQuery({ ...route.query, startDate: asDateString(v) })
