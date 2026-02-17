@@ -43,10 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRaw } from 'vue'
+import { ref, computed, toRaw, shallowRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
-import type { Bbox, Feature, PopupFeature, MarkerFeature, DataDisplayMode } from '~~/src/core'
+import type { Marker } from 'maplibre-gl'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -83,16 +84,43 @@ const toggleShareMenu = useToggle(showShareMenu)
 // Map geometries
 
 // Compute initial center point; do not update
-const centerPoint = {
+const centerPoint: Point = {
   lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
   lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
 }
 
+interface CornerData {
+  marker?: Marker
+  element: HTMLElement
+  iconElement: HTMLElement
+  point: Point
+}
+
+// They will be ordered clockwise:  ne, se, sw, nw
+let corners: CornerData[] = []
+
+// Arrow icon class for each compass corner, also ordered clockwise
+const cornerIcons = [
+  'mdi-arrow-top-right', //  ne
+  'mdi-arrow-bottom-right', //  se
+  'mdi-arrow-bottom-left', //  sw
+  'mdi-arrow-top-left' //  nw
+]
+
+// Track the bounding box shape during a drag.  This allows us to render
+// an updated shape, but only persist the final bbox state on dragend.
+const draggingBbox = ref<Bbox | null>(null)
+
+// Track which corner marker is actively being dragged (only one at a time)
+// null = no drag in progress, otherwise holds a reference to the marker being dragged
+const draggingMarker = shallowRef<Marker | null>(null)
+
 // Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
-  if (props.bbox.valid && props.displayEditBboxMode) {
-    const p = props.bbox
+  const activeBbox = draggingBbox.value || props.bbox
+  if (activeBbox.valid && props.displayEditBboxMode) {
+    const p = activeBbox
     const coords = [[
       [p.sw.lon, p.sw.lat],
       [p.sw.lon, p.ne.lat],
@@ -113,62 +141,161 @@ const bboxArea = computed(() => {
   return f
 })
 
-// Markers for bbox corners
-const bboxMarkers = computed(() => {
-  const ret: MarkerFeature[] = []
+// Compute a normalized bbox from the current corner markers
+// Because the markers may be dragged, we need to check them.
+// This will also fix the corner icons too
+function getNormalizedBbox (): Bbox | null {
+  if (corners.length !== 4) { return null }
+  const copy = corners.slice() // make a copy
 
-  if (!props.displayEditBboxMode) {
-    return ret
+  // Determine ranges
+  let minLon = Infinity
+  let minLat = Infinity
+  let maxLon = -Infinity
+  let maxLat = -Infinity
+
+  for (const corner of copy) {
+    const { lon, lat } = corner.point
+
+    if (lon < minLon) { minLon = lon }
+    if (lat < minLat) { minLat = lat }
+    if (lon > maxLon) { maxLon = lon }
+    if (lat > maxLat) { maxLat = lat }
   }
 
-  // Create SW marker with custom element
-  const swElement = document.createElement('div')
-  swElement.className = 'custom-marker sw-marker'
-  const swIconElement = document.createElement('i')
-  swIconElement.className = 'mdi mdi-arrow-bottom-left'
-  swElement.appendChild(swIconElement)
+  const midLon = (minLon + maxLon) / 2
+  const midLat = (minLat + maxLat) / 2
 
-  ret.push({
-    point: props.bbox.sw,
-    color: '#ff0000',
-    draggable: true,
-    element: swElement,
-    onDragEnd: (c: any) => {
-      emit('setBbox', {
-        valid: true,
-        ne: props.bbox.ne,
-        sw: {
-          lon: c.target.getLngLat().lng,
-          lat: c.target.getLngLat().lat,
+  // Reorder clockwise: ne, se, sw, nw
+  // Assign each corner to its quadrant based on position relative to center
+  for (const corner of copy) {
+    const isRight = corner.point.lon >= midLon
+    const isTop = corner.point.lat >= midLat
+    const idx = isTop ? (isRight ? 0 : 3) : (isRight ? 1 : 2)
+    corners[idx] = corner
+    corner.iconElement.className = `mdi ${cornerIcons[idx]}`
+  }
+
+  const sw = { lon: minLon, lat: minLat }
+  const ne = { lon: maxLon, lat: maxLat }
+  return { sw, ne, valid: true } as Bbox
+}
+
+// Bbox corner markers — only recreated when edit mode toggles on/off.
+// Position updates during drag and after dragEnd are handled imperatively
+const bboxMarkers = computed(() => {
+  const result: MarkerFeature[] = []
+
+  if (!props.displayEditBboxMode) {
+    return result
+  }
+
+  // Read bbox once for initial positions only (not tracked reactively after this)
+  const bbox = props.bbox
+
+  // Build the corners array, order as clockwise:  ne, se, sw, nw
+  corners = [
+    { point: { lon: bbox.ne.lon, lat: bbox.ne.lat } },
+    { point: { lon: bbox.ne.lon, lat: bbox.sw.lat } },
+    { point: { lon: bbox.sw.lon, lat: bbox.sw.lat } },
+    { point: { lon: bbox.sw.lon, lat: bbox.ne.lat } }
+  ] as CornerData[]
+
+  for (let i = 0; i < 4; i++) {
+    const corner = corners[i]!
+    const element = document.createElement('div')
+    corner.element = element
+    element.className = 'custom-marker'
+    const iconElement = document.createElement('i')
+    corner.iconElement = iconElement
+    iconElement.className = `mdi ${cornerIcons[i]}`
+    element.appendChild(iconElement)
+
+    result.push({
+      point: corner.point,
+      color: '#888',
+      draggable: true,
+      element,
+      onCreated: (marker: Marker) => {
+        // We can find the marker again by its element
+        const corner = corners.find(c => c.element === marker.getElement())
+        if (corner) {
+          corner.marker = marker
         }
-      })
-    }
-  })
-
-  // Create NE marker with custom element
-  const neElement = document.createElement('div')
-  neElement.className = 'custom-marker ne-marker'
-  const neIconElement = document.createElement('i')
-  neIconElement.className = 'mdi mdi-arrow-top-right'
-  neElement.appendChild(neIconElement)
-
-  ret.push({
-    point: props.bbox.ne,
-    color: '#00ff00',
-    draggable: true,
-    element: neElement,
-    onDragEnd: (c: any) => {
-      emit('setBbox', {
-        valid: true,
-        sw: props.bbox.sw,
-        ne: {
-          lon: c.target.getLngLat().lng,
-          lat: c.target.getLngLat().lat,
+      },
+      onDrag: (e: MarkerDragEvent) => {
+        const marker = e.target
+        if (draggingMarker.value === null) {
+          draggingMarker.value = marker
+        } else if (draggingMarker.value !== e.target) {
+          return
         }
-      })
-    }
-  })
-  return ret
+
+        // Update the point corresponding to this marker.
+        const { lng, lat } = marker.getLngLat()
+        const index = corners.findIndex(c => c.marker === marker)
+        if (index === -1) { return } // shouldn't happen
+        corners[index]!.point.lon = lng
+        corners[index]!.point.lat = lat
+
+        // When dragging a marker, we also need to move its neighbors.
+        // The marker at the opposite corner does not move.
+        const c0 = corners[0]!
+        const c1 = corners[1]!
+        const c2 = corners[2]!
+        const c3 = corners[3]!
+
+        if (index === 0) { // moving ne
+          c3.point.lat = lat
+          c3.marker?.setLngLat(c3.point)
+          c1.point.lon = lng
+          c1.marker?.setLngLat(c1.point)
+        } else if (index === 1) { // moving se
+          c0.point.lon = lng
+          c0.marker?.setLngLat(c0.point)
+          c2.point.lat = lat
+          c2.marker?.setLngLat(c2.point)
+        } else if (index === 2) { // moving sw
+          c1.point.lat = lat
+          c1.marker?.setLngLat(c1.point)
+          c3.point.lon = lng
+          c3.marker?.setLngLat(c3.point)
+        } else if (index === 3) { // moving nw
+          c2.point.lon = lng
+          c2.marker?.setLngLat(c2.point)
+          c0.point.lat = lat
+          c0.marker?.setLngLat(c0.point)
+        }
+
+        // Dragging a corner may cause the box to flip, so we renormalize it
+        const box = getNormalizedBbox()
+        if (box) {
+          draggingBbox.value = box
+        }
+      },
+      onDragEnd: (e: MarkerDragEvent) => {
+        if (draggingMarker.value !== null && draggingMarker.value !== e.target) {
+          return
+        }
+
+        const box = getNormalizedBbox()
+        draggingMarker.value = null
+        draggingBbox.value = null
+        if (box) {
+          emit('setBbox', box)
+        }
+      }
+    })
+  }
+
+  return result
+})
+
+// Clear marker refs when edit mode is turned off (markers will be removed by drawBboxMarkers)
+watch(() => props.displayEditBboxMode, (editing) => {
+  if (!editing) {
+    corners = []
+  }
 })
 
 // Lookup for stop features

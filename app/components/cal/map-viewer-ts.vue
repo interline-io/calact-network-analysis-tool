@@ -666,8 +666,15 @@ function drawMarkers (markers: MarkerFeature[]) {
     const newMarker = new maplibre.Marker(markerOptions)
       .setLngLat([m.point.lon, m.point.lat])
       .addTo(map!)
+
+    if (m.onDrag) {
+      newMarker.on('drag', m.onDrag)
+    }
     if (m.onDragEnd) {
       newMarker.on('dragend', m.onDragEnd)
+    }
+    if (m.onCreated) {
+      m.onCreated(newMarker)
     }
     newMarkers.push(newMarker)
   }
