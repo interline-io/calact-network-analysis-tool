@@ -1,3 +1,5 @@
+import type { Marker } from 'maplibre-gl'
+
 export interface Geometry {
   type: string
   coordinates: any[]
@@ -79,8 +81,19 @@ export interface PopupFeature {
   text?: string
 }
 
+/**
+ * Event fired by MapLibre Marker on 'drag' and 'dragend'.
+ * The `target` is the Marker instance that emitted the event.
+ */
+export interface MarkerDragEvent {
+  type: string
+  target: Marker
+}
+
 export interface MarkerFeature {
-  onDragEnd: any
+  onDrag?: (e: MarkerDragEvent) => void
+  onDragEnd?: (e: MarkerDragEvent) => void
+  onCreated?: (marker: Marker) => void
   point: Point
   color: string
   draggable: boolean

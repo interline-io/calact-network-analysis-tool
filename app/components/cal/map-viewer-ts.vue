@@ -360,12 +360,17 @@ function updateOverlayFeatures (features: Feature[]) {
     const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
     polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
-  // Only fit if the set of features actually changed (not just object references)
-  // This prevents re-fitting when filters change but geographies stay the same
-  const currentIds = features.map(f => f.id).sort().join(',')
+  // Only fit if the set of features actually changed (not just object references).
+  // This prevents re-fitting when filters change but geographies stay the same.
+  // Avoid fitting the bbox, as that makes it difficult for the user to resize it (see #206).
+  const featuresWithoutBbox = features.filter(f => f.id !== 'bbox')
+  const currentIds = featuresWithoutBbox
+    .map(f => f.id)
+    .sort().join(',')
+
   if (currentIds !== lastOverlayFeatureIds) {
     lastOverlayFeatureIds = currentIds
-    fitFeatures(features)
+    fitFeatures(featuresWithoutBbox)
   }
 }
 
@@ -661,8 +666,15 @@ function drawMarkers (markers: MarkerFeature[]) {
     const newMarker = new maplibre.Marker(markerOptions)
       .setLngLat([m.point.lon, m.point.lat])
       .addTo(map!)
+
+    if (m.onDrag) {
+      newMarker.on('drag', m.onDrag)
+    }
     if (m.onDragEnd) {
       newMarker.on('dragend', m.onDragEnd)
+    }
+    if (m.onCreated) {
+      m.onCreated(newMarker)
     }
     newMarkers.push(newMarker)
   }
