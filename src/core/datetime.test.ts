@@ -91,6 +91,42 @@ describe('parseDate', () => {
     expect(dec31.getMonth()).toBe(11)
     expect(dec31.getDate()).toBe(31)
   })
+
+  // Out-of-range dates: date-fns parse rejects these (unlike JS Date constructor)
+  it('returns undefined for January 32', () => {
+    expect(parseDate('2024-01-32')).toBeUndefined()
+  })
+
+  it('returns undefined for January 0', () => {
+    expect(parseDate('2024-01-00')).toBeUndefined()
+  })
+
+  it('returns undefined for February 30', () => {
+    expect(parseDate('2024-02-30')).toBeUndefined()
+  })
+
+  it('returns undefined for February 29 in non-leap year', () => {
+    expect(parseDate('2023-02-29')).toBeUndefined()
+  })
+
+  it('parses February 29 in leap year', () => {
+    const result = parseDate('2024-02-29')!
+    expect(result).toBeDefined()
+    expect(result.getMonth()).toBe(1)
+    expect(result.getDate()).toBe(29)
+  })
+
+  it('returns undefined for month 13', () => {
+    expect(parseDate('2024-13-01')).toBeUndefined()
+  })
+
+  it('returns undefined for month 00', () => {
+    expect(parseDate('2024-00-01')).toBeUndefined()
+  })
+
+  it('returns undefined for negative day', () => {
+    expect(parseDate('2024-01--1')).toBeUndefined()
+  })
 })
 
 describe('fmtDate', () => {
@@ -116,6 +152,10 @@ describe('fmtDate', () => {
 
   it('returns empty string for invalid date', () => {
     expect(fmtDate(new Date('invalid'))).toBe('')
+  })
+
+  it('returns empty string for NaN date', () => {
+    expect(fmtDate(new Date(NaN))).toBe('')
   })
 })
 
@@ -155,6 +195,31 @@ describe('parseTime', () => {
   it('returns undefined for invalid time string', () => {
     expect(parseTime('not-a-time')).toBeUndefined()
   })
+
+  // Out-of-range times: date-fns parse rejects these
+  it('returns undefined for hour 25', () => {
+    expect(parseTime('25:00:00')).toBeUndefined()
+  })
+
+  it('returns undefined for hour 24', () => {
+    expect(parseTime('24:00:00')).toBeUndefined()
+  })
+
+  it('returns undefined for minute 60', () => {
+    expect(parseTime('12:60:00')).toBeUndefined()
+  })
+
+  it('returns undefined for second 60', () => {
+    expect(parseTime('12:00:60')).toBeUndefined()
+  })
+
+  it('returns undefined for negative hour', () => {
+    expect(parseTime('-1:00:00')).toBeUndefined()
+  })
+
+  it('returns undefined for partial time (HH:mm only)', () => {
+    expect(parseTime('12:30')).toBeUndefined()
+  })
 })
 
 describe('fmtTime', () => {
@@ -179,6 +244,10 @@ describe('fmtTime', () => {
 
   it('returns empty string for invalid date', () => {
     expect(fmtTime(new Date('invalid'))).toBe('')
+  })
+
+  it('returns empty string for NaN date', () => {
+    expect(fmtTime(new Date(NaN))).toBe('')
   })
 })
 
