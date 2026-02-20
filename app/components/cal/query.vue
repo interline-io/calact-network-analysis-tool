@@ -220,11 +220,11 @@ const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: tru
 const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date | undefined>('endDate')
+const endDate = defineModel<Date>('endDate', { required: true })
 const geomSearch = ref('')
 const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
-const startDate = defineModel<Date | undefined>('startDate')
+const startDate = defineModel<Date>('startDate', { required: true })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 const isEndDateValid = computed(() => {
@@ -264,11 +264,10 @@ const {
 )
 
 watch(selectSingleDay, (newVal) => {
-  if (newVal) { // Remove end date
-    endDate.value = undefined
+  if (newVal) { // Single day mode: end date = start date
+    endDate.value = startDate.value
   } else { // Set end date
-    const d = endDate.value as Date
-    endDate.value = new Date(d) // make copy, so Vue thinks it changed
+    endDate.value = new Date(endDate.value) // make copy, so Vue thinks it changed
   }
 })
 
