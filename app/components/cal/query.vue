@@ -12,7 +12,7 @@
       <t-msg title="Date range">
         <t-field>
           <template #label>
-            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.  By default, the start date is the next Monday.">
+            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served. By default, the start date is the next Monday.">
               Start date
               <t-icon size="small" icon="information" />
             </t-tooltip>
