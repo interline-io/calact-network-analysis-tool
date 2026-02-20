@@ -19,7 +19,7 @@ export function normalizeDate (d: Date | undefined): Date | undefined {
  * @returns Normalized date object, or undefined if the input is not a valid date
  */
 export function normalizeTime (d: Date | undefined): Date | undefined {
-  return isValid(d) ? set(d!, { year: 2020, month: 1, date: 1, milliseconds: 0 }) : undefined
+  return isValid(d) ? set(d!, { year: 2020, month: 0, date: 1, milliseconds: 0 }) : undefined
 }
 
 /**

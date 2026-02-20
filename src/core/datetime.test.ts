@@ -39,11 +39,11 @@ describe('normalizeDate', () => {
 })
 
 describe('normalizeTime', () => {
-  it('normalizes date component to 2020-02-01 and keeps time', () => {
+  it('normalizes date component to 2020-01-01 and keeps time', () => {
     const d = new Date(2024, 6, 15, 14, 30, 45, 123)
     const result = normalizeTime(d)!
     expect(result.getFullYear()).toBe(2020)
-    expect(result.getMonth()).toBe(1) // date-fns set month is 1-indexed, maps to February
+    expect(result.getMonth()).toBe(0) // January
     expect(result.getHours()).toBe(14)
     expect(result.getMinutes()).toBe(30)
     expect(result.getSeconds()).toBe(45)
@@ -125,8 +125,9 @@ describe('parseTime', () => {
     expect(result.getHours()).toBe(14)
     expect(result.getMinutes()).toBe(30)
     expect(result.getSeconds()).toBe(45)
-    // Date component should be normalized to 2020-02-01
+    // Date component should be normalized to 2020-01-01
     expect(result.getFullYear()).toBe(2020)
+    expect(result.getMonth()).toBe(0)
   })
 
   it('parses midnight', () => {
