@@ -66,5 +66,8 @@
     "**/.output": true,
     "**/.nuxt": true,
     "**/coverage": true
+  },
+  "chat.tools.terminal.autoApprove": {
+    "npx vitest": true
   }
 }

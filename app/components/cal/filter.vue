@@ -590,8 +590,8 @@ const emit = defineEmits([
 ])
 const activeTab = defineModel<string>('activeTab')
 
-const startDate = defineModel<Date>('startDate')
-const endDate = defineModel<Date>('endDate')
+const startDate = defineModel<Date>('startDate', { required: true })
+const endDate = defineModel<Date>('endDate', { required: true })
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
@@ -759,9 +759,6 @@ const dowAvailable = computed((): Set<string> => {
   // JavaScript day of week starts on Sunday, this is different from dowValues
   const jsDowValues: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const result = new Set<string>()
-  if (!startDate.value || !endDate.value) {
-    return result
-  }
   const range = eachDayOfInterval({ start: startDate.value, end: endDate.value })
   for (const d of range) {
     const dow = jsDowValues[d.getDay()]
