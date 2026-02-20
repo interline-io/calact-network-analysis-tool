@@ -53,7 +53,7 @@ export function fmtDate (d: Date | undefined, fmt: string = dateFmt): string {
 export function parseTime (s: string | undefined): Date | undefined {
   let d
   if (s) {
-    d = parse(s, timeFmt, new Date(2020, 1, 1))
+    d = parse(s, timeFmt, new Date(2020, 0, 1))
   }
   return normalizeTime(d)
 }
