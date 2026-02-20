@@ -181,8 +181,8 @@ function getNormalizedBbox (): Bbox | null {
   return { sw, ne, valid: true } as Bbox
 }
 
-// Bbox corner markers — only recreated when edit mode toggles on/off.
-// Position updates during drag and after dragEnd are handled imperatively
+// Bbox corner markers — recreated when edit mode toggles on/off or when the bbox prop changes.
+// Position updates during drag and after dragEnd are also handled imperatively
 const bboxMarkers = computed(() => {
   const result: MarkerFeature[] = []
 
@@ -224,6 +224,7 @@ const bboxMarkers = computed(() => {
         }
       },
       onDrag: (e: MarkerDragEvent) => {
+        if (corners.length !== 4) { return }
         const marker = e.target
         if (draggingMarker.value === null) {
           draggingMarker.value = marker
@@ -295,6 +296,7 @@ const bboxMarkers = computed(() => {
 watch(() => props.displayEditBboxMode, (editing) => {
   if (!editing) {
     corners = []
+    draggingMarker.value = null
   }
 })
 
