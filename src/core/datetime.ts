@@ -76,9 +76,10 @@ export function fmtTime (d: Date | undefined, fmt: string = timeFmt): string {
 export function asDate (val: unknown): Date | undefined {
   if (typeof val === 'string') {
     return parseDate(val)
-  } else {
-    return normalizeDate(val as Date)
+  } else if (val instanceof Date) {
+    return normalizeDate(val)
   }
+  return undefined
 }
 
 /**
@@ -89,9 +90,10 @@ export function asDate (val: unknown): Date | undefined {
 export function asTime (val: unknown): Date | undefined {
   if (typeof val === 'string') {
     return parseTime(val)
-  } else {
-    return normalizeTime(val as Date)
+  } else if (val instanceof Date) {
+    return normalizeTime(val)
   }
+  return undefined
 }
 
 /**

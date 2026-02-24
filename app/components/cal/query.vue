@@ -235,7 +235,7 @@ const isEndDateValid = computed(() => {
   const start = normalizeDate(startDate.value)
   const end = normalizeDate(endDate.value)
   if (!start || !end) {
-    return true
+    return false
   }
   return end >= start
 })
@@ -263,11 +263,14 @@ const {
   }
 )
 
+// When toggling single-day mode, sync endDate to the URL query params.
+// In single-day mode, endDate matches startDate. When switching to range mode,
+// we create a copy so Vue detects a change and persists the value to the URL.
 watch(selectSingleDay, (newVal) => {
-  if (newVal) { // Single day mode: end date = start date
+  if (newVal) {
     endDate.value = startDate.value
-  } else { // Set end date
-    endDate.value = new Date(endDate.value) // make copy, so Vue thinks it changed
+  } else {
+    endDate.value = new Date(endDate.value)
   }
 })
 

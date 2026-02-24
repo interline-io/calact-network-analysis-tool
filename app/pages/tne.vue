@@ -328,6 +328,7 @@ const geographyIds = computed<number[]>({
 const startDate = computed<Date>({
   get (): Date {
     const str = route.query.startDate?.toString()
+    // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
     return parseDate(str) || nextMonday(endOfYesterday())
   },
   set (v: unknown) {
@@ -338,7 +339,7 @@ const startDate = computed<Date>({
 const endDate = computed<Date>({
   get (): Date {
     const str = route.query.endDate?.toString()
-    return parseDate(str) || addDays(startDate.value!, 6)
+    return parseDate(str) || addDays(startDate.value, 6)
   },
   set (v: unknown) {
     setQuery({ ...route.query, endDate: asDateString(v) })

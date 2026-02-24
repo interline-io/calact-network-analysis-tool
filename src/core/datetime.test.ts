@@ -277,6 +277,14 @@ describe('asDate', () => {
   it('returns undefined for null (cast as Date)', () => {
     expect(asDate(null)).toBeUndefined()
   })
+
+  it('returns undefined for a number', () => {
+    expect(asDate(1234567890000)).toBeUndefined()
+  })
+
+  it('returns undefined for a boolean', () => {
+    expect(asDate(true)).toBeUndefined()
+  })
 })
 
 describe('asTime', () => {
@@ -301,6 +309,14 @@ describe('asTime', () => {
 
   it('returns undefined for undefined', () => {
     expect(asTime(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for a number', () => {
+    expect(asTime(1234567890000)).toBeUndefined()
+  })
+
+  it('returns undefined for null', () => {
+    expect(asTime(null)).toBeUndefined()
   })
 })
 
