@@ -12,7 +12,7 @@
       <t-msg title="Date range">
         <t-field>
           <template #label>
-            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served.">
+            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served. By default, the start date is the next Monday.">
               Start date
               <t-icon size="small" icon="information" />
             </t-tooltip>
@@ -26,10 +26,17 @@
               <t-icon size="small" icon="information" />
             </t-tooltip>
           </template>
-          <t-datepicker v-if="!selectSingleDay" v-model="endDate" />
+          <t-datepicker
+            v-if="!selectSingleDay"
+            v-model="endDate"
+            :variant="isEndDateValid ? undefined : 'danger'"
+          />
           <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
           </t-button>
+          <p v-if="!isEndDateValid" class="help is-danger">
+            End date must be on or after the start date.
+          </p>
         </t-field>
       </t-msg>
 
@@ -185,7 +192,7 @@ import { nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Bbox, Point } from '~~/src/core'
-import { cannedBboxes, geomSources } from '~~/src/core'
+import { cannedBboxes, geomSources, normalizeDate } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
 
 const emit = defineEmits([
@@ -213,12 +220,25 @@ const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: tru
 const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date | undefined>('endDate')
+const endDate = defineModel<Date>('endDate', { required: true })
 const geomSearch = ref('')
 const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
-const startDate = defineModel<Date | undefined>('startDate')
+const startDate = defineModel<Date>('startDate', { required: true })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
+
+const isEndDateValid = computed(() => {
+  if (selectSingleDay.value) {
+    return true
+  }
+  // Both dates should already be normalized, but compare date portions to be safe
+  const start = normalizeDate(startDate.value)
+  const end = normalizeDate(endDate.value)
+  if (!start || !end) {
+    return false
+  }
+  return end >= start
+})
 
 const geomSearchVars = computed(() => {
   return {
@@ -242,6 +262,17 @@ const {
     keepPreviousResult: true
   }
 )
+
+// When toggling single-day mode, sync endDate to the URL query params.
+// In single-day mode, endDate matches startDate. When switching to range mode,
+// we create a copy so Vue detects a change and persists the value to the URL.
+watch(selectSingleDay, (newVal) => {
+  if (newVal) {
+    endDate.value = startDate.value
+  } else {
+    endDate.value = new Date(endDate.value)
+  }
+})
 
 watch(geomSearchVars, () => {
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
@@ -310,12 +341,14 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
   return results
 })
 
-/////////////////////////////////////////
-/////////////////////////////////////////
-
 const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
+
+  // End date must be valid (on or after start date)
+  if (!isEndDateValid.value) {
+    return false
+  }
 
   // If using administrative boundaries, must have at least one geography selected
   if (geomSource.value === 'adminBoundary') {

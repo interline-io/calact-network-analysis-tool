@@ -14,6 +14,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'clover', 'json'],
       reportsDirectory: './coverage',
+      all: false,
     },
     projects: [
       {

@@ -193,7 +193,7 @@
 </template>
 
 <script lang="ts" setup>
-import { nextMonday } from 'date-fns'
+import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { useApiFetch } from '~/composables/useApiFetch'
@@ -219,6 +219,8 @@ import {
   cannedBboxes,
   fmtDate,
   fmtTime,
+  asDateString,
+  asTimeString,
   parseDate,
   parseTime,
   getLocalDateNoTime,
@@ -323,62 +325,44 @@ const geographyIds = computed<number[]>({
   }
 })
 
-const startDate = computed({
+const startDate = computed<Date>({
+  get (): Date {
+    const str = route.query.startDate?.toString()
+    // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
+    return parseDate(str) || nextMonday(endOfYesterday())
+  },
+  set (v: unknown) {
+    setQuery({ ...route.query, startDate: asDateString(v) })
+  }
+})
+
+const endDate = computed<Date>({
+  get (): Date {
+    const str = route.query.endDate?.toString()
+    return parseDate(str) || addDays(startDate.value, 6)
+  },
+  set (v: unknown) {
+    setQuery({ ...route.query, endDate: asDateString(v) })
+  }
+})
+
+const startTime = computed<Date | undefined>({
   get (): Date | undefined {
-    const today = new Date() // Or any starting date you desire
-    return parseDate(route.query.startDate?.toString() || '') || nextMonday(today)
+    const str = route.query.startTime?.toString()
+    return parseTime(str)
   },
-  set (v: Date) {
-    setQuery({ ...route.query, startDate: fmtDate(v) })
+  set (v: unknown) {
+    setQuery({ ...route.query, startTime: asTimeString(v) })
   }
 })
 
-const endDate = computed({
+const endTime = computed<Date | undefined>({
   get (): Date | undefined {
-    if (route.query?.endDate) {
-      return parseDate(route.query.endDate?.toString() || '') || getLocalDateNoTime()
-    }
-    const start = startDate.value ?? new Date()
-    const n = new Date(start.valueOf())
-    n.setDate(n.getDate() + 6)
-    return n
+    const str = route.query.endTime?.toString()
+    return parseTime(str)
   },
-  set (v: Date) {
-    setQuery({ ...route.query, endDate: fmtDate(v) })
-  }
-})
-
-const startTime = computed({
-  get () {
-    const v = route.query.startTime?.toString()
-    if (!v) { return undefined }
-    return parseTime(v) || undefined
-  },
-  set (v: Date | string | undefined) {
-    if (v == null) {
-      setQuery({ ...route.query, startTime: undefined })
-    } else if (typeof v === 'string') {
-      setQuery({ ...route.query, startTime: v })
-    } else {
-      setQuery({ ...route.query, startTime: fmtTime(v) })
-    }
-  }
-})
-
-const endTime = computed({
-  get () {
-    const v = route.query.endTime?.toString()
-    if (!v) { return undefined }
-    return parseTime(v) || undefined
-  },
-  set (v: Date | string | undefined) {
-    if (v == null) {
-      setQuery({ ...route.query, endTime: undefined })
-    } else if (typeof v === 'string') {
-      setQuery({ ...route.query, endTime: v })
-    } else {
-      setQuery({ ...route.query, endTime: fmtTime(v) })
-    }
+  set (v: unknown) {
+    setQuery({ ...route.query, endTime: asTimeString(v) })
   }
 })
 
