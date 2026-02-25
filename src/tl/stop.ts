@@ -127,6 +127,8 @@ export type StopGql = {
 
 export type StopCsv = StopGtfs & {
   id: number
+  stop_lon?: number
+  stop_lat?: number
   routes_modes: string
   routes_count: number
   agencies_count: number
@@ -225,6 +227,8 @@ export function stopToStopCsv (stop: Stop): StopCsv {
   return {
     // GTFS properties
     id: stop.id,
+    stop_lon: stop.geometry.coordinates[0] || undefined,
+    stop_lat: stop.geometry.coordinates[1] || undefined,
     location_type: stop.location_type,
     stop_id: stop.stop_id,
     stop_name: stop.stop_name,

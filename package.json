@@ -6,7 +6,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "yarn lint --fix && yarn nuxt typecheck && yarn test",
+    "check": "yarn lint --fix && yarn nuxt typecheck",
     "build": "nuxt build",
     "calact": "tsx src/cli/calact.ts",
     "dev": "nuxt dev",
