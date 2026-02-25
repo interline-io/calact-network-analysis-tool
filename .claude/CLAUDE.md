@@ -15,7 +15,7 @@ yarn start        # Launch production server
 yarn lint         # ESLint (flat config with tlv2-ui rules)
 yarn test         # Vitest with coverage (single run)
 yarn test:watch   # Vitest in watch mode
-yarn check        # Lint + typecheck + test (full quality check)
+yarn check        # Lint (with --fix) + typecheck
 yarn calact       # Run CLI tool (tsx src/cli/calact.ts)
 ```
 
@@ -71,6 +71,10 @@ The `tlv2-ui` package (installed from git) is the shared UI library providing:
 - **GTFS-Flex**: Demand-responsive transit support with pickup/dropoff area types and advance notice categories
 - **Canned bounding boxes**: Predefined geographic areas (Portland, Seattle, Bend, Eugene, Salem, WA, OR) in `src/core/constants.ts`
 - **Census geography integration**: Tract/blockgroup overlays for demographic analysis
+
+## Verifying Changes
+
+After making edits, run `yarn check` to verify correctness (lint with auto-fix + typecheck).
 
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`
