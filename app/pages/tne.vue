@@ -140,6 +140,7 @@
             :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
+            @show-query="activeTab = { tab: 'query', sub: '' }"
           />
         </div>
 

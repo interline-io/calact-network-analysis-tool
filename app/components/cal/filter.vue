@@ -50,7 +50,7 @@
           {{ geographicBoundaryLabel }}
         </p>
         <p>
-          <a>Change date or region</a>
+          <a @click="emit('showQuery')">Change date or region</a>
         </p>
       </div>
     </div>
@@ -607,9 +607,9 @@ const geographicBoundaryLabel = computed(() => {
       .join('; ')
   }
   if (props.geomSource === 'mapExtent') {
-    return 'map extent'
+    return 'Selected map extent'
   }
-  return 'bounding box'
+  return 'Selected bounding box'
 })
 
 // CSS bindings from layout props (single source of truth defined in tne.vue)
@@ -620,6 +620,7 @@ const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
 const emit = defineEmits([
   'resetFilters',
   'setTimeRange',
+  'showQuery',
 ])
 const activeTab = defineModel<string>('activeTab')
 
