@@ -32,10 +32,15 @@ const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
-// Props for loading state
 const props = defineProps<{
   // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
   loadingStage?: string
+  // Left padding in pixels to account for overlay panels covering the map
+  panelWidth?: number
+  // Bounds to fit the map to on load and when fitBoundsKey changes
+  initialBounds?: { sw: { lon: number, lat: number }, ne: { lon: number, lat: number } }
+  // Increment to trigger a fitBounds to initialBounds (avoids refitting on map-originated bbox changes)
+  fitBoundsKey?: number
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -95,6 +100,21 @@ watch(() => zoom, () => {
   map?.jumpTo({ center: center.value, zoom: zoom.value })
 })
 
+function applyPanelPadding (left: number) {
+  map?.setPadding({ left, top: 0, right: 0, bottom: 0 })
+}
+
+watch(() => props.panelWidth, (v) => {
+  applyPanelPadding(v || 0)
+})
+
+watch(() => props.fitBoundsKey, () => {
+  if (props.initialBounds && map) {
+    const { sw, ne } = props.initialBounds
+    map.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
+  }
+})
+
 //////////////////////
 // Map initialization
 onMounted(() => {
@@ -129,6 +149,13 @@ function initMap () {
   map.addControl(new maplibre.NavigationControl())
   drawMarkers(markers.value)
   map.on('load', () => {
+    if (props.panelWidth) {
+      applyPanelPadding(props.panelWidth)
+    }
+    if (props.initialBounds) {
+      const { sw, ne } = props.initialBounds
+      map?.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
+    }
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
@@ -702,7 +729,13 @@ function mapZoom () {
 }
 
 function mapMove () {
-  emit('mapMove', { zoom: map?.getZoom(), bbox: map?.getBounds().toArray() })
+  if (!map) { return }
+  // Emit only the visible bounds (excluding area under the panel overlay)
+  const canvas = map.getCanvas()
+  const left = props.panelWidth || 0
+  const sw = map.unproject([left, canvas.clientHeight])
+  const ne = map.unproject([canvas.clientWidth, 0])
+  emit('mapMove', { zoom: map.getZoom(), bbox: [[sw.lng, sw.lat], [ne.lng, ne.lat]] })
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {

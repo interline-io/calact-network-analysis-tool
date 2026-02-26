@@ -88,6 +88,8 @@
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
+            :panel-width="QUERY_PANEL_WIDTH"
+            :panel-padding="PANEL_PADDING"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
@@ -125,9 +127,13 @@
             v-model:flex-advance-notice="flexAdvanceNotice"
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
+            v-model:show-bbox="showBbox"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
+            :panel-main-width="FILTER_MAIN_WIDTH"
+            :panel-sub-width="FILTER_SUB_WIDTH"
+            :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
           />
@@ -161,6 +167,7 @@
           :census-geographies-selected="censusGeographiesSelected"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
+          :show-bbox="showBboxOnMap"
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
@@ -169,6 +176,7 @@
           :flex-color-by="flexColorBy"
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
+          :panel-width="activeTabPanelWidth"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -281,18 +289,24 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
+// Track whether a query has been submitted — stops map extent from updating bbox
+const querySubmitted = ref(false)
+
 const cannedBbox = computed({
   get () {
     return route.query.example?.toString() || 'downtown-portland'
   },
   set (v: string) {
-    setQuery({ ...route.query, example: v || undefined })
+    // Clear explicit bbox so the canned bbox value takes effect
+    querySubmitted.value = false
+    setQuery({ ...route.query, example: v || undefined, bbox: undefined })
   }
 })
 const error = ref(undefined as Error | string | undefined)
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
+  querySubmitted.value = true
   showLoadingModal.value = true
   activeTab.value = { tab: 'map', sub: '' }
   try {
@@ -850,6 +864,27 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
 
+// Panel layout constants — single source of truth for widths.
+// Used both for CSS (via v-bind) and for map padding computation.
+const PANEL_PADDING = 20
+const QUERY_PANEL_WIDTH = 600
+const FILTER_MAIN_WIDTH = 300
+const FILTER_SUB_WIDTH = 400
+const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320
+const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING // 720
+
+// CSS binding for filter expanded width (used via v-bind in <style>)
+const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`
+
+// Active panel width for map padding — tells the map how much of its left side is obscured
+const activeTabPanelWidth = computed(() => {
+  switch (activeTab.value.tab) {
+    case 'query': return QUERY_PANEL_WIDTH
+    case 'filter': return activeTab.value.sub ? FILTER_EXPANDED_WIDTH : FILTER_COLLAPSED_WIDTH
+    default: return 0 // 'map', 'report', 'analysis'
+  }
+})
+
 // Advanced report query parameter support
 const advancedReport = computed({
   get () {
@@ -860,15 +895,16 @@ const advancedReport = computed({
   }
 })
 
-watch([activeTab, geomSource], () => {
-  if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
-    displayEditBboxMode.value = true
-  } else {
-    displayEditBboxMode.value = false
-  }
+const showBbox = ref(false)
+
+// showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
+const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
+
+// displayEditBboxMode controls drag handles — only on query tab before query submission
+watch([activeTab, geomSource, querySubmitted], () => {
+  displayEditBboxMode.value = activeTab.value.tab === 'query' && geomSource.value === 'bbox' && !querySubmitted.value
 })
 
-// Initialize displayEditBboxMode based on initial values
 const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
 
 // Initialize active tab based on advancedReport query parameter
@@ -937,7 +973,8 @@ watch(geomSource, () => {
 
 async function setMapExtent (v: Bbox) {
   mapExtent.value = v
-  if (geomSource.value === 'mapExtent') {
+  // Only update bbox from map extent before a query has been submitted
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
     bbox.value = mapExtent.value
   }
 }
@@ -1268,8 +1305,8 @@ function toTitleCase (str: string): string {
 .cal-tab-filter {
 
   &.has-subtab {
-    width: 720px; /* Expanded width when subtab is open: main panel (300px) + sub-panel (400px) + padding (20px) */
-    min-width: 720px;
+    width: v-bind(filterExpandedWidthPx);
+    min-width: v-bind(filterExpandedWidthPx);
   }
 }
 

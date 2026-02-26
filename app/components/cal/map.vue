@@ -19,6 +19,7 @@
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
+      :show-bbox="showBbox"
       :hide-unmarked="hideUnmarked"
       :flex-enabled="flexServicesEnabled"
       :flex-color-by="flexColorBy"
@@ -30,12 +31,15 @@
       map-class="tall"
       :center="centerPoint"
       :zoom="14"
+      :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
       :features="displayFeatures"
       :flex-features="flexFeatures"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
+      :panel-width="props.panelWidth"
+      :fit-bounds-key="fitBoundsKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
     />
@@ -43,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRaw, shallowRef } from 'vue'
+import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
@@ -63,6 +67,7 @@ const props = defineProps<{
   dataDisplayMode?: DataDisplayMode
   colorKey?: string
   displayEditBboxMode?: boolean
+  showBbox?: boolean
   hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
@@ -75,6 +80,8 @@ const props = defineProps<{
   flexDisplayFeatures?: Feature[]
   // Loading stage - allow map updates during geometry stages, skip during schedules
   loadingStage?: string
+  // Left padding in pixels to account for overlay panels covering the map
+  panelWidth?: number
 }>()
 
 const showShareMenu = ref(false)
@@ -88,6 +95,23 @@ const centerPoint: Point = {
   lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
   lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
 }
+
+// Track fitBounds requests — only refit for external bbox changes, not map-originated drags
+const fitBoundsKey = ref(0)
+let bboxChangeFromMap = false
+
+watch(() => props.bbox, (newBbox, oldBbox) => {
+  if (oldBbox
+    && newBbox.sw.lon === oldBbox.sw.lon && newBbox.sw.lat === oldBbox.sw.lat
+    && newBbox.ne.lon === oldBbox.ne.lon && newBbox.ne.lat === oldBbox.ne.lat) {
+    return
+  }
+  if (bboxChangeFromMap) {
+    bboxChangeFromMap = false
+    return
+  }
+  fitBoundsKey.value++
+}, { flush: 'sync' })
 
 interface CornerData {
   marker?: Marker
@@ -119,7 +143,7 @@ const draggingMarker = shallowRef<Marker | null>(null)
 const bboxArea = computed(() => {
   const f: Feature[] = []
   const activeBbox = draggingBbox.value || props.bbox
-  if (activeBbox.valid && props.displayEditBboxMode) {
+  if (activeBbox.valid && (props.displayEditBboxMode || props.showBbox)) {
     const p = activeBbox
     const coords = [[
       [p.sw.lon, p.sw.lat],
@@ -283,6 +307,7 @@ const bboxMarkers = computed(() => {
         draggingMarker.value = null
         draggingBbox.value = null
         if (box) {
+          bboxChangeFromMap = true
           emit('setBbox', box)
         }
       }
@@ -748,6 +773,7 @@ function mapMove (v: any) {
 }
 
 watch(extentBbox, () => {
+  bboxChangeFromMap = true
   emit('setMapExtent', extentBbox.value)
 })
 

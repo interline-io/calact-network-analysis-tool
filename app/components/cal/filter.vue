@@ -499,6 +499,16 @@
               </t-radio>
             </li>
           </ul>
+          <p class="menu-label">
+            Overlay
+          </p>
+          <ul>
+            <li>
+              <t-checkbox v-model="showBbox">
+                Show selected bounding box
+              </t-checkbox>
+            </li>
+          </ul>
         </aside>
       </div>
 
@@ -582,7 +592,15 @@ const menuItems = [
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
+  panelMainWidth?: number
+  panelSubWidth?: number
+  panelPadding?: number
 }>()
+
+// CSS bindings from layout props (single source of truth defined in tne.vue)
+const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
+const panelSubWidthPx = computed(() => `${props.panelSubWidth ?? 400}px`)
+const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
 
 const emit = defineEmits([
   'resetFilters',
@@ -620,6 +638,9 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
+
+// Bbox display toggle
+const showBbox = defineModel<boolean>('showBbox', { default: false })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
@@ -842,14 +863,14 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   display: flex;
   background: var(--bulma-scheme-main);
   height: 100%;
-  padding-left: 20px;
+  padding-left: v-bind(panelPaddingPx);
 }
 
 .cal-filter-main {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  width: 300px;
+  width: v-bind(panelMainWidthPx);
 
   .menu {
     flex-grow: 1;
@@ -857,7 +878,7 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
 }
 
 .cal-filter-sub {
-  width: 400px;
+  width: v-bind(panelSubWidthPx);
   flex-shrink: 0;
   background: var(--bulma-scheme-main-ter);
   padding: 0 20px;
