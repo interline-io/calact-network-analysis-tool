@@ -67,6 +67,16 @@ import type {
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 
+// When mode is 'All' and selectedWeekdays is undefined (all days selected),
+// the checkbox-group component has normalized all-selected to undefined.
+// Expand back to the full 7-day array so filtering actually runs.
+function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): Weekday[] | undefined {
+  if (selectedWeekdays == null && selectedWeekdayMode === 'All') {
+    return [...dowValues] as Weekday[]
+  }
+  return selectedWeekdays
+}
+
 ////////////////////
 // Route filtering
 ////////////////////
@@ -147,13 +157,7 @@ function routeMarked (
   routeIndex?: RouteDepartureIndex,
 ): boolean {
   // Check selected days - route must have service on selected days
-  // When mode is 'All' and selectedWeekdays is undefined (all days selected),
-  // we must still check that the route has service on every day of the week.
-  // The checkbox-group component normalizes all-selected to undefined, but
-  // 'All' mode requires active filtering against all 7 days.
-  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
-    ? [...dowValues]
-    : selectedWeekdays
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
   if (effectiveWeekdays != null) {
     if (effectiveWeekdays.length === 0) {
       // console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
@@ -251,11 +255,7 @@ function stopSetDerived (
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
-  // When mode is 'All' and selectedWeekdays is undefined (all days selected),
-  // use all days so stopVisits computes visit data for every day.
-  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
-    ? [...dowValues] as Weekday[]
-    : selectedWeekdays
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop,
@@ -369,11 +369,7 @@ function stopMarked (
   sdCache?: StopDepartureCache,
 ): boolean {
   // Check departure days - only apply if selectedWeekdays is defined
-  // Same 'All' mode fix as routeMarked: when all days are selected the
-  // checkbox-group emits undefined, but 'All' mode must still filter.
-  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
-    ? [...dowValues]
-    : selectedWeekdays
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
   if (sdCache && effectiveWeekdays != null) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week

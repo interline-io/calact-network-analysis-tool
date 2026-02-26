@@ -49,10 +49,10 @@
         <p class="cal-filter-summary-geo">
           {{ geographicBoundaryLabel }}
         </p>
-        <p v-if="props.scenarioFilterResult">
-          {{ markedRouteCount }} of {{ totalRouteCount }} routes,
-          {{ markedStopCount }} of {{ totalStopCount }} stops
-        </p>
+        <div v-if="props.scenarioFilterResult" class="cal-filter-summary-counts">
+          <span>{{ markedRouteCount }} of {{ totalRouteCount }} routes</span>
+          <span>{{ markedStopCount }} of {{ totalStopCount }} stops</span>
+        </div>
         <p>
           <a @click="emit('showQuery')">Change date or region</a>
         </p>
@@ -616,11 +616,11 @@ const geographicBoundaryLabel = computed(() => {
   return 'Selected bounding box'
 })
 
-// Route/stop count summaries
+// Route/stop/flex area count summaries
 const totalRouteCount = computed(() => props.scenarioFilterResult?.routes.length ?? 0)
-const markedRouteCount = computed(() => props.scenarioFilterResult?.routes.filter(r => r.marked).length ?? 0)
+const markedRouteCount = computed(() => (props.scenarioFilterResult?.routes ?? []).reduce((n, r) => n + (r.marked ? 1 : 0), 0))
 const totalStopCount = computed(() => props.scenarioFilterResult?.stops.length ?? 0)
-const markedStopCount = computed(() => props.scenarioFilterResult?.stops.filter(s => s.marked).length ?? 0)
+const markedStopCount = computed(() => (props.scenarioFilterResult?.stops ?? []).reduce((n, s) => n + (s.marked ? 1 : 0), 0))
 
 // CSS bindings from layout props (single source of truth defined in tne.vue)
 const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
@@ -910,6 +910,11 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
 .cal-filter-summary-geo {
   word-wrap: break-word;
   padding-right: v-bind(panelPaddingPx);
+}
+
+.cal-filter-summary-counts {
+  display: flex;
+  flex-direction: column;
 }
 
 .cal-filter-sub {
