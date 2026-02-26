@@ -6,10 +6,17 @@
  * or unmarked (excluded) based on the active filters.
  *
  * FILTER SEMANTICS:
- * - Array filters (selectedWeekdays, selectedRouteTypes, selectedAgencies):
+ * - Array filters (selectedRouteTypes, selectedAgencies):
  *   - undefined/null = filter not applied, all items pass
  *   - [] (empty array) = filter applied with nothing selected, no items pass
  *   - [values...] = filter applied, only matching items pass
+ *
+ * - selectedWeekdays follows the same convention, with one exception:
+ *   The t-checkbox-group UI control normalizes "all items selected" to
+ *   undefined. For 'Any' mode this is fine (no filter = all pass). But for
+ *   'All' mode, undefined must be treated as "all 7 days are required" so
+ *   that routes/stops without service every day are correctly filtered out.
+ *   See resolveEffectiveWeekdays() below.
  *
  * - Numeric filters (frequencyOver, frequencyUnder):
  *   - undefined/null = filter not applied, all items pass
@@ -47,6 +54,7 @@ import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
+  dowValues,
   parseHMS,
   routeTypeNames,
 } from '~~/src/core'
@@ -65,6 +73,17 @@ import type {
 } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
+
+// The t-checkbox-group control normalizes "all items selected" to undefined,
+// which normally means "no filter applied." For 'All' mode we override this:
+// undefined + 'All' means the user wants every day to be required, so we
+// expand it back to the explicit 7-day array to keep filtering active.
+function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): Weekday[] | undefined {
+  if (selectedWeekdays == null && selectedWeekdayMode === 'All') {
+    return [...dowValues] as Weekday[]
+  }
+  return selectedWeekdays
+}
 
 ////////////////////
 // Route filtering
@@ -146,15 +165,16 @@ function routeMarked (
   routeIndex?: RouteDepartureIndex,
 ): boolean {
   // Check selected days - route must have service on selected days
-  if (selectedWeekdays != null) {
-    if (selectedWeekdays.length === 0) {
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null) {
+    if (effectiveWeekdays.length === 0) {
       // console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
       return false
     }
     // Check if route has service on selected days using headway data
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedWeekdays) {
+    for (const sd of effectiveWeekdays) {
       let dayHeadways: RouteHeadwayDirections | undefined
       if (sd === 'sunday') {
         dayHeadways = route.headways?.sunday
@@ -243,10 +263,11 @@ function stopSetDerived (
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop,
-    selectedWeekdays,
+    effectiveWeekdays,
     selectedDateRange,
     selectedStartTime,
     selectedEndTime,
@@ -254,7 +275,7 @@ function stopSetDerived (
   )
   stop.marked = stopMarked(
     stop,
-    selectedWeekdays,
+    effectiveWeekdays,
     selectedWeekdayMode,
     selectedRouteTypes,
     selectedAgencies,
@@ -356,12 +377,13 @@ function stopMarked (
   sdCache?: StopDepartureCache,
 ): boolean {
   // Check departure days - only apply if selectedWeekdays is defined
-  if (sdCache && selectedWeekdays != null) {
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
+  if (sdCache && effectiveWeekdays != null) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedWeekdays) {
+    for (const sd of effectiveWeekdays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
