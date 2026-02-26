@@ -21,6 +21,9 @@ const emit = defineEmits([
   'mapClickFeatures',
   'mapHoverFeatures',
   'setZoom',
+  'overlayDragStart',
+  'overlayDrag',
+  'overlayDragEnd',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
@@ -166,6 +169,40 @@ function initMap () {
     map?.on('zoom', mapZoom)
     map?.on('moveend', mapMove)
     map?.resize()
+
+    // Overlay polygon dragging — allows moving the bbox by dragging its interior
+    let overlayDragActive = false
+    map?.on('mousedown', 'overlay-polygons', (e: maplibre.MapLayerMouseEvent) => {
+      if (markers.value.length === 0 || e.originalEvent.button !== 0) { return }
+      e.preventDefault()
+      overlayDragActive = true
+      map!.dragPan.disable()
+      map!.getCanvas().style.cursor = 'move'
+      emit('overlayDragStart', { lon: e.lngLat.lng, lat: e.lngLat.lat })
+
+      const onMove = (moveEvent: maplibre.MapMouseEvent) => {
+        emit('overlayDrag', { lon: moveEvent.lngLat.lng, lat: moveEvent.lngLat.lat })
+      }
+      const onUp = () => {
+        map!.off('mousemove', onMove)
+        map!.dragPan.enable()
+        map!.getCanvas().style.cursor = ''
+        overlayDragActive = false
+        emit('overlayDragEnd')
+      }
+      map!.on('mousemove', onMove)
+      map!.once('mouseup', onUp)
+    })
+    map?.on('mouseenter', 'overlay-polygons', () => {
+      if (markers.value.length > 0 && !overlayDragActive) {
+        map!.getCanvas().style.cursor = 'move'
+      }
+    })
+    map?.on('mouseleave', 'overlay-polygons', () => {
+      if (!overlayDragActive) {
+        map!.getCanvas().style.cursor = ''
+      }
+    })
   })
 }
 

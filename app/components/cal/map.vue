@@ -42,6 +42,9 @@
       :fit-bounds-key="fitBoundsKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
+      @overlay-drag-start="onOverlayDragStart"
+      @overlay-drag="onOverlayDrag"
+      @overlay-drag-end="onOverlayDragEnd"
     />
   </div>
 </template>
@@ -322,8 +325,50 @@ watch(() => props.displayEditBboxMode, (editing) => {
   if (!editing) {
     corners = []
     draggingMarker.value = null
+    bboxBodyDragStart = null
+    bboxBodyCornerStarts = []
   }
 })
+
+// --- Bbox body drag: move entire bbox by dragging its interior ---
+let bboxBodyDragStart: Point | null = null
+let bboxBodyCornerStarts: Point[] = []
+
+function onOverlayDragStart (startPoint: Point) {
+  if (corners.length !== 4) { return }
+  bboxBodyDragStart = startPoint
+  bboxBodyCornerStarts = corners.map(c => ({ lon: c.point.lon, lat: c.point.lat }))
+}
+
+function onOverlayDrag (currentPoint: Point) {
+  if (!bboxBodyDragStart || bboxBodyCornerStarts.length !== 4) { return }
+
+  const deltaLon = currentPoint.lon - bboxBodyDragStart.lon
+  const deltaLat = currentPoint.lat - bboxBodyDragStart.lat
+
+  for (let i = 0; i < 4; i++) {
+    corners[i]!.point.lon = bboxBodyCornerStarts[i]!.lon + deltaLon
+    corners[i]!.point.lat = bboxBodyCornerStarts[i]!.lat + deltaLat
+    corners[i]!.marker?.setLngLat(corners[i]!.point)
+  }
+
+  const box = getNormalizedBbox()
+  if (box) {
+    draggingBbox.value = box
+  }
+}
+
+function onOverlayDragEnd () {
+  const box = getNormalizedBbox()
+  bboxBodyDragStart = null
+  bboxBodyCornerStarts = []
+  draggingBbox.value = null
+
+  if (box) {
+    bboxChangeFromMap = true
+    emit('setBbox', box)
+  }
+}
 
 // Lookup for stop features
 // This is necessary because the geojson properties are stringified
