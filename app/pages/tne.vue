@@ -265,7 +265,7 @@ function clearScenario () {
 
 // Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
 router.beforeEach((to, from) => {
-  if (from.path !== '/tne') {
+  if (from.path !== '/tne' || to.path === '/tne') {
     return true
   }
 
