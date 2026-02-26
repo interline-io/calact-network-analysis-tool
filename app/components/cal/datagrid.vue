@@ -29,7 +29,11 @@
         <thead class="is-sticky">
           <tr>
             <th v-for="column in tableReport.columns" :key="column.key">
-              {{ column.label }}
+              <t-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
+                {{ column.label }}
+                <t-icon icon="information" size="small" />
+              </t-tooltip>
+              <span v-else>{{ column.label }}</span>
             </th>
           </tr>
         </thead>
@@ -57,6 +61,7 @@ export interface TableColumn {
   key: string
   label: string
   sortable: boolean
+  tooltip?: string
 }
 
 export interface TableReport {
@@ -109,6 +114,18 @@ const total = computed(() => {
     top: 0;
     z-index: 10;
     border-bottom: 2px solid var(--bulma-border);
+
+    // Promote the hovered th so its ::after tooltip paints above table rows
+    &:hover {
+      z-index: 20;
+    }
+
+    .col-header-tooltip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      cursor: default;
+    }
   }
 
   td {
