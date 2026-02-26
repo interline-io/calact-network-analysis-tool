@@ -6,10 +6,17 @@
  * or unmarked (excluded) based on the active filters.
  *
  * FILTER SEMANTICS:
- * - Array filters (selectedWeekdays, selectedRouteTypes, selectedAgencies):
+ * - Array filters (selectedRouteTypes, selectedAgencies):
  *   - undefined/null = filter not applied, all items pass
  *   - [] (empty array) = filter applied with nothing selected, no items pass
  *   - [values...] = filter applied, only matching items pass
+ *
+ * - selectedWeekdays follows the same convention, with one exception:
+ *   The t-checkbox-group UI control normalizes "all items selected" to
+ *   undefined. For 'Any' mode this is fine (no filter = all pass). But for
+ *   'All' mode, undefined must be treated as "all 7 days are required" so
+ *   that routes/stops without service every day are correctly filtered out.
+ *   See resolveEffectiveWeekdays() below.
  *
  * - Numeric filters (frequencyOver, frequencyUnder):
  *   - undefined/null = filter not applied, all items pass
@@ -67,9 +74,10 @@ import type {
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 
-// When mode is 'All' and selectedWeekdays is undefined (all days selected),
-// the checkbox-group component has normalized all-selected to undefined.
-// Expand back to the full 7-day array so filtering actually runs.
+// The t-checkbox-group control normalizes "all items selected" to undefined,
+// which normally means "no filter applied." For 'All' mode we override this:
+// undefined + 'All' means the user wants every day to be required, so we
+// expand it back to the explicit 7-day array to keep filtering active.
 function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): Weekday[] | undefined {
   if (selectedWeekdays == null && selectedWeekdayMode === 'All') {
     return [...dowValues] as Weekday[]
