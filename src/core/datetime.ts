@@ -37,12 +37,15 @@ export function parseDate (s: string | undefined): Date | undefined {
 
 /**
  * Format a Date object to a string.
+ * Also handles string inputs (e.g. from JSON deserialization where Date objects become strings).
  * @param d - Date object to format
  * @param fmt - Format string (defaults to yyyy-MM-dd)
  * @returns Formatted date string or empty string if date is invalid
  */
 export function fmtDate (d: Date | undefined, fmt: string = dateFmt): string {
-  return isValid(d) ? format(d!, fmt) : ''
+  if (!d) { return '' }
+  const date = d instanceof Date ? d : new Date(d as any)
+  return isValid(date) ? format(date, fmt) : ''
 }
 
 /**
@@ -60,12 +63,15 @@ export function parseTime (s: string | undefined): Date | undefined {
 
 /**
  * Format a Date object to a time string.
+ * Also handles string inputs (e.g. from JSON deserialization where Date objects become strings).
  * @param d - Date object to format
  * @param fmt - Format string (defaults to HH:mm:ss)
  * @returns Formatted time string or empty string if date is invalid
  */
 export function fmtTime (d: Date | undefined, fmt: string = timeFmt): string {
-  return isValid(d) ? format(d!, fmt) : ''
+  if (!d) { return '' }
+  const date = d instanceof Date ? d : new Date(d as any)
+  return isValid(date) ? format(date, fmt) : ''
 }
 
 /**
