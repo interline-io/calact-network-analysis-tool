@@ -109,7 +109,7 @@ watch(() => props.bbox, (newBbox, oldBbox) => {
     return
   }
   fitBoundsKey.value++
-})
+}, { flush: 'sync' })
 
 interface CornerData {
   marker?: Marker

@@ -100,8 +100,12 @@ watch(() => zoom, () => {
   map?.jumpTo({ center: center.value, zoom: zoom.value })
 })
 
+function applyPanelPadding (left: number) {
+  map?.setPadding({ left, top: 0, right: 0, bottom: 0 })
+}
+
 watch(() => props.panelWidth, (v) => {
-  map?.setPadding({ left: v || 0, top: 0, right: 0, bottom: 0 })
+  applyPanelPadding(v || 0)
 })
 
 watch(() => props.fitBoundsKey, () => {
@@ -146,7 +150,7 @@ function initMap () {
   drawMarkers(markers.value)
   map.on('load', () => {
     if (props.panelWidth) {
-      map?.setPadding({ left: props.panelWidth, top: 0, right: 0, bottom: 0 })
+      applyPanelPadding(props.panelWidth)
     }
     if (props.initialBounds) {
       const { sw, ne } = props.initialBounds
