@@ -264,16 +264,16 @@ function clearScenario () {
 }
 
 // Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   if (from.path !== '/tne') {
-    return next()
+    return true
   }
 
   const { hasAnyResults } = useAnalysisResults()
   const hasScenarioData = !!scenarioData.value
 
   if (!hasScenarioData && !hasAnyResults.value) {
-    return next()
+    return true
   }
 
   let message: string
@@ -289,7 +289,7 @@ router.beforeEach((to, from, next) => {
   }
 
   clearScenario()
-  next()
+  return true
 })
 
 /////////////////
