@@ -214,7 +214,7 @@ const props = defineProps<{
 }>()
 
 // CSS bindings from layout props (single source of truth defined in tne.vue)
-const panelWidthPx = computed(() => `${props.panelWidth ?? 800}px`)
+const panelWidthPx = computed(() => `${props.panelWidth ?? 600}px`)
 const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
 
 const bbox = defineModel<Bbox>('bbox')

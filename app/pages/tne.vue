@@ -89,7 +89,7 @@
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             :panel-width="QUERY_PANEL_WIDTH"
-            :panel-padding="QUERY_PANEL_PADDING"
+            :panel-padding="PANEL_PADDING"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
@@ -132,7 +132,7 @@
             :active-tab="activeTab.sub"
             :panel-main-width="FILTER_MAIN_WIDTH"
             :panel-sub-width="FILTER_SUB_WIDTH"
-            :panel-padding="FILTER_PADDING"
+            :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
           />
@@ -292,7 +292,8 @@ const cannedBbox = computed({
     return route.query.example?.toString() || 'downtown-portland'
   },
   set (v: string) {
-    setQuery({ ...route.query, example: v || undefined })
+    // Clear explicit bbox so the canned bbox value takes effect
+    setQuery({ ...route.query, example: v || undefined, bbox: undefined })
   }
 })
 const error = ref(undefined as Error | string | undefined)
@@ -858,13 +859,12 @@ const activeTab = ref({ tab: 'query', sub: '' })
 
 // Panel layout constants — single source of truth for widths.
 // Used both for CSS (via v-bind) and for map padding computation.
-const QUERY_PANEL_WIDTH = 800
-const QUERY_PANEL_PADDING = 20
+const PANEL_PADDING = 20
+const QUERY_PANEL_WIDTH = 600
 const FILTER_MAIN_WIDTH = 300
 const FILTER_SUB_WIDTH = 400
-const FILTER_PADDING = 20
-const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + FILTER_PADDING // 720
-const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + FILTER_PADDING // 320
+const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320
+const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING // 720
 
 // CSS binding for filter expanded width (used via v-bind in <style>)
 const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`
