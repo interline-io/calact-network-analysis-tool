@@ -19,6 +19,7 @@
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
+      :show-bbox="showBbox"
       :hide-unmarked="hideUnmarked"
       :flex-enabled="flexServicesEnabled"
       :flex-color-by="flexColorBy"
@@ -66,6 +67,7 @@ const props = defineProps<{
   dataDisplayMode?: DataDisplayMode
   colorKey?: string
   displayEditBboxMode?: boolean
+  showBbox?: boolean
   hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
@@ -141,7 +143,7 @@ const draggingMarker = shallowRef<Marker | null>(null)
 const bboxArea = computed(() => {
   const f: Feature[] = []
   const activeBbox = draggingBbox.value || props.bbox
-  if (activeBbox.valid && props.displayEditBboxMode) {
+  if (activeBbox.valid && (props.displayEditBboxMode || props.showBbox)) {
     const p = activeBbox
     const coords = [[
       [p.sw.lon, p.sw.lat],

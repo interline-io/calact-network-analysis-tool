@@ -167,6 +167,7 @@
           :census-geographies-selected="censusGeographiesSelected"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
+          :show-bbox="showBboxOnMap"
           :data-display-mode="dataDisplayMode"
           :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
@@ -896,17 +897,14 @@ const advancedReport = computed({
 
 const showBbox = ref(false)
 
-watch([activeTab, geomSource, showBbox], () => {
-  if (showBbox.value) {
-    displayEditBboxMode.value = true
-  } else if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
-    displayEditBboxMode.value = true
-  } else {
-    displayEditBboxMode.value = false
-  }
+// showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
+const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
+
+// displayEditBboxMode controls drag handles — only on query tab before query submission
+watch([activeTab, geomSource, querySubmitted], () => {
+  displayEditBboxMode.value = activeTab.value.tab === 'query' && geomSource.value === 'bbox' && !querySubmitted.value
 })
 
-// Initialize displayEditBboxMode based on initial values
 const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
 
 // Initialize active tab based on advancedReport query parameter
