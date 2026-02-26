@@ -505,7 +505,7 @@
           <ul>
             <li>
               <t-checkbox v-model="showBbox">
-                Show selected bounding box
+                Show geographic filters
               </t-checkbox>
             </li>
           </ul>
@@ -656,7 +656,7 @@ const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
 
 // Bbox display toggle
-const showBbox = defineModel<boolean>('showBbox', { default: false })
+const showBbox = defineModel<boolean>('showBbox', { default: true })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

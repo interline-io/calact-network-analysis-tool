@@ -263,6 +263,7 @@ function clearScenario () {
   scenarioData.value = undefined
   scenarioFilterResult.value = undefined
   exportFeatures.value = []
+  querySubmitted.value = false
   clearAllResults()
 }
 
@@ -905,7 +906,7 @@ const advancedReport = computed({
   }
 })
 
-const showBbox = ref(false)
+const showBbox = ref(true)
 
 // showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
 const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
