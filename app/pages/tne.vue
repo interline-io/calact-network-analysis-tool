@@ -132,12 +132,15 @@
             v-model:show-bbox="showBbox"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
+            :geom-source="geomSource"
+            :census-geographies-selected="censusGeographiesSelected"
             :active-tab="activeTab.sub"
             :panel-main-width="FILTER_MAIN_WIDTH"
             :panel-sub-width="FILTER_SUB_WIDTH"
             :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
+            @show-query="activeTab = { tab: 'query', sub: '' }"
           />
         </div>
 
