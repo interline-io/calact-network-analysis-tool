@@ -47,6 +47,7 @@ import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
+  dowValues,
   parseHMS,
   routeTypeNames,
 } from '~~/src/core'
@@ -146,15 +147,22 @@ function routeMarked (
   routeIndex?: RouteDepartureIndex,
 ): boolean {
   // Check selected days - route must have service on selected days
-  if (selectedWeekdays != null) {
-    if (selectedWeekdays.length === 0) {
+  // When mode is 'All' and selectedWeekdays is undefined (all days selected),
+  // we must still check that the route has service on every day of the week.
+  // The checkbox-group component normalizes all-selected to undefined, but
+  // 'All' mode requires active filtering against all 7 days.
+  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
+    ? [...dowValues]
+    : selectedWeekdays
+  if (effectiveWeekdays != null) {
+    if (effectiveWeekdays.length === 0) {
       // console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
       return false
     }
     // Check if route has service on selected days using headway data
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedWeekdays) {
+    for (const sd of effectiveWeekdays) {
       let dayHeadways: RouteHeadwayDirections | undefined
       if (sd === 'sunday') {
         dayHeadways = route.headways?.sunday
@@ -243,10 +251,15 @@ function stopSetDerived (
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
+  // When mode is 'All' and selectedWeekdays is undefined (all days selected),
+  // use all days so stopVisits computes visit data for every day.
+  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
+    ? [...dowValues] as Weekday[]
+    : selectedWeekdays
   // Make sure to run stopVisits before stopMarked
   stop.visits = stopVisits(
     stop,
-    selectedWeekdays,
+    effectiveWeekdays,
     selectedDateRange,
     selectedStartTime,
     selectedEndTime,
@@ -254,7 +267,7 @@ function stopSetDerived (
   )
   stop.marked = stopMarked(
     stop,
-    selectedWeekdays,
+    effectiveWeekdays,
     selectedWeekdayMode,
     selectedRouteTypes,
     selectedAgencies,
@@ -356,12 +369,17 @@ function stopMarked (
   sdCache?: StopDepartureCache,
 ): boolean {
   // Check departure days - only apply if selectedWeekdays is defined
-  if (sdCache && selectedWeekdays != null) {
+  // Same 'All' mode fix as routeMarked: when all days are selected the
+  // checkbox-group emits undefined, but 'All' mode must still filter.
+  const effectiveWeekdays = (selectedWeekdays == null && selectedWeekdayMode === 'All')
+    ? [...dowValues]
+    : selectedWeekdays
+  if (sdCache && effectiveWeekdays != null) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of selectedWeekdays) {
+    for (const sd of effectiveWeekdays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
