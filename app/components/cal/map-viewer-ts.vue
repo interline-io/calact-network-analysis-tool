@@ -32,10 +32,11 @@ const mapClass = defineModel<string>('mapClass', { default: 'short' })
 const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
-// Props for loading state
 const props = defineProps<{
   // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
   loadingStage?: string
+  // Left padding in pixels to account for overlay panels covering the map
+  panelWidth?: number
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -95,6 +96,10 @@ watch(() => zoom, () => {
   map?.jumpTo({ center: center.value, zoom: zoom.value })
 })
 
+watch(() => props.panelWidth, (v) => {
+  map?.setPadding({ left: v || 0, top: 0, right: 0, bottom: 0 })
+})
+
 //////////////////////
 // Map initialization
 onMounted(() => {
@@ -129,6 +134,9 @@ function initMap () {
   map.addControl(new maplibre.NavigationControl())
   drawMarkers(markers.value)
   map.on('load', () => {
+    if (props.panelWidth) {
+      map?.setPadding({ left: props.panelWidth, top: 0, right: 0, bottom: 0 })
+    }
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)

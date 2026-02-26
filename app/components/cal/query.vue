@@ -188,7 +188,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick } from 'vue'
+import { computed, nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Bbox, Point } from '~~/src/core'
@@ -209,7 +209,13 @@ const loadExampleData = async () => {
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   mapExtentCenter?: Point
+  panelWidth?: number
+  panelPadding?: number
 }>()
+
+// CSS bindings from layout props (single source of truth defined in tne.vue)
+const panelWidthPx = computed(() => `${props.panelWidth ?? 800}px`)
+const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
 
 const bbox = defineModel<Bbox>('bbox')
 const geographyIds = defineModel<number[]>('geographyIds', { default: () => [] })
@@ -362,13 +368,13 @@ const validQueryParams = computed(() => {
 
 <style scoped lang="scss">
   .cal-query {
-    max-width: 800px;
+    max-width: v-bind(panelWidthPx);
     display:flex;
     flex-direction:column;
     background: var(--bulma-scheme-main);
     height:100%;
-    padding-left:20px;
-    padding-right:20px;
+    padding-left: v-bind(panelPaddingPx);
+    padding-right: v-bind(panelPaddingPx);
     > .cal-body {
       > div, > article {
         margin-bottom:10px;

@@ -88,6 +88,8 @@
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
+            :panel-width="QUERY_PANEL_WIDTH"
+            :panel-padding="QUERY_PANEL_PADDING"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
@@ -128,6 +130,9 @@
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
+            :panel-main-width="FILTER_MAIN_WIDTH"
+            :panel-sub-width="FILTER_SUB_WIDTH"
+            :panel-padding="FILTER_PADDING"
             @reset-filters="resetFilters"
             @set-time-range="setTimeRange"
           />
@@ -169,6 +174,7 @@
           :flex-color-by="flexColorBy"
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
+          :panel-width="activeTabPanelWidth"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -850,6 +856,28 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
 
+// Panel layout constants — single source of truth for widths.
+// Used both for CSS (via v-bind) and for map padding computation.
+const QUERY_PANEL_WIDTH = 800
+const QUERY_PANEL_PADDING = 20
+const FILTER_MAIN_WIDTH = 300
+const FILTER_SUB_WIDTH = 400
+const FILTER_PADDING = 20
+const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + FILTER_PADDING // 720
+const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + FILTER_PADDING // 320
+
+// CSS binding for filter expanded width (used via v-bind in <style>)
+const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`
+
+// Active panel width for map padding — tells the map how much of its left side is obscured
+const activeTabPanelWidth = computed(() => {
+  switch (activeTab.value.tab) {
+    case 'query': return QUERY_PANEL_WIDTH
+    case 'filter': return activeTab.value.sub ? FILTER_EXPANDED_WIDTH : FILTER_COLLAPSED_WIDTH
+    default: return 0 // 'map', 'report', 'analysis'
+  }
+})
+
 // Advanced report query parameter support
 const advancedReport = computed({
   get () {
@@ -1268,8 +1296,8 @@ function toTitleCase (str: string): string {
 .cal-tab-filter {
 
   &.has-subtab {
-    width: 720px; /* Expanded width when subtab is open: main panel (300px) + sub-panel (400px) + padding (20px) */
-    min-width: 720px;
+    width: v-bind(filterExpandedWidthPx);
+    min-width: v-bind(filterExpandedWidthPx);
   }
 }
 

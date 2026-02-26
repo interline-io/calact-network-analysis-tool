@@ -36,6 +36,7 @@
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
+      :panel-width="props.panelWidth"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
     />
@@ -75,6 +76,8 @@ const props = defineProps<{
   flexDisplayFeatures?: Feature[]
   // Loading stage - allow map updates during geometry stages, skip during schedules
   loadingStage?: string
+  // Left padding in pixels to account for overlay panels covering the map
+  panelWidth?: number
 }>()
 
 const showShareMenu = ref(false)
