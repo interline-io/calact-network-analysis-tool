@@ -37,6 +37,10 @@ const props = defineProps<{
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
+  // Bounds to fit the map to on load and when fitBoundsKey changes
+  initialBounds?: { sw: { lon: number, lat: number }, ne: { lon: number, lat: number } }
+  // Increment to trigger a fitBounds to initialBounds (avoids refitting on map-originated bbox changes)
+  fitBoundsKey?: number
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -100,6 +104,13 @@ watch(() => props.panelWidth, (v) => {
   map?.setPadding({ left: v || 0, top: 0, right: 0, bottom: 0 })
 })
 
+watch(() => props.fitBoundsKey, () => {
+  if (props.initialBounds && map) {
+    const { sw, ne } = props.initialBounds
+    map.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
+  }
+})
+
 //////////////////////
 // Map initialization
 onMounted(() => {
@@ -136,6 +147,10 @@ function initMap () {
   map.on('load', () => {
     if (props.panelWidth) {
       map?.setPadding({ left: props.panelWidth, top: 0, right: 0, bottom: 0 })
+    }
+    if (props.initialBounds) {
+      const { sw, ne } = props.initialBounds
+      map?.fitBounds([[sw.lon, sw.lat], [ne.lon, ne.lat]], { duration: 0, padding: 100 })
     }
     createSources()
     createLayers()

@@ -30,6 +30,7 @@
       map-class="tall"
       :center="centerPoint"
       :zoom="14"
+      :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
       :features="displayFeatures"
       :flex-features="flexFeatures"
@@ -37,6 +38,7 @@
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
       :panel-width="props.panelWidth"
+      :fit-bounds-key="fitBoundsKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
     />
@@ -44,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRaw, shallowRef } from 'vue'
+import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
@@ -91,6 +93,18 @@ const centerPoint: Point = {
   lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
   lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
 }
+
+// Track fitBounds requests — only refit for external bbox changes, not map-originated drags
+const fitBoundsKey = ref(0)
+let bboxChangeFromMap = false
+
+watch(() => props.bbox, () => {
+  if (bboxChangeFromMap) {
+    bboxChangeFromMap = false
+    return
+  }
+  fitBoundsKey.value++
+})
 
 interface CornerData {
   marker?: Marker
@@ -286,6 +300,7 @@ const bboxMarkers = computed(() => {
         draggingMarker.value = null
         draggingBbox.value = null
         if (box) {
+          bboxChangeFromMap = true
           emit('setBbox', box)
         }
       }
