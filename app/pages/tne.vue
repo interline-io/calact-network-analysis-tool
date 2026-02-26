@@ -244,36 +244,35 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
-// Shared function to check if user has analysis results and handle confirmation
-function checkAnalysisResultsAndConfirm (action: string): boolean {
+// Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
+router.beforeEach((to, from, next) => {
+  if (from.path !== '/tne') {
+    return next()
+  }
+
   const { hasAnyResults, clearAllResults } = useAnalysisResults()
+  const hasScenarioData = !!scenarioData.value
+
+  if (!hasScenarioData && !hasAnyResults.value) {
+    return next()
+  }
+
+  let message: string
+  if (hasAnyResults.value) {
+    message = 'You have analysis results displayed. Navigating away will clear your query and analysis results — you\'ll need to run them again. Do you want to continue?'
+  } else {
+    message = 'You have a loaded scenario. Navigating away will clear your query results — you\'ll need to run the query again to see them. Do you want to continue?'
+  }
+
+  const confirmed = confirm(message)
+  if (!confirmed) {
+    return false
+  }
 
   if (hasAnyResults.value) {
-    console.log(`${action} blocked - has analysis results`)
-    const confirmed = confirm(`You have analysis results displayed. ${action} will clear these results and you'll need to run the analysis again to see them. Do you want to continue?`)
-
-    if (!confirmed) {
-      return false
-    }
-
-    // User confirmed, clear the results state
     clearAllResults()
   }
 
-  return true
-}
-
-// Route navigation guard to prevent leaving with analysis results
-router.beforeEach((to, from, next) => {
-  // Only check if we're currently on the analysis page and trying to navigate away
-  if (from.path === '/tne' && activeTab.value.tab === 'analysis') {
-    if (!checkAnalysisResultsAndConfirm('Navigating away')) {
-      // User cancelled, stay on current page
-      return false
-    }
-  }
-
-  // Allow navigation to proceed
   next()
 })
 
@@ -898,8 +897,13 @@ function setTab (v: Tab) {
 
   // Check if we're leaving the analysis tab and have results
   if (activeTab.value.tab === 'analysis') {
-    if (!checkAnalysisResultsAndConfirm('Switching tabs')) {
-      return
+    const { hasAnyResults, clearAllResults } = useAnalysisResults()
+    if (hasAnyResults.value) {
+      const confirmed = confirm('You have analysis results displayed. Switching tabs will clear these results — you\'ll need to run the analysis again to see them. Do you want to continue?')
+      if (!confirmed) {
+        return
+      }
+      clearAllResults()
     }
   }
 
