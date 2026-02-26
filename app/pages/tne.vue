@@ -877,7 +877,7 @@ const activeTab = ref({ tab: 'query', sub: '' })
 // Panel layout constants — single source of truth for widths.
 // Used both for CSS (via v-bind) and for map padding computation.
 const PANEL_PADDING = 20
-const QUERY_PANEL_WIDTH = 600
+const QUERY_PANEL_WIDTH = 620
 const FILTER_MAIN_WIDTH = 300
 const FILTER_SUB_WIDTH = 400
 const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320

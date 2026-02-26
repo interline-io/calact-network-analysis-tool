@@ -181,7 +181,7 @@
         </t-field>
       </t-msg>
 
-      <div class="field has-addons">
+      <div class="field has-addons cal-query-actions">
         <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
           Run Browse Query
         </t-button>
@@ -394,6 +394,13 @@ const validQueryParams = computed(() => {
     opacity: 0.45;
     pointer-events: none;
     user-select: none;
+  }
+
+  .cal-query-actions {
+    width: 100%;
+    :deep(.control) {
+      flex-grow: 1;
+    }
   }
 
   .cal-bbox-info {
