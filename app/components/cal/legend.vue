@@ -8,7 +8,7 @@
     >
       <div class="cal-map-legend-box">
         <!-- BBOX -->
-        <div v-if="props.displayEditBboxMode" class="cal-map-legend-section">
+        <div v-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
             <div>Bounding Box for Query</div>
@@ -133,6 +133,7 @@ const props = defineProps<{
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
+  showBbox?: boolean
   hideUnmarked?: boolean
   // Flex Services props
   flexEnabled?: boolean
@@ -141,7 +142,7 @@ const props = defineProps<{
   hasFlexData?: boolean
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode)
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox)
 </script>
 
 <style scoped lang="scss">
