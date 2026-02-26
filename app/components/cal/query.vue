@@ -4,11 +4,17 @@
       Transit Network Explorer
     </tl-title>
 
-    <t-msg variant="info">
+    <t-msg v-if="props.scenarioLoaded" variant="warning">
+      <p>A browse query is currently loaded.</p>
+      <t-button variant="warning" class="mt-3" @click="emit('resetScenario')">
+        Reset and start a new query
+      </t-button>
+    </t-msg>
+    <t-msg v-else variant="info">
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
     </t-msg>
 
-    <div class="cal-body">
+    <div class="cal-body" :class="{ 'is-locked': props.scenarioLoaded }">
       <t-msg title="Date range">
         <t-field>
           <template #label>
@@ -199,7 +205,8 @@ const emit = defineEmits([
   'setBbox',
   'explore',
   'loadExampleData',
-  'switchToAnalysisTab'
+  'switchToAnalysisTab',
+  'resetScenario'
 ])
 
 const loadExampleData = async () => {
@@ -209,6 +216,7 @@ const loadExampleData = async () => {
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   mapExtentCenter?: Point
+  scenarioLoaded?: boolean
   panelWidth?: number
   panelPadding?: number
 }>()
@@ -380,6 +388,12 @@ const validQueryParams = computed(() => {
         margin-bottom:10px;
       }
     }
+  }
+
+  .cal-body.is-locked {
+    opacity: 0.45;
+    pointer-events: none;
+    user-select: none;
   }
 
   .cal-bbox-info {

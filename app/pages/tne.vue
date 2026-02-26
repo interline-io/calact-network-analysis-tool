@@ -88,12 +88,14 @@
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
+            :scenario-loaded="!!scenarioData"
             :panel-width="QUERY_PANEL_WIDTH"
             :panel-padding="PANEL_PADDING"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
+            @reset-scenario="clearScenario()"
           />
         </div>
 
@@ -252,37 +254,42 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
-// Shared function to check if user has analysis results and handle confirmation
-function checkAnalysisResultsAndConfirm (action: string): boolean {
-  const { hasAnyResults, clearAllResults } = useAnalysisResults()
-
-  if (hasAnyResults.value) {
-    console.log(`${action} blocked - has analysis results`)
-    const confirmed = confirm(`You have analysis results displayed. ${action} will clear these results and you'll need to run the analysis again to see them. Do you want to continue?`)
-
-    if (!confirmed) {
-      return false
-    }
-
-    // User confirmed, clear the results state
-    clearAllResults()
-  }
-
-  return true
+// Clears all loaded scenario and analysis result state
+function clearScenario () {
+  const { clearAllResults } = useAnalysisResults()
+  scenarioData.value = undefined
+  scenarioFilterResult.value = undefined
+  exportFeatures.value = []
+  clearAllResults()
 }
 
-// Route navigation guard to prevent leaving with analysis results
-router.beforeEach((to, from, next) => {
-  // Only check if we're currently on the analysis page and trying to navigate away
-  if (from.path === '/tne' && activeTab.value.tab === 'analysis') {
-    if (!checkAnalysisResultsAndConfirm('Navigating away')) {
-      // User cancelled, stay on current page
-      return false
-    }
+// Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
+router.beforeEach((to, from) => {
+  if (from.path !== '/tne') {
+    return true
   }
 
-  // Allow navigation to proceed
-  next()
+  const { hasAnyResults } = useAnalysisResults()
+  const hasScenarioData = !!scenarioData.value
+
+  if (!hasScenarioData && !hasAnyResults.value) {
+    return true
+  }
+
+  let message: string
+  if (hasAnyResults.value) {
+    message = 'You have analysis results displayed. Navigating away will clear your query and analysis results — you\'ll need to run them again. Do you want to continue?'
+  } else {
+    message = 'You have a loaded scenario. Navigating away will clear your query results — you\'ll need to run the query again to see them. Do you want to continue?'
+  }
+
+  const confirmed = confirm(message)
+  if (!confirmed) {
+    return false
+  }
+
+  clearScenario()
+  return true
 })
 
 /////////////////
@@ -934,8 +941,13 @@ function setTab (v: Tab) {
 
   // Check if we're leaving the analysis tab and have results
   if (activeTab.value.tab === 'analysis') {
-    if (!checkAnalysisResultsAndConfirm('Switching tabs')) {
-      return
+    const { hasAnyResults, clearAllResults } = useAnalysisResults()
+    if (hasAnyResults.value) {
+      const confirmed = confirm('You have analysis results displayed. Switching tabs will clear these results — you\'ll need to run the analysis again to see them. Do you want to continue?')
+      if (!confirmed) {
+        return
+      }
+      clearAllResults()
     }
   }
 
