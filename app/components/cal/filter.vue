@@ -46,8 +46,8 @@
             - {{ fmtDate(endDate) }}
           </span>
         </p>
-        <p>
-          <t-button>bounding box</t-button>
+        <p class="cal-filter-summary-geo">
+          {{ geographicBoundaryLabel }}
         </p>
         <p>
           <a>Change date or region</a>
@@ -577,6 +577,7 @@ import {
   parseTime
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
+import type { CensusGeography } from '~~/src/tl/census'
 </script>
 
 <script setup lang="ts">
@@ -592,10 +593,24 @@ const menuItems = [
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
+  geomSource?: string
+  censusGeographiesSelected?: CensusGeography[]
   panelMainWidth?: number
   panelSubWidth?: number
   panelPadding?: number
 }>()
+
+const geographicBoundaryLabel = computed(() => {
+  if (props.geomSource === 'adminBoundary' && props.censusGeographiesSelected?.length) {
+    return props.censusGeographiesSelected
+      .map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
+      .join('; ')
+  }
+  if (props.geomSource === 'mapExtent') {
+    return 'map extent'
+  }
+  return 'bounding box'
+})
 
 // CSS bindings from layout props (single source of truth defined in tne.vue)
 const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
@@ -875,6 +890,15 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   .menu {
     flex-grow: 1;
   }
+}
+
+.cal-filter-summary {
+  padding-bottom: v-bind(panelPaddingPx);
+}
+
+.cal-filter-summary-geo {
+  word-wrap: break-word;
+  padding-right: v-bind(panelPaddingPx);
 }
 
 .cal-filter-sub {
