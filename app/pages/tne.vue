@@ -88,10 +88,12 @@
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
+            :scenario-loaded="!!scenarioData"
             @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
+            @reset-scenario="clearScenario()"
           />
         </div>
 
@@ -244,13 +246,22 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+// Clears all loaded scenario and analysis result state
+function clearScenario () {
+  const { clearAllResults } = useAnalysisResults()
+  scenarioData.value = undefined
+  scenarioFilterResult.value = undefined
+  exportFeatures.value = []
+  clearAllResults()
+}
+
 // Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
 router.beforeEach((to, from, next) => {
   if (from.path !== '/tne') {
     return next()
   }
 
-  const { hasAnyResults, clearAllResults } = useAnalysisResults()
+  const { hasAnyResults } = useAnalysisResults()
   const hasScenarioData = !!scenarioData.value
 
   if (!hasScenarioData && !hasAnyResults.value) {
@@ -269,10 +280,7 @@ router.beforeEach((to, from, next) => {
     return false
   }
 
-  if (hasAnyResults.value) {
-    clearAllResults()
-  }
-
+  clearScenario()
   next()
 })
 
