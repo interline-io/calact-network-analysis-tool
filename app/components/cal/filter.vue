@@ -49,6 +49,10 @@
         <p class="cal-filter-summary-geo">
           {{ geographicBoundaryLabel }}
         </p>
+        <p v-if="props.scenarioFilterResult">
+          {{ markedRouteCount }} of {{ totalRouteCount }} routes,
+          {{ markedStopCount }} of {{ totalStopCount }} stops
+        </p>
         <p>
           <a @click="emit('showQuery')">Change date or region</a>
         </p>
@@ -611,6 +615,12 @@ const geographicBoundaryLabel = computed(() => {
   }
   return 'Selected bounding box'
 })
+
+// Route/stop count summaries
+const totalRouteCount = computed(() => props.scenarioFilterResult?.routes.length ?? 0)
+const markedRouteCount = computed(() => props.scenarioFilterResult?.routes.filter(r => r.marked).length ?? 0)
+const totalStopCount = computed(() => props.scenarioFilterResult?.stops.length ?? 0)
+const markedStopCount = computed(() => props.scenarioFilterResult?.stops.filter(s => s.marked).length ?? 0)
 
 // CSS bindings from layout props (single source of truth defined in tne.vue)
 const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
