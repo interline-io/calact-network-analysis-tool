@@ -145,15 +145,29 @@ const downloadFeatures = computed((): Feature[] => {
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
-// TODO: For when we switch to datagrid
 const routeColumns: TableColumn[] = [
   { key: 'route_id', label: 'Route ID', sortable: true },
   { key: 'route_name', label: 'Route Name', sortable: true },
   { key: 'route_mode', label: 'Mode', sortable: true },
   { key: 'agency_name', label: 'Agency', sortable: true },
-  { key: 'average_frequency', label: 'Average Frequency', sortable: true },
-  { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
-  { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
+  {
+    key: 'average_frequency',
+    label: 'Average Frequency',
+    sortable: true,
+    tooltip: 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.',
+  },
+  {
+    key: 'fastest_frequency',
+    label: 'Fastest Frequency',
+    sortable: true,
+    tooltip: 'The shortest time in seconds between two trips of a route, across all service days included within the current filters.',
+  },
+  {
+    key: 'slowest_frequency',
+    label: 'Slowest Frequency',
+    sortable: true,
+    tooltip: 'The longest time in seconds between two trips of a route, across all service days included within the current filters, excepting the time in between trips on different service days.',
+  },
 ]
 
 // const routeColumnsAggregate: TableColumn[] = [
@@ -168,9 +182,24 @@ const stopColumns: TableColumn[] = [
   { key: 'stop_id', label: 'Stop ID', sortable: true },
   { key: 'stop_name', label: 'Stop Name', sortable: true },
   { key: 'routes_modes', label: 'Modes', sortable: true },
-  { key: 'routes_count', label: 'Routes Served', sortable: true },
-  { key: 'agencies_count', label: 'Agencies Served', sortable: true },
-  { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
+  {
+    key: 'routes_count',
+    label: 'Routes Served',
+    sortable: true,
+    tooltip: 'The number of routes that visit this stop during days included within the current filters.',
+  },
+  {
+    key: 'agencies_count',
+    label: 'Agencies Served',
+    sortable: true,
+    tooltip: 'The number of agencies that visit this stop during days included within the current filters.',
+  },
+  {
+    key: 'visit_count_daily_average',
+    label: 'Average Visits per Day',
+    sortable: true,
+    tooltip: 'The sum of all visits at the stop by any route, divided by the number of calendar days included within the current filters.',
+  },
 ]
 
 const getGeographyLabel = (layer: string) => {
@@ -193,9 +222,24 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
     { key: 'name', label: 'Name', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
-    { key: 'routes_count', label: 'Routes Served', sortable: true },
-    { key: 'agencies_count', label: 'Agencies Served', sortable: true },
-    { key: 'visit_count_daily_average', label: 'Average Visits', sortable: true },
+    {
+      key: 'routes_count',
+      label: 'Routes Served',
+      sortable: true,
+      tooltip: 'The number of routes that visit stops within this area during days included within the current filters.',
+    },
+    {
+      key: 'agencies_count',
+      label: 'Agencies Served',
+      sortable: true,
+      tooltip: 'The number of agencies that visit stops within this area during days included within the current filters.',
+    },
+    {
+      key: 'visit_count_daily_average',
+      label: 'Average Visits per Day',
+      sortable: true,
+      tooltip: 'The sum of all visits at stops within this area by any route, divided by the number of calendar days included within the current filters.',
+    },
   ]
 })
 const agencyColumns: TableColumn[] = [
