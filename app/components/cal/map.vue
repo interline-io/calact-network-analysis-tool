@@ -609,20 +609,24 @@ const styleData = computed((): Matcher[] => {
 // Match all features to styling rules and apply as GeoJSON simplestyle
 const overlayFeatures = computed((): Feature[] => {
   const forDisplay: Feature[] = []
+  const hasGeographies = props.censusGeographiesSelected.length > 0
 
-  // Include bbox in display features
-  for (const feature of bboxArea.value) {
-    forDisplay.push(toRaw(feature))
-  }
-
-  // Include selected features in display features
-  for (const feature of props.censusGeographiesSelected) {
-    forDisplay.push({
-      type: 'Feature',
-      id: feature.id.toString(),
-      geometry: feature.geometry,
-      properties: {}
-    })
+  // Show admin geographies OR bbox, never both (mirrors server-side priority)
+  if (hasGeographies) {
+    if (props.showBbox) {
+      for (const feature of props.censusGeographiesSelected) {
+        forDisplay.push({
+          type: 'Feature',
+          id: feature.id.toString(),
+          geometry: feature.geometry,
+          properties: {}
+        })
+      }
+    }
+  } else {
+    for (const feature of bboxArea.value) {
+      forDisplay.push(toRaw(feature))
+    }
   }
   return forDisplay
 })

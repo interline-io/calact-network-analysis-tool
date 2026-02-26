@@ -427,12 +427,13 @@ function updateOverlayFeatures (features: Feature[]) {
   // Only fit if the set of features actually changed (not just object references).
   // This prevents re-fitting when filters change but geographies stay the same.
   // Avoid fitting the bbox, as that makes it difficult for the user to resize it (see #206).
+  // Skip tracking when features are empty (e.g. toggle off) so toggling back on doesn't re-fit.
   const featuresWithoutBbox = features.filter(f => f.id !== 'bbox')
   const currentIds = featuresWithoutBbox
     .map(f => f.id)
     .sort().join(',')
 
-  if (currentIds !== lastOverlayFeatureIds) {
+  if (currentIds && currentIds !== lastOverlayFeatureIds) {
     lastOverlayFeatureIds = currentIds
     fitFeatures(featuresWithoutBbox)
   }
