@@ -127,6 +127,7 @@
             v-model:flex-advance-notice="flexAdvanceNotice"
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
+            v-model:show-bbox="showBbox"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :active-tab="activeTab.sub"
@@ -287,12 +288,16 @@ router.beforeEach((to, from, next) => {
 // Loading and error handling
 /////////////////
 
+// Track whether a query has been submitted — stops map extent from updating bbox
+const querySubmitted = ref(false)
+
 const cannedBbox = computed({
   get () {
     return route.query.example?.toString() || 'downtown-portland'
   },
   set (v: string) {
     // Clear explicit bbox so the canned bbox value takes effect
+    querySubmitted.value = false
     setQuery({ ...route.query, example: v || undefined, bbox: undefined })
   }
 })
@@ -300,6 +305,7 @@ const error = ref(undefined as Error | string | undefined)
 
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
+  querySubmitted.value = true
   showLoadingModal.value = true
   activeTab.value = { tab: 'map', sub: '' }
   try {
@@ -888,8 +894,12 @@ const advancedReport = computed({
   }
 })
 
-watch([activeTab, geomSource], () => {
-  if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
+const showBbox = ref(false)
+
+watch([activeTab, geomSource, showBbox], () => {
+  if (showBbox.value) {
+    displayEditBboxMode.value = true
+  } else if (activeTab.value.tab === 'query' && geomSource.value === 'bbox') {
     displayEditBboxMode.value = true
   } else {
     displayEditBboxMode.value = false
@@ -965,7 +975,8 @@ watch(geomSource, () => {
 
 async function setMapExtent (v: Bbox) {
   mapExtent.value = v
-  if (geomSource.value === 'mapExtent') {
+  // Only update bbox from map extent before a query has been submitted
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
     bbox.value = mapExtent.value
   }
 }

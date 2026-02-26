@@ -771,6 +771,7 @@ function mapMove (v: any) {
 }
 
 watch(extentBbox, () => {
+  bboxChangeFromMap = true
   emit('setMapExtent', extentBbox.value)
 })
 

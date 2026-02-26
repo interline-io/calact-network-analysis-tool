@@ -729,7 +729,13 @@ function mapZoom () {
 }
 
 function mapMove () {
-  emit('mapMove', { zoom: map?.getZoom(), bbox: map?.getBounds().toArray() })
+  if (!map) { return }
+  // Emit only the visible bounds (excluding area under the panel overlay)
+  const canvas = map.getCanvas()
+  const left = props.panelWidth || 0
+  const sw = map.unproject([left, canvas.clientHeight])
+  const ne = map.unproject([canvas.clientWidth, 0])
+  emit('mapMove', { zoom: map.getZoom(), bbox: [[sw.lng, sw.lat], [ne.lng, ne.lat]] })
 }
 
 function mapMouseMove (e: maplibre.MapMouseEvent) {

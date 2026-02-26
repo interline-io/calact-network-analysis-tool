@@ -499,6 +499,16 @@
               </t-radio>
             </li>
           </ul>
+          <p class="menu-label">
+            Overlay
+          </p>
+          <ul>
+            <li>
+              <t-checkbox v-model="showBbox">
+                Show selected bounding box
+              </t-checkbox>
+            </li>
+          </ul>
         </aside>
       </div>
 
@@ -628,6 +638,9 @@ const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
 const maxFare = defineModel<number>('maxFare')
 const minFareEnabled = defineModel<boolean>('minFareEnabled')
 const minFare = defineModel<number>('minFare')
+
+// Bbox display toggle
+const showBbox = defineModel<boolean>('showBbox', { default: false })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
