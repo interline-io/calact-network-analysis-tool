@@ -32,6 +32,8 @@ import { type CensusDataset, censusDatasetListQuery } from '~~/src/tl'
 const props = defineProps<{
   label?: string
   tooltip?: string
+  // Deprecated: client-side prefix filtering by dataset name is not robust.
+  // Replace with a server-side filter or dataset type/category field in the future.
   nameFilter?: string
 }>()
 
@@ -39,6 +41,8 @@ const modelValue = defineModel<string>({ required: true })
 
 const { result, loading } = useQuery<{ census_datasets: CensusDataset[] }>(censusDatasetListQuery)
 
+// Deprecated: client-side prefix filtering by dataset name is not robust
+// and should be replaced with a server-side filter or dataset type/category field.
 const filteredDatasets = computed(() => {
   const datasets = result.value?.census_datasets || []
   if (!props.nameFilter) {
