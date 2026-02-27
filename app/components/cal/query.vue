@@ -265,6 +265,7 @@ const isEndDateValid = computed(() => {
 
 const geomSearchVars = computed(() => {
   return {
+    dataset_name: geoDatasetName.value,
     layer: geomLayer.value,
     search: geomSearch.value,
     limit: 10,

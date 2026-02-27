@@ -29,8 +29,8 @@ query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_na
 }`
 
 export const geographySearchQuery = gql`
-query($search: String, $layer: String, $focus: FocusPoint, $limit: Int){
-  census_datasets {
+query($search: String, $layer: String, $focus: FocusPoint, $limit: Int, $dataset_name: String){
+  census_datasets(where: {name: $dataset_name}) {
     id
     name
     description

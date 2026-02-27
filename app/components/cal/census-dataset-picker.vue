@@ -9,7 +9,10 @@
         {{ props.label }}
       </template>
     </template>
-    <t-select v-model="modelValue" :disabled="loading">
+    <t-select v-model="modelValue">
+      <option v-if="loading && modelValue" :value="modelValue">
+        {{ modelValue }}
+      </option>
       <option
         v-for="ds of filteredDatasets"
         :key="ds.name"
