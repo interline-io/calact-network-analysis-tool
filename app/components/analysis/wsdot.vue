@@ -119,6 +119,18 @@
               </div>
             </div>
           </t-field>
+          <cal-census-dataset-picker
+            v-model="wsdotReportConfig!.geoDatasetName"
+            label="Census geography dataset"
+            tooltip="Select which version of TIGER census boundaries to use for geographic analysis."
+            name-filter="tiger"
+          />
+          <cal-census-dataset-picker
+            v-model="wsdotReportConfig!.tableDatasetName"
+            label="Census demographics dataset"
+            tooltip="Select which version of ACS demographics data to use for population analysis."
+            name-filter="acs"
+          />
         </div>
         <footer class="card-footer">
           <div

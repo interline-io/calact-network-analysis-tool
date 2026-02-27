@@ -145,6 +145,14 @@
             </div>
           </t-field>
 
+          <!-- Census Geography Dataset -->
+          <cal-census-dataset-picker
+            v-model="geoDatasetName"
+            label="Census geography dataset"
+            tooltip="Select which version of TIGER census boundaries to use for admin boundary selection and geographic aggregation."
+            name-filter="tiger"
+          />
+
           <!-- Aggregation Section -->
           <t-field>
             <template #label>
@@ -231,6 +239,7 @@ const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeograph
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
 const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
+const geoDatasetName = defineModel<string>('geoDatasetName', { required: true })
 const geomLayer = ref('place')
 const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
@@ -256,6 +265,7 @@ const isEndDateValid = computed(() => {
 
 const geomSearchVars = computed(() => {
   return {
+    dataset_name: geoDatasetName.value,
     layer: geomLayer.value,
     search: geomSearch.value,
     limit: 10,
