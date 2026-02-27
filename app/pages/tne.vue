@@ -84,6 +84,7 @@
             v-model:aggregate-layer="aggregateLayer"
             v-model:include-fixed-route="includeFixedRoute"
             v-model:include-flex-areas="includeFlexAreas"
+            v-model:geo-dataset-name="geoDatasetName"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
@@ -417,6 +418,15 @@ const aggregateLayer = computed({
   },
   set (v: string) {
     setQuery({ ...route.query, aggregateLayer: v })
+  }
+})
+
+const geoDatasetName = computed({
+  get () {
+    return route.query.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName
+  },
+  set (v: string) {
+    setQuery({ ...route.query, geoDatasetName: v === SCENARIO_DEFAULTS.geoDatasetName ? undefined : v })
   }
 })
 
@@ -841,6 +851,7 @@ const {
 } = useQuery<{ census_datasets: CensusDataset[] }>(
   geographyLayerQuery,
   () => ({
+    dataset_name: geoDatasetName.value,
     geography_ids: geographyIds.value,
     include_geographies: geographyIds.value.length > 0,
   })
@@ -1001,7 +1012,7 @@ async function setMapExtent (v: Bbox) {
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
+  geoDatasetName: geoDatasetName.value,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
   aggregateLayer: aggregateLayer.value,

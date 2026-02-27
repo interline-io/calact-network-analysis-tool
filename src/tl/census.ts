@@ -50,6 +50,15 @@ query($search: String, $layer: String, $focus: FocusPoint, $limit: Int){
   }
 }`
 
+export const censusDatasetListQuery = gql`
+query {
+  census_datasets {
+    id
+    name
+    description
+  }
+}`
+
 export interface CensusDataset {
   id: number
   name: string

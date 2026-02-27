@@ -71,6 +71,13 @@
             </template>
             <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
           </t-field>
+
+          <cal-census-dataset-picker
+            v-model="wsdotReportConfig!.tableDatasetName"
+            label="Census demographics dataset"
+            tooltip="Select which version of ACS demographics data to use for population analysis."
+            name-filter="acs"
+          />
         </div>
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
