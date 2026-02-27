@@ -161,7 +161,9 @@ describe('fmtDate', () => {
   it('handles ISO string input from JSON deserialization', () => {
     // When Date objects are serialized to JSON and parsed back, they become strings.
     // fmtDate should handle this gracefully on the server side.
-    const isoString = '2026-03-02T08:00:00.000Z' as unknown as Date
+    // Using T08:00:00.000Z (not T00:00:00.000Z) so that even in negative-offset
+    // timezones (e.g. US Pacific, UTC-8) the local date is still March 2.
+    const isoString = '2026-03-02T08:00:00.000Z'
     expect(fmtDate(isoString)).toBe('2026-03-02')
   })
 
@@ -169,7 +171,7 @@ describe('fmtDate', () => {
     // A plain 'yyyy-MM-dd' string parsed via new Date() becomes UTC midnight,
     // which may display as the previous day in negative-offset timezones.
     // The important thing is that fmtDate doesn't return '' for valid date strings.
-    const dateString = '2026-03-02' as unknown as Date
+    const dateString = '2026-03-02'
     expect(fmtDate(dateString)).not.toBe('')
   })
 })
@@ -263,6 +265,18 @@ describe('fmtTime', () => {
 
   it('returns empty string for NaN date', () => {
     expect(fmtTime(new Date(NaN))).toBe('')
+  })
+
+  it('handles ISO string input from JSON deserialization', () => {
+    // When Date objects are serialized to JSON and parsed back, they become strings.
+    // fmtTime should handle this gracefully on the server side.
+    const isoString = '2026-03-02T14:30:45.000Z'
+    const result = fmtTime(isoString)
+    expect(result).not.toBe('')
+  })
+
+  it('returns empty string for invalid string input', () => {
+    expect(fmtTime('not-a-time')).toBe('')
   })
 })
 

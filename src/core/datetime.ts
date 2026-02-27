@@ -42,9 +42,9 @@ export function parseDate (s: string | undefined): Date | undefined {
  * @param fmt - Format string (defaults to yyyy-MM-dd)
  * @returns Formatted date string or empty string if date is invalid
  */
-export function fmtDate (d: Date | undefined, fmt: string = dateFmt): string {
+export function fmtDate (d: Date | string | undefined, fmt: string = dateFmt): string {
   if (!d) { return '' }
-  const date = d instanceof Date ? d : new Date(d as any)
+  const date = d instanceof Date ? d : new Date(d)
   return isValid(date) ? format(date, fmt) : ''
 }
 
@@ -68,9 +68,9 @@ export function parseTime (s: string | undefined): Date | undefined {
  * @param fmt - Format string (defaults to HH:mm:ss)
  * @returns Formatted time string or empty string if date is invalid
  */
-export function fmtTime (d: Date | undefined, fmt: string = timeFmt): string {
+export function fmtTime (d: Date | string | undefined, fmt: string = timeFmt): string {
   if (!d) { return '' }
-  const date = d instanceof Date ? d : new Date(d as any)
+  const date = d instanceof Date ? d : new Date(d)
   return isValid(date) ? format(date, fmt) : ''
 }
 
