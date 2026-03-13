@@ -556,7 +556,6 @@ const styleData = computed((): Matcher[] => {
     rules.push({ label: '20-29 mins', color: colors[2], match: getRouteFrequencyMatcher(20) })
     rules.push({ label: '10-19 mins', color: colors[3], match: getRouteFrequencyMatcher(10) })
     rules.push({ label: '0-9 mins', color: colors[4], match: getRouteFrequencyMatcher(0) })
-    rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
 
@@ -568,7 +567,6 @@ const styleData = computed((): Matcher[] => {
     rules.push({ label: '20-50 visits', color: colors[2], match: getStopVisitMatcher(20) })
     rules.push({ label: '10-20 visits', color: colors[3], match: getStopVisitMatcher(10) })
     rules.push({ label: '0-9 visits', color: colors[4], match: getStopVisitMatcher(0) })
-    rules.push({ label: 'Unknown', color: '#000', match: _ => true })
     return rules
   }
 
