@@ -111,7 +111,6 @@
             v-model:end-time="endTime"
             v-model:base-map="baseMap"
             v-model:data-display-mode="dataDisplayMode"
-            v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
             v-model:selected-weekdays="selectedWeekdays"
@@ -175,7 +174,6 @@
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
           :data-display-mode="dataDisplayMode"
-          :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :flex-services-enabled="flexServicesEnabled"
@@ -454,28 +452,20 @@ const includeFlexAreas = computed<boolean | undefined>({
 
 const hideUnmarked = computed<boolean | undefined>({
   get () {
-    return route.query.hideUnmarked?.toString() === 'true'
+    // Default true: hide filtered routes/stops unless explicitly set to false
+    return route.query.hideUnmarked?.toString() !== 'false'
   },
   set (v?: boolean) {
-    setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
+    setQuery({ ...route.query, hideUnmarked: v ? '' : 'false' })
   }
 })
 
 const dataDisplayMode = computed<DataDisplayMode | undefined>({
   get () {
-    return (route.query.dataDisplayMode?.toString() || 'Route') as DataDisplayMode
+    return (route.query.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode
   },
   set (v?: DataDisplayMode) {
     setQuery({ ...route.query, dataDisplayMode: v })
-  }
-})
-
-const colorKey = computed<string | undefined>({
-  get () {
-    return route.query.colorKey?.toString() || 'Mode'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, colorKey: v })
   }
 })
 
@@ -1267,7 +1257,7 @@ async function resetFilters () {
     maxFare: undefined,
     minFareEnabled: undefined,
     minFare: undefined,
-    colorKey: undefined,
+
     unitSystem: undefined,
     hideUnmarked: undefined,
     baseMap: undefined,
