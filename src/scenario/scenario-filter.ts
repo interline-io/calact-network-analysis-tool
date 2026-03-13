@@ -315,7 +315,7 @@ function stopVisits (
   const endTime = parseHMS(selectedEndTime)
   for (const sd of selectedDateRange || []) {
     const sdDow = dowDateString[sd.getDay()]
-    if (!sdDow || !selectedWeekdays?.includes(sdDow)) {
+    if (selectedWeekdays != null && (!sdDow || !selectedWeekdays.includes(sdDow))) {
       continue
     }
     // TODO: memoize formatted date
