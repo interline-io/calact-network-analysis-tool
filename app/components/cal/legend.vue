@@ -52,17 +52,14 @@
           <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
             Agencies:
           </div>
-          <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
-            Transit Modes:
+          <div v-else-if="props.dataDisplayMode === 'Transit mode'" class="legend-heading">
+            Transit modes:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
-            Avg. minutes:
+          <div v-else-if="props.dataDisplayMode === 'Route frequency'" class="legend-heading">
+            Avg. minutes between trips:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Stop' && props.colorKey === 'Frequency'" class="legend-heading">
+          <div v-else-if="props.dataDisplayMode === 'Stop visits'" class="legend-heading">
             Avg. visits per day:
-          </div>
-          <div v-else-if="props.colorKey === 'Fare'" class="legend-heading">
-            Fares:
           </div>
           <div v-for="s of styleData" :key="s.color">
             <div class="legend-item legend-marker-square" :style="{ background: s.color }" />
@@ -129,7 +126,6 @@ interface StyleItem {
 
 const props = defineProps<{
   dataDisplayMode?: DataDisplayMode
-  colorKey?: string
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
