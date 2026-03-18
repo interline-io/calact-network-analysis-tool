@@ -30,7 +30,7 @@
     "eslint": "9.39.1",
     "nuxt": "4.2.0",
     "sass-embedded": "1.93.3",
-    "@interline-io/tlv2-ui": "0.0.0-sha.3891755",
+    "@interline-io/tlv2-ui": "github:interline-io/tlv2-ui#cdc7c1aa692cfe8b827a45bd10971e6e41501526",
     "tsx": "4.20.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.46.3",
@@ -49,7 +49,9 @@
       "@parcel/watcher",
       "esbuild",
       "unrs-resolver",
-      "vue-demi"
+      "vue-demi",
+      "@interline-io/tlv2-ui",
+      "tlv2-ui"
     ]
   }
 }
