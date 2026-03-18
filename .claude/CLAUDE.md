@@ -9,17 +9,17 @@ CALACT Network Analysis Tool — a Nuxt 4 (Vue 3) SPA for browsing, analyzing, a
 ## Commands
 
 ```bash
-yarn dev          # Dev server at localhost:3000
-yarn build        # Production build
-yarn start        # Launch production server
-yarn lint         # ESLint (flat config with tlv2-ui rules)
-yarn test         # Vitest with coverage (single run)
-yarn test:watch   # Vitest in watch mode
-yarn check        # Lint (with --fix) + typecheck
-yarn calact       # Run CLI tool (tsx src/cli/calact.ts)
+pnpm dev          # Dev server at localhost:3000
+pnpm build        # Production build
+pnpm start        # Launch production server
+pnpm lint         # ESLint (flat config with tlv2-ui rules)
+pnpm test         # Vitest with coverage (single run)
+pnpm test:watch   # Vitest in watch mode
+pnpm check        # Lint (with --fix) + typecheck
+pnpm calact       # Run CLI tool (tsx src/cli/calact.ts)
 ```
 
-To use a local copy of tlv2-ui: run `yarn link ../tlv2-ui` here and `yarn run dev:prepare` in tlv2-ui.
+To use a local copy of tlv2-ui: run `pnpm link ../tlv2-ui` here and `pnpm run dev:prepare` in tlv2-ui.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ To use a local copy of tlv2-ui: run `yarn link ../tlv2-ui` here and `yarn run de
 - **Auth0** login gate with role `tl_calact_nat` required for access
 
 ### Key Module: tlv2-ui
-The `tlv2-ui` package (installed from git) is the shared UI library providing:
+The `@interline-io/tlv2-ui` package (installed from GitHub Packages) is the shared UI library providing:
 - Vue components (`t-loading`, `t-notification`, `t-icon`, `tl-login-gate`, MapLibre GL map viewer)
 - GraphQL query infrastructure and API proxy configuration
 - ESLint stylistic and TypeScript rule configs
@@ -74,7 +74,7 @@ The `tlv2-ui` package (installed from git) is the shared UI library providing:
 
 ## Verifying Changes
 
-After making edits, run `yarn check` to verify correctness (lint with auto-fix + typecheck).
+After making edits, run `pnpm check` to verify correctness (lint with auto-fix + typecheck).
 
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`
@@ -82,7 +82,7 @@ After making edits, run `yarn check` to verify correctness (lint with auto-fix +
 - ESLint rules from tlv2-ui (`eslintStylisticRules`, `eslintTypescriptRules`)
 - Always use braces `{}` for `if`/`for`/`while` blocks — never single-line returns without braces
 - Tests use `filename.test.ts` pattern alongside source files in `src/`
-- Package manager: Yarn 4.3.0
+- Package manager: pnpm (v10.x)
 
 ## Environment Variables
 
@@ -107,5 +107,5 @@ When asked to "generate PR summary", run `git diff main...HEAD` and `git log mai
 <bulleted details>
 
 ## Test plan
-<manual verification steps relevant to the changes; do not include yarn test/lint/typecheck as those are handled by CI>
+<manual verification steps relevant to the changes; do not include pnpm test/lint/typecheck as those are handled by CI>
 ```
