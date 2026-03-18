@@ -5,7 +5,7 @@ export OUTDIR="public/examples"
 # Save scenario and WSDOT data
 for scenario in downtown-portland downtown-portland-zoomed bend eugene salem portland greater-seattle greater-portland; do
     rm $OUTDIR/$scenario.*
-    /usr/bin/time yarn calact scenario \
+    /usr/bin/time pnpm calact scenario \
         --bbox-name="$scenario" \
         --save-scenario-data "$OUTDIR/$scenario.json"
 done;
@@ -13,7 +13,7 @@ done;
 # Save scenario and WSDOT data
 for scenario in downtown-portland downtown-portland-zoomed bend eugene salem portland greater-seattle greater-portland; do
     rm $OUTDIR/$scenario.*
-    /usr/bin/time yarn calact wsdot \
+    /usr/bin/time pnpm calact wsdot \
         --bbox-name="$scenario" \
         --save-scenario-data "$OUTDIR/$scenario.wsdot.json"
 done;
