@@ -31,7 +31,7 @@ To use a local copy of tlv2-ui: run `pnpm link ../tlv2-ui` here and `pnpm run de
 - **Auth0** login gate with role `tl_calact_nat` required for access
 
 ### Key Module: tlv2-ui
-The `@interline-io/tlv2-ui` package (installed from GitHub Packages) is the shared UI library providing:
+The `@interline-io/tlv2-ui` package (installed from GitHub Packages or git URL; both supported) is the shared UI library providing:
 - Vue components (`t-loading`, `t-notification`, `t-icon`, `tl-login-gate`, MapLibre GL map viewer)
 - GraphQL query infrastructure and API proxy configuration
 - ESLint stylistic and TypeScript rule configs
