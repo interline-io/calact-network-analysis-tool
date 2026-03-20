@@ -33,7 +33,7 @@ export default defineConfig({
       NUXT_PUBLIC_TLV2_LOGIN_GATE: 'false',
       NUXT_PUBLIC_TLV2_REQUIRE_LOGIN: 'false',
       // Point at a local Transitland GraphQL server
-      NUXT_TLV2_PROXY_BASE_DEFAULT: process.env.NUXT_TLV2_PROXY_BASE_DEFAULT || 'http://localhost:8080/api/v2',
+      NUXT_TLV2_PROXY_BASE_DEFAULT: process.env.NUXT_TLV2_PROXY_BASE_DEFAULT || 'http://localhost:8080',
     },
   },
 })
