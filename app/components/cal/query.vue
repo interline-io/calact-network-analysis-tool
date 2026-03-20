@@ -94,6 +94,9 @@
           <p v-else-if="(props.viewportGeographies?.length ?? 0) > 0" class="help mb-2">
             {{ props.viewportGeographies?.length }} boundaries visible on map<span v-if="geographyIds.length > 0">, {{ geographyIds.length }} selected</span>. Click to select.
           </p>
+          <p v-if="!props.viewportGeographiesLoading && (props.viewportGeographies?.length ?? 0) >= (props.viewportGeographiesLimit ?? 1000)" class="help has-text-warning-dark mb-2">
+            Results limited to {{ props.viewportGeographiesLimit ?? 1000 }} boundaries. Zoom in to see all boundaries in the viewport.
+          </p>
 
           <t-field>
             <template #label>
@@ -240,6 +243,7 @@ const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   viewportGeographies?: CensusGeography[]
   viewportGeographiesLoading?: boolean
+  viewportGeographiesLimit?: number
   mapExtentCenter?: Point
   scenarioLoaded?: boolean
   panelWidth?: number

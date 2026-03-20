@@ -684,15 +684,24 @@ const selectableGeographies = computed((): Feature[] => {
   return features
 })
 
+// Set of geography IDs that are clickable (current layer only)
+const clickableGeoIds = computed(() => {
+  const ids = new Set<number>()
+  for (const f of selectableGeographies.value) {
+    if (f.properties?.clickable) {
+      ids.add(f.properties['geography-id'])
+    }
+  }
+  return ids
+})
+
 // Left-click toggles selection — only for clickable (current layer) features
 function onSelectableGeoClick (featureId: string) {
   const geoId = Number.parseInt(featureId)
   if (Number.isNaN(geoId)) {
     return
   }
-  // Only allow clicking features in the current layer
-  const feature = selectableGeographies.value.find(f => f.id === featureId)
-  if (feature?.properties?.clickable) {
+  if (clickableGeoIds.value.has(geoId)) {
     emit('toggleGeography', geoId)
   }
 }

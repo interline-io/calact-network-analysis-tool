@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, createApp, h } from 'vue'
+import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
@@ -58,6 +58,14 @@ const skipUpdateStages = new Set(['schedules'])
 
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
+let geoHoverPopup: maplibre.Popup | undefined
+
+onBeforeUnmount(() => {
+  if (geoHoverPopup) {
+    geoHoverPopup.remove()
+    geoHoverPopup = undefined
+  }
+})
 
 //////////////////////
 // Watchers
@@ -247,7 +255,7 @@ function initMap () {
       }
     })
     // Hover: show feature name tooltip and pointer cursor (pointer only for clickable)
-    let geoHoverPopup: maplibre.Popup | undefined
+    // geoHoverPopup is declared at module scope so onBeforeUnmount can clean it up
     map?.on('mousemove', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
       const isClickable = e.features?.[0]?.properties?.clickable
       map!.getCanvas().style.cursor = isClickable ? 'pointer' : 'default'
