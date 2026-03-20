@@ -27,6 +27,7 @@ const emit = defineEmits([
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
+const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
@@ -52,6 +53,11 @@ const skipUpdateStages = new Set(['schedules'])
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 
+// Choropleth hover tooltip element
+const choroplethTooltip = document.createElement('div')
+choroplethTooltip.className = 'choropleth-tooltip'
+choroplethTooltip.style.display = 'none'
+
 //////////////////////
 // Watchers
 
@@ -59,6 +65,10 @@ watch(() => overlayFeatures.value, (v) => {
   nextTick(() => {
     updateOverlayFeatures(v)
   })
+})
+
+watch(() => choroplethFeatures.value, (v) => {
+  updateChoroplethFeatures(v)
 })
 
 watch(() => markers.value, (v) => {
@@ -150,6 +160,7 @@ function initMap () {
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
   map.addControl(new maplibre.NavigationControl())
+  map.getContainer().appendChild(choroplethTooltip)
   drawMarkers(markers.value)
   map.on('load', () => {
     if (props.panelWidth) {
@@ -162,6 +173,7 @@ function initMap () {
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
+    updateChoroplethFeatures(choroplethFeatures.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
     map?.on('mousemove', mapMouseMove)
@@ -203,6 +215,53 @@ function initMap () {
         map!.getCanvas().style.cursor = ''
       }
     })
+
+    // Choropleth hover tooltip
+    let choroplethHoveredId: string | null = null
+
+    map?.on('mousemove', 'choropleth-fill', (e: maplibre.MapLayerMouseEvent) => {
+      if (!e.features || e.features.length === 0) { return }
+      const feature = e.features[0]!
+      const fp = feature.properties
+
+      // Highlight: thicken border of hovered polygon
+      // Uses geoid as the promoted ID for feature-state
+      const featureId = fp?.geoid?.toString() || feature.id?.toString() || ''
+      if (featureId && featureId !== choroplethHoveredId) {
+        // Reset previous highlight
+        if (choroplethHoveredId !== null) {
+          map!.setFeatureState({ source: 'choropleth', id: choroplethHoveredId }, { hover: false })
+        }
+        choroplethHoveredId = featureId
+        map!.setFeatureState({ source: 'choropleth', id: featureId }, { hover: true })
+      }
+
+      // Show tooltip
+      const name = fp?.name || fp?.geoid || ''
+      const stops = fp?.stops_count ?? 0
+      const routes = fp?.routes_count ?? 0
+      const agencies = fp?.agencies_count ?? 0
+      const visits = fp?.visit_count_daily_average ?? 0
+
+      choroplethTooltip.innerHTML = `
+        <strong>${name}</strong><br>
+        Stops: ${stops}<br>
+        Routes: ${routes}<br>
+        Agencies: ${agencies}<br>
+        Avg. visits/day: ${visits}
+      `
+      choroplethTooltip.style.display = 'block'
+      choroplethTooltip.style.left = `${e.originalEvent.offsetX + 15}px`
+      choroplethTooltip.style.top = `${e.originalEvent.offsetY + 15}px`
+    })
+
+    map?.on('mouseleave', 'choropleth-fill', () => {
+      choroplethTooltip.style.display = 'none'
+      if (choroplethHoveredId !== null) {
+        map!.setFeatureState({ source: 'choropleth', id: choroplethHoveredId }, { hover: false })
+        choroplethHoveredId = null
+      }
+    })
   })
 }
 
@@ -210,6 +269,11 @@ function createSources () {
   map?.addSource('overlayPolygons', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('choropleth', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    promoteId: 'geoid',
   })
   map?.addSource('lines', {
     type: 'geojson',
@@ -238,6 +302,43 @@ function createLayers () {
   for (const labelLayer of labels('protomaps-base', 'grayscale')) {
     map?.addLayer(labelLayer)
   }
+
+  // Choropleth aggregation overlay (below all feature layers)
+  map?.addLayer({
+    id: 'choropleth-fill',
+    type: 'fill',
+    source: 'choropleth',
+    paint: {
+      'fill-color': ['coalesce', ['get', 'fill'], '#eff3ff'],
+      'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.45],
+    }
+  })
+  map?.addLayer({
+    id: 'choropleth-outline',
+    type: 'line',
+    source: 'choropleth',
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#000',
+        ['coalesce', ['get', 'stroke'], '#333']
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        3,
+        ['coalesce', ['get', 'stroke-width'], 1.5]
+      ],
+      'line-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        1.0,
+        ['coalesce', ['get', 'stroke-opacity'], 0.7]
+      ],
+    }
+  })
+
   map?.addLayer({
     id: 'polygons',
     type: 'fill',
@@ -405,6 +506,14 @@ function createLayers () {
 
 // Track overlay feature IDs to detect meaningful changes (not just reactivity)
 let lastOverlayFeatureIds: string = ''
+
+function updateChoroplethFeatures (features: Feature[]) {
+  if (!map) { return }
+  const source = map.getSource('choropleth') as maplibre.GeoJSONSource
+  if (!source) { return }
+  const polygons = features.filter(s => s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon')
+  source.setData({ type: 'FeatureCollection', features: polygons as any })
+}
 
 function updateOverlayFeatures (features: Feature[]) {
   if (!map) {
@@ -810,5 +919,19 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
 
   .bulma-popup .maplibregl-popup-tip {
     border-top-color: #f5f5f5;
+  }
+
+  .choropleth-tooltip {
+    position: absolute;
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    max-width: 250px;
   }
   </style>

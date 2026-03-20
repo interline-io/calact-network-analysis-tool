@@ -114,6 +114,22 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
+        <!-- Choropleth aggregation legend -->
+        <div v-if="props.showAggAreas && props.hasChoroplethData" class="legend-heading">
+          Aggregated Areas:
+        </div>
+        <div v-if="props.showAggAreas && props.hasChoroplethData" class="cal-map-legend-section">
+          <div class="legend-heading" style="font-weight: normal; font-size: 0.85em;">
+            Avg. visits/day
+          </div>
+          <div class="choropleth-gradient">
+            <div class="choropleth-gradient-bar" />
+            <div class="choropleth-gradient-labels">
+              <span>Low</span>
+              <span>High</span>
+            </div>
+          </div>
+        </div>
       </div>
     </t-msg>
   </div>
@@ -140,9 +156,12 @@ const props = defineProps<{
   flexColorBy?: string
   flexStyleData?: StyleItem[]
   hasFlexData?: boolean
+  // Choropleth aggregation
+  showAggAreas?: boolean
+  hasChoroplethData?: boolean
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox)
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || (props.showAggAreas && props.hasChoroplethData))
 </script>
 
 <style scoped lang="scss">
@@ -250,5 +269,22 @@ const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || pr
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.choropleth-gradient {
+  margin-top: 4px;
+}
+
+.choropleth-gradient-bar {
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #eff3ff, #bdd7e7, #6baed6, #3182bd, #08519c);
+}
+
+.choropleth-gradient-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75em;
+  opacity: 0.8;
 }
 </style>

@@ -25,6 +25,8 @@
       :flex-color-by="flexColorBy"
       :flex-style-data="flexStyleData"
       :has-flex-data="hasFlexData"
+      :show-agg-areas="showAggAreas"
+      :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
     />
 
     <cal-map-viewer-ts
@@ -33,6 +35,7 @@
       :zoom="14"
       :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
+      :choropleth-features="props.choroplethFeatures || []"
       :features="displayFeatures"
       :flex-features="flexFeatures"
       :markers="bboxMarkers"
@@ -76,6 +79,9 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   // Fixed-Route Transit toggle (on by default)
   fixedRouteEnabled?: boolean
+  // Choropleth aggregation overlay
+  choroplethFeatures?: Feature[]
+  showAggAreas?: boolean
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string

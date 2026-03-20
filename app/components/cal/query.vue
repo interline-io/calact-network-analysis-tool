@@ -152,25 +152,6 @@
             tooltip="Select which version of TIGER census boundaries to use for admin boundary selection and geographic aggregation."
             name-filter="tiger"
           />
-
-          <!-- Aggregation Section -->
-          <t-field>
-            <template #label>
-              <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
-                Aggregate by Census geographic hierarchy level
-                <t-icon icon="information" />
-              </t-tooltip>
-            </template>
-            <t-select v-model="aggregateLayer">
-              <option
-                v-for="option of censusGeographyLayerOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </t-select>
-          </t-field>
         </div>
       </t-msg>
 
@@ -236,7 +217,6 @@ const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
 const bbox = defineModel<Bbox>('bbox')
 const geographyIds = defineModel<number[]>('geographyIds', { default: () => [] })
 const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
 const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geoDatasetName = defineModel<string>('geoDatasetName', { required: true })

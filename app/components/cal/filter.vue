@@ -504,6 +504,34 @@
             </li>
           </ul>
           <p class="menu-label">
+            Aggregation
+          </p>
+          <ul>
+            <li>
+              <t-checkbox v-model="showAggAreas">
+                Show Agg. Areas
+              </t-checkbox>
+            </li>
+          </ul>
+          <t-field class="mt-2">
+            <template #label>
+              Aggregate by
+            </template>
+            <t-select
+              v-model="aggregateLayer"
+              :disabled="!showAggAreas"
+            >
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </t-select>
+          </t-field>
+
+          <p class="menu-label">
             Overlay
           </p>
           <ul>
@@ -599,6 +627,7 @@ const props = defineProps<{
   agencyFilterItems?: AgencyFilterItem[]
   geomSource?: string
   censusGeographiesSelected?: CensusGeography[]
+  censusGeographyLayerOptions?: { label: string, value: string }[]
   panelMainWidth?: number
   panelSubWidth?: number
   panelPadding?: number
@@ -667,6 +696,10 @@ const minFare = defineModel<number>('minFare')
 
 // Bbox display toggle
 const showBbox = defineModel<boolean>('showBbox', { default: true })
+
+// Aggregation overlay
+const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
+const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
