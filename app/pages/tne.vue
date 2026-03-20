@@ -89,6 +89,7 @@
             :census-geography-layer-options="censusGeographyLayerOptions"
             :viewport-geographies="viewportGeographies"
             :viewport-geographies-loading="viewportGeoLoading"
+            :viewport-geographies-limit="VIEWPORT_GEO_LIMIT"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
@@ -1033,6 +1034,7 @@ async function setMapExtent (v: Bbox) {
 
 // Fetch census geographies visible in the current map viewport
 // Active only when in adminBoundary mode and before query submission
+const VIEWPORT_GEO_LIMIT = 1000
 const viewportGeoVars = computed(() => {
   const extent = mapExtent.value
   if (!extent?.valid || geomSource.value !== 'adminBoundary' || querySubmitted.value) {
@@ -1050,7 +1052,7 @@ const viewportGeoVars = computed(() => {
     dataset_name: geoDatasetName.value,
     layer: geomLayer.value,
     bbox: convertBbox(paddedExtent),
-    limit: 1000,
+    limit: VIEWPORT_GEO_LIMIT,
   }
 })
 
