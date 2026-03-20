@@ -71,7 +71,7 @@
           <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
             <t-field>
               <template #label>
-                Administrative boundary layer to search
+                Boundary type
               </template>
               <t-select v-model="geomLayer">
                 <option
@@ -87,9 +87,22 @@
         </div>
 
         <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
+          <p v-if="props.viewportGeographiesLoading" class="help mb-2">
+            <t-icon icon="loading" size="small" />
+            Loading boundaries...
+          </p>
+          <p v-else-if="(props.viewportGeographies?.length ?? 0) > 0" class="help mb-2">
+            {{ props.viewportGeographies?.length }} boundaries visible on map<span v-if="geographyIds.length > 0">, {{ geographyIds.length }} selected</span>. Click to select.
+          </p>
+
           <t-field>
             <template #label>
               Selected administrative boundaries
+              <span v-if="geographyIds.length > 0" class="ml-2">
+                <a role="button" class="is-size-7" @click="emit('fitToGeographies')">Show on map</a>
+                <span class="mx-1">|</span>
+                <a role="button" class="is-size-7" @click="emit('clearGeographies')">Clear all</a>
+              </span>
             </template>
             <t-taginput
               v-model="geographyIds"
@@ -211,6 +224,8 @@ import { type CensusDataset, type CensusGeography, geographySearchQuery } from '
 
 const emit = defineEmits([
   'setBbox',
+  'fitToGeographies',
+  'clearGeographies',
   'explore',
   'loadExampleData',
   'switchToAnalysisTab',
@@ -223,6 +238,8 @@ const loadExampleData = async () => {
 
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
+  viewportGeographies?: CensusGeography[]
+  viewportGeographiesLoading?: boolean
   mapExtentCenter?: Point
   scenarioLoaded?: boolean
   panelWidth?: number
@@ -240,7 +257,7 @@ const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' 
 const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
 const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
 const geoDatasetName = defineModel<string>('geoDatasetName', { required: true })
-const geomLayer = ref('place')
+const geomLayer = defineModel<string>('geomLayer', { default: 'place' })
 const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
 const debugMenu = useDebugMenu()
 const endDate = defineModel<Date>('endDate', { required: true })
@@ -328,9 +345,14 @@ watch(geomSource, (newValue, oldValue) => {
 })
 
 const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
-  // Combine both the selected geographies and the search results
+  // Combine selected geographies, viewport geographies, and search results
   const geogs: CensusGeography[] = []
   for (const geo of censusGeographiesSelected.value || []) {
+    geogs.push({
+      ...geo,
+    })
+  }
+  for (const geo of props.viewportGeographies || []) {
     geogs.push({
       ...geo,
     })
