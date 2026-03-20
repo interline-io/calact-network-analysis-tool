@@ -1,11 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 
+// These tests run against a fixed test database (testdata/gtfs/calact_tlserver.dump).
 test.describe('Browse query results', () => {
   let page: Page
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage()
-    // Load TNE with a small bbox (downtown Portland) and run the query
+    // Downtown Portland bbox — known to have data in the test database
     await page.goto('/tne?bbox=-122.69075,45.51358,-122.66809,45.53306')
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Transit Network Explorer')).toBeVisible({ timeout: 15000 })

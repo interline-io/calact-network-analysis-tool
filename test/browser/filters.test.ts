@@ -5,14 +5,16 @@ async function getRouteCounts (page: Page) {
   const el = page.locator('.cal-filter-summary-counts span', { hasText: 'routes' })
   const text = await el.textContent()
   const match = text?.match(/(\d+) of (\d+) routes/)
-  return { marked: Number(match?.[1]), total: Number(match?.[2]) }
+  if (!match) { throw new Error(`Could not parse route counts from: "${text}"`) }
+  return { marked: Number(match[1]), total: Number(match[2]) }
 }
 
 async function getStopCounts (page: Page) {
   const el = page.locator('.cal-filter-summary-counts span', { hasText: 'stops' })
   const text = await el.textContent()
   const match = text?.match(/(\d+) of (\d+) stops/)
-  return { marked: Number(match?.[1]), total: Number(match?.[2]) }
+  if (!match) { throw new Error(`Could not parse stop counts from: "${text}"`) }
+  return { marked: Number(match[1]), total: Number(match[2]) }
 }
 
 // Wait for the route marked count to differ from a known value
@@ -56,11 +58,15 @@ async function openFilterSubtab (page: Page, label: string) {
   await expect(subPanel).toBeVisible({ timeout: 5000 })
 }
 
+// These tests run against a fixed test database (testdata/gtfs/calact_tlserver.dump).
+// Tests compare relative changes (before/after filter) rather than hardcoded counts,
+// so they should be stable as long as the test dataset has bus routes and multiple agencies.
 test.describe('Filter interactions', () => {
   let page: Page
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage()
+    // Downtown Portland bbox — known to have a mix of modes and agencies in the test data
     await page.goto('/tne?bbox=-122.69075,45.51358,-122.66809,45.53306')
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Transit Network Explorer')).toBeVisible({ timeout: 15000 })
@@ -108,7 +114,8 @@ test.describe('Filter interactions', () => {
 
     await openFilterSubtab(page, 'Modes & Agencies')
 
-    // Click Select None — use force since the button may be in a scrollable container
+    // force: true bypasses Playwright's visibility/scroll checks — needed because the
+    // button can be outside the visible scroll area of the filter sub-panel.
     const selectNoneBtn = page.locator('.cal-filter-sub').getByRole('button', { name: 'Select None' })
     await selectNoneBtn.click({ force: true })
 
