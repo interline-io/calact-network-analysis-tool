@@ -52,6 +52,7 @@
         <div v-if="props.scenarioFilterResult" class="cal-filter-summary-counts">
           <span>{{ markedRouteCount }} of {{ totalRouteCount }} routes</span>
           <span>{{ markedStopCount }} of {{ totalStopCount }} stops</span>
+          <span v-if="props.aggregateGeoCount">{{ props.aggregateGeoCount }} {{ props.aggregateLayerLabel }}</span>
         </div>
         <p>
           <a @click="emit('showQuery')">Change date or region</a>
@@ -628,6 +629,8 @@ const props = defineProps<{
   geomSource?: string
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
+  aggregateGeoCount?: number
+  aggregateLayerLabel?: string
   panelMainWidth?: number
   panelSubWidth?: number
   panelPadding?: number

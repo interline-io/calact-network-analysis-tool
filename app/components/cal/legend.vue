@@ -115,19 +115,17 @@
           </div>
         </div>
         <!-- Choropleth aggregation legend -->
-        <div v-if="props.showAggAreas && props.hasChoroplethData" class="legend-heading">
-          Aggregated Areas:
-        </div>
-        <div v-if="props.showAggAreas && props.hasChoroplethData" class="cal-map-legend-section">
-          <div class="legend-heading" style="font-weight: normal; font-size: 0.85em;">
+        <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
+          <div class="legend-heading">
+            Aggregated Areas:
+          </div>
+          <div class="choropleth-legend-subtitle">
             Avg. visits/day
           </div>
-          <div class="choropleth-gradient">
-            <div class="choropleth-gradient-bar" />
-            <div class="choropleth-gradient-labels">
-              <span>Low</span>
-              <span>High</span>
-            </div>
+          <div class="choropleth-gradient-bar" />
+          <div class="choropleth-gradient-labels">
+            <span>Low</span>
+            <span>High</span>
           </div>
         </div>
       </div>
@@ -271,8 +269,14 @@ const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || pr
   white-space: nowrap;
 }
 
-.choropleth-gradient {
-  margin-top: 4px;
+.choropleth-legend {
+  margin-bottom: 10px;
+}
+
+.choropleth-legend-subtitle {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-bottom: 4px;
 }
 
 .choropleth-gradient-bar {

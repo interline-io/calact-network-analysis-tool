@@ -137,6 +137,8 @@
             :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
+            :aggregate-geo-count="aggregateGeoCount"
+            :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
             :panel-main-width="FILTER_MAIN_WIDTH"
             :panel-sub-width="FILTER_SUB_WIDTH"
@@ -885,6 +887,205 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
   return ret
 })
 
+const showAggAreas = computed<boolean>({
+  get () {
+    return route.query.showAggAreas?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, showAggAreas: v ? 'true' : undefined })
+  }
+})
+
+/////////////////////////
+// Event passing
+/////////////////////////
+
+// Tab handling
+const activeTab = ref({ tab: 'query', sub: '' })
+
+// Panel layout constants — single source of truth for widths.
+// Used both for CSS (via v-bind) and for map padding computation.
+const PANEL_PADDING = 20
+const QUERY_PANEL_WIDTH = 620
+const FILTER_MAIN_WIDTH = 300
+const FILTER_SUB_WIDTH = 400
+const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320
+const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING // 720
+
+// CSS binding for filter expanded width (used via v-bind in <style>)
+const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`
+
+// Active panel width for map padding — tells the map how much of its left side is obscured
+const activeTabPanelWidth = computed(() => {
+  switch (activeTab.value.tab) {
+    case 'query': return QUERY_PANEL_WIDTH
+    case 'filter': return activeTab.value.sub ? FILTER_EXPANDED_WIDTH : FILTER_COLLAPSED_WIDTH
+    default: return 0 // 'map', 'report', 'analysis'
+  }
+})
+
+// Advanced report query parameter support
+const advancedReport = computed({
+  get () {
+    return route.query.advancedReport?.toString() || ''
+  },
+  set (v: string) {
+    setQuery({ ...route.query, advancedReport: v || undefined })
+  }
+})
+
+const showBbox = ref(true)
+
+// showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
+const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
+
+// displayEditBboxMode controls drag handles — only on query tab before query submission
+watch([activeTab, geomSource, querySubmitted], () => {
+  displayEditBboxMode.value = activeTab.value.tab === 'query' && geomSource.value === 'bbox' && !querySubmitted.value
+})
+
+const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+
+// Initialize active tab based on advancedReport query parameter
+onMounted(() => {
+  if (advancedReport.value) {
+    activeTab.value = { tab: 'analysis', sub: '' }
+  }
+})
+
+// Watch for changes in advancedReport to sync tab state
+watch(advancedReport, (newValue) => {
+  if (newValue) {
+    activeTab.value = { tab: 'analysis', sub: '' }
+  }
+})
+
+interface Tab {
+  tab: string
+  sub: string
+}
+
+function setTab (v: Tab) {
+  if (activeTab.value.tab === v.tab) {
+    activeTab.value = { tab: 'map', sub: '' }
+    return
+  }
+
+  // Check if we're leaving the analysis tab and have results
+  if (activeTab.value.tab === 'analysis') {
+    const { hasAnyResults, clearAllResults } = useAnalysisResults()
+    if (hasAnyResults.value) {
+      const confirmed = confirm('You have analysis results displayed. Switching tabs will clear these results — you\'ll need to run the analysis again to see them. Do you want to continue?')
+      if (!confirmed) {
+        return
+      }
+      clearAllResults()
+    }
+  }
+
+  activeTab.value = v
+
+  // Clear advancedReport when switching away from analysis tab
+  if (v.tab !== 'analysis' && advancedReport.value) {
+    advancedReport.value = ''
+  }
+}
+
+/////////////////////////////
+// Other setters
+/////////////////////////////
+
+// We need to keep reference to the map extent
+const mapExtent = ref<Bbox>()
+
+const mapExtentCenter = computed((): Point | undefined => {
+  const bbox = mapExtent.value
+  if (bbox?.valid) {
+    return {
+      lon: (bbox.ne.lon + bbox.sw.lon) / 2,
+      lat: (bbox.ne.lat + bbox.sw.lat) / 2
+    }
+  }
+  return undefined
+})
+
+watch(geomSource, () => {
+  if (geomSource.value === 'mapExtent' && mapExtent.value) {
+    bbox.value = mapExtent.value
+  }
+})
+
+async function setMapExtent (v: Bbox) {
+  mapExtent.value = v
+  // Only update bbox from map extent before a query has been submitted
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
+    bbox.value = mapExtent.value
+  }
+}
+
+////////////////////////////
+// Scenario
+////////////////////////////
+
+// Computed properties for config and filter to avoid duplication
+const scenarioConfig = computed((): ScenarioConfig => ({
+  geoDatasetName: geoDatasetName.value,
+  reportName: 'Transit Network Explorer',
+  bbox: bbox.value,
+  startDate: startDate.value,
+  endDate: endDate.value,
+  geographyIds: geographyIds.value,
+  // Data loading toggles from Query tab > Advanced Settings
+  includeFixedRoute: includeFixedRoute.value,
+  includeFlexAreas: includeFlexAreas.value,
+}))
+
+const scenarioFilter = computed((): ScenarioFilter => ({
+  startTime: startTime.value,
+  endTime: endTime.value,
+  selectedRouteTypes: selectedRouteTypes.value,
+  selectedWeekdays: selectedWeekdays.value,
+  selectedWeekdayMode: selectedWeekdayMode.value,
+  selectedAgencies: selectedAgencies.value,
+  frequencyUnder: frequencyUnder.value,
+  frequencyOver: frequencyOver.value,
+}))
+
+// Internal state for streaming scenario data
+// Note: scenarioData is defined earlier in the file (before useFlexAreas)
+const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
+const exportFeatures = shallowRef<Feature[]>([])
+
+const aggregateLayerLabels: Record<string, string> = {
+  'state': 'states',
+  'county': 'counties',
+  'tract': 'census tracts',
+  'place': 'cities/places',
+  'cbsa': 'metropolitan areas',
+  'csa': 'combined statistical areas',
+  'uac20': 'urban areas',
+  'fta-uac20-nonurban': 'non-urban areas',
+}
+
+const aggregateLayerLabel = computed((): string => {
+  return aggregateLayerLabels[aggregateLayer.value] || 'areas'
+})
+
+// Count of unique geographies for the current aggregate layer (always computed when data exists)
+const aggregateGeoCount = computed((): number => {
+  if (!scenarioFilterResult.value) { return 0 }
+  const geoids = new Set<string>()
+  for (const stop of scenarioFilterResult.value.stops) {
+    if (!stop.marked) { continue }
+    for (const geo of stop.census_geographies || []) {
+      if (geo.layer_name === aggregateLayer.value) {
+        geoids.add(geo.geoid)
+      }
+    }
+  }
+  return geoids.size
+})
+
 /////////////////
 // Choropleth aggregation overlay
 /////////////////
@@ -1003,168 +1204,6 @@ const choroplethFeatures = computed((): Feature[] => {
 
   return features
 })
-
-/////////////////////////
-// Event passing
-/////////////////////////
-
-// Tab handling
-const activeTab = ref({ tab: 'query', sub: '' })
-
-// Panel layout constants — single source of truth for widths.
-// Used both for CSS (via v-bind) and for map padding computation.
-const PANEL_PADDING = 20
-const QUERY_PANEL_WIDTH = 620
-const FILTER_MAIN_WIDTH = 300
-const FILTER_SUB_WIDTH = 400
-const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320
-const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING // 720
-
-// CSS binding for filter expanded width (used via v-bind in <style>)
-const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`
-
-// Active panel width for map padding — tells the map how much of its left side is obscured
-const activeTabPanelWidth = computed(() => {
-  switch (activeTab.value.tab) {
-    case 'query': return QUERY_PANEL_WIDTH
-    case 'filter': return activeTab.value.sub ? FILTER_EXPANDED_WIDTH : FILTER_COLLAPSED_WIDTH
-    default: return 0 // 'map', 'report', 'analysis'
-  }
-})
-
-// Advanced report query parameter support
-const advancedReport = computed({
-  get () {
-    return route.query.advancedReport?.toString() || ''
-  },
-  set (v: string) {
-    setQuery({ ...route.query, advancedReport: v || undefined })
-  }
-})
-
-const showBbox = ref(true)
-const showAggAreas = ref(false)
-
-// showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
-const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
-
-// displayEditBboxMode controls drag handles — only on query tab before query submission
-watch([activeTab, geomSource, querySubmitted], () => {
-  displayEditBboxMode.value = activeTab.value.tab === 'query' && geomSource.value === 'bbox' && !querySubmitted.value
-})
-
-const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
-
-// Initialize active tab based on advancedReport query parameter
-onMounted(() => {
-  if (advancedReport.value) {
-    activeTab.value = { tab: 'analysis', sub: '' }
-  }
-})
-
-// Watch for changes in advancedReport to sync tab state
-watch(advancedReport, (newValue) => {
-  if (newValue) {
-    activeTab.value = { tab: 'analysis', sub: '' }
-  }
-})
-
-interface Tab {
-  tab: string
-  sub: string
-}
-
-function setTab (v: Tab) {
-  if (activeTab.value.tab === v.tab) {
-    activeTab.value = { tab: 'map', sub: '' }
-    return
-  }
-
-  // Check if we're leaving the analysis tab and have results
-  if (activeTab.value.tab === 'analysis') {
-    const { hasAnyResults, clearAllResults } = useAnalysisResults()
-    if (hasAnyResults.value) {
-      const confirmed = confirm('You have analysis results displayed. Switching tabs will clear these results — you\'ll need to run the analysis again to see them. Do you want to continue?')
-      if (!confirmed) {
-        return
-      }
-      clearAllResults()
-    }
-  }
-
-  activeTab.value = v
-
-  // Clear advancedReport when switching away from analysis tab
-  if (v.tab !== 'analysis' && advancedReport.value) {
-    advancedReport.value = ''
-  }
-}
-
-/////////////////////////////
-// Other setters
-/////////////////////////////
-
-// We need to keep reference to the map extent
-const mapExtent = ref<Bbox>()
-
-const mapExtentCenter = computed((): Point | undefined => {
-  const bbox = mapExtent.value
-  if (bbox?.valid) {
-    return {
-      lon: (bbox.ne.lon + bbox.sw.lon) / 2,
-      lat: (bbox.ne.lat + bbox.sw.lat) / 2
-    }
-  }
-  return undefined
-})
-
-watch(geomSource, () => {
-  if (geomSource.value === 'mapExtent' && mapExtent.value) {
-    bbox.value = mapExtent.value
-  }
-})
-
-async function setMapExtent (v: Bbox) {
-  mapExtent.value = v
-  // Only update bbox from map extent before a query has been submitted
-  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
-    bbox.value = mapExtent.value
-  }
-}
-
-////////////////////////////
-// Scenario
-////////////////////////////
-
-// Computed properties for config and filter to avoid duplication
-const scenarioConfig = computed((): ScenarioConfig => ({
-  geoDatasetName: geoDatasetName.value,
-  reportName: 'Transit Network Explorer',
-  bbox: bbox.value,
-  aggregateLayer: aggregateLayer.value,
-  startDate: startDate.value,
-  endDate: endDate.value,
-  geographyIds: geographyIds.value,
-  // Data loading toggles from Query tab > Advanced Settings
-  includeFixedRoute: includeFixedRoute.value,
-  includeFlexAreas: includeFlexAreas.value,
-}))
-
-const scenarioFilter = computed((): ScenarioFilter => ({
-  startTime: startTime.value,
-  endTime: endTime.value,
-  selectedRouteTypes: selectedRouteTypes.value,
-  selectedWeekdays: selectedWeekdays.value,
-  selectedWeekdayMode: selectedWeekdayMode.value,
-  selectedAgencies: selectedAgencies.value,
-  frequencyUnder: frequencyUnder.value,
-  frequencyOver: frequencyOver.value,
-}))
-
-// Internal state for streaming scenario data
-// Note: scenarioData is defined earlier in the file (before useFlexAreas)
-const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
-const exportFeatures = shallowRef<Feature[]>([])
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()

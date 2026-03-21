@@ -629,7 +629,6 @@ export class ScenarioFetcher {
     const variables = {
       after: task.after,
       limit: this.stopLimit,
-      layer_name: this.config.aggregateLayer,
       dataset_name: this.config.geoDatasetName,
       where: {
         location_type: 0,
