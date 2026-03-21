@@ -203,3 +203,19 @@ export const flexColorByModes = [
 ] as const
 
 export type FlexColorByMode = typeof flexColorByModes[number]
+
+/**
+ * Human-readable labels for census geography aggregation layers.
+ * Singular form for headings (e.g. "Aggregated by County"),
+ * plural form for counts (e.g. "42 counties").
+ */
+export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
+  'state': { singular: 'State', plural: 'states' },
+  'county': { singular: 'County', plural: 'counties' },
+  'tract': { singular: 'Census Tract', plural: 'census tracts' },
+  'place': { singular: 'City/Place', plural: 'cities/places' },
+  'cbsa': { singular: 'Metropolitan Area', plural: 'metropolitan areas' },
+  'csa': { singular: 'Combined Statistical Area', plural: 'combined statistical areas' },
+  'uac20': { singular: 'Urban Area', plural: 'urban areas' },
+  'fta-uac20-nonurban': { singular: 'Non-urban Area', plural: 'non-urban areas' },
+}

@@ -248,6 +248,7 @@ import {
   getLocalDateNoTime,
   dateToSeconds,
   SCENARIO_DEFAULTS,
+  censusLayerLabels,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   type DataDisplayMode
@@ -1056,45 +1057,14 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
-const aggregateLayerLabels: Record<string, string> = {
-  'state': 'states',
-  'county': 'counties',
-  'tract': 'census tracts',
-  'place': 'cities/places',
-  'cbsa': 'metropolitan areas',
-  'csa': 'combined statistical areas',
-  'uac20': 'urban areas',
-  'fta-uac20-nonurban': 'non-urban areas',
-}
-
 const aggregateLayerLabel = computed((): string => {
-  return aggregateLayerLabels[aggregateLayer.value] || 'areas'
+  return censusLayerLabels[aggregateLayer.value]?.plural || 'areas'
 })
 
-// Count of unique geographies for the current aggregate layer (always computed when data exists)
-const aggregateGeoCount = computed((): number => {
-  if (!scenarioFilterResult.value) { return 0 }
-  const geoids = new Set<string>()
-  for (const stop of scenarioFilterResult.value.stops) {
-    if (!stop.marked) { continue }
-    for (const geo of stop.census_geographies || []) {
-      if (geo.layer_name === aggregateLayer.value) {
-        geoids.add(geo.geoid)
-      }
-    }
-  }
-  return geoids.size
-})
-
-/////////////////
-// Choropleth aggregation overlay
-/////////////////
-
-// Collect unique census geography IDs from marked stops for the current aggregate layer
-const choroplethGeoIds = computed((): number[] => {
-  if (!showAggAreas.value || !scenarioFilterResult.value) {
-    return []
-  }
+// Unique census geography IDs for the current aggregate layer across all marked stops.
+// Shared base for both the filter summary count and the choropleth geometry fetch.
+const aggregateGeoIds = computed((): number[] => {
+  if (!scenarioFilterResult.value) { return [] }
   const ids = new Set<number>()
   for (const stop of scenarioFilterResult.value.stops) {
     if (!stop.marked) { continue }
@@ -1105,6 +1075,18 @@ const choroplethGeoIds = computed((): number[] => {
     }
   }
   return [...ids]
+})
+
+const aggregateGeoCount = computed((): number => aggregateGeoIds.value.length)
+
+/////////////////
+// Choropleth aggregation overlay
+/////////////////
+
+// Only fetch geometries when the choropleth toggle is on
+const choroplethGeoIds = computed((): number[] => {
+  if (!showAggAreas.value) { return [] }
+  return aggregateGeoIds.value
 })
 
 // Fetch geometry for the choropleth geographies
@@ -1157,6 +1139,9 @@ const choroplethFeatures = computed((): Feature[] => {
   const numClasses = palette.length
 
   // Compute quantile breaks
+  // TODO: When many geographies share the same value (e.g. low-service areas),
+  // breaks can be identical, causing most features to land in the last color class.
+  // Consider deduplicating breaks or falling back to equal-interval classification.
   const breaks: number[] = []
   for (let i = 1; i < numClasses; i++) {
     const idx = Math.floor((i / numClasses) * values.length)

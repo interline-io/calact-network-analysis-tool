@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, createApp, h } from 'vue'
+import { nextTick, ref, watch, onMounted, onUnmounted, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
@@ -53,10 +53,8 @@ const skipUpdateStages = new Set(['schedules'])
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 
-// Choropleth hover tooltip element
-const choroplethTooltip = document.createElement('div')
-choroplethTooltip.className = 'choropleth-tooltip'
-choroplethTooltip.style.display = 'none'
+// Choropleth hover tooltip — created in initMap, cleaned up in onUnmounted
+let choroplethTooltip: HTMLDivElement | undefined
 
 //////////////////////
 // Watchers
@@ -134,6 +132,17 @@ onMounted(() => {
   initMap()
 })
 
+onUnmounted(() => {
+  choroplethTooltip?.remove()
+  choroplethTooltip = undefined
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = undefined
+  }
+  map?.remove()
+  map = undefined
+})
+
 function initMap () {
   if (map) {
     return
@@ -160,6 +169,11 @@ function initMap () {
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
   map.addControl(new maplibre.NavigationControl())
+
+  // Create choropleth tooltip element (must be in mounted context, not module scope)
+  choroplethTooltip = document.createElement('div')
+  choroplethTooltip.className = 'choropleth-tooltip'
+  choroplethTooltip.style.display = 'none'
   map.getContainer().appendChild(choroplethTooltip)
   drawMarkers(markers.value)
   map.on('load', () => {
@@ -236,27 +250,29 @@ function initMap () {
         map!.setFeatureState({ source: 'choropleth', id: featureId }, { hover: true })
       }
 
-      // Show tooltip
-      const name = fp?.name || fp?.geoid || ''
-      const stops = fp?.stops_count ?? 0
-      const routes = fp?.routes_count ?? 0
-      const agencies = fp?.agencies_count ?? 0
-      const visits = fp?.visit_count_daily_average ?? 0
-
-      choroplethTooltip.innerHTML = `
-        <strong>${name}</strong><br>
-        Stops: ${stops}<br>
-        Routes: ${routes}<br>
-        Agencies: ${agencies}<br>
-        Avg. visits/day: ${visits}
-      `
+      // Show tooltip using safe DOM construction (no innerHTML)
+      if (!choroplethTooltip) { return }
+      choroplethTooltip.textContent = ''
+      const title = document.createElement('strong')
+      title.textContent = String(fp?.name || fp?.geoid || '')
+      choroplethTooltip.appendChild(title)
+      for (const [label, value] of [
+        ['Stops', fp?.stops_count ?? 0],
+        ['Routes', fp?.routes_count ?? 0],
+        ['Agencies', fp?.agencies_count ?? 0],
+        ['Avg. visits/day', fp?.visit_count_daily_average ?? 0],
+      ]) {
+        choroplethTooltip.appendChild(document.createElement('br'))
+        const line = document.createTextNode(`${label}: ${value}`)
+        choroplethTooltip.appendChild(line)
+      }
       choroplethTooltip.style.display = 'block'
       choroplethTooltip.style.left = `${e.originalEvent.offsetX + 15}px`
       choroplethTooltip.style.top = `${e.originalEvent.offsetY + 15}px`
     })
 
     map?.on('mouseleave', 'choropleth-fill', () => {
-      choroplethTooltip.style.display = 'none'
+      if (choroplethTooltip) { choroplethTooltip.style.display = 'none' }
       if (choroplethHoveredId !== null) {
         map!.setFeatureState({ source: 'choropleth', id: choroplethHoveredId }, { hover: false })
         choroplethHoveredId = null

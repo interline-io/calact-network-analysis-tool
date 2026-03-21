@@ -520,7 +520,6 @@
             </template>
             <t-select
               v-model="aggregateLayer"
-              :disabled="!showAggAreas"
             >
               <option
                 v-for="option of censusGeographyLayerOptions"
