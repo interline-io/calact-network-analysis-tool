@@ -122,7 +122,7 @@
           <div class="choropleth-legend-subtitle">
             Avg. visits/day
           </div>
-          <div class="choropleth-gradient-bar" />
+          <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
           <div class="choropleth-gradient-labels">
             <span>Low</span>
             <span>High</span>
@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DataDisplayMode } from '~~/src/core'
+import { choroplethPalette, type DataDisplayMode } from '~~/src/core'
 
 interface StyleItem {
   label: string
@@ -160,6 +160,8 @@ const props = defineProps<{
 }>()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || (props.showAggAreas && props.hasChoroplethData))
+
+const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
 </script>
 
 <style scoped lang="scss">
@@ -282,7 +284,6 @@ const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || pr
 .choropleth-gradient-bar {
   height: 12px;
   border-radius: 2px;
-  background: linear-gradient(to right, #eff3ff, #bdd7e7, #6baed6, #3182bd, #08519c);
 }
 
 .choropleth-gradient-labels {

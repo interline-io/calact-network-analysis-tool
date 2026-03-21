@@ -249,6 +249,7 @@ import {
   dateToSeconds,
   SCENARIO_DEFAULTS,
   censusLayerLabels,
+  choroplethPalette,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   type DataDisplayMode
@@ -1134,8 +1135,7 @@ const choroplethFeatures = computed((): Feature[] => {
     .filter(v => v > 0)
     .sort((a, b) => a - b)
 
-  // 5-class sequential blue palette
-  const palette = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c']
+  const palette = choroplethPalette
   const numClasses = palette.length
 
   // Compute quantile breaks
