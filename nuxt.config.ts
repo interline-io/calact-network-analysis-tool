@@ -6,7 +6,7 @@ const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
   modules: [
-    'tlv2-ui',
+    '@interline-io/tlv2-ui',
     '@nuxt/eslint',
     '@nuxt/devtools',
   ],
@@ -45,7 +45,7 @@ export default defineNuxtConfig({
   },
 
   build: {
-    transpile: ['tlv2-ui'],
+    transpile: ['@interline-io/tlv2-ui'],
   },
 
   routeRules: {

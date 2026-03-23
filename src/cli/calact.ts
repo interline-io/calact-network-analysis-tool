@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run with: yarn calact <subcommand>
+// Run with: pnpm calact <subcommand>
 import 'dotenv/config'
 
 import { Command } from 'commander'

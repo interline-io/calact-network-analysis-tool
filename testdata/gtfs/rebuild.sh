@@ -1,15 +1,22 @@
 #!/bin/bash
 set -ex -o pipefail
-
 rm -rf data tmp || true; mkdir -p data tmp
 
-cat fvs.txt | parallel --colsep ' ' 'curl -H "apikey:$TRANSITLAND_API_KEY" -SLo data/{1}.zip https://api.transit.land/api/v2/rest/feed_versions/{2}/download'
+# Migrate
+export TL_DATABASE_URL=postgres://localhost/calact_tlserver
+dropdb --if-exists calact_tlserver; createdb calact_tlserver
+transitland dbmigrate up
+transitland dbmigrate natural-earth
 
+# Fetch
+cat fvs.txt | parallel --colsep ' ' 'curl -H "apikey:$TRANSITLAND_API_KEY" -SLo data/{1}.zip https://api.transit.land/api/v2/rest/feed_versions/{2}/download'
 find ./data -name "*.zip" | parallel --lb transitland fetch --allow-local-fetch --storage="tmp" --create-feed --feed-url="{}" \$\(basename {} \| sed s/.zip//\)
 
+# Import
 transitland import --activate --storage="tmp" --activate --workers=8
 
+# Set feeds to public
 psql -c "update feed_states set public = true"
 
-TL_LOG=trace transitland server --max-radius 100_000_000 --loader-stop-time-batch-size 1000
-
+# Dump
+pg_dump -Fc -f calact_tlserver.dump calact_tlserver
