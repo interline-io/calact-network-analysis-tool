@@ -159,22 +159,6 @@
       <div v-if="activeTab === 'transit-layers'">
         <aside class="cal-service-levels menu">
           <p class="menu-label">
-            Color by:
-          </p>
-          <ul>
-            <li
-              v-for="dataDisplayModeOption of dataDisplayModes"
-              :key="dataDisplayModeOption"
-            >
-              <t-radio
-                v-model="dataDisplayMode"
-                :native-value="dataDisplayModeOption"
-              >
-                {{ dataDisplayModeOption }}
-              </t-radio>
-            </li>
-          </ul>
-          <p class="menu-label">
             Frequency
           </p>
 
@@ -261,6 +245,22 @@
               />
             </div>
           </t-field>
+          <p class="menu-label">
+            Color by:
+          </p>
+          <ul>
+            <li
+              v-for="dataDisplayModeOption of dataDisplayModes"
+              :key="dataDisplayModeOption"
+            >
+              <t-radio
+                v-model="dataDisplayMode"
+                :native-value="dataDisplayModeOption"
+              >
+                {{ dataDisplayModeOption }}
+              </t-radio>
+            </li>
+          </ul>
         </aside>
       </div>
 
