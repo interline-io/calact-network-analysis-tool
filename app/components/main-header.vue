@@ -126,6 +126,9 @@ function itemHelper (p: string): string {
     color: var(--bulma-text-on-theme);
     display: flex;
     justify-content: center;
+    &.is-active {
+      background: var(--bulma-primary);
+    }
     &:hover {
       background:var(--bulma-primary);
     }
