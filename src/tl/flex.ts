@@ -737,7 +737,7 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     feed_onestop_id: location.feed_onestop_id,
 
     // Area computed from full source geometry (used for sorting overlapping areas in identify tool popup)
-    area_m2: turfArea(location.geometry as any),
+    area_m2: turfArea(location.geometry as GeoJSON.Geometry),
   }
 
   return {

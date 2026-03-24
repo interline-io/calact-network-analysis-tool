@@ -892,9 +892,10 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           marked: fp.marked,
         }
       }
-      // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first
+      // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first.
+      // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
       const matchOrder = fp.marked ? 2 : 3
-      sortKey = [matchOrder, fp.area_m2 ?? 0]
+      sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
     }
 
     if (popupFeature) {
