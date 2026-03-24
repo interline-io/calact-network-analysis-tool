@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
 import { parseHMS } from '~~/src/core'
+import turfArea from '@turf/area'
 
 //////////
 // Flex Services (DRT/Demand-Responsive Transit) Types
@@ -145,6 +146,9 @@ export interface FlexAreaProperties {
   // Additional metadata (for CSV export)
   zone_id?: string
   feed_onestop_id?: string
+
+  // Area in square meters (computed from full source geometry at load time)
+  area_m2?: number
 
   // Filtering state (set by scenario-filter.ts)
   marked?: boolean
@@ -731,6 +735,9 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     // Additional metadata (for CSV export)
     zone_id: location.zone_id,
     feed_onestop_id: location.feed_onestop_id,
+
+    // Area computed from full source geometry (used for sorting overlapping areas in identify tool popup)
+    area_m2: turfArea(location.geometry as GeoJSON.Geometry),
   }
 
   return {

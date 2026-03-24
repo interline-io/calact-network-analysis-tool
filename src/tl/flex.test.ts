@@ -8,8 +8,10 @@ import {
   isBookingAvailableOnDay,
   isBookingAvailableToday,
   formatBookingDays,
+  transformLocationToFlexArea,
   type FlexAreaFeature,
   type FlexBookingDays,
+  type FlexLocationGql,
 } from './flex'
 
 /**
@@ -42,6 +44,52 @@ function createFlexFeature (overrides: Partial<FlexAreaFeature['properties']> = 
     },
   }
 }
+
+function createFlexLocationGql (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon): FlexLocationGql {
+  return {
+    id: 1,
+    location_id: 'loc-1',
+    feed_onestop_id: 'f-test',
+    geometry,
+    stop_times: [],
+  }
+}
+
+describe('transformLocationToFlexArea', () => {
+  it('computes a positive area_m2 for a polygon', () => {
+    // Rough 1-degree square near the equator — ~12,000 km²
+    const location = createFlexLocationGql({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+    })
+    const feature = transformLocationToFlexArea(location)
+    expect(feature.properties.area_m2).toBeGreaterThan(0)
+  })
+
+  it('computes a larger area_m2 for a larger polygon', () => {
+    const small = transformLocationToFlexArea(createFlexLocationGql({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]],
+    }))
+    const large = transformLocationToFlexArea(createFlexLocationGql({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+    }))
+    expect(large.properties.area_m2!).toBeGreaterThan(small.properties.area_m2!)
+  })
+
+  it('computes a positive area_m2 for a multipolygon', () => {
+    const location = createFlexLocationGql({
+      type: 'MultiPolygon',
+      coordinates: [
+        [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+        [[[2, 2], [3, 2], [3, 3], [2, 3], [2, 2]]],
+      ],
+    })
+    const feature = transformLocationToFlexArea(location)
+    expect(feature.properties.area_m2).toBeGreaterThan(0)
+  })
+})
 
 describe('getFlexAreaType', () => {
   it('returns "PU and DO" when both pickup and dropoff are available', () => {

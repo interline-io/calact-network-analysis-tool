@@ -22,6 +22,7 @@
     "@interline-io/tlv2-ui": "0.0.0-sha.3891755",
     "@nuxt/eslint": "1.10.0",
     "@nuxt/eslint-config": "1.10.0",
+    "@turf/area": "7.3.4",
     "@turf/bbox": "7.2.0",
     "@types/big-json": "3.2.0",
     "@types/node": "latest",
