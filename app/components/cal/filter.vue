@@ -245,6 +245,22 @@
               />
             </div>
           </t-field>
+          <p class="menu-label">
+            Color by:
+          </p>
+          <ul>
+            <li
+              v-for="dataDisplayModeOption of dataDisplayModes"
+              :key="dataDisplayModeOption"
+            >
+              <t-radio
+                v-model="dataDisplayMode"
+                :native-value="dataDisplayModeOption"
+              >
+                {{ dataDisplayModeOption }}
+              </t-radio>
+            </li>
+          </ul>
         </aside>
       </div>
 
@@ -432,53 +448,6 @@
       <!-- DATA DISPLAY -->
       <div v-if="activeTab === 'data-display'">
         <aside class="menu">
-          <ul>
-            <li
-              v-for="dataDisplayModeOption of dataDisplayModes"
-              :key="dataDisplayModeOption"
-            >
-              <t-radio
-                v-model="dataDisplayMode"
-                :native-value="dataDisplayModeOption"
-              >
-                {{ dataDisplayModeOption }}
-              </t-radio>
-            </li>
-          </ul>
-          <p class="menu-label">
-            Display map elements by:
-          </p>
-          <ul>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Mode"
-                :disabled="dataDisplayMode === 'Agency'"
-              >
-                Mode
-              </t-radio>
-            </li>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Frequency"
-                :disabled="dataDisplayMode === 'Agency'"
-              >
-                Frequency
-              </t-radio>
-            </li>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Fare"
-                :disabled="true /* this is future functionality */"
-              >
-                Fare <t-tooltip text="This is planned for future implementation">
-                  <i class="mdi mdi-information-outline" />
-                </t-tooltip>
-              </t-radio>
-            </li>
-          </ul>
           <p class="menu-label">
             Base map <t-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
               <i class="mdi mdi-information-outline" />
@@ -513,6 +482,16 @@
               </t-checkbox>
             </li>
           </ul>
+          <p class="menu-label">
+            Display Options
+          </p>
+          <ul>
+            <li>
+              <t-checkbox v-model="showFiltered">
+                Show filtered routes/stops
+              </t-checkbox>
+            </li>
+          </ul>
         </aside>
       </div>
 
@@ -538,20 +517,6 @@
               >
                 🇪🇺 Metric
               </t-radio>
-            </li>
-          </ul>
-
-          <p class="menu-label">
-            Display options
-          </p>
-          <ul>
-            <li>
-              <t-field grouped>
-                <t-checkbox
-                  v-model="hideUnmarked"
-                  label="Hide unmarked routes/stops"
-                />
-              </t-field>
             </li>
           </ul>
         </aside>
@@ -640,7 +605,12 @@ const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
 const hideUnmarked = defineModel<boolean>('hideUnmarked')
-const colorKey = defineModel<string>('colorKey')
+
+const showFiltered = computed({
+  get: () => !hideUnmarked.value,
+  set: (v: boolean) => { hideUnmarked.value = !v }
+})
+
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
 const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')

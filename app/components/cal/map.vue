@@ -15,7 +15,6 @@
 
     <cal-legend
       :data-display-mode="dataDisplayMode"
-      :color-key="colorKey"
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
@@ -68,7 +67,6 @@ const emit = defineEmits<{
 const props = defineProps<{
   bbox: Bbox
   dataDisplayMode?: DataDisplayMode
-  colorKey?: string
   displayEditBboxMode?: boolean
   showBbox?: boolean
   hideUnmarked?: boolean
@@ -574,25 +572,16 @@ const styleData = computed((): Matcher[] => {
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
-  // Seven modes
   if (props.dataDisplayMode === 'Agency') {
     rules.push(...getAgencyMatchers())
-  } else if (props.dataDisplayMode === 'Route') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getRouteFrequencyMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
-  } else if (props.dataDisplayMode === 'Stop') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getStopVisitMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
+  } else if (props.dataDisplayMode === 'Transit mode') {
+    rules.push(...getModeMatchers())
+  } else if (props.dataDisplayMode === 'Route frequency') {
+    rules.push(...getRouteFrequencyMatchers())
+  } else if (props.dataDisplayMode === 'Stop visits') {
+    rules.push(...getStopVisitMatchers())
+  } else if (props.dataDisplayMode === 'Service area') {
+    // report-only mode; no map color rules
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule

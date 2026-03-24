@@ -30,16 +30,16 @@
             <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Route"
-              label="Route"
+              native-value="Transit mode"
+              label="Routes"
             />
           </t-field>
           <t-field class="mb-0">
             <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Stop"
-              label="Stop"
+              native-value="Stop visits"
+              label="Stops"
             />
           </t-field>
           <t-field class="mb-0">
@@ -64,8 +64,8 @@
             <t-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Area"
-              label="Area"
+              native-value="Service area"
+              label="Service areas"
             />
           </t-field>
         </section>
@@ -142,7 +142,7 @@ const downloadFeatures = computed((): Feature[] => {
   return props.exportFeatures || []
 })
 
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop' })
+const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 const routeColumns: TableColumn[] = [
@@ -313,7 +313,7 @@ const geoReportData = computed((): TableReport => {
     return { data: [], columns: [] }
   }
   // Handle aggregation
-  if (dataDisplayMode.value === 'Stop') {
+  if (dataDisplayMode.value === 'Stop visits') {
     return {
       data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateLayer.value),
       columns: stopGeoAggregateColumns.value
@@ -323,13 +323,12 @@ const geoReportData = computed((): TableReport => {
 })
 
 const reportData = computed((): TableReport => {
-  // Non-aggregated data
-  if (dataDisplayMode.value === 'Route') {
+  if (dataDisplayMode.value === 'Transit mode' || dataDisplayMode.value === 'Route frequency') {
     return {
       data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
       columns: routeColumns
     }
-  } else if (dataDisplayMode.value === 'Stop') {
+  } else if (dataDisplayMode.value === 'Stop visits') {
     return {
       data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
       columns: stopColumns
@@ -339,7 +338,7 @@ const reportData = computed((): TableReport => {
       data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
-  } else if (dataDisplayMode.value === 'Area') {
+  } else if (dataDisplayMode.value === 'Service area') {
     return {
       data: (props.flexDisplayFeatures || []).map(flexFeatureToCsv),
       columns: flexAreaColumns
@@ -349,13 +348,13 @@ const reportData = computed((): TableReport => {
 })
 
 const reportTitle = computed(() => {
-  if (dataDisplayMode.value === 'Route') {
+  if (dataDisplayMode.value === 'Transit mode' || dataDisplayMode.value === 'Route frequency') {
     return 'routes'
-  } else if (dataDisplayMode.value === 'Stop') {
+  } else if (dataDisplayMode.value === 'Stop visits') {
     return 'stops'
   } else if (dataDisplayMode.value === 'Agency') {
     return 'agencies'
-  } else if (dataDisplayMode.value === 'Area') {
+  } else if (dataDisplayMode.value === 'Service area') {
     return 'flex service areas'
   }
   return ''
