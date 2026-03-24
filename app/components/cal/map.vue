@@ -816,7 +816,7 @@ watch(extentBbox, () => {
 const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
-  const a: PopupFeature[] = []
+  const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
   const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
 
   console.log(`[MapClick] ${features.length} raw features at point`)
@@ -836,6 +836,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const fp = feature.properties
 
     let popupFeature: PopupFeature | undefined = undefined
+    let sortKey: [number, number] = [0, 0]
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -855,6 +856,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
         }
       }
+      sortKey = [0, 0]
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
       popupFeature = {
         point: { lon: pt.lng, lat: pt.lat },
@@ -869,6 +871,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agency_name: fp.agency_name,
         }
       }
+      sortKey = [1, 0]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
       // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
@@ -889,14 +892,21 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           marked: fp.marked,
         }
       }
+      // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first
+      const matchOrder = fp.marked ? 2 : 3
+      sortKey = [matchOrder, fp.area_m2 ?? 0]
     }
 
     if (popupFeature) {
       console.log(`[MapClick] Adding popup feature: featureId=${popupFeature.featureId}, sourceLayer=${popupFeature.sourceLayer}`)
-      a.push(popupFeature)
+      entries.push({ popupFeature, sortKey })
     }
   }
 
+  // Sort: stops (0) → routes (1) → matched flex by area (2,asc) → unmatched flex by area (3,asc)
+  entries.sort((x, y) => x.sortKey[0] - y.sortKey[0] || x.sortKey[1] - y.sortKey[1])
+
+  const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
 }

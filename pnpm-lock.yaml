@@ -20,6 +20,9 @@ importers:
       '@nuxt/eslint-config':
         specifier: 1.10.0
         version: 1.10.0(@typescript-eslint/utils@8.57.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.30)(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
+      '@turf/area':
+        specifier: 7.3.4
+        version: 7.3.4
       '@turf/bbox':
         specifier: 7.2.0
         version: 7.2.0
@@ -1567,6 +1570,9 @@ packages:
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
+
+  '@turf/area@7.3.4':
+    resolution: {integrity: sha512-UEQQFw2XwHpozSBAMEtZI3jDsAad4NnHL/poF7/S6zeDCjEBCkt3MYd6DSGH/cvgcOozxH/ky3/rIVSMZdx4vA==}
 
   '@turf/bbox@7.2.0':
     resolution: {integrity: sha512-wzHEjCXlYZiDludDbXkpBSmv8Zu6tPGLmJ1sXQ6qDwpLE1Ew3mcWqt8AaxfTP5QwDNQa3sf2vvgTEzNbPQkCiA==}
@@ -7515,6 +7521,13 @@ snapshots:
       espree: 10.4.0
       estraverse: 5.3.0
       picomatch: 4.0.3
+
+  '@turf/area@7.3.4':
+    dependencies:
+      '@turf/helpers': 7.3.4
+      '@turf/meta': 7.3.4
+      '@types/geojson': 7946.0.16
+      tslib: 2.8.1
 
   '@turf/bbox@7.2.0':
     dependencies:
