@@ -61,6 +61,9 @@
           <div v-else-if="props.dataDisplayMode === 'Stop visits'" class="legend-heading">
             Avg. visits per day:
           </div>
+          <div v-else-if="props.dataDisplayMode === 'Service area'" class="legend-heading">
+            Service areas:
+          </div>
           <div v-for="s of styleData" :key="s.color">
             <div class="legend-item legend-marker-square" :style="{ background: s.color }" />
             <div>{{ s.label }}</div>

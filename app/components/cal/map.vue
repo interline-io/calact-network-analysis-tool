@@ -580,6 +580,8 @@ const styleData = computed((): Matcher[] => {
     rules.push(...getRouteFrequencyMatchers())
   } else if (props.dataDisplayMode === 'Stop visits') {
     rules.push(...getStopVisitMatchers())
+  } else if (props.dataDisplayMode === 'Service area') {
+    // report-only mode; no map color rules
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
