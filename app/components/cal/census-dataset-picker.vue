@@ -11,14 +11,14 @@
     </template>
     <t-select v-model="modelValue">
       <option v-if="loading && modelValue" :value="modelValue">
-        {{ modelValue }}
+        {{ formatDatasetName(modelValue) }}
       </option>
       <option
         v-for="ds of filteredDatasets"
         :key="ds.name"
         :value="ds.name"
       >
-        {{ ds.description || ds.name }}
+        {{ ds.description || formatDatasetName(ds.name) }}
       </option>
     </t-select>
   </t-field>
@@ -28,6 +28,10 @@
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { type CensusDataset, censusDatasetListQuery } from '~~/src/tl'
+
+function formatDatasetName (name: string): string {
+  return name.replace(/^tiger(\d{4})$/i, 'TIGER $1')
+}
 
 const props = defineProps<{
   label?: string
