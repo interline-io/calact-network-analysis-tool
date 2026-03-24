@@ -26,6 +26,7 @@ const NTD_TO_VISIONEVAL_MODE: Record<string, string> = {
   DR: 'DR', // Demand Response
   VP: 'VP', // Vanpool
   MB: 'MB', // Bus
+  RB: 'RB', // Rapid Bus -> Bus Rapid Transit
   CB: 'RB', // Commuter Bus -> Bus Rapid Transit
   MG: 'MG', // Monorail/Automated Guideway
   SR: 'SR', // Streetcar Rail
