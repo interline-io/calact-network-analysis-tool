@@ -371,6 +371,7 @@ export class ScenarioFetcher {
   private stopLimit = 1000
   private stopTimeBatchSize = 100
   private maxConcurrentRequests = 8
+  private feedVersionPageSize = 100
 
   // Dynamic progress getters
   private get feedVersionProgress (): { total: number, completed: number } {
@@ -390,6 +391,7 @@ export class ScenarioFetcher {
   private stopFetchQueue: TaskQueue<StopFetchTask>
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
+  private flexFetchQueue: TaskQueue<FeedVersion>
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
@@ -424,6 +426,13 @@ export class ScenarioFetcher {
       this.maxConcurrentRequests,
       task => this.fetchStopDepartures(task), {
         onProgress: () => { this.updateProgress('schedules', true) },
+        onError: error => this.callbacks.onError?.(error)
+      }
+    )
+
+    this.flexFetchQueue = new TaskQueue<FeedVersion>(
+      this.maxConcurrentRequests,
+      task => this.fetchFlexArea(task), {
         onError: error => this.callbacks.onError?.(error)
       }
     )
@@ -507,66 +516,47 @@ export class ScenarioFetcher {
     this.updateProgress('flex-areas', true)
     console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
 
-    // Use the start date for filtering stop_times
-    // Format as YYYY-MM-DD for the GraphQL Date scalar
+    for (const fv of this.feedVersions) {
+      this.flexFetchQueue.enqueueOne(fv)
+    }
+    this.flexFetchQueue.run()
+    await this.flexFetchQueue.wait()
+
+    console.log(`[FlexAreas] Complete`)
+  }
+
+  // Fetch flex areas for a single feed version
+  private async fetchFlexArea (fv: FeedVersion): Promise<void> {
     const queryDate = this.config.startDate
       ? format(this.config.startDate, 'yyyy-MM-dd')
       : format(new Date(), 'yyyy-MM-dd')
 
-    let totalLocations = 0
-    let totalFlexAreas = 0
-
-    // Query locations for each feed version
-    for (const fv of this.feedVersions) {
-      try {
-        const variables = {
-          fvSha1: fv.sha1,
-          limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
-          serviceDate: queryDate,
-        }
-
-        console.log(`[FlexAreas] Querying locations for ${fv.feed.onestop_id} (${fv.sha1}) on ${queryDate}`)
-        const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
-
-        const feedVersionData = response.data?.feed_versions?.[0]
-        if (!feedVersionData) {
-          console.log(`[FlexAreas] No data returned for ${fv.feed.onestop_id}`)
-          continue
-        }
-
-        const locations = feedVersionData.locations || []
-        totalLocations += locations.length
-        console.log(`[FlexAreas] Found ${locations.length} locations in ${fv.feed.onestop_id}`)
-
-        // Transform locations to FlexAreaFeatures
-        // This also filters out locations with no stop_times (no service on selected date)
-        const flexAreas = transformLocationsToFlexAreas(locations)
-        totalFlexAreas += flexAreas.length
-
-        if (flexAreas.length > 0) {
-          console.log(`[FlexAreas] Transformed ${flexAreas.length} flex areas from ${fv.feed.onestop_id}`)
-
-          // Stream flex areas to frontend
-          this.updateProgress('flex-areas', true, {
-            stops: [],
-            routes: [],
-            feedVersions: [],
-            stopDepartures: [],
-            flexAreas
-          })
-        } else {
-          console.log(`[FlexAreas] No active flex areas on ${queryDate} in ${fv.feed.onestop_id}`)
-        }
-      } catch (error) {
-        // Log detailed error information to help diagnose issues
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        const errorName = error instanceof Error ? error.name : 'UnknownError'
-        console.error(`[FlexAreas] Error fetching locations for feed ${fv.feed.onestop_id} (sha1: ${fv.sha1}, date: ${queryDate}): [${errorName}] ${errorMsg}. This feed will be skipped.`)
-        // Continue with other feed versions even if one fails
-      }
+    const variables = {
+      fvSha1: fv.sha1,
+      limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
+      serviceDate: queryDate,
     }
 
-    console.log(`[FlexAreas] Complete: ${totalFlexAreas} flex areas from ${totalLocations} locations`)
+    const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
+
+    const feedVersionData = response.data?.feed_versions?.[0]
+    if (!feedVersionData) {
+      return
+    }
+
+    const locations = feedVersionData.locations || []
+    const flexAreas = transformLocationsToFlexAreas(locations)
+
+    if (flexAreas.length > 0) {
+      console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feed.onestop_id}`)
+      this.updateProgress('flex-areas', true, {
+        stops: [],
+        routes: [],
+        feedVersions: [],
+        stopDepartures: [],
+        flexAreas
+      })
+    }
   }
 
   // Fetch active feed versions in the specified area
@@ -610,10 +600,21 @@ export class ScenarioFetcher {
     }
 
     // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
+    // Paginate to ensure we get all feeds (API default limit is 100)
     const bboxForQuery = convertBbox(searchBbox)
-    const variables = { where: { bbox: bboxForQuery } }
-    const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
-    const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
+    const allFeeds: FeedGql[] = []
+    let after = 0
+    while (true) {
+      const variables = { where: { bbox: bboxForQuery }, limit: this.feedVersionPageSize, after }
+      const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
+      const page = response.data?.feeds || []
+      allFeeds.push(...page)
+      if (page.length < this.feedVersionPageSize) {
+        break
+      }
+      after = parseInt(page[page.length - 1]!.id, 10)
+    }
+    const feedVersions = allFeeds.map(feed => feed.feed_state.feed_version)
 
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
