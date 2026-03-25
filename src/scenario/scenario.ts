@@ -612,7 +612,11 @@ export class ScenarioFetcher {
       if (page.length < this.feedVersionPageSize) {
         break
       }
-      after = parseInt(page[page.length - 1]!.id, 10)
+      const nextAfter = parseInt(page[page.length - 1]!.id, 10)
+      if (!Number.isInteger(nextAfter)) {
+        throw new Error(`[FeedVersions] Invalid pagination cursor: id="${page[page.length - 1]!.id}" did not parse as an integer`)
+      }
+      after = nextAfter
     }
     const feedVersions = allFeeds.map(feed => feed.feed_state.feed_version)
 
