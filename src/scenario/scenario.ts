@@ -519,8 +519,7 @@ export class ScenarioFetcher {
     for (const fv of this.feedVersions) {
       this.flexFetchQueue.enqueueOne(fv)
     }
-    this.flexFetchQueue.run()
-    await this.flexFetchQueue.wait()
+    await this.flexFetchQueue.run()
 
     console.log(`[FlexAreas] Complete`)
   }
