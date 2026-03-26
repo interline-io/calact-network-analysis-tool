@@ -56,6 +56,15 @@ function createFlexLocationGql (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon
 }
 
 describe('transformLocationToFlexArea', () => {
+  it('sets internal_id from location.id', () => {
+    const location = createFlexLocationGql({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+    })
+    const feature = transformLocationToFlexArea(location)
+    expect(feature.properties.internal_id).toBe(location.id)
+  })
+
   it('computes a positive area_m2 for a polygon', () => {
     // Rough 1-degree square near the equator — ~12,000 km²
     const location = createFlexLocationGql({

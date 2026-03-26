@@ -73,6 +73,7 @@ import type {
 } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
+import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
 
 // The t-checkbox-group control normalizes "all items selected" to undefined,
 // which normally means "no filter applied." For 'All' mode we override this:
@@ -456,26 +457,53 @@ function checkDiv (a: number, b: number): number {
 //////////////////////////////////////
 
 /**
- * Filter flex areas by agency
- * Returns true if the flex area matches the selected agencies filter
+ * Filter flex areas by agency and optionally by day-of-week.
+ * Returns true if the flex area passes all active filters.
  */
 function flexAreaMarked (
   feature: FlexAreaFeature,
+  flexDepartureCache: FlexDepartureCache,
+  dateRange: Date[],
   selectedAgencies?: string[],
+  selectedWeekdays?: Weekday[],
+  selectedWeekdayMode?: WeekdayMode,
 ): boolean {
-  // No filter applied - all pass
-  if (selectedAgencies == null) { return true }
-  // Empty filter - nothing passes
-  if (selectedAgencies.length === 0) { return false }
+  // Agency filter
+  if (selectedAgencies != null) {
+    if (selectedAgencies.length === 0) { return false }
+    const featureAgencyNames = getFlexAgencyNames(feature)
+    const hasMatchingAgency = featureAgencyNames.some(name => selectedAgencies.includes(name))
+    if (!hasMatchingAgency) {
+      return false
+    }
+  }
 
-  // Check if flex area matches any selected agency
-  const featureAgencyNames = getFlexAgencyNames(feature)
-  const hasMatchingAgency = featureAgencyNames.some(name =>
-    selectedAgencies.includes(name)
-  )
-  if (!hasMatchingAgency) {
-    // console.debug('flexAreaMarked:', feature.id, 'unmarked: no matching agency in', selectedAgencies)
-    return false
+  // Day-of-week filter
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null) {
+    if (effectiveWeekdays.length === 0) { return false }
+    const locationId = feature.properties.internal_id
+    if (locationId == null) { return false }
+
+    let hasAny = false
+    let hasAll = true
+
+    for (const weekday of effectiveWeekdays) {
+      let hasServiceOnWeekday = false
+      for (const date of dateRange) {
+        if (dowDateString[date.getDay()] === weekday) {
+          if (flexDepartureCache.hasService(locationId, format(date, 'yyyy-MM-dd'))) {
+            hasServiceOnWeekday = true
+            break
+          }
+        }
+      }
+      if (hasServiceOnWeekday) { hasAny = true } else { hasAll = false }
+    }
+
+    if (selectedWeekdayMode === 'All' ? !hasAll : !hasAny) {
+      return false
+    }
   }
 
   return true
@@ -620,7 +648,11 @@ export function applyScenarioResultFilter (
   const flexAreaFeatures = (data.flexAreas || []).map((flexArea): FlexAreaFeature => {
     const marked = flexAreaMarked(
       flexArea,
+      data.flexDepartureCache,
+      selectedDateRangeValue,
       selectedAgenciesValue,
+      filter.selectedWeekdays,
+      filter.selectedWeekdayMode,
     )
     return {
       ...flexArea,

@@ -23,16 +23,19 @@ import type { FlexAreaFeature,
   StopDeparture,
   StopGql,
   StopTime,
-  FlexLocationQueryResponse
+  FlexLocationQueryResponse,
+  FlexStopTimesQueryResponse,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
+  FlexDepartureCache,
   feedVersionQuery,
   routeQuery,
   stopDepartureQuery,
   stopTimeQuery,
   stopQuery,
   flexLocationQuery,
+  flexStopTimesQuery,
   transformLocationsToFlexAreas,
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
@@ -111,6 +114,7 @@ export interface ScenarioData {
   stops: StopGql[]
   feedVersions: FeedVersion[]
   stopDepartureCache: StopDepartureCache
+  flexDepartureCache: FlexDepartureCache
   /**
    * Flex service areas (GTFS-Flex / DRT)
    * Currently loaded from static GeoJSON, will come from GraphQL API later
@@ -171,6 +175,7 @@ export interface ScenarioProgress {
     feedVersions: FeedVersion[]
     flexAreas: FlexAreaFeature[]
     stopDepartures: StopDepartureTuple[]
+    flexDepartures?: FlexDepartureTuple[]
   }
   extraData?: any
   config?: any
@@ -211,6 +216,18 @@ export const StopDepartureTuple = {
   tripId: (tuple: StopDepartureTuple) => tuple[3],
   tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
   tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
+}
+
+// Wire format for flex departure cache: [locationId, date]
+export type FlexDepartureTuple = readonly [
+  location_id: number,
+  departure_date: string,
+]
+
+export const FlexDepartureTuple = {
+  create: (location_id: number, departure_date: string): FlexDepartureTuple => [location_id, departure_date],
+  locationId: (tuple: FlexDepartureTuple) => tuple[0],
+  departureDate: (tuple: FlexDepartureTuple) => tuple[1],
 }
 
 // ============================================================================
@@ -286,6 +303,61 @@ export class StopDepartureQueryVars {
         this.include_saturday = true
         break
     }
+  }
+}
+
+/**
+ * Variables for the slim multi-date flex stop_times query.
+ * Mirrors StopDepartureQueryVars but uses fvSha1/limit instead of stop ids.
+ */
+export class FlexStopTimesQueryVars {
+  fvSha1: string = ''
+  limit: number = 0
+  monday: string = ''
+  tuesday: string = ''
+  wednesday: string = ''
+  thursday: string = ''
+  friday: string = ''
+  saturday: string = ''
+  sunday: string = ''
+  include_monday: boolean = false
+  include_tuesday: boolean = false
+  include_wednesday: boolean = false
+  include_thursday: boolean = false
+  include_friday: boolean = false
+  include_saturday: boolean = false
+  include_sunday: boolean = false
+
+  get (dow: string): string {
+    switch (dow) {
+      case 'monday': return this.monday
+      case 'tuesday': return this.tuesday
+      case 'wednesday': return this.wednesday
+      case 'thursday': return this.thursday
+      case 'friday': return this.friday
+      case 'saturday': return this.saturday
+      case 'sunday': return this.sunday
+    }
+    return ''
+  }
+
+  setDay (d: Date) {
+    const dateFmt = 'yyyy-MM-dd'
+    switch (d.getDay()) {
+      case 0: this.sunday = format(d, dateFmt); this.include_sunday = true; break
+      case 1: this.monday = format(d, dateFmt); this.include_monday = true; break
+      case 2: this.tuesday = format(d, dateFmt); this.include_tuesday = true; break
+      case 3: this.wednesday = format(d, dateFmt); this.include_wednesday = true; break
+      case 4: this.thursday = format(d, dateFmt); this.include_thursday = true; break
+      case 5: this.friday = format(d, dateFmt); this.include_friday = true; break
+      case 6: this.saturday = format(d, dateFmt); this.include_saturday = true; break
+    }
+  }
+
+  hasAnyDay (): boolean {
+    return this.include_monday || this.include_tuesday || this.include_wednesday
+      || this.include_thursday || this.include_friday || this.include_saturday
+      || this.include_sunday
   }
 }
 
@@ -556,6 +628,45 @@ export class ScenarioFetcher {
         flexAreas
       })
     }
+
+    // Fetch slim multi-date stop_times to populate the flex departure cache.
+    // Chunk the date range into 7-day windows (one query per week) so every
+    // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
+    if (flexAreas.length > 0) {
+      const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+      const dates = getSelectedDateRange(this.config)
+      const weekSize = 7
+      const flexDepartures: FlexDepartureTuple[] = []
+      for (let i = 0; i < dates.length; i += weekSize) {
+        const w = new FlexStopTimesQueryVars()
+        w.fvSha1 = fv.sha1
+        w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
+        for (const d of dates.slice(i, i + weekSize)) {
+          w.setDay(d)
+        }
+        if (!w.hasAnyDay()) { continue }
+        const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
+        for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
+          for (const dowName of dowNames) {
+            const date = w.get(dowName)
+            if (!date) { continue }
+            if ((location[dowName]?.length ?? 0) > 0) {
+              flexDepartures.push(FlexDepartureTuple.create(location.id, date))
+            }
+          }
+        }
+      }
+      if (flexDepartures.length > 0) {
+        this.updateProgress('flex-areas', true, {
+          stops: [],
+          routes: [],
+          feedVersions: [],
+          stopDepartures: [],
+          flexAreas: [],
+          flexDepartures,
+        })
+      }
+    }
   }
 
   // Fetch active feed versions in the specified area
@@ -793,6 +904,7 @@ export class ScenarioDataReceiver {
       routes: [],
       feedVersions: [],
       stopDepartureCache: new StopDepartureCache(),
+      flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
     }
   }
@@ -828,6 +940,16 @@ export class ScenarioDataReceiver {
       // Append new flex areas
       if (progress.partialData.flexAreas) {
         this.accumulatedData.flexAreas.push(...progress.partialData.flexAreas)
+      }
+
+      // Add flex departure cache entries
+      if (progress.partialData.flexDepartures) {
+        for (const tuple of progress.partialData.flexDepartures) {
+          this.accumulatedData.flexDepartureCache.add(
+            FlexDepartureTuple.locationId(tuple),
+            FlexDepartureTuple.departureDate(tuple),
+          )
+        }
       }
     }
 
