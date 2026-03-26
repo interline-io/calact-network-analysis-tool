@@ -175,7 +175,6 @@ function routeMarked (
     // Check if route has service on selected days using headway data
     let hasAny = false
     let hasAll = true
-    const missingDows: string[] = []
     for (const sd of effectiveWeekdays) {
       let dayHeadways: RouteHeadwayDirections | undefined
       if (sd === 'sunday') {
@@ -198,7 +197,6 @@ function routeMarked (
         hasAny = true
       } else {
         hasAll = false
-        missingDows.push(sd)
       }
     }
     // Check mode
@@ -209,9 +207,6 @@ function routeMarked (
       found = hasAll
     }
     if (!found) {
-      if (selectedWeekdayMode === 'All' && missingDows.length > 0) {
-        console.debug('[DOW debug] route filtered out by All mode:', route.route_name || route.route_id, '— missing DOWs:', missingDows.join(', '))
-      }
       return false
     }
   }
@@ -539,36 +534,6 @@ export function applyScenarioResultFilter (
   const frequencyUnderValue = filter.frequencyUnder
   const frequencyOverValue = filter.frequencyOver
 
-  // DOW debug: log date range, cache coverage, and effective weekdays
-  if (selectedWeekdayModeValue) {
-    const effectiveWeekdays = resolveEffectiveWeekdays(selectedDaysValue, selectedWeekdayModeValue)
-    const datesInRange = selectedDateRangeValue.map(d => ({
-      date: format(d, 'yyyy-MM-dd'),
-      dow: dowDateString[d.getDay()] ?? '?',
-    }))
-    // Count total departures per date across all stops in the cache
-    const depCountByDate: Record<string, number> = {}
-    for (const dateMap of sdCache.cache.values()) {
-      for (const [date, deps] of dateMap.entries()) {
-        depCountByDate[date] = (depCountByDate[date] ?? 0) + deps.length
-      }
-    }
-    const coverageByDow = datesInRange.map(({ date, dow }) => ({
-      date,
-      dow,
-      totalDepartures: depCountByDate[date] ?? 0,
-    }))
-    console.log('[DOW debug] filter:', {
-      mode: selectedWeekdayModeValue,
-      selectedWeekdays: selectedDaysValue,
-      effectiveWeekdays,
-      timeWindow: `${startTimeValue}–${endTimeValue}`,
-    })
-    console.log('[DOW debug] date range coverage (departures across all stops per date):')
-    console.table(coverageByDow)
-  }
-  ///////////
-
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {
     const route: Route = {
@@ -599,19 +564,6 @@ export function applyScenarioResultFilter (
     return route
   })
   const markedRoutes = new Set(routeFeatures.filter(r => r.marked).map(r => r.id))
-
-  // DOW debug: per-DOW headway coverage across all routes
-  if (selectedWeekdayModeValue && routeFeatures.length > 0) {
-    const headwayStatsByDow = dowValues.map((dow) => {
-      const withService = routeFeatures.filter((r) => {
-        const h = r.headways?.[dow]
-        return h && (h.dir0.departures.length > 0 || h.dir1.departures.length > 0)
-      }).length
-      return { dow, routesWithService: withService, routesWithoutService: routeFeatures.length - withService }
-    })
-    console.log(`[DOW debug] routes with headway data per DOW (total routes: ${routeFeatures.length}, marked: ${markedRoutes.size}):`)
-    console.table(headwayStatsByDow)
-  }
 
   // Apply stop filters
   const stopFeatures = data.stops.map((stopGql): Stop => {
