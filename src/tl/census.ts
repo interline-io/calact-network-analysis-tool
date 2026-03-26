@@ -7,7 +7,7 @@ query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_na
     id
     name
     description
-    geographies(where:{ids: $geography_ids}) @include(if: $include_geographies) {
+    geographies(limit: 1000, where:{ids: $geography_ids}) @include(if: $include_geographies) {
       id
       geoid
       name

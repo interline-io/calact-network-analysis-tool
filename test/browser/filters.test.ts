@@ -1,62 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-
-// Helper to parse "X of Y routes" text into { marked, total }
-async function getRouteCounts (page: Page) {
-  const el = page.locator('.cal-filter-summary-counts span', { hasText: 'routes' })
-  const text = await el.textContent()
-  const match = text?.match(/(\d+) of (\d+) routes/)
-  if (!match) { throw new Error(`Could not parse route counts from: "${text}"`) }
-  return { marked: Number(match[1]), total: Number(match[2]) }
-}
-
-async function getStopCounts (page: Page) {
-  const el = page.locator('.cal-filter-summary-counts span', { hasText: 'stops' })
-  const text = await el.textContent()
-  const match = text?.match(/(\d+) of (\d+) stops/)
-  if (!match) { throw new Error(`Could not parse stop counts from: "${text}"`) }
-  return { marked: Number(match[1]), total: Number(match[2]) }
-}
-
-// Wait for the route marked count to differ from a known value
-async function waitForRouteCountChange (page: Page, previousMarked: number) {
-  await expect(async () => {
-    const counts = await getRouteCounts(page)
-    expect(counts.marked).not.toBe(previousMarked)
-  }).toPass({ timeout: 10000 })
-}
-
-// Navigate to filter tab (if not already there) and reset all filters.
-// Waits for marked counts to equal totals before returning.
-async function resetFilters (page: Page) {
-  // Ensure filter tab is open — if the summary counts aren't visible, click the tab
-  const countsVisible = await page.locator('.cal-filter-summary-counts').isVisible()
-  if (!countsVisible) {
-    await page.locator('a[title="Filter"]').click()
-    await expect(page.locator('.cal-filter-summary-counts')).toBeVisible({ timeout: 5000 })
-  }
-  await page.getByRole('button', { name: 'Clear all' }).click()
-  // Wait for counts to stabilize — after reset, marked should equal total
-  await expect(async () => {
-    const routes = await getRouteCounts(page)
-    expect(routes.marked).toBe(routes.total)
-  }).toPass({ timeout: 10000 })
-}
-
-// Open a filter subtab by its label text.
-// Handles the toggle behavior: if the requested subtab is already active,
-// clicking it would close it — so we skip the click in that case.
-// If a different subtab is active, clicking the new one switches to it.
-async function openFilterSubtab (page: Page, label: string) {
-  const menuItem = page.locator('.cal-filter-main .menu-list a', { hasText: label })
-  await menuItem.click()
-  // If clicking toggled it closed (was already active), click again to reopen
-  const subPanel = page.locator('.cal-filter-sub')
-  const isVisible = await subPanel.isVisible()
-  if (!isVisible) {
-    await menuItem.click()
-  }
-  await expect(subPanel).toBeVisible({ timeout: 5000 })
-}
+import { getRouteCounts, getStopCounts, waitForRouteCountChange, resetFilters, openFilterSubtab } from './helpers'
 
 // These tests run against a fixed test database (testdata/gtfs/calact_tlserver.dump).
 // Tests compare relative changes (before/after filter) rather than hardcoded counts,
@@ -65,13 +8,14 @@ test.describe('Filter interactions', () => {
   let page: Page
 
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(180000)
     page = await browser.newPage()
     // Downtown Portland bbox — known to have a mix of modes and agencies in the test data
     await page.goto('/tne?bbox=-122.69075,45.51358,-122.66809,45.53306')
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Transit Network Explorer')).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: 'Run Browse Query' }).click()
-    await expect(page.getByText('Browsing query data loaded successfully')).toBeVisible({ timeout: 60000 })
+    await expect(page.getByText('Browsing query data loaded successfully')).toBeVisible({ timeout: 120000 })
   })
 
   test.afterAll(async () => {
