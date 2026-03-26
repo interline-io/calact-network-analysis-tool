@@ -148,11 +148,14 @@ describe('ScenarioFetcher', () => {
 
     it('streams flex areas per feed, skipping feeds with no active locations', async () => {
       const client = new MockGraphQLClient()
+      // Each feed version gets two queries: flexLocationQuery + flexStopTimesQuery
+      const emptyStopTimesResponse = { data: { feed_versions: [{ locations: [] }] } }
       client.mockQuery
         .mockResolvedValueOnce(threeFeedsResponse) // feed versions
         .mockResolvedValueOnce(flexResponse(true)) // fv1: has flex areas
         .mockResolvedValueOnce(flexResponse(false)) // fv2: no locations
         .mockResolvedValueOnce(flexResponse(true)) // fv3: has flex areas
+        .mockResolvedValue(emptyStopTimesResponse) // stop-times queries (one per fv)
 
       const progressCb = vi.fn()
       const fetcher = new ScenarioFetcher(flexConfig, client, { onProgress: progressCb })
@@ -164,11 +167,15 @@ describe('ScenarioFetcher', () => {
 
     it('reports per-feed errors but completes processing of remaining feeds', async () => {
       const client = new MockGraphQLClient()
+      // Each feed version gets two queries: flexLocationQuery + flexStopTimesQuery.
+      // fv2 errors on the location query so its stop-times query is never issued.
+      const emptyStopTimesResponse = { data: { feed_versions: [{ locations: [] }] } }
       client.mockQuery
         .mockResolvedValueOnce(threeFeedsResponse) // feed versions
-        .mockResolvedValueOnce(flexResponse(true)) // fv1: success
-        .mockRejectedValueOnce(new Error('network timeout')) // fv2: error
-        .mockResolvedValueOnce(flexResponse(true)) // fv3: success
+        .mockResolvedValueOnce(flexResponse(true)) // fv1: success (location)
+        .mockRejectedValueOnce(new Error('network timeout')) // fv2: error (location)
+        .mockResolvedValueOnce(flexResponse(true)) // fv3: success (location)
+        .mockResolvedValue(emptyStopTimesResponse) // fv1 + fv3 stop-times queries
 
       const errorCb = vi.fn()
       const progressCb = vi.fn()
