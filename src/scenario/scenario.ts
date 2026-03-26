@@ -344,27 +344,13 @@ export class FlexStopTimesQueryVars {
   setDay (d: Date) {
     const dateFmt = 'yyyy-MM-dd'
     switch (d.getDay()) {
-      case 0:
-        if (!this.include_sunday) { this.sunday = format(d, dateFmt); this.include_sunday = true }
-        break
-      case 1:
-        if (!this.include_monday) { this.monday = format(d, dateFmt); this.include_monday = true }
-        break
-      case 2:
-        if (!this.include_tuesday) { this.tuesday = format(d, dateFmt); this.include_tuesday = true }
-        break
-      case 3:
-        if (!this.include_wednesday) { this.wednesday = format(d, dateFmt); this.include_wednesday = true }
-        break
-      case 4:
-        if (!this.include_thursday) { this.thursday = format(d, dateFmt); this.include_thursday = true }
-        break
-      case 5:
-        if (!this.include_friday) { this.friday = format(d, dateFmt); this.include_friday = true }
-        break
-      case 6:
-        if (!this.include_saturday) { this.saturday = format(d, dateFmt); this.include_saturday = true }
-        break
+      case 0: this.sunday = format(d, dateFmt); this.include_sunday = true; break
+      case 1: this.monday = format(d, dateFmt); this.include_monday = true; break
+      case 2: this.tuesday = format(d, dateFmt); this.include_tuesday = true; break
+      case 3: this.wednesday = format(d, dateFmt); this.include_wednesday = true; break
+      case 4: this.thursday = format(d, dateFmt); this.include_thursday = true; break
+      case 5: this.friday = format(d, dateFmt); this.include_friday = true; break
+      case 6: this.saturday = format(d, dateFmt); this.include_saturday = true; break
     }
   }
 
@@ -643,23 +629,30 @@ export class ScenarioFetcher {
       })
     }
 
-    // Fetch slim multi-date stop_times to populate the flex departure cache
-    const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
-    const w = new FlexStopTimesQueryVars()
-    w.fvSha1 = fv.sha1
-    w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
-    for (const d of getSelectedDateRange(this.config)) {
-      w.setDay(d)
-    }
-    if (w.hasAnyDay()) {
-      const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
+    // Fetch slim multi-date stop_times to populate the flex departure cache.
+    // Chunk the date range into 7-day windows (one query per week) so every
+    // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
+    if (flexAreas.length > 0) {
+      const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+      const dates = getSelectedDateRange(this.config)
+      const weekSize = 7
       const flexDepartures: FlexDepartureTuple[] = []
-      for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
-        for (const dowName of dowNames) {
-          const date = w.get(dowName)
-          if (!date) { continue }
-          if ((location[dowName]?.length ?? 0) > 0) {
-            flexDepartures.push(FlexDepartureTuple.create(location.id, date))
+      for (let i = 0; i < dates.length; i += weekSize) {
+        const w = new FlexStopTimesQueryVars()
+        w.fvSha1 = fv.sha1
+        w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
+        for (const d of dates.slice(i, i + weekSize)) {
+          w.setDay(d)
+        }
+        if (!w.hasAnyDay()) { continue }
+        const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
+        for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
+          for (const dowName of dowNames) {
+            const date = w.get(dowName)
+            if (!date) { continue }
+            if ((location[dowName]?.length ?? 0) > 0) {
+              flexDepartures.push(FlexDepartureTuple.create(location.id, date))
+            }
           }
         }
       }
