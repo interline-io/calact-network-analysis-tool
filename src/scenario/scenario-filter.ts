@@ -207,7 +207,6 @@ function routeMarked (
       found = hasAll
     }
     if (!found) {
-      // console.debug('routeMarked:', route.id, 'unmarked: no service on selectedWeekdays', selectedWeekdays, 'mode:', selectedWeekdayMode, 'hasAny:', hasAny, 'hasAll:', hasAll)
       return false
     }
   }
@@ -534,7 +533,6 @@ export function applyScenarioResultFilter (
   const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = filter.frequencyUnder
   const frequencyOverValue = filter.frequencyOver
-  ///////////
 
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {

@@ -234,6 +234,7 @@ import {
   asDateString,
   asTimeString,
   parseDate,
+  normalizeDate,
   parseTime,
   getLocalDateNoTime,
   dateToSeconds,
@@ -353,7 +354,8 @@ const startDate = computed<Date>({
   get (): Date {
     const str = route.query.startDate?.toString()
     // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
-    return parseDate(str) || nextMonday(endOfYesterday())
+    // normalizeDate strips the time component so the date serializes consistently across timezones
+    return parseDate(str) || normalizeDate(nextMonday(endOfYesterday()))!
   },
   set (v: unknown) {
     setQuery({ ...route.query, startDate: asDateString(v) })
