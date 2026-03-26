@@ -31,9 +31,6 @@
             :variant="isStartDateInRange ? undefined : 'danger'"
             readonly
           />
-          <p v-if="!isStartDateInRange" class="help is-danger">
-            Start date must be within the last year and no more than 2 years in the future. Dates outside this range do not have reliable feed data.
-          </p>
         </t-field>
         <t-field>
           <template #label>
@@ -48,7 +45,7 @@
             :min-date="minAllowedDate"
             :max-date="maxAllowedDate"
             :years-range="datePickerYearsRange"
-            :variant="isEndDateValid ? undefined : 'danger'"
+            :variant="isEndDateInRange && isEndDateValid ? undefined : 'danger'"
             readonly
           />
           <t-button @click="toggleSelectSingleDay()">
@@ -58,6 +55,9 @@
             End date must be on or after the start date.
           </p>
         </t-field>
+        <p v-if="!isStartDateInRange || !isEndDateInRange" class="help is-danger">
+          Dates must be within the last 90 days or next year.
+        </p>
       </t-msg>
 
       <t-msg title="Geographic Bounds">
@@ -269,26 +269,23 @@ const toggleSelectSingleDay = useToggle(selectSingleDay)
 // In future, user-controlled import of historical feeds will be a fuller solution,
 // see https://github.com/interline-io/calact-network-analysis-tool/issues/223
 const today = new Date()
-const minAllowedDate = computed(() => {
-  const d = new Date(today)
-  d.setFullYear(d.getFullYear() - 1)
-  return d
-})
-const maxAllowedDate = computed(() => {
-  const d = new Date(today)
-  d.setFullYear(d.getFullYear() + 2)
-  return d
-})
+const minAllowedDate = new Date(today)
+minAllowedDate.setDate(today.getDate() - 90)
+const maxAllowedDate = new Date(today)
+maxAllowedDate.setFullYear(today.getFullYear() + 1)
 // yearsRange is relative offsets [before, after] from current year for the year dropdown
-const datePickerYearsRange = computed((): [number, number] => [-1, 2])
+const datePickerYearsRange: [number, number] = [-1, 1]
 
-const isStartDateInRange = computed(() => {
-  const date = normalizeDate(startDate.value)
+function isDateInRange (d: Date | undefined): boolean {
+  const date = normalizeDate(d)
   if (!date) {
     return true
   }
-  return date >= minAllowedDate.value && date <= maxAllowedDate.value
-})
+  return date >= minAllowedDate && date <= maxAllowedDate
+}
+
+const isStartDateInRange = computed(() => isDateInRange(startDate.value))
+const isEndDateInRange = computed(() => isDateInRange(endDate.value))
 
 const isEndDateValid = computed(() => {
   if (selectSingleDay.value) {
@@ -409,8 +406,8 @@ const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
 
-  // Start date must be within the allowed range
-  if (!isStartDateInRange.value) {
+  // Start and end dates must be within the allowed range
+  if (!isStartDateInRange.value || !isEndDateInRange.value) {
     return false
   }
 
