@@ -23,7 +23,17 @@
               <t-icon size="small" icon="information" />
             </t-tooltip>
           </template>
-          <t-datepicker v-model="startDate" />
+          <t-datepicker
+            v-model="startDate"
+            :min-date="minAllowedDate"
+            :max-date="maxAllowedDate"
+            :years-range="datePickerYearsRange"
+            :variant="isStartDateInRange ? undefined : 'danger'"
+            readonly
+          />
+          <p v-if="!isStartDateInRange" class="help is-danger">
+            Start date must be within the last year and no more than 2 years in the future. Dates outside this range do not have reliable feed data.
+          </p>
         </t-field>
         <t-field>
           <template #label>
@@ -35,7 +45,11 @@
           <t-datepicker
             v-if="!selectSingleDay"
             v-model="endDate"
+            :min-date="minAllowedDate"
+            :max-date="maxAllowedDate"
+            :years-range="datePickerYearsRange"
             :variant="isEndDateValid ? undefined : 'danger'"
+            readonly
           />
           <t-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
@@ -250,6 +264,32 @@ const selectSingleDay = ref(true)
 const startDate = defineModel<Date>('startDate', { required: true })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
+// Transitland API results are currently based on only active feed versions,
+// so we want to constrain possible query dates.
+// In future, user-controlled import of historical feeds will be a fuller solution,
+// see https://github.com/interline-io/calact-network-analysis-tool/issues/223
+const today = new Date()
+const minAllowedDate = computed(() => {
+  const d = new Date(today)
+  d.setFullYear(d.getFullYear() - 1)
+  return d
+})
+const maxAllowedDate = computed(() => {
+  const d = new Date(today)
+  d.setFullYear(d.getFullYear() + 2)
+  return d
+})
+// yearsRange is relative offsets [before, after] from current year for the year dropdown
+const datePickerYearsRange = computed((): [number, number] => [-1, 2])
+
+const isStartDateInRange = computed(() => {
+  const date = normalizeDate(startDate.value)
+  if (!date) {
+    return true
+  }
+  return date >= minAllowedDate.value && date <= maxAllowedDate.value
+})
+
 const isEndDateValid = computed(() => {
   if (selectSingleDay.value) {
     return true
@@ -368,6 +408,11 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
+
+  // Start date must be within the allowed range
+  if (!isStartDateInRange.value) {
+    return false
+  }
 
   // End date must be valid (on or after start date)
   if (!isEndDateValid.value) {
