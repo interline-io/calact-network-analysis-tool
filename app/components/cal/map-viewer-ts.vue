@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, createApp, h } from 'vue'
+import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
@@ -24,9 +24,12 @@ const emit = defineEmits([
   'overlayDragStart',
   'overlayDrag',
   'overlayDragEnd',
+  'selectableGeoClick',
+  'selectableGeoRightClick',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
+const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
@@ -44,6 +47,10 @@ const props = defineProps<{
   initialBounds?: { sw: { lon: number, lat: number }, ne: { lon: number, lat: number } }
   // Increment to trigger a fitBounds to initialBounds (avoids refitting on map-originated bbox changes)
   fitBoundsKey?: number
+  // Increment to trigger a fitBounds to fitTargetFeatures
+  fitOverlayKey?: number
+  // Features to fit to when fitOverlayKey changes
+  fitTargetFeatures?: Feature[]
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -51,6 +58,14 @@ const skipUpdateStages = new Set(['schedules'])
 
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
+let geoHoverPopup: maplibre.Popup | undefined
+
+onBeforeUnmount(() => {
+  if (geoHoverPopup) {
+    geoHoverPopup.remove()
+    geoHoverPopup = undefined
+  }
+})
 
 //////////////////////
 // Watchers
@@ -58,6 +73,12 @@ const markerLayer = ref<maplibre.Marker[]>([])
 watch(() => overlayFeatures.value, (v) => {
   nextTick(() => {
     updateOverlayFeatures(v)
+  })
+})
+
+watch(() => selectableGeographies.value, (v) => {
+  nextTick(() => {
+    updateSelectableGeographies(v)
   })
 })
 
@@ -111,6 +132,12 @@ watch(() => props.panelWidth, (v) => {
   applyPanelPadding(v || 0)
 })
 
+watch(() => props.fitOverlayKey, () => {
+  if (map && props.fitTargetFeatures?.length) {
+    fitFeatures(props.fitTargetFeatures)
+  }
+})
+
 watch(() => props.fitBoundsKey, () => {
   if (props.initialBounds && map) {
     const { sw, ne } = props.initialBounds
@@ -162,6 +189,7 @@ function initMap () {
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
+    updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
     map?.on('mousemove', mapMouseMove)
@@ -203,11 +231,65 @@ function initMap () {
         map!.getCanvas().style.cursor = ''
       }
     })
+
+    // Selectable geography interactions
+    // Left-click to add to selection
+    map?.on('click', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
+      const feature = e.features?.[0]
+      if (feature) {
+        const geoId = feature.properties?.['geography-id']
+        if (geoId != null) {
+          emit('selectableGeoClick', geoId.toString())
+        }
+      }
+    })
+    // Right-click to remove from selection
+    map?.on('contextmenu', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
+      e.preventDefault()
+      const feature = e.features?.[0]
+      if (feature) {
+        const geoId = feature.properties?.['geography-id']
+        if (geoId != null) {
+          emit('selectableGeoRightClick', geoId.toString())
+        }
+      }
+    })
+    // Hover: show feature name tooltip and pointer cursor (pointer only for clickable)
+    // geoHoverPopup is declared at module scope so onBeforeUnmount can clean it up
+    map?.on('mousemove', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
+      const isClickable = e.features?.[0]?.properties?.clickable
+      map!.getCanvas().style.cursor = isClickable ? 'pointer' : 'default'
+      const feature = e.features?.[0]
+      const name = feature?.properties?.['geography-name']
+      if (name) {
+        if (!geoHoverPopup) {
+          geoHoverPopup = new maplibre.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            className: 'geo-hover-popup',
+            offset: 10,
+          })
+          geoHoverPopup.addTo(map!)
+        }
+        geoHoverPopup.setLngLat(e.lngLat).setText(name)
+      }
+    })
+    map?.on('mouseleave', 'selectable-geo-fill', () => {
+      map!.getCanvas().style.cursor = ''
+      if (geoHoverPopup) {
+        geoHoverPopup.remove()
+        geoHoverPopup = undefined
+      }
+    })
   })
 }
 
 function createSources () {
   map?.addSource('overlayPolygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('selectableGeographies', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -278,6 +360,45 @@ function createLayers () {
       'line-width': 2,
       'line-color': '#ff0000',
       'line-opacity': 0.6
+    }
+  })
+
+  // Selectable geography layers (for click-to-select in adminBoundary mode)
+  map?.addLayer({
+    id: 'selectable-geo-fill',
+    type: 'fill',
+    source: 'selectableGeographies',
+    layout: {},
+    paint: {
+      'fill-color': ['coalesce', ['get', 'fill'], '#888888'],
+      'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.05],
+    }
+  })
+  // Solid outline for clickable (current layer) geographies
+  map?.addLayer({
+    id: 'selectable-geo-outline',
+    type: 'line',
+    source: 'selectableGeographies',
+    filter: ['==', ['get', 'clickable'], true],
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#888888'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.5],
+    }
+  })
+  // Dashed outline for non-clickable (other layer) geographies
+  map?.addLayer({
+    id: 'selectable-geo-outline-dashed',
+    type: 'line',
+    source: 'selectableGeographies',
+    filter: ['==', ['get', 'clickable'], false],
+    layout: {},
+    paint: {
+      'line-color': ['coalesce', ['get', 'stroke'], '#999999'],
+      'line-width': ['coalesce', ['get', 'stroke-width'], 1.5],
+      'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 0.5],
+      'line-dasharray': [4, 4],
     }
   })
 
@@ -403,9 +524,6 @@ function createLayers () {
   })
 }
 
-// Track overlay feature IDs to detect meaningful changes (not just reactivity)
-let lastOverlayFeatureIds: string = ''
-
 function updateOverlayFeatures (features: Feature[]) {
   if (!map) {
     return
@@ -424,19 +542,20 @@ function updateOverlayFeatures (features: Feature[]) {
     const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
     polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
   }
-  // Only fit if the set of features actually changed (not just object references).
-  // This prevents re-fitting when filters change but geographies stay the same.
-  // Avoid fitting the bbox, as that makes it difficult for the user to resize it (see #206).
-  // Skip tracking when features are empty (e.g. toggle off) so toggling back on doesn't re-fit.
-  const featuresWithoutBbox = features.filter(f => f.id !== 'bbox')
-  const currentIds = featuresWithoutBbox
-    .map(f => f.id)
-    .sort().join(',')
+}
 
-  if (currentIds && currentIds !== lastOverlayFeatureIds) {
-    lastOverlayFeatureIds = currentIds
-    fitFeatures(featuresWithoutBbox)
+function updateSelectableGeographies (features: Feature[]) {
+  if (!map) {
+    return
   }
+  const source = map.getSource('selectableGeographies') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  const polygons = features.filter((s) => {
+    return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon'
+  })
+  source.setData({ type: 'FeatureCollection', features: polygons as any })
 }
 
 function updateFeatures (features: Feature[]) {
@@ -810,5 +929,17 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
 
   .bulma-popup .maplibregl-popup-tip {
     border-top-color: #f5f5f5;
+  }
+
+  /* Hover tooltip for selectable geographies */
+  .geo-hover-popup .maplibregl-popup-content {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+  .geo-hover-popup .maplibregl-popup-tip {
+    display: none;
   }
   </style>
