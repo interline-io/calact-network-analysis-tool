@@ -2,7 +2,7 @@
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
       <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" role="button">
-        <t-icon icon="home" size="large" class="is-fullwidth" variant="white" />
+        <cat-icon icon="home" size="large" class="is-fullwidth" variant="white" />
       </nuxt-link>
       <aside class="menu">
         <slot name="menu-items" />
@@ -10,7 +10,7 @@
           <ul class="menu-list">
             <li>
               <a role="button" :title="debugMenu ? 'Turn off debug' : 'Turn on debug'" @click="debugMenuToggle()">
-                <t-icon
+                <cat-icon
                   size="large"
                   icon="application-cog"
                   :variant="debugMenu ? 'warning' : 'white'"
@@ -20,7 +20,7 @@
 
             <li>
               <a role="button" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDarkMode()">
-                <t-icon
+                <cat-icon
                   class="icon-group"
                   size="large"
                   :icon="isDark ? 'weather-night' : 'weather-sunny'"
@@ -36,7 +36,7 @@
                 role="button"
                 target="_blank"
               >
-                <t-icon icon="help" size="large" class="is-fullwidth" variant="white" />
+                <cat-icon icon="help" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
 
@@ -47,7 +47,7 @@
                 title="My user profile"
                 role="button"
               >
-                <t-icon icon="account" size="large" class="is-fullwidth" variant="white" />
+                <cat-icon icon="account" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
           </ul>

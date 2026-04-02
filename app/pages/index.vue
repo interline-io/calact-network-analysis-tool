@@ -13,9 +13,9 @@
       </div>
     </div>
 
-    <t-msg variant="info">
+    <cat-msg variant="info">
       This tool is currently under active development. To gain access, contact the project managers.
-    </t-msg>
+    </cat-msg>
     <nuxt-link class="button is-primary is-large is-fullwidth" :to="{ name: 'tne' }">
       Start Building a Query
     </nuxt-link>

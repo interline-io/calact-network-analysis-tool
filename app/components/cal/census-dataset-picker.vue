@@ -1,15 +1,15 @@
 <template>
-  <t-field>
+  <cat-field>
     <template #label>
-      <t-tooltip v-if="props.tooltip" :text="props.tooltip">
+      <cat-tooltip v-if="props.tooltip" :text="props.tooltip">
         {{ props.label }}
-        <t-icon icon="information" />
-      </t-tooltip>
+        <cat-icon icon="information" />
+      </cat-tooltip>
       <template v-else>
         {{ props.label }}
       </template>
     </template>
-    <t-select v-model="modelValue">
+    <cat-select v-model="modelValue">
       <option v-if="loading && modelValue" :value="modelValue">
         {{ formatDatasetName(modelValue) }}
       </option>
@@ -20,8 +20,8 @@
       >
         {{ ds.description || formatDatasetName(ds.name) }}
       </option>
-    </t-select>
-  </t-field>
+    </cat-select>
+  </cat-field>
 </template>
 
 <script setup lang="ts">

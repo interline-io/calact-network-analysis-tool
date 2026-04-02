@@ -6,7 +6,7 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
@@ -21,7 +21,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
@@ -36,7 +36,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="map"
               class="is-fullwidth"
               size="large"
@@ -51,7 +51,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
@@ -61,7 +61,7 @@
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
@@ -188,7 +188,7 @@
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-      <t-modal
+      <cat-modal
         v-model="showLoadingModal"
         title="Loading"
         :closable="false"
@@ -199,7 +199,7 @@
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
         />
-      </t-modal>
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
