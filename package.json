@@ -56,9 +56,6 @@
       "esbuild",
       "unrs-resolver",
       "vue-demi"
-    ],
-    "overrides": {
-      "@interline-io/catenary": "link:../catenary"
-    }
+    ]
   }
 }
