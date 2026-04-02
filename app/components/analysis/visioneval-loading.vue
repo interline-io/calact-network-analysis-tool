@@ -17,9 +17,9 @@
     </div>
 
     <!-- Error Display -->
-    <t-msg v-if="error" variant="danger" class="mt-4">
+    <cat-msg v-if="error" variant="danger" class="mt-4">
       {{ typeof error === 'string' ? error : error?.message }}
-    </t-msg>
+    </cat-msg>
 
     <!-- Stats Display -->
     <div v-if="progress?.fetchedCount || progress?.filteredCount" class="stats-section">
@@ -49,7 +49,7 @@
 
     <!-- Completion Status -->
     <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
-      <t-icon icon="check-circle" class="mr-2" />
+      <cat-icon icon="check-circle" class="mr-2" />
       Analysis completed successfully!
     </div>
   </div>

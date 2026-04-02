@@ -45,7 +45,7 @@ export default defineNuxtConfig({
   },
 
   build: {
-    transpile: ['@interline-io/tlv2-ui'],
+    transpile: ['@interline-io/tlv2-ui', '@interline-io/catenary'],
   },
 
   routeRules: {
@@ -61,7 +61,7 @@ export default defineNuxtConfig({
   vite: {
     server: {
       fs: {
-        allow: isDev ? ['../tlv2-ui'] : [],
+        allow: isDev ? ['../tlv2-ui', '../catenary'] : [],
       },
     },
   },

@@ -35,59 +35,59 @@
     <div class="columns">
       <div class="column is-one-half">
         <!-- States & Population Settings (Collapsible) -->
-        <t-msg
+        <cat-msg
           title="State Filtering & Population Calculation"
           expandable
           :open="false"
           class="mt-4"
         >
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="Filter results to specific states. Only stops and population data for selected states will appear in the analysis.">
+              <cat-tooltip text="Filter results to specific states. Only stops and population data for selected states will appear in the analysis.">
                 Show results for state(s)
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
             <div v-for="state in Object.keys(StatePopulations).sort()" :key="state">
-              <t-checkbox
+              <cat-checkbox
                 v-model="selectedStates"
                 :native-value="state"
               >
                 {{ state }}
-              </t-checkbox>
+              </cat-checkbox>
             </div>
-          </t-field>
+          </cat-field>
 
-          <t-field class="mt-4">
+          <cat-field class="mt-4">
             <template #label>
-              <t-tooltip text="Choose how population percentages are calculated in the statistics table">
+              <cat-tooltip text="Choose how population percentages are calculated in the statistics table">
                 Population Calculation
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-radio v-model="popMethod" native-value="state">
+            <cat-radio v-model="popMethod" native-value="state">
               Percent of state population
-            </t-radio>
-            <t-radio v-model="popMethod" native-value="bboxIntersection">
+            </cat-radio>
+            <cat-radio v-model="popMethod" native-value="bboxIntersection">
               Percent of population in bounding box
-            </t-radio>
-          </t-field>
-        </t-msg>
+            </cat-radio>
+          </cat-field>
+        </cat-msg>
         <!-- Frequency Levels Section -->
-        <t-field label="Stops by Frequency Level">
+        <cat-field label="Stops by Frequency Level">
           <template #label>
-            <t-tooltip text="Toggle on/off to show/hide stops at each level on the map">
+            <cat-tooltip text="Toggle on/off to show/hide stops at each level on the map">
               Frequency Levels
-              <t-icon icon="information" />
-            </t-tooltip>
+              <cat-icon icon="information" />
+            </cat-tooltip>
           </template>
           <table class="wsdot-level-details">
             <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
               <tr>
                 <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
-                  <t-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
+                  <cat-checkbox v-model="selectedLevels" :native-value="levelKey as LevelKey">
                     {{ levelDetail.label }}
-                  </t-checkbox>
+                  </cat-checkbox>
                 </td>
               </tr>
               <tr v-for="[adminKey, pop] of Object.entries(levelDetail.layerPops)" :key="adminKey">
@@ -110,29 +110,29 @@
               </tr>
             </tbody>
           </table>
-        </t-field>
+        </cat-field>
 
-        <t-field class="mt-4">
+        <cat-field class="mt-4">
           <cal-csv-download
             :data="populationDatagrid.data"
             button-text="Download Population Data as CSV"
             :fullwidth="true"
           />
-        </t-field>
+        </cat-field>
       </div>
       <div class="column">
-        <t-msg
+        <cat-msg
           title="Map Display"
           expandable
           :open="false"
           class="mt-4"
         >
-          <t-field>
-            <t-checkbox v-model="showStopBuffers">
+          <cat-field>
+            <cat-checkbox v-model="showStopBuffers">
               Show stop buffers
-            </t-checkbox>
-          </t-field>
-        </t-msg>
+            </cat-checkbox>
+          </cat-field>
+        </cat-msg>
         <cal-map-viewer-ts
           :features="displayFeatures"
           :center="bboxCenter"
@@ -146,13 +146,13 @@
       :show-results-count="false"
     >
       <template #additional-downloads>
-        <t-field>
+        <cat-field>
           <cal-geojson-download
             :data="stopFeatures"
             filename="wsdot-frequent-transit-stops"
             button-text="Download as GeoJSON"
           />
-        </t-field>
+        </cat-field>
       </template>
 
       <template #column-highestLevel="{ value }">
@@ -164,31 +164,31 @@
         </span>
       </template>
       <template #column-level1="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level2="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level3="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level4="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level5="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-level6="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
       <template #column-levelNights="{ value }">
-        <t-icon v-if="value == 1" icon="check" />
+        <cat-icon v-if="value == 1" icon="check" />
         <span v-else />
       </template>
     </cal-datagrid>

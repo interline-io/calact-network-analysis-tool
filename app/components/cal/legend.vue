@@ -1,6 +1,6 @@
 <template>
   <div class="cal-map-legend" :class="{ 'is-hidden': !shouldShowLegend }">
-    <t-msg
+    <cat-msg
       title="Legend"
       expandable
       :open="true"
@@ -115,7 +115,7 @@
           </div>
         </div>
       </div>
-    </t-msg>
+    </cat-msg>
   </div>
 </template>
 

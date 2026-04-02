@@ -11,29 +11,29 @@
     <!-- Analysis selection interface -->
     <div v-else>
       <tl-title title="Analysis" />
-      <t-msg variant="info">
+      <cat-msg variant="info">
         <p>
-          For richer metrics than included in the <t-icon
+          For richer metrics than included in the <cat-icon
             icon="file-chart"
             style="vertical-align:middle;"
           /> <strong>Report tab</strong> by default, run an analysis.
         </p>
         <p>Additional analyses can be added and customized for stakeholders by the project team.</p>
-      </t-msg>
+      </cat-msg>
 
       <!-- Warning when no scenario data is available (only if all analyses require it) -->
-      <t-msg
+      <cat-msg
         v-if="!scenarioConfig && !hasStandaloneAnalyses"
         variant="danger"
       >
-        You need to define the geographic extent before running analyses. Please go to the <t-icon
+        You need to define the geographic extent before running analyses. Please go to the <cat-icon
           icon="magnify"
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> to load transit stops and routes for your selected geographic extent.
-      </t-msg>
+      </cat-msg>
 
-      <t-field label="Start an analysis">
-        <t-select
+      <cat-field label="Start an analysis">
+        <cat-select
           v-model="selectedReportType"
         >
           <option
@@ -51,8 +51,8 @@
           >
             {{ analysis.label }}{{ analysis.requiresScenario && !scenarioConfig ? ' (requires geographic extent)' : '' }}
           </option>
-        </t-select>
-      </t-field>
+        </cat-select>
+      </cat-field>
     </div>
   </div>
 </template>

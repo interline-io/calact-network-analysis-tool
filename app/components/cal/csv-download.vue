@@ -1,7 +1,7 @@
 <template>
-  <t-button icon-left="download" :disabled="disabled" :fullwidth="fullwidth" @click="saveFile">
+  <cat-button icon-left="download" :disabled="disabled" :fullwidth="fullwidth" @click="saveFile">
     {{ buttonText }}
-  </t-button>
+  </cat-button>
 </template>
 
 <script>
