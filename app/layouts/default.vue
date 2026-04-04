@@ -10,7 +10,7 @@
     <div class="main">
       <slot name="main">
         <div class="container is-fluid">
-          <cal-login-gate>
+          <cal-login-gate role="tl_calact_nat">
             <template #roleText>
               <cat-notification class="mt-4">
                 <cat-icon icon="lock" /> Your account does not have permission to access this page. To gain access, contact the project managers.
