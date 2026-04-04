@@ -208,7 +208,6 @@
 import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { useApiFetch } from '~/composables/useApiFetch'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
   getFlexAreaType,
@@ -1115,10 +1114,10 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch(`/examples/${loadExample}.json`)
   } else {
     // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/scenario', {
+    response = await fetch('/api/scenario', {
       method: 'POST',
-      body: JSON.stringify(config)
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
     })
   }
 

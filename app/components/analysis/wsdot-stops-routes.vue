@@ -119,7 +119,6 @@
 </template>
 
 <script lang="ts" setup>
-import { useApiFetch } from '~/composables/useApiFetch'
 import type {
   WSDOTReport,
   WSDOTReportConfig
@@ -244,10 +243,10 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch(`/examples/${loadExample}.json`)
   } else {
     // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/wsdot', {
+    response = await fetch('/api/wsdot', {
       method: 'POST',
-      body: JSON.stringify({ config: wsdotReportConfig.value })
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ config: wsdotReportConfig.value }),
     })
   }
 

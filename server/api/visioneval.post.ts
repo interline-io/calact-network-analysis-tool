@@ -1,7 +1,5 @@
-import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { useApiFetch } from '~/composables/useApiFetch'
 import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
-import { BasicGraphQLClient } from '~~/src/core'
+import { BasicGraphQLClient, apiFetch } from '~~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -29,9 +27,10 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'connection', 'keep-alive')
 
   // Create a proxy-based GraphQL client
+  const runtimeConfig = useRuntimeConfig(event)
   const client = new BasicGraphQLClient(
-    useTransitlandApiEndpoint('/query', event),
-    await useApiFetch(event),
+    useApiEndpoint('/query'),
+    apiFetch(runtimeConfig.tlv2?.graphqlApikey || ''),
   )
 
   // Create a readable stream for the response

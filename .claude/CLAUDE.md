@@ -45,7 +45,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
 - `app/components/analysis/` — Analysis-specific views: WSDOT service levels, WSDOT stops/routes, VisionEval
-- `app/composables/` — `useApiFetch` (HTTP + auth headers), `useTransitlandApiEndpoint`, `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`
+- `app/composables/` — `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`, `useToastNotification`
 - `app/layouts/` — `default` (sidebar + login-gated content area)
 - `src/core/` — Shared utilities: GraphQL client, date/time helpers, geometry, streaming, constants, colors, task queue
 - `src/tl/` — Transitland API integration: stops, routes, departures, agencies, feed versions, census geographies, GTFS-Flex

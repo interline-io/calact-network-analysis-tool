@@ -107,7 +107,6 @@
 </template>
 
 <script lang="ts" setup>
-import { useApiFetch } from '~/composables/useApiFetch'
 import type {
   VisionEvalConfig,
   VisionEvalReport,
@@ -264,9 +263,9 @@ const runQuery = async () => {
     }
 
     // Call the BFF endpoint
-    const apiFetch = await useApiFetch()
-    const response = await apiFetch('/api/visioneval', {
+    const response = await fetch('/api/visioneval', {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ config }),
     })
 

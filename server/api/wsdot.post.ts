@@ -1,7 +1,5 @@
-import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { useApiFetch } from '~/composables/useApiFetch'
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
-import { BasicGraphQLClient } from '~~/src/core'
+import { BasicGraphQLClient, apiFetch } from '~~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -23,9 +21,10 @@ export default defineEventHandler(async (event) => {
 
   // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
   // Create a proxy-based GraphQL client using the utility
+  const runtimeConfig = useRuntimeConfig(event)
   const client = new BasicGraphQLClient(
-    useTransitlandApiEndpoint('/query', event),
-    await useApiFetch(event),
+    useApiEndpoint('/query'),
+    apiFetch(runtimeConfig.tlv2?.graphqlApikey || ''),
   )
 
   // Create a readable stream for the response
