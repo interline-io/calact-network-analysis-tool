@@ -10,7 +10,7 @@
     />
     <!-- Analysis selection interface -->
     <div v-else>
-      <tl-title title="Analysis" />
+      <cal-title title="Analysis" />
       <cat-msg variant="info">
         <p>
           For richer metrics than included in the <cat-icon

@@ -6,7 +6,7 @@ const isDev = process.env.NODE_ENV === 'development'
 
 export default defineNuxtConfig({
   modules: [
-    '@interline-io/tlv2-ui',
+    '@interline-io/tlv2-auth',
     '@nuxt/eslint',
     '@nuxt/devtools',
   ],
@@ -17,9 +17,20 @@ export default defineNuxtConfig({
     enabled: isDev,
   },
 
-  css: ['~/assets/main.scss'],
+  css: [
+    '@mdi/font/css/materialdesignicons.css',
+    '~/assets/main.scss',
+  ],
 
   runtimeConfig: {
+    auth0: {
+      domain: 'auth.interline.io',
+      clientId: '',
+      clientSecret: '',
+      sessionSecret: '',
+      appBaseUrl: process.env.CF_PAGES_URL || '',
+      audience: 'https://api.transit.land',
+    },
     tlv2: {
       graphqlApikey: '',
       proxyBase: {
@@ -28,16 +39,7 @@ export default defineNuxtConfig({
     },
     public: {
       tlv2: {
-        useProxy: true,
-        apiBase: {
-          default: '',
-        },
         protomapsApikey: '',
-        auth0Domain: 'https://auth.interline.io',
-        auth0ClientId: 'GwwocjhHGFR9dfOv2kFgebRhx79GRh0B',
-        auth0RedirectUri: '',
-        auth0Audience: 'https://api.transit.land',
-        auth0Scope: 'profile email openid',
         loginGate: true,
         requireLogin: true,
       },
@@ -45,7 +47,7 @@ export default defineNuxtConfig({
   },
 
   build: {
-    transpile: ['@interline-io/tlv2-ui', '@interline-io/catenary'],
+    transpile: ['@interline-io/tlv2-auth', '@interline-io/catenary'],
   },
 
   routeRules: {
@@ -61,7 +63,7 @@ export default defineNuxtConfig({
   vite: {
     server: {
       fs: {
-        allow: isDev ? ['../tlv2-ui', '../catenary'] : [],
+        allow: isDev ? ['../tlv2-apps', '../catenary'] : [],
       },
     },
   },
@@ -77,8 +79,8 @@ export default defineNuxtConfig({
     },
   },
 
-  tlv2: {
-    useProxy: true,
-    bulma: '~/assets/main.scss',
+  tlv2Auth: {
+    loginGate: true,
+    requireLogin: true,
   },
 })
