@@ -20,6 +20,9 @@ importers:
       '@interline-io/tlv2-auth':
         specifier: 0.0.0-sha.5c65f5e
         version: 0.0.0-sha.5c65f5e(magicast@0.5.2)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.5.2)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))
+      '@mdi/font':
+        specifier: 7.4.47
+        version: 7.4.47
       '@nuxt/eslint':
         specifier: 1.10.0
         version: 1.10.0(@typescript-eslint/utils@8.57.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(@vue/compiler-sfc@3.5.30)(eslint@9.39.1(jiti@2.6.1))(magicast@0.5.2)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))
@@ -47,6 +50,9 @@ importers:
       big-json:
         specifier: 3.2.0
         version: 3.2.0
+      bulma:
+        specifier: 1.0.4
+        version: 1.0.4
       csv-stringify:
         specifier: 6.6.0
         version: 6.6.0

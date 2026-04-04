@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
   const runtimeConfig = useRuntimeConfig(event)
   const client = new BasicGraphQLClient(
-    useApiEndpoint('/query'),
+    runtimeConfig.tlv2.proxyBase.default + '/query',
     apiFetch(runtimeConfig.tlv2?.graphqlApikey || ''),
   )
 

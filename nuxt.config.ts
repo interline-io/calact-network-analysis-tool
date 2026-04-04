@@ -17,7 +17,10 @@ export default defineNuxtConfig({
     enabled: isDev,
   },
 
-  css: ['~/assets/main.scss'],
+  css: [
+    '@mdi/font/css/materialdesignicons.css',
+    '~/assets/main.scss',
+  ],
 
   runtimeConfig: {
     auth0: {
