@@ -28,9 +28,12 @@ export default defineEventHandler(async (event) => {
 
   // Create a proxy-based GraphQL client
   const runtimeConfig = useRuntimeConfig(event)
+  const token = event.context.auth0Session
+    ? await event.context.auth0Session.getAccessToken()
+    : ''
   const client = new BasicGraphQLClient(
     runtimeConfig.tlv2.proxyBase.default + '/query',
-    apiFetch(runtimeConfig.tlv2?.graphqlApikey || ''),
+    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
   )
 
   // Create a readable stream for the response
