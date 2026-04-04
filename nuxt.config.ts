@@ -28,7 +28,7 @@ export default defineNuxtConfig({
       clientId: '',
       clientSecret: '',
       sessionSecret: '',
-      appBaseUrl: '',
+      appBaseUrl: process.env.CF_PAGES_URL || '',
       audience: 'https://api.transit.land',
     },
     tlv2: {
