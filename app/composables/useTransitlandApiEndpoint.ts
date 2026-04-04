@@ -4,6 +4,6 @@ export const useTransitlandApiEndpoint = (path?: string, event?: H3Event) => {
   const config = useRuntimeConfig(event)
   const apiBase = import.meta.server
     ? (config.tlv2?.proxyBase?.default)
-    : (config.public.tlv2?.apiBase?.default || window?.location?.origin + '/api/v2')
+    : (window?.location?.origin + '/api/proxy/default')
   return apiBase + (path || '')
 }

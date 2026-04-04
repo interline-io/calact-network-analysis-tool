@@ -12,14 +12,14 @@ CALACT Network Analysis Tool — a Nuxt 4 (Vue 3) SPA for browsing, analyzing, a
 pnpm dev          # Dev server at localhost:3000
 pnpm build        # Production build
 pnpm start        # Launch production server
-pnpm lint         # ESLint (flat config with tlv2-ui rules)
+pnpm lint         # ESLint (flat config)
 pnpm test         # Vitest with coverage (single run)
 pnpm test:watch   # Vitest in watch mode
 pnpm check        # Lint (with --fix) + typecheck
 pnpm calact       # Run CLI tool (tsx src/cli/calact.ts)
 ```
 
-To use a local copy of tlv2-ui: run `pnpm link ../tlv2-ui` here and `pnpm run dev:prepare` in tlv2-ui.
+To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link ../tlv2-apps/packages/tlv2-auth` here.
 
 ## Architecture
 
@@ -30,15 +30,12 @@ To use a local copy of tlv2-ui: run `pnpm link ../tlv2-ui` here and `pnpm run de
 - **Node.js v20** (see `.nvmrc`)
 - **Auth0** login gate with role `tl_calact_nat` required for access
 
-### Key Module: tlv2-ui
-The `@interline-io/tlv2-ui` package (installed from GitHub Packages or git URL; both supported) is the shared UI library providing:
-- Vue components (`t-loading`, `t-notification`, `t-icon`, `tl-login-gate`, MapLibre GL map viewer)
-- GraphQL query infrastructure and API proxy configuration
-- ESLint stylistic and TypeScript rule configs
-- Auth0 integration and role-based access control
+### Key Dependencies
+- **`@interline-io/catenary`** — Vue 3 UI component library (Bulma-based): buttons, forms, modals, tables, notifications, etc. Registered globally via plugin with `Cat` prefix.
+- **`@interline-io/tlv2-auth`** — Nuxt 4 module providing Auth0 server-side sessions, CSRF protection, and API proxy (`/api/proxy/{backend}/...`). Provides `useUser()`, `useLogin()`, `useLogout()`, `useApiEndpoint()` composables.
 
 ### Data Flow
-- **Transitland GraphQL API** is the primary data source, accessed through tlv2-ui's proxy system
+- **Transitland GraphQL API** is the primary data source, accessed through tlv2-auth's proxy system
 - Frontend sends scenario parameters (bbox, date range, filters) to **server API routes** (`server/api/`)
 - Server routes invoke core logic in `src/scenario/` and `src/analysis/` to fetch and process data
 - Results stream back to the client as **NDJSON** (newline-delimited JSON) via `ReadableStream`
@@ -48,7 +45,7 @@ The `@interline-io/tlv2-ui` package (installed from GitHub Packages or git URL; 
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
 - `app/components/analysis/` — Analysis-specific views: WSDOT service levels, WSDOT stops/routes, VisionEval
-- `app/composables/` — `useApiFetch` (HTTP + Auth0 tokens), `useTransitlandApiEndpoint`, `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`
+- `app/composables/` — `useApiFetch` (HTTP + auth headers), `useTransitlandApiEndpoint`, `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`
 - `app/layouts/` — `default` (sidebar + login-gated content area)
 - `src/core/` — Shared utilities: GraphQL client, date/time helpers, geometry, streaming, constants, colors, task queue
 - `src/tl/` — Transitland API integration: stops, routes, departures, agencies, feed versions, census geographies, GTFS-Flex
@@ -79,7 +76,7 @@ After making edits, run `pnpm check` to verify correctness (lint with auto-fix +
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`
 - 2-space indentation, LF line endings
-- ESLint rules from tlv2-ui (`eslintStylisticRules`, `eslintTypescriptRules`)
+- ESLint rules inlined in `eslint.config.ts` (stylistic and TypeScript rules)
 - Always use braces `{}` for `if`/`for`/`while` blocks — never single-line returns without braces
 - Tests use `filename.test.ts` pattern alongside source files in `src/`
 - Package manager: pnpm (v10.x)

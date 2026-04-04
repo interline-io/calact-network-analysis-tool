@@ -1,6 +1,6 @@
 <template>
   <div>
-    <tl-title title="VisionEval Transit Service Data" />
+    <cal-title title="VisionEval Transit Service Data" />
 
     <cat-card
       label="About this Analysis"

@@ -1,19 +1,33 @@
-import { Auth0Client } from '@auth0/auth0-spa-js'
 import type { H3Event } from 'h3'
 
 export const useApiFetch = async (event?: H3Event) => {
   const headers: Record<string, string> = {}
   headers['content-type'] = 'application/json'
-  if (import.meta.server) {
-    if (event) {
-      headers['Authorization'] = getHeader(event, 'Authorization') || ''
+
+  if (import.meta.server && event) {
+    // Server-side: use graphql API key for backend access
+    const config = useRuntimeConfig(event)
+    const apikey = config.tlv2?.graphqlApikey
+    if (apikey) {
+      headers['apikey'] = apikey
     }
-  } else {
-    const { token } = await checkToken()
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+    // Forward user's access token from auth0 session if available
+    const session = event.context.auth0Session
+    if (session) {
+      try {
+        const accessToken = await session.getAccessToken()
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`
+        }
+      } catch {
+        // No auth token available, will use apikey only
+      }
     }
   }
+
+  // Client-side: no explicit auth headers needed — session cookie is sent
+  // automatically by the browser, and CSRF token is added by tlv2-auth's plugin.
+
   return (url: string, options: RequestInit = {}) => {
     return fetch(url, {
       ...options,
@@ -23,42 +37,4 @@ export const useApiFetch = async (event?: H3Event) => {
       }
     })
   }
-}
-
-async function checkToken () {
-  let token = ''
-  let loggedIn = false
-  let mustReauthorize = false
-
-  // Create and return global auth0 client
-  const config = useRuntimeConfig()
-  const options = config.public.tlv2
-  const client = new Auth0Client({
-    domain: String(options.auth0Domain),
-    clientId: String(options.auth0ClientId),
-    cacheLocation: 'localstorage',
-    useRefreshTokens: false, // Use iframe method for token refresh
-    authorizationParams: {
-      redirect_uri: String(options.auth0RedirectUri || window?.location?.origin || '/'),
-      audience: String(options.auth0Audience),
-      scope: String(options.auth0Scope)
-    }
-  })
-  try {
-    // First check if we're authenticated
-    loggedIn = await client.isAuthenticated()
-    if (!loggedIn) {
-      return { token, loggedIn, mustReauthorize }
-    }
-
-    // Get a fresh token
-    const tokenResponse = await client.getTokenSilently({ detailedResponse: true })
-    token = tokenResponse.access_token
-    loggedIn = true
-  } catch (error: any) {
-    if (error.error === 'login_required') {
-      mustReauthorize = true
-    }
-  }
-  return { token, loggedIn, mustReauthorize }
 }

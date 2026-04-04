@@ -1,6 +1,6 @@
 <template>
   <div>
-    <tl-title title="WSDOT Transit Stops and Routes" />
+    <cal-title title="WSDOT Transit Stops and Routes" />
 
     <cat-card
       label="About this Analysis"

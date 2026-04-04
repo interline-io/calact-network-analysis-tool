@@ -1,6 +1,6 @@
 <template>
   <div>
-    <tl-title title="WSDOT Frequent Transit Service Study" />
+    <cal-title title="WSDOT Frequent Transit Service Study" />
 
     <cat-msg
       variant="info"
