@@ -19,6 +19,7 @@
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
       :show-bbox="showBbox"
+      :geom-source="geomSource"
       :hide-unmarked="hideUnmarked"
       :flex-enabled="flexServicesEnabled"
       :flex-color-by="flexColorBy"
