@@ -50,6 +50,28 @@ query($search: String, $layer: String, $focus: FocusPoint, $limit: Int, $dataset
   }
 }`
 
+export const geographyBboxQuery = gql`
+query($layer: String, $limit: Int, $dataset_name: String, $bbox: BoundingBox){
+  census_datasets(where: {name: $dataset_name}) {
+    id
+    name
+    description
+    geographies(limit: $limit, where:{layer:$layer, location:{bbox:$bbox}}) {
+      id
+      geoid
+      name
+      geometry
+      adm1_name
+      adm1_iso
+      layer {
+        id
+        name
+        description
+      }
+    }
+  }
+}`
+
 export const censusDatasetListQuery = gql`
 query {
   census_datasets {

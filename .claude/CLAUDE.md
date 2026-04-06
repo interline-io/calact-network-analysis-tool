@@ -71,7 +71,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 
 ## Verifying Changes
 
-After making edits, run `pnpm check` to verify correctness (lint with auto-fix + typecheck).
+After making edits, run `pnpm check` to verify correctness (lint with auto-fix + typecheck). **Always run this before presenting work as done or ready for testing** — never skip the typecheck step.
 
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`

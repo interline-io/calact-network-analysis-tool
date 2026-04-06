@@ -7,8 +7,19 @@
       variant="dark"
     >
       <div class="cal-map-legend-box">
+        <!-- Admin Boundary selection -->
+        <div v-if="props.geomSource === 'adminBoundary'" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-marker-square legend-geo-unselected" />
+            <div>Unselected boundary</div>
+          </div>
+          <div>
+            <div class="legend-item legend-marker-square legend-geo-selected" />
+            <div>Selected boundary</div>
+          </div>
+        </div>
         <!-- BBOX -->
-        <div v-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
+        <div v-else-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
             <div>Bounding Box for Query</div>
@@ -133,6 +144,7 @@ const props = defineProps<{
   hasData: boolean
   displayEditBboxMode?: boolean
   showBbox?: boolean
+  geomSource?: string
   hideUnmarked?: boolean
   // Flex Services props
   flexEnabled?: boolean
@@ -141,7 +153,7 @@ const props = defineProps<{
   hasFlexData?: boolean
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox)
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary')
 </script>
 
 <style scoped lang="scss">
@@ -249,5 +261,17 @@ const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || pr
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.legend-geo-unselected {
+  background-color: #cccccc;
+  opacity: 0.6;
+  border: 1px solid #666666;
+}
+
+.legend-geo-selected {
+  background-color: #dc3545;
+  opacity: 0.7;
+  border: 1px solid #dc3545;
 }
 </style>
