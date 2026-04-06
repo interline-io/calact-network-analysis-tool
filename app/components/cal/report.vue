@@ -80,7 +80,7 @@
         </span>
       </template>
     </cal-datagrid>
-    <div style="min-height: 3rem" />
+    <div class="cal-report-spacer" />
   </div>
 </template>
 
@@ -145,6 +145,12 @@ function setReportTab (tab: ReportTab) {
   }
   dataDisplayMode.value = modeMap[tab]
 }
+
+watch(hasAggregateLayer, (has) => {
+  if (!has && activeReportTab.value === 'stops-aggregated') {
+    setReportTab('stops')
+  }
+})
 
 // Keep tab in sync if dataDisplayMode changes externally
 watch(dataDisplayMode, (mode) => {
@@ -384,5 +390,9 @@ const activeTableReport = computed((): TableReport => {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .cal-report-spacer {
+    min-height: 3rem;
   }
 </style>

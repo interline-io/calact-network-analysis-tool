@@ -1439,10 +1439,12 @@ const filterTags = computed((): FilterTag[] => {
 
   // days of week
   const days = scenarioFilter.value.selectedWeekdays
+  const dowMode = scenarioFilter.value.selectedWeekdayMode
   if (days == null || days.length === 0) {
     tags.push({ label: 'Days of Week', value: 'All', active: false })
   } else {
-    tags.push({ label: 'Days of Week', value: days.map(val => toTitleCase(val)).join(', '), active: true })
+    const modePrefix = dowMode === 'All' ? 'All of ' : 'Any of '
+    tags.push({ label: 'Days of Week', value: modePrefix + days.map(val => toTitleCase(val)).join(', '), active: true })
   }
 
   // time of day
