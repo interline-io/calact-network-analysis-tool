@@ -30,7 +30,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
   }
   const runtimeConfig = useRuntimeConfig(event)
-  const token = await event.context.auth0Session.getAccessToken()
+  let token
+  try {
+    token = await event.context.auth0Session.getAccessToken()
+  } catch {
+    throw createError({ statusCode: 401, statusMessage: 'Session expired, please log in again' })
+  }
   const client = new BasicGraphQLClient(
     runtimeConfig.tlv2.proxyBase.default + '/query',
     apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
