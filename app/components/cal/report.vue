@@ -75,6 +75,7 @@
         </span>
       </template>
     </cal-datagrid>
+    <div style="min-height: 3rem" />
   </div>
 </template>
 
