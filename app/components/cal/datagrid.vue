@@ -15,13 +15,6 @@
 
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
-
-      <cat-pagination
-        v-model:current="current"
-        :total="total"
-        :per-page="perPage"
-        style="margin-left: auto;"
-      />
     </div>
 
     <div class="table-container">
@@ -52,6 +45,16 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+      <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
+      <cat-pagination
+        v-model:current="current"
+        :total="total"
+        :per-page="perPage"
+        style="margin-left: auto;"
+      />
     </div>
   </div>
 </template>
@@ -88,6 +91,12 @@ const currentRows = computed(() => {
 })
 const total = computed(() => {
   return (tableReport?.value?.data || []).length
+})
+const rangeStart = computed(() => {
+  return total.value === 0 ? 0 : (current.value - 1) * perPage + 1
+})
+const rangeEnd = computed(() => {
+  return Math.min(current.value * perPage, total.value)
 })
 </script>
 
