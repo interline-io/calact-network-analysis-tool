@@ -48,7 +48,8 @@ import {
 import {
   routeHeadways,
   newRouteHeadwaySummary,
-  calculateHeadwayStats
+  calculateHeadwayStats,
+  calculateRouteTripStats,
 } from './route-headway'
 import {
   type Weekday,
@@ -135,10 +136,27 @@ function routeSetDerived (
       route.average_frequency = undefined
       route.fastest_frequency = undefined
       route.slowest_frequency = undefined
-      // console.debug('routeSetDerived:', route.id,
-      //   'departures:', deps.length,
-      //   'headways: none (need 2+ departures to calculate headways)'
-      // )
+    }
+    // Calculate trip-level stats (average trips per day, earliest/latest start/end)
+    const tripStats = calculateRouteTripStats(
+      route,
+      selectedDateRange,
+      selectedStartTime,
+      selectedEndTime,
+      routeIndex,
+    )
+    if (tripStats) {
+      route.average_trips_per_day = tripStats.averageTripsPerDay
+      route.earliest_trip_start = tripStats.earliestTripStart
+      route.earliest_trip_end = tripStats.earliestTripEnd
+      route.latest_trip_start = tripStats.latestTripStart
+      route.latest_trip_end = tripStats.latestTripEnd
+    } else {
+      route.average_trips_per_day = undefined
+      route.earliest_trip_start = undefined
+      route.earliest_trip_end = undefined
+      route.latest_trip_start = undefined
+      route.latest_trip_end = undefined
     }
   }
   // Mark after setting frequency values
@@ -545,6 +563,11 @@ export function applyScenarioResultFilter (
       average_frequency: undefined,
       fastest_frequency: undefined,
       slowest_frequency: undefined,
+      average_trips_per_day: undefined,
+      earliest_trip_start: undefined,
+      earliest_trip_end: undefined,
+      latest_trip_start: undefined,
+      latest_trip_end: undefined,
       headways: newRouteHeadwaySummary(),
       __typename: 'Route', // backwards compat
     }
