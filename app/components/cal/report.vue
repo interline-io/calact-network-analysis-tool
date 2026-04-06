@@ -101,10 +101,7 @@
 
     <div v-if="geoReportData.columns.length > 0">
       <h4 class="title is-5 mb-4">
-        <cat-tooltip text="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
-          Aggregated by {{ censusLayerLabels[aggregateLayer]?.singular || 'Geographic Area' }}
-          <cat-icon icon="information" />
-        </cat-tooltip>
+        Aggregated by {{ censusLayerLabels[aggregateLayer]?.singular || 'Geographic Area' }}
       </h4>
       <cal-datagrid
         :table-report="geoReportData"

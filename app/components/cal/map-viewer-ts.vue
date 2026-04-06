@@ -61,14 +61,7 @@ let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
 
-onBeforeUnmount(() => {
-  if (geoHoverPopup) {
-    geoHoverPopup.remove()
-    geoHoverPopup = undefined
-  }
-})
-
-// Choropleth hover tooltip — created in initMap, cleaned up in onUnmounted
+// Choropleth hover tooltip — created in initMap, cleaned up in onBeforeUnmount
 let choroplethTooltip: HTMLDivElement | undefined
 
 //////////////////////
@@ -81,7 +74,9 @@ watch(() => overlayFeatures.value, (v) => {
 })
 
 watch(() => choroplethFeatures.value, (v) => {
-  updateChoroplethFeatures(v)
+  nextTick(() => {
+    updateChoroplethFeatures(v)
+  })
 })
 
 watch(() => selectableGeographies.value, (v) => {
@@ -160,6 +155,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (geoHoverPopup) {
+    geoHoverPopup.remove()
+    geoHoverPopup = undefined
+  }
   choroplethTooltip?.remove()
   choroplethTooltip = undefined
   if (currentPopupApp) {

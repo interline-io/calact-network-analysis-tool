@@ -30,6 +30,8 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String) {
         onestop_id
       }
     }
+    # Fetches all layers for the dataset (no layer filter) so aggregation level can change without re-querying.
+    # limit:1000 is high enough for typical queries; results silently truncate if exceeded.
     census_geographies(limit: 1000, where:{dataset: $dataset_name}) {
       id
       geoid

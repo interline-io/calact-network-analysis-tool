@@ -1191,10 +1191,6 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
-const aggregateLayerLabel = computed((): string => {
-  return censusLayerLabels[aggregateLayer.value]?.plural || 'areas'
-})
-
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.
 const aggregateGeoIds = computed((): number[] => {
@@ -1212,6 +1208,14 @@ const aggregateGeoIds = computed((): number[] => {
 })
 
 const aggregateGeoCount = computed((): number => aggregateGeoIds.value.length)
+
+const aggregateLayerLabel = computed((): string => {
+  const labels = censusLayerLabels[aggregateLayer.value]
+  if (!labels) {
+    return aggregateGeoCount.value === 1 ? 'area' : 'areas'
+  }
+  return aggregateGeoCount.value === 1 ? labels.singular : labels.plural
+})
 
 /////////////////
 // Choropleth aggregation overlay
