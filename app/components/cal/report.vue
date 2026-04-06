@@ -106,12 +106,14 @@ const downloadFeatures = computed((): Feature[] => {
 })
 
 const reportHeading = computed(() => {
-  const start = fmtDate(props.startDate, 'dd MMM, yyyy')
-  const end = fmtDate(props.endDate, 'dd MMM, yyyy')
-  if (start && end) {
-    return `Reports: ${start} - ${end}`
+  if (!props.startDate || !props.endDate) {
+    return 'Reports'
   }
-  return 'Reports'
+  const sameMonthYear = fmtDate(props.startDate, 'MMM yyyy') === fmtDate(props.endDate, 'MMM yyyy')
+  if (sameMonthYear) {
+    return `Reports: ${fmtDate(props.startDate, 'dd')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
+  }
+  return `Reports: ${fmtDate(props.startDate, 'dd MMM, yyyy')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
 })
 
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
