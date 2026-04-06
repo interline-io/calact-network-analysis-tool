@@ -51,7 +51,6 @@
             </h4>
             <cal-datagrid
               :table-report="mareaDatagrid"
-              :show-results-count="false"
               filename="marea_transit_service"
             >
               <template #column-DRRevMi="{ value }">
@@ -94,7 +93,6 @@
 
             <cal-datagrid
               :table-report="costDatagrid"
-              :show-results-count="false"
               filename="cost_per_revenue_mile"
             >
               <template #column-Mode="{ value }">
@@ -119,7 +117,6 @@
 
             <cal-datagrid
               :table-report="rawDatagrid"
-              :show-results-count="false"
               filename="ntd_raw_records"
             >
               <template #column-vehicleRevenueMiles="{ value }">

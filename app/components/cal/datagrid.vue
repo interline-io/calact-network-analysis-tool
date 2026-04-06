@@ -1,20 +1,23 @@
 <template>
   <div class="mb-6">
-    <div v-if="showResultsCount" class="cal-report-total block">
-      {{ total }} results found
-    </div>
-
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
-      <cat-field>
+      <cat-input
+        v-model="searchQuery"
+        type="search"
+        placeholder="Search..."
+        icon="magnify"
+      />
+
+      <!-- Slot for additional download buttons, such as GeoJSON -->
+      <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
+
+      <cat-field style="margin-left: auto;">
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
           :filename="props.filename"
         />
       </cat-field>
-
-      <!-- Slot for additional download buttons, such as GeoJSON -->
-      <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
     </div>
 
     <div class="table-container">
@@ -78,19 +81,41 @@ const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
-const showResultsCount = defineModel<boolean>('showResultsCount', { default: true })
 
 const props = defineProps<{
   filename?: string
 }>()
 
+const searchQuery = ref('')
+
+const filteredData = computed(() => {
+  const data = tableReport?.value?.data || []
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return data
+  }
+  return data.filter(row =>
+    Object.values(row).some(val =>
+      String(val ?? '').toLowerCase().includes(query),
+    ),
+  )
+})
+
+watch(searchQuery, () => {
+  current.value = 1
+})
+
+watch(() => tableReport.value?.columns, () => {
+  searchQuery.value = ''
+})
+
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage
-  return tableReport?.value?.data.slice(start, end) || []
+  return filteredData.value.slice(start, end)
 })
 const total = computed(() => {
-  return (tableReport?.value?.data || []).length
+  return filteredData.value.length
 })
 const rangeStart = computed(() => {
   return total.value === 0 ? 0 : (current.value - 1) * perPage + 1

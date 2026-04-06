@@ -143,7 +143,6 @@
 
     <cal-datagrid
       :table-report="stopDatagrid"
-      :show-results-count="false"
     >
       <template #additional-downloads>
         <cat-field>
