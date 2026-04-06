@@ -1,8 +1,8 @@
 <template>
   <div>
-    <tl-title title="WSDOT Frequent Transit Service Study" />
+    <cal-title title="WSDOT Frequent Transit Service Study" />
 
-    <t-msg
+    <cat-msg
       variant="info"
       title="About this Analysis"
       expandable
@@ -18,14 +18,14 @@
       </p>
       <p>
         This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified.
-        To change the analysis area, navigate to the <t-icon
+        To change the analysis area, navigate to the <cat-icon
           icon="magnify"
           style="vertical-align:middle;"
         /> <strong>Query tab</strong> and modify your geographic bounds, then select "Run Advanced Analysis" to return to this page.
       </p>
-    </t-msg>
+    </cat-msg>
 
-    <t-msg
+    <cat-msg
       v-if="error"
       variant="danger"
       class="mt-4"
@@ -33,7 +33,7 @@
       :title="error.message"
     >
       An error occurred while running the WSDOT analysis.
-    </t-msg>
+    </cat-msg>
     <div v-else-if="loading">
       Loading...
     </div>
@@ -51,14 +51,14 @@
           </p>
         </header>
 
-        <t-msg
+        <cat-msg
           v-if="debugMenu"
           variant="warning"
           class="mt-4"
           title="Debug menu"
         >
-          <t-field label="Example configuration">
-            <t-select v-model="selectedExample">
+          <cat-field label="Example configuration">
+            <cat-select v-model="selectedExample">
               <option value="">
                 Select an example...
               </option>
@@ -69,42 +69,42 @@
               >
                 {{ example.config.reportName }}
               </option>
-            </t-select>
-          </t-field>
+            </cat-select>
+          </cat-field>
           <br>
-        </t-msg>
+        </cat-msg>
 
         <div class="card-content">
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
+              <cat-tooltip text="The weekday date is used to analyze peak hours, extended hours, and night segments. This determines which specific Monday-Friday schedule is used for frequency calculations.">
                 Weekday date
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </t-field>
+            <cat-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </cat-field>
 
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
+              <cat-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used for frequency calculations.">
                 Weekend date
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </t-field>
+            <cat-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </cat-field>
 
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
+              <cat-tooltip text="The buffer radius around each transit stop used for population analysis. This determines how far from each stop to count residents when calculating accessibility metrics.">
                 Stop buffer radius (meters)
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
             <div class="level">
               <div class="level-item">
-                <t-slider
+                <cat-slider
                   v-model="wsdotReportConfig!.stopBufferRadius"
                   :min="0"
                   :max="1000"
@@ -118,7 +118,7 @@
                 </div>
               </div>
             </div>
-          </t-field>
+          </cat-field>
           <cal-census-dataset-picker
             v-model="wsdotReportConfig!.geoDatasetName"
             label="Census geography dataset"
@@ -138,20 +138,20 @@
             style="width: 100%; padding: 0.75rem;"
           >
             <div class="control">
-              <t-button
+              <cat-button
                 variant="light"
                 @click="handleCancel"
               >
                 Cancel
-              </t-button>
+              </cat-button>
             </div>
             <div class="control">
-              <t-button
+              <cat-button
                 variant="primary"
                 @click="runQuery"
               >
                 Run Report
-              </t-button>
+              </cat-button>
             </div>
           </div>
         </footer>
@@ -159,7 +159,7 @@
     </div>
 
     <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-    <t-modal
+    <cat-modal
       v-model="showLoadingModal"
       title="Loading"
       :closable="false"
@@ -170,12 +170,11 @@
         :stop-departure-count="stopDepartureCount"
         :scenario-data="scenarioData"
       />
-    </t-modal>
+    </cat-modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useApiFetch } from '~/composables/useApiFetch'
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~~/src/scenario'
@@ -342,9 +341,9 @@ const fetchScenario = async () => {
     response = await fetch(`/examples/${selectedExample.value}`)
   } else {
   // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/wsdot', {
+    response = await fetch('/api/wsdot', {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ config: wsdotReportConfig.value }),
     })
   }

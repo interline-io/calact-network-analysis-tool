@@ -1,19 +1,19 @@
 <template>
   <div class="cal-filter">
     <div class="cal-filter-main">
-      <tl-title title="Filters" />
+      <cal-title title="Filters" />
 
       <aside class="menu">
         <p class="menu-label">
           Filters
         </p>
-        <t-button
+        <cat-button
           class="mx-4 mb-4"
           icon-left="delete"
           @click="emit('resetFilters')"
         >
           Clear all
-        </t-button>
+        </cat-button>
         <ul class="menu-list">
           <li
             v-for="item of menuItems"
@@ -23,12 +23,12 @@
               :class="{ 'is-active': activeTab === item.tab, 'is-disabled': isMenuItemDisabled(item) }"
               @click="!isMenuItemDisabled(item) && setTab(item.tab)"
             >
-              <t-icon
+              <cat-icon
                 :icon="item.icon"
                 class="is-fullwidth"
               />
               {{ item.label }}
-              <t-icon
+              <cat-icon
                 class="right-chev"
                 icon="chevron-right"
                 size="small"
@@ -72,7 +72,7 @@
           title="Close filter panel"
           @click="setTab('')"
         >
-          <t-icon
+          <cat-icon
             icon="chevron-left"
             size="large"
           />
@@ -87,24 +87,24 @@
           </p>
 
           <section class="cal-day-of-week-mode menu-list">
-            <t-field>
-              <t-radio
+            <cat-field>
+              <cat-radio
                 v-model="selectedWeekdayMode"
                 name="selectedWeekdayMode"
                 native-value="Any"
                 label="Any of the following days"
               />
-            </t-field>
-            <t-field>
-              <t-radio
+            </cat-field>
+            <cat-field>
+              <cat-radio
                 v-model="selectedWeekdayMode"
                 name="selectedWeekdayMode"
                 native-value="All"
                 label="All of the following days"
               />
-            </t-field>
+            </cat-field>
           </section>
-          <t-checkbox-group
+          <cat-checkbox-group
             v-model="selectedWeekdays"
             :options="dowValues.map(d => ({ value: d, label: titleCase(d), disabled: !dowAvailable.has(d) }))"
           />
@@ -113,46 +113,46 @@
         <aside class="cal-filter-times menu block">
           <p class="menu-label">
             Time of Day
-            <t-tooltip
+            <cat-tooltip
               text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
               position="left"
             >
               <i class="mdi mdi-information-outline" />
-            </t-tooltip>
+            </cat-tooltip>
           </p>
 
-          <t-field class="cal-time-of-day-mode">
-            <t-checkbox
+          <cat-field class="cal-time-of-day-mode">
+            <cat-checkbox
               v-model="isAllDayMode"
               label="All Day"
             />
-          </t-field>
+          </cat-field>
 
           <p class="menu-label">
             Starting
           </p>
 
-          <t-field>
+          <cat-field>
             <cal-timepicker
               v-model="startTime"
               size="small"
               icon="clock"
               :disabled="isAllDayMode"
             />
-          </t-field>
+          </cat-field>
 
           <p class="menu-label">
             Ending
           </p>
 
-          <t-field>
+          <cat-field>
             <cal-timepicker
               v-model="endTime"
               size="small"
               icon="clock"
               :disabled="isAllDayMode"
             />
-          </t-field>
+          </cat-field>
         </aside>
       </div>
 
@@ -163,13 +163,13 @@
             Frequency
           </p>
 
-          <t-field grouped>
-            <t-checkbox
+          <cat-field grouped>
+            <cat-checkbox
               v-model="frequencyUnderEnabled"
               label="Avg. Frequency ≦"
             />
             <div class="cal-input-width-80">
-              <t-input
+              <cat-input
                 v-model="frequencyUnder"
                 type="number"
                 min="0"
@@ -179,15 +179,15 @@
             <div>
               minutes
             </div>
-          </t-field>
+          </cat-field>
 
-          <t-field grouped>
-            <t-checkbox
+          <cat-field grouped>
+            <cat-checkbox
               v-model="frequencyOverEnabled"
               label="Avg. Frequency >"
             />
             <div class="cal-input-width-80">
-              <t-input
+              <cat-input
                 v-model="frequencyOver"
                 type="number"
                 min="0"
@@ -197,30 +197,30 @@
             <div>
               minutes
             </div>
-          </t-field>
+          </cat-field>
 
-          <t-field>
-            <t-checkbox
+          <cat-field>
+            <cat-checkbox
               v-model="calculateFrequencyMode"
               label="Calculate frequency based on single routes"
               :disabled="true"
             />
-          </t-field>
+          </cat-field>
 
           <p class="menu-label">
-            Fares <t-tooltip text="Fare filtering is planned for future implementation">
+            Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
-            </t-tooltip>
+            </cat-tooltip>
           </p>
 
-          <t-field grouped>
-            <t-checkbox
+          <cat-field grouped>
+            <cat-checkbox
               v-model="maxFareEnabled"
               label="Maximum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <t-input
+              <cat-input
                 v-model="maxFare"
                 type="number"
                 min="0"
@@ -228,16 +228,16 @@
                 :disabled="true"
               />
             </div>
-          </t-field>
+          </cat-field>
 
-          <t-field grouped>
-            <t-checkbox
+          <cat-field grouped>
+            <cat-checkbox
               v-model="minFareEnabled"
               label="Minimum fare $"
               :disabled="true"
             />
             <div class="cal-input-width-100">
-              <t-input
+              <cat-input
                 v-model="minFare"
                 type="number"
                 min="0"
@@ -245,26 +245,42 @@
                 :disabled="true"
               />
             </div>
-          </t-field>
+          </cat-field>
+          <p class="menu-label">
+            Color by:
+          </p>
+          <ul>
+            <li
+              v-for="dataDisplayModeOption of dataDisplayModes"
+              :key="dataDisplayModeOption"
+            >
+              <cat-radio
+                v-model="dataDisplayMode"
+                :native-value="dataDisplayModeOption"
+              >
+                {{ dataDisplayModeOption }}
+              </cat-radio>
+            </li>
+          </ul>
         </aside>
       </div>
 
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
       <div v-if="activeTab === 'flex-services'">
         <aside class="menu">
-          <t-notification
+          <cat-notification
             variant="warning"
           >
             <span>
               Flex service data may be incomplete. Please contact relevant agencies for additional information.
             </span>
-          </t-notification>
+          </cat-notification>
 
           <div :class="{ 'is-disabled': !flexServicesEnabled }">
             <p class="menu-label">
               Advance notice
             </p>
-            <t-checkbox-group
+            <cat-checkbox-group
               v-model="flexAdvanceNotice"
               :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
             />
@@ -272,7 +288,7 @@
             <p class="menu-label">
               Show areas that allow:
             </p>
-            <t-checkbox-group
+            <cat-checkbox-group
               v-model="flexAreaTypesSelected"
               :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
             />
@@ -285,13 +301,13 @@
                 v-for="colorMode of flexColorByModes"
                 :key="colorMode"
               >
-                <t-radio
+                <cat-radio
                   v-model="flexColorBy"
                   :native-value="colorMode"
                   :disabled="!flexServicesEnabled"
                 >
                   {{ colorMode }}
-                </t-radio>
+                </cat-radio>
               </li>
             </ul>
           </div>
@@ -306,26 +322,26 @@
           </p>
 
           <div class="service-type-checkboxes mb-4">
-            <t-field>
-              <t-checkbox
+            <cat-field>
+              <cat-checkbox
                 v-model="fixedRouteEnabled"
               >
                 <span class="mode-label">
-                  <t-icon icon="train-car" size="small" />
+                  <cat-icon icon="train-car" size="small" />
                   Fixed-Route
                 </span>
-              </t-checkbox>
-            </t-field>
-            <t-field>
-              <t-checkbox
+              </cat-checkbox>
+            </cat-field>
+            <cat-field>
+              <cat-checkbox
                 v-model="flexServicesEnabled"
               >
                 <span class="mode-label">
-                  <t-icon icon="van-utility" size="small" />
+                  <cat-icon icon="van-utility" size="small" />
                   Flex
                 </span>
-              </t-checkbox>
-            </t-field>
+              </cat-checkbox>
+            </cat-field>
           </div>
 
           <template v-if="fixedRouteEnabled">
@@ -334,20 +350,20 @@
             </p>
 
             <div class="mode-checkboxes mb-4">
-              <t-field
+              <cat-field
                 v-for="mode in fixedRouteModeOptions"
                 :key="mode.value"
               >
-                <t-checkbox
+                <cat-checkbox
                   v-model="localSelectedRouteTypes"
                   :native-value="mode.value"
                 >
                   <span class="mode-label">
-                    <t-icon :icon="mode.icon" size="small" />
+                    <cat-icon :icon="mode.icon" size="small" />
                     {{ mode.label }}
                   </span>
-                </t-checkbox>
-              </t-field>
+                </cat-checkbox>
+              </cat-field>
             </div>
           </template>
 
@@ -355,31 +371,31 @@
             Agencies
           </p>
 
-          <t-field>
-            <t-input
+          <cat-field>
+            <cat-input
               v-model="agencySearch"
               type="search"
               placeholder="search"
               icon-right="magnify"
               icon-right-clickable
             />
-          </t-field>
+          </cat-field>
           <div class="buttons mb-4">
             <!-- Note: selects ALL agencies in the dataset, not just the filtered list -->
-            <t-button
+            <cat-button
               size="small"
               :disabled="allAgenciesSelected"
               @click="selectAllAgencies"
             >
               Select All
-            </t-button>
-            <t-button
+            </cat-button>
+            <cat-button
               size="small"
               :disabled="noAgenciesSelected"
               @click="selectNoAgencies"
             >
               Select None
-            </t-button>
+            </cat-button>
           </div>
 
           <p
@@ -390,42 +406,42 @@
           </p>
 
           <div class="agency-checkbox-list">
-            <t-field
+            <cat-field
               v-for="agency in agencyFilterOptions"
               :key="agency.value"
               :class="{ 'agency-disabled': isAgencyDisabled(agency) }"
             >
-              <t-checkbox
+              <cat-checkbox
                 v-model="localSelectedAgencies"
                 :native-value="agency.value"
               >
                 <span class="agency-label">
                   {{ agency.name }}
-                  <t-tooltip
+                  <cat-tooltip
                     v-if="agency.hasFixedRoute"
                     text="Has fixed-route service"
                     position="right"
                   >
-                    <t-icon
+                    <cat-icon
                       icon="train-car"
                       size="small"
                       class="agency-icon"
                     />
-                  </t-tooltip>
-                  <t-tooltip
+                  </cat-tooltip>
+                  <cat-tooltip
                     v-if="agency.hasFlex"
                     text="Has flex service"
                     position="right"
                   >
-                    <t-icon
+                    <cat-icon
                       icon="van-utility"
                       size="small"
                       class="agency-icon"
                     />
-                  </t-tooltip>
+                  </cat-tooltip>
                 </span>
-              </t-checkbox>
-            </t-field>
+              </cat-checkbox>
+            </cat-field>
           </div>
         </aside>
       </div>
@@ -433,75 +449,28 @@
       <!-- DATA DISPLAY -->
       <div v-if="activeTab === 'data-display'">
         <aside class="menu">
-          <ul>
-            <li
-              v-for="dataDisplayModeOption of dataDisplayModes"
-              :key="dataDisplayModeOption"
-            >
-              <t-radio
-                v-model="dataDisplayMode"
-                :native-value="dataDisplayModeOption"
-              >
-                {{ dataDisplayModeOption }}
-              </t-radio>
-            </li>
-          </ul>
           <p class="menu-label">
-            Display map elements by:
-          </p>
-          <ul>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Mode"
-                :disabled="dataDisplayMode === 'Agency'"
-              >
-                Mode
-              </t-radio>
-            </li>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Frequency"
-                :disabled="dataDisplayMode === 'Agency'"
-              >
-                Frequency
-              </t-radio>
-            </li>
-            <li>
-              <t-radio
-                v-model="colorKey"
-                native-value="Fare"
-                :disabled="true /* this is future functionality */"
-              >
-                Fare <t-tooltip text="This is planned for future implementation">
-                  <i class="mdi mdi-information-outline" />
-                </t-tooltip>
-              </t-radio>
-            </li>
-          </ul>
-          <p class="menu-label">
-            Base map <t-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
+            Base map <cat-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
               <i class="mdi mdi-information-outline" />
-            </t-tooltip>
+            </cat-tooltip>
           </p>
           <ul>
             <li
               v-for="baseMapStyle of baseMapStyles"
               :key="baseMapStyle.name"
             >
-              <t-radio
+              <cat-radio
                 v-model="baseMap"
                 :native-value="baseMapStyle.name"
                 :disabled="!baseMapStyle.available"
               >
                 <span class="cal-radio-with-icon">
-                  <t-icon
+                  <cat-icon
                     :icon="baseMapStyle.icon"
                     size="small"
                   /> {{ baseMapStyle.name }}
                 </span>
-              </t-radio>
+              </cat-radio>
             </li>
           </ul>
           <p class="menu-label">
@@ -536,9 +505,19 @@
           </p>
           <ul>
             <li>
-              <t-checkbox v-model="showBbox">
+              <cat-checkbox v-model="showBbox">
                 Show geographic filters
-              </t-checkbox>
+              </cat-checkbox>
+            </li>
+          </ul>
+          <p class="menu-label">
+            Display Options
+          </p>
+          <ul>
+            <li>
+              <cat-checkbox v-model="showFiltered">
+                Show filtered routes/stops
+              </cat-checkbox>
             </li>
           </ul>
         </aside>
@@ -552,34 +531,20 @@
           </p>
           <ul>
             <li>
-              <t-radio
+              <cat-radio
                 v-model="unitSystem"
                 native-value="us"
               >
                 🇺🇸 USA
-              </t-radio>
+              </cat-radio>
             </li>
             <li>
-              <t-radio
+              <cat-radio
                 v-model="unitSystem"
                 native-value="eu"
               >
                 🇪🇺 Metric
-              </t-radio>
-            </li>
-          </ul>
-
-          <p class="menu-label">
-            Display options
-          </p>
-          <ul>
-            <li>
-              <t-field grouped>
-                <t-checkbox
-                  v-model="hideUnmarked"
-                  label="Hide unmarked routes/stops"
-                />
-              </t-field>
+              </cat-radio>
             </li>
           </ul>
         </aside>
@@ -671,7 +636,12 @@ const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
 const unitSystem = defineModel<string>('unitSystem')
 const hideUnmarked = defineModel<boolean>('hideUnmarked')
-const colorKey = defineModel<string>('colorKey')
+
+const showFiltered = computed({
+  get: () => !hideUnmarked.value,
+  set: (v: boolean) => { hideUnmarked.value = !v }
+})
+
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
 const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')

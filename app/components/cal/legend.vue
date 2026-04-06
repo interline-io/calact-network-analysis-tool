@@ -1,14 +1,25 @@
 <template>
   <div class="cal-map-legend" :class="{ 'is-hidden': !shouldShowLegend }">
-    <t-msg
+    <cat-msg
       title="Legend"
       expandable
       :open="true"
       variant="dark"
     >
       <div class="cal-map-legend-box">
+        <!-- Admin Boundary selection -->
+        <div v-if="props.geomSource === 'adminBoundary'" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-marker-square legend-geo-unselected" />
+            <div>Unselected boundary</div>
+          </div>
+          <div>
+            <div class="legend-item legend-marker-square legend-geo-selected" />
+            <div>Selected boundary</div>
+          </div>
+        </div>
         <!-- BBOX -->
-        <div v-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
+        <div v-else-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
             <div>Bounding Box for Query</div>
@@ -52,17 +63,17 @@
           <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
             Agencies:
           </div>
-          <div v-else-if="props.colorKey === 'Mode'" class="legend-heading">
-            Transit Modes:
+          <div v-else-if="props.dataDisplayMode === 'Transit mode'" class="legend-heading">
+            Transit modes:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Route' && props.colorKey === 'Frequency'" class="legend-heading">
-            Avg. minutes:
+          <div v-else-if="props.dataDisplayMode === 'Route frequency'" class="legend-heading">
+            Avg. minutes between trips:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Stop' && props.colorKey === 'Frequency'" class="legend-heading">
+          <div v-else-if="props.dataDisplayMode === 'Stop visits'" class="legend-heading">
             Avg. visits per day:
           </div>
-          <div v-else-if="props.colorKey === 'Fare'" class="legend-heading">
-            Fares:
+          <div v-else-if="props.dataDisplayMode === 'Service area'" class="legend-heading">
+            Service areas:
           </div>
           <div v-for="s of styleData" :key="s.color">
             <div class="legend-item legend-marker-square" :style="{ background: s.color }" />
@@ -129,7 +140,7 @@
           </div>
         </div>
       </div>
-    </t-msg>
+    </cat-msg>
   </div>
 </template>
 
@@ -143,11 +154,11 @@ interface StyleItem {
 
 const props = defineProps<{
   dataDisplayMode?: DataDisplayMode
-  colorKey?: string
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
   showBbox?: boolean
+  geomSource?: string
   hideUnmarked?: boolean
   // Flex Services props
   flexEnabled?: boolean
@@ -159,7 +170,7 @@ const props = defineProps<{
   hasChoroplethData?: boolean
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || (props.showAggAreas && props.hasChoroplethData))
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
 
 const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
 </script>
@@ -291,5 +302,17 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   justify-content: space-between;
   font-size: 0.75em;
   opacity: 0.8;
+}
+
+.legend-geo-unselected {
+  background-color: #cccccc;
+  opacity: 0.6;
+  border: 1px solid #666666;
+}
+
+.legend-geo-selected {
+  background-color: #dc3545;
+  opacity: 0.7;
+  border: 1px solid #dc3545;
 }
 </style>

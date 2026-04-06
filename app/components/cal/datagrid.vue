@@ -5,18 +5,18 @@
     </div>
 
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
-      <t-field>
+      <cat-field>
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
           :filename="props.filename"
         />
-      </t-field>
+      </cat-field>
 
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
-      <t-pagination
+      <cat-pagination
         v-model:current="current"
         :total="total"
         :per-page="perPage"
@@ -29,10 +29,10 @@
         <thead class="is-sticky">
           <tr>
             <th v-for="column in tableReport.columns" :key="column.key">
-              <t-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
+              <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
                 {{ column.label }}
-                <t-icon icon="information" size="small" />
-              </t-tooltip>
+                <cat-icon icon="information" size="small" />
+              </cat-tooltip>
               <span v-else>{{ column.label }}</span>
             </th>
           </tr>

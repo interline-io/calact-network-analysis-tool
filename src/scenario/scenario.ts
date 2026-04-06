@@ -23,16 +23,19 @@ import type { FlexAreaFeature,
   StopDeparture,
   StopGql,
   StopTime,
-  FlexLocationQueryResponse
+  FlexLocationQueryResponse,
+  FlexStopTimesQueryResponse,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
+  FlexDepartureCache,
   feedVersionQuery,
   routeQuery,
   stopDepartureQuery,
   stopTimeQuery,
   stopQuery,
   flexLocationQuery,
+  flexStopTimesQuery,
   transformLocationsToFlexAreas,
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
@@ -111,6 +114,7 @@ export interface ScenarioData {
   stops: StopGql[]
   feedVersions: FeedVersion[]
   stopDepartureCache: StopDepartureCache
+  flexDepartureCache: FlexDepartureCache
   /**
    * Flex service areas (GTFS-Flex / DRT)
    * Currently loaded from static GeoJSON, will come from GraphQL API later
@@ -171,6 +175,7 @@ export interface ScenarioProgress {
     feedVersions: FeedVersion[]
     flexAreas: FlexAreaFeature[]
     stopDepartures: StopDepartureTuple[]
+    flexDepartures?: FlexDepartureTuple[]
   }
   extraData?: any
   config?: any
@@ -211,6 +216,18 @@ export const StopDepartureTuple = {
   tripId: (tuple: StopDepartureTuple) => tuple[3],
   tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
   tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
+}
+
+// Wire format for flex departure cache: [locationId, date]
+export type FlexDepartureTuple = readonly [
+  location_id: number,
+  departure_date: string,
+]
+
+export const FlexDepartureTuple = {
+  create: (location_id: number, departure_date: string): FlexDepartureTuple => [location_id, departure_date],
+  locationId: (tuple: FlexDepartureTuple) => tuple[0],
+  departureDate: (tuple: FlexDepartureTuple) => tuple[1],
 }
 
 // ============================================================================
@@ -286,6 +303,61 @@ export class StopDepartureQueryVars {
         this.include_saturday = true
         break
     }
+  }
+}
+
+/**
+ * Variables for the slim multi-date flex stop_times query.
+ * Mirrors StopDepartureQueryVars but uses fvSha1/limit instead of stop ids.
+ */
+export class FlexStopTimesQueryVars {
+  fvSha1: string = ''
+  limit: number = 0
+  monday: string = ''
+  tuesday: string = ''
+  wednesday: string = ''
+  thursday: string = ''
+  friday: string = ''
+  saturday: string = ''
+  sunday: string = ''
+  include_monday: boolean = false
+  include_tuesday: boolean = false
+  include_wednesday: boolean = false
+  include_thursday: boolean = false
+  include_friday: boolean = false
+  include_saturday: boolean = false
+  include_sunday: boolean = false
+
+  get (dow: string): string {
+    switch (dow) {
+      case 'monday': return this.monday
+      case 'tuesday': return this.tuesday
+      case 'wednesday': return this.wednesday
+      case 'thursday': return this.thursday
+      case 'friday': return this.friday
+      case 'saturday': return this.saturday
+      case 'sunday': return this.sunday
+    }
+    return ''
+  }
+
+  setDay (d: Date) {
+    const dateFmt = 'yyyy-MM-dd'
+    switch (d.getDay()) {
+      case 0: this.sunday = format(d, dateFmt); this.include_sunday = true; break
+      case 1: this.monday = format(d, dateFmt); this.include_monday = true; break
+      case 2: this.tuesday = format(d, dateFmt); this.include_tuesday = true; break
+      case 3: this.wednesday = format(d, dateFmt); this.include_wednesday = true; break
+      case 4: this.thursday = format(d, dateFmt); this.include_thursday = true; break
+      case 5: this.friday = format(d, dateFmt); this.include_friday = true; break
+      case 6: this.saturday = format(d, dateFmt); this.include_saturday = true; break
+    }
+  }
+
+  hasAnyDay (): boolean {
+    return this.include_monday || this.include_tuesday || this.include_wednesday
+      || this.include_thursday || this.include_friday || this.include_saturday
+      || this.include_sunday
   }
 }
 
@@ -371,6 +443,7 @@ export class ScenarioFetcher {
   private stopLimit = 1000
   private stopTimeBatchSize = 100
   private maxConcurrentRequests = 8
+  private feedVersionPageSize = 100
 
   // Dynamic progress getters
   private get feedVersionProgress (): { total: number, completed: number } {
@@ -390,6 +463,7 @@ export class ScenarioFetcher {
   private stopFetchQueue: TaskQueue<StopFetchTask>
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
+  private flexFetchQueue: TaskQueue<FeedVersion>
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
@@ -424,6 +498,13 @@ export class ScenarioFetcher {
       this.maxConcurrentRequests,
       task => this.fetchStopDepartures(task), {
         onProgress: () => { this.updateProgress('schedules', true) },
+        onError: error => this.callbacks.onError?.(error)
+      }
+    )
+
+    this.flexFetchQueue = new TaskQueue<FeedVersion>(
+      this.maxConcurrentRequests,
+      task => this.fetchFlexArea(task), {
         onError: error => this.callbacks.onError?.(error)
       }
     )
@@ -507,66 +588,85 @@ export class ScenarioFetcher {
     this.updateProgress('flex-areas', true)
     console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
 
-    // Use the start date for filtering stop_times
-    // Format as YYYY-MM-DD for the GraphQL Date scalar
+    for (const fv of this.feedVersions) {
+      this.flexFetchQueue.enqueueOne(fv)
+    }
+    await this.flexFetchQueue.run()
+
+    console.log(`[FlexAreas] Complete`)
+  }
+
+  // Fetch flex areas for a single feed version
+  private async fetchFlexArea (fv: FeedVersion): Promise<void> {
     const queryDate = this.config.startDate
       ? format(this.config.startDate, 'yyyy-MM-dd')
       : format(new Date(), 'yyyy-MM-dd')
 
-    let totalLocations = 0
-    let totalFlexAreas = 0
-
-    // Query locations for each feed version
-    for (const fv of this.feedVersions) {
-      try {
-        const variables = {
-          fvSha1: fv.sha1,
-          limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
-          serviceDate: queryDate,
-        }
-
-        console.log(`[FlexAreas] Querying locations for ${fv.feed.onestop_id} (${fv.sha1}) on ${queryDate}`)
-        const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
-
-        const feedVersionData = response.data?.feed_versions?.[0]
-        if (!feedVersionData) {
-          console.log(`[FlexAreas] No data returned for ${fv.feed.onestop_id}`)
-          continue
-        }
-
-        const locations = feedVersionData.locations || []
-        totalLocations += locations.length
-        console.log(`[FlexAreas] Found ${locations.length} locations in ${fv.feed.onestop_id}`)
-
-        // Transform locations to FlexAreaFeatures
-        // This also filters out locations with no stop_times (no service on selected date)
-        const flexAreas = transformLocationsToFlexAreas(locations)
-        totalFlexAreas += flexAreas.length
-
-        if (flexAreas.length > 0) {
-          console.log(`[FlexAreas] Transformed ${flexAreas.length} flex areas from ${fv.feed.onestop_id}`)
-
-          // Stream flex areas to frontend
-          this.updateProgress('flex-areas', true, {
-            stops: [],
-            routes: [],
-            feedVersions: [],
-            stopDepartures: [],
-            flexAreas
-          })
-        } else {
-          console.log(`[FlexAreas] No active flex areas on ${queryDate} in ${fv.feed.onestop_id}`)
-        }
-      } catch (error) {
-        // Log detailed error information to help diagnose issues
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        const errorName = error instanceof Error ? error.name : 'UnknownError'
-        console.error(`[FlexAreas] Error fetching locations for feed ${fv.feed.onestop_id} (sha1: ${fv.sha1}, date: ${queryDate}): [${errorName}] ${errorMsg}. This feed will be skipped.`)
-        // Continue with other feed versions even if one fails
-      }
+    const variables = {
+      fvSha1: fv.sha1,
+      limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
+      serviceDate: queryDate,
     }
 
-    console.log(`[FlexAreas] Complete: ${totalFlexAreas} flex areas from ${totalLocations} locations`)
+    const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
+
+    const feedVersionData = response.data?.feed_versions?.[0]
+    if (!feedVersionData) {
+      return
+    }
+
+    const locations = feedVersionData.locations || []
+    const flexAreas = transformLocationsToFlexAreas(locations)
+
+    if (flexAreas.length > 0) {
+      console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feed.onestop_id}`)
+      this.updateProgress('flex-areas', true, {
+        stops: [],
+        routes: [],
+        feedVersions: [],
+        stopDepartures: [],
+        flexAreas
+      })
+    }
+
+    // Fetch slim multi-date stop_times to populate the flex departure cache.
+    // Chunk the date range into 7-day windows (one query per week) so every
+    // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
+    if (flexAreas.length > 0) {
+      const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+      const dates = getSelectedDateRange(this.config)
+      const weekSize = 7
+      const flexDepartures: FlexDepartureTuple[] = []
+      for (let i = 0; i < dates.length; i += weekSize) {
+        const w = new FlexStopTimesQueryVars()
+        w.fvSha1 = fv.sha1
+        w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
+        for (const d of dates.slice(i, i + weekSize)) {
+          w.setDay(d)
+        }
+        if (!w.hasAnyDay()) { continue }
+        const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
+        for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
+          for (const dowName of dowNames) {
+            const date = w.get(dowName)
+            if (!date) { continue }
+            if ((location[dowName]?.length ?? 0) > 0) {
+              flexDepartures.push(FlexDepartureTuple.create(location.id, date))
+            }
+          }
+        }
+      }
+      if (flexDepartures.length > 0) {
+        this.updateProgress('flex-areas', true, {
+          stops: [],
+          routes: [],
+          feedVersions: [],
+          stopDepartures: [],
+          flexAreas: [],
+          flexDepartures,
+        })
+      }
+    }
   }
 
   // Fetch active feed versions in the specified area
@@ -610,10 +710,25 @@ export class ScenarioFetcher {
     }
 
     // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
+    // Paginate to ensure we get all feeds (API default limit is 100)
     const bboxForQuery = convertBbox(searchBbox)
-    const variables = { where: { bbox: bboxForQuery } }
-    const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
-    const feedVersions = (response.data?.feeds || []).map(feed => feed.feed_state.feed_version)
+    const allFeeds: FeedGql[] = []
+    let after = 0
+    while (true) {
+      const variables = { where: { bbox: bboxForQuery }, limit: this.feedVersionPageSize, after }
+      const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
+      const page = response.data?.feeds || []
+      allFeeds.push(...page)
+      if (page.length < this.feedVersionPageSize) {
+        break
+      }
+      const nextAfter = parseInt(page[page.length - 1]!.id, 10)
+      if (!Number.isInteger(nextAfter)) {
+        throw new Error(`[FeedVersions] Invalid pagination cursor: id="${page[page.length - 1]!.id}" did not parse as an integer`)
+      }
+      after = nextAfter
+    }
+    const feedVersions = allFeeds.map(feed => feed.feed_state.feed_version)
 
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
@@ -788,6 +903,7 @@ export class ScenarioDataReceiver {
       routes: [],
       feedVersions: [],
       stopDepartureCache: new StopDepartureCache(),
+      flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
     }
   }
@@ -823,6 +939,16 @@ export class ScenarioDataReceiver {
       // Append new flex areas
       if (progress.partialData.flexAreas) {
         this.accumulatedData.flexAreas.push(...progress.partialData.flexAreas)
+      }
+
+      // Add flex departure cache entries
+      if (progress.partialData.flexDepartures) {
+        for (const tuple of progress.partialData.flexDepartures) {
+          this.accumulatedData.flexDepartureCache.add(
+            FlexDepartureTuple.locationId(tuple),
+            FlexDepartureTuple.departureDate(tuple),
+          )
+        }
       }
     }
 

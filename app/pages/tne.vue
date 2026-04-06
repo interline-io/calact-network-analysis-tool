@@ -6,7 +6,7 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
@@ -21,7 +21,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
@@ -36,7 +36,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="map"
               class="is-fullwidth"
               size="large"
@@ -51,7 +51,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
@@ -61,7 +61,7 @@
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
@@ -79,12 +79,16 @@
             v-model:start-date="startDate"
             v-model:end-date="endDate"
             v-model:geom-source="geomSource"
+            v-model:geom-layer="geomLayer"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
             v-model:include-fixed-route="includeFixedRoute"
             v-model:include-flex-areas="includeFlexAreas"
             v-model:geo-dataset-name="geoDatasetName"
             :census-geography-layer-options="censusGeographyLayerOptions"
+            :viewport-geographies="viewportGeographies"
+            :viewport-geographies-loading="viewportGeoLoading"
+            :viewport-geographies-limit="VIEWPORT_GEO_LIMIT"
             :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
@@ -96,6 +100,8 @@
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="clearScenario()"
+            @fit-to-geographies="fitToGeographies"
+            @clear-geographies="clearGeographies"
           />
         </div>
 
@@ -110,7 +116,6 @@
             v-model:end-time="endTime"
             v-model:base-map="baseMap"
             v-model:data-display-mode="dataDisplayMode"
-            v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
             v-model:selected-weekdays="selectedWeekdays"
@@ -175,11 +180,14 @@
         <cal-map
           :bbox="bbox"
           :census-geographies-selected="censusGeographiesSelected"
+          :viewport-geographies="viewportGeographies"
+          :geography-ids="geographyIds"
+          :geom-source="geomSource"
+          :geom-layer="geomLayer"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
           :data-display-mode="dataDisplayMode"
-          :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
@@ -189,14 +197,16 @@
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
+          :fit-overlay-key="fitOverlayKey"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
+          @toggle-geography="toggleGeography"
         />
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-      <t-modal
+      <cat-modal
         v-model="showLoadingModal"
         title="Loading"
         :closable="false"
@@ -207,7 +217,7 @@
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
         />
-      </t-modal>
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
@@ -215,14 +225,14 @@
 <script lang="ts" setup>
 import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed } from 'vue'
-import { useQuery } from '@vue/apollo-composable'
-import { useApiFetch } from '~/composables/useApiFetch'
+import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
   getFlexAreaType,
   getFlexAdvanceNotice,
   getFlexAgencyName,
   geographyLayerQuery,
+  geographyBboxQuery,
   stopGeoAggregateCsv,
 } from '~~/src/tl'
 import {
@@ -244,9 +254,11 @@ import {
   asDateString,
   asTimeString,
   parseDate,
+  normalizeDate,
   parseTime,
   getLocalDateNoTime,
   dateToSeconds,
+  convertBbox,
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   choroplethPalette,
@@ -352,6 +364,15 @@ const geomSource = computed<string | undefined>({
   }
 })
 
+const geomLayer = computed<string>({
+  get () {
+    return route.query.geomLayer?.toString() || 'place'
+  },
+  set (v: string) {
+    setQuery({ ...route.query, geomLayer: v || undefined })
+  }
+})
+
 const geographyIds = computed<number[]>({
   get () {
     return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
@@ -365,7 +386,8 @@ const startDate = computed<Date>({
   get (): Date {
     const str = route.query.startDate?.toString()
     // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
-    return parseDate(str) || nextMonday(endOfYesterday())
+    // normalizeDate strips the time component so the date serializes consistently across timezones
+    return parseDate(str) || normalizeDate(nextMonday(endOfYesterday()))!
   },
   set (v: unknown) {
     setQuery({ ...route.query, startDate: asDateString(v) })
@@ -464,28 +486,20 @@ const includeFlexAreas = computed<boolean | undefined>({
 
 const hideUnmarked = computed<boolean | undefined>({
   get () {
-    return route.query.hideUnmarked?.toString() === 'true'
+    // Default true: hide filtered routes/stops unless explicitly set to false
+    return route.query.hideUnmarked?.toString() !== 'false'
   },
   set (v?: boolean) {
-    setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
+    setQuery({ ...route.query, hideUnmarked: v ? '' : 'false' })
   }
 })
 
 const dataDisplayMode = computed<DataDisplayMode | undefined>({
   get () {
-    return (route.query.dataDisplayMode?.toString() || 'Route') as DataDisplayMode
+    return (route.query.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode
   },
   set (v?: DataDisplayMode) {
     setQuery({ ...route.query, dataDisplayMode: v })
-  }
-})
-
-const colorKey = computed<string | undefined>({
-  get () {
-    return route.query.colorKey?.toString() || 'Mode'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, colorKey: v })
   }
 })
 
@@ -867,13 +881,41 @@ const {
   })
 )
 
+const CENSUS_LAYER_DISPLAY_NAMES: Record<string, string> = {
+  place: 'City / Place',
+  county: 'County',
+  state: 'State',
+  tract: 'Census Tract',
+  bg: 'Block Group',
+  blockgroup: 'Block Group',
+  tabblock20: 'Census Block (2020)',
+  county_subdivision: 'County Subdivision',
+  urban_area: 'Urban Area',
+  uac20: 'Urban Area (2020)',
+  cbsa: 'Core-Based Statistical Area (CBSA)',
+  csa: 'Combined Statistical Area (CSA)',
+  zip: 'ZIP Code (ZCTA)',
+  zcta: 'ZIP Code (ZCTA)',
+  zcta520: 'ZIP Code (ZCTA, 2020)',
+  cd: 'Congressional District',
+  cd119: 'Congressional District (119th)',
+  congressional_district: 'Congressional District',
+  sldu: 'State Legislative District (Upper)',
+  sldl: 'State Legislative District (Lower)',
+}
+
+function formatCensusLayerLabel (_dsName: string, layerName: string): string {
+  // Use human-readable name when known; otherwise strip "Layer: " prefix and title-case
+  return CENSUS_LAYER_DISPLAY_NAMES[layerName]
+    ?? layerName.replace(/^layer:\s*/i, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 const censusGeographyLayerOptions = computed(() => {
   const geomDatasets = censusGeographyResult.value?.census_datasets || []
   const options = []
   for (const ds of geomDatasets || []) {
     for (const layer of ds.layers || []) {
-      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-      options.push({ value: layer.name, label: label })
+      options.push({ value: layer.name, label: formatCensusLayerLabel(ds.name, layer.name) })
     }
   }
   return options
@@ -1023,6 +1065,97 @@ async function setMapExtent (v: Bbox) {
   if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
     bbox.value = mapExtent.value
   }
+}
+
+/////////////////////////
+// Viewport geography selection
+/////////////////////////
+
+// Fetch census geographies visible in the current map viewport
+// Active only when in adminBoundary mode and before query submission
+const VIEWPORT_GEO_LIMIT = 1000
+const viewportGeoVars = computed(() => {
+  const extent = mapExtent.value
+  if (!extent?.valid || geomSource.value !== 'adminBoundary' || querySubmitted.value) {
+    return null
+  }
+  // Pad the bbox by 30% so geographies at the edges are included
+  const lonPad = (extent.ne.lon - extent.sw.lon) * 0.15
+  const latPad = (extent.ne.lat - extent.sw.lat) * 0.15
+  const paddedExtent: Bbox = {
+    valid: true,
+    sw: { lon: extent.sw.lon - lonPad, lat: extent.sw.lat - latPad },
+    ne: { lon: extent.ne.lon + lonPad, lat: extent.ne.lat + latPad },
+  }
+  return {
+    dataset_name: geoDatasetName.value,
+    layer: geomLayer.value,
+    bbox: convertBbox(paddedExtent),
+    limit: VIEWPORT_GEO_LIMIT,
+  }
+})
+
+const {
+  result: viewportGeoResult,
+  loading: viewportGeoLoading,
+  load: viewportGeoLoad,
+  refetch: viewportGeoRefetch,
+} = useLazyQuery<{ census_datasets: CensusDataset[] }>(
+  geographyBboxQuery,
+  () => viewportGeoVars.value ?? {},
+  {
+    debounce: 300,
+    keepPreviousResult: true,
+  }
+)
+
+// load() returns true only on first invocation; after that we need refetch()
+let viewportGeoLoaded = false
+watch(viewportGeoVars, (vars) => {
+  if (vars) {
+    if (!viewportGeoLoaded) {
+      viewportGeoLoad(geographyBboxQuery)
+      viewportGeoLoaded = true
+    } else {
+      viewportGeoRefetch()
+    }
+  }
+})
+
+// All geographies visible in the viewport
+const viewportGeographies = computed((): CensusGeography[] => {
+  if (geomSource.value !== 'adminBoundary' || querySubmitted.value) {
+    return []
+  }
+  const ret: CensusGeography[] = []
+  for (const ds of viewportGeoResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      ret.push(geo)
+    }
+  }
+  return ret
+})
+
+// Toggle a geography's selection state (called when user clicks a geography on the map)
+function toggleGeography (geographyId: number) {
+  const ids = [...geographyIds.value]
+  const idx = ids.indexOf(geographyId)
+  if (idx >= 0) {
+    ids.splice(idx, 1)
+  } else {
+    ids.push(geographyId)
+  }
+  geographyIds.value = ids
+}
+
+function clearGeographies () {
+  geographyIds.value = []
+}
+
+// Fit map to selected geographies — only on explicit user request (button click)
+const fitOverlayKey = ref(0)
+function fitToGeographies () {
+  fitOverlayKey.value++
 }
 
 ////////////////////////////
@@ -1245,10 +1378,10 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch(`/examples/${loadExample}.json`)
   } else {
     // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/scenario', {
+    response = await fetch('/api/scenario', {
       method: 'POST',
-      body: JSON.stringify(config)
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
     })
   }
 
@@ -1417,7 +1550,7 @@ async function resetFilters () {
     maxFare: undefined,
     minFareEnabled: undefined,
     minFare: undefined,
-    colorKey: undefined,
+
     unitSystem: undefined,
     hideUnmarked: undefined,
     baseMap: undefined,

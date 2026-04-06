@@ -4,9 +4,9 @@
       Share
     </div>
     <div class="message-body">
-      <t-button @click="copyUrlToClipboard">
+      <cat-button @click="copyUrlToClipboard">
         Copy URL to Clipboard
-      </t-button>
+      </cat-button>
       <br><br>
       <cal-geojson-download :data="exportFeatures" />
       <br>

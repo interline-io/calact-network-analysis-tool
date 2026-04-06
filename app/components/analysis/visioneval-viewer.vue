@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Empty results warning -->
-    <t-msg
+    <cat-msg
       v-if="report.summary.totalRecords === 0"
       variant="warning"
       class="mt-4"
@@ -9,10 +9,10 @@
       No matching NTD records found for {{ report.summary.state }} in {{ report.summary.year }}.
       This may occur if the selected state has no transit agencies reporting data for this year,
       or if all agencies are classified as Non-UZA (rural areas without urbanized area designation).
-    </t-msg>
+    </cat-msg>
 
     <!-- Summary Card -->
-    <t-card label="Analysis Summary" class="mt-4">
+    <cat-card label="Analysis Summary" class="mt-4">
       <div class="columns">
         <div class="column">
           <div class="content">
@@ -32,15 +32,15 @@
           </div>
         </div>
       </div>
-    </t-card>
+    </cat-card>
 
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <t-tabs
+      <cat-tabs
         v-model="activeTab"
         expanded
       >
-        <t-tab-item
+        <cat-tab-item
           :value="0"
           :label="`Transit Service by UZA (${report.mareaTransitService.length})`"
           icon="city"
@@ -80,9 +80,9 @@
               </template>
             </cal-datagrid>
           </div>
-        </t-tab-item>
+        </cat-tab-item>
 
-        <t-tab-item
+        <cat-tab-item
           :value="1"
           :label="`Cost per Mile (${report.costPerRevenueMile.length})`"
           icon="currency-usd"
@@ -105,9 +105,9 @@
               </template>
             </cal-datagrid>
           </div>
-        </t-tab-item>
+        </cat-tab-item>
 
-        <t-tab-item
+        <cat-tab-item
           :value="2"
           :label="`Raw Records (${report.rawRecords.length})`"
           icon="table"
@@ -130,8 +130,8 @@
               </template>
             </cal-datagrid>
           </div>
-        </t-tab-item>
-      </t-tabs>
+        </cat-tab-item>
+      </cat-tabs>
     </div>
   </div>
 </template>

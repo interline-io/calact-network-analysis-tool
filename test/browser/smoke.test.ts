@@ -26,6 +26,6 @@ test.describe('Smoke tests', () => {
     await geomSelect.selectOption('adminBoundary')
 
     // Boundary layer dropdown should appear
-    await expect(page.getByText('Administrative boundary layer to search')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Boundary type')).toBeVisible({ timeout: 5000 })
   })
 })

@@ -1,13 +1,13 @@
 <template>
   <div>
-    <tl-title title="VisionEval Transit Service Data" />
+    <cal-title title="VisionEval Transit Service Data" />
 
-    <t-card
+    <cat-card
       label="About this Analysis"
       expandable
       :open="!hasResults"
     >
-      <t-msg variant="info" class="content">
+      <cat-msg variant="info" class="content">
         <p class="mb-3">
           This analysis uses US National Transit Database annual metrics datasets to generate CSV files to import into <strong>VisionEval</strong> policy modeling software.
         </p>
@@ -21,11 +21,11 @@
         <p>
           Non-urbanized area (Non-UZA) records are excluded from the output.
         </p>
-      </t-msg>
-    </t-card>
+      </cat-msg>
+    </cat-card>
 
     <!-- Loading Modal -->
-    <t-modal
+    <cat-modal
       v-model="showLoadingModal"
       title="Running VisionEval Analysis"
       :closable="false"
@@ -34,11 +34,11 @@
         :progress="loadingProgress"
         :error="error"
       />
-    </t-modal>
+    </cat-modal>
 
-    <t-msg v-if="error && !loading" variant="danger" class="mt-4" style="width:500px" :title="error.message">
+    <cat-msg v-if="error && !loading" variant="danger" class="mt-4" style="width:500px" :title="error.message">
       An error occurred while running the VisionEval analysis.
-    </t-msg>
+    </cat-msg>
     <div v-else-if="report">
       <analysis-visioneval-viewer
         v-model:report="report"
@@ -52,52 +52,52 @@
           </p>
         </header>
         <div class="card-content">
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="Filter NTD data to agencies in this state.">
+              <cat-tooltip text="Filter NTD data to agencies in this state.">
                 State
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-select v-model="configState">
+            <cat-select v-model="configState">
               <option value="" disabled>
                 Select a state
               </option>
               <option v-for="state in US_STATES" :key="state.abbr" :value="state.abbr">
                 {{ state.name }} ({{ state.abbr }})
               </option>
-            </t-select>
-          </t-field>
+            </cat-select>
+          </cat-field>
 
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="NTD report year. Prior year data is typically available each November.">
+              <cat-tooltip text="NTD report year. Prior year data is typically available each November.">
                 Report Year
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-select v-model="configYear">
+            <cat-select v-model="configYear">
               <option v-for="year in AVAILABLE_YEARS" :key="year" :value="year">
                 {{ year }}
               </option>
-            </t-select>
-          </t-field>
+            </cat-select>
+          </cat-field>
         </div>
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
             <div class="control">
-              <t-button variant="light" @click="handleCancel">
+              <cat-button variant="light" @click="handleCancel">
                 Cancel
-              </t-button>
+              </cat-button>
             </div>
             <div class="control">
-              <t-button
+              <cat-button
                 variant="primary"
                 :disabled="!canRun"
                 @click="runQuery"
               >
                 Run Report
-              </t-button>
+              </cat-button>
             </div>
           </div>
         </footer>
@@ -107,7 +107,6 @@
 </template>
 
 <script lang="ts" setup>
-import { useApiFetch } from '~/composables/useApiFetch'
 import type {
   VisionEvalConfig,
   VisionEvalReport,
@@ -264,9 +263,9 @@ const runQuery = async () => {
     }
 
     // Call the BFF endpoint
-    const apiFetch = await useApiFetch()
-    const response = await apiFetch('/api/visioneval', {
+    const response = await fetch('/api/visioneval', {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ config }),
     })
 

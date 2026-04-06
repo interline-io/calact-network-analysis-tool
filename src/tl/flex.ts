@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
 import { parseHMS } from '~~/src/core'
+import turfArea from '@turf/area'
 
 //////////
 // Flex Services (DRT/Demand-Responsive Transit) Types
@@ -145,6 +146,12 @@ export interface FlexAreaProperties {
   // Additional metadata (for CSV export)
   zone_id?: string
   feed_onestop_id?: string
+
+  // Area in square meters (computed from full source geometry at load time)
+  area_m2?: number
+
+  // Internal numeric ID from Transitland (used as FlexDepartureCache key)
+  internal_id?: number
 
   // Filtering state (set by scenario-filter.ts)
   marked?: boolean
@@ -447,6 +454,46 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
 }
 `
 
+/**
+ * Slim multi-date query for building the FlexDepartureCache.
+ * Fetches only enough to know whether a location has service on each day —
+ * limit:1 with a minimal field (pickup_type) keeps payload tiny.
+ * Uses the same day-of-week alias + @include pattern as stopDepartureQuery.
+ */
+export const flexStopTimesQuery = gql`
+query FlexStopTimes(
+  $fvSha1: String!,
+  $limit: Int,
+  $monday: Date,
+  $include_monday: Boolean!,
+  $tuesday: Date,
+  $include_tuesday: Boolean!,
+  $wednesday: Date,
+  $include_wednesday: Boolean!,
+  $thursday: Date,
+  $include_thursday: Boolean!,
+  $friday: Date,
+  $include_friday: Boolean!,
+  $saturday: Date,
+  $include_saturday: Boolean!,
+  $sunday: Date,
+  $include_sunday: Boolean!
+) {
+  feed_versions(where: { sha1: $fvSha1 }) {
+    locations(limit: $limit) {
+      id
+      monday: stop_times(where: { service_date: $monday }, limit: 1) @include(if: $include_monday) { pickup_type }
+      tuesday: stop_times(where: { service_date: $tuesday }, limit: 1) @include(if: $include_tuesday) { pickup_type }
+      wednesday: stop_times(where: { service_date: $wednesday }, limit: 1) @include(if: $include_wednesday) { pickup_type }
+      thursday: stop_times(where: { service_date: $thursday }, limit: 1) @include(if: $include_thursday) { pickup_type }
+      friday: stop_times(where: { service_date: $friday }, limit: 1) @include(if: $include_friday) { pickup_type }
+      saturday: stop_times(where: { service_date: $saturday }, limit: 1) @include(if: $include_saturday) { pickup_type }
+      sunday: stop_times(where: { service_date: $sunday }, limit: 1) @include(if: $include_sunday) { pickup_type }
+    }
+  }
+}
+`
+
 //////////
 // GraphQL Response Types
 //////////
@@ -525,6 +572,24 @@ export interface FlexLocationQueryResponse {
       onestop_id: string
     }
     locations: FlexLocationGql[]
+  }[]
+}
+
+/** Response shape for the slim flexStopTimesQuery (one entry per day alias) */
+export interface FlexStopTimesLocationGql {
+  id: number
+  monday?: Array<{ pickup_type: number }>
+  tuesday?: Array<{ pickup_type: number }>
+  wednesday?: Array<{ pickup_type: number }>
+  thursday?: Array<{ pickup_type: number }>
+  friday?: Array<{ pickup_type: number }>
+  saturday?: Array<{ pickup_type: number }>
+  sunday?: Array<{ pickup_type: number }>
+}
+
+export interface FlexStopTimesQueryResponse {
+  feed_versions: {
+    locations: FlexStopTimesLocationGql[]
   }[]
 }
 
@@ -731,6 +796,12 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     // Additional metadata (for CSV export)
     zone_id: location.zone_id,
     feed_onestop_id: location.feed_onestop_id,
+
+    // Area computed from full source geometry (used for sorting overlapping areas in identify tool popup)
+    area_m2: turfArea(location.geometry as GeoJSON.Geometry),
+
+    // Internal Transitland numeric ID — used as FlexDepartureCache lookup key
+    internal_id: location.id,
   }
 
   return {

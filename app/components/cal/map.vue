@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-outer">
     <div class="cal-map-share-button">
-      <t-button icon-left="share" @click="toggleShareMenu()">
+      <cat-button icon-left="share" @click="toggleShareMenu()">
         {{ showShareMenu ? 'Close' : 'Share' }}
-      </t-button>
+      </cat-button>
     </div>
 
     <div v-if="showShareMenu" class="cal-map-share">
@@ -15,11 +15,11 @@
 
     <cal-legend
       :data-display-mode="dataDisplayMode"
-      :color-key="colorKey"
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
       :show-bbox="showBbox"
+      :geom-source="geomSource"
       :hide-unmarked="hideUnmarked"
       :flex-enabled="flexServicesEnabled"
       :flex-color-by="flexColorBy"
@@ -36,6 +36,7 @@
       :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
       :choropleth-features="props.choroplethFeatures || []"
+      :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
       :flex-features="flexFeatures"
       :markers="bboxMarkers"
@@ -43,8 +44,12 @@
       :loading-stage="props.loadingStage"
       :panel-width="props.panelWidth"
       :fit-bounds-key="fitBoundsKey"
+      :fit-overlay-key="props.fitOverlayKey"
+      :fit-target-features="fitTargetFeatures"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
+      @selectable-geo-click="onSelectableGeoClick"
+      @selectable-geo-right-click="onSelectableGeoRightClick"
       @overlay-drag-start="onOverlayDragStart"
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
@@ -66,16 +71,21 @@ const emit = defineEmits<{
   setMapExtent: [value: Bbox]
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
+  toggleGeography: [geographyId: number]
 }>()
 
 const props = defineProps<{
   bbox: Bbox
   dataDisplayMode?: DataDisplayMode
-  colorKey?: string
   displayEditBboxMode?: boolean
   showBbox?: boolean
   hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
+  // Viewport geographies for click-to-select in adminBoundary mode
+  viewportGeographies?: CensusGeography[]
+  geographyIds?: number[]
+  geomSource?: string
+  geomLayer?: string
   scenarioFilterResult?: ScenarioFilterResult
   // Fixed-Route Transit toggle (on by default)
   fixedRouteEnabled?: boolean
@@ -91,6 +101,8 @@ const props = defineProps<{
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
+  // Increment to fit map to overlay features
+  fitOverlayKey?: number
 }>()
 
 const showShareMenu = ref(false)
@@ -580,25 +592,16 @@ const styleData = computed((): Matcher[] => {
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
-  // Seven modes
   if (props.dataDisplayMode === 'Agency') {
     rules.push(...getAgencyMatchers())
-  } else if (props.dataDisplayMode === 'Route') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getRouteFrequencyMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
-  } else if (props.dataDisplayMode === 'Stop') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getStopVisitMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
+  } else if (props.dataDisplayMode === 'Transit mode') {
+    rules.push(...getModeMatchers())
+  } else if (props.dataDisplayMode === 'Route frequency') {
+    rules.push(...getRouteFrequencyMatchers())
+  } else if (props.dataDisplayMode === 'Stop visits') {
+    rules.push(...getStopVisitMatchers())
+  } else if (props.dataDisplayMode === 'Service area') {
+    // report-only mode; no map color rules
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
@@ -609,14 +612,135 @@ const styleData = computed((): Matcher[] => {
   return rules
 })
 
+// Selectable geography features for click-to-select in adminBoundary mode.
+// Three visual states:
+//   1. Current layer, unselected — light gray fill, clickable
+//   2. Current layer, selected — red highlight, clickable
+//   3. Other layer, selected — light red fill/dashed outline, not clickable
+const selectableGeographies = computed((): Feature[] => {
+  if (props.geomSource !== 'adminBoundary' || !props.viewportGeographies?.length) {
+    return []
+  }
+  const selectedIds = new Set(props.geographyIds || [])
+  const viewportIds = new Set<number>()
+  const features: Feature[] = []
+
+  // Current layer: viewport geographies (clickable)
+  for (const geo of props.viewportGeographies || []) {
+    viewportIds.add(geo.id)
+    const isSelected = selectedIds.has(geo.id)
+    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
+    features.push({
+      type: 'Feature',
+      id: geo.id.toString(),
+      geometry: geo.geometry,
+      properties: {
+        'geography-id': geo.id,
+        'geography-name': `${geo.name}${stateDesc}`,
+        'selected': isSelected,
+        'clickable': true,
+        'fill': isSelected ? '#dc3545' : '#cccccc',
+        'fill-opacity': isSelected ? 0.45 : 0.2,
+        'stroke': isSelected ? '#dc3545' : '#666666',
+        'stroke-width': isSelected ? 2.5 : 1,
+        'stroke-opacity': isSelected ? 0.9 : 0.6,
+      }
+    } as Feature)
+  }
+
+  // Other layers: selected geographies not in the current viewport layer
+  for (const geo of props.censusGeographiesSelected || []) {
+    if (viewportIds.has(geo.id)) {
+      continue
+    }
+    // Only show if it's from a different layer than the current one
+    if (geo.layer?.name === props.geomLayer) {
+      continue
+    }
+    const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
+    const layerDesc = geo.layer?.description || geo.layer?.name || ''
+    features.push({
+      type: 'Feature',
+      id: geo.id.toString(),
+      geometry: geo.geometry,
+      properties: {
+        'geography-id': geo.id,
+        'geography-name': `${geo.name}${stateDesc} (${layerDesc})`,
+        'selected': true,
+        'clickable': false,
+        'fill': '#e88e96',
+        'fill-opacity': 0.25,
+        'stroke': '#e88e96',
+        'stroke-width': 1.5,
+        'stroke-opacity': 0.6,
+      }
+    } as Feature)
+  }
+
+  return features
+})
+
+// Set of geography IDs that are clickable (current layer only)
+const clickableGeoIds = computed(() => {
+  const ids = new Set<number>()
+  for (const f of selectableGeographies.value) {
+    if (f.properties?.clickable) {
+      ids.add(f.properties['geography-id'])
+    }
+  }
+  return ids
+})
+
+// Left-click toggles selection — only for clickable (current layer) features
+function onSelectableGeoClick (featureId: string) {
+  const geoId = Number.parseInt(featureId)
+  if (Number.isNaN(geoId)) {
+    return
+  }
+  if (clickableGeoIds.value.has(geoId)) {
+    emit('toggleGeography', geoId)
+  }
+}
+
+// Right-click also deselects — works for any layer (lets users remove cross-layer selections)
+function onSelectableGeoRightClick (featureId: string) {
+  const geoId = Number.parseInt(featureId)
+  if (Number.isNaN(geoId)) {
+    return
+  }
+  const ids = props.geographyIds || []
+  if (ids.includes(geoId)) {
+    emit('toggleGeography', geoId)
+  }
+}
+
+// Features to fit map to when fitOverlayKey is triggered (button or initial load).
+// Uses censusGeographiesSelected which is always populated for selected geography IDs.
+const fitTargetFeatures = computed((): Feature[] => {
+  return props.censusGeographiesSelected.map(geo => ({
+    type: 'Feature',
+    id: geo.id.toString(),
+    geometry: geo.geometry,
+    properties: {}
+  } as Feature))
+})
+
 // Features for display include the all route and stop features.
 // Match all features to styling rules and apply as GeoJSON simplestyle
 const overlayFeatures = computed((): Feature[] => {
   const forDisplay: Feature[] = []
   const hasGeographies = props.censusGeographiesSelected.length > 0
 
+  // When in adminBoundary mode, the selectable geography layer handles
+  // rendering boundaries with selected/unselected styling. Skip adding
+  // them to the overlay layer to avoid triggering fitBounds on every
+  // click or viewport change.
+  // Only suppress overlay features when the selectable geography layer is active
+  // (pre-query with viewport geos loaded). Post-query, let overlay features show normally.
+  const inAdminBoundaryMode = props.geomSource === 'adminBoundary' && (props.viewportGeographies?.length ?? 0) > 0
+
   // Show admin geographies OR bbox, never both (mirrors server-side priority)
-  if (hasGeographies) {
+  if (hasGeographies && !inAdminBoundaryMode) {
     if (props.showBbox) {
       for (const feature of props.censusGeographiesSelected) {
         forDisplay.push({
@@ -627,7 +751,7 @@ const overlayFeatures = computed((): Feature[] => {
         })
       }
     }
-  } else {
+  } else if (!hasGeographies && !inAdminBoundaryMode) {
     for (const feature of bboxArea.value) {
       forDisplay.push(toRaw(feature))
     }
@@ -833,7 +957,7 @@ watch(extentBbox, () => {
 const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
-  const a: PopupFeature[] = []
+  const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
   const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
 
   console.log(`[MapClick] ${features.length} raw features at point`)
@@ -853,6 +977,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const fp = feature.properties
 
     let popupFeature: PopupFeature | undefined = undefined
+    let sortKey: [number, number] = [0, 0]
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -872,6 +997,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
         }
       }
+      sortKey = [0, 0]
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
       popupFeature = {
         point: { lon: pt.lng, lat: pt.lat },
@@ -886,6 +1012,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agency_name: fp.agency_name,
         }
       }
+      sortKey = [1, 0]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
       // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
@@ -906,14 +1033,22 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           marked: fp.marked,
         }
       }
+      // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first.
+      // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
+      const matchOrder = fp.marked ? 2 : 3
+      sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
     }
 
     if (popupFeature) {
       console.log(`[MapClick] Adding popup feature: featureId=${popupFeature.featureId}, sourceLayer=${popupFeature.sourceLayer}`)
-      a.push(popupFeature)
+      entries.push({ popupFeature, sortKey })
     }
   }
 
+  // Sort: stops (0) → routes (1) → matched flex by area (2,asc) → unmatched flex by area (3,asc)
+  entries.sort((x, y) => x.sortKey[0] - y.sortKey[0] || x.sortKey[1] - y.sortKey[1])
+
+  const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
 }
