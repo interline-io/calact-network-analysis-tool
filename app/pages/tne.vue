@@ -162,6 +162,8 @@
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
+            :start-date="startDate"
+            :end-date="endDate"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
