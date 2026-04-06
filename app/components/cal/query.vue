@@ -1,8 +1,8 @@
 <template>
   <div class="cal-query">
-    <tl-title title="Home">
+    <cal-title title="Home">
       Transit Network Explorer
-    </tl-title>
+    </cal-title>
 
     <cat-msg v-if="props.scenarioLoaded" variant="warning">
       <p>A browse query is currently loaded.</p>

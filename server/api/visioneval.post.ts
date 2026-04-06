@@ -1,7 +1,5 @@
-import { useTransitlandApiEndpoint } from '~/composables/useTransitlandApiEndpoint'
-import { useApiFetch } from '~/composables/useApiFetch'
 import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
-import { BasicGraphQLClient } from '~~/src/core'
+import { BasicGraphQLClient, apiFetch } from '~~/src/core'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -28,10 +26,19 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
-  // Create a proxy-based GraphQL client
+  if (!event.context.auth0Session) {
+    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+  }
+  const runtimeConfig = useRuntimeConfig(event)
+  let token
+  try {
+    token = await event.context.auth0Session.getAccessToken()
+  } catch {
+    throw createError({ statusCode: 401, statusMessage: 'Session expired, please log in again' })
+  }
   const client = new BasicGraphQLClient(
-    useTransitlandApiEndpoint('/query', event),
-    await useApiFetch(event),
+    runtimeConfig.tlv2.proxyBase.default + '/query',
+    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
   )
 
   // Create a readable stream for the response

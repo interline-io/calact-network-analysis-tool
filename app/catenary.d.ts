@@ -4,17 +4,21 @@ import type {
   CatCheckbox,
   CatCheckboxGroup,
   CatDatepicker,
+  CatDownloadCsv,
+  CatDownloadJson,
   CatDropdown,
   CatDropdownItem,
   CatField,
   CatIcon,
   CatInput,
+  CatLink,
   CatLoading,
   CatModal,
   CatMsg,
   CatNotification,
   CatPagination,
   CatRadio,
+  CatSafelink,
   CatSearchBar,
   CatSelect,
   CatSlider,
@@ -28,7 +32,8 @@ import type {
   CatTaginput,
   CatTextarea,
   CatThemeToggle,
-  CatTooltip
+  CatTooltip,
+  CatTreeControl
 } from '@interline-io/catenary'
 
 declare module '@vue/runtime-core' {
@@ -38,17 +43,21 @@ declare module '@vue/runtime-core' {
     CatCheckbox: typeof CatCheckbox
     CatCheckboxGroup: typeof CatCheckboxGroup
     CatDatepicker: typeof CatDatepicker
+    CatDownloadCsv: typeof CatDownloadCsv
+    CatDownloadJson: typeof CatDownloadJson
     CatDropdown: typeof CatDropdown
     CatDropdownItem: typeof CatDropdownItem
     CatField: typeof CatField
     CatIcon: typeof CatIcon
     CatInput: typeof CatInput
+    CatLink: typeof CatLink
     CatLoading: typeof CatLoading
     CatModal: typeof CatModal
     CatMsg: typeof CatMsg
     CatNotification: typeof CatNotification
     CatPagination: typeof CatPagination
     CatRadio: typeof CatRadio
+    CatSafelink: typeof CatSafelink
     CatSearchBar: typeof CatSearchBar
     CatSelect: typeof CatSelect
     CatSlider: typeof CatSlider
@@ -63,5 +72,6 @@ declare module '@vue/runtime-core' {
     CatTextarea: typeof CatTextarea
     CatThemeToggle: typeof CatThemeToggle
     CatTooltip: typeof CatTooltip
+    CatTreeControl: typeof CatTreeControl
   }
 }

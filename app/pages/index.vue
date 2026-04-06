@@ -1,6 +1,6 @@
 <template>
   <div>
-    <tl-title title="Welcome to the Network Analysis Tool" />
+    <cal-title title="Welcome to the Network Analysis Tool" />
 
     <div class="columns">
       <div class="column">

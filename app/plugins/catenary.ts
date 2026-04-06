@@ -1,6 +1,6 @@
-import CatenaryPlugin from '@interline-io/catenary'
+import { CatenaryPlugin } from '@interline-io/catenary'
 import '@interline-io/catenary/style.css'
-import { defineNuxtPlugin } from '#app'
+import { defineNuxtPlugin } from '#imports'
 
 export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.use(CatenaryPlugin)

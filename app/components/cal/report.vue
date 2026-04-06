@@ -1,8 +1,8 @@
 <template>
   <div class="cal-report">
-    <tl-title title="Reports">
+    <cal-title title="Reports">
       Reports
-    </tl-title>
+    </cal-title>
 
     <div class="cal-report-options block">
       <div class="filter-detail">
@@ -101,14 +101,14 @@
       <template #column-urls="{ row }">
         <span class="flex-url-links">
           <span v-if="row.info_url" title="Service Information" class="mr-2">
-            <tl-safelink :url="row.info_url">
+            <cat-safelink :url="row.info_url">
               <cat-icon icon="information-outline" size="small" />
-            </tl-safelink>
+            </cat-safelink>
           </span>
           <span v-if="row.booking_url" title="Book Online">
-            <tl-safelink :url="row.booking_url">
+            <cat-safelink :url="row.booking_url">
               <cat-icon icon="calendar-check" size="small" />
-            </tl-safelink>
+            </cat-safelink>
           </span>
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>

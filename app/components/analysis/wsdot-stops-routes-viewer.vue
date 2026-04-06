@@ -21,13 +21,13 @@
               :show-results-count="false"
             >
               <template #column-agencyId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   max-width="150px"
                 />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   :url="`https://www.transit.land/feeds/${value}`"
                 />
@@ -51,25 +51,25 @@
               :show-results-count="false"
             >
               <template #column-stopId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   max-width="100px"
                 />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   max-width="150px"
                 />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   :url="`https://www.transit.land/feeds/${value}`"
                 />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   :url="`https://www.transit.land/feed-versions/${value}`"
                   max-width="100px"
@@ -161,28 +161,28 @@
               :show-results-count="false"
             >
               <template #column-routeId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   max-width="100px"
                 />
               </template>
               <template #column-routeType="{ value }">
-                <tl-route-icon :route-type="value" />
+                <cal-route-icon :route-type="value" />
               </template>
               <template #column-agencyId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   max-width="150px"
                 />
               </template>
               <template #column-feedOnestopId="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   :url="`https://www.transit.land/feeds/${value}`"
                 />
               </template>
               <template #column-feedVersionSha1="{ value }">
-                <tl-safelink
+                <cat-safelink
                   :text="value"
                   :url="`https://www.transit.land/feed-versions/${value}`"
                   max-width="100px"
