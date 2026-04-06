@@ -6,7 +6,7 @@
       <ul class="menu-list">
         <li>
           <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
@@ -21,7 +21,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="filter"
               class="is-fullwidth"
               size="large"
@@ -36,7 +36,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="map"
               class="is-fullwidth"
               size="large"
@@ -51,7 +51,7 @@
             role="button"
             @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
-            <t-icon
+            <cat-icon
               icon="file-chart"
               class="is-fullwidth"
               size="large"
@@ -61,7 +61,7 @@
         </li>
         <li>
           <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
-            <t-icon
+            <cat-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
@@ -117,7 +117,6 @@
             v-model:end-time="endTime"
             v-model:base-map="baseMap"
             v-model:data-display-mode="dataDisplayMode"
-            v-model:color-key="colorKey"
             v-model:unit-system="unitSystem"
             v-model:hide-unmarked="hideUnmarked"
             v-model:selected-weekdays="selectedWeekdays"
@@ -185,7 +184,6 @@
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
           :data-display-mode="dataDisplayMode"
-          :color-key="colorKey"
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :flex-services-enabled="flexServicesEnabled"
@@ -202,7 +200,7 @@
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
-      <t-modal
+      <cat-modal
         v-model="showLoadingModal"
         title="Loading"
         :closable="false"
@@ -213,7 +211,7 @@
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
         />
-      </t-modal>
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
@@ -222,7 +220,6 @@
 import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
-import { useApiFetch } from '~/composables/useApiFetch'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
   getFlexAreaType,
@@ -248,6 +245,7 @@ import {
   asDateString,
   asTimeString,
   parseDate,
+  normalizeDate,
   parseTime,
   getLocalDateNoTime,
   dateToSeconds,
@@ -377,7 +375,8 @@ const startDate = computed<Date>({
   get (): Date {
     const str = route.query.startDate?.toString()
     // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
-    return parseDate(str) || nextMonday(endOfYesterday())
+    // normalizeDate strips the time component so the date serializes consistently across timezones
+    return parseDate(str) || normalizeDate(nextMonday(endOfYesterday()))!
   },
   set (v: unknown) {
     setQuery({ ...route.query, startDate: asDateString(v) })
@@ -476,28 +475,20 @@ const includeFlexAreas = computed<boolean | undefined>({
 
 const hideUnmarked = computed<boolean | undefined>({
   get () {
-    return route.query.hideUnmarked?.toString() === 'true'
+    // Default true: hide filtered routes/stops unless explicitly set to false
+    return route.query.hideUnmarked?.toString() !== 'false'
   },
   set (v?: boolean) {
-    setQuery({ ...route.query, hideUnmarked: v ? 'true' : '' })
+    setQuery({ ...route.query, hideUnmarked: v ? '' : 'false' })
   }
 })
 
 const dataDisplayMode = computed<DataDisplayMode | undefined>({
   get () {
-    return (route.query.dataDisplayMode?.toString() || 'Route') as DataDisplayMode
+    return (route.query.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode
   },
   set (v?: DataDisplayMode) {
     setQuery({ ...route.query, dataDisplayMode: v })
-  }
-})
-
-const colorKey = computed<string | undefined>({
-  get () {
-    return route.query.colorKey?.toString() || 'Mode'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, colorKey: v })
   }
 })
 
@@ -879,13 +870,41 @@ const {
   })
 )
 
+const CENSUS_LAYER_DISPLAY_NAMES: Record<string, string> = {
+  place: 'City / Place',
+  county: 'County',
+  state: 'State',
+  tract: 'Census Tract',
+  bg: 'Block Group',
+  blockgroup: 'Block Group',
+  tabblock20: 'Census Block (2020)',
+  county_subdivision: 'County Subdivision',
+  urban_area: 'Urban Area',
+  uac20: 'Urban Area (2020)',
+  cbsa: 'Core-Based Statistical Area (CBSA)',
+  csa: 'Combined Statistical Area (CSA)',
+  zip: 'ZIP Code (ZCTA)',
+  zcta: 'ZIP Code (ZCTA)',
+  zcta520: 'ZIP Code (ZCTA, 2020)',
+  cd: 'Congressional District',
+  cd119: 'Congressional District (119th)',
+  congressional_district: 'Congressional District',
+  sldu: 'State Legislative District (Upper)',
+  sldl: 'State Legislative District (Lower)',
+}
+
+function formatCensusLayerLabel (_dsName: string, layerName: string): string {
+  // Use human-readable name when known; otherwise strip "Layer: " prefix and title-case
+  return CENSUS_LAYER_DISPLAY_NAMES[layerName]
+    ?? layerName.replace(/^layer:\s*/i, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 const censusGeographyLayerOptions = computed(() => {
   const geomDatasets = censusGeographyResult.value?.census_datasets || []
   const options = []
   for (const ds of geomDatasets || []) {
     for (const layer of ds.layers || []) {
-      const label = `${ds.description || ds.name}: ${layer.description || layer.name}`
-      options.push({ value: layer.name, label: label })
+      options.push({ value: layer.name, label: formatCensusLayerLabel(ds.name, layer.name) })
     }
   }
   return options
@@ -1208,10 +1227,10 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch(`/examples/${loadExample}.json`)
   } else {
     // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/scenario', {
+    response = await fetch('/api/scenario', {
       method: 'POST',
-      body: JSON.stringify(config)
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
     })
   }
 
@@ -1380,7 +1399,7 @@ async function resetFilters () {
     maxFare: undefined,
     minFareEnabled: undefined,
     minFare: undefined,
-    colorKey: undefined,
+
     unitSystem: undefined,
     hideUnmarked: undefined,
     baseMap: undefined,

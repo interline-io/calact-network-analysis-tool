@@ -30,6 +30,7 @@ export interface FlexAreaDisplayProperties {
   prior_notice_last_time?: string
   booking_instructions?: string
   marked: boolean
+  area_m2?: number // Area in square meters — passed through from source for popup sort ordering
 }
 
 /**
@@ -72,6 +73,7 @@ export function useFlexAreaFormatting () {
       prior_notice_last_time: bookingRule?.prior_notice_last_time_formatted,
       booking_instructions: bookingRule?.message,
       marked: marked,
+      area_m2: feature.properties.area_m2,
     }
   }
 

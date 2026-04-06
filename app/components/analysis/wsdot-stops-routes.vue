@@ -1,13 +1,13 @@
 <template>
   <div>
-    <tl-title title="WSDOT Transit Stops and Routes" />
+    <cal-title title="WSDOT Transit Stops and Routes" />
 
-    <t-card
+    <cat-card
       label="About this Analysis"
       expandable
       :open="!hasResults"
     >
-      <t-msg variant="info">
+      <cat-msg variant="info">
         <p class="mb-3">
           This analysis exports comprehensive transit stops and routes data with complete GTFS fields and unique agency identifiers, designed for GIS analysis, statewide transit planning, and network connectivity studies. The export includes all standard GTFS stop properties (location, accessibility, platform codes) and route properties (type, colors, descriptions), along with WSDOT service level classifications and feed provenance information.
         </p>
@@ -25,16 +25,16 @@
           The data can be downloaded in CSV format (for spreadsheet analysis) or GeoJSON format (for GIS mapping and spatial analysis). All downloads include the same comprehensive field set, with geographic coordinates preserved for spatial operations.
         </p>
         <p>
-          This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <t-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
+          This analysis will run against the geographic bounds (bounding box or administrative geographies) already specified. If you want to change the analysis area, please cancel to go back to the <cat-icon icon="magnify" style="vertical-align:middle;" /> <strong>Query tab</strong> to modify your geographic bounds.
         </p>
-      </t-msg>
-    </t-card>
+      </cat-msg>
+    </cat-card>
 
-    <t-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
+    <cat-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
-    </t-msg>
+    </cat-msg>
     <div v-else-if="loading" class="has-text-centered">
-      <t-loading :active="true" :full-page="false" />
+      <cat-loading :active="true" :full-page="false" />
       <p class="mt-4">
         Running WSDOT Transit Stops and Routes Analysis...
       </p>
@@ -52,25 +52,25 @@
           </p>
         </header>
         <div class="card-content">
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="The weekday date is used to analyze transit service. This determines which specific Monday-Friday schedule is used.">
+              <cat-tooltip text="The weekday date is used to analyze transit service. This determines which specific Monday-Friday schedule is used.">
                 Weekday date
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-datepicker v-model="wsdotReportConfig!.weekdayDate" />
-          </t-field>
+            <cat-datepicker v-model="wsdotReportConfig!.weekdayDate" />
+          </cat-field>
 
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used.">
+              <cat-tooltip text="The weekend date is used to analyze weekend service patterns. This determines which specific Saturday/Sunday schedule is used.">
                 Weekend date
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-datepicker v-model="wsdotReportConfig!.weekendDate" />
-          </t-field>
+            <cat-datepicker v-model="wsdotReportConfig!.weekendDate" />
+          </cat-field>
 
           <cal-census-dataset-picker
             v-model="wsdotReportConfig!.geoDatasetName"
@@ -88,14 +88,14 @@
         <footer class="card-footer">
           <div class="field is-grouped is-grouped-right" style="width: 100%; padding: 0.75rem;">
             <div class="control">
-              <t-button variant="light" @click="handleCancel">
+              <cat-button variant="light" @click="handleCancel">
                 Cancel
-              </t-button>
+              </cat-button>
             </div>
             <div class="control">
-              <t-button variant="primary" @click="runQuery">
+              <cat-button variant="primary" @click="runQuery">
                 Run Report
-              </t-button>
+              </cat-button>
             </div>
           </div>
         </footer>
@@ -103,7 +103,7 @@
     </div>
 
     <!-- Loading Progress Modal -->
-    <t-modal
+    <cat-modal
       v-model="showLoadingModal"
       title="Loading"
       :closable="false"
@@ -114,12 +114,11 @@
         :stop-departure-count="stopDepartureCount"
         :scenario-data="scenarioData"
       />
-    </t-modal>
+    </cat-modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useApiFetch } from '~/composables/useApiFetch'
 import type {
   WSDOTReport,
   WSDOTReportConfig
@@ -244,10 +243,10 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch(`/examples/${loadExample}.json`)
   } else {
     // Make request to streaming scenario endpoint
-    const apiFetch = await useApiFetch()
-    response = await apiFetch('/api/wsdot', {
+    response = await fetch('/api/wsdot', {
       method: 'POST',
-      body: JSON.stringify({ config: wsdotReportConfig.value })
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ config: wsdotReportConfig.value }),
     })
   }
 

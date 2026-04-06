@@ -86,14 +86,13 @@ export class BasicGraphQLClient implements GraphQLClient {
   }
 }
 
-// Fetch function that adds API key header
-export const apiFetch = (apikey: string) => (url: string, options: RequestInit = {}) => {
-  return fetch(url, {
-    ...options,
-    headers: {
-      'content-type': 'application/json',
-      'apikey': apikey,
-      ...options.headers
-    }
-  })
+// Fetch function that adds API key and optional auth token headers
+export const apiFetch = (apikey: string, token?: string) => (url: string, options: RequestInit = {}) => {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...options.headers as Record<string, string>,
+  }
+  if (apikey) { headers.apikey = apikey }
+  if (token) { headers.Authorization = `Bearer ${token}` }
+  return fetch(url, { ...options, headers })
 }

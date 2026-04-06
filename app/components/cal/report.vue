@@ -1,8 +1,8 @@
 <template>
   <div class="cal-report">
-    <tl-title title="Reports">
+    <cal-title title="Reports">
       Reports
-    </tl-title>
+    </cal-title>
 
     <div class="cal-report-options block">
       <div class="filter-detail">
@@ -22,52 +22,52 @@
         <section v-if="props.fixedRouteEnabled" class="mb-2">
           <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing fixed-route service by:</span>
-            <t-tooltip text="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
-              <t-icon icon="information" />
-            </t-tooltip>
+            <cat-tooltip text="The selected view determines what rows and associated columns appear in the report. Currently only stops can be aggregated by geographies, such as Census geographies.">
+              <cat-icon icon="information" />
+            </cat-tooltip>
           </div>
-          <t-field class="mb-0">
-            <t-radio
+          <cat-field class="mb-0">
+            <cat-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Route"
-              label="Route"
+              native-value="Transit mode"
+              label="Routes"
             />
-          </t-field>
-          <t-field class="mb-0">
-            <t-radio
+          </cat-field>
+          <cat-field class="mb-0">
+            <cat-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Stop"
-              label="Stop"
+              native-value="Stop visits"
+              label="Stops"
             />
-          </t-field>
-          <t-field class="mb-0">
-            <t-radio
+          </cat-field>
+          <cat-field class="mb-0">
+            <cat-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
               native-value="Agency"
               label="Agency"
             />
-          </t-field>
+          </cat-field>
         </section>
 
         <!-- Flex service options -->
         <section v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" class="mb-0">
           <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
             <span>Showing flex service by:</span>
-            <t-tooltip text="The selected view determines what rows and associated columns appear in the report.">
-              <t-icon icon="information" />
-            </t-tooltip>
+            <cat-tooltip text="The selected view determines what rows and associated columns appear in the report.">
+              <cat-icon icon="information" />
+            </cat-tooltip>
           </div>
-          <t-field class="mb-0">
-            <t-radio
+          <cat-field class="mb-0">
+            <cat-radio
               v-model="dataDisplayMode"
               name="dataDisplayMode"
-              native-value="Area"
-              label="Area"
+              native-value="Service area"
+              label="Service areas"
             />
-          </t-field>
+          </cat-field>
         </section>
       </div>
 
@@ -80,10 +80,10 @@
 
     <div v-if="geoReportData.columns.length > 0">
       <h4 class="title is-5 mb-4">
-        <t-tooltip text="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
+        <cat-tooltip text="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
           Aggregated by {{ getGeographyLabel(aggregateLayer) }}
-          <t-icon icon="information" />
-        </t-tooltip>
+          <cat-icon icon="information" />
+        </cat-tooltip>
       </h4>
       <cal-datagrid
         :table-report="geoReportData"
@@ -101,14 +101,14 @@
       <template #column-urls="{ row }">
         <span class="flex-url-links">
           <span v-if="row.info_url" title="Service Information" class="mr-2">
-            <tl-safelink :url="row.info_url">
-              <t-icon icon="information-outline" size="small" />
-            </tl-safelink>
+            <cat-safelink :url="row.info_url">
+              <cat-icon icon="information-outline" size="small" />
+            </cat-safelink>
           </span>
           <span v-if="row.booking_url" title="Book Online">
-            <tl-safelink :url="row.booking_url">
-              <t-icon icon="calendar-check" size="small" />
-            </tl-safelink>
+            <cat-safelink :url="row.booking_url">
+              <cat-icon icon="calendar-check" size="small" />
+            </cat-safelink>
           </span>
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
@@ -142,7 +142,7 @@ const downloadFeatures = computed((): Feature[] => {
   return props.exportFeatures || []
 })
 
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop' })
+const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 const routeColumns: TableColumn[] = [
@@ -313,7 +313,7 @@ const geoReportData = computed((): TableReport => {
     return { data: [], columns: [] }
   }
   // Handle aggregation
-  if (dataDisplayMode.value === 'Stop') {
+  if (dataDisplayMode.value === 'Stop visits') {
     return {
       data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateLayer.value),
       columns: stopGeoAggregateColumns.value
@@ -323,13 +323,12 @@ const geoReportData = computed((): TableReport => {
 })
 
 const reportData = computed((): TableReport => {
-  // Non-aggregated data
-  if (dataDisplayMode.value === 'Route') {
+  if (dataDisplayMode.value === 'Transit mode' || dataDisplayMode.value === 'Route frequency') {
     return {
       data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
       columns: routeColumns
     }
-  } else if (dataDisplayMode.value === 'Stop') {
+  } else if (dataDisplayMode.value === 'Stop visits') {
     return {
       data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
       columns: stopColumns
@@ -339,7 +338,7 @@ const reportData = computed((): TableReport => {
       data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
       columns: agencyColumns
     }
-  } else if (dataDisplayMode.value === 'Area') {
+  } else if (dataDisplayMode.value === 'Service area') {
     return {
       data: (props.flexDisplayFeatures || []).map(flexFeatureToCsv),
       columns: flexAreaColumns
@@ -349,13 +348,13 @@ const reportData = computed((): TableReport => {
 })
 
 const reportTitle = computed(() => {
-  if (dataDisplayMode.value === 'Route') {
+  if (dataDisplayMode.value === 'Transit mode' || dataDisplayMode.value === 'Route frequency') {
     return 'routes'
-  } else if (dataDisplayMode.value === 'Stop') {
+  } else if (dataDisplayMode.value === 'Stop visits') {
     return 'stops'
   } else if (dataDisplayMode.value === 'Agency') {
     return 'agencies'
-  } else if (dataDisplayMode.value === 'Area') {
+  } else if (dataDisplayMode.value === 'Service area') {
     return 'flex service areas'
   }
   return ''

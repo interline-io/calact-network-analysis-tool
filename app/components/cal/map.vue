@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-outer">
     <div class="cal-map-share-button">
-      <t-button icon-left="share" @click="toggleShareMenu()">
+      <cat-button icon-left="share" @click="toggleShareMenu()">
         {{ showShareMenu ? 'Close' : 'Share' }}
-      </t-button>
+      </cat-button>
     </div>
 
     <div v-if="showShareMenu" class="cal-map-share">
@@ -15,7 +15,6 @@
 
     <cal-legend
       :data-display-mode="dataDisplayMode"
-      :color-key="colorKey"
       :style-data="styleData"
       :has-data="hasData"
       :display-edit-bbox-mode="displayEditBboxMode"
@@ -74,7 +73,6 @@ const emit = defineEmits<{
 const props = defineProps<{
   bbox: Bbox
   dataDisplayMode?: DataDisplayMode
-  colorKey?: string
   displayEditBboxMode?: boolean
   showBbox?: boolean
   hideUnmarked?: boolean
@@ -587,25 +585,16 @@ const styleData = computed((): Matcher[] => {
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
-  // Seven modes
   if (props.dataDisplayMode === 'Agency') {
     rules.push(...getAgencyMatchers())
-  } else if (props.dataDisplayMode === 'Route') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getRouteFrequencyMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
-  } else if (props.dataDisplayMode === 'Stop') {
-    if (props.colorKey === 'Mode') {
-      rules.push(...getModeMatchers())
-    } else if (props.colorKey === 'Frequency') {
-      rules.push(...getStopVisitMatchers())
-    } else if (props.colorKey === 'Fares') {
-      // not implemented
-    }
+  } else if (props.dataDisplayMode === 'Transit mode') {
+    rules.push(...getModeMatchers())
+  } else if (props.dataDisplayMode === 'Route frequency') {
+    rules.push(...getRouteFrequencyMatchers())
+  } else if (props.dataDisplayMode === 'Stop visits') {
+    rules.push(...getStopVisitMatchers())
+  } else if (props.dataDisplayMode === 'Service area') {
+    // report-only mode; no map color rules
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
@@ -961,7 +950,7 @@ watch(extentBbox, () => {
 const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
-  const a: PopupFeature[] = []
+  const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
   const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
 
   console.log(`[MapClick] ${features.length} raw features at point`)
@@ -981,6 +970,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const fp = feature.properties
 
     let popupFeature: PopupFeature | undefined = undefined
+    let sortKey: [number, number] = [0, 0]
 
     if (ft === 'Point') {
       const stopLookup = stopFeatureLookup.value.get(featureId)
@@ -1000,6 +990,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
         }
       }
+      sortKey = [0, 0]
     } else if (ft === 'LineString' || ft === 'MultiLineString') {
       popupFeature = {
         point: { lon: pt.lng, lat: pt.lat },
@@ -1014,6 +1005,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           agency_name: fp.agency_name,
         }
       }
+      sortKey = [1, 0]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id) {
       // Flex service area popup
       // Use location_id from properties as the feature ID (more reliable than feature.id from MapLibre query)
@@ -1034,14 +1026,22 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           marked: fp.marked,
         }
       }
+      // Matched flex areas (marked=true) sort before unmatched; within each group sort smallest first.
+      // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
+      const matchOrder = fp.marked ? 2 : 3
+      sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
     }
 
     if (popupFeature) {
       console.log(`[MapClick] Adding popup feature: featureId=${popupFeature.featureId}, sourceLayer=${popupFeature.sourceLayer}`)
-      a.push(popupFeature)
+      entries.push({ popupFeature, sortKey })
     }
   }
 
+  // Sort: stops (0) → routes (1) → matched flex by area (2,asc) → unmatched flex by area (3,asc)
+  entries.sort((x, y) => x.sortKey[0] - y.sortKey[0] || x.sortKey[1] - y.sortKey[1])
+
+  const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
 }

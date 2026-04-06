@@ -111,12 +111,13 @@ export type RouteColorMode = typeof routeColorModes[number]
 
 export const dataDisplayModes = [
   'Agency',
-  'Route',
-  'Stop',
-  'Area',
+  'Transit mode',
+  'Route frequency',
+  'Stop visits',
 ] as const
 
-export type DataDisplayMode = typeof dataDisplayModes[number]
+// 'Service area' is not in the selectable array (it's a report-only mode for flex data)
+export type DataDisplayMode = typeof dataDisplayModes[number] | 'Service area'
 
 export const weekdayModes = [
   'All',

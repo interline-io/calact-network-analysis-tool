@@ -1,12 +1,12 @@
 <template>
-  <t-button icon-left="download" :disabled="disabled" :fullwidth="fullwidth" @click="saveFile">
+  <cat-button icon-left="download" :disabled="disabled" :fullwidth="fullwidth" @click="saveFile">
     {{ buttonText }}
-  </t-button>
+  </cat-button>
 </template>
 
 <script>
 import { stringify } from 'csv-stringify/browser/esm/sync'
-import { sanitizeFilename } from '@interline-io/tlv2-ui/lib/util'
+import { sanitizeFilename } from '@interline-io/catenary'
 
 function dataToBlob (csvData) {
   const keys = {}

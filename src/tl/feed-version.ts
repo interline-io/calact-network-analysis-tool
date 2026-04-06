@@ -10,8 +10,8 @@ export interface FeedVersion {
 }
 
 export const feedVersionQuery = gql`
-query ($where: FeedFilter) {
-  feeds(where: $where) {
+query ($where: FeedFilter, $limit: Int, $after: Int) {
+  feeds(where: $where, limit: $limit, after: $after) {
     id
     onestop_id
     feed_state {

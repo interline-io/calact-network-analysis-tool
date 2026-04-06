@@ -1,12 +1,12 @@
 <template>
-  <t-button icon-left="download" :disabled="disabled" @click="saveFile">
+  <cat-button icon-left="download" :disabled="disabled" @click="saveFile">
     {{ buttonText }}
-  </t-button>
+  </cat-button>
 </template>
 
 <script>
 import stringify from '@aitodotai/json-stringify-pretty-compact'
-import { sanitizeFilename } from '@interline-io/tlv2-ui/lib/util'
+import { sanitizeFilename } from '@interline-io/catenary'
 
 function dataToBlob (features) {
   const geojson = {

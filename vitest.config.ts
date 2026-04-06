@@ -39,15 +39,7 @@ export default defineConfig({
           setupFiles: ['./test/e2e/setup.ts'],
         },
       },
-      {
-        resolve: { alias },
-        test: {
-          name: 'browser',
-          include: ['test/browser/**/*.{test,spec}.ts'],
-          environment: 'node',
-          setupFiles: ['./test/browser/setup.ts'],
-        },
-      },
+      // Browser tests use Playwright directly (pnpm test:browser), not vitest
     ],
   },
 })

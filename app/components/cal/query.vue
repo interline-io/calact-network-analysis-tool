@@ -1,62 +1,76 @@
 <template>
   <div class="cal-query">
-    <tl-title title="Home">
+    <cal-title title="Home">
       Transit Network Explorer
-    </tl-title>
+    </cal-title>
 
-    <t-msg v-if="props.scenarioLoaded" variant="warning">
+    <cat-msg v-if="props.scenarioLoaded" variant="warning">
       <p>A browse query is currently loaded.</p>
-      <t-button variant="warning" class="mt-3" @click="emit('resetScenario')">
+      <cat-button variant="warning" class="mt-3" @click="emit('resetScenario')">
         Reset and start a new query
-      </t-button>
-    </t-msg>
-    <t-msg v-else variant="info">
+      </cat-button>
+    </cat-msg>
+    <cat-msg v-else variant="info">
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
-    </t-msg>
+    </cat-msg>
 
     <div class="cal-body" :class="{ 'is-locked': props.scenarioLoaded }">
-      <t-msg title="Date range">
-        <t-field>
+      <cat-msg title="Date range">
+        <cat-field>
           <template #label>
-            <t-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served. By default, the start date is the next Monday.">
+            <cat-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served. By default, the start date is the next Monday.">
               Start date
-              <t-icon size="small" icon="information" />
-            </t-tooltip>
+              <cat-icon size="small" icon="information" />
+            </cat-tooltip>
           </template>
-          <t-datepicker v-model="startDate" />
-        </t-field>
-        <t-field>
+          <cat-datepicker
+            v-model="startDate"
+            :min-date="minAllowedDate"
+            :max-date="maxAllowedDate"
+            :years-range="datePickerYearsRange"
+            :variant="isStartDateInRange ? undefined : 'danger'"
+            readonly
+          />
+        </cat-field>
+        <cat-field>
           <template #label>
-            <t-tooltip text="By default, the end date is one week after the start date.">
+            <cat-tooltip text="By default, the end date is one week after the start date.">
               End date
-              <t-icon size="small" icon="information" />
-            </t-tooltip>
+              <cat-icon size="small" icon="information" />
+            </cat-tooltip>
           </template>
-          <t-datepicker
+          <cat-datepicker
             v-if="!selectSingleDay"
             v-model="endDate"
-            :variant="isEndDateValid ? undefined : 'danger'"
+            :min-date="minAllowedDate"
+            :max-date="maxAllowedDate"
+            :years-range="datePickerYearsRange"
+            :variant="isEndDateInRange && isEndDateValid ? undefined : 'danger'"
+            readonly
           />
-          <t-button @click="toggleSelectSingleDay()">
+          <cat-button @click="toggleSelectSingleDay()">
             {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
-          </t-button>
+          </cat-button>
           <p v-if="!isEndDateValid" class="help is-danger">
             End date must be on or after the start date.
           </p>
-        </t-field>
-      </t-msg>
+        </cat-field>
+        <p v-if="!isStartDateInRange || !isEndDateInRange" class="help is-danger">
+          Dates must be within the last 90 days or next year.
+        </p>
+      </cat-msg>
 
-      <t-msg title="Geographic Bounds">
+      <cat-msg title="Geographic Bounds">
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
-            <t-field>
+            <cat-field>
               <template #label>
-                <t-tooltip text="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
+                <cat-tooltip text="Specify the area of interest for your query. The area is used to query for transit stops, as well as the routes that serve those stops. Note that routes that traverse the area without any designated stops will not be identified.">
                   Select geography by
-                  <t-icon icon="information" />
-                </t-tooltip>
+                  <cat-icon icon="information" />
+                </cat-tooltip>
               </template>
-              <t-select v-model="geomSource">
+              <cat-select v-model="geomSource">
                 <option
                   v-for="[key, label] of Object.entries(geomSources)"
                   :key="key"
@@ -64,16 +78,16 @@
                 >
                   {{ label }}
                 </option>
-              </t-select>
-            </t-field>
+              </cat-select>
+            </cat-field>
           </div>
 
           <div class="column is-half" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
-            <t-field>
+            <cat-field>
               <template #label>
                 Boundary type
               </template>
-              <t-select v-model="geomLayer">
+              <cat-select v-model="geomLayer">
                 <option
                   v-for="option of props.censusGeographyLayerOptions"
                   :key="option.value"
@@ -81,14 +95,14 @@
                 >
                   {{ option.label }}
                 </option>
-              </t-select>
-            </t-field>
+              </cat-select>
+            </cat-field>
           </div>
         </div>
 
         <div class="container is-max-tablet" :class="{ 'is-hidden': geomSource !== 'adminBoundary' }">
           <p v-if="props.viewportGeographiesLoading" class="help mb-2">
-            <t-icon icon="loading" size="small" />
+            <cat-icon icon="loading" size="small" />
             Loading boundaries...
           </p>
           <p v-else-if="(props.viewportGeographies?.length ?? 0) > 0" class="help mb-2">
@@ -98,7 +112,7 @@
             Results limited to {{ props.viewportGeographiesLimit ?? 1000 }} boundaries. Zoom in to see all boundaries in the viewport.
           </p>
 
-          <t-field>
+          <cat-field>
             <template #label>
               Selected administrative boundaries
               <span v-if="geographyIds.length > 0" class="ml-2">
@@ -107,7 +121,7 @@
                 <a role="button" class="is-size-7" @click="emit('clearGeographies')">Clear all</a>
               </span>
             </template>
-            <t-taginput
+            <cat-taginput
               v-model="geographyIds"
               v-model:input="geomSearch"
               :open-on-focus="true"
@@ -133,33 +147,33 @@
                   </span>
                 </div>
               </template>
-            </t-taginput>
-          </t-field>
+            </cat-taginput>
+          </cat-field>
         </div>
-      </t-msg>
+      </cat-msg>
 
-      <t-msg
+      <cat-msg
         title="Advanced Settings"
         variant="dark"
         expandable
       >
         <div class="container is-max-tablet">
           <!-- Data to Load Section -->
-          <t-field label="Data to Load">
+          <cat-field label="Data to Load">
             <div class="is-flex">
-              <t-checkbox
+              <cat-checkbox
                 v-model="includeFixedRoute"
                 class="mr-5"
               >
                 Include Fixed-Route Transit
-              </t-checkbox>
-              <t-checkbox
+              </cat-checkbox>
+              <cat-checkbox
                 v-model="includeFlexAreas"
               >
                 Include Flex Service Areas
-              </t-checkbox>
+              </cat-checkbox>
             </div>
-          </t-field>
+          </cat-field>
 
           <!-- Census Geography Dataset -->
           <cal-census-dataset-picker
@@ -170,14 +184,14 @@
           />
 
           <!-- Aggregation Section -->
-          <t-field>
+          <cat-field>
             <template #label>
-              <t-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
+              <cat-tooltip text="Group data within the Report tab by geographic boundaries (cities, counties, etc.). This creates a summary table showing aggregated statistics for each geographic area. Currently only available when 'Stop' is selected as the data view.">
                 Aggregate by Census geographic hierarchy level
-                <t-icon icon="information" />
-              </t-tooltip>
+                <cat-icon icon="information" />
+              </cat-tooltip>
             </template>
-            <t-select v-model="aggregateLayer">
+            <cat-select v-model="aggregateLayer">
               <option
                 v-for="option of censusGeographyLayerOptions"
                 :key="option.value"
@@ -185,33 +199,33 @@
               >
                 {{ option.label }}
               </option>
-            </t-select>
-          </t-field>
+            </cat-select>
+          </cat-field>
         </div>
-      </t-msg>
+      </cat-msg>
 
-      <t-msg v-if="debugMenu" title="Debug menu" variant="warning">
-        <t-field label="Preset bounding box">
+      <cat-msg v-if="debugMenu" title="Debug menu" variant="warning">
+        <cat-field label="Preset bounding box">
           <div class="is-flex is-align-items-center" style="gap: 0.5rem;">
-            <t-select v-model="cannedBbox">
+            <cat-select v-model="cannedBbox">
               <option v-for="[cannedBboxName, cannedBboxDetails] of Object.entries(cannedBboxes)" :key="cannedBboxName" :value="cannedBboxName">
                 {{ cannedBboxDetails.label }}
               </option>
-            </t-select>
-            <t-button @click="loadExampleData">
+            </cat-select>
+            <cat-button @click="loadExampleData">
               Load example
-            </t-button>
+            </cat-button>
           </div>
-        </t-field>
-      </t-msg>
+        </cat-field>
+      </cat-msg>
 
       <div class="field has-addons cal-query-actions">
-        <t-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
+        <cat-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
           Run Browse Query
-        </t-button>
-        <t-button variant="primary" outlined :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
+        </cat-button>
+        <cat-button variant="primary" outlined :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
           Run Advanced Analysis
-        </t-button>
+        </cat-button>
       </div>
     </div>
   </div>
@@ -270,6 +284,29 @@ const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
 const startDate = defineModel<Date>('startDate', { required: true })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
+
+// Transitland API results are currently based on only active feed versions,
+// so we want to constrain possible query dates.
+// In future, user-controlled import of historical feeds will be a fuller solution,
+// see https://github.com/interline-io/calact-network-analysis-tool/issues/223
+const today = new Date()
+const minAllowedDate = new Date(today)
+minAllowedDate.setDate(today.getDate() - 90)
+const maxAllowedDate = new Date(today)
+maxAllowedDate.setFullYear(today.getFullYear() + 1)
+// yearsRange is relative offsets [before, after] from current year for the year dropdown
+const datePickerYearsRange: [number, number] = [-1, 1]
+
+function isDateInRange (d: Date | undefined): boolean {
+  const date = normalizeDate(d)
+  if (!date) {
+    return true
+  }
+  return date >= minAllowedDate && date <= maxAllowedDate
+}
+
+const isStartDateInRange = computed(() => isDateInRange(startDate.value))
+const isEndDateInRange = computed(() => isDateInRange(endDate.value))
 
 const isEndDateValid = computed(() => {
   if (selectSingleDay.value) {
@@ -394,6 +431,11 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
 const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
+
+  // Start and end dates must be within the allowed range
+  if (!isStartDateInRange.value || !isEndDateInRange.value) {
+    return false
+  }
 
   // End date must be valid (on or after start date)
   if (!isEndDateValid.value) {
