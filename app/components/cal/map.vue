@@ -610,7 +610,7 @@ const styleData = computed((): Matcher[] => {
 // Three visual states:
 //   1. Current layer, unselected — light gray fill, clickable
 //   2. Current layer, selected — red highlight, clickable
-//   3. Other layer, selected — gray dashed outline, not clickable
+//   3. Other layer, selected — light red fill/dashed outline, not clickable
 const selectableGeographies = computed((): Feature[] => {
   if (props.geomSource !== 'adminBoundary' || !props.viewportGeographies?.length) {
     return []
