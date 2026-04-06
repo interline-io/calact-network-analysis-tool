@@ -34,7 +34,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in currentRows" :key="row.id">
+          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
             <td v-for="column in tableReport.columns" :key="column.key">
               <slot
                 :name="`column-${column.key}`"
@@ -107,6 +107,11 @@ watch(searchQuery, () => {
 
 watch(() => tableReport.value?.columns, () => {
   searchQuery.value = ''
+})
+
+// Reset pagination when data changes (e.g. tab switch, filter update)
+watch(() => tableReport.value?.data, () => {
+  current.value = 1
 })
 
 const currentRows = computed(() => {

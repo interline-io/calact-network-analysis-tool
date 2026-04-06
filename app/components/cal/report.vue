@@ -22,25 +22,13 @@
         </span>
       </div>
 
-      <div class="tabs is-boxed mb-0">
-        <ul>
-          <li v-if="props.fixedRouteEnabled" :class="{ 'is-active': activeReportTab === 'routes' }">
-            <a @click="setReportTab('routes')">Routes</a>
-          </li>
-          <li v-if="props.fixedRouteEnabled" :class="{ 'is-active': activeReportTab === 'stops' }">
-            <a @click="setReportTab('stops')">Stops (Individual)</a>
-          </li>
-          <li v-if="props.fixedRouteEnabled && hasAggregateLayer" :class="{ 'is-active': activeReportTab === 'stops-aggregated' }">
-            <a @click="setReportTab('stops-aggregated')">Stops (Aggregated)</a>
-          </li>
-          <li v-if="props.fixedRouteEnabled" :class="{ 'is-active': activeReportTab === 'agencies' }">
-            <a @click="setReportTab('agencies')">Agencies</a>
-          </li>
-          <li v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" :class="{ 'is-active': activeReportTab === 'flex' }">
-            <a @click="setReportTab('flex')">Flex Areas</a>
-          </li>
-        </ul>
-      </div>
+      <cat-tabs v-model="activeReportTab" type="boxed">
+        <cat-tab-item v-if="props.fixedRouteEnabled" value="routes" label="Routes" />
+        <cat-tab-item v-if="props.fixedRouteEnabled" value="stops" label="Stops (Individual)" />
+        <cat-tab-item v-if="props.fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
+        <cat-tab-item v-if="props.fixedRouteEnabled" value="agencies" label="Agencies" />
+        <cat-tab-item v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" value="flex" label="Flex Areas" />
+      </cat-tabs>
     </div>
 
     <!-- Aggregation layer selector for aggregated tab -->
@@ -133,26 +121,26 @@ const hasAggregateLayer = computed(() => {
   return aggregateLayer.value !== '' && aggregateLayer.value !== 'none'
 })
 
-function setReportTab (tab: ReportTab) {
-  activeReportTab.value = tab
-  // Sync dataDisplayMode with parent so map/filters stay in sync
-  const modeMap: Record<ReportTab, DataDisplayMode> = {
-    'routes': 'Transit mode',
-    'stops': 'Stop visits',
-    'stops-aggregated': 'Stop visits',
-    'agencies': 'Agency',
-    'flex': 'Service area',
-  }
-  dataDisplayMode.value = modeMap[tab]
+// Sync dataDisplayMode when user switches tabs
+const modeMap: Record<ReportTab, DataDisplayMode> = {
+  'routes': 'Transit mode',
+  'stops': 'Stop visits',
+  'stops-aggregated': 'Stop visits',
+  'agencies': 'Agency',
+  'flex': 'Service area',
 }
+
+watch(activeReportTab, (tab) => {
+  dataDisplayMode.value = modeMap[tab]
+})
 
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
-    setReportTab('stops')
+    activeReportTab.value = 'stops'
   }
 })
 
-// Keep tab in sync if dataDisplayMode changes externally
+// Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
   if (mode === 'Transit mode' || mode === 'Route frequency') {
     activeReportTab.value = 'routes'
@@ -163,7 +151,7 @@ watch(dataDisplayMode, (mode) => {
   } else if (mode === 'Service area') {
     activeReportTab.value = 'flex'
   }
-})
+}, { immediate: true })
 
 const routeColumns: TableColumn[] = [
   { key: 'route_id', label: 'Route ID', sortable: true },
