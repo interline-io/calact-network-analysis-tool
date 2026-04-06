@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="mb-6">
     <div v-if="showResultsCount" class="cal-report-total block">
       {{ total }} results found
     </div>
@@ -26,7 +26,7 @@
 
     <div class="table-container">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
-        <thead class="is-sticky">
+        <thead>
           <tr>
             <th v-for="column in tableReport.columns" :key="column.key">
               <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
@@ -93,8 +93,6 @@ const total = computed(() => {
 
 <style scoped lang="scss">
 .table-container {
-  max-height: 70vh;
-  overflow: auto;
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
   position: relative;
@@ -111,15 +109,7 @@ const total = computed(() => {
     background: var(--bulma-scheme-main-ter);
     color: var(--bulma-text-strong);
     font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 10;
     border-bottom: 2px solid var(--bulma-border);
-
-    // Promote the hovered th so its ::after tooltip paints above table rows
-    &:hover {
-      z-index: 20;
-    }
 
     .col-header-tooltip {
       display: inline-flex;
@@ -137,27 +127,8 @@ const total = computed(() => {
     background: var(--bulma-scheme-main-bis);
   }
 
-  // Freeze first column
-  th:first-child,
   td:first-child {
-    position: sticky;
-    left: 0;
-  }
-
-  th:first-child {
-    z-index: 15; // above both sticky header row and sticky column
-  }
-
-  td:first-child {
-    z-index: 5;
     background: var(--bulma-scheme-main);
-  }
-
-  // Ensure sticky header works properly
-  thead.is-sticky {
-    position: sticky;
-    top: 0;
-    z-index: 10;
   }
 }
 
