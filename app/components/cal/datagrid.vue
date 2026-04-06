@@ -150,6 +150,7 @@ const total = computed(() => {
 
   td:first-child {
     z-index: 5;
+    background: var(--bulma-scheme-main);
   }
 
   // Ensure sticky header works properly
