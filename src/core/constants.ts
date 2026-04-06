@@ -205,6 +205,12 @@ export const flexColorByModes = [
 
 export type FlexColorByMode = typeof flexColorByModes[number]
 
+export interface FilterTag {
+  label: string
+  value: string
+  active: boolean
+}
+
 /**
  * 5-class sequential blue palette for choropleth map shading.
  * Used in both feature generation (tne.vue) and legend CSS (legend.vue).

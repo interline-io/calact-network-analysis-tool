@@ -1,20 +1,25 @@
 <template>
   <div class="cal-report">
-    <cal-title :title="reportHeading">
-      {{ reportHeading }}
-    </cal-title>
+    <div class="cal-report-title-row">
+      <cal-title :title="reportHeading">
+        {{ reportHeading }}
+      </cal-title>
+      <cal-geojson-download
+        :data="downloadFeatures"
+        variant="primary"
+      />
+    </div>
 
     <div class="cal-report-header block">
-      <div class="cal-report-header-top mb-4">
-        <ul style="list-style: disc inside">
-          <li v-for="item of filterSummary" :key="item">
-            {{ item }}
-          </li>
-        </ul>
-        <cal-geojson-download
-          :data="downloadFeatures"
-          variant="primary"
-        />
+      <div class="cal-report-filter-tags mb-4">
+        <span
+          v-for="tag of filterTags"
+          :key="tag.label + tag.value"
+          class="tag is-medium"
+          :class="tag.active ? 'is-primary' : 'is-light'"
+        >
+          {{ tag.label }}: {{ tag.value }}
+        </span>
       </div>
 
       <div class="tabs is-boxed mb-0">
@@ -83,10 +88,10 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, type DataDisplayMode, type Feature } from '~~/src/core'
+import { fmtDate, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 const props = defineProps<{
-  filterSummary: string[]
+  filterTags: FilterTag[]
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
@@ -369,10 +374,15 @@ const activeTableReport = computed((): TableReport => {
     padding-right:20px;
   }
 
-  .cal-report-header-top {
+  .cal-report-title-row {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: center;
+  }
+
+  .cal-report-filter-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 </style>
