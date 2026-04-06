@@ -478,16 +478,16 @@
           </p>
           <ul>
             <li>
-              <t-checkbox v-model="showAggAreas">
+              <cat-checkbox v-model="showAggAreas">
                 Show Agg. Areas
-              </t-checkbox>
+              </cat-checkbox>
             </li>
           </ul>
-          <t-field class="mt-2">
+          <cat-field class="mt-2">
             <template #label>
               Aggregate by
             </template>
-            <t-select
+            <cat-select
               v-model="aggregateLayer"
             >
               <option
@@ -497,8 +497,8 @@
               >
                 {{ option.label }}
               </option>
-            </t-select>
-          </t-field>
+            </cat-select>
+          </cat-field>
 
           <p class="menu-label">
             Overlay
