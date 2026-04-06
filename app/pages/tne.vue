@@ -82,7 +82,6 @@
             v-model:geom-layer="geomLayer"
             v-model:geography-ids="geographyIds"
             v-model:canned-bbox="cannedBbox"
-            v-model:aggregate-layer="aggregateLayer"
             v-model:include-fixed-route="includeFixedRoute"
             v-model:include-flex-areas="includeFlexAreas"
             v-model:geo-dataset-name="geoDatasetName"
@@ -136,10 +135,15 @@
             v-model:flex-area-types-selected="flexAreaTypesSelected"
             v-model:flex-color-by="flexColorBy"
             v-model:show-bbox="showBbox"
+            v-model:show-agg-areas="showAggAreas"
+            v-model:aggregate-layer="aggregateLayer"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
+            :census-geography-layer-options="censusGeographyLayerOptions"
+            :aggregate-geo-count="aggregateGeoCount"
+            :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
             :panel-main-width="FILTER_MAIN_WIDTH"
             :panel-sub-width="FILTER_SUB_WIDTH"
@@ -186,6 +190,8 @@
           :data-display-mode="dataDisplayMode"
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
+          :choropleth-features="choroplethFeatures"
+          :show-agg-areas="showAggAreas"
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
           :flex-display-features="flexDisplayFeatures"
@@ -224,7 +230,10 @@ import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
   getFlexAreaType,
   getFlexAdvanceNotice,
-  getFlexAgencyName, geographyLayerQuery, geographyBboxQuery
+  getFlexAgencyName,
+  geographyLayerQuery,
+  geographyBboxQuery,
+  stopGeoAggregateCsv,
 } from '~~/src/tl'
 import {
   type RouteType,
@@ -251,6 +260,8 @@ import {
   dateToSeconds,
   convertBbox,
   SCENARIO_DEFAULTS,
+  censusLayerLabels,
+  choroplethPalette,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   type DataDisplayMode
@@ -920,6 +931,15 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
   return ret
 })
 
+const showAggAreas = computed<boolean>({
+  get () {
+    return route.query.showAggAreas?.toString() === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, showAggAreas: v ? 'true' : undefined })
+  }
+})
+
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -1147,7 +1167,6 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
-  aggregateLayer: aggregateLayer.value,
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
@@ -1171,6 +1190,142 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 // Note: scenarioData is defined earlier in the file (before useFlexAreas)
 const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
+
+// Unique census geography IDs for the current aggregate layer across all marked stops.
+// Shared base for both the filter summary count and the choropleth geometry fetch.
+const aggregateGeoIds = computed((): number[] => {
+  if (!scenarioFilterResult.value) { return [] }
+  const ids = new Set<number>()
+  for (const stop of scenarioFilterResult.value.stops) {
+    if (!stop.marked) { continue }
+    for (const geo of stop.census_geographies || []) {
+      if (geo.layer_name === aggregateLayer.value) {
+        ids.add(geo.id)
+      }
+    }
+  }
+  return [...ids]
+})
+
+const aggregateGeoCount = computed((): number => aggregateGeoIds.value.length)
+
+const aggregateLayerLabel = computed((): string => {
+  const labels = censusLayerLabels[aggregateLayer.value]
+  if (!labels) {
+    return aggregateGeoCount.value === 1 ? 'area' : 'areas'
+  }
+  return aggregateGeoCount.value === 1 ? labels.singular : labels.plural
+})
+
+/////////////////
+// Choropleth aggregation overlay
+/////////////////
+
+// Only fetch geometries when the choropleth toggle is on
+const choroplethGeoIds = computed((): number[] => {
+  if (!showAggAreas.value) { return [] }
+  return aggregateGeoIds.value
+})
+
+// Fetch geometry for the choropleth geographies
+const {
+  result: choroplethGeoResult,
+} = useQuery<{ census_datasets: CensusDataset[] }>(
+  geographyLayerQuery,
+  () => ({
+    dataset_name: geoDatasetName.value,
+    geography_ids: choroplethGeoIds.value,
+    include_geographies: true,
+  }),
+  () => ({
+    enabled: choroplethGeoIds.value.length > 0,
+  })
+)
+
+// Compute aggregate stats per geography
+const choroplethAggregateData = computed(() => {
+  if (!showAggAreas.value || !scenarioFilterResult.value) {
+    return []
+  }
+  const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
+  return stopGeoAggregateCsv(markedStops, aggregateLayer.value)
+})
+
+// Build choropleth GeoJSON features with data-driven fill colors
+const choroplethFeatures = computed((): Feature[] => {
+  if (!showAggAreas.value) { return [] }
+
+  // Build a lookup: geoid -> geometry from fetched geographies
+  const geoLookup = new Map<string, CensusGeography>()
+  for (const ds of choroplethGeoResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      geoLookup.set(geo.geoid, geo)
+    }
+  }
+
+  const aggData = choroplethAggregateData.value
+  if (aggData.length === 0) { return [] }
+
+  // Determine color scale based on visit_count_daily_average using quantile breaks
+  const values = aggData
+    .map(a => a.visit_count_daily_average ?? 0)
+    .filter(v => v > 0)
+    .sort((a, b) => a - b)
+
+  const palette = choroplethPalette
+  const numClasses = palette.length
+
+  // Compute quantile breaks
+  // TODO: When many geographies share the same value (e.g. low-service areas),
+  // breaks can be identical, causing most features to land in the last color class.
+  // Consider deduplicating breaks or falling back to equal-interval classification.
+  const breaks: number[] = []
+  for (let i = 1; i < numClasses; i++) {
+    const idx = Math.floor((i / numClasses) * values.length)
+    breaks.push(values[idx] ?? 0)
+  }
+
+  function getColor (value: number): string {
+    for (let i = 0; i < breaks.length; i++) {
+      if (value < breaks[i]!) {
+        return palette[i]!
+      }
+    }
+    return palette[numClasses - 1]!
+  }
+
+  const features: Feature[] = []
+  for (const agg of aggData) {
+    const geo = geoLookup.get(agg.geoid)
+    if (!geo || !geo.geometry) { continue }
+
+    const value = agg.visit_count_daily_average ?? 0
+    const color = value > 0 ? getColor(value) : palette[0]!
+
+    features.push({
+      type: 'Feature',
+      id: geo.id.toString(),
+      geometry: geo.geometry,
+      properties: {
+        'fill': color,
+        'fill-opacity': 0.45,
+        'stroke': '#333',
+        'stroke-width': 1.5,
+        'stroke-opacity': 0.7,
+        // Aggregate data for hover popup
+        'geoid': agg.geoid,
+        'name': agg.name,
+        'stops_count': agg.stops_count,
+        'routes_count': agg.routes_count,
+        'routes_modes': agg.routes_modes,
+        'agencies_count': agg.agencies_count,
+        'visit_count_daily_average': agg.visit_count_daily_average,
+      }
+    })
+  }
+
+  return features
+})
 
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()

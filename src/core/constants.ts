@@ -204,3 +204,25 @@ export const flexColorByModes = [
 ] as const
 
 export type FlexColorByMode = typeof flexColorByModes[number]
+
+/**
+ * 5-class sequential blue palette for choropleth map shading.
+ * Used in both feature generation (tne.vue) and legend CSS (legend.vue).
+ */
+export const choroplethPalette = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'] as const
+
+/**
+ * Human-readable labels for census geography aggregation layers.
+ * Singular form for headings (e.g. "Aggregated by County"),
+ * plural form for counts (e.g. "42 counties").
+ */
+export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
+  'state': { singular: 'State', plural: 'states' },
+  'county': { singular: 'County', plural: 'counties' },
+  'tract': { singular: 'Census Tract', plural: 'census tracts' },
+  'place': { singular: 'City/Place', plural: 'cities/places' },
+  'cbsa': { singular: 'Metropolitan Area', plural: 'metropolitan areas' },
+  'csa': { singular: 'Combined Statistical Area', plural: 'combined statistical areas' },
+  'uac20': { singular: 'Urban Area', plural: 'urban areas' },
+  'fta-uac20-nonurban': { singular: 'Non-urban Area', plural: 'non-urban areas' },
+}

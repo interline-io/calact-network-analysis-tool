@@ -80,6 +80,7 @@ const showResultsCount = defineModel<boolean>('showResultsCount', { default: tru
 const props = defineProps<{
   filename?: string
 }>()
+
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage
@@ -134,6 +135,22 @@ const total = computed(() => {
 
   tr:hover td {
     background: var(--bulma-scheme-main-bis);
+  }
+
+  // Freeze first column
+  th:first-child,
+  td:first-child {
+    position: sticky;
+    left: 0;
+  }
+
+  th:first-child {
+    z-index: 15; // above both sticky header row and sticky column
+  }
+
+  td:first-child {
+    z-index: 5;
+    background: var(--bulma-scheme-main);
   }
 
   // Ensure sticky header works properly

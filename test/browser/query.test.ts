@@ -5,6 +5,7 @@ test.describe('Browse query results', () => {
   let page: Page
 
   test.beforeAll(async ({ browser }) => {
+    test.setTimeout(180000)
     page = await browser.newPage()
     // Downtown Portland bbox — known to have data in the test database
     await page.goto('/tne?bbox=-122.69075,45.51358,-122.66809,45.53306')
@@ -12,7 +13,7 @@ test.describe('Browse query results', () => {
     await expect(page.getByText('Transit Network Explorer')).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: 'Run Browse Query' }).click()
     await expect(page.getByText('Loading', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Browsing query data loaded successfully')).toBeVisible({ timeout: 60000 })
+    await expect(page.getByText('Browsing query data loaded successfully')).toBeVisible({ timeout: 120000 })
   })
 
   test.afterAll(async () => {

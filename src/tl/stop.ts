@@ -6,7 +6,7 @@ import { routeTypeNames } from '~~/src/core'
 //////////
 
 export const stopQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $layer_name: String) {
+query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -30,7 +30,9 @@ query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $lay
         onestop_id
       }
     }
-    census_geographies(limit: 100, where:{dataset: $dataset_name, layer: $layer_name}) {
+    # Fetches all layers for the dataset (no layer filter) so aggregation level can change without re-querying.
+    # limit:1000 is high enough for typical queries; results silently truncate if exceeded.
+    census_geographies(limit: 1000, where:{dataset: $dataset_name}) {
       id
       geoid
       layer_name

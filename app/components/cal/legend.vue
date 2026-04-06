@@ -125,13 +125,27 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
+        <!-- Choropleth aggregation legend -->
+        <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
+          <div class="legend-heading">
+            Aggregated Areas:
+          </div>
+          <div class="choropleth-legend-subtitle">
+            Avg. visits/day
+          </div>
+          <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
+          <div class="choropleth-gradient-labels">
+            <span>Low</span>
+            <span>High</span>
+          </div>
+        </div>
       </div>
     </cat-msg>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { DataDisplayMode } from '~~/src/core'
+import { choroplethPalette, type DataDisplayMode } from '~~/src/core'
 
 interface StyleItem {
   label: string
@@ -151,9 +165,14 @@ const props = defineProps<{
   flexColorBy?: string
   flexStyleData?: StyleItem[]
   hasFlexData?: boolean
+  // Choropleth aggregation
+  showAggAreas?: boolean
+  hasChoroplethData?: boolean
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary')
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
+
+const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
 </script>
 
 <style scoped lang="scss">
@@ -261,6 +280,28 @@ const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || pr
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.choropleth-legend {
+  margin-bottom: 10px;
+}
+
+.choropleth-legend-subtitle {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.choropleth-gradient-bar {
+  height: 12px;
+  border-radius: 2px;
+}
+
+.choropleth-gradient-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75em;
+  opacity: 0.8;
 }
 
 .legend-geo-unselected {

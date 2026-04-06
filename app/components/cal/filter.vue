@@ -52,6 +52,7 @@
         <div v-if="props.scenarioFilterResult" class="cal-filter-summary-counts">
           <span>{{ markedRouteCount }} of {{ totalRouteCount }} routes</span>
           <span>{{ markedStopCount }} of {{ totalStopCount }} stops</span>
+          <span v-if="props.aggregateGeoCount">{{ props.aggregateGeoCount }} {{ props.aggregateLayerLabel }}</span>
         </div>
         <p>
           <a @click="emit('showQuery')">Change date or region</a>
@@ -473,6 +474,33 @@
             </li>
           </ul>
           <p class="menu-label">
+            Aggregation
+          </p>
+          <ul>
+            <li>
+              <cat-checkbox v-model="showAggAreas">
+                Show Agg. Areas
+              </cat-checkbox>
+            </li>
+          </ul>
+          <cat-field class="mt-2">
+            <template #label>
+              Aggregate by
+            </template>
+            <cat-select
+              v-model="aggregateLayer"
+            >
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </cat-select>
+          </cat-field>
+
+          <p class="menu-label">
             Overlay
           </p>
           <ul>
@@ -564,6 +592,9 @@ const props = defineProps<{
   agencyFilterItems?: AgencyFilterItem[]
   geomSource?: string
   censusGeographiesSelected?: CensusGeography[]
+  censusGeographyLayerOptions?: { label: string, value: string }[]
+  aggregateGeoCount?: number
+  aggregateLayerLabel?: string
   panelMainWidth?: number
   panelSubWidth?: number
   panelPadding?: number
@@ -637,6 +668,10 @@ const minFare = defineModel<number>('minFare')
 
 // Bbox display toggle
 const showBbox = defineModel<boolean>('showBbox', { default: true })
+
+// Aggregation overlay
+const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
+const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

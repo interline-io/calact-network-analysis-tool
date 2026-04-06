@@ -71,7 +71,28 @@
         </section>
       </div>
 
-      <div class="cal-report-download">
+      <div class="cal-report-option-section">
+        <div class="has-text-weight-semibold mb-1 is-flex is-justify-content-space-between is-align-items-center">
+          <span>Aggregate by:</span>
+          <cat-tooltip text="The selected geography level determines how stop data is grouped in the aggregated table below. Enable 'Show Agg. Areas' in Map Display to visualize these areas on the map.">
+            <cat-icon icon="information" />
+          </cat-tooltip>
+        </div>
+        <cat-field class="mb-3">
+          <cat-select v-model="aggregateLayer">
+            <option
+              v-for="option of censusGeographyLayerOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </cat-select>
+        </cat-field>
+
+        <div class="has-text-weight-semibold mb-1">
+          Download
+        </div>
         <cal-geojson-download
           :data="downloadFeatures"
         />
@@ -80,10 +101,7 @@
 
     <div v-if="geoReportData.columns.length > 0">
       <h4 class="title is-5 mb-4">
-        <cat-tooltip text="To change geographic aggregation: Go to the Query tab and expand Advanced Settings to select a different Census geography hierarchy level.">
-          Aggregated by {{ getGeographyLabel(aggregateLayer) }}
-          <cat-icon icon="information" />
-        </cat-tooltip>
+        Aggregated by {{ censusLayerLabels[aggregateLayer]?.singular || 'Geographic Area' }}
       </h4>
       <cal-datagrid
         :table-report="geoReportData"
@@ -121,7 +139,7 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import type { DataDisplayMode, Feature } from '~~/src/core'
+import { censusLayerLabels, type DataDisplayMode, type Feature } from '~~/src/core'
 
 const props = defineProps<{
   filterSummary: string[]
@@ -201,21 +219,6 @@ const stopColumns: TableColumn[] = [
     tooltip: 'The sum of all visits at the stop by any route, divided by the number of calendar days included within the current filters.',
   },
 ]
-
-const getGeographyLabel = (layer: string) => {
-  const layerMap: Record<string, string> = {
-    'state': 'State',
-    'county': 'County',
-    'tract': 'Census Tract',
-    'place': 'City/Place',
-    'cbsa': 'Metropolitan Area',
-    'csa': 'Combined Statistical Area',
-    'uac20': 'Urban Area',
-    'fta-uac20-nonurban': 'Non-urban Area',
-    'fta-uac20-urban.geojsonl': 'Urban Area'
-  }
-  return layerMap[layer] || 'Geographic Area'
-}
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
   return [
