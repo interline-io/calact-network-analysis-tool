@@ -19,12 +19,11 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
-  // TODO: Add role-based access control (e.g., check for 'tl_calact_nat' role)
-  // Create a proxy-based GraphQL client using the utility
+  if (!event.context.auth0Session) {
+    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+  }
   const runtimeConfig = useRuntimeConfig(event)
-  const token = event.context.auth0Session
-    ? await event.context.auth0Session.getAccessToken()
-    : ''
+  const token = await event.context.auth0Session.getAccessToken()
   const client = new BasicGraphQLClient(
     runtimeConfig.tlv2.proxyBase.default + '/query',
     apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),

@@ -24,12 +24,12 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     auth0: {
-      domain: 'auth.interline.io',
+      domain: '',
       clientId: '',
       clientSecret: '',
       sessionSecret: '',
       appBaseUrl: process.env.CF_PAGES_URL || '',
-      audience: 'https://api.transit.land',
+      audience: '',
     },
     tlv2: {
       graphqlApikey: '',
@@ -48,14 +48,6 @@ export default defineNuxtConfig({
 
   build: {
     transpile: ['@interline-io/tlv2-auth', '@interline-io/catenary'],
-  },
-
-  routeRules: {
-    '/**': {
-      csurf: {
-        methodsToProtect: [],
-      },
-    },
   },
 
   compatibilityDate: '2025-02-14',

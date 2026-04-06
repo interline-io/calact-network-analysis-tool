@@ -100,12 +100,16 @@
       <!-- Custom rendering for URLs column -->
       <template #column-urls="{ row }">
         <span class="flex-url-links">
-          <a v-if="row.info_url" :href="row.info_url" target="_blank" rel="noopener noreferrer" title="Service Information" class="mr-2">
-            <cat-icon icon="information-outline" size="small" />
-          </a>
-          <a v-if="row.booking_url" :href="row.booking_url" target="_blank" rel="noopener noreferrer" title="Book Online">
-            <cat-icon icon="calendar-check" size="small" />
-          </a>
+          <span v-if="row.info_url" title="Service Information" class="mr-2">
+            <cat-safelink :url="row.info_url">
+              <cat-icon icon="information-outline" size="small" />
+            </cat-safelink>
+          </span>
+          <span v-if="row.booking_url" title="Book Online">
+            <cat-safelink :url="row.booking_url">
+              <cat-icon icon="calendar-check" size="small" />
+            </cat-safelink>
+          </span>
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>

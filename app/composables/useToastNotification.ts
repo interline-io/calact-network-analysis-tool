@@ -1,3 +1,4 @@
+// TODO: Replace with catenary toast component when available
 export type ToastVariant = 'primary' | 'info' | 'success' | 'warning' | 'danger'
 
 export const useToastNotification = () => {
