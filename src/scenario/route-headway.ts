@@ -137,6 +137,116 @@ export function newRouteHeadwayDirections () {
   }
 }
 
+/**
+ * Statistics about trips on a route across the selected date range.
+ */
+export interface RouteTripStats {
+  tripCount: number // total trips across all dates
+  dateCount: number // number of service dates
+  averageTripsPerDay: number
+  earliestTripStart?: number // seconds since midnight
+  earliestTripEnd?: number
+  latestTripStart?: number
+  latestTripEnd?: number
+}
+
+/**
+ * Calculate trip-level statistics for a route across the selected date range.
+ *
+ * For each date, collects all departures across all stops for both directions,
+ * groups by tripId, and determines:
+ * - Per-trip start time (earliest departure) and end time (latest departure)
+ * - Trip counts per date for averaging
+ * - Earliest/latest trip start and end times across all dates
+ *
+ * @param route - The route to analyze
+ * @param selectedDateRange - Array of dates to include
+ * @param selectedStartTime - Start of time window (HH:MM:SS)
+ * @param selectedEndTime - End of time window (HH:MM:SS)
+ * @param routeIndex - Route departure index for lookups
+ */
+export function calculateRouteTripStats (
+  route: Route,
+  selectedDateRange: Date[],
+  selectedStartTime?: string,
+  selectedEndTime?: string,
+  routeIndex?: RouteDepartureIndex
+): RouteTripStats | undefined {
+  if (!routeIndex) {
+    return undefined
+  }
+  const startTime = parseHMS(selectedStartTime || '00:00:00')
+  const endTime = parseHMS(selectedEndTime || '24:00:00')
+
+  let totalTrips = 0
+  let dateCount = 0
+  let earliestTripStart: number | undefined
+  let earliestTripEnd: number | undefined
+  let latestTripStart: number | undefined
+  let latestTripEnd: number | undefined
+
+  for (const d of selectedDateRange) {
+    const formattedDate = format(d, 'yyyy-MM-dd')
+    // Collect all departures for this route/date across both directions and all stops
+    // Group by tripId to find per-trip start/end times
+    const tripTimes = new Map<number, { min: number, max: number }>()
+
+    for (const dir of [0, 1]) {
+      const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
+      for (const deps of dateStopDeps.values()) {
+        for (const st of deps) {
+          if (st.departureTime < startTime || st.departureTime > endTime) {
+            continue
+          }
+          const existing = tripTimes.get(st.tripId)
+          if (existing) {
+            existing.min = Math.min(existing.min, st.departureTime)
+            existing.max = Math.max(existing.max, st.departureTime)
+          } else {
+            tripTimes.set(st.tripId, { min: st.departureTime, max: st.departureTime })
+          }
+        }
+      }
+    }
+
+    if (tripTimes.size === 0) {
+      continue
+    }
+
+    dateCount++
+    totalTrips += tripTimes.size
+
+    for (const { min, max } of tripTimes.values()) {
+      if (earliestTripStart === undefined || min < earliestTripStart) {
+        earliestTripStart = min
+      }
+      if (latestTripStart === undefined || min > latestTripStart) {
+        latestTripStart = min
+      }
+      if (earliestTripEnd === undefined || max < earliestTripEnd) {
+        earliestTripEnd = max
+      }
+      if (latestTripEnd === undefined || max > latestTripEnd) {
+        latestTripEnd = max
+      }
+    }
+  }
+
+  if (dateCount === 0) {
+    return undefined
+  }
+
+  return {
+    tripCount: totalTrips,
+    dateCount,
+    averageTripsPerDay: totalTrips / dateCount,
+    earliestTripStart,
+    earliestTripEnd,
+    latestTripStart,
+    latestTripEnd,
+  }
+}
+
 // Minimum headway threshold (2 minutes in seconds)
 // Headways below this are filtered out as noise (e.g., bunched buses during peak demand)
 const MIN_HEADWAY_SECONDS = 2 * 60
