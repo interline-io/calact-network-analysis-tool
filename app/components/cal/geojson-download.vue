@@ -1,5 +1,5 @@
 <template>
-  <cat-button icon-left="download" :disabled="disabled" @click="saveFile">
+  <cat-button icon-left="download" :disabled="disabled" :variant="variant" @click="saveFile">
     {{ buttonText }}
   </cat-button>
 </template>
@@ -23,6 +23,7 @@ export default {
     disabled: { type: Boolean, default: false },
     filename: { type: String, default: 'export' },
     data: { type: Array, default () { return [] } },
+    variant: { type: String, default: undefined },
   },
   methods: {
     async saveFile () {

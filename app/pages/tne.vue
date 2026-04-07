@@ -161,7 +161,9 @@
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
-            :filter-summary="filterSummary"
+            :filter-tags="filterTags"
+            :start-date="startDate"
+            :end-date="endDate"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
@@ -256,7 +258,6 @@ import {
   parseDate,
   normalizeDate,
   parseTime,
-  getLocalDateNoTime,
   dateToSeconds,
   convertBbox,
   SCENARIO_DEFAULTS,
@@ -264,7 +265,8 @@ import {
   choroplethPalette,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
-  type DataDisplayMode
+  type DataDisplayMode,
+  type FilterTag,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
@@ -1417,107 +1419,84 @@ watch(() => [
 })
 
 /////////////////
-// Filter summary
+// Filter tags
 /////////////////
 
-// Each result in the filter summary will be a string to be used as a bullet point.
-// We will only include results if the filter is set to something interesting (not default)
-const filterSummary = computed((): string[] => {
-  // const mode = dataDisplayMode.value
-  const results: string[] = []
+const filterTags = computed((): FilterTag[] => {
+  const tags: FilterTag[] = []
 
   // route types
   const selectedRtypes = scenarioFilter.value.selectedRouteTypes
-  if (selectedRtypes == null || selectedRtypes.length === 0) {
-    results.push('with any route type')
-  } else if (selectedRtypes.length !== routeTypeNames.size) {
-    const rtypes = selectedRtypes.map(val => toTitleCase(routeTypeNames.get(val) || '')).filter(Boolean)
-    results.push('with route types ' + rtypes.join(', '))
-  }
-
-  // agencies
-  const agencies = scenarioFilter.value.selectedAgencies
-  if (agencies == null || agencies.length === 0) {
-    results.push('operated by any agency')
+  if (selectedRtypes == null || selectedRtypes.length === 0 || selectedRtypes.length === routeTypeNames.size) {
+    tags.push({ label: 'Route Type', value: 'All', active: false })
   } else {
-    results.push('operated by ' + agencies.join(', '))
+    for (const rt of selectedRtypes) {
+      const name = toTitleCase(routeTypeNames.get(rt) || '')
+      if (name) {
+        tags.push({ label: 'Route Type', value: name, active: true })
+      }
+    }
   }
 
   // date range
-  const rawStartDate = scenarioConfig.value.startDate
-  const rawEndDate = scenarioConfig.value.endDate
-  if (rawStartDate == null && rawEndDate == null) {
-    results.push('operating on any date')
+  const sd = startDate.value
+  const ed = endDate.value
+  const sameMonthYear = fmtDate(sd, 'MMM yyyy') === fmtDate(ed, 'MMM yyyy')
+  if (sameMonthYear) {
+    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
   } else {
-    const today = fmtDate(getLocalDateNoTime(), 'P')
-    const sdate = fmtDate(rawStartDate, 'P') || today
-    const edate = fmtDate(rawEndDate, 'P') || today
-    if (sdate !== today && edate !== today && sdate !== edate) {
-      results.push('operating between ' + sdate + ' and ' + edate)
-    } else if (sdate !== today && edate !== today && sdate === edate) {
-      results.push('operating on ' + sdate)
-    } else if (sdate !== today && edate === today) {
-      results.push('operating after ' + sdate)
-    }
+    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd MMM, yyyy')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
   }
 
-  // days of week  (always show something here)
+  // days of week
   const days = scenarioFilter.value.selectedWeekdays
   const dowMode = scenarioFilter.value.selectedWeekdayMode
   if (days == null || days.length === 0) {
-    // Any day of the week
-  } else if (dowMode === 'All') {
-    results.push('operating all of ' + days.map(val => toTitleCase(val)).join(', '))
-  } else if (dowMode === 'Any') {
-    results.push('operating any of ' + days.map(val => toTitleCase(val)).join(', '))
+    tags.push({ label: 'Days of Week', value: 'All', active: false })
+  } else {
+    const modePrefix = dowMode === 'All' ? 'All of ' : 'Any of '
+    tags.push({ label: 'Days of Week', value: modePrefix + days.map(val => toTitleCase(val)).join(', '), active: true })
   }
 
-  // time range
-  if (scenarioFilter.value.startTime != null || scenarioFilter.value.endTime != null) {
-    const stime = fmtTime(scenarioFilter.value.startTime, 'p')
-    const etime = fmtTime(scenarioFilter.value.endTime, 'p')
-    if (stime && etime && stime !== etime) {
-      // Any time
-    } else if (stime && etime && stime === etime) {
-      results.push('operating at ' + stime)
-    } else if (stime && !etime) {
-      results.push('operating after ' + stime)
-    } else if (etime && !stime) {
-      results.push('operating before ' + etime)
-    }
+  // time of day
+  const stime = fmtTime(scenarioFilter.value.startTime, 'p')
+  const etime = fmtTime(scenarioFilter.value.endTime, 'p')
+  if (stime && etime && stime !== etime) {
+    tags.push({ label: 'Time of Day', value: `${stime} – ${etime}`, active: true })
+  } else if (stime && !etime) {
+    tags.push({ label: 'Time of Day', value: `After ${stime}`, active: true })
+  } else if (etime && !stime) {
+    tags.push({ label: 'Time of Day', value: `Before ${etime}`, active: true })
+  } else {
+    tags.push({ label: 'Time of Day', value: 'All', active: false })
   }
 
   // frequencies
   const minFreq = scenarioFilter.value.frequencyOver
   const maxFreq = scenarioFilter.value.frequencyUnder
-  const hasMinFreq = minFreq != null
-  const hasMaxFreq = maxFreq != null
-  if (hasMinFreq && hasMaxFreq && minFreq !== maxFreq) {
-    results.push('with frequency between ' + minFreq + ' and ' + maxFreq + ' minutes')
-  } else if (hasMinFreq && hasMaxFreq && minFreq === maxFreq) {
-    results.push('with frequency exactly ' + minFreq + ' minutes')
-  } else if (hasMinFreq && !hasMaxFreq) {
-    results.push('with frequency at least ' + minFreq + ' minutes')
-  } else if (hasMaxFreq && !hasMinFreq) {
-    results.push('with frequency less than ' + maxFreq + ' minutes')
+  if (minFreq != null && maxFreq != null && minFreq !== maxFreq) {
+    tags.push({ label: 'Frequencies', value: `${minFreq}–${maxFreq} min`, active: true })
+  } else if (minFreq != null && maxFreq != null && minFreq === maxFreq) {
+    tags.push({ label: 'Frequencies', value: `${minFreq} min`, active: true })
+  } else if (minFreq != null) {
+    tags.push({ label: 'Frequencies', value: `≥${minFreq} min`, active: true })
+  } else if (maxFreq != null) {
+    tags.push({ label: 'Frequencies', value: `<${maxFreq} min`, active: true })
+  } else {
+    tags.push({ label: 'Frequencies', value: 'All', active: false })
   }
 
-  // fares
-  const hasMinFare = minFareEnabled.value
-  const minDollar = minFare.value
-  const hasMaxFare = maxFareEnabled.value
-  const maxDollar = maxFare.value
-  if (hasMinFare && hasMaxFare && minDollar !== maxDollar) {
-    results.push('with fare between $' + minDollar + ' and $' + maxDollar)
-  } else if (hasMinFare && hasMaxFare && minDollar === maxDollar) {
-    results.push('with fare exactly $' + minDollar)
-  } else if (hasMinFare && !hasMaxFare) {
-    results.push('with fare at least $' + minDollar)
-  } else if (hasMaxFare && !hasMinFare) {
-    results.push('with fare less than $' + maxDollar)
+  // agencies
+  const agencies = scenarioFilter.value.selectedAgencies
+  if (agencies == null || agencies.length === 0) {
+    tags.push({ label: 'Agencies', value: 'All', active: false })
+  } else {
+    for (const agency of agencies) {
+      tags.push({ label: 'Agency', value: agency, active: true })
+    }
   }
 
-  return results
+  return tags
 })
 
 //////////////////////
