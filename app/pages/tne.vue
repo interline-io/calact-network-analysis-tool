@@ -251,6 +251,7 @@ import {
   bboxString,
   routeTypeNames,
   cannedBboxes,
+  fmtDate,
   fmtTime,
   asDateString,
   asTimeString,
@@ -1435,6 +1436,16 @@ const filterTags = computed((): FilterTag[] => {
         tags.push({ label: 'Route Type', value: name, active: true })
       }
     }
+  }
+
+  // date range
+  const sd = startDate.value
+  const ed = endDate.value
+  const sameMonthYear = fmtDate(sd, 'MMM yyyy') === fmtDate(ed, 'MMM yyyy')
+  if (sameMonthYear) {
+    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
+  } else {
+    tags.push({ label: 'Dates', value: `${fmtDate(sd, 'dd MMM, yyyy')} – ${fmtDate(ed, 'dd MMM, yyyy')}`, active: true })
   }
 
   // days of week

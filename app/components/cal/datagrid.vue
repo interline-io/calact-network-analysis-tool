@@ -50,7 +50,7 @@
       </table>
     </div>
 
-    <div class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+    <div v-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
       <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
       <cat-pagination
         v-model:current="current"
@@ -58,6 +58,9 @@
         :per-page="perPage"
         style="margin-left: auto;"
       />
+    </div>
+    <div v-else class="has-text-grey mt-4">
+      No results found
     </div>
   </div>
 </template>
