@@ -28,7 +28,7 @@ export default defineNuxtConfig({
       clientId: '',
       clientSecret: '',
       sessionSecret: '',
-      appBaseUrl: process.env.CF_PAGES_URL || '',
+      appBaseUrl: '',
       audience: '',
     },
     tlv2: {
@@ -75,5 +75,6 @@ export default defineNuxtConfig({
     loginGate: true,
     requireLogin: true,
     proxyEnabled: true,
+    autoAppBaseUrl: true,
   },
 })
