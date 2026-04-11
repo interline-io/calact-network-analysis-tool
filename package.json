@@ -21,7 +21,7 @@
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",
     "@interline-io/catenary": "0.1.0-sha.280fe3c",
     "@mdi/font": "7.4.47",
-    "@interline-io/tlv2-auth": "0.1.0-sha.45205ff",
+    "@interline-io/tlv2-auth": "0.1.0-sha.a45d5f7",
     "@apollo/client": "3.13.4",
     "@vue/apollo-composable": "4.2.2",
     "@vueuse/core": "14.0.0",

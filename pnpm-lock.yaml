@@ -18,8 +18,8 @@ importers:
         specifier: 0.1.0-sha.280fe3c
         version: 0.1.0-sha.280fe3c(@mdi/font@7.4.47)(bulma@1.0.4)(vue-router@4.6.4(vue@3.5.22(typescript@5.9.3)))(vue@3.5.22(typescript@5.9.3))
       '@interline-io/tlv2-auth':
-        specifier: 0.1.0-sha.45205ff
-        version: 0.1.0-sha.45205ff(h3@1.15.8)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.5.2)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))
+        specifier: 0.1.0-sha.a45d5f7
+        version: 0.1.0-sha.a45d5f7(h3@1.15.8)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.5.2)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))
       '@mdi/font':
         specifier: 7.4.47
         version: 7.4.47
@@ -742,9 +742,12 @@ packages:
       bulma: ^1.0.0
       vue: ^3.5.0
       vue-router: ^4.0.0
+    peerDependenciesMeta:
+      vue-router:
+        optional: true
 
-  '@interline-io/tlv2-auth@0.1.0-sha.45205ff':
-    resolution: {integrity: sha512-kGGFmlKWZu1hdyIIlTDGlaxnKJb4cU79F7J76dFLLAltI6XQzxk3vRkVVAS03YxmaxnrJlCSVsITEo7wgrVBDw==, tarball: https://npm.pkg.github.com/download/@interline-io/tlv2-auth/0.1.0-sha.45205ff/3922f0d5f2546ab6a4e5eeae3aceb7edcb2757fb}
+  '@interline-io/tlv2-auth@0.1.0-sha.a45d5f7':
+    resolution: {integrity: sha512-Ncgd84Q9Jcgsl3ZJ2rtS9tf3zvLFfBl/maOkr084cbUoQcELBp9h9FrfbsnbGobidywL7hHOO2Am0DmaTOTwwg==, tarball: https://npm.pkg.github.com/download/@interline-io/tlv2-auth/0.1.0-sha.a45d5f7/c7a30f33f94ea430acd05a688abad3ac1b4c3e22}
     peerDependencies:
       h3: ^1.0.0
       nuxt: ^4.0.0
@@ -5706,9 +5709,10 @@ snapshots:
       csv-stringify: 6.7.0
       date-fns: 4.1.0
       vue: 3.5.22(typescript@5.9.3)
+    optionalDependencies:
       vue-router: 4.6.4(vue@3.5.22(typescript@5.9.3))
 
-  '@interline-io/tlv2-auth@0.1.0-sha.45205ff(h3@1.15.8)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.5.2)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))':
+  '@interline-io/tlv2-auth@0.1.0-sha.a45d5f7(h3@1.15.8)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.5.2)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))':
     dependencies:
       '@auth0/auth0-nuxt': 1.0.1
       defu: 6.1.4
