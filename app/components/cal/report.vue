@@ -131,6 +131,15 @@
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>
+      <template #column-average_frequency="{ value }">
+        {{ formatDuration(value) }}
+      </template>
+      <template #column-fastest_frequency="{ value }">
+        {{ formatDuration(value) }}
+      </template>
+      <template #column-slowest_frequency="{ value }">
+        {{ formatDuration(value) }}
+      </template>
       <template #column-earliest_trip_start="{ value }">
         {{ formatClockTime(value) }}
       </template>
@@ -172,6 +181,17 @@ function formatClockTime (value: unknown): string {
   const h = Math.floor(value / 3600) % 24
   const m = Math.floor((value % 3600) / 60)
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+function formatDuration (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return ''
+  }
+  const total = Math.round(value)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
 /**

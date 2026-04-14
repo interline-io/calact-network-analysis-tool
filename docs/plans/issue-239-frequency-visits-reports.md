@@ -137,3 +137,34 @@ Use a Portland bbox with mixed-frequency routes.
 7. Route with a trip that starts before the window but has stop_times within it: "Earliest trip start time" shows the trip's actual start, not its earliest in-window stop_time.
 8. Stop map popup label + value swap in both modes.
 9. Geo-aggregate view matches the flat stop view.
+
+## Implementation vs. issue: differences and ambiguities
+
+Recorded after the initial implementation, to bring to Thomas.
+
+### Substantive differences
+
+1. **Frequency uses the representative stop, not literal trip start times.** Average / Fastest / Slowest frequency (and the specific-hours trip inclusion for frequency) are measured at the stop with the most departures per (route, direction, date), not at each trip's literal first stop. See Semantic note for rationale. Tooltips still quote the issue's "trip start times" wording verbatim — needs reconciling with Thomas. This is Open question #1.
+
+2. **"Routes served" / "Agencies served" are NOT filter-aware (deferred).** Issue tooltips promise filter-awareness ("during days" / "during days and times included within the current filters"), but the implementation emits `stop.route_stops.length` — the static count of all routes ever associated with the stop. Pre-existing behavior; not addressed in this PR. Tracked as a follow-up: in `stopVisits()`, accumulate the set of `routeId`s that had an in-window departure, derive agency counts from there, and surface those on `StopCsv` / `StopGeoAggregateCsv`.
+
+3. **"Average trips per day" divides by service days, not calendar days in filter.** Issue's literal reading is "calendar days in filter." Implementation divides by dates with service (dates where ≥ 1 trip was included). Weekday-only route in a 7-day filter shows `trips / 5`, literal reading would be `trips / 7`. Open question #2 — default kept; flag in PR.
+
+### Ambiguities — defaults assumed, flag in PR
+
+4. **Trip "end time" = `departure_time` of last stop, not arrival.** Issue says "first/last visit at a stop that ends a trip." `StopTimeCacheItem` doesn't have `arrivalTime`, so implementation uses `max(departureTime)` per trip. Usually within 1–2 min of arrival.
+
+5. **Specific-hours trip inclusion for earliest/latest trip start/end = "any visit in window."** Issue tooltip describes *what is reported* (the trip's first/last stop_time) but not the inclusion rule. Implementation: trip is included iff it has any stop_time in window, and reports its full span.
+
+6. **2-minute headway noise filter** in `calculateHeadwayStats()` kept as-is — not mentioned in the issue.
+
+7. **Map popup label** shows "Total visits" (short form), not mode-aware. Column header uses the full "Total Visits During Time Period."
+
+### Matches the issue verbatim
+
+- 8 route data columns + 4 identity columns, both modes, with issue's exact tooltip text.
+- Stop columns use the @NAT-mb amendment text verbatim.
+- `averageTripsPerHour` denominator: `tripCount / (hoursInWindow × serviceDateCount)` — matches "hours across all service days."
+- Cross-service-day gap exclusion preserved.
+- Trip times rendered as `HH:MM` 24-hour.
+- Trip-span bug fixed — trips include full start/end even when starting before the window.
