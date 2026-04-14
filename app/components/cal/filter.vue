@@ -691,7 +691,7 @@ const isAllDayMode = computed({
       emit('setTimeRange', { startTime: undefined, endTime: undefined })
     } else {
       // Emit event to parent to update both params in single navigation
-      emit('setTimeRange', { startTime: parseTime('00:00:00'), endTime: parseTime('23:59:00') })
+      emit('setTimeRange', { startTime: parseTime('06:00:00'), endTime: parseTime('10:00:00') })
     }
   }
 })
