@@ -122,6 +122,48 @@ Trip "end time": use `arrivalTime` of the last stop if `StopTimeCacheItem` has o
 
 4. Trip "end time" — use `arrivalTime` if `StopTimeCacheItem` has it; otherwise `departureTime` of last stop.
 
+## Browser test plan
+
+Automated via Playwright (`pnpm test:browser`) against the local tlserver and the Portland bbox already used by `query.test.ts` / `filters.test.ts`. Lives in `test/browser/report-frequency.test.ts`. The tests cover every user-visible surface the PR touches; numeric values are checked for shape (present, finite, well-formed `MM:SS` / `HH:MM`), not exact magnitudes, so they remain stable as long as the test feed has fixed-route service in the bbox.
+
+### Surfaces covered
+
+1. **Report > Routes table — all-day mode**
+   - Column headers present in order: Route ID, Route Name, Mode, Agency, Average Trips per Day, Average Frequency, Fastest Frequency, Slowest Frequency, Earliest Trip Start, Earliest Trip End, Latest Trip Start, Latest Trip End.
+   - Tooltips on the four frequency columns describe the representative-stop method and contain the issue's "calendar days" / "service days" wording per mode.
+   - At least one row's frequency cells render as `MM:SS` or `HH:MM:SS`; trip start/end cells render as `HH:MM` (after-midnight values like `25:30` allowed).
+   - "Average Trips per Day" cell parses as a finite number ≥ 0.
+
+2. **Report > Routes table — specific-hours mode**
+   - Same flow after toggling "All Day" off in Filter > Time of Day (default window `06:00–10:00`).
+   - Column 5 label flips to "Average Trips per Hour" and tooltip text contains "calendar days" (not "service days").
+   - Column header re-renders without page reload.
+
+3. **Report > Stops (Individual) table**
+   - Column headers: Stop ID, Stop Name, Modes, Routes Served, Agencies Served, Total Visits During Time Period.
+   - "Total Visits During Time Period" cell parses as a non-negative integer.
+   - Stale "Average Visits per Day" header is gone in both modes.
+
+4. **Report > Stops (Aggregated) table**
+   - Same column changes as the flat stop view; aggregation selector still works.
+
+5. **Map popup label is mode-aware**
+   - With aggregation enabled, hovering a choropleth feature shows "Total visits" in all-day mode and "Total visits in window" in specific-hours mode.
+
+6. **Legend label is mode-aware**
+   - In Stop visits display mode, legend heading is "Total visits:" (all-day) or "Total visits in window:" (specific-hours). Choropleth subtitle matches.
+
+7. **CSV column rename**
+   - Downloaded stop CSV contains `visit_count_total` column (and per-weekday `visit_count_*_total`); the old `visit_count_daily_average` columns are absent. Route CSV contains `average_trips_per_day` and `average_trips_per_hour`.
+
+8. **Filter > Time of Day default window**
+   - Toggling "All Day" off populates Start = `06:00` and End = `10:00` (regression: was previously `00:00`–`23:59`).
+
+### Out of scope for browser tests
+
+- Exact frequency / visit count magnitudes — covered by unit tests with synthetic fixtures (`route-headway.test.ts`, `scenario-filter.test.ts`).
+- Choropleth color banding magnitude shift — visual regression, not assertable cheaply; flag during QA.
+
 ## Test plan (manual)
 
 Use a Portland bbox with mixed-frequency routes.

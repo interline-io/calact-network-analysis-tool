@@ -27,6 +27,7 @@
       :has-flex-data="hasFlexData"
       :show-agg-areas="showAggAreas"
       :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
+      :is-all-day-mode="props.isAllDayMode"
     />
 
     <cal-map-viewer-ts

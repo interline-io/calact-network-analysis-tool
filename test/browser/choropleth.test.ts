@@ -87,7 +87,8 @@ test.describe('Choropleth aggregation overlay', () => {
         return
       }
     }
-    await expect(page.getByText('Avg. visits/day')).toBeVisible()
+    // Default scenario has no time-of-day window set, so we expect the all-day label.
+    await expect(page.getByText('Total visits', { exact: true })).toBeVisible()
   })
 
   test('unchecking Show Agg. Areas hides choropleth legend', async () => {
