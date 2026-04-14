@@ -77,16 +77,16 @@
         {{ formatDuration(value) }}
       </template>
       <template #column-earliest_trip_start="{ value }">
-        {{ formatClockTime(value) }}
+        {{ formatGtfsTime(value) }}
       </template>
       <template #column-earliest_trip_end="{ value }">
-        {{ formatClockTime(value) }}
+        {{ formatGtfsTime(value) }}
       </template>
       <template #column-latest_trip_start="{ value }">
-        {{ formatClockTime(value) }}
+        {{ formatGtfsTime(value) }}
       </template>
       <template #column-latest_trip_end="{ value }">
-        {{ formatClockTime(value) }}
+        {{ formatGtfsTime(value) }}
       </template>
     </cal-datagrid>
     <div class="cal-report-spacer" />
@@ -97,14 +97,14 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
-  isAllDayMode?: boolean
+  isAllDayMode: boolean
   startDate?: Date
   endDate?: Date
   // Service type toggles
@@ -112,31 +112,6 @@ const props = defineProps<{
   flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
-
-function formatClockTime (value: unknown): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return ''
-  }
-  const h = Math.floor(value / 3600) % 24
-  const m = Math.floor((value % 3600) / 60)
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-}
-
-function formatDuration (value: unknown): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return ''
-  }
-  const total = Math.round(value)
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  const mm = m.toString().padStart(2, '0')
-  const ss = s.toString().padStart(2, '0')
-  if (h === 0) {
-    return `${mm}:${ss}`
-  }
-  return `${h.toString().padStart(2, '0')}:${mm}:${ss}`
-}
 
 /**
  * Features to export as GeoJSON based on current view mode
@@ -201,7 +176,7 @@ watch(dataDisplayMode, (mode) => {
 }, { immediate: true })
 
 const routeColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode !== false
+  const allDay = props.isAllDayMode
   const serviceDays = allDay ? 'across all service days' : 'across all service days and times'
   return [
     { key: 'route_id', label: 'Route ID', sortable: true },
@@ -226,20 +201,20 @@ const routeColumns = computed((): TableColumn[] => {
       label: 'Average Frequency',
       sortable: true,
       tooltip: allDay
-        ? 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.'
-        : 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, for all trips of the indicated route that have a trip start time within the service days and times included within the current filters.',
+        ? 'The mean average of all times between trips on the indicated route (HH:MM:SS), calculated as the duration between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.'
+        : 'The mean average of all times between trips on the indicated route (HH:MM:SS), calculated as the duration between sequential trip start times, for all trips of the indicated route that have a trip start time within the service days and times included within the current filters.',
     },
     {
       key: 'fastest_frequency',
       label: 'Fastest Frequency',
       sortable: true,
-      tooltip: `The shortest time in seconds between two trips of a route, ${serviceDays} included within the current filters.`,
+      tooltip: `The shortest duration (HH:MM:SS) between two trips of a route, ${serviceDays} included within the current filters.`,
     },
     {
       key: 'slowest_frequency',
       label: 'Slowest Frequency',
       sortable: true,
-      tooltip: `The longest time in seconds between two trips of a route, ${serviceDays} included within the current filters, excepting the time in between trips on different service days.`,
+      tooltip: `The longest duration (HH:MM:SS) between two trips of a route, ${serviceDays} included within the current filters, excepting the time in between trips on different service days.`,
     },
     {
       key: 'earliest_trip_start',
@@ -269,7 +244,7 @@ const routeColumns = computed((): TableColumn[] => {
 })
 
 const stopColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode !== false
+  const allDay = props.isAllDayMode
   const duringDays = allDay ? 'during days' : 'during days and times'
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
@@ -298,7 +273,7 @@ const stopColumns = computed((): TableColumn[] => {
 })
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode !== false
+  const allDay = props.isAllDayMode
   const duringDays = allDay ? 'during days' : 'during days and times'
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [

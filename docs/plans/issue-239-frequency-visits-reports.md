@@ -160,11 +160,13 @@ Recorded after the initial implementation, to bring to Thomas.
 
 7. **Map popup label** shows "Total visits" (short form), not mode-aware. Column header uses the full "Total Visits During Time Period."
 
+8. **Choropleth color scale magnitude shift.** `stopGeoAggregateCsv` previously divided by `dateCount`; the rename to `visit_count_total` drops that division, so absolute values are now ~5–30× larger depending on the filter date range. The quantile-based breakpoints in [tne.vue:1269](app/pages/tne.vue#L1269) self-adjust, but the legend scale and visual banding will look different. Verify when smoke-testing; may want a pass on the breakpoint labels.
+
 ### Matches the issue verbatim
 
 - 8 route data columns + 4 identity columns, both modes, with issue's exact tooltip text.
 - Stop columns use the @NAT-mb amendment text verbatim.
 - `averageTripsPerHour` denominator: `tripCount / (hoursInWindow × serviceDateCount)` — matches "hours across all service days."
 - Cross-service-day gap exclusion preserved.
-- Trip times rendered as `HH:MM` 24-hour.
+- Trip times rendered as `HH:MM` in GTFS time (no wrap at 24h — an after-midnight trip at GTFS time `25:30` renders as `25:30`).
 - Trip-span bug fixed — trips include full start/end even when starting before the window.
