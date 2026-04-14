@@ -201,6 +201,7 @@
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
+          :is-all-day-mode="isAllDayMode"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"

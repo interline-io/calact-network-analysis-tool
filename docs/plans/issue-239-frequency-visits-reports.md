@@ -22,6 +22,7 @@ Definitions in the issue (Frequency = route attribute; Visits = stop_times, summ
 
 ### Stop columns (same 3 columns in both modes)
 
+
 | # | Column | Status | Action |
 |---|--------|--------|--------|
 | 1 | Routes served | Computed, rendered | Update tooltip per mode ("during days" vs "during days and times") |
@@ -111,14 +112,11 @@ Trip "end time": use `arrivalTime` of the last stop if `StopTimeCacheItem` has o
 
 ## Open questions
 
-### Blocking — need an answer before coding
+### Resolved
 
-1. **Reconcile "trip start time" language with representative-stop behavior.** Issue #239 describes frequency as "time between sequential trip start times"; the implementation measures at a representative stop to avoid conflating trips with different starting points. Confirm that tooltip wording can reflect the rep.-stop behavior, and that the requester accepts this semantic.
-
-### Non-blocking — defaults assumed, call out in PR
-
+1. ~~Reconcile "trip start time" language with representative-stop behavior.~~ Resolved: tooltips updated to describe the rep.-stop method accurately. Methodology unchanged. If Thomas later wants to switch to literal trip start times, both the calc and the tooltips will need updating.
 2. ~~All-day "Average trips per day" denominator~~ — resolved: denominator is calendar days in the filter range (matches issue's literal reading).
-3. 2-minute headway noise filter in `calculateHeadwayStats()` — keep as-is; not mentioned in the issue.
+3. ~~2-minute headway noise filter in `calculateHeadwayStats()`~~ — resolved: kept intentionally to suppress sub-2-min bunching that riders don't perceive as higher frequency.
 
 ### Resolve during implementation
 
@@ -144,9 +142,9 @@ Recorded after the initial implementation, to bring to Thomas.
 
 ### Substantive differences
 
-1. **Frequency uses the representative stop, not literal trip start times.** Average / Fastest / Slowest frequency (and the specific-hours trip inclusion for frequency) are measured at the stop with the most departures per (route, direction, date), not at each trip's literal first stop. See Semantic note for rationale. Tooltips still quote the issue's "trip start times" wording verbatim — needs reconciling with Thomas. This is Open question #1.
+1. **Frequency uses the representative stop, not literal trip start times.** Average / Fastest / Slowest frequency (and the specific-hours trip inclusion for frequency) are measured at the stop with the most departures per (route, direction, date), not at each trip's literal first stop. See Semantic note for rationale. **Tooltips updated** to describe this method accurately ("measured at the route's representative stop, the stop with the most departures on each service day"). If Thomas later wants to switch to literal trip start times, both the calc and the tooltips will need a follow-up — for now they reflect the actual method.
 
-2. **"Routes served" / "Agencies served" are NOT filter-aware (deferred).** Issue tooltips promise filter-awareness ("during days" / "during days and times included within the current filters"), but the implementation emits `stop.route_stops.length` — the static count of all routes ever associated with the stop. Pre-existing behavior; not addressed in this PR. Tracked as a follow-up: in `stopVisits()`, accumulate the set of `routeId`s that had an in-window departure, derive agency counts from there, and surface those on `StopCsv` / `StopGeoAggregateCsv`.
+2. **"Routes served" / "Agencies served" are NOT filter-aware (deferred — accepted).** Issue tooltips promise filter-awareness ("during days" / "during days and times included within the current filters"), but the implementation emits `stop.route_stops.length` — the static count of all routes ever associated with the stop. Pre-existing behavior; **explicitly accepted for this PR** and tracked as a follow-up: in `stopVisits()`, accumulate the set of `routeId`s that had an in-window departure, derive agency counts from there, and surface those on `StopCsv` / `StopGeoAggregateCsv`.
 
 3. ~~**"Average trips per day" divides by service days, not calendar days in filter.**~~ Resolved: denominator is now `selectedDateRange.length` (calendar days in filter), matching the issue's literal reading. A weekday-only route in a 7-day filter shows `trips / 7`. Applies to `averageTripsPerDay` and `averageTripsPerHour` alike; specific-hours tooltip updated to say "calendar days" instead of "service days."
 
@@ -156,11 +154,11 @@ Recorded after the initial implementation, to bring to Thomas.
 
 5. **Specific-hours trip inclusion for earliest/latest trip start/end = "any visit in window."** Issue tooltip describes *what is reported* (the trip's first/last stop_time) but not the inclusion rule. Implementation: trip is included iff it has any stop_time in window, and reports its full span.
 
-6. **2-minute headway noise filter** in `calculateHeadwayStats()` kept as-is — not mentioned in the issue.
+6. **2-minute headway noise filter** in `calculateHeadwayStats()` kept as-is — not mentioned in the issue but **intentionally retained**. It removes situations where extra buses are scheduled for capacity (or general schedule weirdness) at sub-2-min intervals; those aren't perceived by riders as higher frequency, so dropping them produces a more meaningful average/fastest/slowest.
 
-7. **Map popup label** shows "Total visits" (short form), not mode-aware. Column header uses the full "Total Visits During Time Period."
+7. ~~**Map popup label** shows "Total visits" (short form), not mode-aware.~~ Resolved: popup label is now mode-aware ("Total visits" in all-day mode, "Total visits in window" in specific-hours mode). Column header keeps the full "Total Visits During Time Period."
 
-8. **Choropleth color scale magnitude shift.** `stopGeoAggregateCsv` previously divided by `dateCount`; the rename to `visit_count_total` drops that division, so absolute values are now ~5–30× larger depending on the filter date range. The quantile-based breakpoints in [tne.vue:1269](app/pages/tne.vue#L1269) self-adjust, but the legend scale and visual banding will look different. Verify when smoke-testing; may want a pass on the breakpoint labels.
+8. **Choropleth color scale magnitude shift — needs a smoke-test pass.** `stopGeoAggregateCsv` previously divided by `dateCount`; the rename to `visit_count_total` drops that division, so absolute values are now ~5–30× larger depending on the filter date range. The quantile-based breakpoints in [tne.vue:1269](app/pages/tne.vue#L1269) self-adjust, but the legend scale and visual banding will look different. Track during QA; may want a pass on the breakpoint labels and/or legend formatting.
 
 ### Matches the issue verbatim
 

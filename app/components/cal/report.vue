@@ -201,20 +201,24 @@ const routeColumns = computed((): TableColumn[] => {
       label: 'Average Frequency',
       sortable: true,
       tooltip: allDay
-        ? 'The mean average of all times between trips on the indicated route (HH:MM:SS), calculated as the duration between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.'
-        : 'The mean average of all times between trips on the indicated route (HH:MM:SS), calculated as the duration between sequential trip start times, for all trips of the indicated route that have a trip start time within the service days and times included within the current filters.',
+        ? 'Mean duration between consecutive trips on the indicated route, measured at the route\'s representative stop (the stop with the most departures on each service day), excepting the time between trips on different service days, across all service days included within the current filters.'
+        : 'Mean duration between consecutive trips on the indicated route, measured at the route\'s representative stop (the stop with the most departures on each service day), for trips with a departure at that stop within the days and times included within the current filters.',
     },
     {
       key: 'fastest_frequency',
       label: 'Fastest Frequency',
       sortable: true,
-      tooltip: `The shortest duration (HH:MM:SS) between two trips of a route, ${serviceDays} included within the current filters.`,
+      tooltip: allDay
+        ? 'Shortest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across all service days included within the current filters.'
+        : 'Shortest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across the days and times included within the current filters.',
     },
     {
       key: 'slowest_frequency',
       label: 'Slowest Frequency',
       sortable: true,
-      tooltip: `The longest duration (HH:MM:SS) between two trips of a route, ${serviceDays} included within the current filters, excepting the time in between trips on different service days.`,
+      tooltip: allDay
+        ? 'Longest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across all service days included within the current filters, excepting the time between trips on different service days.'
+        : 'Longest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across the days and times included within the current filters, excepting the time between trips on different service days.',
     },
     {
       key: 'earliest_trip_start',

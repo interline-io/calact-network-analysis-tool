@@ -46,6 +46,7 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
+      :is-all-day-mode="props.isAllDayMode"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -103,6 +104,8 @@ const props = defineProps<{
   panelWidth?: number
   // Increment to fit map to overlay features
   fitOverlayKey?: number
+  // Whether the active timeframe filter is "All Day" (no start/end time set)
+  isAllDayMode?: boolean
 }>()
 
 const showShareMenu = ref(false)
