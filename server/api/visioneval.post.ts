@@ -1,5 +1,6 @@
 import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
 import { BasicGraphQLClient, apiFetch } from '~~/src/core'
+import { resolveAccessToken } from '~~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -26,16 +27,9 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
-  if (!event.context.auth0Session) {
-    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
-  }
   const runtimeConfig = useRuntimeConfig(event)
-  let token
-  try {
-    token = await event.context.auth0Session.getAccessToken()
-  } catch {
-    throw createError({ statusCode: 401, statusMessage: 'Session expired, please log in again' })
-  }
+  const requireLogin = runtimeConfig.public?.tlv2?.requireLogin ?? true
+  const token = await resolveAccessToken(event, requireLogin)
   const client = new BasicGraphQLClient(
     runtimeConfig.tlv2.proxyBase.default + '/query',
     apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
