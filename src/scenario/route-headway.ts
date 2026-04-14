@@ -145,8 +145,8 @@ export function newRouteHeadwayDirections () {
  * earliestTripStart/End and latestTripStart/End — not just the in-window portion.
  */
 export interface RouteTripStats {
-  tripCount: number // included trips across all service dates
-  dateCount: number // service dates (>= 1 included trip)
+  tripCount: number // included trips across all dates in range
+  dateCount: number // calendar days in selectedDateRange (NOT service days)
   hoursInWindow: number // (endSeconds - startSeconds) / 3600; 24 in all-day mode
   averageTripsPerDay: number // tripCount / dateCount
   averageTripsPerHour: number // tripCount / (hoursInWindow * dateCount)
@@ -188,8 +188,13 @@ export function calculateRouteTripStats (
   const endTime = parseHMS(selectedEndTime || '24:00:00')
   const hoursInWindow = (endTime - startTime) / 3600
 
+  // Denominator for averages is the number of calendar days in the selected
+  // range, not the number of days on which this route has service. This matches
+  // the issue's wording ("divided by the number of calendar days included
+  // within the current filters") and keeps the average comparable across routes
+  // regardless of each route's service pattern.
+  const dateCount = selectedDateRange.length
   let totalTrips = 0
-  let dateCount = 0
   let earliestTripStart: number | undefined
   let earliestTripEnd: number | undefined
   let latestTripStart: number | undefined
@@ -220,12 +225,11 @@ export function calculateRouteTripStats (
       }
     }
 
-    let includedOnDate = 0
     for (const t of tripTimes.values()) {
       if (!t.inWindow) {
         continue
       }
-      includedOnDate++
+      totalTrips++
       if (earliestTripStart === undefined || t.min < earliestTripStart) {
         earliestTripStart = t.min
       }
@@ -239,15 +243,9 @@ export function calculateRouteTripStats (
         latestTripEnd = t.max
       }
     }
-
-    if (includedOnDate === 0) {
-      continue
-    }
-    dateCount++
-    totalTrips += includedOnDate
   }
 
-  if (dateCount === 0) {
+  if (dateCount === 0 || totalTrips === 0) {
     return undefined
   }
 

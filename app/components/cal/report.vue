@@ -194,7 +194,7 @@ const routeColumns = computed((): TableColumn[] => {
           key: 'average_trips_per_hour',
           label: 'Average Trips per Hour',
           sortable: true,
-          tooltip: 'The sum of all trips on the indicated route that have any visit at any stop during the days and times included within the current filters, divided by the number of hours across all service days included within the current filters.',
+          tooltip: 'The sum of all trips on the indicated route that have any visit at any stop during the days and times included within the current filters, divided by the number of hours across all calendar days included within the current filters.',
         },
     {
       key: 'average_frequency',

@@ -72,7 +72,7 @@ interface RouteTripStats {
 }
 ```
 
-`dateCount` stays at "dates with service" (current behavior). This matches the issue's specific-hours "service days" wording verbatim, and is the intuitive behavior for all-day too (non-service days shouldn't dilute the average). See Open questions if the requester disagrees on all-day.
+`dateCount` is `selectedDateRange.length` — the number of calendar days in the filter, regardless of which of them the route actually runs. This matches the issue's literal "calendar days included within the current filters" wording. Specific-hours tooltip updated to match ("calendar days" instead of "service days").
 
 Trip inclusion is "trip has any stop_time in window" — matches the issue's specific-hours tooltip: "have any visit at any stop during the days and times included."
 
@@ -117,7 +117,7 @@ Trip "end time": use `arrivalTime` of the last stop if `StopTimeCacheItem` has o
 
 ### Non-blocking — defaults assumed, call out in PR
 
-2. All-day "Average trips per day" denominator — the issue's literal reading is "calendar days in filter," the code uses "dates with service." Defaulting to code's behavior (more useful for sparse-service routes).
+2. ~~All-day "Average trips per day" denominator~~ — resolved: denominator is calendar days in the filter range (matches issue's literal reading).
 3. 2-minute headway noise filter in `calculateHeadwayStats()` — keep as-is; not mentioned in the issue.
 
 ### Resolve during implementation
@@ -148,7 +148,7 @@ Recorded after the initial implementation, to bring to Thomas.
 
 2. **"Routes served" / "Agencies served" are NOT filter-aware (deferred).** Issue tooltips promise filter-awareness ("during days" / "during days and times included within the current filters"), but the implementation emits `stop.route_stops.length` — the static count of all routes ever associated with the stop. Pre-existing behavior; not addressed in this PR. Tracked as a follow-up: in `stopVisits()`, accumulate the set of `routeId`s that had an in-window departure, derive agency counts from there, and surface those on `StopCsv` / `StopGeoAggregateCsv`.
 
-3. **"Average trips per day" divides by service days, not calendar days in filter.** Issue's literal reading is "calendar days in filter." Implementation divides by dates with service (dates where ≥ 1 trip was included). Weekday-only route in a 7-day filter shows `trips / 5`, literal reading would be `trips / 7`. Open question #2 — default kept; flag in PR.
+3. ~~**"Average trips per day" divides by service days, not calendar days in filter.**~~ Resolved: denominator is now `selectedDateRange.length` (calendar days in filter), matching the issue's literal reading. A weekday-only route in a 7-day filter shows `trips / 7`. Applies to `averageTripsPerDay` and `averageTripsPerHour` alike; specific-hours tooltip updated to say "calendar days" instead of "service days."
 
 ### Ambiguities — defaults assumed, flag in PR
 

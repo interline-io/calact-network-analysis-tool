@@ -479,6 +479,37 @@ describe('calculateRouteTripStats', () => {
     expect(stats!.dateCount).toBe(1)
   })
 
+  it('divides trip averages by calendar days in range, not days with service', () => {
+    // 5 calendar days, but the route only runs on 2 of them (3 trips each).
+    // averageTripsPerDay must be 6/5, not 6/2.
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const dates = [
+      makeLocalDate('2024-01-15'),
+      makeLocalDate('2024-01-16'),
+      makeLocalDate('2024-01-17'),
+      makeLocalDate('2024-01-18'),
+      makeLocalDate('2024-01-19'),
+    ]
+
+    const sdCache = new StopDepartureCache()
+    let tripCounter = 1000
+    for (const dateStr of ['2024-01-15', '2024-01-17']) {
+      addTripToCache(sdCache, dateStr, makeTrip(routeId, String(tripCounter++), 0, [{ stopId: 1, departure: '08:00:00' }]))
+      addTripToCache(sdCache, dateStr, makeTrip(routeId, String(tripCounter++), 0, [{ stopId: 1, departure: '09:00:00' }]))
+      addTripToCache(sdCache, dateStr, makeTrip(routeId, String(tripCounter++), 0, [{ stopId: 1, departure: '10:00:00' }]))
+    }
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, dates, '00:00:00', '24:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(6)
+    expect(stats!.dateCount).toBe(5)
+    expect(stats!.averageTripsPerDay).toBeCloseTo(6 / 5, 5)
+    expect(stats!.averageTripsPerHour).toBeCloseTo(6 / (24 * 5), 5)
+  })
+
   it('returns undefined when no trips are included on any date', () => {
     const routeId = 100
     const route = makeRoute(routeId)
