@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { routeHeadways, newRouteHeadwaySummary, calculateHeadwayStats } from './route-headway'
+import { routeHeadways, newRouteHeadwaySummary, calculateHeadwayStats, calculateRouteTripStats } from './route-headway'
 import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
@@ -369,6 +369,129 @@ describe('calculateHeadwayStats', () => {
       hms('09:02'),
     ]
     const stats = calculateHeadwayStats(departures)
+
+    expect(stats).toBeUndefined()
+  })
+})
+
+describe('calculateRouteTripStats', () => {
+  it('computes averageTripsPerDay and averageTripsPerHour in all-day mode', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    // 3 trips with two stop_times each
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '08:00:00' },
+      { stopId: 2, departure: '08:15:00' },
+    ]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [
+      { stopId: 1, departure: '09:00:00' },
+      { stopId: 2, departure: '09:15:00' },
+    ]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1003', 0, [
+      { stopId: 1, departure: '10:00:00' },
+      { stopId: 2, departure: '10:15:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '00:00:00', '24:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(3)
+    expect(stats!.dateCount).toBe(1)
+    expect(stats!.hoursInWindow).toBe(24)
+    expect(stats!.averageTripsPerDay).toBe(3)
+    expect(stats!.averageTripsPerHour).toBeCloseTo(3 / 24, 5)
+  })
+
+  it('computes averageTripsPerHour correctly for a narrow window', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '07:30:00' }]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [{ stopId: 1, departure: '08:00:00' }]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1003', 0, [{ stopId: 1, departure: '08:30:00' }]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1004', 0, [{ stopId: 1, departure: '09:15:00' }]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '07:00:00', '09:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(3) // only trips 1001/1002/1003 have in-window stop_times
+    expect(stats!.hoursInWindow).toBe(2)
+    expect(stats!.averageTripsPerHour).toBeCloseTo(3 / 2, 5)
+  })
+
+  it('reports full trip span even when a trip starts before the window', () => {
+    // Regression test for the trip-span bug fixed in issue #239:
+    // a trip that starts at 07:45 but has stop_times through 09:30 should
+    // report its actual start (07:45) when included in a 09:00-10:00 window.
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '07:45:00' }, // outside window
+      { stopId: 2, departure: '08:30:00' }, // outside window
+      { stopId: 3, departure: '09:10:00' }, // inside window
+      { stopId: 4, departure: '09:30:00' }, // inside window
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '09:00:00', '10:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(1)
+    expect(stats!.earliestTripStart).toBe(hms('07:45')) // the trip's actual start
+    expect(stats!.latestTripEnd).toBe(hms('09:30')) // the trip's actual end
+  })
+
+  it('excludes trips with no stop_times in the window', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    // Trip entirely outside the window
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '05:00:00' },
+      { stopId: 2, departure: '05:30:00' },
+    ]))
+    // Trip inside the window
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [
+      { stopId: 1, departure: '09:00:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '08:00:00', '10:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(1)
+    expect(stats!.dateCount).toBe(1)
+  })
+
+  it('returns undefined when no trips are included on any date', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '05:00:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '08:00:00', '10:00:00', routeIndex)
 
     expect(stats).toBeUndefined()
   })

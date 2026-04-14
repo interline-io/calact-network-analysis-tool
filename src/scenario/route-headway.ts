@@ -139,11 +139,17 @@ export function newRouteHeadwayDirections () {
 
 /**
  * Statistics about trips on a route across the selected date range.
+ *
+ * In specific-hours mode, only trips with at least one stop_time in the selected
+ * window are "included." Included trips contribute their *full* span to
+ * earliestTripStart/End and latestTripStart/End — not just the in-window portion.
  */
 export interface RouteTripStats {
-  tripCount: number // total trips across all dates
-  dateCount: number // number of service dates
-  averageTripsPerDay: number
+  tripCount: number // included trips across all service dates
+  dateCount: number // service dates (>= 1 included trip)
+  hoursInWindow: number // (endSeconds - startSeconds) / 3600; 24 in all-day mode
+  averageTripsPerDay: number // tripCount / dateCount
+  averageTripsPerHour: number // tripCount / (hoursInWindow * dateCount)
   earliestTripStart?: number // seconds since midnight
   earliestTripEnd?: number
   latestTripStart?: number
@@ -153,11 +159,14 @@ export interface RouteTripStats {
 /**
  * Calculate trip-level statistics for a route across the selected date range.
  *
- * For each date, collects all departures across all stops for both directions,
- * groups by tripId, and determines:
- * - Per-trip start time (earliest departure) and end time (latest departure)
- * - Trip counts per date for averaging
- * - Earliest/latest trip start and end times across all dates
+ * For each date, iterates every stop_time across both directions and all stops,
+ * tracking per-trip:
+ * - min/max `departureTime` across ALL the trip's stop_times (the trip's full span)
+ * - whether at least one stop_time falls within the selected time window
+ *
+ * A trip is "included" iff it has any stop_time in window. Included trips contribute
+ * their full span to earliest/latest. This matches the issue's tooltip language:
+ * "the 24-hour time at which the first visit at a stop that begins a trip happens."
  *
  * @param route - The route to analyze
  * @param selectedDateRange - Array of dates to include
@@ -177,6 +186,7 @@ export function calculateRouteTripStats (
   }
   const startTime = parseHMS(selectedStartTime || '00:00:00')
   const endTime = parseHMS(selectedEndTime || '24:00:00')
+  const hoursInWindow = (endTime - startTime) / 3600
 
   let totalTrips = 0
   let dateCount = 0
@@ -187,59 +197,69 @@ export function calculateRouteTripStats (
 
   for (const d of selectedDateRange) {
     const formattedDate = format(d, 'yyyy-MM-dd')
-    // Collect all departures for this route/date across both directions and all stops
-    // Group by tripId to find per-trip start/end times
-    const tripTimes = new Map<number, { min: number, max: number }>()
+    // For each trip: track its full span (across ALL stop_times) and whether
+    // any stop_time falls in the selected window.
+    const tripTimes = new Map<number, { min: number, max: number, inWindow: boolean }>()
 
     for (const dir of [0, 1]) {
       const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
       for (const deps of dateStopDeps.values()) {
         for (const st of deps) {
-          if (st.departureTime < startTime || st.departureTime > endTime) {
-            continue
-          }
+          const inWindow = st.departureTime >= startTime && st.departureTime <= endTime
           const existing = tripTimes.get(st.tripId)
           if (existing) {
             existing.min = Math.min(existing.min, st.departureTime)
             existing.max = Math.max(existing.max, st.departureTime)
+            if (inWindow) {
+              existing.inWindow = true
+            }
           } else {
-            tripTimes.set(st.tripId, { min: st.departureTime, max: st.departureTime })
+            tripTimes.set(st.tripId, { min: st.departureTime, max: st.departureTime, inWindow })
           }
         }
       }
     }
 
-    if (tripTimes.size === 0) {
+    let includedOnDate = 0
+    for (const t of tripTimes.values()) {
+      if (!t.inWindow) {
+        continue
+      }
+      includedOnDate++
+      if (earliestTripStart === undefined || t.min < earliestTripStart) {
+        earliestTripStart = t.min
+      }
+      if (latestTripStart === undefined || t.min > latestTripStart) {
+        latestTripStart = t.min
+      }
+      if (earliestTripEnd === undefined || t.max < earliestTripEnd) {
+        earliestTripEnd = t.max
+      }
+      if (latestTripEnd === undefined || t.max > latestTripEnd) {
+        latestTripEnd = t.max
+      }
+    }
+
+    if (includedOnDate === 0) {
       continue
     }
-
     dateCount++
-    totalTrips += tripTimes.size
-
-    for (const { min, max } of tripTimes.values()) {
-      if (earliestTripStart === undefined || min < earliestTripStart) {
-        earliestTripStart = min
-      }
-      if (latestTripStart === undefined || min > latestTripStart) {
-        latestTripStart = min
-      }
-      if (earliestTripEnd === undefined || max < earliestTripEnd) {
-        earliestTripEnd = max
-      }
-      if (latestTripEnd === undefined || max > latestTripEnd) {
-        latestTripEnd = max
-      }
-    }
+    totalTrips += includedOnDate
   }
 
   if (dateCount === 0) {
     return undefined
   }
 
+  const averageTripsPerDay = totalTrips / dateCount
+  const averageTripsPerHour = hoursInWindow > 0 ? totalTrips / (hoursInWindow * dateCount) : 0
+
   return {
     tripCount: totalTrips,
     dateCount,
-    averageTripsPerDay: totalTrips / dateCount,
+    hoursInWindow,
+    averageTripsPerDay,
+    averageTripsPerHour,
     earliestTripStart,
     earliestTripEnd,
     latestTripStart,

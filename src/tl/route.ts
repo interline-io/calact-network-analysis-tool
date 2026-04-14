@@ -83,6 +83,7 @@ export interface RouteDerived {
   fastest_frequency?: number
   slowest_frequency?: number
   average_trips_per_day?: number
+  average_trips_per_hour?: number
   earliest_trip_start?: number
   earliest_trip_end?: number
   latest_trip_start?: number
@@ -120,6 +121,7 @@ export type RouteCsv = RouteGtfs & {
   fastest_frequency?: number
   slowest_frequency?: number
   average_trips_per_day?: number
+  average_trips_per_hour?: number
   earliest_trip_start?: number
   earliest_trip_end?: number
   latest_trip_start?: number
@@ -140,6 +142,7 @@ export function routeToRouteCsv (route: Route): RouteCsv {
     fastest_frequency: route.fastest_frequency ? Math.round(route.fastest_frequency) : undefined,
     slowest_frequency: route.slowest_frequency ? Math.round(route.slowest_frequency) : undefined,
     average_trips_per_day: route.average_trips_per_day != null ? Math.round(route.average_trips_per_day * 100) / 100 : undefined,
+    average_trips_per_hour: route.average_trips_per_hour != null ? Math.round(route.average_trips_per_hour * 100) / 100 : undefined,
     earliest_trip_start: route.earliest_trip_start,
     earliest_trip_end: route.earliest_trip_end,
     latest_trip_start: route.latest_trip_start,

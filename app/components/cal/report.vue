@@ -131,6 +131,18 @@
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>
+      <template #column-earliest_trip_start="{ value }">
+        {{ formatClockTime(value) }}
+      </template>
+      <template #column-earliest_trip_end="{ value }">
+        {{ formatClockTime(value) }}
+      </template>
+      <template #column-latest_trip_start="{ value }">
+        {{ formatClockTime(value) }}
+      </template>
+      <template #column-latest_trip_end="{ value }">
+        {{ formatClockTime(value) }}
+      </template>
     </cal-datagrid>
   </div>
 </template>
@@ -146,11 +158,21 @@ const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
+  isAllDayMode?: boolean
   // Service type toggles
   fixedRouteEnabled?: boolean
   flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
+
+function formatClockTime (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return ''
+  }
+  const h = Math.floor(value / 3600) % 24
+  const m = Math.floor((value % 3600) / 60)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
 
 /**
  * Features to export as GeoJSON based on current view mode
@@ -163,64 +185,107 @@ const downloadFeatures = computed((): Feature[] => {
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 
-const routeColumns: TableColumn[] = [
-  { key: 'route_id', label: 'Route ID', sortable: true },
-  { key: 'route_name', label: 'Route Name', sortable: true },
-  { key: 'route_mode', label: 'Mode', sortable: true },
-  { key: 'agency_name', label: 'Agency', sortable: true },
-  {
-    key: 'average_frequency',
-    label: 'Average Frequency',
-    sortable: true,
-    tooltip: 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.',
-  },
-  {
-    key: 'fastest_frequency',
-    label: 'Fastest Frequency',
-    sortable: true,
-    tooltip: 'The shortest time in seconds between two trips of a route, across all service days included within the current filters.',
-  },
-  {
-    key: 'slowest_frequency',
-    label: 'Slowest Frequency',
-    sortable: true,
-    tooltip: 'The longest time in seconds between two trips of a route, across all service days included within the current filters, excepting the time in between trips on different service days.',
-  },
-]
+const routeColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode !== false
+  const serviceDays = allDay ? 'across all service days' : 'across all service days and times'
+  return [
+    { key: 'route_id', label: 'Route ID', sortable: true },
+    { key: 'route_name', label: 'Route Name', sortable: true },
+    { key: 'route_mode', label: 'Mode', sortable: true },
+    { key: 'agency_name', label: 'Agency', sortable: true },
+    allDay
+      ? {
+          key: 'average_trips_per_day',
+          label: 'Average Trips per Day',
+          sortable: true,
+          tooltip: 'The sum of all trips on the indicated route, divided by the number of calendar days included within the current filters.',
+        }
+      : {
+          key: 'average_trips_per_hour',
+          label: 'Average Trips per Hour',
+          sortable: true,
+          tooltip: 'The sum of all trips on the indicated route that have any visit at any stop during the days and times included within the current filters, divided by the number of hours across all service days included within the current filters.',
+        },
+    {
+      key: 'average_frequency',
+      label: 'Average Frequency',
+      sortable: true,
+      tooltip: allDay
+        ? 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.'
+        : 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, for all trips of the indicated route that have a trip start time within the service days and times included within the current filters.',
+    },
+    {
+      key: 'fastest_frequency',
+      label: 'Fastest Frequency',
+      sortable: true,
+      tooltip: `The shortest time in seconds between two trips of a route, ${serviceDays} included within the current filters.`,
+    },
+    {
+      key: 'slowest_frequency',
+      label: 'Slowest Frequency',
+      sortable: true,
+      tooltip: `The longest time in seconds between two trips of a route, ${serviceDays} included within the current filters, excepting the time in between trips on different service days.`,
+    },
+    {
+      key: 'earliest_trip_start',
+      label: 'Earliest Trip Start',
+      sortable: true,
+      tooltip: `The 24-hour time at which the first visit at a stop that begins a trip happens for this route, ${serviceDays} included within the current filters.`,
+    },
+    {
+      key: 'earliest_trip_end',
+      label: 'Earliest Trip End',
+      sortable: true,
+      tooltip: `The 24-hour time at which the first visit at a stop that ends a trip happens for this route, ${serviceDays} included within the current filters.`,
+    },
+    {
+      key: 'latest_trip_start',
+      label: 'Latest Trip Start',
+      sortable: true,
+      tooltip: `The 24-hour time at which the last visit at a stop that begins a trip happens for this route, ${serviceDays} included within the current filters.`,
+    },
+    {
+      key: 'latest_trip_end',
+      label: 'Latest Trip End',
+      sortable: true,
+      tooltip: `The 24-hour time at which the last visit at a stop that ends a trip happens for this route, ${serviceDays} included within the current filters.`,
+    },
+  ]
+})
 
-// const routeColumnsAggregate: TableColumn[] = [
-//   { key: 'aggregate_name', label: 'Name', sortable: true },
-//   { key: 'aggregate_total', label: 'Number of Routes', sortable: true },
-//   { key: 'average_frequency', label: 'Average Frequency', sortable: true },
-//   { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
-//   { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
-// ]
-
-const stopColumns: TableColumn[] = [
-  { key: 'stop_id', label: 'Stop ID', sortable: true },
-  { key: 'stop_name', label: 'Stop Name', sortable: true },
-  { key: 'routes_modes', label: 'Modes', sortable: true },
-  {
-    key: 'routes_count',
-    label: 'Routes Served',
-    sortable: true,
-    tooltip: 'The number of routes that visit this stop during days included within the current filters.',
-  },
-  {
-    key: 'agencies_count',
-    label: 'Agencies Served',
-    sortable: true,
-    tooltip: 'The number of agencies that visit this stop during days included within the current filters.',
-  },
-  {
-    key: 'visit_count_daily_average',
-    label: 'Average Visits per Day',
-    sortable: true,
-    tooltip: 'The sum of all visits at the stop by any route, divided by the number of calendar days included within the current filters.',
-  },
-]
+const stopColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode !== false
+  const duringDays = allDay ? 'during days' : 'during days and times'
+  const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
+  return [
+    { key: 'stop_id', label: 'Stop ID', sortable: true },
+    { key: 'stop_name', label: 'Stop Name', sortable: true },
+    { key: 'routes_modes', label: 'Modes', sortable: true },
+    {
+      key: 'routes_count',
+      label: 'Routes Served',
+      sortable: true,
+      tooltip: `The number of routes that visit this stop ${duringDays} included within the current filters.`,
+    },
+    {
+      key: 'agencies_count',
+      label: 'Agencies Served',
+      sortable: true,
+      tooltip: `The number of agencies that visit this stop ${duringDays} included within the current filters.`,
+    },
+    {
+      key: 'visit_count_total',
+      label: 'Total Visits During Time Period',
+      sortable: true,
+      tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters.`,
+    },
+  ]
+})
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode !== false
+  const duringDays = allDay ? 'during days' : 'during days and times'
+  const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
@@ -229,19 +294,19 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       key: 'routes_count',
       label: 'Routes Served',
       sortable: true,
-      tooltip: 'The number of routes that visit stops within this area during days included within the current filters.',
+      tooltip: `The number of routes that visit stops within this area ${duringDays} included within the current filters.`,
     },
     {
       key: 'agencies_count',
       label: 'Agencies Served',
       sortable: true,
-      tooltip: 'The number of agencies that visit stops within this area during days included within the current filters.',
+      tooltip: `The number of agencies that visit stops within this area ${duringDays} included within the current filters.`,
     },
     {
-      key: 'visit_count_daily_average',
-      label: 'Average Visits per Day',
+      key: 'visit_count_total',
+      label: 'Total Visits During Time Period',
       sortable: true,
-      tooltip: 'The sum of all visits at stops within this area by any route, divided by the number of calendar days included within the current filters.',
+      tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters.`,
     },
   ]
 })
@@ -329,12 +394,12 @@ const reportData = computed((): TableReport => {
   if (dataDisplayMode.value === 'Transit mode' || dataDisplayMode.value === 'Route frequency') {
     return {
       data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
-      columns: routeColumns
+      columns: routeColumns.value
     }
   } else if (dataDisplayMode.value === 'Stop visits') {
     return {
       data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
-      columns: stopColumns
+      columns: stopColumns.value
     }
   } else if (dataDisplayMode.value === 'Agency') {
     return {

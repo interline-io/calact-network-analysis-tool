@@ -287,7 +287,7 @@ function initMap () {
         ['Stops', fp?.stops_count ?? 0],
         ['Routes', fp?.routes_count ?? 0],
         ['Agencies', fp?.agencies_count ?? 0],
-        ['Avg. visits/day', fp?.visit_count_daily_average ?? 0],
+        ['Total visits', fp?.visit_count_total ?? 0],
       ]) {
         choroplethTooltip.appendChild(document.createElement('br'))
         const line = document.createTextNode(`${label}: ${value}`)

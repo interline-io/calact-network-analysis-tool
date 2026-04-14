@@ -135,14 +135,14 @@ export type StopCsv = StopGtfs & {
   routes_count: number
   agencies_count: number
   marked: boolean
-  visit_count_daily_average?: number
-  visit_count_monday_average?: number
-  visit_count_tuesday_average?: number
-  visit_count_wednesday_average?: number
-  visit_count_thursday_average?: number
-  visit_count_friday_average?: number
-  visit_count_saturday_average?: number
-  visit_count_sunday_average?: number
+  visit_count_total?: number
+  visit_count_monday_total?: number
+  visit_count_tuesday_total?: number
+  visit_count_wednesday_total?: number
+  visit_count_thursday_total?: number
+  visit_count_friday_total?: number
+  visit_count_saturday_total?: number
+  visit_count_sunday_total?: number
 }
 
 interface StopGeoAggregateCsv {
@@ -153,7 +153,7 @@ interface StopGeoAggregateCsv {
   routes_modes: string
   stops_count: number
   agencies_count: number
-  visit_count_daily_average?: number
+  visit_count_total?: number
 }
 
 export type Stop = StopGql & StopDerived
@@ -174,7 +174,6 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
     agencies_count: Set<number>
   }>()
 
-  const dateCount = stops[0]?.visits?.total?.date_count || 0
   for (const stop of stops) {
     const geogs = (stop.census_geographies || []).filter(g => g.layer_name === aggregationKey)
     for (const geog of geogs) {
@@ -208,7 +207,7 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
       routes_count: a.routes_count.size,
       routes_modes: [...rmodes].join(', '),
       agencies_count: a.agencies_count.size,
-      visit_count_daily_average: roundOr(checkDiv(a.visits_count || 0, dateCount)),
+      visit_count_total: a.visits_count || 0,
     }
   })
   return [...result]
@@ -246,26 +245,13 @@ export function stopToStopCsv (stop: Stop): StopCsv {
     routes_count: stop.route_stops.length,
     routes_modes: Array.from(modes).join(','),
     agencies_count: agencies.size,
-    visit_count_daily_average: roundOr(stop.visits?.total?.visit_average),
-    visit_count_monday_average: roundOr(stop.visits?.monday?.visit_average),
-    visit_count_tuesday_average: roundOr(stop.visits?.tuesday?.visit_average),
-    visit_count_wednesday_average: roundOr(stop.visits?.wednesday?.visit_average),
-    visit_count_thursday_average: roundOr(stop.visits?.thursday?.visit_average),
-    visit_count_friday_average: roundOr(stop.visits?.friday?.visit_average),
-    visit_count_saturday_average: roundOr(stop.visits?.saturday?.visit_average),
-    visit_count_sunday_average: roundOr(stop.visits?.sunday?.visit_average),
+    visit_count_total: stop.visits?.total?.visit_count,
+    visit_count_monday_total: stop.visits?.monday?.visit_count,
+    visit_count_tuesday_total: stop.visits?.tuesday?.visit_count,
+    visit_count_wednesday_total: stop.visits?.wednesday?.visit_count,
+    visit_count_thursday_total: stop.visits?.thursday?.visit_count,
+    visit_count_friday_total: stop.visits?.friday?.visit_count,
+    visit_count_saturday_total: stop.visits?.saturday?.visit_count,
+    visit_count_sunday_total: stop.visits?.sunday?.visit_count,
   }
-}
-
-function roundOr (value?: number): number | undefined {
-  const digits = 2
-  if (value == null) {
-    return undefined
-  }
-  const factor = Math.pow(10, digits)
-  return Math.round(value * factor) / factor
-}
-
-function checkDiv (a: number, b: number): number {
-  return b === 0 ? 0 : a / b
 }

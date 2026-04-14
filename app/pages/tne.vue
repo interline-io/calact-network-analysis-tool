@@ -162,6 +162,7 @@
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-summary="filterSummary"
+            :is-all-day-mode="isAllDayMode"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
@@ -423,6 +424,8 @@ const endTime = computed<Date | undefined>({
     setQuery({ ...route.query, endTime: asTimeString(v) })
   }
 })
+
+const isAllDayMode = computed(() => startTime.value == null && endTime.value == null)
 
 const bbox = computed({
   get () {
@@ -1266,9 +1269,9 @@ const choroplethFeatures = computed((): Feature[] => {
   const aggData = choroplethAggregateData.value
   if (aggData.length === 0) { return [] }
 
-  // Determine color scale based on visit_count_daily_average using quantile breaks
+  // Determine color scale based on visit_count_total using quantile breaks
   const values = aggData
-    .map(a => a.visit_count_daily_average ?? 0)
+    .map(a => a.visit_count_total ?? 0)
     .filter(v => v > 0)
     .sort((a, b) => a - b)
 
@@ -1299,7 +1302,7 @@ const choroplethFeatures = computed((): Feature[] => {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
 
-    const value = agg.visit_count_daily_average ?? 0
+    const value = agg.visit_count_total ?? 0
     const color = value > 0 ? getColor(value) : palette[0]!
 
     features.push({
@@ -1319,7 +1322,7 @@ const choroplethFeatures = computed((): Feature[] => {
         'routes_count': agg.routes_count,
         'routes_modes': agg.routes_modes,
         'agencies_count': agg.agencies_count,
-        'visit_count_daily_average': agg.visit_count_daily_average,
+        'visit_count_total': agg.visit_count_total,
       }
     })
   }

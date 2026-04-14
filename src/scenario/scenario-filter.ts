@@ -147,12 +147,14 @@ function routeSetDerived (
     )
     if (tripStats) {
       route.average_trips_per_day = tripStats.averageTripsPerDay
+      route.average_trips_per_hour = tripStats.averageTripsPerHour
       route.earliest_trip_start = tripStats.earliestTripStart
       route.earliest_trip_end = tripStats.earliestTripEnd
       route.latest_trip_start = tripStats.latestTripStart
       route.latest_trip_end = tripStats.latestTripEnd
     } else {
       route.average_trips_per_day = undefined
+      route.average_trips_per_hour = undefined
       route.earliest_trip_start = undefined
       route.earliest_trip_end = undefined
       route.latest_trip_start = undefined
