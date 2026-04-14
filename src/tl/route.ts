@@ -86,7 +86,9 @@ export interface RouteDerived {
 
 export type RouteHeadwayCount = {
   stop_id: number
-  departures: number[]
+  // Each inner array is one date's in-window departures, sorted.
+  // Headways are computed per-day and never cross service days.
+  departures: number[][]
 }
 
 export type RouteHeadwayDirections = {

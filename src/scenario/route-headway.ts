@@ -72,10 +72,11 @@ export function routeHeadways (
         .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
 
-      // Add to result
+      // Add to result. Each date contributes its own inner array so headways
+      // are calculated per-day and never span service days.
       const resultDir = dir ? result.total.dir1 : result.total.dir0
       resultDir.stop_id = stopId
-      resultDir.departures.push(...stSecs)
+      resultDir.departures.push(stSecs)
 
       let resultDay: RouteHeadwayDirections | undefined
       switch (d.getDay()) {
@@ -104,7 +105,7 @@ export function routeHeadways (
       if (resultDay != undefined) {
         const dayDir = dir ? resultDay.dir1 : resultDay.dir0
         dayDir.stop_id = stopId
-        dayDir.departures.push(...stSecs)
+        dayDir.departures.push(stSecs)
       }
     }
   }
@@ -142,34 +143,34 @@ export function newRouteHeadwayDirections () {
 const MIN_HEADWAY_SECONDS = 2 * 60
 
 /**
- * Calculate headway statistics from an array of departure times.
- * Headways are the time intervals between consecutive departures.
+ * Calculate headway statistics from per-day departure arrays.
+ * Headways are computed within each day and then aggregated, so an interval
+ * is never measured between trips on different service days.
  * Headways under 2 minutes are filtered out as noise.
  *
- * @param departures - Array of departure times in seconds since midnight
- * @returns Object with average, fastest (min), and slowest (max) headways in seconds, or undefined if < 2 departures
+ * @param departuresByDay - Each inner array is one date's departure times in seconds since midnight
+ * @returns Object with average, fastest (min), and slowest (max) headways in seconds, or undefined if no qualifying intervals
  */
-export function calculateHeadwayStats (departures: number[]): {
+export function calculateHeadwayStats (departuresByDay: number[][]): {
   average: number
   fastest: number
   slowest: number
 } | undefined {
-  if (departures.length < 2) {
-    return undefined
-  }
-
-  // Sort departures ascending before calculating headways
-  const sorted = [...departures].sort((a, b) => a - b)
-
   const headways: number[] = []
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const curr = sorted[i]
-    const next = sorted[i + 1]
-    if (curr !== undefined && next !== undefined) {
-      const headway = next - curr
-      // Filter out headways under 2 minutes as noise
-      if (headway >= MIN_HEADWAY_SECONDS) {
-        headways.push(headway)
+  for (const dayDepartures of departuresByDay) {
+    if (dayDepartures.length < 2) {
+      continue
+    }
+    const sorted = [...dayDepartures].sort((a, b) => a - b)
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = sorted[i]
+      const next = sorted[i + 1]
+      if (curr !== undefined && next !== undefined) {
+        const headway = next - curr
+        // Filter out headways under 2 minutes as noise
+        if (headway >= MIN_HEADWAY_SECONDS) {
+          headways.push(headway)
+        }
       }
     }
   }
