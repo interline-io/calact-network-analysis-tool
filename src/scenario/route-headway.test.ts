@@ -510,6 +510,122 @@ describe('calculateRouteTripStats', () => {
     expect(stats!.averageTripsPerHour).toBeCloseTo(6 / (24 * 5), 5)
   })
 
+  it('aggregates earliest/latest across multiple dates', () => {
+    // Day 1: earliest trip 06:30, latest trip 19:00.
+    // Day 2: earliest trip 05:45 (overall earliest), latest trip 22:15 (overall latest).
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const day1 = makeLocalDate('2024-01-15')
+    const day2 = makeLocalDate('2024-01-16')
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, '2024-01-15', makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '06:30:00' },
+      { stopId: 2, departure: '06:50:00' },
+    ]))
+    addTripToCache(sdCache, '2024-01-15', makeTrip(routeId, '1002', 0, [
+      { stopId: 1, departure: '19:00:00' },
+      { stopId: 2, departure: '19:20:00' },
+    ]))
+    addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1003', 0, [
+      { stopId: 1, departure: '05:45:00' },
+      { stopId: 2, departure: '06:05:00' },
+    ]))
+    addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1004', 0, [
+      { stopId: 1, departure: '21:50:00' },
+      { stopId: 2, departure: '22:15:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [day1, day2], '00:00:00', '24:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(4)
+    expect(stats!.dateCount).toBe(2)
+    expect(stats!.earliestTripStart).toBe(hms('05:45'))
+    expect(stats!.latestTripStart).toBe(hms('21:50'))
+    expect(stats!.earliestTripEnd).toBe(hms('06:05'))
+    expect(stats!.latestTripEnd).toBe(hms('22:15'))
+  })
+
+  it('counts trips from both directions', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    // Two dir=0 trips
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '08:00:00' }]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [{ stopId: 1, departure: '09:00:00' }]))
+    // Two dir=1 trips
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1003', 1, [{ stopId: 2, departure: '08:15:00' }]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1004', 1, [{ stopId: 2, departure: '09:15:00' }]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '00:00:00', '24:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(4)
+  })
+
+  it('does not double-count a trip whose stop_times are split across directions (defensive)', () => {
+    // A single tripId should only be counted once even if its stop_times
+    // somehow land under both direction buckets in the index.
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '5001', 0, [
+      { stopId: 1, departure: '08:00:00' },
+    ]))
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '5001', 1, [
+      { stopId: 2, departure: '08:30:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '00:00:00', '24:00:00', routeIndex)
+
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(1)
+    expect(stats!.earliestTripStart).toBe(hms('08:00'))
+    expect(stats!.latestTripEnd).toBe(hms('08:30'))
+  })
+
+  it('drops after-midnight GTFS times (>24:00) under the default 24:00 end window', () => {
+    // Documents pre-existing behavior: a 25:30 departure falls outside the
+    // default all-day window (endTime = 24:00 = 86400s) and is treated as
+    // "not in window." If this ever changes (e.g. to include the full
+    // service day), this test will flag it.
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const date = makeLocalDate('2024-01-15')
+    const dateStr = '2024-01-15'
+
+    const sdCache = new StopDepartureCache()
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
+      { stopId: 1, departure: '23:45:00' },
+      { stopId: 2, departure: '25:30:00' }, // after-midnight
+    ]))
+    // A second trip entirely after midnight
+    addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [
+      { stopId: 1, departure: '25:00:00' },
+      { stopId: 2, departure: '25:45:00' },
+    ]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const stats = calculateRouteTripStats(route, [date], '00:00:00', '24:00:00', routeIndex)
+
+    // Only the first trip has an in-window stop_time (23:45); the after-midnight
+    // trip is excluded entirely.
+    expect(stats).toBeDefined()
+    expect(stats!.tripCount).toBe(1)
+    // Included trip reports its full span, including the 25:30 stop_time.
+    expect(stats!.latestTripEnd).toBe(hms('25:30'))
+  })
+
   it('returns undefined when no trips are included on any date', () => {
     const routeId = 100
     const route = makeRoute(routeId)
