@@ -18,7 +18,8 @@ import { createError } from 'h3'
  * symmetric so that dev and Playwright runs can drive scenarios end-to-end
  * against a local tlserver without an Auth0 session.
  */
-export async function resolveAccessToken (event: H3Event, requireLogin: boolean): Promise<string | undefined> {
+export async function resolveAccessToken (event: H3Event): Promise<string | undefined> {
+  const requireLogin = useRuntimeConfig(event).public.tlv2.requireLogin
   if (event.context.auth0Session) {
     try {
       return await event.context.auth0Session.getAccessToken()

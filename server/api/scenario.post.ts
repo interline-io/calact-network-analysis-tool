@@ -28,9 +28,8 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 
+  const token = await resolveAccessToken(event)
   const runtimeConfig = useRuntimeConfig(event)
-  const requireLogin = runtimeConfig.public?.tlv2?.requireLogin ?? true
-  const token = await resolveAccessToken(event, requireLogin)
   const client = new BasicGraphQLClient(
     runtimeConfig.tlv2.proxyBase.default + '/query',
     apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
