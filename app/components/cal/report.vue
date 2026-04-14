@@ -249,7 +249,6 @@ const routeColumns = computed((): TableColumn[] => {
 
 const stopColumns = computed((): TableColumn[] => {
   const allDay = props.isAllDayMode
-  const duringDays = allDay ? 'during days' : 'during days and times'
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'stop_id', label: 'Stop ID', sortable: true },
@@ -259,26 +258,25 @@ const stopColumns = computed((): TableColumn[] => {
       key: 'routes_count',
       label: 'Routes Served',
       sortable: true,
-      tooltip: `The number of routes that visit this stop ${duringDays} included within the current filters.`,
+      tooltip: 'The total number of routes that serve this stop. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
       key: 'agencies_count',
       label: 'Agencies Served',
       sortable: true,
-      tooltip: `The number of agencies that visit this stop ${duringDays} included within the current filters.`,
+      tooltip: 'The total number of agencies whose routes serve this stop. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
       key: 'visit_count_total',
       label: 'Total Visits During Time Period',
       sortable: true,
-      tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters.`,
+      tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
 })
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
   const allDay = props.isAllDayMode
-  const duringDays = allDay ? 'during days' : 'during days and times'
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'name', label: 'Name', sortable: true },
@@ -288,19 +286,19 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       key: 'routes_count',
       label: 'Routes Served',
       sortable: true,
-      tooltip: `The number of routes that visit stops within this area ${duringDays} included within the current filters.`,
+      tooltip: 'The total number of routes that serve stops within this area. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
       key: 'agencies_count',
       label: 'Agencies Served',
       sortable: true,
-      tooltip: `The number of agencies that visit stops within this area ${duringDays} included within the current filters.`,
+      tooltip: 'The total number of agencies whose routes serve stops within this area. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
       key: 'visit_count_total',
       label: 'Total Visits During Time Period',
       sortable: true,
-      tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters.`,
+      tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
 })

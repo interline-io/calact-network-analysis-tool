@@ -116,11 +116,12 @@ function routeSetDerived (
     // Assign headways to route so it can be used in filtering
     route.headways = headwayResult
     const hwTotal = headwayResult.total
-    let deps = hwTotal.dir0.departures
-    if (hwTotal.dir1.departures.length > hwTotal.dir0.departures.length) {
-      deps = hwTotal.dir1.departures
-    }
-    // Calculate headways from departures
+    // Pick the direction with more total departures; the other is intentionally
+    // dropped (a route's headway is reported per dominant direction).
+    const dir0Count = hwTotal.dir0.departures.reduce((sum, d) => sum + d.length, 0)
+    const dir1Count = hwTotal.dir1.departures.reduce((sum, d) => sum + d.length, 0)
+    const deps = dir1Count > dir0Count ? hwTotal.dir1.departures : hwTotal.dir0.departures
+    // Calculate headways per-day from departures
     const stats = calculateHeadwayStats(deps)
     if (stats) {
       route.average_frequency = stats.average
@@ -212,7 +213,10 @@ function routeMarked (
       } else if (sd === 'saturday') {
         dayHeadways = route.headways?.saturday
       }
-      const hasService = dayHeadways && (dayHeadways.dir0.departures.length > 0 || dayHeadways.dir1.departures.length > 0)
+      const hasService = dayHeadways && (
+        dayHeadways.dir0.departures.some(d => d.length > 0)
+        || dayHeadways.dir1.departures.some(d => d.length > 0)
+      )
       if (hasService) {
         hasAny = true
       } else {

@@ -132,15 +132,15 @@ describe('routeHeadways', () => {
     // Stop 2 should be selected as the representative stop (it has 3 departures, others have fewer)
     expect(result.total.dir0.stop_id).toBe(2)
 
-    // Direction 0 should have 3 departures at that stop
-    expect(result.total.dir0.departures.length).toBe(3)
+    // Direction 0 should have 3 departures at that stop, in a single per-day bucket
+    expect(result.total.dir0.departures.flat().length).toBe(3)
 
     // Monday should also have the departures (since Jan 15, 2024 is a Monday)
-    expect(result.monday.dir0.departures.length).toBe(3)
+    expect(result.monday.dir0.departures.flat().length).toBe(3)
 
     // Other days should be empty
-    expect(result.tuesday.dir0.departures.length).toBe(0)
-    expect(result.sunday.dir0.departures.length).toBe(0)
+    expect(result.tuesday.dir0.departures.flat().length).toBe(0)
+    expect(result.sunday.dir0.departures.flat().length).toBe(0)
   })
 
   it('filters departures by time window', () => {
@@ -161,38 +161,38 @@ describe('routeHeadways', () => {
     // When startTime/endTime are undefined, no filtering occurs
     const routeIndex = RouteDepartureIndex.fromCache(sdCache)
     const resultNoFilter = routeHeadways(route, [date], undefined, undefined, routeIndex)
-    expect(resultNoFilter.total.dir0.departures.length).toBe(5)
-    expect(resultNoFilter.total.dir0.departures).toContain(hms('08:00'))
-    expect(resultNoFilter.total.dir0.departures).toContain(hms('09:00'))
-    expect(resultNoFilter.total.dir0.departures).toContain(hms('10:00'))
-    expect(resultNoFilter.total.dir0.departures).toContain(hms('11:00'))
-    expect(resultNoFilter.total.dir0.departures).toContain(hms('12:00'))
+    expect(resultNoFilter.total.dir0.departures.flat().length).toBe(5)
+    expect(resultNoFilter.total.dir0.departures.flat()).toContain(hms('08:00'))
+    expect(resultNoFilter.total.dir0.departures.flat()).toContain(hms('09:00'))
+    expect(resultNoFilter.total.dir0.departures.flat()).toContain(hms('10:00'))
+    expect(resultNoFilter.total.dir0.departures.flat()).toContain(hms('11:00'))
+    expect(resultNoFilter.total.dir0.departures.flat()).toContain(hms('12:00'))
 
     // When only startTime is set, filters "trips after X"
     const resultStartOnly = routeHeadways(route, [date], '09:30:00', undefined, routeIndex)
-    expect(resultStartOnly.total.dir0.departures.length).toBe(3)
-    expect(resultStartOnly.total.dir0.departures).toContain(hms('10:00'))
-    expect(resultStartOnly.total.dir0.departures).toContain(hms('11:00'))
-    expect(resultStartOnly.total.dir0.departures).toContain(hms('12:00'))
+    expect(resultStartOnly.total.dir0.departures.flat().length).toBe(3)
+    expect(resultStartOnly.total.dir0.departures.flat()).toContain(hms('10:00'))
+    expect(resultStartOnly.total.dir0.departures.flat()).toContain(hms('11:00'))
+    expect(resultStartOnly.total.dir0.departures.flat()).toContain(hms('12:00'))
 
     // When only endTime is set, filters "trips before Y"
     const resultEndOnly = routeHeadways(route, [date], undefined, '10:30:00', routeIndex)
-    expect(resultEndOnly.total.dir0.departures.length).toBe(3)
-    expect(resultEndOnly.total.dir0.departures).toContain(hms('08:00'))
-    expect(resultEndOnly.total.dir0.departures).toContain(hms('09:00'))
-    expect(resultEndOnly.total.dir0.departures).toContain(hms('10:00'))
+    expect(resultEndOnly.total.dir0.departures.flat().length).toBe(3)
+    expect(resultEndOnly.total.dir0.departures.flat()).toContain(hms('08:00'))
+    expect(resultEndOnly.total.dir0.departures.flat()).toContain(hms('09:00'))
+    expect(resultEndOnly.total.dir0.departures.flat()).toContain(hms('10:00'))
 
     // When time window doesn't match any departures, result is empty
     const resultEmpty = routeHeadways(route, [date], '13:00:00', '14:00:00', routeIndex)
-    expect(resultEmpty.total.dir0.departures.length).toBe(0)
+    expect(resultEmpty.total.dir0.departures.flat().length).toBe(0)
 
     // Filter to 09:00-10:30 window
     const result = routeHeadways(route, [date], '09:00:00', '10:30:00', routeIndex)
 
     // Should only include 09:00 and 10:00 departures
-    expect(result.total.dir0.departures.length).toBe(2)
-    expect(result.total.dir0.departures).toContain(hms('09:00'))
-    expect(result.total.dir0.departures).toContain(hms('10:00'))
+    expect(result.total.dir0.departures.flat().length).toBe(2)
+    expect(result.total.dir0.departures.flat()).toContain(hms('09:00'))
+    expect(result.total.dir0.departures.flat()).toContain(hms('10:00'))
   })
 
   it('aggregates departures across multiple dates', () => {
@@ -215,22 +215,20 @@ describe('routeHeadways', () => {
     const routeIndex = RouteDepartureIndex.fromCache(sdCache)
     const result = routeHeadways(route, [monday, tuesday], undefined, undefined, routeIndex)
 
-    // Total should aggregate both days
-    expect(result.total.dir0.departures.length).toBe(5)
-    expect(result.total.dir0.departures).toContain(hms('09:00'))
-    expect(result.total.dir0.departures).toContain(hms('09:30'))
-    expect(result.total.dir0.departures).toContain(hms('10:00'))
+    // Total has one inner array per date in range
+    expect(result.total.dir0.departures.length).toBe(2)
+    expect(result.total.dir0.departures.flat().length).toBe(5)
+    expect(result.total.dir0.departures.flat()).toContain(hms('09:00'))
+    expect(result.total.dir0.departures.flat()).toContain(hms('09:30'))
+    expect(result.total.dir0.departures.flat()).toContain(hms('10:00'))
 
-    // Monday bucket should have 09:00 and 09:30
-    expect(result.monday.dir0.departures.length).toBe(2)
-    expect(result.monday.dir0.departures).toContain(hms('09:00'))
-    expect(result.monday.dir0.departures).toContain(hms('09:30'))
+    // Monday bucket should have 09:00 and 09:30 in a single per-date array
+    expect(result.monday.dir0.departures.length).toBe(1)
+    expect(result.monday.dir0.departures[0]).toEqual([hms('09:00'), hms('09:30')])
 
     // Tuesday bucket should have 09:00, 09:30, 10:00
-    expect(result.tuesday.dir0.departures.length).toBe(3)
-    expect(result.tuesday.dir0.departures).toContain(hms('09:00'))
-    expect(result.tuesday.dir0.departures).toContain(hms('09:30'))
-    expect(result.tuesday.dir0.departures).toContain(hms('10:00'))
+    expect(result.tuesday.dir0.departures.length).toBe(1)
+    expect(result.tuesday.dir0.departures[0]).toEqual([hms('09:00'), hms('09:30'), hms('10:00')])
   })
 
   it('returns empty result when no cache provided', () => {
@@ -239,8 +237,8 @@ describe('routeHeadways', () => {
 
     const result = routeHeadways(route, [date], '00:00:00', '24:00:00', undefined)
 
-    expect(result.total.dir0.departures.length).toBe(0)
-    expect(result.total.dir1.departures.length).toBe(0)
+    expect(result.total.dir0.departures.flat().length).toBe(0)
+    expect(result.total.dir1.departures.flat().length).toBe(0)
   })
 
   it('handles route with no departures', () => {
@@ -254,8 +252,8 @@ describe('routeHeadways', () => {
 
     const result = routeHeadways(route, [date], '00:00:00', '24:00:00', routeIndex)
 
-    expect(result.total.dir0.departures.length).toBe(0)
-    expect(result.total.dir1.departures.length).toBe(0)
+    expect(result.total.dir0.departures.flat().length).toBe(0)
+    expect(result.total.dir1.departures.flat().length).toBe(0)
   })
 })
 
@@ -272,7 +270,7 @@ describe('calculateHeadwayStats', () => {
       hms('10:20'),
       hms('10:55'),
     ]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(15 * 60) // 15 minutes
@@ -280,20 +278,20 @@ describe('calculateHeadwayStats', () => {
     expect(stats!.average).toBe(23 * 60) // (15+25+25+15+35)/5 = 23 minutes
   })
 
-  it('returns undefined for empty departures', () => {
-    const stats = calculateHeadwayStats([])
-    expect(stats).toBeUndefined()
+  it('returns undefined for empty input', () => {
+    expect(calculateHeadwayStats([])).toBeUndefined()
+    expect(calculateHeadwayStats([[]])).toBeUndefined()
   })
 
   it('returns undefined for single departure', () => {
-    const stats = calculateHeadwayStats([hms('09:00')])
+    const stats = calculateHeadwayStats([[hms('09:00')]])
     expect(stats).toBeUndefined()
   })
 
   it('calculates correct stats for two departures', () => {
     // Departures at 09:00 and 09:22 (single headway: 22min)
     const departures = [hms('09:00'), hms('09:22')]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(22 * 60)
@@ -311,7 +309,7 @@ describe('calculateHeadwayStats', () => {
       hms('11:00'),
       hms('11:30'),
     ]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(30 * 60)
@@ -331,7 +329,7 @@ describe('calculateHeadwayStats', () => {
       hms('09:20'),
       hms('10:40'),
     ]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(20 * 60) // 20 minutes
@@ -352,7 +350,7 @@ describe('calculateHeadwayStats', () => {
       hms('09:45'),
       hms('10:10'),
     ]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(19 * 60) // 19 minutes (09:01 to 09:20)
@@ -368,9 +366,37 @@ describe('calculateHeadwayStats', () => {
       hms('09:01:30'),
       hms('09:02'),
     ]
-    const stats = calculateHeadwayStats(departures)
+    const stats = calculateHeadwayStats([departures])
 
     expect(stats).toBeUndefined()
+  })
+
+  it('does not measure intervals across service days', () => {
+    // Per issue #239: the time between trips on different service days must
+    // never appear as a headway. Day 1 trips at 06:00 and 09:00 (one 3h
+    // headway). Day 2 trips at 07:00 and 10:00 (one 3h headway). Naively
+    // sorting both days together would produce spurious 1h intervals.
+    const day1 = [hms('06:00'), hms('09:00')]
+    const day2 = [hms('07:00'), hms('10:00')]
+    const stats = calculateHeadwayStats([day1, day2])
+
+    expect(stats).toBeDefined()
+    expect(stats!.fastest).toBe(3 * 3600)
+    expect(stats!.slowest).toBe(3 * 3600)
+    expect(stats!.average).toBe(3 * 3600)
+  })
+
+  it('aggregates per-day headways, picking min/max across days', () => {
+    // Day 1 has a tight 10-minute headway; day 2 has a long 60-minute headway.
+    const day1 = [hms('09:00'), hms('09:10'), hms('09:30')] // 10, 20 min
+    const day2 = [hms('06:00'), hms('07:00')] // 60 min
+    const stats = calculateHeadwayStats([day1, day2])
+
+    expect(stats).toBeDefined()
+    expect(stats!.fastest).toBe(10 * 60)
+    expect(stats!.slowest).toBe(60 * 60)
+    // (10 + 20 + 60) / 3 = 30 minutes
+    expect(stats!.average).toBe(30 * 60)
   })
 })
 
