@@ -566,6 +566,7 @@ export function applyScenarioResultFilter (
       fastest_frequency: undefined,
       slowest_frequency: undefined,
       average_trips_per_day: undefined,
+      average_trips_per_hour: undefined,
       earliest_trip_start: undefined,
       earliest_trip_end: undefined,
       latest_trip_start: undefined,
