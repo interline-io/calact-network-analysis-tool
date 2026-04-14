@@ -18,7 +18,6 @@
 
             <cal-datagrid
               :table-report="agencyDatagrid"
-              :show-results-count="false"
             >
               <template #column-agencyId="{ value }">
                 <cat-safelink
@@ -48,7 +47,6 @@
 
             <cal-datagrid
               :table-report="stopDatagrid"
-              :show-results-count="false"
             >
               <template #column-stopId="{ value }">
                 <cat-safelink
@@ -158,7 +156,6 @@
 
             <cal-datagrid
               :table-report="routeDatagrid"
-              :show-results-count="false"
             >
               <template #column-routeId="{ value }">
                 <cat-safelink

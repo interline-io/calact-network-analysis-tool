@@ -1,32 +1,28 @@
 <template>
-  <div>
-    <div v-if="showResultsCount" class="cal-report-total block">
-      {{ total }} results found
-    </div>
-
+  <div class="mb-6">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
-      <cat-field>
+      <cat-input
+        v-model="searchQuery"
+        type="search"
+        placeholder="Search..."
+        icon="magnify"
+      />
+
+      <!-- Slot for additional download buttons, such as GeoJSON -->
+      <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
+
+      <cat-field style="margin-left: auto;">
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
           :filename="props.filename"
         />
       </cat-field>
-
-      <!-- Slot for additional download buttons, such as GeoJSON -->
-      <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
-
-      <cat-pagination
-        v-model:current="current"
-        :total="total"
-        :per-page="perPage"
-        style="margin-left: auto;"
-      />
     </div>
 
     <div class="table-container">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
-        <thead class="is-sticky">
+        <thead>
           <tr>
             <th v-for="column in tableReport.columns" :key="column.key">
               <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
@@ -38,7 +34,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in currentRows" :key="row.id">
+          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
             <td v-for="column in tableReport.columns" :key="column.key">
               <slot
                 :name="`column-${column.key}`"
@@ -52,6 +48,19 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+      <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
+      <cat-pagination
+        v-model:current="current"
+        :total="total"
+        :per-page="perPage"
+        style="margin-left: auto;"
+      />
+    </div>
+    <div v-else class="has-text-grey mt-4">
+      No results found
     </div>
   </div>
 </template>
@@ -75,26 +84,57 @@ const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
-const showResultsCount = defineModel<boolean>('showResultsCount', { default: true })
 
 const props = defineProps<{
   filename?: string
 }>()
 
+const searchQuery = ref('')
+
+const filteredData = computed(() => {
+  const data = tableReport?.value?.data || []
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return data
+  }
+  return data.filter(row =>
+    Object.values(row).some(val =>
+      String(val ?? '').toLowerCase().includes(query),
+    ),
+  )
+})
+
+watch(searchQuery, () => {
+  current.value = 1
+})
+
+watch(() => tableReport.value?.columns, () => {
+  searchQuery.value = ''
+})
+
+// Reset pagination when data changes (e.g. tab switch, filter update)
+watch(() => tableReport.value?.data, () => {
+  current.value = 1
+})
+
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage
-  return tableReport?.value?.data.slice(start, end) || []
+  return filteredData.value.slice(start, end)
 })
 const total = computed(() => {
-  return (tableReport?.value?.data || []).length
+  return filteredData.value.length
+})
+const rangeStart = computed(() => {
+  return total.value === 0 ? 0 : (current.value - 1) * perPage + 1
+})
+const rangeEnd = computed(() => {
+  return Math.min(current.value * perPage, total.value)
 })
 </script>
 
 <style scoped lang="scss">
 .table-container {
-  max-height: 70vh;
-  overflow: auto;
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
   position: relative;
@@ -111,15 +151,7 @@ const total = computed(() => {
     background: var(--bulma-scheme-main-ter);
     color: var(--bulma-text-strong);
     font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 10;
     border-bottom: 2px solid var(--bulma-border);
-
-    // Promote the hovered th so its ::after tooltip paints above table rows
-    &:hover {
-      z-index: 20;
-    }
 
     .col-header-tooltip {
       display: inline-flex;
@@ -137,27 +169,8 @@ const total = computed(() => {
     background: var(--bulma-scheme-main-bis);
   }
 
-  // Freeze first column
-  th:first-child,
   td:first-child {
-    position: sticky;
-    left: 0;
-  }
-
-  th:first-child {
-    z-index: 15; // above both sticky header row and sticky column
-  }
-
-  td:first-child {
-    z-index: 5;
     background: var(--bulma-scheme-main);
-  }
-
-  // Ensure sticky header works properly
-  thead.is-sticky {
-    position: sticky;
-    top: 0;
-    z-index: 10;
   }
 }
 
