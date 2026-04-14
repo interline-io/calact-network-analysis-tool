@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { routeHeadways, newRouteHeadwaySummary, calculateHeadwayStats } from './route-headway'
+import { routeHeadways, calculateHeadwayStats, hasServiceOnWeekday } from './route-headway'
 import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
@@ -74,7 +74,6 @@ function makeRoute (id: number): Route {
     route_name: `Route ${id}`,
     agency_name: 'Test Agency',
     route_mode: 'Bus',
-    headways: newRouteHeadwaySummary(),
   }
 }
 
@@ -96,7 +95,7 @@ function hms (time: string): number {
 }
 
 describe('routeHeadways', () => {
-  it('selects representative stop with most departures', () => {
+  it('selects the representative stop (most departures) for each date', () => {
     const routeId = 100
     const route = makeRoute(routeId)
     const dateStr = '2024-01-15'
@@ -104,7 +103,7 @@ describe('routeHeadways', () => {
 
     const sdCache = new StopDepartureCache()
 
-    // 3 trips, with varying stop patterns
+    // Stop 2 visited by all 3 trips; stops 1/3/4 visited once each.
     addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [
       { stopId: 1, departure: '09:20:00' },
       { stopId: 2, departure: '09:22:00' },
@@ -123,20 +122,13 @@ describe('routeHeadways', () => {
     const routeIndex = RouteDepartureIndex.fromCache(sdCache)
     const result = routeHeadways(route, [date], '00:00:00', '24:00:00', routeIndex)
 
-    // Stop 2 should be selected as the representative stop (3 departures)
-    expect(result.total.dir0.stop_id).toBe(2)
-
-    // One date in range → one inner array with 3 departures
-    expect(result.total.dir0.departures).toHaveLength(1)
-    expect(result.total.dir0.departures[0]).toHaveLength(3)
-
-    // Monday should also have the departures (since Jan 15, 2024 is a Monday)
-    expect(result.monday.dir0.departures).toHaveLength(1)
-    expect(result.monday.dir0.departures[0]).toHaveLength(3)
-
-    // Other days should be empty (no inner arrays at all)
-    expect(result.tuesday.dir0.departures).toHaveLength(0)
-    expect(result.sunday.dir0.departures).toHaveLength(0)
+    // One date in range → one inner array.
+    // Stop 2 is the rep stop (3 departures), so dir0[0] holds its 3 times.
+    expect(result.dir0).toHaveLength(1)
+    expect(result.dir0[0]).toEqual([hms('09:22'), hms('09:33'), hms('09:43')])
+    // No dir1 activity in this fixture.
+    expect(result.dir1).toHaveLength(1)
+    expect(result.dir1[0]).toEqual([])
   })
 
   it('filters departures by time window', () => {
@@ -146,8 +138,6 @@ describe('routeHeadways', () => {
     const dateStr = '2024-01-15'
 
     const sdCache = new StopDepartureCache()
-
-    // 5 trips at various times, each visiting stop 1
     addTripToCache(sdCache, dateStr, makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '08:00:00' }]))
     addTripToCache(sdCache, dateStr, makeTrip(routeId, '1002', 0, [{ stopId: 1, departure: '09:00:00' }]))
     addTripToCache(sdCache, dateStr, makeTrip(routeId, '1003', 0, [{ stopId: 1, departure: '10:00:00' }]))
@@ -156,47 +146,33 @@ describe('routeHeadways', () => {
 
     const routeIndex = RouteDepartureIndex.fromCache(sdCache)
 
-    // When startTime/endTime are undefined, no filtering occurs
     const resultNoFilter = routeHeadways(route, [date], undefined, undefined, routeIndex)
-    expect(resultNoFilter.total.dir0.departures.flat()).toHaveLength(5)
-    expect(resultNoFilter.total.dir0.departures.flat()).toEqual([
+    expect(resultNoFilter.dir0[0]).toEqual([
       hms('08:00'), hms('09:00'), hms('10:00'), hms('11:00'), hms('12:00'),
     ])
 
-    // When only startTime is set, filters "trips after X"
     const resultStartOnly = routeHeadways(route, [date], '09:30:00', undefined, routeIndex)
-    expect(resultStartOnly.total.dir0.departures.flat()).toEqual([
-      hms('10:00'), hms('11:00'), hms('12:00'),
-    ])
+    expect(resultStartOnly.dir0[0]).toEqual([hms('10:00'), hms('11:00'), hms('12:00')])
 
-    // When only endTime is set, filters "trips before Y"
     const resultEndOnly = routeHeadways(route, [date], undefined, '10:30:00', routeIndex)
-    expect(resultEndOnly.total.dir0.departures.flat()).toEqual([
-      hms('08:00'), hms('09:00'), hms('10:00'),
-    ])
+    expect(resultEndOnly.dir0[0]).toEqual([hms('08:00'), hms('09:00'), hms('10:00')])
 
-    // When time window doesn't match any departures, the inner array is empty
     const resultEmpty = routeHeadways(route, [date], '13:00:00', '14:00:00', routeIndex)
-    expect(resultEmpty.total.dir0.departures.flat()).toHaveLength(0)
+    expect(resultEmpty.dir0[0]).toEqual([])
 
-    // Filter to 09:00-10:30 window
     const result = routeHeadways(route, [date], '09:00:00', '10:30:00', routeIndex)
-    expect(result.total.dir0.departures.flat()).toEqual([hms('09:00'), hms('10:00')])
+    expect(result.dir0[0]).toEqual([hms('09:00'), hms('10:00')])
   })
 
-  it('keeps each date in its own inner array (per-day structure)', () => {
+  it('keeps each date in its own inner array, positionally aligned with selectedDateRange', () => {
     const routeId = 100
     const route = makeRoute(routeId)
     const monday = makeLocalDate('2024-01-15')
     const tuesday = makeLocalDate('2024-01-16')
 
     const sdCache = new StopDepartureCache()
-
-    // Monday: 2 trips
     addTripToCache(sdCache, '2024-01-15', makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '09:00:00' }]))
     addTripToCache(sdCache, '2024-01-15', makeTrip(routeId, '1002', 0, [{ stopId: 1, departure: '09:30:00' }]))
-
-    // Tuesday: 3 trips
     addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1003', 0, [{ stopId: 1, departure: '09:00:00' }]))
     addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1004', 0, [{ stopId: 1, departure: '09:30:00' }]))
     addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1005', 0, [{ stopId: 1, departure: '10:00:00' }]))
@@ -204,31 +180,45 @@ describe('routeHeadways', () => {
     const routeIndex = RouteDepartureIndex.fromCache(sdCache)
     const result = routeHeadways(route, [monday, tuesday], undefined, undefined, routeIndex)
 
-    // Total has one inner array per date
-    expect(result.total.dir0.departures).toHaveLength(2)
-    expect(result.total.dir0.departures[0]).toEqual([hms('09:00'), hms('09:30')])
-    expect(result.total.dir0.departures[1]).toEqual([hms('09:00'), hms('09:30'), hms('10:00')])
-
-    // Monday bucket has only Monday's array
-    expect(result.monday.dir0.departures).toHaveLength(1)
-    expect(result.monday.dir0.departures[0]).toEqual([hms('09:00'), hms('09:30')])
-
-    // Tuesday bucket has only Tuesday's array
-    expect(result.tuesday.dir0.departures).toHaveLength(1)
-    expect(result.tuesday.dir0.departures[0]).toEqual([hms('09:00'), hms('09:30'), hms('10:00')])
+    expect(result.dir0).toHaveLength(2)
+    expect(result.dir0[0]).toEqual([hms('09:00'), hms('09:30')]) // Monday
+    expect(result.dir0[1]).toEqual([hms('09:00'), hms('09:30'), hms('10:00')]) // Tuesday
   })
 
-  it('returns empty result when no cache provided', () => {
+  it('keeps empty inner arrays for service-less days to preserve positional mapping', () => {
+    const routeId = 100
+    const route = makeRoute(routeId)
+    const dates = [
+      makeLocalDate('2024-01-15'),
+      makeLocalDate('2024-01-16'),
+      makeLocalDate('2024-01-17'),
+    ]
+
+    const sdCache = new StopDepartureCache()
+    // Only the middle date has service.
+    addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '09:00:00' }]))
+    addTripToCache(sdCache, '2024-01-16', makeTrip(routeId, '1002', 0, [{ stopId: 1, departure: '09:30:00' }]))
+
+    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
+    const result = routeHeadways(route, dates, undefined, undefined, routeIndex)
+
+    expect(result.dir0).toHaveLength(3)
+    expect(result.dir0[0]).toEqual([])
+    expect(result.dir0[1]).toEqual([hms('09:00'), hms('09:30')])
+    expect(result.dir0[2]).toEqual([])
+  })
+
+  it('returns empty arrays when no routeIndex is provided', () => {
     const route = makeRoute(100)
     const date = makeLocalDate('2024-01-15')
 
     const result = routeHeadways(route, [date], '00:00:00', '24:00:00', undefined)
 
-    expect(result.total.dir0.departures).toHaveLength(0)
-    expect(result.total.dir1.departures).toHaveLength(0)
+    expect(result.dir0).toEqual([])
+    expect(result.dir1).toEqual([])
   })
 
-  it('handles route with no departures', () => {
+  it('handles a route with no departures', () => {
     const routeId = 100
     const route = makeRoute(routeId)
     const date = makeLocalDate('2024-01-15')
@@ -238,30 +228,60 @@ describe('routeHeadways', () => {
 
     const result = routeHeadways(route, [date], '00:00:00', '24:00:00', routeIndex)
 
-    expect(result.total.dir0.departures.flat()).toHaveLength(0)
-    expect(result.total.dir1.departures.flat()).toHaveLength(0)
+    expect(result.dir0).toEqual([[]])
+    expect(result.dir1).toEqual([[]])
+  })
+})
+
+describe('hasServiceOnWeekday', () => {
+  const monday = makeLocalDate('2024-01-15') // Monday
+  const tuesday = makeLocalDate('2024-01-16')
+  const monday2 = makeLocalDate('2024-01-22') // the next Monday
+
+  it('returns true when the matching weekday has at least one dir0 departure', () => {
+    const deps = { dir0: [[hms('09:00')], []], dir1: [[], []] }
+    expect(hasServiceOnWeekday(deps, [monday, tuesday], 'monday')).toBe(true)
+    expect(hasServiceOnWeekday(deps, [monday, tuesday], 'tuesday')).toBe(false)
+  })
+
+  it('returns true when only dir1 has service', () => {
+    const deps = { dir0: [[]], dir1: [[hms('09:00')]] }
+    expect(hasServiceOnWeekday(deps, [monday], 'monday')).toBe(true)
+  })
+
+  it('returns true if any matching-weekday date has service, even if others do not', () => {
+    // Two Mondays in range; only the second has service.
+    const deps = { dir0: [[], [], []], dir1: [[], [], [hms('09:00')]] }
+    expect(hasServiceOnWeekday(deps, [monday, tuesday, monday2], 'monday')).toBe(true)
+  })
+
+  it('returns false for a weekday that does not appear in the range', () => {
+    const deps = { dir0: [[hms('09:00')]], dir1: [[]] }
+    expect(hasServiceOnWeekday(deps, [monday], 'friday')).toBe(false)
+  })
+
+  it('returns false when the matching dates are all empty', () => {
+    const deps = { dir0: [[], []], dir1: [[], []] }
+    expect(hasServiceOnWeekday(deps, [monday, monday2], 'monday')).toBe(false)
   })
 })
 
 describe('calculateHeadwayStats', () => {
   it('calculates average, fastest, and slowest headways from a single day', () => {
-    // 6 departures with varying headways
-    // 09:00, 09:15, 09:40, 10:05, 10:20, 10:55
-    // Headways: 15, 25, 25, 15, 35 minutes
-    const departures = [[
+    // 09:00, 09:15, 09:40, 10:05, 10:20, 10:55 → headways 15, 25, 25, 15, 35
+    const stats = calculateHeadwayStats([[
       hms('09:00'),
       hms('09:15'),
       hms('09:40'),
       hms('10:05'),
       hms('10:20'),
       hms('10:55'),
-    ]]
-    const stats = calculateHeadwayStats(departures)
+    ]])
 
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(15 * 60)
     expect(stats!.slowest).toBe(35 * 60)
-    expect(stats!.average).toBe(23 * 60) // (15+25+25+15+35)/5 = 23
+    expect(stats!.average).toBe(23 * 60)
   })
 
   it('returns undefined for empty input', () => {
@@ -274,7 +294,6 @@ describe('calculateHeadwayStats', () => {
   })
 
   it('calculates correct stats for two departures', () => {
-    // 09:00, 09:22 → single 22-minute headway
     const stats = calculateHeadwayStats([[hms('09:00'), hms('09:22')]])
 
     expect(stats).toBeDefined()
@@ -300,9 +319,6 @@ describe('calculateHeadwayStats', () => {
   })
 
   it('sorts unsorted departures within each day before calculating', () => {
-    // 6 departures out of order with varying headways (20-30 min)
-    // Sorted: 09:00, 09:20, 09:50, 10:15, 10:40, 11:00
-    // Headways: 20, 30, 25, 25, 20 minutes
     const stats = calculateHeadwayStats([[
       hms('10:15'),
       hms('09:00'),
@@ -315,13 +331,10 @@ describe('calculateHeadwayStats', () => {
     expect(stats).toBeDefined()
     expect(stats!.fastest).toBe(20 * 60)
     expect(stats!.slowest).toBe(30 * 60)
-    expect(stats!.average).toBe(24 * 60) // (20+30+25+25+20)/5 = 24
+    expect(stats!.average).toBe(24 * 60)
   })
 
   it('filters out headways under 2 minutes as noise', () => {
-    // 09:00, 09:01, 09:20, 09:21, 09:45, 10:10
-    // Raw headways: 1, 19, 1, 24, 25 minutes
-    // After filtering (>= 2 min): 19, 24, 25 minutes
     const stats = calculateHeadwayStats([[
       hms('09:00'),
       hms('09:01'),
@@ -332,8 +345,8 @@ describe('calculateHeadwayStats', () => {
     ]])
 
     expect(stats).toBeDefined()
-    expect(stats!.fastest).toBe(19 * 60) // 09:01 to 09:20
-    expect(stats!.slowest).toBe(25 * 60) // 09:45 to 10:10
+    expect(stats!.fastest).toBe(19 * 60)
+    expect(stats!.slowest).toBe(25 * 60)
     expect(stats!.average).toBeCloseTo((19 + 24 + 25) / 3 * 60)
   })
 
@@ -349,9 +362,8 @@ describe('calculateHeadwayStats', () => {
   })
 
   it('aggregates intervals across multiple days, never spanning service days', () => {
-    // Day 1 (Monday): trips at 06:00 and 22:00 → one 16-hour intra-day gap
-    // Day 2 (Tuesday): trips at 06:00 and 22:00 → one 16-hour intra-day gap
-    // Cross-day "gap" between Mon 22:00 and Tue 06:00 must NOT appear.
+    // Two days, each 06:00 and 22:00. The cross-day "gap" 22:00 Day1 → 06:00 Day2
+    // must NOT appear in the stats.
     const stats = calculateHeadwayStats([
       [hms('06:00'), hms('22:00')],
       [hms('06:00'), hms('22:00')],
@@ -364,9 +376,7 @@ describe('calculateHeadwayStats', () => {
   })
 
   it('combines per-day intervals into a single average', () => {
-    // Day 1: 09:00, 09:15, 09:45 → headways 15, 30
-    // Day 2: 10:00, 10:20 → headway 20
-    // Aggregate: [15, 30, 20] → avg = 65/3 ≈ 21.67 min
+    // Day 1 headways: 15, 30. Day 2 headway: 20. Avg = 65/3 min.
     const stats = calculateHeadwayStats([
       [hms('09:00'), hms('09:15'), hms('09:45')],
       [hms('10:00'), hms('10:20')],
@@ -379,7 +389,6 @@ describe('calculateHeadwayStats', () => {
   })
 
   it('skips days with fewer than 2 departures', () => {
-    // Day 1 has 1 trip (no headway). Day 2 has 3 trips with consistent 20-min headways.
     const stats = calculateHeadwayStats([
       [hms('09:00')],
       [hms('10:00'), hms('10:20'), hms('10:40')],

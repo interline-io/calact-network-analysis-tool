@@ -7,37 +7,51 @@
  */
 
 import { format } from 'date-fns'
-import { parseHMS } from '../core'
+import { parseHMS, type Weekday } from '../core'
 import type {
   Route,
-  RouteHeadwayDirections,
-  RouteHeadwaySummary,
   StopTimeCacheItem,
   RouteDepartureIndex,
 } from '../tl'
+
+// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Kept local
+// because `dowValues` in src/core/constants.ts starts at monday, not sunday.
+const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+] as const
+
+/**
+ * Per-direction, per-date in-window departures at each day's representative stop.
+ *
+ * Each inner array corresponds positionally to `selectedDateRange[i]` — i.e.
+ * `dir0[i]` holds direction-0 departures for the i-th date in the range, at
+ * whichever stop was the representative stop for that (route, direction, date).
+ * Empty inner arrays are kept on service-less days to preserve the positional
+ * mapping.
+ */
+export type RouteDepartures = {
+  dir0: number[][]
+  dir1: number[][]
+}
 
 /**
  * Calculate departure times for a route across the selected date range and time window.
  *
  * For each direction (0 and 1) and each date in the range:
- * 1. Find the "representative stop" - the stop with the most departures for this route/direction/date
- * 2. Get all departure times at that stop, filtered to the selected time window
- * 3. Store the departure times (in seconds since midnight) in the result
+ * 1. Find the "representative stop" — the stop with the most departures for this route/direction/date.
+ * 2. Get all departure times at that stop, filtered to the selected time window.
+ * 3. Append the sorted times (in seconds since midnight) as a per-date inner array.
  *
- * Results are aggregated into:
- * - total: all departures across all dates (for overall frequency calculation)
- * - Per day-of-week buckets (sunday, monday, etc.): for day-specific filtering
- *
- * The departure times can later be used to:
- * - Check if a route has any service on selected days (departures.length > 0)
- * - Calculate headways/frequency by computing intervals between consecutive departures
+ * Preserving the per-day boundary (rather than flattening) ensures that downstream
+ * consumers (`calculateHeadwayStats`, weekday-service checks) never treat the gap
+ * between trips on different service days as an interval.
  *
  * @param route - The route to analyze
  * @param selectedDateRange - Array of dates to include
  * @param selectedStartTime - Start of time window (HH:MM:SS), defaults to 00:00:00
  * @param selectedEndTime - End of time window (HH:MM:SS), defaults to 24:00:00
- * @param sdCache - Stop departure cache containing pre-fetched departure data
- * @returns RouteHeadwaySummary with departure times organized by direction and day-of-week
+ * @param routeIndex - Route departure index for lookups
+ * @returns RouteDepartures — dir0/dir1 as parallel arrays to selectedDateRange
  */
 export function routeHeadways (
   route: Route,
@@ -45,97 +59,61 @@ export function routeHeadways (
   selectedStartTime?: string,
   selectedEndTime?: string,
   routeIndex?: RouteDepartureIndex
-): RouteHeadwaySummary {
-  const result = newRouteHeadwaySummary()
+): RouteDepartures {
+  const result: RouteDepartures = { dir0: [], dir1: [] }
   if (!routeIndex) {
     return result
   }
   const startTime = parseHMS(selectedStartTime || '00:00:00')
   const endTime = parseHMS(selectedEndTime || '24:00:00')
   for (const dir of [0, 1]) {
+    const bucket = dir ? result.dir1 : result.dir0
     for (const d of selectedDateRange) {
-      // Get the stop with the most departures
-      let stopId: number = 0
+      // Pick the representative stop (the one with the most departures) for
+      // this (route, direction, date).
       let stopDepartures: StopTimeCacheItem[] = []
       const formattedDate = format(d, 'yyyy-MM-dd')
       const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
-      for (const [depStopId, deps] of dateStopDeps.entries()) {
+      for (const deps of dateStopDeps.values()) {
         if (deps.length > stopDepartures.length) {
-          stopId = depStopId
           stopDepartures = deps
         }
       }
 
-      // Filter by time window (departureTime is already in seconds)
+      // Filter by time window (departureTime is already in seconds) and sort.
       const stSecs = stopDepartures
         .map(st => st.departureTime)
         .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
 
-      // Add to result. Each date contributes its own inner array so headways
-      // are calculated per-day and never span service days.
-      const resultDir = dir ? result.total.dir1 : result.total.dir0
-      resultDir.stop_id = stopId
-      resultDir.departures.push(stSecs)
-
-      let resultDay: RouteHeadwayDirections | undefined
-      switch (d.getDay()) {
-        case 0:
-          resultDay = result.sunday
-          break
-        case 1:
-          resultDay = result.monday
-          break
-        case 2:
-          resultDay = result.tuesday
-          break
-        case 3:
-          resultDay = result.wednesday
-          break
-        case 4:
-          resultDay = result.thursday
-          break
-        case 5:
-          resultDay = result.friday
-          break
-        case 6:
-          resultDay = result.saturday
-          break
-      }
-      if (resultDay != undefined) {
-        const dayDir = dir ? resultDay.dir1 : resultDay.dir0
-        dayDir.stop_id = stopId
-        dayDir.departures.push(stSecs)
-      }
+      // Always push, even when empty, to keep the positional mapping to
+      // selectedDateRange[i] intact.
+      bucket.push(stSecs)
     }
   }
   return result
 }
 
 /**
- * Create a new empty RouteHeadwaySummary with all days initialized.
+ * Does this route have any in-window service on the given weekday across the
+ * selected date range? True if at least one date in `selectedDateRange` whose
+ * day-of-week matches `target` has a non-empty departures array in either
+ * direction.
  */
-export function newRouteHeadwaySummary (): RouteHeadwaySummary {
-  return {
-    total: newRouteHeadwayDirections(),
-    sunday: newRouteHeadwayDirections(),
-    monday: newRouteHeadwayDirections(),
-    tuesday: newRouteHeadwayDirections(),
-    wednesday: newRouteHeadwayDirections(),
-    thursday: newRouteHeadwayDirections(),
-    friday: newRouteHeadwayDirections(),
-    saturday: newRouteHeadwayDirections(),
+export function hasServiceOnWeekday (
+  deps: RouteDepartures,
+  selectedDateRange: Date[],
+  target: Weekday
+): boolean {
+  for (let i = 0; i < selectedDateRange.length; i++) {
+    if (WEEKDAY_BY_GETDAY[selectedDateRange[i]!.getDay()] !== target) {
+      continue
+    }
+    if ((deps.dir0[i]?.length ?? 0) > 0 || (deps.dir1[i]?.length ?? 0) > 0) {
+      return true
+    }
   }
-}
-
-/**
- * Create a new empty RouteHeadwayDirections with both directions initialized.
- */
-export function newRouteHeadwayDirections () {
-  return {
-    dir0: { stop_id: 0, departures: [] },
-    dir1: { stop_id: 0, departures: [] }
-  }
+  return false
 }
 
 // Minimum headway threshold (2 minutes in seconds)
