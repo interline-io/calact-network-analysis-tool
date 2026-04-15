@@ -208,14 +208,25 @@ describe('routeHeadways', () => {
     expect(result.dir0[2]).toEqual([])
   })
 
-  it('returns empty arrays when no routeIndex is provided', () => {
+  it('returns one empty inner array per date when no routeIndex is provided (preserves positional contract)', () => {
     const route = makeRoute(100)
-    const date = makeLocalDate('2024-01-15')
+    const dates = [
+      makeLocalDate('2024-01-15'),
+      makeLocalDate('2024-01-16'),
+      makeLocalDate('2024-01-17'),
+    ]
 
-    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', undefined)
+    const result = routeHeadways(route, dates, '00:00:00', '24:00:00', undefined)
 
-    expect(result.dir0).toEqual([])
-    expect(result.dir1).toEqual([])
+    expect(result.dir0).toEqual([[], [], []])
+    expect(result.dir1).toEqual([[], [], []])
+  })
+
+  it('returns empty arrays for an empty date range regardless of routeIndex presence', () => {
+    const route = makeRoute(100)
+    const resultNoIndex = routeHeadways(route, [], undefined, undefined, undefined)
+    expect(resultNoIndex.dir0).toEqual([])
+    expect(resultNoIndex.dir1).toEqual([])
   })
 
   it('handles a route with no departures', () => {

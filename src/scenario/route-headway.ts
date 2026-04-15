@@ -60,10 +60,14 @@ export function routeHeadways (
   selectedEndTime?: string,
   routeIndex?: RouteDepartureIndex
 ): RouteDepartures {
-  const result: RouteDepartures = { dir0: [], dir1: [] }
   if (!routeIndex) {
-    return result
+    // Preserve the positional-alignment contract even in the no-index case.
+    return {
+      dir0: selectedDateRange.map(() => []),
+      dir1: selectedDateRange.map(() => []),
+    }
   }
+  const result: RouteDepartures = { dir0: [], dir1: [] }
   const startTime = parseHMS(selectedStartTime || '00:00:00')
   const endTime = parseHMS(selectedEndTime || '24:00:00')
   for (const dir of [0, 1]) {
