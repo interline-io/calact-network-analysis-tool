@@ -127,12 +127,7 @@ function routeSetDerived (
       route.average_frequency = stats.average
       route.fastest_frequency = stats.fastest
       route.slowest_frequency = stats.slowest
-    } else {
-      route.average_frequency = undefined
-      route.fastest_frequency = undefined
-      route.slowest_frequency = undefined
     }
-    // Calculate trip-level stats (average trips per day, earliest/latest start/end)
     const tripStats = calculateRouteTripStats(
       route,
       selectedDateRange,
@@ -147,13 +142,6 @@ function routeSetDerived (
       route.earliest_trip_end = tripStats.earliestTripEnd
       route.latest_trip_start = tripStats.latestTripStart
       route.latest_trip_end = tripStats.latestTripEnd
-    } else {
-      route.average_trips_per_day = undefined
-      route.average_trips_per_hour = undefined
-      route.earliest_trip_start = undefined
-      route.earliest_trip_end = undefined
-      route.latest_trip_start = undefined
-      route.latest_trip_end = undefined
     }
   }
 
