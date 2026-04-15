@@ -571,7 +571,8 @@ import {
   flexAreaTypes,
   flexColorByModes,
   fmtDate,
-  parseTime
+  parseTime,
+  DEFAULT_TIME_WINDOW
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -691,7 +692,7 @@ const isAllDayMode = computed({
       emit('setTimeRange', { startTime: undefined, endTime: undefined })
     } else {
       // Emit event to parent to update both params in single navigation
-      emit('setTimeRange', { startTime: parseTime('06:00:00'), endTime: parseTime('10:00:00') })
+      emit('setTimeRange', { startTime: parseTime(DEFAULT_TIME_WINDOW.start), endTime: parseTime(DEFAULT_TIME_WINDOW.end) })
     }
   }
 })
