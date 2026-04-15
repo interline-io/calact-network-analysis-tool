@@ -122,10 +122,6 @@ export function hasServiceOnWeekday (
 
 /**
  * Statistics about trips on a route across the selected date range.
- *
- * In specific-hours mode, only trips with at least one stop_time in the selected
- * window are "included." Included trips contribute their *full* span to
- * earliestTripStart/End and latestTripStart/End — not just the in-window portion.
  */
 export interface RouteTripStats {
   tripCount: number // included trips across all dates in range
@@ -142,20 +138,23 @@ export interface RouteTripStats {
 /**
  * Calculate trip-level statistics for a route across the selected date range.
  *
- * For each date, iterates every stop_time across both directions and all stops,
- * tracking per-trip:
- * - min/max `departureTime` across ALL the trip's stop_times (the trip's full span)
- * - whether at least one stop_time falls within the selected time window
+ * For each date, iterates every in-bbox stop_time across both directions, tracking
+ * per-trip:
+ * - min/max `departureTime` across all of the trip's in-bbox stop_times
+ * - whether at least one stop_time falls within the selected time-of-day window
  *
- * A trip is "included" iff it has any stop_time in window. Included trips contribute
- * their full span to earliest/latest. This matches the issue's tooltip language:
- * "the 24-hour time at which the first visit at a stop that begins a trip happens."
+ * A trip is "included" iff it has any stop_time in the time-of-day window. Included
+ * trips contribute their full in-bbox span (not just the in-window portion) to
+ * earliestTripStart/End and latestTripStart/End. Since `routeIndex` is built from
+ * `StopDepartureCache`, which only holds departures for stops fetched within the
+ * bbox, trips whose true origin or terminus is at a stop outside the bbox report
+ * their first/last in-bbox departure instead.
  *
  * @param route - The route to analyze
  * @param selectedDateRange - Array of dates to include
- * @param selectedStartTime - Start of time window (HH:MM:SS)
- * @param selectedEndTime - End of time window (HH:MM:SS)
- * @param routeIndex - Route departure index for lookups
+ * @param selectedStartTime - Start of time-of-day window (HH:MM:SS)
+ * @param selectedEndTime - End of time-of-day window (HH:MM:SS)
+ * @param routeIndex - Route departure index for lookups (already bbox-filtered)
  */
 export function calculateRouteTripStats (
   route: Route,
@@ -185,8 +184,10 @@ export function calculateRouteTripStats (
 
   for (const d of selectedDateRange) {
     const formattedDate = format(d, 'yyyy-MM-dd')
-    // For each trip: track its full span (across ALL stop_times) and whether
-    // any stop_time falls in the selected window.
+    // For each trip: track its full in-bbox span and whether any stop_time
+    // falls in the selected time-of-day window. The span is NOT the trip's
+    // literal origin-to-terminus — stop_times for stops outside the bbox
+    // are absent from the index.
     const tripTimes = new Map<number, { min: number, max: number, inWindow: boolean }>()
 
     for (const dir of [0, 1]) {

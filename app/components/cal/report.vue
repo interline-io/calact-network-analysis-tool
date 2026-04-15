@@ -224,25 +224,25 @@ const routeColumns = computed((): TableColumn[] => {
       key: 'earliest_trip_start',
       label: 'Earliest Trip Start',
       sortable: true,
-      tooltip: `The 24-hour time at which the first visit at a stop that begins a trip happens for this route, ${serviceDays} included within the current filters.`,
+      tooltip: `The earliest time at which a trip on this route begins, measured at the first stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true origin is outside the geographic filter report their first in-area departure, not the trip's actual start.`,
     },
     {
       key: 'earliest_trip_end',
       label: 'Earliest Trip End',
       sortable: true,
-      tooltip: `The 24-hour time at which the first visit at a stop that ends a trip happens for this route, ${serviceDays} included within the current filters.`,
+      tooltip: `The earliest time at which a trip on this route ends, measured at the last stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true terminus is outside the geographic filter report their last in-area departure, not the trip's actual end.`,
     },
     {
       key: 'latest_trip_start',
       label: 'Latest Trip Start',
       sortable: true,
-      tooltip: `The 24-hour time at which the last visit at a stop that begins a trip happens for this route, ${serviceDays} included within the current filters.`,
+      tooltip: `The latest time at which a trip on this route begins, measured at the first stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true origin is outside the geographic filter report their first in-area departure, not the trip's actual start.`,
     },
     {
       key: 'latest_trip_end',
       label: 'Latest Trip End',
       sortable: true,
-      tooltip: `The 24-hour time at which the last visit at a stop that ends a trip happens for this route, ${serviceDays} included within the current filters.`,
+      tooltip: `The latest time at which a trip on this route ends, measured at the last stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true terminus is outside the geographic filter report their last in-area departure, not the trip's actual end.`,
     },
   ]
 })
