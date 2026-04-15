@@ -78,31 +78,9 @@ export interface RouteDerived {
   route_name: string
   agency_name: string
   route_mode: string
-  headways: RouteHeadwaySummary
   average_frequency?: number
   fastest_frequency?: number
   slowest_frequency?: number
-}
-
-export type RouteHeadwayCount = {
-  stop_id: number
-  departures: number[]
-}
-
-export type RouteHeadwayDirections = {
-  dir0: RouteHeadwayCount
-  dir1: RouteHeadwayCount
-}
-
-export type RouteHeadwaySummary = {
-  total: RouteHeadwayDirections
-  sunday: RouteHeadwayDirections
-  monday: RouteHeadwayDirections
-  tuesday: RouteHeadwayDirections
-  wednesday: RouteHeadwayDirections
-  thursday: RouteHeadwayDirections
-  friday: RouteHeadwayDirections
-  saturday: RouteHeadwayDirections
 }
 
 export type RouteCsv = RouteGtfs & {
