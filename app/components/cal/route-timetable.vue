@@ -111,7 +111,7 @@
               class="cal-route-timetable-date-nav-btn"
               @click="scrollTo(`trips-dir${section.directionId}-${group.serviceDate}`)"
             >
-              {{ formatServiceDate(group.serviceDate) }}
+              {{ formatServiceDate(group.serviceDate) }} <span class="has-text-grey">({{ group.rows.length }})</span>
             </button>
           </div>
         </div>
@@ -164,7 +164,7 @@
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="4">
-                {{ formatServiceDate(group.serviceDate) }}
+                {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} trips)
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -724,8 +724,7 @@ function dateToSec (d: Date): number {
 function formatServiceDate (dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y!, m! - 1, d!)
-  const dow = format(date, 'EEEE')
-  return `${dateStr} (${dow})`
+  return format(date, 'EEE dd, MMM, yyyy')
 }
 
 function scrollTo (id: string) {
