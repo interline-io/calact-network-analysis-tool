@@ -392,11 +392,25 @@
       </p>
 
       <div v-else>
-        <div class="cal-route-timetable-gap-summary mb-4">
+        <cat-msg variant="info" title="Summary" class="mb-4">
           <p>
-            In-area stops served by this route on each service day, with departure counts per direction. The representative stop for the dominant direction is marked with a check icon.
+            Stops within bounds served by this route on each service day, with departure counts per direction. The representative stop for the dominant direction is marked with a check icon. The representative stop is selected as the stop with the most departures in the dominant direction.
           </p>
-        </div>
+        </cat-msg>
+
+        <cat-msg variant="info" title="Jump to date">
+          <div class="cal-route-timetable-date-nav">
+            <button
+              v-for="group in stopDetailDateGroups"
+              :key="group.serviceDate"
+              type="button"
+              class="cal-route-timetable-date-nav-btn"
+              @click="scrollTo(`stops-${group.serviceDate}`)"
+            >
+              {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }})
+            </button>
+          </div>
+        </cat-msg>
 
         <cat-download-csv
           v-if="stopDetailsCsvData.length > 0"
@@ -406,24 +420,23 @@
           class="mb-4"
         />
 
-        <div class="cal-route-timetable-date-nav mb-2">
-          <button
-            v-for="group in stopDetailDateGroups"
-            :key="group.serviceDate"
-            type="button"
-            class="cal-route-timetable-date-nav-btn"
-            @click="scrollTo(`stops-${group.serviceDate}`)"
-          >
-            {{ formatServiceDate(group.serviceDate) }}
-          </button>
-        </div>
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
           <thead>
             <tr>
               <th>Stop ID</th>
               <th>Stop Name</th>
-              <th>Dir</th>
-              <th>Departures</th>
+              <th>
+                <cat-tooltip text="The dominant direction is selected for each service date based on which direction has the most departures.">
+                  Direction
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip text="Number of departures at this stop in this direction on this service date.">
+                  Departures
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
             </tr>
           </thead>
           <tbody
@@ -433,7 +446,7 @@
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="4">
-                {{ formatServiceDate(group.serviceDate) }}
+                {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} stops)
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -445,11 +458,7 @@
               :class="{ 'cal-route-timetable-row-striped': i % 2 === 1 }"
             >
               <td>{{ stopIdStr(row.stopId) }}</td>
-              <td>
-                <cat-tooltip :text="stopTooltip(row.stopId)">
-                  {{ stopName(row.stopId) }}
-                </cat-tooltip>
-              </td>
+              <td>{{ stopName(row.stopId) }}</td>
               <td>{{ row.directionId }}</td>
               <td>
                 {{ row.departureCount }}
@@ -734,14 +743,6 @@ function stopName (id: number): string {
 function tripIdLabel (numericId: number): string {
   return props.scenarioFilterResult.tripIdStrings?.get(numericId) ?? String(numericId)
 }
-function stopTooltip (id: number): string {
-  const s = stopsById.value.get(id)
-  if (!s) {
-    return `Stop ${id}`
-  }
-  return `${s.stop_id} · ${s.stop_name || ''}`.trim()
-}
-
 function dateToSec (d: Date): number {
   return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()
 }
@@ -791,7 +792,11 @@ const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
       }
     }
     if (rows.length > 0) {
-      rows.sort((a, b) => a.directionId - b.directionId || b.departureCount - a.departureCount)
+      rows.sort((a, b) => {
+        const nameA = stopName(a.stopId)
+        const nameB = stopName(b.stopId)
+        return nameA.localeCompare(nameB) || a.directionId - b.directionId || b.departureCount - a.departureCount
+      })
       groups.push({ serviceDate: dateStr, rows })
     }
   }
