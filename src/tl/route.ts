@@ -1,4 +1,5 @@
 import { gql } from 'graphql-tag'
+import { formatGtfsTimeFull } from '../core'
 
 //////////
 // Routes
@@ -81,6 +82,12 @@ export interface RouteDerived {
   average_frequency?: number
   fastest_frequency?: number
   slowest_frequency?: number
+  average_trips_per_day?: number
+  average_trips_per_hour?: number
+  earliest_trip_start?: number
+  earliest_trip_end?: number
+  latest_trip_start?: number
+  latest_trip_end?: number
 }
 
 export type RouteCsv = RouteGtfs & {
@@ -92,6 +99,16 @@ export type RouteCsv = RouteGtfs & {
   average_frequency?: number
   fastest_frequency?: number
   slowest_frequency?: number
+  average_trips_per_day?: number
+  average_trips_per_hour?: number
+  earliest_trip_start?: number
+  earliest_trip_end?: number
+  latest_trip_start?: number
+  latest_trip_end?: number
+  earliest_trip_start_time?: string
+  earliest_trip_end_time?: string
+  latest_trip_start_time?: string
+  latest_trip_end_time?: string
 }
 
 export type Route = RouteGql & RouteDerived
@@ -107,6 +124,16 @@ export function routeToRouteCsv (route: Route): RouteCsv {
     average_frequency: route.average_frequency ? Math.round(route.average_frequency) : undefined,
     fastest_frequency: route.fastest_frequency ? Math.round(route.fastest_frequency) : undefined,
     slowest_frequency: route.slowest_frequency ? Math.round(route.slowest_frequency) : undefined,
+    average_trips_per_day: route.average_trips_per_day != null ? Math.round(route.average_trips_per_day * 100) / 100 : undefined,
+    average_trips_per_hour: route.average_trips_per_hour != null ? Math.round(route.average_trips_per_hour * 100) / 100 : undefined,
+    earliest_trip_start: route.earliest_trip_start,
+    earliest_trip_end: route.earliest_trip_end,
+    latest_trip_start: route.latest_trip_start,
+    latest_trip_end: route.latest_trip_end,
+    earliest_trip_start_time: formatGtfsTimeFull(route.earliest_trip_start) || undefined,
+    earliest_trip_end_time: formatGtfsTimeFull(route.earliest_trip_end) || undefined,
+    latest_trip_start_time: formatGtfsTimeFull(route.latest_trip_start) || undefined,
+    latest_trip_end_time: formatGtfsTimeFull(route.latest_trip_end) || undefined,
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,

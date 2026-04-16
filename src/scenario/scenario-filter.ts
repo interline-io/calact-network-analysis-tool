@@ -49,6 +49,8 @@ import {
   routeHeadways,
   hasServiceOnWeekday,
   calculateHeadwayStats,
+  calculateRouteTripStats,
+  pickDominantDirection,
   type RouteDepartures,
 } from './route-headway'
 import {
@@ -118,18 +120,27 @@ function routeSetDerived (
     // Pick the direction with more total departures across all service days;
     // the other direction is intentionally dropped (a route's headway is
     // reported per dominant direction).
-    const dir0Count = deps.dir0.reduce((sum, d) => sum + d.length, 0)
-    const dir1Count = deps.dir1.reduce((sum, d) => sum + d.length, 0)
-    const chosenDir = dir1Count > dir0Count ? deps.dir1 : deps.dir0
+    const chosenDir = pickDominantDirection(deps) === 1 ? deps.dir1 : deps.dir0
     const stats = calculateHeadwayStats(chosenDir)
     if (stats) {
       route.average_frequency = stats.average
       route.fastest_frequency = stats.fastest
       route.slowest_frequency = stats.slowest
-    } else {
-      route.average_frequency = undefined
-      route.fastest_frequency = undefined
-      route.slowest_frequency = undefined
+    }
+    const tripStats = calculateRouteTripStats(
+      route,
+      selectedDateRange,
+      selectedStartTime,
+      selectedEndTime,
+      routeIndex,
+    )
+    if (tripStats) {
+      route.average_trips_per_day = tripStats.averageTripsPerDay
+      route.average_trips_per_hour = tripStats.averageTripsPerHour
+      route.earliest_trip_start = tripStats.earliestTripStart
+      route.earliest_trip_end = tripStats.earliestTripEnd
+      route.latest_trip_start = tripStats.latestTripStart
+      route.latest_trip_end = tripStats.latestTripEnd
     }
   }
 
@@ -492,6 +503,8 @@ export interface ScenarioFilterResult {
   stopDepartureCache: StopDepartureCache
   feedVersions: FeedVersion[]
   flexAreas: FlexAreaFeature[]
+  // Passed through from ScenarioData for debug UIs (Route Timetable modal).
+  tripIdStrings?: Map<number, string>
 }
 
 export function applyScenarioResultFilter (
@@ -522,6 +535,12 @@ export function applyScenarioResultFilter (
       average_frequency: undefined,
       fastest_frequency: undefined,
       slowest_frequency: undefined,
+      average_trips_per_day: undefined,
+      average_trips_per_hour: undefined,
+      earliest_trip_start: undefined,
+      earliest_trip_end: undefined,
+      latest_trip_start: undefined,
+      latest_trip_end: undefined,
       __typename: 'Route', // backwards compat
     }
     routeSetDerived(
@@ -645,6 +664,7 @@ export function applyScenarioResultFilter (
     feedVersions: [],
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
+    tripIdStrings: data.tripIdStrings,
   }
   return result
 }

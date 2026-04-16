@@ -70,7 +70,7 @@
             Avg. minutes between trips:
           </div>
           <div v-else-if="props.dataDisplayMode === 'Stop visits'" class="legend-heading">
-            Avg. visits per day:
+            {{ props.isAllDayMode ? 'Total visits:' : 'Total visits in window:' }}
           </div>
           <div v-else-if="props.dataDisplayMode === 'Service area'" class="legend-heading">
             Service areas:
@@ -131,7 +131,7 @@
             Aggregated Areas:
           </div>
           <div class="choropleth-legend-subtitle">
-            Avg. visits/day
+            {{ props.isAllDayMode ? 'Total visits' : 'Total visits in window' }}
           </div>
           <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
           <div class="choropleth-gradient-labels">
@@ -168,6 +168,8 @@ const props = defineProps<{
   // Choropleth aggregation
   showAggAreas?: boolean
   hasChoroplethData?: boolean
+  // Whether the active timeframe filter is "All Day" (no start/end time set)
+  isAllDayMode?: boolean
 }>()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))

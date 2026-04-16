@@ -97,12 +97,23 @@ When asked to "generate PR summary", run `git diff main...HEAD` and `git log mai
 ## Summary
 <high-level one paragraph description of the PR>
 
+## User-facing changes
+<high-level description of changes to user interface, less focused on code details>
+
+### <user-facing changes theme 1>
+<bulleted list of user-facing changes>
+
+### <user-facing changes theme 2>
+<bulleted list of user-facing changes>
+
+## Implementation details
+
 ### <theme 1>
 <bulleted details>
 
 ### <theme 2>
 <bulleted details>
 
-## Test plan
+## User test plan
 <manual verification steps relevant to the changes; do not include pnpm test/lint/typecheck as those are handled by CI>
 ```
