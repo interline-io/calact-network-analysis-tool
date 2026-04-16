@@ -120,6 +120,13 @@ export interface ScenarioData {
    * Currently loaded from static GeoJSON, will come from GraphQL API later
    */
   flexAreas: FlexAreaFeature[]
+  /**
+   * Sidecar map of numeric trip.id → GTFS trip_id string. The main
+   * StopDepartureCache drops the string for memory efficiency; this map keeps
+   * one entry per unique trip for debug UIs (Route Timetable modal). Optional
+   * so existing non-streaming constructions of ScenarioData keep compiling.
+   */
+  tripIdStrings?: Map<number, string>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -176,6 +183,10 @@ export interface ScenarioProgress {
     flexAreas: FlexAreaFeature[]
     stopDepartures: StopDepartureTuple[]
     flexDepartures?: FlexDepartureTuple[]
+    // Per-batch slice of new numeric-tripId → GTFS-trip_id pairs. Only the
+    // newly-seen pairs are shipped per batch; the receiver merges into a
+    // single accumulated map.
+    tripIdStrings?: [number, string][]
   }
   extraData?: any
   config?: any
@@ -835,6 +846,7 @@ export class ScenarioFetcher {
     const response = await this.client.query<{ stops: StopDeparture[] }>(q, task)
     // Map into simpler format for wire format
     const stopDepartures: StopDepartureTuple[] = []
+    const tripIdStrings = new Map<number, string>()
     for (const stop of response.data?.stops || []) {
       for (const dow of dowDateStringLower) {
         const dowDate = task.get(dow)
@@ -861,15 +873,30 @@ export class ScenarioFetcher {
               return []
           }
         })()
-        stopDepartures.push(
-          ...stopTimes.map((st: StopTime) => StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
-        )
+        for (const st of stopTimes) {
+          stopDepartures.push(StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
+          if (st.trip.trip_id && !tripIdStrings.has(st.trip.id)) {
+            tripIdStrings.set(st.trip.id, st.trip.trip_id)
+          }
+        }
       }
     }
 
-    // Send progress updates in batches using the generic helper function
+    // Send progress updates in batches using the generic helper function.
+    // The tripIdStrings sidecar rides on the first batch; subsequent batches
+    // in the same fetch would only duplicate the same entries, so we clear it.
+    const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
+    let sentTripIdStrings = false
     for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
-      this.updateProgress('schedules', true, { stops: [], routes: [], feedVersions: [], stopDepartures: stopDepartureBatch, flexAreas: [] })
+      this.updateProgress('schedules', true, {
+        stops: [],
+        routes: [],
+        feedVersions: [],
+        stopDepartures: stopDepartureBatch,
+        flexAreas: [],
+        tripIdStrings: sentTripIdStrings ? undefined : tripIdStringPairs,
+      })
+      sentTripIdStrings = true
     }
   }
 
@@ -905,6 +932,7 @@ export class ScenarioDataReceiver {
       stopDepartureCache: new StopDepartureCache(),
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
+      tripIdStrings: new Map<number, string>(),
     }
   }
 
@@ -934,6 +962,13 @@ export class ScenarioDataReceiver {
           StopDepartureTuple.tripDirectionId(event),
           StopDepartureTuple.tripRouteId(event),
         )
+      }
+
+      // Merge the numeric→string trip_id sidecar, if this batch carried one.
+      if (progress.partialData.tripIdStrings && this.accumulatedData.tripIdStrings) {
+        for (const [numericId, stringId] of progress.partialData.tripIdStrings) {
+          this.accumulatedData.tripIdStrings.set(numericId, stringId)
+        }
       }
 
       // Append new flex areas

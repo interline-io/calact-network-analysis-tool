@@ -168,6 +168,7 @@
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
+            @open-timetable="openRouteTimetable"
           />
         </div>
 
@@ -222,6 +223,23 @@
           :scenario-data="scenarioData"
         />
       </cat-modal>
+
+      <!-- Route Timetable debug modal -->
+      <cat-modal
+        v-model="showTimetable"
+        title="Route Timetable"
+        full-screen
+      >
+        <cal-route-timetable
+          v-if="timetableRoute && scenarioFilterResult"
+          :route="timetableRoute"
+          :scenario-filter-result="scenarioFilterResult"
+          :selected-date-range="selectedDateRange"
+          :start-time="startTime"
+          :end-time="endTime"
+          :initial-tab="timetableInitialTab"
+        />
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
@@ -271,8 +289,8 @@ import {
   type FilterTag,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
-import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -1167,6 +1185,24 @@ function fitToGeographies () {
 ////////////////////////////
 // Scenario
 ////////////////////////////
+
+// Route Timetable debug modal state.
+type RouteTimetableTab = 'frequency' | 'trips'
+const timetableRoute = ref<Route | undefined>(undefined)
+const timetableInitialTab = ref<RouteTimetableTab>('frequency')
+const showTimetable = computed({
+  get: () => timetableRoute.value !== undefined,
+  set: (v: boolean) => {
+    if (!v) {
+      timetableRoute.value = undefined
+    }
+  },
+})
+function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetableTab }) {
+  timetableInitialTab.value = payload.initialTab
+  timetableRoute.value = payload.route
+}
+const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({

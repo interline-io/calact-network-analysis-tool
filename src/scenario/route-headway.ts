@@ -73,19 +73,11 @@ export function routeHeadways (
   for (const dir of [0, 1]) {
     const bucket = dir ? result.dir1 : result.dir0
     for (const d of selectedDateRange) {
-      // Pick the representative stop (the one with the most departures) for
-      // this (route, direction, date).
-      let stopDepartures: StopTimeCacheItem[] = []
       const formattedDate = format(d, 'yyyy-MM-dd')
-      const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
-      for (const deps of dateStopDeps.values()) {
-        if (deps.length > stopDepartures.length) {
-          stopDepartures = deps
-        }
-      }
+      const rep = pickRepresentativeStop(routeIndex, route.id, dir, formattedDate)
 
       // Filter by time window (departureTime is already in seconds) and sort.
-      const stSecs = stopDepartures
+      const stSecs = rep.departures
         .map(st => st.departureTime)
         .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
@@ -96,6 +88,33 @@ export function routeHeadways (
     }
   }
   return result
+}
+
+/**
+ * For a (route, direction, date) bucket in the index, pick the "representative"
+ * stop — the in-bbox stop with the most departures — and return both its stopId
+ * and its stop_times. Returns stopId = undefined when the bucket is empty.
+ *
+ * Tie-breaking: first stop to reach the current max wins, which is stable given
+ * `Map` iteration order but not semantically meaningful. In practice ties are
+ * rare (most routes have a clear "main" stop within the bbox).
+ */
+export function pickRepresentativeStop (
+  routeIndex: RouteDepartureIndex,
+  routeId: number,
+  dir: number,
+  formattedDate: string,
+): { stopId?: number, departures: StopTimeCacheItem[] } {
+  let stopId: number | undefined
+  let departures: StopTimeCacheItem[] = []
+  const dateStopDeps = routeIndex.getRouteDate(routeId, dir, formattedDate)
+  for (const [sid, deps] of dateStopDeps.entries()) {
+    if (deps.length > departures.length) {
+      stopId = sid
+      departures = deps
+    }
+  }
+  return { stopId, departures }
 }
 
 /**
@@ -251,7 +270,7 @@ export function calculateRouteTripStats (
 
 // Minimum headway threshold (2 minutes in seconds)
 // Headways below this are filtered out as noise (e.g., bunched buses during peak demand)
-const MIN_HEADWAY_SECONDS = 2 * 60
+export const MIN_HEADWAY_SECONDS = 2 * 60
 
 /**
  * Calculate headway statistics from per-day departure arrays.

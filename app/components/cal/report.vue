@@ -67,26 +67,95 @@
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>
-      <template #column-average_frequency="{ value }">
-        {{ formatDuration(value) }}
+      <template #column-average_trips_per_day="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ value }}
+        </button>
       </template>
-      <template #column-fastest_frequency="{ value }">
-        {{ formatDuration(value) }}
+      <template #column-average_trips_per_hour="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ value }}
+        </button>
       </template>
-      <template #column-slowest_frequency="{ value }">
-        {{ formatDuration(value) }}
+      <template #column-average_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
       </template>
-      <template #column-earliest_trip_start="{ value }">
-        {{ formatGtfsTime(value) }}
+      <template #column-fastest_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
       </template>
-      <template #column-earliest_trip_end="{ value }">
-        {{ formatGtfsTime(value) }}
+      <template #column-slowest_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
       </template>
-      <template #column-latest_trip_start="{ value }">
-        {{ formatGtfsTime(value) }}
+      <template #column-earliest_trip_start="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
       </template>
-      <template #column-latest_trip_end="{ value }">
-        {{ formatGtfsTime(value) }}
+      <template #column-earliest_trip_end="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
+      <template #column-latest_trip_start="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
+      <template #column-latest_trip_end="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
       </template>
     </cal-datagrid>
     <div class="cal-report-spacer" />
@@ -95,7 +164,7 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
@@ -112,6 +181,19 @@ const props = defineProps<{
   flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
+
+export type RouteTimetableTab = 'frequency' | 'trips'
+
+const emit = defineEmits<{
+  openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
+}>()
+
+function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
+  const route = props.scenarioFilterResult?.routes.find(r => r.id === routeId)
+  if (route) {
+    emit('openTimetable', { route, initialTab })
+  }
+}
 
 /**
  * Features to export as GeoJSON based on current view mode
@@ -449,5 +531,20 @@ const activeTableReport = computed((): TableReport => {
 
   .cal-report-spacer {
     min-height: 3rem;
+  }
+
+  .cal-report-cell-button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--bulma-link);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+
+    &:hover {
+      text-decoration-style: solid;
+    }
   }
 </style>

@@ -504,6 +504,8 @@ export interface ScenarioFilterResult {
   stopDepartureCache: StopDepartureCache
   feedVersions: FeedVersion[]
   flexAreas: FlexAreaFeature[]
+  // Passed through from ScenarioData for debug UIs (Route Timetable modal).
+  tripIdStrings?: Map<number, string>
 }
 
 export function applyScenarioResultFilter (
@@ -663,6 +665,7 @@ export function applyScenarioResultFilter (
     feedVersions: [],
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
+    tripIdStrings: data.tripIdStrings,
   }
   return result
 }
