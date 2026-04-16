@@ -17,8 +17,8 @@
     </header>
 
     <cat-tabs v-model="activeTab" type="boxed">
-      <cat-tab-item value="frequency" label="Frequency Calculation" />
       <cat-tab-item value="trips" label="Trip Timetable" />
+      <cat-tab-item value="frequency" label="Frequency Calculation" />
       <cat-tab-item value="stops" label="Stop Details" />
     </cat-tabs>
 
@@ -595,7 +595,7 @@ const showLongName = computed(() => {
 
 const hasAnyRows = computed(() => unrolledSections.value.length > 0)
 
-const activeTab = ref<Tab>(props.initialTab ?? 'frequency')
+const activeTab = ref<Tab>(props.initialTab ?? 'trips')
 
 // Frequency Calculation view: every dominant-direction representative-stop
 // departure across all selected service days, in the time-of-day window.

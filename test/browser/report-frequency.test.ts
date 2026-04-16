@@ -135,11 +135,11 @@ test.describe('Report tab — #239 frequency/visits columns', () => {
     expect(tooltip).toContain('calendar days')
   })
 
-  test('Routes (all-day) frequency tooltips describe the representative-stop method', async () => {
+  test('Routes (all-day) frequency tooltips mention consecutive trips', async () => {
     await setupReport(page, 'allDay', 'Routes')
     for (const label of ['Average Frequency', 'Fastest Frequency', 'Slowest Frequency']) {
       const tooltip = await getColumnTooltip(page, label)
-      expect(tooltip, `${label} tooltip`).toMatch(/representative stop/i)
+      expect(tooltip, `${label} tooltip`).toMatch(/consecutive trips/i)
     }
   })
 
@@ -199,7 +199,7 @@ test.describe('Report tab — #239 frequency/visits columns', () => {
   test('Routes (specific-hours) frequency tooltips reflect the active window wording', async () => {
     await setupReport(page, 'specificHours', 'Routes')
     const tooltip = await getColumnTooltip(page, 'Average Frequency')
-    expect(tooltip).toMatch(/representative stop/i)
+    expect(tooltip).toMatch(/consecutive trips/i)
     expect(tooltip).toMatch(/days and times/i)
   })
 

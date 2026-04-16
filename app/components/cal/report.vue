@@ -259,7 +259,7 @@ watch(dataDisplayMode, (mode) => {
 
 const routeColumns = computed((): TableColumn[] => {
   const allDay = props.isAllDayMode
-  const serviceDays = allDay ? 'across all service days' : 'across all service days and times'
+  const timeScope = allDay ? 'across all service days' : 'across all service days and times'
   return [
     { key: 'route_id', label: 'Route ID', sortable: true },
     { key: 'route_name', label: 'Route Name', sortable: true },
@@ -283,48 +283,44 @@ const routeColumns = computed((): TableColumn[] => {
       label: 'Average Frequency',
       sortable: true,
       tooltip: allDay
-        ? 'Mean duration between consecutive trips on the indicated route, measured at the route\'s representative stop (the stop with the most departures on each service day), excepting the time between trips on different service days, across all service days included within the current filters.'
-        : 'Mean duration between consecutive trips on the indicated route, measured at the route\'s representative stop (the stop with the most departures on each service day), for trips with a departure at that stop within the days and times included within the current filters.',
+        ? 'Mean duration between consecutive trips on the indicated route, excepting gaps between trips on different service days, across all service days included within the current filters. Click a cell to see the detailed calculation.'
+        : 'Mean duration between consecutive trips on the indicated route within the days and times included within the current filters. Click a cell to see the detailed calculation.',
     },
     {
       key: 'fastest_frequency',
       label: 'Fastest Frequency',
       sortable: true,
-      tooltip: allDay
-        ? 'Shortest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across all service days included within the current filters.'
-        : 'Shortest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across the days and times included within the current filters.',
+      tooltip: `Shortest duration between two consecutive trips on the indicated route, ${allDay ? 'across all service days' : 'across the days and times'} included within the current filters.`,
     },
     {
       key: 'slowest_frequency',
       label: 'Slowest Frequency',
       sortable: true,
-      tooltip: allDay
-        ? 'Longest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across all service days included within the current filters, excepting the time between trips on different service days.'
-        : 'Longest duration between two consecutive trips on the indicated route, measured at the route\'s representative stop, across the days and times included within the current filters, excepting the time between trips on different service days.',
+      tooltip: `Longest duration between two consecutive trips on the indicated route, ${allDay ? 'across all service days' : 'across the days and times'} included within the current filters, excepting gaps between trips on different service days.`,
     },
     {
       key: 'earliest_trip_start',
       label: 'Earliest Trip Start',
       sortable: true,
-      tooltip: `The earliest time at which a trip on this route begins, measured at the first stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true origin is outside the geographic filter report their first in-area departure, not the trip's actual start.`,
+      tooltip: `The time at which the earliest trip on this route begins, ${timeScope} included within the current filters.`,
     },
     {
       key: 'earliest_trip_end',
       label: 'Earliest Trip End',
       sortable: true,
-      tooltip: `The earliest time at which a trip on this route ends, measured at the last stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true terminus is outside the geographic filter report their last in-area departure, not the trip's actual end.`,
+      tooltip: `The time at which the earliest trip on this route ends, ${timeScope} included within the current filters.`,
     },
     {
       key: 'latest_trip_start',
       label: 'Latest Trip Start',
       sortable: true,
-      tooltip: `The latest time at which a trip on this route begins, measured at the first stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true origin is outside the geographic filter report their first in-area departure, not the trip's actual start.`,
+      tooltip: `The time at which the latest trip on this route begins, ${timeScope} included within the current filters.`,
     },
     {
       key: 'latest_trip_end',
       label: 'Latest Trip End',
       sortable: true,
-      tooltip: `The latest time at which a trip on this route ends, measured at the last stop within the current geographic filter that the trip visits, ${serviceDays} included within the current filters. Trips whose true terminus is outside the geographic filter report their last in-area departure, not the trip's actual end.`,
+      tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
   ]
 })
