@@ -207,6 +207,7 @@
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
+          @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
         />
       </div>
 

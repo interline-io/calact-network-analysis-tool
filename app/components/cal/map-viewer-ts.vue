@@ -26,6 +26,7 @@ const emit = defineEmits([
   'overlayDragEnd',
   'selectableGeoClick',
   'selectableGeoRightClick',
+  'openTimetable',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
@@ -930,6 +931,9 @@ function showPopupAtIndex (index: number) {
         if (currentPopupIndex < currentPopupFeatures.length - 1) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
+      },
+      onOpenTimetable: (featureId: string | number) => {
+        emit('openTimetable', featureId)
       },
     })
   })

@@ -55,6 +55,7 @@
       @overlay-drag-start="onOverlayDragStart"
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
+      @open-timetable="handleOpenTimetable"
     />
   </div>
 </template>
@@ -74,6 +75,7 @@ const emit = defineEmits<{
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
+  openTimetable: [route: Route]
 }>()
 
 const props = defineProps<{
@@ -1055,6 +1057,13 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
+}
+
+function handleOpenTimetable (featureId: string | number) {
+  const route = props.scenarioFilterResult?.routes?.find(r => r.id.toString() === featureId.toString())
+  if (route) {
+    emit('openTimetable', route)
+  }
 }
 </script>
 

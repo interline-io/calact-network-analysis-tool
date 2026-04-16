@@ -188,7 +188,7 @@
                     {{ formatGtfsTimeFull(row.firstDepartureTime) }}
                   </span>
                 </template>
-                <span v-else >—</span>
+                <span v-else>—</span>
               </td>
               <td>
                 <template v-if="row.representativeStopId != null">
@@ -203,7 +203,7 @@
                     —
                   </span>
                 </template>
-                <span v-else >—</span>
+                <span v-else>—</span>
               </td>
               <td>
                 <template v-if="row.lastStopId !== row.representativeStopId">
@@ -212,7 +212,7 @@
                     {{ formatGtfsTimeFull(row.lastDepartureTime) }}
                   </span>
                 </template>
-                <span v-else >—</span>
+                <span v-else>—</span>
               </td>
             </tr>
           </tbody>
@@ -341,7 +341,7 @@
                 {{ formatGtfsTimeFull(row.departureTime) }}
               </td>
               <td>
-                <span v-if="row.gapToNext == null" >—</span>
+                <span v-if="row.gapToNext == null">—</span>
                 <cat-tooltip
                   v-else-if="row.gapIsNoise"
                   :text="`Gap below the ${MIN_HEADWAY_SECONDS}-second noise threshold; excluded from frequency calculation.`"
@@ -355,7 +355,7 @@
                 </span>
               </td>
               <td class="cal-route-timetable-trip-id">
-                <span v-if="row.gapToNext == null" >—</span>
+                <span v-if="row.gapToNext == null">—</span>
                 <span v-else-if="row.gapIsNoise" class="cal-route-timetable-noise-gap">
                   {{ row.gapToNext }}
                 </span>

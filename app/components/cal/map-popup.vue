@@ -28,6 +28,9 @@
           <div><strong>{{ feature.data.route_short_name }} {{ feature.data.route_long_name }}</strong></div>
           <div>Type: {{ feature.data.route_type_name }}</div>
           <div>Agency: {{ feature.data.agency_name }}</div>
+          <button class="button is-small is-info mt-2" @click="$emit('openTimetable', feature.featureId)">
+            View Timetable
+          </button>
         </template>
 
         <!-- Flex service area popup -->
@@ -122,6 +125,7 @@ defineEmits<{
   close: []
   prev: []
   next: []
+  openTimetable: [featureId: string | number]
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
