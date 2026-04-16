@@ -276,4 +276,3 @@ describe('buildRouteTimetable', () => {
     expect(tt.dir1.representativeStopId).toBeUndefined()
   })
 })
-

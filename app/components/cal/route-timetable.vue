@@ -138,13 +138,15 @@
           </thead>
           <tbody
             v-for="group in section.dateGroups"
-            :key="group.serviceDate"
             :id="`trips-dir${section.directionId}-${group.serviceDate}`"
+            :key="group.serviceDate"
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="4">
                 {{ formatServiceDate(group.serviceDate) }}
-                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
+                  top
+                </button>
               </td>
             </tr>
             <tr
@@ -298,13 +300,15 @@
           </thead>
           <tbody
             v-for="group in frequencyDateGroups"
-            :key="group.serviceDate"
             :id="`freq-${group.serviceDate}`"
+            :key="group.serviceDate"
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="6">
                 {{ formatServiceDate(group.serviceDate) }}
-                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
+                  top
+                </button>
               </td>
             </tr>
             <tr
@@ -394,13 +398,15 @@
           </thead>
           <tbody
             v-for="group in stopDetailDateGroups"
-            :key="group.serviceDate"
             :id="`stops-${group.serviceDate}`"
+            :key="group.serviceDate"
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="4">
                 {{ formatServiceDate(group.serviceDate) }}
-                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
+                  top
+                </button>
               </td>
             </tr>
             <tr
