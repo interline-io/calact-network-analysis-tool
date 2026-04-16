@@ -261,10 +261,10 @@
               </dd>
             </div>
           </dl>
-          <div v-if="gapStats" class="mt-2 mb-1">
+          <div v-if="gapStats" class="mt-2 mb-1 is-size-7">
             Sorted contributing gaps (seconds) — min / median / max in bold:
           </div>
-          <div v-if="gapStats" class="cal-route-timetable-gap-list">
+          <div v-if="gapStats" class="cal-route-timetable-gap-list is-size-7">
             <template v-for="(g, i) in contributingGaps" :key="i">
               <strong
                 v-if="i === 0 || gapStats.medianIndices.has(i) || i === contributingGaps.length - 1"
@@ -277,6 +277,14 @@
               </template>
             </template>
           </div>
+        </cat-msg>
+
+        <cat-msg variant="info" title="Departures by hour" class="mb-4">
+          <cal-hourly-departures-chart
+            :departures="frequencyRows"
+            :start-hour="chartStartHour"
+            :end-hour="chartEndHour"
+          />
         </cat-msg>
 
         <cat-msg variant="info" title="Jump to date">
@@ -528,6 +536,13 @@ const props = defineProps<{
 // a computed means the O(cache) iteration only runs when the modal opens.
 const routeIndex = computed(() =>
   RouteDepartureIndex.fromCache(props.scenarioFilterResult.stopDepartureCache),
+)
+
+const chartStartHour = computed(() =>
+  props.startTime ? Math.floor(dateToSec(props.startTime) / 3600) : 0,
+)
+const chartEndHour = computed(() =>
+  props.endTime ? Math.ceil(dateToSec(props.endTime) / 3600) : 24,
 )
 
 const startTimeSec = computed(() =>
