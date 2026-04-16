@@ -1,17 +1,17 @@
 <template>
-  <div class="cal-route-timetable">
+  <div id="cal-route-timetable-top" class="cal-route-timetable">
     <header class="cal-route-timetable-header mb-4">
-      <div class="has-text-weight-semibold">
-        {{ props.route.route_short_name || props.route.route_id }}
+      <div class="is-size-5 has-text-weight-semibold">
+        {{ props.route.agency?.agency_name }} — {{ props.route.route_short_name || props.route.route_id }}
         <span
-          v-if="props.route.route_long_name && props.route.route_long_name !== props.route.route_short_name"
+          v-if="showLongName"
           class="has-text-weight-normal"
         >
-          — {{ props.route.route_long_name }}
+          {{ props.route.route_long_name }}
         </span>
       </div>
       <div class="has-text-grey">
-        {{ props.route.agency?.agency_name }}
+        agency_id: <code>{{ props.route.agency?.agency_id }}</code>
         · route_id: <code>{{ props.route.route_id }}</code>
       </div>
     </header>
@@ -19,6 +19,7 @@
     <cat-tabs v-model="activeTab" type="boxed">
       <cat-tab-item value="frequency" label="Frequency Calculation" />
       <cat-tab-item value="trips" label="Trip Timetable" />
+      <cat-tab-item value="stops" label="Stop Details" />
     </cat-tabs>
 
     <!-- Trips view -->
@@ -40,7 +41,7 @@
             <dt>Average trips per day:</dt>
             <dd>
               <strong>{{ tripStats.averageTripsPerDay.toFixed(2) }}</strong>
-              <span class="has-text-grey">({{ tripStats.tripCount }} / {{ tripStats.dateCount }})</span>
+              <span class="ml-3 has-text-grey">({{ tripStats.tripCount }} / {{ tripStats.dateCount }})</span>
             </dd>
           </div>
           <div v-else>
@@ -79,14 +80,22 @@
         </dl>
       </div>
 
+      <cat-download-csv
+        v-if="tripsCsvData.length > 0"
+        :data="tripsCsvData"
+        :filename="`${routeIdPrefix}-trips`"
+        label="Download CSV"
+        class="mb-4"
+      />
+
       <p v-if="!hasAnyRows" class="has-text-grey">
         No trips found for this route in the selected filters.
       </p>
 
-      <section
+      <div
         v-for="section in unrolledSections"
-        :key="section.directionId"
-        class="cal-route-timetable-section mb-5"
+        :key="`nav-${section.directionId}`"
+        class="cal-route-timetable-direction-nav mb-2"
       >
         <h4 class="has-text-weight-bold">
           Direction {{ section.directionId }}
@@ -97,26 +106,55 @@
             Used for frequency
           </span>
         </h4>
-        <table class="table is-fullwidth is-narrow is-striped cal-route-timetable-table cal-route-timetable-trips-table">
+        <div class="cal-route-timetable-date-nav">
+          <button
+            v-for="group in section.dateGroups"
+            :key="group.serviceDate"
+            type="button"
+            class="cal-route-timetable-date-nav-btn"
+            @click="scrollTo(`trips-dir${section.directionId}-${group.serviceDate}`)"
+          >
+            {{ formatServiceDate(group.serviceDate) }}
+          </button>
+        </div>
+      </div>
+
+      <section
+        v-for="section in unrolledSections"
+        :key="section.directionId"
+        class="cal-route-timetable-section mb-5"
+      >
+        <h4 class="has-text-weight-bold">
+          Direction {{ section.directionId }}
+        </h4>
+        <table class="table is-fullwidth is-narrow cal-route-timetable-table cal-route-timetable-trips-table">
           <thead>
             <tr>
-              <th>Service Date</th>
               <th>Trip ID</th>
               <th>First Stop</th>
               <th>Representative Stop</th>
               <th>Last Stop</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            v-for="group in section.dateGroups"
+            :key="group.serviceDate"
+            :id="`trips-dir${section.directionId}-${group.serviceDate}`"
+          >
+            <tr class="cal-route-timetable-date-separator">
+              <td colspan="4">
+                {{ formatServiceDate(group.serviceDate) }}
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
+              </td>
+            </tr>
             <tr
-              v-for="(row, i) in section.rows"
-              :key="`${row.serviceDate}-${row.tripId}`"
+              v-for="(row, ri) in group.rows"
+              :key="row.tripId"
               :class="{
                 'cal-route-timetable-row-muted': !row.inWindow,
-                'cal-route-timetable-day-break': i > 0 && row.serviceDate !== section.rows[i - 1]?.serviceDate,
+                'cal-route-timetable-row-striped': ri % 2 === 1,
               }"
             >
-              <td>{{ row.serviceDate }}</td>
               <td class="cal-route-timetable-trip-id">
                 {{ tripIdLabel(row.tripId) }}
               </td>
@@ -177,7 +215,7 @@
       <div v-else>
         <div v-if="gapStats" class="cal-route-timetable-gap-summary mb-4">
           <p class="has-text-grey mb-2">
-            Every dominant-direction representative-stop departure across the selected service days that feeds the average / fastest / slowest frequency calculation. Gaps under 2 minutes are shown struck through and excluded from the summary.
+            Every dominant-direction representative-stop departure across the selected service days that feeds the average / fastest / slowest frequency calculation. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are shown struck through and excluded from the summary.
           </p>
           <dl class="cal-route-timetable-gap-stats">
             <div>
@@ -228,11 +266,28 @@
           </div>
         </div>
 
-        <table class="table is-fullwidth is-narrow is-striped cal-route-timetable-table">
+        <cat-download-csv
+          v-if="frequencyCsvData.length > 0"
+          :data="frequencyCsvData"
+          :filename="`${routeIdPrefix}-frequency`"
+          label="Download CSV"
+          class="mb-4"
+        />
+
+        <div class="cal-route-timetable-date-nav mb-2">
+          <button
+            v-for="group in frequencyDateGroups"
+            :key="group.serviceDate"
+            type="button"
+            class="cal-route-timetable-date-nav-btn"
+            @click="scrollTo(`freq-${group.serviceDate}`)"
+          >
+            {{ formatServiceDate(group.serviceDate) }}
+          </button>
+        </div>
+        <table class="table is-fullwidth is-narrow cal-route-timetable-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Service date</th>
               <th>Trip ID</th>
               <th>Dir</th>
               <th>Stop</th>
@@ -241,16 +296,22 @@
               <th>Gap (seconds)</th>
             </tr>
           </thead>
-          <tbody>
-            <tr
-              v-for="(row, i) in frequencyRows"
-              :key="i"
-              :class="{ 'cal-route-timetable-day-break': i > 0 && row.serviceDate !== frequencyRows[i - 1]?.serviceDate }"
-            >
-              <td class="cal-route-timetable-trip-id">
-                {{ i + 1 }}
+          <tbody
+            v-for="group in frequencyDateGroups"
+            :key="group.serviceDate"
+            :id="`freq-${group.serviceDate}`"
+          >
+            <tr class="cal-route-timetable-date-separator">
+              <td colspan="6">
+                {{ formatServiceDate(group.serviceDate) }}
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
               </td>
-              <td>{{ row.serviceDate }}</td>
+            </tr>
+            <tr
+              v-for="(row, i) in group.rows"
+              :key="i"
+              :class="{ 'cal-route-timetable-row-striped': i % 2 === 1 }"
+            >
               <td class="cal-route-timetable-trip-id">
                 {{ tripIdLabel(row.tripId) }}
               </td>
@@ -267,7 +328,7 @@
                 <span v-if="row.gapToNext == null" class="has-text-grey-light">—</span>
                 <cat-tooltip
                   v-else-if="row.gapIsNoise"
-                  text="Gap below the 2-minute noise threshold; excluded from frequency calculation."
+                  :text="`Gap below the ${MIN_HEADWAY_SECONDS}-second noise threshold; excluded from frequency calculation.`"
                 >
                   <span class="cal-route-timetable-noise-gap">
                     {{ formatGtfsTimeFull(row.gapToNext) }}
@@ -289,6 +350,85 @@
         </table>
       </div>
     </div>
+
+    <!-- Stop Details view -->
+    <div v-else-if="activeTab === 'stops'">
+      <p v-if="stopDetailDateGroups.length === 0" class="has-text-grey">
+        No stop data for this route in the selected filters.
+      </p>
+
+      <div v-else>
+        <div class="cal-route-timetable-gap-summary mb-4">
+          <p class="has-text-grey">
+            In-area stops served by this route on each service day, with departure counts per direction. The representative stop for the dominant direction is marked with a check icon.
+          </p>
+        </div>
+
+        <cat-download-csv
+          v-if="stopDetailsCsvData.length > 0"
+          :data="stopDetailsCsvData"
+          :filename="`${routeIdPrefix}-stops`"
+          label="Download CSV"
+          class="mb-4"
+        />
+
+        <div class="cal-route-timetable-date-nav mb-2">
+          <button
+            v-for="group in stopDetailDateGroups"
+            :key="group.serviceDate"
+            type="button"
+            class="cal-route-timetable-date-nav-btn"
+            @click="scrollTo(`stops-${group.serviceDate}`)"
+          >
+            {{ formatServiceDate(group.serviceDate) }}
+          </button>
+        </div>
+        <table class="table is-fullwidth is-narrow cal-route-timetable-table">
+          <thead>
+            <tr>
+              <th>Stop ID</th>
+              <th>Stop Name</th>
+              <th>Dir</th>
+              <th>Departures</th>
+            </tr>
+          </thead>
+          <tbody
+            v-for="group in stopDetailDateGroups"
+            :key="group.serviceDate"
+            :id="`stops-${group.serviceDate}`"
+          >
+            <tr class="cal-route-timetable-date-separator">
+              <td colspan="4">
+                {{ formatServiceDate(group.serviceDate) }}
+                <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">top</button>
+              </td>
+            </tr>
+            <tr
+              v-for="(row, i) in group.rows"
+              :key="`${row.stopId}-${row.directionId}`"
+              :class="{ 'cal-route-timetable-row-striped': i % 2 === 1 }"
+            >
+              <td>{{ stopIdStr(row.stopId) }}</td>
+              <td>
+                <cat-tooltip :text="stopTooltip(row.stopId)">
+                  {{ stopName(row.stopId) }}
+                </cat-tooltip>
+              </td>
+              <td>{{ row.directionId }}</td>
+              <td>
+                {{ row.departureCount }}
+                <cat-tooltip
+                  v-if="row.isRepresentativeStop"
+                  text="Representative stop for the dominant direction — used for frequency calculation"
+                >
+                  <cat-icon icon="check" size="small" class="has-text-primary ml-1" />
+                </cat-tooltip>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -304,10 +444,11 @@ import {
   routeHeadways,
   computeHeadwaysPerDay,
   calculateRouteTripStats,
+  MIN_HEADWAY_SECONDS,
 } from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
 
-type Tab = 'trips' | 'frequency'
+type Tab = 'frequency' | 'trips' | 'stops'
 
 interface TimetableRowWithDate {
   serviceDate: string
@@ -322,9 +463,14 @@ interface TimetableRowWithDate {
   inWindow: boolean
 }
 
+interface DateGroup {
+  serviceDate: string
+  rows: TimetableRowWithDate[]
+}
+
 interface UnrolledSection {
   directionId: number
-  rows: TimetableRowWithDate[]
+  dateGroups: DateGroup[]
 }
 
 interface FrequencyRow {
@@ -369,35 +515,37 @@ const endTimeStr = computed(() =>
 // Build timetable data across ALL service days, unrolled into per-direction
 // flat arrays with a serviceDate + representativeStopId tagged on each row.
 const unrolledSections = computed<UnrolledSection[]>(() => {
-  const dir0: TimetableRowWithDate[] = []
-  const dir1: TimetableRowWithDate[] = []
+  const dir0Groups: DateGroup[] = []
+  const dir1Groups: DateGroup[] = []
   for (const d of props.selectedDateRange) {
     const dateStr = format(d, 'yyyy-MM-dd')
     const tt = buildRouteTimetable(props.route, dateStr, startTimeSec.value, endTimeSec.value, routeIndex.value)
     for (const dir of [tt.dir0, tt.dir1]) {
-      const bucket = dir.directionId === 0 ? dir0 : dir1
-      for (const row of dir.rows) {
-        bucket.push({
-          serviceDate: dateStr,
-          tripId: row.tripId,
-          directionId: row.directionId,
-          firstStopId: row.firstStopId,
-          firstDepartureTime: row.firstDepartureTime,
-          lastStopId: row.lastStopId,
-          lastDepartureTime: row.lastDepartureTime,
-          repStopDepartureTime: row.repStopDepartureTime,
-          representativeStopId: dir.representativeStopId,
-          inWindow: row.inWindow,
-        })
+      if (dir.rows.length === 0) {
+        continue
       }
+      const groups = dir.directionId === 0 ? dir0Groups : dir1Groups
+      const rows: TimetableRowWithDate[] = dir.rows.map(row => ({
+        serviceDate: dateStr,
+        tripId: row.tripId,
+        directionId: row.directionId,
+        firstStopId: row.firstStopId,
+        firstDepartureTime: row.firstDepartureTime,
+        lastStopId: row.lastStopId,
+        lastDepartureTime: row.lastDepartureTime,
+        repStopDepartureTime: row.repStopDepartureTime,
+        representativeStopId: dir.representativeStopId,
+        inWindow: row.inWindow,
+      }))
+      groups.push({ serviceDate: dateStr, rows })
     }
   }
   const out: UnrolledSection[] = []
-  if (dir0.length > 0) {
-    out.push({ directionId: 0, rows: dir0 })
+  if (dir0Groups.length > 0) {
+    out.push({ directionId: 0, dateGroups: dir0Groups })
   }
-  if (dir1.length > 0) {
-    out.push({ directionId: 1, rows: dir1 })
+  if (dir1Groups.length > 0) {
+    out.push({ directionId: 1, dateGroups: dir1Groups })
   }
   return out
 })
@@ -430,6 +578,13 @@ const tripStats = computed(() =>
 )
 
 const isAllDayMode = computed(() => props.startTime == null && props.endTime == null)
+
+// Show long name only when it adds information beyond the short name.
+const showLongName = computed(() => {
+  const short = props.route.route_short_name || ''
+  const long = props.route.route_long_name || ''
+  return long !== '' && !long.includes(short) && short !== long
+})
 
 const hasAnyRows = computed(() => unrolledSections.value.length > 0)
 
@@ -471,6 +626,24 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
     }
   }
   return out
+})
+
+interface FrequencyDateGroup {
+  serviceDate: string
+  rows: FrequencyRow[]
+}
+
+const frequencyDateGroups = computed<FrequencyDateGroup[]>(() => {
+  const groups: FrequencyDateGroup[] = []
+  let current: FrequencyDateGroup | undefined
+  for (const row of frequencyRows.value) {
+    if (!current || current.serviceDate !== row.serviceDate) {
+      current = { serviceDate: row.serviceDate, rows: [] }
+      groups.push(current)
+    }
+    current.rows.push(row)
+  }
+  return groups
 })
 
 // The exact array fed to calculateHeadwayStats: non-noise gaps, sorted ascending.
@@ -536,6 +709,119 @@ function formatGtfsTimeFull (seconds: number): string {
 function pad (n: number): string {
   return n.toString().padStart(2, '0')
 }
+
+function formatServiceDate (dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y!, m! - 1, d!)
+  const dow = format(date, 'EEEE')
+  return `${dateStr} (${dow})`
+}
+
+function scrollTo (id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToTop () {
+  scrollTo('cal-route-timetable-top')
+}
+
+interface StopDetailRow {
+  stopId: number
+  directionId: number
+  departureCount: number
+  isRepresentativeStop: boolean
+}
+
+interface StopDetailDateGroup {
+  serviceDate: string
+  rows: StopDetailRow[]
+}
+
+const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
+  const groups: StopDetailDateGroup[] = []
+  for (const d of props.selectedDateRange) {
+    const dateStr = format(d, 'yyyy-MM-dd')
+    const rows: StopDetailRow[] = []
+    const dominant = dominantDirection.value
+    for (const dir of [0, 1]) {
+      const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
+      const dateStopDeps = routeIndex.value.getRouteDate(props.route.id, dir, dateStr)
+      for (const [sid, deps] of dateStopDeps.entries()) {
+        rows.push({
+          stopId: sid,
+          directionId: dir,
+          departureCount: deps.length,
+          isRepresentativeStop: sid === rep.stopId && dir === dominant,
+        })
+      }
+    }
+    if (rows.length > 0) {
+      rows.sort((a, b) => a.directionId - b.directionId || b.departureCount - a.departureCount)
+      groups.push({ serviceDate: dateStr, rows })
+    }
+  }
+  return groups
+})
+
+const stopDetailsCsvData = computed(() => {
+  return stopDetailDateGroups.value.flatMap(group =>
+    group.rows.map(row => ({
+      service_date: group.serviceDate,
+      direction_id: row.directionId,
+      stop_id: stopIdStr(row.stopId),
+      stop_name: stopName(row.stopId),
+      departure_count: row.departureCount,
+      is_representative_stop: row.isRepresentativeStop,
+    })),
+  )
+})
+
+function stopIdStr (id: number): string {
+  return stopsById.value.get(id)?.stop_id || String(id)
+}
+
+const routeIdPrefix = computed(() => props.route.route_short_name || props.route.route_id)
+
+const tripsCsvData = computed(() => {
+  const rows: Record<string, unknown>[] = []
+  for (const section of unrolledSections.value) {
+    for (const group of section.dateGroups) {
+      for (const row of group.rows) {
+        rows.push({
+          service_date: row.serviceDate,
+          direction_id: row.directionId,
+          trip_id: tripIdLabel(row.tripId),
+          in_window: row.inWindow,
+          first_stop_id: stopIdStr(row.firstStopId),
+          first_stop_name: stopName(row.firstStopId),
+          first_departure: formatGtfsTimeFull(row.firstDepartureTime),
+          representative_stop_id: row.representativeStopId != null ? stopIdStr(row.representativeStopId) : '',
+          representative_stop_name: row.representativeStopId != null ? stopName(row.representativeStopId) : '',
+          representative_stop_departure: row.repStopDepartureTime != null ? formatGtfsTimeFull(row.repStopDepartureTime) : '',
+          last_stop_id: stopIdStr(row.lastStopId),
+          last_stop_name: stopName(row.lastStopId),
+          last_departure: formatGtfsTimeFull(row.lastDepartureTime),
+        })
+      }
+    }
+  }
+  return rows
+})
+
+const frequencyCsvData = computed(() => {
+  return frequencyRows.value.map(row => ({
+    service_date: row.serviceDate,
+    direction_id: row.directionId,
+    trip_id: tripIdLabel(row.tripId),
+    stop_id: stopIdStr(row.stopId),
+    stop_name: stopName(row.stopId),
+    departure: formatGtfsTimeFull(row.departureTime),
+    departure_seconds: row.departureTime,
+    gap_to_next: row.gapToNext != null ? formatGtfsTimeFull(row.gapToNext) : '',
+    gap_to_next_seconds: row.gapToNext ?? '',
+    gap_is_noise: row.gapIsNoise,
+  }))
+})
 </script>
 
 <style scoped lang="scss">
@@ -547,8 +833,53 @@ function pad (n: number): string {
   font-variant-numeric: tabular-nums;
   color: #666;
 }
+.cal-route-timetable-row-striped > td {
+  background: var(--bulma-table-striped-row-even-background-color, #fafafa);
+}
 .cal-route-timetable-row-muted {
   opacity: 0.5;
+}
+.cal-route-timetable-direction-nav {
+  h4 {
+    margin-bottom: 0.25rem;
+  }
+}
+.cal-route-timetable-date-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.cal-route-timetable-date-nav-btn {
+  background: none;
+  border: 1px solid var(--bulma-border, #dbdbdb);
+  border-radius: 3px;
+  padding: 0.15em 0.5em;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+
+  &:hover {
+    background: var(--bulma-scheme-main-bis, #fafafa);
+  }
+}
+.cal-route-timetable-top-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.75em;
+  font: inherit;
+  color: var(--bulma-grey, #7a7a7a);
+  cursor: pointer;
+  text-decoration: underline;
+}
+tbody + tbody > .cal-route-timetable-date-separator > td {
+  border-top: 0.75em solid transparent;
+}
+.cal-route-timetable-date-separator > td {
+  font-weight: 600;
+  padding-top: 0.6em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--bulma-border, #dbdbdb);
 }
 .cal-route-timetable-day-break > td {
   border-top: 2px solid var(--bulma-grey-light, #999);
@@ -558,7 +889,7 @@ function pad (n: number): string {
 
   th,
   td {
-    width: 20%;
+    width: 25%;
   }
 }
 .cal-route-timetable-noise-gap {

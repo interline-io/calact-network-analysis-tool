@@ -182,7 +182,7 @@ const props = defineProps<{
   flexDisplayFeatures?: Feature[]
 }>()
 
-export type RouteTimetableTab = 'frequency' | 'trips'
+export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
@@ -538,7 +538,7 @@ const activeTableReport = computed((): TableReport => {
     border: none;
     padding: 0;
     font: inherit;
-    color: var(--bulma-link);
+    color: inherit;
     cursor: pointer;
     text-decoration: underline dotted;
     text-underline-offset: 2px;

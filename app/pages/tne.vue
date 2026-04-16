@@ -1187,7 +1187,7 @@ function fitToGeographies () {
 ////////////////////////////
 
 // Route Timetable debug modal state.
-type RouteTimetableTab = 'frequency' | 'trips'
+type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 const timetableRoute = ref<Route | undefined>(undefined)
 const timetableInitialTab = ref<RouteTimetableTab>('frequency')
 const showTimetable = computed({

@@ -7,7 +7,7 @@
  */
 
 import { format } from 'date-fns'
-import { parseHMS, type Weekday } from '../core'
+import { parseHMS, MIN_HEADWAY_SECONDS, type Weekday } from '../core'
 import type {
   Route,
   StopTimeCacheItem,
@@ -95,9 +95,8 @@ export function routeHeadways (
  * stop — the in-bbox stop with the most departures — and return both its stopId
  * and its stop_times. Returns stopId = undefined when the bucket is empty.
  *
- * Tie-breaking: first stop to reach the current max wins, which is stable given
- * `Map` iteration order but not semantically meaningful. In practice ties are
- * rare (most routes have a clear "main" stop within the bbox).
+ * Tie-breaking: when two stops have the same departure count, the lower
+ * numeric stop ID wins. Deterministic regardless of Map insertion order.
  */
 export function pickRepresentativeStop (
   routeIndex: RouteDepartureIndex,
@@ -109,7 +108,7 @@ export function pickRepresentativeStop (
   let departures: StopTimeCacheItem[] = []
   const dateStopDeps = routeIndex.getRouteDate(routeId, dir, formattedDate)
   for (const [sid, deps] of dateStopDeps.entries()) {
-    if (deps.length > departures.length) {
+    if (deps.length > departures.length || (deps.length === departures.length && stopId !== undefined && sid < stopId)) {
       stopId = sid
       departures = deps
     }
@@ -270,7 +269,8 @@ export function calculateRouteTripStats (
 
 // Minimum headway threshold (2 minutes in seconds)
 // Headways below this are filtered out as noise (e.g., bunched buses during peak demand)
-export const MIN_HEADWAY_SECONDS = 2 * 60
+// Re-export so existing consumers (tests, UI) can still import from this module.
+export { MIN_HEADWAY_SECONDS } from '../core'
 
 /**
  * A headway (interval) between two consecutive departures within the same
