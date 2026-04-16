@@ -72,7 +72,7 @@
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'frequency')"
+          @click="handleOpenTimetable(row.id, 'trips')"
         >
           {{ value }}
         </button>
@@ -82,7 +82,7 @@
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'frequency')"
+          @click="handleOpenTimetable(row.id, 'trips')"
         >
           {{ value }}
         </button>
