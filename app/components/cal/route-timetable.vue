@@ -256,7 +256,7 @@
           <div class="cal-route-timetable-gap-list">
             <template v-for="(g, i) in contributingGaps" :key="i">
               <strong
-                v-if="i === 0 || i === gapStats.medianIndex || i === contributingGaps.length - 1"
+                v-if="i === 0 || gapStats.medianIndices.has(i) || i === contributingGaps.length - 1"
               >{{ g }}</strong>
               <template v-else>
                 {{ g }}
@@ -444,6 +444,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { buildRouteTimetable } from '~~/src/scenario'
+import { formatGtfsTimeFull } from '~~/src/core'
 import {
   pickRepresentativeStop,
   pickDominantDirection,
@@ -668,10 +669,17 @@ const gapStats = computed(() => {
   }
   const min = gaps[0]!
   const max = gaps[gaps.length - 1]!
-  const medianIndex = Math.floor(gaps.length / 2)
-  const median = gaps[medianIndex]!
+  const mid = Math.floor(gaps.length / 2)
+  const median = gaps.length % 2 === 1
+    ? gaps[mid]!
+    : (gaps[mid - 1]! + gaps[mid]!) / 2
+  // Indices to bold in the sorted gap list: the two middle entries for even
+  // length, or the single middle entry for odd.
+  const medianIndices = gaps.length % 2 === 1
+    ? new Set([mid])
+    : new Set([mid - 1, mid])
   const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length
-  return { min, max, median, medianIndex, avg, count: gaps.length }
+  return { min, max, median, medianIndices, avg, count: gaps.length }
 })
 
 // Stop lookup: build once per scenarioFilterResult change.
@@ -699,21 +707,6 @@ function stopTooltip (id: number): string {
 
 function dateToSec (d: Date): number {
   return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()
-}
-
-function formatGtfsTimeFull (seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    return ''
-  }
-  const total = Math.floor(seconds)
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  return `${pad(h)}:${pad(m)}:${pad(s)}`
-}
-
-function pad (n: number): string {
-  return n.toString().padStart(2, '0')
 }
 
 function formatServiceDate (dateStr: string): string {

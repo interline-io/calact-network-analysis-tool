@@ -15,6 +15,7 @@ import {
   parseHMS,
   dateToSeconds,
   formatGtfsTime,
+  formatGtfsTimeFull,
   formatDuration
 } from './datetime'
 
@@ -508,6 +509,30 @@ describe('formatGtfsTime', () => {
     expect(formatGtfsTime(-1)).toBe('')
     expect(formatGtfsTime(NaN)).toBe('')
     expect(formatGtfsTime(Infinity)).toBe('')
+  })
+})
+
+describe('formatGtfsTimeFull', () => {
+  it('renders seconds-since-midnight as HH:MM:SS', () => {
+    expect(formatGtfsTimeFull(0)).toBe('00:00:00')
+    expect(formatGtfsTimeFull(9 * 3600)).toBe('09:00:00')
+    expect(formatGtfsTimeFull(9 * 3600 + 30 * 60)).toBe('09:30:00')
+    expect(formatGtfsTimeFull(9 * 3600 + 30 * 60 + 45)).toBe('09:30:45')
+    expect(formatGtfsTimeFull(23 * 3600 + 59 * 60 + 59)).toBe('23:59:59')
+  })
+
+  it('does NOT wrap at 24h (preserves GTFS after-midnight service day semantics)', () => {
+    expect(formatGtfsTimeFull(25 * 3600 + 30 * 60)).toBe('25:30:00')
+    expect(formatGtfsTimeFull(26 * 3600)).toBe('26:00:00')
+  })
+
+  it('returns empty string for invalid input', () => {
+    expect(formatGtfsTimeFull(undefined)).toBe('')
+    expect(formatGtfsTimeFull(null)).toBe('')
+    expect(formatGtfsTimeFull('09:00:00')).toBe('')
+    expect(formatGtfsTimeFull(-1)).toBe('')
+    expect(formatGtfsTimeFull(NaN)).toBe('')
+    expect(formatGtfsTimeFull(Infinity)).toBe('')
   })
 })
 

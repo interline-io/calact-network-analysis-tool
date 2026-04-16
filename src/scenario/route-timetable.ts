@@ -6,7 +6,6 @@
  * and (via `representativeStopId`) the frequency stats.
  */
 
-import { format } from 'date-fns'
 import type { RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import { pickRepresentativeStop } from './route-headway'
@@ -126,10 +125,4 @@ function buildDirection (
     representativeStopId: rep.stopId,
     rows,
   }
-}
-
-// Convenience wrapper for callers that have a Date object rather than a
-// pre-formatted yyyy-MM-dd string.
-export function formatDateForIndex (date: Date): string {
-  return format(date, 'yyyy-MM-dd')
 }

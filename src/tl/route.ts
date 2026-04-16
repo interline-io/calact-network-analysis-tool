@@ -1,4 +1,5 @@
 import { gql } from 'graphql-tag'
+import { formatGtfsTimeFull } from '../core'
 
 //////////
 // Routes
@@ -104,6 +105,10 @@ export type RouteCsv = RouteGtfs & {
   earliest_trip_end?: number
   latest_trip_start?: number
   latest_trip_end?: number
+  earliest_trip_start_time?: string
+  earliest_trip_end_time?: string
+  latest_trip_start_time?: string
+  latest_trip_end_time?: string
 }
 
 export type Route = RouteGql & RouteDerived
@@ -125,6 +130,10 @@ export function routeToRouteCsv (route: Route): RouteCsv {
     earliest_trip_end: route.earliest_trip_end,
     latest_trip_start: route.latest_trip_start,
     latest_trip_end: route.latest_trip_end,
+    earliest_trip_start_time: formatGtfsTimeFull(route.earliest_trip_start) || undefined,
+    earliest_trip_end_time: formatGtfsTimeFull(route.earliest_trip_end) || undefined,
+    latest_trip_start_time: formatGtfsTimeFull(route.latest_trip_start) || undefined,
+    latest_trip_end_time: formatGtfsTimeFull(route.latest_trip_end) || undefined,
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,

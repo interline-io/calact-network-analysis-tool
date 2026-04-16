@@ -180,6 +180,21 @@ export function formatGtfsTime (value: unknown): string {
 }
 
 /**
+ * Like `formatGtfsTime` but includes seconds: HH:MM:SS.
+ * Does NOT wrap at 24h — preserves GTFS after-midnight semantics.
+ */
+export function formatGtfsTimeFull (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return ''
+  }
+  const total = Math.floor(value)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+/**
  * Render a duration in seconds as HH:MM:SS, dropping the leading HH when zero
  * (e.g. 900 → "15:00", 7200 → "02:00:00").
  */
