@@ -273,10 +273,57 @@ export function calculateRouteTripStats (
 export const MIN_HEADWAY_SECONDS = 2 * 60
 
 /**
+ * A headway (interval) between two consecutive departures within the same
+ * service day. Generic over the underlying item type so both numeric and
+ * rich-record callers (e.g. UIs that need tripId + stopId alongside the time)
+ * can share one implementation.
+ */
+export interface Headway<T> {
+  from: T
+  to: T
+  gap: number
+  isNoise: boolean
+}
+
+/**
+ * For a per-day array of departure records (sorted ascending by time), return
+ * every consecutive-pair interval. Cross-day pairs are never produced. Gaps
+ * under MIN_HEADWAY_SECONDS are flagged (`isNoise: true`) but still returned —
+ * callers that want only the contributing intervals should filter.
+ */
+export function computeHeadwaysPerDay<T> (
+  perDay: readonly T[][],
+  getTime: (item: T) => number,
+): Array<Headway<T>> {
+  const out: Array<Headway<T>> = []
+  for (const day of perDay) {
+    for (let i = 0; i < day.length - 1; i++) {
+      const from = day[i]!
+      const to = day[i + 1]!
+      const gap = getTime(to) - getTime(from)
+      out.push({ from, to, gap, isNoise: gap < MIN_HEADWAY_SECONDS })
+    }
+  }
+  return out
+}
+
+/**
+ * Pick the dominant direction from a `RouteDepartures` set. The direction with
+ * more total in-window rep-stop departures wins; ties go to direction 0.
+ * Shared by scenario-filter (which then takes that direction's departures into
+ * `calculateHeadwayStats`) and the Route Timetable debug UI.
+ */
+export function pickDominantDirection (deps: RouteDepartures): 0 | 1 {
+  const dir0Count = deps.dir0.reduce((sum, d) => sum + d.length, 0)
+  const dir1Count = deps.dir1.reduce((sum, d) => sum + d.length, 0)
+  return dir1Count > dir0Count ? 1 : 0
+}
+
+/**
  * Calculate headway statistics from per-day departure arrays.
  * Headways are computed within each day and then aggregated, so an interval
  * is never measured between trips on different service days.
- * Headways under 2 minutes are filtered out as noise.
+ * Headways under MIN_HEADWAY_SECONDS are filtered out as noise.
  *
  * @param departuresByDay - Each inner array is one date's departure times in seconds since midnight
  * @returns Object with average, fastest (min), and slowest (max) headways in seconds, or undefined if no qualifying intervals
@@ -286,34 +333,21 @@ export function calculateHeadwayStats (departuresByDay: number[][]): {
   fastest: number
   slowest: number
 } | undefined {
-  const headways: number[] = []
-  for (const dayDepartures of departuresByDay) {
-    if (dayDepartures.length < 2) {
-      continue
-    }
-    const sorted = [...dayDepartures].sort((a, b) => a - b)
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const curr = sorted[i]
-      const next = sorted[i + 1]
-      if (curr !== undefined && next !== undefined) {
-        const headway = next - curr
-        // Filter out headways under 2 minutes as noise
-        if (headway >= MIN_HEADWAY_SECONDS) {
-          headways.push(headway)
-        }
-      }
+  const sortedByDay = departuresByDay.map(day => [...day].sort((a, b) => a - b))
+  const headways = computeHeadwaysPerDay(sortedByDay, n => n)
+  const contributing: number[] = []
+  for (const h of headways) {
+    if (!h.isNoise) {
+      contributing.push(h.gap)
     }
   }
-
-  if (headways.length === 0) {
+  if (contributing.length === 0) {
     return undefined
   }
-
-  headways.sort((a, b) => a - b)
-
+  contributing.sort((a, b) => a - b)
   return {
-    average: headways.reduce((a, b) => a + b) / headways.length,
-    fastest: headways[0]!,
-    slowest: headways[headways.length - 1]!
+    average: contributing.reduce((a, b) => a + b) / contributing.length,
+    fastest: contributing[0]!,
+    slowest: contributing[contributing.length - 1]!,
   }
 }

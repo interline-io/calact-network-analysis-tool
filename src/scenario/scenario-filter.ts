@@ -50,6 +50,7 @@ import {
   hasServiceOnWeekday,
   calculateHeadwayStats,
   calculateRouteTripStats,
+  pickDominantDirection,
   type RouteDepartures,
 } from './route-headway'
 import {
@@ -119,9 +120,7 @@ function routeSetDerived (
     // Pick the direction with more total departures across all service days;
     // the other direction is intentionally dropped (a route's headway is
     // reported per dominant direction).
-    const dir0Count = deps.dir0.reduce((sum, d) => sum + d.length, 0)
-    const dir1Count = deps.dir1.reduce((sum, d) => sum + d.length, 0)
-    const chosenDir = dir1Count > dir0Count ? deps.dir1 : deps.dir0
+    const chosenDir = pickDominantDirection(deps) === 1 ? deps.dir1 : deps.dir0
     const stats = calculateHeadwayStats(chosenDir)
     if (stats) {
       route.average_frequency = stats.average

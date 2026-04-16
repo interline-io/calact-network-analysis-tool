@@ -9,7 +9,7 @@
 import { format } from 'date-fns'
 import type { RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
-import { pickRepresentativeStop, routeHeadways } from './route-headway'
+import { pickRepresentativeStop } from './route-headway'
 
 export interface TimetableRow {
   tripId: number
@@ -126,24 +126,6 @@ function buildDirection (
     representativeStopId: rep.stopId,
     rows,
   }
-}
-
-/**
- * Pick the dominant direction for frequency calculations — the one with more
- * in-window departures at its representative stop across the date range.
- * Ties go to direction 0, mirroring scenario-filter.ts.
- */
-export function pickDominantDirection (
-  route: Route,
-  selectedDateRange: Date[],
-  selectedStartTime: string | undefined,
-  selectedEndTime: string | undefined,
-  routeIndex: RouteDepartureIndex,
-): number {
-  const deps = routeHeadways(route, selectedDateRange, selectedStartTime, selectedEndTime, routeIndex)
-  const dir0Count = deps.dir0.reduce((sum, d) => sum + d.length, 0)
-  const dir1Count = deps.dir1.reduce((sum, d) => sum + d.length, 0)
-  return dir1Count > dir0Count ? 1 : 0
 }
 
 // Convenience wrapper for callers that have a Date object rather than a

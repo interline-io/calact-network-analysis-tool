@@ -249,8 +249,13 @@ import { computed, ref } from 'vue'
 import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { buildRouteTimetable, pickDominantDirection } from '~~/src/scenario'
-import { pickRepresentativeStop, MIN_HEADWAY_SECONDS } from '~~/src/scenario/route-headway'
+import { buildRouteTimetable } from '~~/src/scenario'
+import {
+  pickRepresentativeStop,
+  pickDominantDirection,
+  routeHeadways,
+  computeHeadwaysPerDay,
+} from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
 
 type Tab = 'trips' | 'frequency'
@@ -317,8 +322,11 @@ const timetable = computed(() =>
   ),
 )
 
-const dominantDirection = computed(() =>
-  pickDominantDirection(
+// Go through the same `routeHeadways` path that scenario-filter uses, then pick
+// the dominant direction via the shared helper — guarantees the UI can't drift
+// from the actual frequency-calc direction.
+const routeDeps = computed(() =>
+  routeHeadways(
     props.route,
     props.selectedDateRange,
     startTimeStr.value,
@@ -326,6 +334,8 @@ const dominantDirection = computed(() =>
     routeIndex.value,
   ),
 )
+
+const dominantDirection = computed(() => pickDominantDirection(routeDeps.value))
 
 const sections = computed(() => {
   return [timetable.value.dir0, timetable.value.dir1].filter(s => s.rows.length > 0)
@@ -335,11 +345,12 @@ const hasAnyRows = computed(() => sections.value.length > 0)
 
 const activeTab = ref<Tab>(props.initialTab ?? 'frequency')
 
-// Frequency Calculation view: every dominant-direction representative-stop departure
-// across all selected service days, in time-of-day window. These are the exact
-// numbers that feed average/fastest/slowest frequency. Gaps < 2 min are still
-// shown (struck through) for debug context but do not appear in the sorted-gap
-// summary below the table.
+// Frequency Calculation view: every dominant-direction representative-stop
+// departure across all selected service days, in the time-of-day window.
+// These are the exact numbers that feed average/fastest/slowest frequency.
+// Gap/noise classification is delegated to `computeHeadwaysPerDay` — the same
+// helper that `calculateHeadwayStats` uses — so this view can never drift
+// from the actual frequency calculation.
 const frequencyRows = computed<FrequencyRow[]>(() => {
   const out: FrequencyRow[] = []
   const dir = dominantDirection.value
@@ -352,18 +363,20 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
     const inWindow = rep.departures
       .filter(st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value)
       .sort((a, b) => a.departureTime - b.departureTime)
+    // Shared helper returns one Headway<T> per consecutive pair; entry `i` is
+    // the pair (inWindow[i], inWindow[i + 1]). Length is inWindow.length - 1.
+    const headways = computeHeadwaysPerDay([inWindow], st => st.departureTime)
     for (let i = 0; i < inWindow.length; i++) {
       const st = inWindow[i]!
-      const next = inWindow[i + 1]
-      const gap = next ? next.departureTime - st.departureTime : undefined
+      const h = headways[i]
       out.push({
         serviceDate: dateStr,
         tripId: st.tripId,
         directionId: dir,
         stopId: rep.stopId,
         departureTime: st.departureTime,
-        gapToNext: gap,
-        gapIsNoise: gap !== undefined && gap < MIN_HEADWAY_SECONDS,
+        gapToNext: h?.gap,
+        gapIsNoise: h?.isNoise ?? false,
       })
     }
   }

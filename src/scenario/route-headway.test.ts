@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { routeHeadways, calculateHeadwayStats, hasServiceOnWeekday, calculateRouteTripStats } from './route-headway'
+import {
+  routeHeadways,
+  calculateHeadwayStats,
+  hasServiceOnWeekday,
+  calculateRouteTripStats,
+  computeHeadwaysPerDay,
+  pickDominantDirection,
+  MIN_HEADWAY_SECONDS,
+  type RouteDepartures,
+} from './route-headway'
 import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
@@ -674,5 +683,86 @@ describe('calculateRouteTripStats', () => {
     const stats = calculateRouteTripStats(route, [date], '08:00:00', '10:00:00', routeIndex)
 
     expect(stats).toBeUndefined()
+  })
+})
+
+describe('computeHeadwaysPerDay', () => {
+  it('returns one Headway per consecutive within-day pair', () => {
+    const day = [hms('08:00'), hms('08:30'), hms('09:00')]
+    const headways = computeHeadwaysPerDay([day], n => n)
+    expect(headways).toHaveLength(2)
+    expect(headways[0]!.gap).toBe(30 * 60)
+    expect(headways[1]!.gap).toBe(30 * 60)
+    expect(headways.every(h => !h.isNoise)).toBe(true)
+  })
+
+  it('flags gaps under MIN_HEADWAY_SECONDS as noise without dropping them', () => {
+    const day = [hms('08:00'), hms('08:01'), hms('08:30')]
+    const headways = computeHeadwaysPerDay([day], n => n)
+    expect(headways).toHaveLength(2)
+    expect(headways[0]!.gap).toBe(60)
+    expect(headways[0]!.isNoise).toBe(true) // 60s < MIN_HEADWAY_SECONDS
+    expect(headways[1]!.gap).toBe(29 * 60)
+    expect(headways[1]!.isNoise).toBe(false)
+    // Threshold boundary check — MIN_HEADWAY_SECONDS itself is NOT noise.
+    expect(MIN_HEADWAY_SECONDS).toBe(120)
+    const boundary = computeHeadwaysPerDay([[0, MIN_HEADWAY_SECONDS]], n => n)
+    expect(boundary[0]!.isNoise).toBe(false)
+  })
+
+  it('never produces cross-day pairs', () => {
+    const day1 = [hms('22:00'), hms('22:30')]
+    const day2 = [hms('06:00'), hms('06:30')]
+    const headways = computeHeadwaysPerDay([day1, day2], n => n)
+    // Two within-day pairs — none spanning midnight.
+    expect(headways).toHaveLength(2)
+    expect(headways[0]!.gap).toBe(30 * 60)
+    expect(headways[1]!.gap).toBe(30 * 60)
+  })
+
+  it('returns nothing when a day has fewer than 2 entries', () => {
+    expect(computeHeadwaysPerDay([[hms('08:00')]], n => n)).toHaveLength(0)
+    expect(computeHeadwaysPerDay([[]], n => n)).toHaveLength(0)
+  })
+
+  it('works with rich item types via the getTime selector', () => {
+    interface Dep { tripId: number, time: number }
+    const day: Dep[] = [
+      { tripId: 1, time: hms('08:00') },
+      { tripId: 2, time: hms('08:30') },
+    ]
+    const headways = computeHeadwaysPerDay<Dep>([day], d => d.time)
+    expect(headways).toHaveLength(1)
+    expect(headways[0]!.from.tripId).toBe(1)
+    expect(headways[0]!.to.tripId).toBe(2)
+    expect(headways[0]!.gap).toBe(30 * 60)
+  })
+})
+
+describe('pickDominantDirection', () => {
+  // Build a minimal RouteDepartures fixture directly (no full routeHeadways flow
+  // needed — the helper operates on this shape).
+  const make = (dir0: number[][], dir1: number[][]): RouteDepartures => ({ dir0, dir1 })
+
+  it('returns 0 when direction 0 has strictly more departures', () => {
+    expect(pickDominantDirection(make([[1, 2, 3]], [[1]]))).toBe(0)
+  })
+
+  it('returns 1 when direction 1 has strictly more departures', () => {
+    expect(pickDominantDirection(make([[1]], [[1, 2, 3]]))).toBe(1)
+  })
+
+  it('returns 0 on a tie (matches scenario-filter inline behavior)', () => {
+    expect(pickDominantDirection(make([[1, 2]], [[3, 4]]))).toBe(0)
+  })
+
+  it('returns 0 when both directions are empty', () => {
+    expect(pickDominantDirection(make([], []))).toBe(0)
+    expect(pickDominantDirection(make([[]], [[]]))).toBe(0)
+  })
+
+  it('aggregates counts across all dates, not per-date', () => {
+    // dir 0: 1 + 1 = 2; dir 1: 3 + 0 = 3 → dir 1 wins.
+    expect(pickDominantDirection(make([[1], [1]], [[1, 2, 3], []]))).toBe(1)
   })
 })

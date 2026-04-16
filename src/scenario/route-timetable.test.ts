@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
-import { buildRouteTimetable, pickDominantDirection } from './route-timetable'
+import { buildRouteTimetable } from './route-timetable'
 
 interface TripStop {
   stopId: number
@@ -54,11 +54,6 @@ function makeRoute (id: number): Route {
     agency_name: 'Test Agency',
     route_mode: 'Bus',
   }
-}
-
-function makeLocalDate (s: string): Date {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y!, m! - 1, d!)
 }
 
 function hms (time: string): number {
@@ -282,49 +277,3 @@ describe('buildRouteTimetable', () => {
   })
 })
 
-describe('pickDominantDirection', () => {
-  it('returns 0 when direction 0 has more in-window rep-stop departures', () => {
-    const routeId = 100
-    const route = makeRoute(routeId)
-    const sdCache = new StopDepartureCache()
-    const date = makeLocalDate(DATE)
-
-    // dir 0: 3 trips, all visit stop 1 (rep).
-    for (const t of ['1001', '1002', '1003']) {
-      addTripToCache(sdCache, DATE, makeTrip(routeId, t, 0, [{ stopId: 1, departure: `0${t[3]}:00:00` }]))
-    }
-    // dir 1: 1 trip only.
-    addTripToCache(sdCache, DATE, makeTrip(routeId, '2001', 1, [{ stopId: 10, departure: '08:00:00' }]))
-
-    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
-    expect(pickDominantDirection(route, [date], '00:00:00', '24:00:00', routeIndex)).toBe(0)
-  })
-
-  it('returns 1 when direction 1 has strictly more departures', () => {
-    const routeId = 100
-    const route = makeRoute(routeId)
-    const sdCache = new StopDepartureCache()
-    const date = makeLocalDate(DATE)
-
-    addTripToCache(sdCache, DATE, makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '08:00:00' }]))
-    for (const t of ['2001', '2002', '2003']) {
-      addTripToCache(sdCache, DATE, makeTrip(routeId, t, 1, [{ stopId: 10, departure: `0${t[3]}:00:00` }]))
-    }
-
-    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
-    expect(pickDominantDirection(route, [date], '00:00:00', '24:00:00', routeIndex)).toBe(1)
-  })
-
-  it('returns 0 on a tie (matches scenario-filter tie-break)', () => {
-    const routeId = 100
-    const route = makeRoute(routeId)
-    const sdCache = new StopDepartureCache()
-    const date = makeLocalDate(DATE)
-
-    addTripToCache(sdCache, DATE, makeTrip(routeId, '1001', 0, [{ stopId: 1, departure: '08:00:00' }]))
-    addTripToCache(sdCache, DATE, makeTrip(routeId, '2001', 1, [{ stopId: 10, departure: '08:00:00' }]))
-
-    const routeIndex = RouteDepartureIndex.fromCache(sdCache)
-    expect(pickDominantDirection(route, [date], '00:00:00', '24:00:00', routeIndex)).toBe(0)
-  })
-})
