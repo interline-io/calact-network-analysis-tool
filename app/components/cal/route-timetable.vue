@@ -261,22 +261,19 @@
               </dd>
             </div>
           </dl>
-          <div v-if="gapStats" class="mt-2 mb-1 is-size-7">
-            Sorted contributing gaps (seconds) — min / median / max in bold:
-          </div>
-          <div v-if="gapStats" class="cal-route-timetable-gap-list is-size-7">
-            <template v-for="(g, i) in contributingGaps" :key="i">
-              <strong
-                v-if="i === 0 || gapStats.medianIndices.has(i) || i === contributingGaps.length - 1"
-              >{{ g }}</strong>
-              <template v-else>
-                {{ g }}
+          <details v-if="gapStats" class="mt-2 is-size-7">
+            <summary>Sorted contributing gaps (seconds) — min, median, max in bold</summary>
+            <div class="cal-route-timetable-gap-list mt-1">
+              <template v-for="(g, i) in contributingGaps" :key="i">
+                <strong
+                  v-if="i === 0 || gapStats.medianIndices.has(i) || i === contributingGaps.length - 1"
+                >{{ g }}, </strong>
+                <template v-else>
+                  {{ g }},
+                </template>
               </template>
-              <template v-if="i < contributingGaps.length - 1">
-                ,
-              </template>
-            </template>
-          </div>
+            </div>
+          </details>
         </cat-msg>
 
         <cat-msg variant="info" title="Departures by hour" class="mb-4">
