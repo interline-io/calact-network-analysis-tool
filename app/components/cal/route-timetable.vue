@@ -1,7 +1,7 @@
 <template>
   <div id="cal-route-timetable-top" class="cal-route-timetable">
     <header class="cal-route-timetable-header mb-4">
-      <div class="is-size-5 has-text-weight-semibold">
+      <h3 class="is-3 title">
         {{ props.route.agency?.agency_name }} — {{ props.route.route_short_name || props.route.route_id }}
         <span
           v-if="showLongName"
@@ -9,10 +9,20 @@
         >
           {{ props.route.route_long_name }}
         </span>
-      </div>
-      <div class="has-text-grey">
-        agency_id: <code>{{ props.route.agency?.agency_id }}</code>
-        · route_id: <code>{{ props.route.route_id }}</code>
+      </h3>
+      <div class="field is-grouped is-grouped-multiline">
+        <div class="control">
+          <div class="tags has-addons">
+            <span class="tag is-dark">agency_id</span>
+            <span class="tag is-light">{{ props.route.agency?.agency_id }}</span>
+          </div>
+        </div>
+        <div class="control">
+          <div class="tags has-addons">
+            <span class="tag is-dark">route_id</span>
+            <span class="tag is-light">{{ props.route.route_id }}</span>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -24,61 +34,88 @@
 
     <!-- Trips view -->
     <div v-if="activeTab === 'trips'">
-      <div v-if="tripStats" class="cal-route-timetable-gap-summary mb-4">
-        <p class="has-text-grey mb-2">
-          Trip count and earliest/latest trip times are computed across both directions, all in-area stops, and all calendar days in the selected range. A trip is included if it has any in-area departure within the time-of-day window.
+      <cat-msg variant="info" title="Summary" class="mb-4">
+        <p class="mb-2">
+          Totals reflect all departures at stops within selected geographic bounds across the selected date range, subject to any time-of-day or day-of-week filters. Earliest and latest trip times are based on the first and last departures at stops within bounds.
         </p>
         <dl class="cal-route-timetable-gap-stats">
           <div>
             <dt>Included trips:</dt>
-            <dd>{{ tripStats.tripCount }}</dd>
+            <dd>{{ tripStats?.tripCount }}</dd>
           </div>
           <div>
             <dt>Calendar days:</dt>
-            <dd>{{ tripStats.dateCount }}</dd>
+            <dd>{{ tripStats?.dateCount }}</dd>
           </div>
           <div v-if="isAllDayMode">
             <dt>Average trips per day:</dt>
             <dd>
-              <strong>{{ tripStats.averageTripsPerDay.toFixed(2) }}</strong>
-              <span class="ml-3 has-text-grey">({{ tripStats.tripCount }} / {{ tripStats.dateCount }})</span>
+              {{ tripStats?.averageTripsPerDay.toFixed(2) }}
+              <span class="ml-3 has-text-grey">({{ tripStats?.tripCount }} / {{ tripStats?.dateCount }})</span>
             </dd>
           </div>
           <div v-else>
             <dt>Average trips per hour:</dt>
             <dd>
-              <strong>{{ tripStats.averageTripsPerHour.toFixed(2) }}</strong>
+              {{ tripStats?.averageTripsPerHour.toFixed(2) }}
               <span class="has-text-grey">
-                ({{ tripStats.tripCount }} / {{ tripStats.hoursInWindow.toFixed(1) }}h &times; {{ tripStats.dateCount }}d)
+                ({{ tripStats?.tripCount }} / {{ tripStats?.hoursInWindow.toFixed(1) }}h &times; {{ tripStats?.dateCount }}d)
               </span>
             </dd>
           </div>
-          <div v-if="tripStats.earliestTripStart != null">
+          <div v-if="tripStats?.earliestTripStart != null">
             <dt>Earliest trip start:</dt>
             <dd>
-              <strong>{{ formatGtfsTimeFull(tripStats.earliestTripStart) }}</strong>
+              {{ formatGtfsTimeFull(tripStats.earliestTripStart) }}
             </dd>
           </div>
-          <div v-if="tripStats.earliestTripEnd != null">
+          <div v-if="tripStats?.earliestTripEnd != null">
             <dt>Earliest trip end:</dt>
             <dd>
-              <strong>{{ formatGtfsTimeFull(tripStats.earliestTripEnd) }}</strong>
+              {{ formatGtfsTimeFull(tripStats.earliestTripEnd) }}
             </dd>
           </div>
-          <div v-if="tripStats.latestTripStart != null">
+          <div v-if="tripStats?.latestTripStart != null">
             <dt>Latest trip start:</dt>
             <dd>
-              <strong>{{ formatGtfsTimeFull(tripStats.latestTripStart) }}</strong>
+              {{ formatGtfsTimeFull(tripStats.latestTripStart) }}
             </dd>
           </div>
-          <div v-if="tripStats.latestTripEnd != null">
+          <div v-if="tripStats?.latestTripEnd != null">
             <dt>Latest trip end:</dt>
             <dd>
-              <strong>{{ formatGtfsTimeFull(tripStats.latestTripEnd) }}</strong>
+              {{ formatGtfsTimeFull(tripStats.latestTripEnd) }}
             </dd>
           </div>
         </dl>
-      </div>
+      </cat-msg>
+
+      <p v-if="!hasAnyRows">
+        No trips found for this route in the selected filters.
+      </p>
+
+      <cat-msg variant="info" title="Jump to date">
+        <div
+          v-for="section in unrolledSections"
+          :key="`nav-${section.directionId}`"
+          class="cal-route-timetable-direction-nav mb-2"
+        >
+          <h4 class="has-text-weight-bold">
+            Direction {{ section.directionId }}
+          </h4>
+          <div class="cal-route-timetable-date-nav">
+            <button
+              v-for="group in section.dateGroups"
+              :key="group.serviceDate"
+              type="button"
+              class="cal-route-timetable-date-nav-btn"
+              @click="scrollTo(`trips-dir${section.directionId}-${group.serviceDate}`)"
+            >
+              {{ formatServiceDate(group.serviceDate) }}
+            </button>
+          </div>
+        </div>
+      </cat-msg>
 
       <cat-download-csv
         v-if="tripsCsvData.length > 0"
@@ -88,52 +125,36 @@
         class="mb-4"
       />
 
-      <p v-if="!hasAnyRows" class="has-text-grey">
-        No trips found for this route in the selected filters.
-      </p>
-
-      <div
-        v-for="section in unrolledSections"
-        :key="`nav-${section.directionId}`"
-        class="cal-route-timetable-direction-nav mb-2"
-      >
-        <h4 class="has-text-weight-bold">
-          Direction {{ section.directionId }}
-          <span
-            v-if="section.directionId === dominantDirection"
-            class="tag is-primary is-light ml-2"
-          >
-            Used for frequency
-          </span>
-        </h4>
-        <div class="cal-route-timetable-date-nav">
-          <button
-            v-for="group in section.dateGroups"
-            :key="group.serviceDate"
-            type="button"
-            class="cal-route-timetable-date-nav-btn"
-            @click="scrollTo(`trips-dir${section.directionId}-${group.serviceDate}`)"
-          >
-            {{ formatServiceDate(group.serviceDate) }}
-          </button>
-        </div>
-      </div>
-
       <section
         v-for="section in unrolledSections"
         :key="section.directionId"
         class="cal-route-timetable-section mb-5"
       >
-        <h4 class="has-text-weight-bold">
+        <h3 class="is-size-4 has-text-weight-bold">
           Direction {{ section.directionId }}
-        </h4>
+        </h3>
         <table class="table is-fullwidth is-narrow cal-route-timetable-table cal-route-timetable-trips-table">
           <thead>
             <tr>
               <th>Trip ID</th>
-              <th>First Stop</th>
-              <th>Representative Stop</th>
-              <th>Last Stop</th>
+              <th>
+                <cat-tooltip text="First stop for this trip within selected bounds, if different than the representative stop.">
+                  First Stop in Bounds
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip text="A representative stop within bounds is chosen for each route and service date. See the Stops tab for calculation details.">
+                  Representative Stop
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip text="Last stop for this trip within selected bounds, if different than the representative stop.">
+                  Last Stop in Bounds
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
             </tr>
           </thead>
           <tbody
@@ -161,46 +182,37 @@
                 {{ tripIdLabel(row.tripId) }}
               </td>
               <td>
-                <cat-tooltip
-                  v-if="row.firstStopId !== row.representativeStopId"
-                  :text="stopTooltip(row.firstStopId)"
-                >
+                <template v-if="row.firstStopId !== row.representativeStopId">
                   <span>{{ stopName(row.firstStopId) }}</span>
-                  <span class="has-text-grey cal-route-timetable-gtfs-time">
+                  <span class="cal-route-timetable-gtfs-time">
                     {{ formatGtfsTimeFull(row.firstDepartureTime) }}
                   </span>
-                </cat-tooltip>
-                <span v-else class="has-text-grey-light">—</span>
+                </template>
+                <span v-else >—</span>
               </td>
               <td>
-                <cat-tooltip
-                  v-if="row.representativeStopId != null"
-                  :text="stopTooltip(row.representativeStopId)"
-                >
+                <template v-if="row.representativeStopId != null">
                   <span>{{ stopName(row.representativeStopId) }}</span>
                   <span
                     v-if="row.repStopDepartureTime != null"
-                    class="has-text-grey cal-route-timetable-gtfs-time"
+                    class="cal-route-timetable-gtfs-time"
                   >
                     {{ formatGtfsTimeFull(row.repStopDepartureTime) }}
                   </span>
-                  <span v-else class="has-text-grey-light cal-route-timetable-gtfs-time">
+                  <span v-else class="cal-route-timetable-gtfs-time">
                     —
                   </span>
-                </cat-tooltip>
-                <span v-else class="has-text-grey-light">—</span>
+                </template>
+                <span v-else >—</span>
               </td>
               <td>
-                <cat-tooltip
-                  v-if="row.lastStopId !== row.representativeStopId"
-                  :text="stopTooltip(row.lastStopId)"
-                >
+                <template v-if="row.lastStopId !== row.representativeStopId">
                   <span>{{ stopName(row.lastStopId) }}</span>
-                  <span class="has-text-grey cal-route-timetable-gtfs-time">
+                  <span class="cal-route-timetable-gtfs-time">
                     {{ formatGtfsTimeFull(row.lastDepartureTime) }}
                   </span>
-                </cat-tooltip>
-                <span v-else class="has-text-grey-light">—</span>
+                </template>
+                <span v-else >—</span>
               </td>
             </tr>
           </tbody>
@@ -210,13 +222,13 @@
 
     <!-- Frequency Calculation view -->
     <div v-else-if="activeTab === 'frequency'">
-      <p v-if="frequencyRows.length === 0" class="has-text-grey">
+      <p v-if="frequencyRows.length === 0">
         No representative-stop departures contribute to the frequency calculation for this route in the selected filters.
       </p>
 
       <div v-else>
         <div v-if="gapStats" class="cal-route-timetable-gap-summary mb-4">
-          <p class="has-text-grey mb-2">
+          <p class="mb-2">
             Every dominant-direction representative-stop departure across the selected service days that feeds the average / fastest / slowest frequency calculation. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are shown struck through and excluded from the summary.
           </p>
           <dl class="cal-route-timetable-gap-stats">
@@ -224,33 +236,33 @@
               <dt>Min (fastest):</dt>
               <dd>
                 <strong>{{ formatGtfsTimeFull(gapStats.min) }}</strong>
-                <span class="ml-3 has-text-grey-light">({{ gapStats.min }}s)</span>
+                <span class="ml-3">({{ gapStats.min }}s)</span>
               </dd>
             </div>
             <div>
               <dt>Median:</dt>
               <dd>
                 <strong>{{ formatGtfsTimeFull(gapStats.median) }}</strong>
-                <span class="ml-3 has-text-grey-light">({{ gapStats.median }}s)</span>
+                <span class="ml-3">({{ gapStats.median }}s)</span>
               </dd>
             </div>
             <div>
               <dt>Max (slowest):</dt>
               <dd>
                 <strong>{{ formatGtfsTimeFull(gapStats.max) }}</strong>
-                <span class="ml-3 has-text-grey-light">({{ gapStats.max }}s)</span>
+                <span class="ml-3">({{ gapStats.max }}s)</span>
               </dd>
             </div>
             <div>
               <dt>Average:</dt>
               <dd>
                 <strong>{{ formatGtfsTimeFull(gapStats.avg) }}</strong>
-                <span class="ml-3 has-text-grey-light">({{ gapStats.avg.toFixed(1) }}s)</span>
-                <span class="has-text-grey"> — n = {{ gapStats.count }}</span>
+                <span class="ml-3">({{ gapStats.avg.toFixed(1) }}s)</span>
+                <span> — n = {{ gapStats.count }}</span>
               </dd>
             </div>
           </dl>
-          <div class="has-text-grey mt-2 mb-1">
+          <div class="mt-2 mb-1">
             Sorted contributing gaps (seconds) — min / median / max in bold:
           </div>
           <div class="cal-route-timetable-gap-list">
@@ -329,7 +341,7 @@
                 {{ formatGtfsTimeFull(row.departureTime) }}
               </td>
               <td>
-                <span v-if="row.gapToNext == null" class="has-text-grey-light">—</span>
+                <span v-if="row.gapToNext == null" >—</span>
                 <cat-tooltip
                   v-else-if="row.gapIsNoise"
                   :text="`Gap below the ${MIN_HEADWAY_SECONDS}-second noise threshold; excluded from frequency calculation.`"
@@ -343,7 +355,7 @@
                 </span>
               </td>
               <td class="cal-route-timetable-trip-id">
-                <span v-if="row.gapToNext == null" class="has-text-grey-light">—</span>
+                <span v-if="row.gapToNext == null" >—</span>
                 <span v-else-if="row.gapIsNoise" class="cal-route-timetable-noise-gap">
                   {{ row.gapToNext }}
                 </span>
@@ -357,13 +369,13 @@
 
     <!-- Stop Details view -->
     <div v-else-if="activeTab === 'stops'">
-      <p v-if="stopDetailDateGroups.length === 0" class="has-text-grey">
+      <p v-if="stopDetailDateGroups.length === 0">
         No stop data for this route in the selected filters.
       </p>
 
       <div v-else>
         <div class="cal-route-timetable-gap-summary mb-4">
-          <p class="has-text-grey">
+          <p>
             In-area stops served by this route on each service day, with departure counts per direction. The representative stop for the dominant direction is marked with a check icon.
           </p>
         </div>
