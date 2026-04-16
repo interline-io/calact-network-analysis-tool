@@ -111,7 +111,7 @@
               class="cal-route-timetable-date-nav-btn"
               @click="scrollTo(`trips-dir${section.directionId}-${group.serviceDate}`)"
             >
-              {{ formatServiceDate(group.serviceDate) }} <span class="has-text-grey">({{ group.rows.length }})</span>
+              {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }})
             </button>
           </div>
         </div>
@@ -227,45 +227,44 @@
       </p>
 
       <div v-else>
-        <div v-if="gapStats" class="cal-route-timetable-gap-summary mb-4">
+        <cat-msg variant="info" title="Summary" class="mb-4">
           <p class="mb-2">
-            Every dominant-direction representative-stop departure across the selected service days that feeds the average / fastest / slowest frequency calculation. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are shown struck through and excluded from the summary.
+            Frequency is calculated from gaps between consecutive departures at the representative stop, using only the dominant direction. All selected service dates are included, subject to any time-of-day or day-of-week filters. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are considered noise and excluded (shown struck through below).
           </p>
-          <dl class="cal-route-timetable-gap-stats">
+          <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
             <div>
               <dt>Min (fastest):</dt>
               <dd>
-                <strong>{{ formatGtfsTimeFull(gapStats.min) }}</strong>
-                <span class="ml-3">({{ gapStats.min }}s)</span>
+                {{ formatGtfsTimeFull(gapStats.min) }}
+                <span class="ml-3 has-text-grey">({{ gapStats.min }})</span>
               </dd>
             </div>
             <div>
               <dt>Median:</dt>
               <dd>
-                <strong>{{ formatGtfsTimeFull(gapStats.median) }}</strong>
-                <span class="ml-3">({{ gapStats.median }}s)</span>
+                {{ formatGtfsTimeFull(gapStats.median) }}
+                <span class="ml-3 has-text-grey">({{ gapStats.median }})</span>
               </dd>
             </div>
             <div>
               <dt>Max (slowest):</dt>
               <dd>
-                <strong>{{ formatGtfsTimeFull(gapStats.max) }}</strong>
-                <span class="ml-3">({{ gapStats.max }}s)</span>
+                {{ formatGtfsTimeFull(gapStats.max) }}
+                <span class="ml-3 has-text-grey">({{ gapStats.max }})</span>
               </dd>
             </div>
             <div>
               <dt>Average:</dt>
               <dd>
-                <strong>{{ formatGtfsTimeFull(gapStats.avg) }}</strong>
-                <span class="ml-3">({{ gapStats.avg.toFixed(1) }}s)</span>
-                <span> — n = {{ gapStats.count }}</span>
+                {{ formatGtfsTimeFull(gapStats.avg) }}
+                <span class="ml-3 has-text-grey">({{ gapStats.avg.toFixed(1) }}) — n = {{ gapStats.count }}</span>
               </dd>
             </div>
           </dl>
-          <div class="mt-2 mb-1">
+          <div v-if="gapStats" class="mt-2 mb-1">
             Sorted contributing gaps (seconds) — min / median / max in bold:
           </div>
-          <div class="cal-route-timetable-gap-list">
+          <div v-if="gapStats" class="cal-route-timetable-gap-list">
             <template v-for="(g, i) in contributingGaps" :key="i">
               <strong
                 v-if="i === 0 || gapStats.medianIndices.has(i) || i === contributingGaps.length - 1"
@@ -278,7 +277,21 @@
               </template>
             </template>
           </div>
-        </div>
+        </cat-msg>
+
+        <cat-msg variant="info" title="Jump to date">
+          <div class="cal-route-timetable-date-nav">
+            <button
+              v-for="group in frequencyDateGroups"
+              :key="group.serviceDate"
+              type="button"
+              class="cal-route-timetable-date-nav-btn"
+              @click="scrollTo(`freq-${group.serviceDate}`)"
+            >
+              {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }})
+            </button>
+          </div>
+        </cat-msg>
 
         <cat-download-csv
           v-if="frequencyCsvData.length > 0"
@@ -288,25 +301,34 @@
           class="mb-4"
         />
 
-        <div class="cal-route-timetable-date-nav mb-2">
-          <button
-            v-for="group in frequencyDateGroups"
-            :key="group.serviceDate"
-            type="button"
-            class="cal-route-timetable-date-nav-btn"
-            @click="scrollTo(`freq-${group.serviceDate}`)"
-          >
-            {{ formatServiceDate(group.serviceDate) }}
-          </button>
-        </div>
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
           <thead>
             <tr>
               <th>Trip ID</th>
-              <th>Dir</th>
-              <th>Stop</th>
-              <th>Departure</th>
-              <th>Gap to next</th>
+              <th>
+                <cat-tooltip text="The dominant direction is selected for each service date based on which direction has the most departures. See the Stops tab for details.">
+                  Direction
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip text="A representative stop within bounds is chosen for each route and service date. See the Stops tab for calculation details.">
+                  Representative Stop
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip text="Departure time from the representative stop for this trip.">
+                  Departure
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
+              <th>
+                <cat-tooltip :text="`Time until the next departure at the representative stop. Gaps under ${MIN_HEADWAY_SECONDS} seconds are considered noise and shown struck through.`">
+                  Gap
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </th>
               <th>Gap (seconds)</th>
             </tr>
           </thead>
@@ -317,7 +339,7 @@
           >
             <tr class="cal-route-timetable-date-separator">
               <td colspan="6">
-                {{ formatServiceDate(group.serviceDate) }}
+                {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} departures)
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -332,24 +354,15 @@
                 {{ tripIdLabel(row.tripId) }}
               </td>
               <td>{{ row.directionId }}</td>
-              <td>
-                <cat-tooltip :text="stopTooltip(row.stopId)">
-                  {{ stopName(row.stopId) }}
-                </cat-tooltip>
-              </td>
+              <td>{{ stopName(row.stopId) }}</td>
               <td class="cal-route-timetable-gtfs-time">
                 {{ formatGtfsTimeFull(row.departureTime) }}
               </td>
               <td>
                 <span v-if="row.gapToNext == null">—</span>
-                <cat-tooltip
-                  v-else-if="row.gapIsNoise"
-                  :text="`Gap below the ${MIN_HEADWAY_SECONDS}-second noise threshold; excluded from frequency calculation.`"
-                >
-                  <span class="cal-route-timetable-noise-gap">
-                    {{ formatGtfsTimeFull(row.gapToNext) }}
-                  </span>
-                </cat-tooltip>
+                <span v-else-if="row.gapIsNoise" class="cal-route-timetable-noise-gap">
+                  {{ formatGtfsTimeFull(row.gapToNext) }}
+                </span>
                 <span v-else class="cal-route-timetable-gtfs-time">
                   {{ formatGtfsTimeFull(row.gapToNext) }}
                 </span>
