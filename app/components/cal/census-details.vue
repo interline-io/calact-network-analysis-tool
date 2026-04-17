@@ -228,7 +228,6 @@ import {
   CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
   deriveCensusRow,
-  formatArea,
   formatCensusValue,
   type CensusGeographyData,
 } from '~~/src/core'
@@ -252,12 +251,6 @@ const props = defineProps<{
 
 const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
 
-// Highlight the initially-selected geoid (e.g. user clicked the map, then
-// opened the details modal — we land them on that row).
-if (props.highlightedGeoid) {
-  activeTab.value = 'geographies'
-}
-
 const geographies = computed((): Array<{ geoid: string, data: CensusGeographyData }> => {
   const m = props.scenarioFilterResult.censusGeographies
   if (!m) { return [] }
@@ -269,7 +262,6 @@ const geographies = computed((): Array<{ geoid: string, data: CensusGeographyDat
 const geographiesColumns = computed((): TableColumn[] => [
   { key: 'geoid', label: 'GEOID', sortable: true },
   { key: 'name', label: 'Name', sortable: true },
-  { key: 'adm1_name', label: 'State', sortable: true },
   { key: 'geometry_area_m2', label: 'Area (m²)', sortable: true, format: 'integer' },
   { key: 'intersection_area_m2', label: 'Intersection (m²)', sortable: true, format: 'integer' },
   { key: 'intersection_pct', label: 'Intersection %', sortable: true, format: 'percent' },
@@ -287,12 +279,10 @@ const geographiesTableReport = computed((): TableReport => ({
   data: geographies.value.map(({ geoid, data }) => ({
     geoid,
     name: nameFor(geoid),
-    adm1_name: adm1For(geoid),
     geometry_area_m2: data.geometryArea,
     intersection_area_m2: data.intersectionArea,
     intersection_pct: data.intersectionRatio,
     ...deriveCensusRow(data.values),
-    _highlight: geoid === props.highlightedGeoid,
   })),
 }))
 
@@ -333,15 +323,15 @@ const rawTableReport = computed((): TableReport => ({
 
 // --- Helpers -----------------------------------------------------------
 
-// Lookup geography name/adm1 from the scenario's stop.census_geographies
-// list (the same source stopGeoAggregateCsv uses). Keeps the modal
-// self-sufficient without an extra fetch.
-const geoMeta = computed((): Map<string, { name: string, adm1_name: string }> => {
-  const m = new Map<string, { name: string, adm1_name: string }>()
+// Lookup geography name from the scenario's stop.census_geographies list
+// (the same source stopGeoAggregateCsv uses). Keeps the modal self-sufficient
+// without an extra fetch.
+const geoMeta = computed((): Map<string, { name: string }> => {
+  const m = new Map<string, { name: string }>()
   for (const stop of props.scenarioFilterResult.stops) {
     for (const g of stop.census_geographies || []) {
       if (!m.has(g.geoid)) {
-        m.set(g.geoid, { name: g.name, adm1_name: (g as any).adm1_name || '' })
+        m.set(g.geoid, { name: g.name })
       }
     }
   }
@@ -350,10 +340,6 @@ const geoMeta = computed((): Map<string, { name: string, adm1_name: string }> =>
 
 function nameFor (geoid: string): string {
   return geoMeta.value.get(geoid)?.name || ''
-}
-
-function adm1For (geoid: string): string {
-  return geoMeta.value.get(geoid)?.adm1_name || ''
 }
 
 function pluralize (label: string): string {
@@ -463,8 +449,6 @@ function formatRaw (v: number | undefined): string {
   }
   return v.toLocaleString('en-US')
 }
-
-defineExpose({ formatArea })
 </script>
 
 <style scoped lang="scss">
