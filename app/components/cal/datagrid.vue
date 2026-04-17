@@ -42,7 +42,7 @@
                 :column="column"
                 :value="row[column.key]"
               >
-                {{ row[column.key] }}
+                {{ renderCell(column, row[column.key]) }}
               </slot>
             </td>
           </tr>
@@ -66,24 +66,43 @@
 </template>
 
 <script lang="ts">
+import type { CensusFormat } from '~~/src/core'
+</script>
+
+<script setup lang="ts">
+import { formatCensusValue } from '~~/src/core'
+
 export interface TableColumn {
   key: string
   label: string
   sortable: boolean
   tooltip?: string
+  /** When set, the default cell renderer formats the value using
+   * `formatCensusValue` (from `src/core/census-columns`). */
+  format?: CensusFormat
 }
 
 export interface TableReport {
   columns: TableColumn[]
   data: Record<string, any>[]
 }
-</script>
 
-<script setup lang="ts">
 const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
+
+function renderCell (column: TableColumn, value: any): string {
+  if (column.format !== undefined) {
+    const n = typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : value === null || value === undefined
+        ? null
+        : Number(value)
+    return formatCensusValue(n === null || Number.isNaN(n) ? null : n, column.format)
+  }
+  return value == null ? '' : String(value)
+}
 
 const props = defineProps<{
   filename?: string

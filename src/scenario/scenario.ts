@@ -15,6 +15,9 @@ import {
   chunkArray,
   logMemory,
   parseHMS,
+  fetchCensusIntersection,
+  REQUIRED_ACS_TABLES,
+  type CensusValues,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -66,6 +69,12 @@ export interface ScenarioConfig {
   aggregateLayer?: string
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
+  /**
+   * ACS dataset used for demographic values (e.g. `acsdt5y2021`). When set
+   * alongside `aggregateLayer`, the scenario pipeline fetches census values
+   * for the aggregation geographies within the scenario bbox.
+   */
+  tableDatasetName?: string
   /**
    * Whether to fetch fixed-route transit data (stops, routes, departures)
    * Defaults to true
@@ -127,6 +136,13 @@ export interface ScenarioData {
    * so existing non-streaming constructions of ScenarioData keep compiling.
    */
   tripIdStrings?: Map<number, string>
+  /**
+   * Raw ACS values for each census geography at the configured
+   * `aggregateLayer`, keyed by geoid. Populated when the scenario has a
+   * `tableDatasetName` + `aggregateLayer` set. Consumers run the derivations
+   * from `src/core/census-columns` to turn raw values into display columns.
+   */
+  censusValues?: Map<string, CensusValues>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -170,7 +186,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -187,6 +203,9 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
+    // Batch of (geoid, raw ACS values) pairs for the configured
+    // aggregation layer. Sent once per batch during the census-values stage.
+    censusValues?: [string, CensusValues][]
   }
   extraData?: any
   config?: any
@@ -479,6 +498,9 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
+  // Bbox after admin-boundary expansion in fetchFeedVersions(). Set there,
+  // read by fetchCensusValues().
+  private resolvedBbox?: Bbox
 
   constructor (
     config: ScenarioConfig,
@@ -577,6 +599,11 @@ export class ScenarioFetcher {
     } else {
       console.log('[Scenario] Skipping flex areas (not enabled)')
     }
+
+    // Fetch census demographic values for aggregation tables (issue #302).
+    // Only runs when the caller chose an aggregation layer and an ACS dataset.
+    await this.fetchCensusValues()
+    logMemory('after-census-values')
 
     // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
@@ -680,6 +707,43 @@ export class ScenarioFetcher {
     }
   }
 
+  /**
+   * Fetch ACS values for the aggregation layer across the resolved bbox.
+   * Issue #302: surfaces demographic columns in aggregation tables and the
+   * map view. Skipped when the caller didn't set an ACS dataset or layer.
+   */
+  private async fetchCensusValues (): Promise<void> {
+    const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
+    if (!tableDatasetName || !aggregateLayer) {
+      console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
+      return
+    }
+    if (!this.resolvedBbox) {
+      console.warn('[CensusValues] No resolved bbox — skipping')
+      return
+    }
+    this.updateProgress('census-values', true)
+    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
+    const features = await fetchCensusIntersection({
+      client: this.client,
+      geoDatasetName,
+      geoDatasetLayer: aggregateLayer,
+      tableDatasetName,
+      tableNames: REQUIRED_ACS_TABLES,
+      bbox: this.resolvedBbox,
+    })
+    const pairs: [string, CensusValues][] = features.map(f => [f.properties.geoid, f.properties.values])
+    console.log(`[CensusValues] Fetched values for ${pairs.length} geographies`)
+    this.updateProgress('census-values', true, {
+      stops: [],
+      routes: [],
+      feedVersions: [],
+      stopDepartures: [],
+      flexAreas: [],
+      censusValues: pairs,
+    })
+  }
+
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<FeedVersion[]> {
     let searchBbox = this.config.bbox
@@ -719,6 +783,8 @@ export class ScenarioFetcher {
         console.warn('No features found in census datasets response')
       }
     }
+
+    this.resolvedBbox = searchBbox
 
     // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
     // Paginate to ensure we get all feeds (API default limit is 100)
@@ -933,6 +999,7 @@ export class ScenarioDataReceiver {
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
+      censusValues: new Map<string, CensusValues>(),
     }
   }
 
@@ -983,6 +1050,13 @@ export class ScenarioDataReceiver {
             FlexDepartureTuple.locationId(tuple),
             FlexDepartureTuple.departureDate(tuple),
           )
+        }
+      }
+
+      // Merge the per-geoid census values batch
+      if (progress.partialData.censusValues && this.accumulatedData.censusValues) {
+        for (const [geoid, values] of progress.partialData.censusValues) {
+          this.accumulatedData.censusValues.set(geoid, values)
         }
       }
     }

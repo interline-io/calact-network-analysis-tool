@@ -1208,6 +1208,10 @@ const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.val
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
+  // Default ACS dataset for aggregation-table demographic columns (#302).
+  // Paired with aggregateLayer so the BFF knows which layer to fetch values for.
+  tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+  aggregateLayer: aggregateLayer.value,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
   startDate: startDate.value,
@@ -1291,7 +1295,7 @@ const choroplethAggregateData = computed(() => {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(markedStops, aggregateLayer.value)
+  return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusValues)
 })
 
 // Build choropleth GeoJSON features with data-driven fill colors

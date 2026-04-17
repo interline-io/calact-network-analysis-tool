@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames } from '~~/src/core'
+import { routeTypeNames, type CensusValues, deriveCensusRow } from '~~/src/core'
 
 //////////
 // Stops
@@ -154,6 +154,9 @@ interface StopGeoAggregateCsv {
   stops_count: number
   agencies_count: number
   visit_count_total?: number
+  // Derived demographic columns merged in when censusValues is provided.
+  // Keyed by CensusColumnDef.id (e.g. total_population, pct_people_of_color).
+  [key: string]: string | number | null | undefined
 }
 
 export type Stop = StopGql & StopDerived
@@ -162,7 +165,11 @@ export type Stop = StopGql & StopDerived
 // Stop csv
 ///////////////////////////
 
-export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): StopGeoAggregateCsv[] {
+export function stopGeoAggregateCsv (
+  stops: Stop[],
+  aggregationKey: string,
+  censusValues?: Map<string, CensusValues>,
+): StopGeoAggregateCsv[] {
   const stopAgg = new Map<string, {
     geoid: string
     layer_name: string
@@ -199,7 +206,7 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
   }
   const result = stopAgg.values().map((a): StopGeoAggregateCsv => {
     const rmodes = a.routes_modes.values().map((r): string => routeTypeNames.get(r) || 'Unknown')
-    return {
+    const row: StopGeoAggregateCsv = {
       geoid: a.geoid,
       layer_name: a.layer_name,
       name: a.name,
@@ -209,6 +216,13 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
       agencies_count: a.agencies_count.size,
       visit_count_total: a.visits_count || 0,
     }
+    if (censusValues) {
+      const values = censusValues.get(a.geoid)
+      if (values) {
+        Object.assign(row, deriveCensusRow(values))
+      }
+    }
+    return row
   })
   return [...result]
 }

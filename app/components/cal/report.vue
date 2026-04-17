@@ -166,7 +166,7 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, CENSUS_COLUMNS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -353,6 +353,13 @@ const stopColumns = computed((): TableColumn[] => {
   ]
 })
 
+const censusColumns: TableColumn[] = CENSUS_COLUMNS.map(c => ({
+  key: c.id,
+  label: c.label,
+  sortable: true,
+  format: c.format,
+}))
+
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
   const allDay = props.isAllDayMode
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
@@ -378,6 +385,7 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       sortable: true,
       tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
+    ...censusColumns,
   ]
 })
 const agencyColumns: TableColumn[] = [
@@ -451,7 +459,11 @@ const geoReportData = computed((): TableReport => {
     return { data: [], columns: [] }
   }
   return {
-    data: stopGeoAggregateCsv((props.scenarioFilterResult?.stops || []).filter(s => (s.marked)), aggregateLayer.value),
+    data: stopGeoAggregateCsv(
+      (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
+      aggregateLayer.value,
+      props.scenarioFilterResult?.censusValues,
+    ),
     columns: stopGeoAggregateColumns.value
   }
 })

@@ -57,6 +57,7 @@ import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
+  type CensusValues,
   dowValues,
   parseHMS,
   routeTypeNames,
@@ -505,6 +506,9 @@ export interface ScenarioFilterResult {
   flexAreas: FlexAreaFeature[]
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
   tripIdStrings?: Map<number, string>
+  // Passed through from ScenarioData for the aggregation table demographic
+  // columns (#302). Keyed by census geography geoid.
+  censusValues?: Map<string, CensusValues>
 }
 
 export function applyScenarioResultFilter (
@@ -665,6 +669,7 @@ export function applyScenarioResultFilter (
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
+    censusValues: data.censusValues,
   }
   return result
 }
