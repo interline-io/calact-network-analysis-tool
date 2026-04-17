@@ -197,6 +197,7 @@
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
+          :choropleth-classification="choroplethClassification"
           :show-agg-areas="showAggAreas"
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
@@ -309,6 +310,7 @@ import {
   CENSUS_COLUMNS,
   formatAcsDatasetLabel,
   summarizeBbox,
+  type CensusFormat,
   type DataDisplayMode,
   type FilterTag,
 } from '~~/src/core'
@@ -1362,6 +1364,70 @@ const choroplethAggregateData = computed(() => {
   return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusValues)
 })
 
+// Classification of the chosen element across all aggregation rows: quantile
+// breaks + palette + display metadata. Computed once and reused by both the
+// choropleth feature colors and the legend's bucket list.
+const choroplethClassification = computed(() => {
+  const element = choroplethElement.value
+  const aggData = choroplethAggregateData.value
+  const label = choroplethElementOptions.value.find(o => o.value === element)?.label || element
+  // Map element id -> format for the legend's bucket labels.
+  const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
+
+  function pickValue (agg: Record<string, any>): number | null {
+    const v = agg[element]
+    if (v === null || v === undefined) {
+      return null
+    }
+    const n = typeof v === 'number' ? v : Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+
+  const values = aggData
+    .map(pickValue)
+    .filter((v): v is number => v !== null && v > 0)
+    .sort((a, b) => a - b)
+
+  const palette = choroplethPalette
+  const numClasses = palette.length
+
+  // Quantile breaks (numClasses-1 of them). Dedupe to avoid empty buckets
+  // when many geographies share the same value.
+  // TODO: consider equal-interval fallback when dedup collapses breaks.
+  const rawBreaks: number[] = []
+  for (let i = 1; i < numClasses; i++) {
+    const idx = Math.floor((i / numClasses) * values.length)
+    rawBreaks.push(values[idx] ?? 0)
+  }
+  const breaks = Array.from(new Set(rawBreaks))
+
+  const hasInsufficient = aggData.some(a => (pickValue(a) ?? 0) <= 0)
+
+  return {
+    element,
+    label,
+    format,
+    palette,
+    values,
+    breaks,
+    hasInsufficient,
+    pickValue,
+  }
+})
+
+function getChoroplethColor (value: number | null): string {
+  const { palette, breaks } = choroplethClassification.value
+  if (value === null || value <= 0) {
+    return palette[0]!
+  }
+  for (let i = 0; i < breaks.length; i++) {
+    if (value < breaks[i]!) {
+      return palette[i]!
+    }
+  }
+  return palette[palette.length - 1]!
+}
+
 // Build choropleth GeoJSON features with data-driven fill colors
 const choroplethFeatures = computed((): Feature[] => {
   if (!showAggAreas.value) { return [] }
@@ -1376,52 +1442,12 @@ const choroplethFeatures = computed((): Feature[] => {
 
   const aggData = choroplethAggregateData.value
   if (aggData.length === 0) { return [] }
-
-  const element = choroplethElement.value
-  function pickValue (agg: typeof aggData[number]): number | null {
-    const v = (agg as Record<string, any>)[element]
-    if (v === null || v === undefined) {
-      return null
-    }
-    const n = typeof v === 'number' ? v : Number(v)
-    return Number.isFinite(n) ? n : null
-  }
-
-  // Determine color scale via quantile breaks over the chosen element.
-  const values = aggData
-    .map(pickValue)
-    .filter((v): v is number => v !== null && v > 0)
-    .sort((a, b) => a - b)
-
-  const palette = choroplethPalette
-  const numClasses = palette.length
-
-  // Compute quantile breaks
-  // TODO: When many geographies share the same value (e.g. low-service areas),
-  // breaks can be identical, causing most features to land in the last color class.
-  // Consider deduplicating breaks or falling back to equal-interval classification.
-  const breaks: number[] = []
-  for (let i = 1; i < numClasses; i++) {
-    const idx = Math.floor((i / numClasses) * values.length)
-    breaks.push(values[idx] ?? 0)
-  }
-
-  function getColor (value: number): string {
-    for (let i = 0; i < breaks.length; i++) {
-      if (value < breaks[i]!) {
-        return palette[i]!
-      }
-    }
-    return palette[numClasses - 1]!
-  }
+  const { pickValue } = choroplethClassification.value
 
   const features: Feature[] = []
   for (const agg of aggData) {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
-
-    const value = pickValue(agg)
-    const color = value !== null && value > 0 ? getColor(value) : palette[0]!
 
     // Pass through every aggregate column (counts + demographic derivations)
     // so the popup can render them without refetching.
@@ -1431,7 +1457,7 @@ const choroplethFeatures = computed((): Feature[] => {
       geometry: geo.geometry,
       properties: {
         ...agg,
-        'fill': color,
+        'fill': getChoroplethColor(pickValue(agg as Record<string, any>)),
         'fill-opacity': 0.45,
         'stroke': '#333',
         'stroke-width': 1.5,

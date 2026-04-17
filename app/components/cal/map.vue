@@ -32,6 +32,7 @@
         :has-flex-data="hasFlexData"
         :show-agg-areas="showAggAreas"
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
+        :choropleth-classification="props.choroplethClassification"
         :is-all-day-mode="props.isAllDayMode"
       />
     </div>
@@ -105,6 +106,8 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
+  // Element classification (palette + breaks + format) for the legend bucket list.
+  choroplethClassification?: import('./legend.vue').ChoroplethClassification
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string

@@ -255,6 +255,40 @@ export function formatAcsDatasetLabel (datasetName: string | undefined): string 
   return `ACS ${m[1]}-year ${m[2]}`
 }
 
+/**
+ * Render a choropleth bucket label for a palette of `n` colors paired with
+ * `n-1` monotonically increasing break values. Index 0 is "<= first break",
+ * the last index is ">= last break", and the middle buckets are "a to b".
+ * Used by the map legend (#302).
+ */
+export function formatCensusBucketLabel (
+  index: number,
+  breaks: number[],
+  paletteLength: number,
+  format: CensusFormat,
+): string {
+  if (breaks.length === 0 || paletteLength <= 1) {
+    return ''
+  }
+  const fmt = (v: number) => formatCensusValue(v, format)
+  if (index === 0) {
+    return `${fmt(breaks[0]!)} or less`
+  }
+  if (index >= paletteLength - 1) {
+    const last = breaks[breaks.length - 1]
+    if (last === undefined) {
+      return ''
+    }
+    return `${fmt(last)} or greater`
+  }
+  const lo = breaks[index - 1]
+  const hi = breaks[index]
+  if (lo === undefined || hi === undefined) {
+    return ''
+  }
+  return `${fmt(lo)} to ${fmt(hi)}`
+}
+
 export function deriveCensusRow (values: CensusValues): Record<string, number | null> {
   const out: Record<string, number | null> = {}
   for (const col of CENSUS_COLUMNS) {

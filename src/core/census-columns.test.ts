@@ -5,6 +5,7 @@ import {
   REQUIRED_ACS_TABLES,
   deriveCensusRow,
   formatAcsDatasetLabel,
+  formatCensusBucketLabel,
   formatCensusValue,
   summarizeBbox,
   type CensusValues,
@@ -182,6 +183,33 @@ describe('summarizeBbox', () => {
 describe('NON_ADDITIVE_CENSUS_COLUMNS', () => {
   it('lists median_household_income as non-additive', () => {
     expect(NON_ADDITIVE_CENSUS_COLUMNS.has('median_household_income')).toBe(true)
+  })
+})
+
+describe('formatCensusBucketLabel', () => {
+  const breaks = [100, 500, 1000, 5000]
+  const paletteLength = 5
+
+  it('first bucket reads "X or less"', () => {
+    expect(formatCensusBucketLabel(0, breaks, paletteLength, 'integer')).toBe('100 or less')
+  })
+
+  it('middle buckets read "X to Y"', () => {
+    expect(formatCensusBucketLabel(1, breaks, paletteLength, 'integer')).toBe('100 to 500')
+    expect(formatCensusBucketLabel(2, breaks, paletteLength, 'integer')).toBe('500 to 1,000')
+  })
+
+  it('last bucket reads "X or greater"', () => {
+    expect(formatCensusBucketLabel(4, breaks, paletteLength, 'integer')).toBe('5,000 or greater')
+  })
+
+  it('uses the declared format for each column', () => {
+    expect(formatCensusBucketLabel(0, [50000], 2, 'currency')).toBe('$50,000 or less')
+    expect(formatCensusBucketLabel(0, [0.2], 2, 'percent')).toBe('20.0% or less')
+  })
+
+  it('returns empty string when breaks collapse to nothing', () => {
+    expect(formatCensusBucketLabel(0, [], 5, 'integer')).toBe('')
   })
 })
 

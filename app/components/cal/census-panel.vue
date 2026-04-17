@@ -111,6 +111,12 @@ function bboxCell (col: CensusColumnDef): string {
   color: black;
 }
 
+// Tighten up <cat-msg>'s default message-body padding for this panel only;
+// the three-column table supplies its own cell padding.
+.cal-map-census-panel :deep(.message-body) {
+  padding: 8px 10px;
+}
+
 .census-panel-geoid {
   font-size: 12px;
   margin-bottom: 10px;

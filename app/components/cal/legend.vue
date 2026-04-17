@@ -125,19 +125,35 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <!-- Choropleth aggregation legend -->
+        <!-- Choropleth aggregation legend: one row per palette bucket,
+             labeled with the value range for the currently-shaded element
+             (#302). Falls back to a plain gradient when no classification
+             is available yet. -->
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
-            Aggregated Areas:
+            {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
           </div>
-          <div class="choropleth-legend-subtitle">
-            {{ props.isAllDayMode ? 'Total visits' : 'Total visits in window' }}
-          </div>
-          <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
-          <div class="choropleth-gradient-labels">
-            <span>Low</span>
-            <span>High</span>
-          </div>
+          <template v-if="classification && classification.values.length > 0">
+            <div v-if="classification.hasInsufficient" class="choropleth-bucket">
+              <div class="legend-item legend-marker-square legend-insufficient" />
+              <div>Insufficient data</div>
+            </div>
+            <div
+              v-for="(color, i) in classification.palette"
+              :key="i"
+              class="choropleth-bucket"
+            >
+              <div class="legend-item legend-marker-square" :style="{ background: color }" />
+              <div>{{ bucketLabel(i) }}</div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
+            <div class="choropleth-gradient-labels">
+              <span>Low</span>
+              <span>High</span>
+            </div>
+          </template>
         </div>
       </div>
     </cat-msg>
@@ -145,7 +161,23 @@
 </template>
 
 <script setup lang="ts">
-import { choroplethPalette, type DataDisplayMode } from '~~/src/core'
+import { choroplethPalette, formatCensusBucketLabel, type CensusFormat, type DataDisplayMode } from '~~/src/core'
+
+/**
+ * Choropleth classification passed from the parent so the legend can render
+ * discrete buckets labeled with the currently-shaded element's value ranges
+ * (#302). Only the fields used for legend rendering are read here; the full
+ * object also carries a `pickValue` closure used by the map code.
+ */
+export interface ChoroplethClassification {
+  element: string
+  label: string
+  format: CensusFormat
+  palette: readonly string[]
+  values: number[]
+  breaks: number[]
+  hasInsufficient: boolean
+}
 
 interface StyleItem {
   label: string
@@ -168,11 +200,21 @@ const props = defineProps<{
   // Choropleth aggregation
   showAggAreas?: boolean
   hasChoroplethData?: boolean
+  // Classification for the currently-shaded element; drives the bucket list.
+  choroplethClassification?: ChoroplethClassification
   // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
 }>()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
+
+const classification = computed(() => props.choroplethClassification)
+
+function bucketLabel (i: number): string {
+  const c = classification.value
+  if (!c) { return '' }
+  return formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
+}
 
 const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
 </script>
@@ -303,6 +345,22 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   justify-content: space-between;
   font-size: 0.75em;
   opacity: 0.8;
+}
+
+.choropleth-bucket {
+  display: flex;
+  align-items: center;
+  height: 22px;
+
+  div:nth-child(2) {
+    padding-left: 10px;
+    font-size: 0.85em;
+  }
+}
+
+.legend-insufficient {
+  background: #e0e0e0;
+  border: 1px solid #bbb;
 }
 
 .legend-geo-unselected {
