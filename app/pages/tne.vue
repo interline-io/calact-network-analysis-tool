@@ -138,12 +138,14 @@
             v-model:show-agg-areas="showAggAreas"
             v-model:aggregate-layer="aggregateLayer"
             v-model:choropleth-element="choroplethElement"
+            v-model:shade-by-density="shadeByDensity"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :choropleth-element-options="choroplethElementOptions"
+            :shade-by-density-eligible="selectedElementIsDensityEligible"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
@@ -1012,6 +1014,31 @@ const choroplethElementOptions = computed((): { label: string, value: string }[]
   ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
 ])
 
+// Per-element metadata for the "Shade as density" toggle. Count-type
+// (integer-format) elements are density-eligible: the map can shade by
+// count/km² to remove area bias. Ratios, currency, and decimal averages
+// are not.
+const choroplethElementFormats: Record<string, CensusFormat> = {
+  visit_count_total: 'integer',
+  stops_count: 'integer',
+  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.format])),
+}
+const selectedElementIsDensityEligible = computed(() => {
+  return choroplethElementFormats[choroplethElement.value] === 'integer'
+})
+
+// Shade map by density (count / km²) instead of raw count for count-type
+// elements. Defaults to true. URL-backed so map state survives reloads.
+const shadeByDensity = computed<boolean>({
+  get () {
+    // Default true; stored as "false" in URL only when the user turns it off
+    return route.query.shadeByDensity !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, shadeByDensity: v ? undefined : 'false' })
+  }
+})
+
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
 // Right-side census panel: aggregate row for the clicked polygon, or null.
@@ -1402,6 +1429,10 @@ const choroplethClassification = computed(() => {
   const label = choroplethElementOptions.value.find(o => o.value === element)?.label || element
   // Map element id -> format for the legend's bucket labels.
   const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
+  // Density mode applies only when the user enabled it AND the chosen element
+  // is a count (integer format). Otherwise show raw values.
+  const isDensity = shadeByDensity.value && selectedElementIsDensityEligible.value
+  const areas = scenarioFilterResult.value?.censusGeographyAreas
 
   function pickValue (agg: Record<string, any>): number | null {
     const v = agg[element]
@@ -1409,7 +1440,14 @@ const choroplethClassification = computed(() => {
       return null
     }
     const n = typeof v === 'number' ? v : Number(v)
-    return Number.isFinite(n) ? n : null
+    if (!Number.isFinite(n)) { return null }
+    if (!isDensity) { return n }
+    // Density: count per km². Backend `geometry_area` is m²; convert via
+    // multiplying by 1,000,000 so labels read e.g. "5 per km²" instead of
+    // 0.000005 per m².
+    const area = areas?.get(agg.geoid)
+    if (!area || area === 0) { return null }
+    return (n * 1_000_000) / area
   }
 
   const values = aggData
@@ -1440,6 +1478,7 @@ const choroplethClassification = computed(() => {
     values,
     breaks,
     hasInsufficient,
+    isDensity,
     pickValue,
   }
 })

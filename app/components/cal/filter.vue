@@ -515,6 +515,14 @@
               </option>
             </cat-select>
           </cat-field>
+          <div class="mt-2">
+            <cat-checkbox
+              v-model="shadeByDensity"
+              :disabled="!shadeByDensityEligible"
+            >
+              Shade as density (per km²)
+            </cat-checkbox>
+          </div>
 
           <p class="menu-label">
             Overlay
@@ -611,6 +619,7 @@ const props = defineProps<{
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
   choroplethElementOptions?: { label: string, value: string }[]
+  shadeByDensityEligible?: boolean
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
   panelMainWidth?: number
@@ -691,6 +700,7 @@ const showBbox = defineModel<boolean>('showBbox', { default: true })
 const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 const choroplethElement = defineModel<string>('choroplethElement', { default: 'visit_count_total' })
+const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

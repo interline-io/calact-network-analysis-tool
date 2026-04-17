@@ -132,6 +132,9 @@
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
+            <span v-if="props.choroplethClassification?.isDensity" class="legend-unit-suffix">
+              (per km²)
+            </span>
           </div>
           <template v-if="classification && classification.values.length > 0">
             <div v-if="classification.hasInsufficient" class="choropleth-bucket">
@@ -177,6 +180,9 @@ export interface ChoroplethClassification {
   values: number[]
   breaks: number[]
   hasInsufficient: boolean
+  /** When true, `values`/`breaks` are counts per km² (not raw counts). The
+   * legend heading and bucket labels annotate the unit accordingly. */
+  isDensity: boolean
 }
 
 interface StyleItem {
@@ -213,7 +219,8 @@ const classification = computed(() => props.choroplethClassification)
 function bucketLabel (i: number): string {
   const c = classification.value
   if (!c) { return '' }
-  return formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
+  const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
+  return c.isDensity ? `${base} per km²` : base
 }
 
 const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
@@ -250,6 +257,13 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
 
 .legend-heading {
   font-weight: bold;
+}
+
+.legend-unit-suffix {
+  font-weight: normal;
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin-left: 4px;
 }
 
 .legend-item {
