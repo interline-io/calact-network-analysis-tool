@@ -179,12 +179,11 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
 
 <style scoped lang="scss">
 .cal-map-legend {
-  position: absolute;
-  right: 50px;
-  bottom: 30px;
-  width: 300px;
+  // Positioning is owned by the parent `.cal-map-sidebar` stack in map.vue
+  // so the legend and other right-side panels (e.g. the census panel) share
+  // layout and chrome.
+  width: 100%;
   color: black;
-  z-index: 10;
 }
 
 .message-header {

@@ -1,34 +1,18 @@
 <template>
-  <aside v-if="row" class="census-panel card">
-    <header class="card-header census-panel-header">
-      <div class="census-panel-title">
-        <div class="census-panel-heading">
-          {{ row.name || 'Aggregation area' }}
-        </div>
-        <div v-if="layerLabel" class="census-panel-sub">
-          {{ layerLabel }}
-        </div>
+  <div v-if="row" class="cal-map-census-panel">
+    <cat-msg
+      :title="row.name || 'Aggregation area'"
+      expandable
+      closable
+      :open="true"
+      variant="dark"
+      @close="$emit('close')"
+    >
+      <div class="census-panel-geoid">
+        <span class="census-panel-geoid-label">{{ layerLabel || 'GEOID' }}:</span>
+        <span class="census-panel-geoid-value">{{ row.geoid }}</span>
       </div>
-      <div class="census-panel-header-actions">
-        <button
-          type="button"
-          class="census-panel-iconbtn"
-          :aria-label="collapsed ? 'Expand' : 'Collapse'"
-          :title="collapsed ? 'Expand' : 'Collapse'"
-          @click="collapsed = !collapsed"
-        >
-          <cat-icon :icon="collapsed ? 'chevron-down' : 'chevron-up'" size="small" />
-        </button>
-        <button
-          type="button"
-          class="delete census-panel-close"
-          aria-label="close"
-          @click="$emit('close')"
-        />
-      </div>
-    </header>
 
-    <div v-if="!collapsed" class="card-content census-panel-content">
       <table class="census-panel-table">
         <thead>
           <tr>
@@ -53,12 +37,12 @@
           </tr>
         </tbody>
       </table>
-    </div>
-  </aside>
+    </cat-msg>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
@@ -71,11 +55,13 @@ import {
  * per Nome's wireframe). Three-column table: Statistic / Value (the clicked
  * geography) / Bounding Box (same statistic summed across the query bbox).
  * The element currently used for map shading is hoisted to the top and
- * highlighted. Collapsible via chevron toggle. Closed via the delete X.
+ * highlighted.
  *
- * `row` is the aggregated row from `stopGeoAggregateCsv` with derived census
- * columns merged in. `bboxDerived` is the pre-computed bbox aggregate, or
- * null if not available (e.g. tableDatasetName not set on the scenario).
+ * Chrome is rendered via `<cat-msg>` with `variant="dark"` so this panel
+ * matches the existing map legend exactly; collapse and close are built-in.
+ *
+ * Positioning is owned by the parent `.cal-map-sidebar` stack (in
+ * `cal-map.vue`); this component does not position itself.
  */
 const props = defineProps<{
   row?: Record<string, any> | null
@@ -87,8 +73,6 @@ const props = defineProps<{
 defineEmits<{
   close: []
 }>()
-
-const collapsed = ref(false)
 
 const orderedColumns = computed((): CensusColumnDef[] => {
   const highlight = props.highlightedElement
@@ -123,75 +107,23 @@ function bboxCell (col: CensusColumnDef): string {
 </script>
 
 <style scoped lang="scss">
-.census-panel {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 340px;
-  max-height: calc(100% - 280px); // Leave space for the legend below
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.cal-map-census-panel {
+  color: black;
 }
 
-.census-panel-header {
-  background: var(--bulma-scheme-main-ter);
-  padding: 10px 12px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  border-bottom: 1px solid var(--bulma-border);
-  flex-shrink: 0;
+.census-panel-geoid {
+  font-size: 12px;
+  margin-bottom: 10px;
+  opacity: 0.85;
 }
 
-.census-panel-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.census-panel-heading {
-  font-size: 14px;
+.census-panel-geoid-label {
   font-weight: 600;
-  color: var(--bulma-text-strong);
-  line-height: 1.3;
-  overflow-wrap: anywhere;
+  margin-right: 4px;
 }
 
-.census-panel-sub {
-  font-size: 11px;
-  color: var(--bulma-text-weak);
-  margin-top: 2px;
-}
-
-.census-panel-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.census-panel-iconbtn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 2px 4px;
-  color: var(--bulma-text);
-
-  &:hover {
-    color: var(--bulma-text-strong);
-  }
-}
-
-.census-panel-close {
-  position: relative;
-}
-
-.census-panel-content {
-  padding: 0;
-  overflow-y: auto;
-  flex: 1;
+.census-panel-geoid-value {
+  font-variant-numeric: tabular-nums;
 }
 
 .census-panel-table {
@@ -200,7 +132,7 @@ function bboxCell (col: CensusColumnDef): string {
   font-size: 12px;
 
   th, td {
-    padding: 6px 10px;
+    padding: 6px 8px;
     text-align: left;
     border-bottom: 1px solid var(--bulma-border);
   }
@@ -222,5 +154,6 @@ function bboxCell (col: CensusColumnDef): string {
 .census-panel-num {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-align: right;
 }
 </style>

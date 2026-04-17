@@ -211,16 +211,19 @@
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
-        />
-
-        <!-- Right-side panel opened by clicking an aggregation-area polygon (#302) -->
-        <cal-census-panel
-          :row="selectedAggregation"
-          :highlighted-element="choroplethElement"
-          :layer-label="aggregateLayerLabel"
-          :bbox-derived="bboxCensusDerived"
-          @close="selectedAggregation = null"
-        />
+        >
+          <!-- Slotted into cal-map's right-side sidebar stack above the
+               legend; shares chrome via `<cat-msg variant="dark">` (#302). -->
+          <template #sidebar-top>
+            <cal-census-panel
+              :row="selectedAggregation"
+              :highlighted-element="choroplethElement"
+              :layer-label="aggregateLayerLabel"
+              :bbox-derived="bboxCensusDerived"
+              @close="selectedAggregation = null"
+            />
+          </template>
+        </cal-map>
 
         <!-- ACS vintage indicator (bottom-left, per wireframe) -->
         <div v-if="acsDatasetLabel" class="cal-acs-vintage">

@@ -13,22 +13,28 @@
       />
     </div>
 
-    <cal-legend
-      :data-display-mode="dataDisplayMode"
-      :style-data="styleData"
-      :has-data="hasData"
-      :display-edit-bbox-mode="displayEditBboxMode"
-      :show-bbox="showBbox"
-      :geom-source="geomSource"
-      :hide-unmarked="hideUnmarked"
-      :flex-enabled="flexServicesEnabled"
-      :flex-color-by="flexColorBy"
-      :flex-style-data="flexStyleData"
-      :has-flex-data="hasFlexData"
-      :show-agg-areas="showAggAreas"
-      :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
-      :is-all-day-mode="props.isAllDayMode"
-    />
+    <!-- Right-side stack: any panels slotted here render above the legend,
+         sharing identical chrome (`<cat-msg variant="dark">`). Used by the
+         census panel in tne.vue. -->
+    <div class="cal-map-sidebar">
+      <slot name="sidebar-top" />
+      <cal-legend
+        :data-display-mode="dataDisplayMode"
+        :style-data="styleData"
+        :has-data="hasData"
+        :display-edit-bbox-mode="displayEditBboxMode"
+        :show-bbox="showBbox"
+        :geom-source="geomSource"
+        :hide-unmarked="hideUnmarked"
+        :flex-enabled="flexServicesEnabled"
+        :flex-color-by="flexColorBy"
+        :flex-style-data="flexStyleData"
+        :has-flex-data="hasFlexData"
+        :show-agg-areas="showAggAreas"
+        :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
+        :is-all-day-mode="props.isAllDayMode"
+      />
+    </div>
 
     <cal-map-viewer-ts
       map-class="tall"
@@ -1095,6 +1101,28 @@ function handleOpenTimetable (featureId: string | number) {
   padding:5px;
   height:150px;
   z-index:10;
+}
+
+// Right-side stack: census panel (when set) on top, legend below. Panels
+// collapse/expand naturally via flex. The legend used to self-position at
+// right:50px; bottom:30px; that now lives here so multiple panels can share
+// the column.
+.cal-map-sidebar {
+  position: absolute;
+  right: 50px;
+  bottom: 30px;
+  width: 340px;
+  max-height: calc(100% - 60px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
 }
 
 /* Custom marker styles */
