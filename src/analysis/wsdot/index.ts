@@ -1,5 +1,14 @@
-import { gql } from 'graphql-tag'
-import { multiplexStream, requestStream, fmtDate, type GraphQLClient, type Geometry, type Bbox, convertBbox, chunkArray } from '~~/src/core'
+import {
+  multiplexStream,
+  requestStream,
+  fmtDate,
+  type GraphQLClient,
+  type Geometry,
+  type Bbox,
+  chunkArray,
+  fetchCensusIntersection,
+  type CensusGeographyFeature,
+} from '~~/src/core'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~~/src/scenario'
 import type { RouteGql, StopTimeCacheItem } from '~~/src/tl'
 
@@ -777,19 +786,22 @@ function intersection<T> (set1: Set<T>, set2: Set<T>): Set<T> {
 // Fetch geography data for a set of stop IDs
 ////////////////
 
+/**
+ * WSDOT-facing geography feature. Adds pre-computed `total_population` and
+ * `intersection_population` fields (derived from the configured
+ * `tableDatasetTableCol`) on top of the generic `CensusGeographyFeature` so
+ * wsdot-viewer.vue can read them directly without knowing which ACS column
+ * the user picked.
+ */
 interface GeographyDataFeature {
   id: string
   type: string
-  properties: {
-    dataset_name: string
-    layer_name: string
-    geoid: string
-    name: string
+  properties: CensusGeographyFeature['properties'] & {
     total_population: number
     intersection_population: number
     [key: string]: any
   }
-  geometry: Geometry
+  geometry: Geometry | null
 }
 
 interface getGeographyDataConfig {
@@ -808,111 +820,26 @@ interface getGeographyDataConfig {
 async function getGeographyData (
   config: getGeographyDataConfig,
 ): Promise<GeographyDataFeature[]> {
-  const variables = {
+  const features = await fetchCensusIntersection({
+    client: config.client,
     geoDatasetName: config.geoDatasetName,
+    geoDatasetLayer: config.geoDatasetLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
-    layer: config.geoDatasetLayer,
+    bbox: config.bbox,
+    stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
-    stopIds: Array.from(config.stopIds || []),
-    bbox: convertBbox(config.bbox),
-    includeIntersectionGeometry: config.includeIntersectionGeometry || false,
-  }
-  const result = await config.client.query<{ census_datasets: geographyIntersectionResult[] }>(geographyIntersectionQuery, variables)
-  const features: GeographyDataFeature[] = []
-  for (const geoDataset of result.data?.census_datasets || []) {
-    // console.log('Geography dataset:', geoDataset.name)
-    for (const geography of geoDataset.geographies || []) {
-      // console.log(`Geography feature: ${geography.name} (layer: ${geography.layer_name} geoid: ${geography.geoid})`)
-      const totalArea = geography.geometry_area || 0
-      const intersectionArea = geography.intersection_area || 0
-      if (totalArea === 0) {
-        continue
-      }
-      const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
-      const totalPop = geography.values
-        .find(v => v.dataset_name === config.tableDatasetName)
-        ?.values[config.tableDatasetTableCol]
-        || 0
-      // console.log(`\tPopulation: ${totalPop}`)
-      // console.log(`\tArea: ${totalArea}`)
-      // console.log(`\tIntersection area: ${intersectionArea}`)
-      // console.log(`\tIntersection ratio: ${intersectionRatio}`)
-      // console.log(`\tIntersection pop: ${totalPop * intersectionRatio}`)
-      features.push({
-        id: geography.geoid,
-        type: 'Feature',
-        properties: {
-          name: geography.name,
-          total_population: totalPop,
-          intersection_population: totalPop * intersectionRatio,
-          layer_name: geography.layer_name,
-          dataset_name: geoDataset.name,
-          adm1_iso: geography.adm1_iso,
-          adm1_name: geography.adm1_name,
-          adm0_iso: geography.adm0_iso,
-          adm0_name: geography.adm0_name,
-          geoid: geography.geoid,
-        },
-        geometry: geography.intersection_geometry
-      })
+    includeIntersectionGeometry: config.includeIntersectionGeometry,
+  })
+  return features.map((f): GeographyDataFeature => {
+    const totalPop = f.properties.values[config.tableDatasetTableCol] || 0
+    return {
+      ...f,
+      properties: {
+        ...f.properties,
+        total_population: totalPop,
+        intersection_population: totalPop * f.properties.intersection_ratio,
+      },
     }
-  }
-  return features
+  })
 }
-
-interface geographyIntersectionResult {
-  id: string
-  name: string
-  url: string
-  geographies: {
-    id: number
-    name: string
-    aland: number
-    awater: number
-    geoid: string
-    layer_name: string
-    geometry_area: number
-    adm0_name: string
-    adm0_iso: string
-    adm1_name: string
-    adm1_iso: string
-    intersection_area: number
-    intersection_geometry: Geometry
-    values: {
-      dataset_name: string
-      geoid: string
-      values: Record<string, number>
-    }[]
-  }[]
-}
-
-const geographyIntersectionQuery = gql`
-query ($geoDatasetName: String, $layer: String!, $tableNames: [String!]!, $tableDatasetName: String, $bbox: BoundingBox, $stopIds: [Int!],  $stopBufferRadius: Float, $includeIntersectionGeometry: Boolean = false) {
-  census_datasets(where: {name: $geoDatasetName}) {
-    id
-    name
-    url
-    geographies(limit: 100000, where: {layer: $layer, location: {bbox:$bbox, stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}}) {
-      id
-      name
-      aland
-      awater
-      geoid
-      adm1_iso
-      adm1_name
-      adm0_iso
-      adm0_name
-      layer_name
-      geometry_area
-      intersection_area
-      intersection_geometry @include(if: $includeIntersectionGeometry)
-      values(dataset: $tableDatasetName, table_names: $tableNames) {
-        dataset_name
-        geoid
-        values
-      }
-    }
-  }
-}
-`

@@ -1,15 +1,82 @@
 /**
  * Catalogue of ACS demographic columns surfaced in aggregation tables and the
- * map view. See issue #302. Each entry declares the ACS tables it needs, plus
- * a derivation from a flat `values` map keyed by lowercase `<table>_<col>`
- * (matching the WSDOTReportConfig.tableDatasetTableCol format, e.g.
- * `b01001_001`).
+ * map view. See issue #302.
+ *
+ * All ACS column IDs used by derivations are declared at the top of this file
+ * so the full source mapping is auditable in one place. Derivations below
+ * reference these constants rather than hardcoding column IDs inline.
+ *
+ * Column ID format: lowercase `<table>_<col>`, e.g. `b01001_001`. Matches
+ * the `tableDatasetTableCol` format used by WSDOTReportConfig and the
+ * Transitland GraphQL `values` payload.
  *
  * Derivations return `null` when required inputs are missing or a denominator
  * is zero, so the UI can render "—" instead of bogus zeros. The backend may
- * have not yet loaded some of these tables; in that case `values` will be
- * sparse and derivations will naturally return `null`.
+ * have not yet loaded some of these tables; `values` will be sparse in that
+ * case and derivations will naturally return `null`.
  */
+
+// =============================================================================
+// ACS column ID mapping. Audit here — do not bury column IDs inline in derives.
+// =============================================================================
+
+// B01003 — Total population
+const B01003_TOTAL = 'b01003_001'
+
+// B02001 — Race
+const B02001_WHITE_ALONE = 'b02001_002'
+
+// B08301 — Means of transportation to work
+const B08301_PUBLIC_TRANSIT = 'b08301_010'
+
+// B19013 — Median household income in the past 12 months
+const B19013_MEDIAN_INCOME = 'b19013_001'
+
+// B25002 — Occupancy status
+const B25002_OCCUPIED = 'b25002_002'
+
+// B25008 — Total population in occupied housing units by tenure
+// NOTE: issue #302 spec uses B25008 for "% rental households". B25008 is a
+// population count, not a household count, so this ratio mixes units. Kept
+// per-spec until Thomas confirms — may want B25003_003/B25003_001 instead.
+const B25008_RENTER_OCCUPIED = 'b25008_003'
+
+// B25044 — Tenure by vehicles available
+const B25044_TOTAL = 'b25044_001'
+const B25044_OWNER_NO_VEHICLE = 'b25044_003'
+const B25044_RENTER_NO_VEHICLE = 'b25044_010'
+
+// C17002 — Ratio of income to poverty level in the past 12 months
+const C17002_TOTAL = 'c17002_001'
+const C17002_AT_OR_ABOVE_200_PCT = 'c17002_008'
+
+// B01001 — Sex by age. Youth (<18) and older adults (65+) summed across M+F.
+const B01001_YOUTH_UNDER_18 = [
+  // Male: under 5, 5-9, 10-14, 15-17
+  'b01001_003', 'b01001_004', 'b01001_005', 'b01001_006',
+  // Female: under 5, 5-9, 10-14, 15-17
+  'b01001_027', 'b01001_028', 'b01001_029', 'b01001_030',
+]
+
+const B01001_ADULTS_65_PLUS = [
+  // Male: 65-66, 67-69, 70-74, 75-79, 80-84, 85+
+  'b01001_020', 'b01001_021', 'b01001_022', 'b01001_023', 'b01001_024', 'b01001_025',
+  // Female: 65-66, 67-69, 70-74, 75-79, 80-84, 85+
+  'b01001_044', 'b01001_045', 'b01001_046', 'b01001_047', 'b01001_048', 'b01001_049',
+]
+
+// B23024 — Poverty status × disability × employment (ages 18-64)
+// Best-effort per issue #302: sum "with a disability" counts from the
+// below-poverty and at/above-poverty branches. Exact column offsets should be
+// spot-checked against the ACS codebook once data is loaded on prod.
+const B23024_DISABILITY_COLS = [
+  'b23024_003', // Below poverty, with a disability
+  'b23024_019', // At or above poverty, with a disability
+]
+
+// =============================================================================
+// Column definitions
+// =============================================================================
 
 export type CensusValues = Record<string, number | undefined>
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -46,23 +113,13 @@ function sum (values: CensusValues, keys: string[]): number | null {
   return sawAny ? total : null
 }
 
-const YOUTH_KEYS = [
-  'b01001_003', 'b01001_004', 'b01001_005', 'b01001_006',
-  'b01001_027', 'b01001_028', 'b01001_029', 'b01001_030',
-]
-
-const OLDER_ADULT_KEYS = [
-  'b01001_020', 'b01001_021', 'b01001_022', 'b01001_023', 'b01001_024', 'b01001_025',
-  'b01001_044', 'b01001_045', 'b01001_046', 'b01001_047', 'b01001_048', 'b01001_049',
-]
-
 export const CENSUS_COLUMNS: CensusColumnDef[] = [
   {
     id: 'total_population',
     label: 'Total population',
     format: 'integer',
     requiredTables: ['b01003'],
-    derive: v => num(v['b01003_001']),
+    derive: v => num(v[B01003_TOTAL]),
   },
   {
     id: 'pct_people_of_color',
@@ -70,8 +127,8 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'percent',
     requiredTables: ['b01003', 'b02001'],
     derive: (v) => {
-      const total = num(v['b01003_001'])
-      const white = num(v['b02001_002'])
+      const total = num(v[B01003_TOTAL])
+      const white = num(v[B02001_WHITE_ALONE])
       if (total === null || white === null) {
         return null
       }
@@ -83,18 +140,17 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     label: 'Public transit commuters',
     format: 'integer',
     requiredTables: ['b08301'],
-    derive: v => num(v['b08301_010']),
+    derive: v => num(v[B08301_PUBLIC_TRANSIT]),
   },
   {
     id: 'pct_no_vehicle',
     label: '% Households with no vehicle',
     format: 'percent',
     requiredTables: ['b25044'],
-    // (owner no-vehicle + renter no-vehicle) / total occupied
     derive: (v) => {
-      const total = num(v['b25044_001'])
-      const ownerNone = num(v['b25044_003'])
-      const renterNone = num(v['b25044_010'])
+      const total = num(v[B25044_TOTAL])
+      const ownerNone = num(v[B25044_OWNER_NO_VEHICLE])
+      const renterNone = num(v[B25044_RENTER_NO_VEHICLE])
       if (ownerNone === null && renterNone === null) {
         return null
       }
@@ -106,10 +162,9 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     label: '% Households below 200% of poverty line',
     format: 'percent',
     requiredTables: ['c17002'],
-    // (total − at-or-above-200%) / total
     derive: (v) => {
-      const total = num(v['c17002_001'])
-      const atOrAbove = num(v['c17002_008'])
+      const total = num(v[C17002_TOTAL])
+      const atOrAbove = num(v[C17002_AT_OR_ABOVE_200_PCT])
       if (total === null || atOrAbove === null) {
         return null
       }
@@ -121,48 +176,42 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     label: 'Median household income',
     format: 'currency',
     requiredTables: ['b19013'],
-    derive: v => num(v['b19013_001']),
+    derive: v => num(v[B19013_MEDIAN_INCOME]),
   },
   {
     id: 'avg_household_size',
     label: 'Average household size',
     format: 'decimal',
     requiredTables: ['b01003', 'b25002'],
-    derive: v => ratio(num(v['b01003_001']), num(v['b25002_002'])),
+    derive: v => ratio(num(v[B01003_TOTAL]), num(v[B25002_OCCUPIED])),
   },
   {
     id: 'pct_rental_households',
     label: '% Rental households',
     format: 'percent',
     requiredTables: ['b25002', 'b25008'],
-    // Per issue #302 text: "Renter occupied (B25008) / Occupied units (B25002)".
-    // Units mismatch (B25008 is population, B25002 is units); following spec
-    // literally — revisit if Tim confirms he meant B25003.
-    derive: v => ratio(num(v['b25008_003']), num(v['b25002_002'])),
+    derive: v => ratio(num(v[B25008_RENTER_OCCUPIED]), num(v[B25002_OCCUPIED])),
   },
   {
     id: 'youth_under_18',
     label: 'Youth under 18',
     format: 'integer',
     requiredTables: ['b01001'],
-    derive: v => sum(v, YOUTH_KEYS),
+    derive: v => sum(v, B01001_YOUTH_UNDER_18),
   },
   {
     id: 'adults_65_plus',
     label: 'Adults 65 and over',
     format: 'integer',
     requiredTables: ['b01001'],
-    derive: v => sum(v, OLDER_ADULT_KEYS),
+    derive: v => sum(v, B01001_ADULTS_65_PLUS),
   },
   {
     id: 'working_age_with_disability',
     label: 'Working-age adults with a disability',
     format: 'integer',
     requiredTables: ['b23024'],
-    // Sum of with-disability counts across below-poverty and at/above branches
-    // of B23024. Per issue #302: "this can't be the best stat or way to
-    // calculate it" — best-effort pending a better source.
-    derive: v => sum(v, ['b23024_003', 'b23024_019']),
+    derive: v => sum(v, B23024_DISABILITY_COLS),
   },
 ]
 
