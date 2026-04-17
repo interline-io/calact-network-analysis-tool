@@ -20,7 +20,7 @@
       </cat-field>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <thead>
           <tr>
@@ -106,6 +106,10 @@ function renderCell (column: TableColumn, value: any): string {
 
 const props = defineProps<{
   filename?: string
+  /** When true, the table is horizontally scrollable and the first column
+   * (and header cell) sticks to the left edge while the rest scrolls.
+   * Off by default so existing tables are unaffected. */
+  freezeFirstColumn?: boolean
 }>()
 
 const searchQuery = ref('')
@@ -190,6 +194,49 @@ const rangeEnd = computed(() => {
 
   td:first-child {
     background: var(--bulma-scheme-main);
+  }
+}
+
+// Opt-in: horizontal scroll inside the table-container with the first
+// column pinned to the left edge. The corner header cell stacks above
+// both the row cells (sticky-left) and the column headers (sticky-top).
+//
+// Note: `border-collapse: collapse` on Bulma's .table suppresses cell
+// box-shadows, so we get the soft right-edge shade via a ::after
+// pseudo-element overlaying the start of the scrollable area instead.
+.table-container.is-freeze-first {
+  overflow-x: auto;
+
+  .cal-report-table {
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      // Solid background so scrolling content doesn't bleed through.
+      background: var(--bulma-scheme-main);
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        // Sit just outside the cell's right edge, inside the table area.
+        right: -8px;
+        width: 8px;
+        pointer-events: none;
+        background: linear-gradient(
+          to right,
+          rgba(0, 0, 0, 0.12),
+          rgba(0, 0, 0, 0)
+        );
+      }
+    }
+
+    thead th:first-child {
+      background: var(--bulma-scheme-main-ter);
+      z-index: 3;
+    }
   }
 }
 

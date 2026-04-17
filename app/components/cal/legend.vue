@@ -157,6 +157,11 @@
               <span>High</span>
             </div>
           </template>
+          <div class="choropleth-details-link">
+            <a href="#" @click.prevent="$emit('viewDetails')">
+              View all details →
+            </a>
+          </div>
         </div>
       </div>
     </cat-msg>
@@ -196,6 +201,10 @@ const props = defineProps<{
   choroplethClassification?: ChoroplethClassification
   // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
+}>()
+
+defineEmits<{
+  viewDetails: []
 }>()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
@@ -367,6 +376,17 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   background-color: #cccccc;
   opacity: 0.6;
   border: 1px solid #666666;
+}
+
+.choropleth-details-link {
+  margin-top: 8px;
+  font-size: 0.85em;
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 
 .legend-geo-selected {

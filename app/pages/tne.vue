@@ -214,6 +214,7 @@
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
+          @view-census-details="openCensusDetails()"
         >
           <!-- Slotted into cal-map's right-side sidebar stack above the
                legend; shares chrome via `<cat-msg variant="dark">` (#302). -->
@@ -264,6 +265,21 @@
           :start-time="startTime"
           :end-time="endTime"
           :initial-tab="timetableInitialTab"
+        />
+      </cat-modal>
+
+      <!-- Census Details debug modal (#302): full drill-down into every
+           geography fetched for the aggregation layer, plus raw ACS values. -->
+      <cat-modal
+        v-model="showCensusDetails"
+        title="Census Details"
+        full-screen
+      >
+        <cal-census-details
+          v-if="scenarioFilterResult"
+          :scenario-filter-result="scenarioFilterResult"
+          :layer-label="aggregateLayerLabel"
+          :highlighted-geoid="highlightedCensusGeoid ?? undefined"
         />
       </cat-modal>
     </template>
@@ -1335,6 +1351,14 @@ const showTimetable = computed({
 function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetableTab }) {
   timetableInitialTab.value = payload.initialTab
   timetableRoute.value = payload.route
+}
+
+// Census details debug modal — mirrors the Route Timetable pattern.
+const showCensusDetails = ref(false)
+const highlightedCensusGeoid = ref<string | null>(null)
+function openCensusDetails (geoid?: string) {
+  highlightedCensusGeoid.value = geoid ?? null
+  showCensusDetails.value = true
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 

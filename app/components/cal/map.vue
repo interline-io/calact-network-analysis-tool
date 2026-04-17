@@ -34,6 +34,7 @@
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
         :is-all-day-mode="props.isAllDayMode"
+        @view-details="emit('viewCensusDetails')"
       />
     </div>
 
@@ -86,6 +87,9 @@ const emit = defineEmits<{
   // Aggregation-area polygon click: full aggregate row (geoid, name, counts,
   // derived census columns) flows to the right-side census panel (#302).
   selectAggregation: [row: Record<string, any>]
+  // "View all details" link in the choropleth legend opens the
+  // census-details debug modal.
+  viewCensusDetails: []
 }>()
 
 const props = defineProps<{
