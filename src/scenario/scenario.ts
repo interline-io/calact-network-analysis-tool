@@ -143,6 +143,12 @@ export interface ScenarioData {
    * from `src/core/census-columns` to turn raw values into display columns.
    */
   censusValues?: Map<string, CensusValues>
+  /**
+   * Per-geography intersection ratio (geometry inside the query bbox /
+   * total geometry, clamped to [0, 1]). Keyed by geoid, parallel to
+   * `censusValues`. Used for the bounding-box summary column.
+   */
+  censusIntersectionRatios?: Map<string, number>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -203,9 +209,11 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
-    // Batch of (geoid, raw ACS values) pairs for the configured
-    // aggregation layer. Sent once per batch during the census-values stage.
-    censusValues?: [string, CensusValues][]
+    // Batch of (geoid, raw ACS values, intersection_ratio) tuples for the
+    // configured aggregation layer. Sent once per batch during the
+    // census-values stage. The ratio lets the client apportion per-tract
+    // values when summing across the bbox (#302 bounding-box column).
+    censusValues?: [string, CensusValues, number][]
   }
   extraData?: any
   config?: any
@@ -732,15 +740,17 @@ export class ScenarioFetcher {
       tableNames: REQUIRED_ACS_TABLES,
       bbox: this.resolvedBbox,
     })
-    const pairs: [string, CensusValues][] = features.map(f => [f.properties.geoid, f.properties.values])
-    console.log(`[CensusValues] Fetched values for ${pairs.length} geographies`)
+    const triples: [string, CensusValues, number][] = features.map(
+      f => [f.properties.geoid, f.properties.values, f.properties.intersection_ratio],
+    )
+    console.log(`[CensusValues] Fetched values for ${triples.length} geographies`)
     this.updateProgress('census-values', true, {
       stops: [],
       routes: [],
       feedVersions: [],
       stopDepartures: [],
       flexAreas: [],
-      censusValues: pairs,
+      censusValues: triples,
     })
   }
 
@@ -1000,6 +1010,7 @@ export class ScenarioDataReceiver {
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
       censusValues: new Map<string, CensusValues>(),
+      censusIntersectionRatios: new Map<string, number>(),
     }
   }
 
@@ -1053,10 +1064,13 @@ export class ScenarioDataReceiver {
         }
       }
 
-      // Merge the per-geoid census values batch
-      if (progress.partialData.censusValues && this.accumulatedData.censusValues) {
-        for (const [geoid, values] of progress.partialData.censusValues) {
+      // Merge the per-geoid census values batch. Each tuple carries raw
+      // ACS values plus the geometry intersection ratio (used for the
+      // bounding-box summary column in the census panel).
+      if (progress.partialData.censusValues && this.accumulatedData.censusValues && this.accumulatedData.censusIntersectionRatios) {
+        for (const [geoid, values, ratio] of progress.partialData.censusValues) {
           this.accumulatedData.censusValues.set(geoid, values)
+          this.accumulatedData.censusIntersectionRatios.set(geoid, ratio)
         }
       }
     }

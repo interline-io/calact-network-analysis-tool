@@ -262,3 +262,55 @@ export function deriveCensusRow (values: CensusValues): Record<string, number | 
   }
   return out
 }
+
+/**
+ * Sum raw ACS values across a collection of geographies, apportioning each
+ * geography's values by its bbox intersection ratio. Returns a
+ * `{ raw, derived }` pair: `raw` is the summed values object, and `derived`
+ * is the per-column result of running each `CensusColumnDef.derive` over it.
+ *
+ * Non-additive metrics (medians, income, household size when derived from
+ * ratios of sums) produce meaningful values only when the underlying
+ * components are additive — `median_household_income` in particular cannot
+ * be aggregated this way and the caller should render it as "—" for the
+ * bounding-box column.
+ *
+ * Used by the census panel's bounding-box summary column (#302).
+ */
+export function summarizeBbox (
+  geoids: Iterable<string>,
+  valuesByGeoid: Map<string, CensusValues> | undefined,
+  ratiosByGeoid: Map<string, number> | undefined,
+): { raw: Record<string, number>, derived: Record<string, number | null> } {
+  const raw: Record<string, number> = {}
+  if (!valuesByGeoid) {
+    return { raw, derived: {} }
+  }
+  for (const geoid of geoids) {
+    const values = valuesByGeoid.get(geoid)
+    if (!values) {
+      continue
+    }
+    const ratio = ratiosByGeoid?.get(geoid) ?? 1
+    for (const [key, v] of Object.entries(values)) {
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        continue
+      }
+      raw[key] = (raw[key] ?? 0) + v * ratio
+    }
+  }
+  const derived: Record<string, number | null> = {}
+  for (const col of CENSUS_COLUMNS) {
+    derived[col.id] = col.derive(raw)
+  }
+  return { raw, derived }
+}
+
+/**
+ * Columns that are not additive across geographies. The bounding-box summary
+ * column in the census panel renders these as "—" because a
+ * population-weighted sum is nonsense for a median.
+ */
+export const NON_ADDITIVE_CENSUS_COLUMNS = new Set<string>([
+  'median_household_income',
+])

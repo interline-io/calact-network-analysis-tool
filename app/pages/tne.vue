@@ -218,8 +218,8 @@
           :row="selectedAggregation"
           :highlighted-element="choroplethElement"
           :layer-label="aggregateLayerLabel"
+          :bbox-derived="bboxCensusDerived"
           @close="selectedAggregation = null"
-          @visualize="choroplethElement = $event"
         />
 
         <!-- ACS vintage indicator (bottom-left, per wireframe) -->
@@ -305,6 +305,7 @@ import {
   flexAreaTypes,
   CENSUS_COLUMNS,
   formatAcsDatasetLabel,
+  summarizeBbox,
   type DataDisplayMode,
   type FilterTag,
 } from '~~/src/core'
@@ -1012,6 +1013,18 @@ const selectedAggregation = ref<Record<string, any> | null>(null)
 function onSelectAggregation (row: Record<string, any>) {
   selectedAggregation.value = row
 }
+
+// Bounding-box aggregate (#302): sum of apportioned raw ACS values across
+// every geography at the aggregation layer inside the bbox. Fed to the
+// census panel's third column.
+const bboxCensusDerived = computed((): Record<string, number | null> | null => {
+  const values = scenarioFilterResult.value?.censusValues
+  const ratios = scenarioFilterResult.value?.censusIntersectionRatios
+  if (!values || values.size === 0) {
+    return null
+  }
+  return summarizeBbox(values.keys(), values, ratios).derived
+})
 
 /////////////////////////
 // Event passing

@@ -5,80 +5,90 @@
         <div class="census-panel-heading">
           {{ row.name || 'Aggregation area' }}
         </div>
-        <div class="census-panel-sub">
+        <div v-if="layerLabel" class="census-panel-sub">
           {{ layerLabel }}
         </div>
       </div>
-      <button class="delete census-panel-close" aria-label="close" @click="$emit('close')" />
+      <div class="census-panel-header-actions">
+        <button
+          type="button"
+          class="census-panel-iconbtn"
+          :aria-label="collapsed ? 'Expand' : 'Collapse'"
+          :title="collapsed ? 'Expand' : 'Collapse'"
+          @click="collapsed = !collapsed"
+        >
+          <cat-icon :icon="collapsed ? 'chevron-down' : 'chevron-up'" size="small" />
+        </button>
+        <button
+          type="button"
+          class="delete census-panel-close"
+          aria-label="close"
+          @click="$emit('close')"
+        />
+      </div>
     </header>
 
-    <div class="card-content census-panel-content">
-      <section class="census-panel-summary">
-        <div><strong>Stops:</strong> {{ row.stops_count ?? '—' }}</div>
-        <div><strong>Routes:</strong> {{ row.routes_count ?? '—' }}</div>
-        <div><strong>Agencies:</strong> {{ row.agencies_count ?? '—' }}</div>
-        <div><strong>Stop visits:</strong> {{ row.visit_count_total ?? '—' }}</div>
-      </section>
-
-      <div class="census-panel-divider" />
-
-      <section class="census-panel-list">
-        <div
-          v-for="col of orderedColumns"
-          :key="col.id"
-          class="census-panel-row"
-          :class="{ 'is-highlighted': col.id === highlightedElement }"
-        >
-          <div class="census-panel-row-main">
-            <div class="census-panel-row-label">
-              {{ col.label }}
-            </div>
-            <div class="census-panel-row-value">
-              {{ formatCensusValue(valueFor(col.id), col.format) }}
-            </div>
-          </div>
-          <button
-            v-if="col.id !== highlightedElement"
-            class="button is-small is-light census-panel-visualize"
-            :title="`Shade map by ${col.label}`"
-            @click="$emit('visualize', col.id)"
+    <div v-if="!collapsed" class="card-content census-panel-content">
+      <table class="census-panel-table">
+        <thead>
+          <tr>
+            <th>Statistic</th>
+            <th>Value</th>
+            <th>Bounding Box</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="col of orderedColumns"
+            :key="col.id"
+            :class="{ 'is-highlighted': col.id === highlightedElement }"
           >
-            Visualize
-          </button>
-        </div>
-      </section>
+            <td>{{ col.label }}</td>
+            <td class="census-panel-num">
+              {{ formatCensusValue(valueFor(col.id), col.format) }}
+            </td>
+            <td class="census-panel-num">
+              {{ bboxCell(col) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   CENSUS_COLUMNS,
+  NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
   formatCensusValue,
 } from '~~/src/core'
 
 /**
- * Right-side details panel for a clicked aggregation area (#302). Shows the
- * geography name, service summary, and every demographic element. The
- * currently-visualized element is hoisted to the top and highlighted, and
- * each other element has a "Visualize" action that switches the choropleth
- * to that element (Thomas's 3/4 feedback).
+ * Right-side census details panel for a clicked aggregation area (#302,
+ * per Nome's wireframe). Three-column table: Statistic / Value (the clicked
+ * geography) / Bounding Box (same statistic summed across the query bbox).
+ * The element currently used for map shading is hoisted to the top and
+ * highlighted. Collapsible via chevron toggle. Closed via the delete X.
  *
  * `row` is the aggregated row from `stopGeoAggregateCsv` with derived census
- * columns merged in. Unset => panel not rendered.
+ * columns merged in. `bboxDerived` is the pre-computed bbox aggregate, or
+ * null if not available (e.g. tableDatasetName not set on the scenario).
  */
 const props = defineProps<{
   row?: Record<string, any> | null
   highlightedElement?: string
   layerLabel?: string
+  bboxDerived?: Record<string, number | null> | null
 }>()
 
 defineEmits<{
   close: []
-  visualize: [elementId: string]
 }>()
+
+const collapsed = ref(false)
 
 const orderedColumns = computed((): CensusColumnDef[] => {
   const highlight = props.highlightedElement
@@ -100,6 +110,16 @@ function valueFor (id: string): number | null {
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) ? n : null
 }
+
+function bboxCell (col: CensusColumnDef): string {
+  if (NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)) {
+    return '—'
+  }
+  if (!props.bboxDerived) {
+    return '—'
+  }
+  return formatCensusValue(props.bboxDerived[col.id] ?? null, col.format)
+}
 </script>
 
 <style scoped lang="scss">
@@ -107,8 +127,8 @@ function valueFor (id: string): number | null {
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 300px;
-  max-height: calc(100% - 32px);
+  width: 340px;
+  max-height: calc(100% - 280px); // Leave space for the legend below
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -132,7 +152,7 @@ function valueFor (id: string): number | null {
 }
 
 .census-panel-heading {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--bulma-text-strong);
   line-height: 1.3;
@@ -140,78 +160,67 @@ function valueFor (id: string): number | null {
 }
 
 .census-panel-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--bulma-text-weak);
   margin-top: 2px;
 }
 
-.census-panel-close {
-  position: relative;
-  top: 2px;
+.census-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
+.census-panel-iconbtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  color: var(--bulma-text);
+
+  &:hover {
+    color: var(--bulma-text-strong);
+  }
+}
+
+.census-panel-close {
+  position: relative;
+}
+
 .census-panel-content {
-  padding: 12px;
+  padding: 0;
   overflow-y: auto;
   flex: 1;
 }
 
-.census-panel-summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 12px;
-  font-size: 13px;
-}
+.census-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
 
-.census-panel-divider {
-  border-top: 1px solid var(--bulma-border);
-  margin: 10px 0;
-}
+  th, td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--bulma-border);
+  }
 
-.census-panel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+  th {
+    background: var(--bulma-scheme-main-bis);
+    font-weight: 600;
+    color: var(--bulma-text-strong);
+    position: sticky;
+    top: 0;
+  }
 
-.census-panel-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 13px;
-
-  &.is-highlighted {
+  tr.is-highlighted td {
     background: #fff3cd;
-    border: 1px solid #ffe082;
     font-weight: 600;
   }
 }
 
-.census-panel-row-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.census-panel-row-label {
-  color: var(--bulma-text);
-  overflow-wrap: anywhere;
-}
-
-.census-panel-row-value {
+.census-panel-num {
   font-variant-numeric: tabular-nums;
-  color: var(--bulma-text-strong);
   white-space: nowrap;
-}
-
-.census-panel-visualize {
-  font-size: 11px;
-  padding: 0 8px;
-  height: 22px;
 }
 </style>

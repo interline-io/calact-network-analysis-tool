@@ -509,6 +509,9 @@ export interface ScenarioFilterResult {
   // Passed through from ScenarioData for the aggregation table demographic
   // columns (#302). Keyed by census geography geoid.
   censusValues?: Map<string, CensusValues>
+  // Per-geography intersection ratio, parallel to `censusValues`. Used to
+  // compute the bounding-box summary column in the census panel.
+  censusIntersectionRatios?: Map<string, number>
 }
 
 export function applyScenarioResultFilter (
@@ -670,6 +673,7 @@ export function applyScenarioResultFilter (
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
     censusValues: data.censusValues,
+    censusIntersectionRatios: data.censusIntersectionRatios,
   }
   return result
 }

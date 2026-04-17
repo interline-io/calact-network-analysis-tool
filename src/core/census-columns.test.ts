@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
+  NON_ADDITIVE_CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
   deriveCensusRow,
   formatAcsDatasetLabel,
   formatCensusValue,
+  summarizeBbox,
   type CensusValues,
 } from './census-columns'
 
@@ -135,6 +137,51 @@ describe('formatCensusValue', () => {
 
   it('formats decimal to 2 places', () => {
     expect(formatCensusValue(2.4567, 'decimal')).toBe('2.46')
+  })
+})
+
+describe('summarizeBbox', () => {
+  it('sums raw values apportioned by intersection ratio and runs derivations', () => {
+    const values = new Map<string, CensusValues>([
+      ['1', { b01003_001: 1000, b02001_002: 600 }], // total pop 1000, white 600
+      ['2', { b01003_001: 500, b02001_002: 400 }], // total pop 500, white 400
+    ])
+    const ratios = new Map([
+      ['1', 1.0],
+      ['2', 0.5], // only half this geography is inside the bbox
+    ])
+    const { raw, derived } = summarizeBbox(['1', '2'], values, ratios)
+    // 1000*1.0 + 500*0.5 = 1250
+    expect(raw.b01003_001).toBe(1250)
+    // 600*1.0 + 400*0.5 = 800
+    expect(raw.b02001_002).toBe(800)
+    // POC% = (1250 − 800) / 1250 = 0.36
+    expect(derived.pct_people_of_color).toBeCloseTo(0.36)
+    expect(derived.total_population).toBe(1250)
+  })
+
+  it('defaults the ratio to 1 when missing', () => {
+    const values = new Map<string, CensusValues>([['1', { b01003_001: 100 }]])
+    const { raw } = summarizeBbox(['1'], values, undefined)
+    expect(raw.b01003_001).toBe(100)
+  })
+
+  it('returns an empty object when given no values map', () => {
+    const { raw, derived } = summarizeBbox(['1'], undefined, undefined)
+    expect(raw).toEqual({})
+    expect(derived).toEqual({})
+  })
+
+  it('skips geographies missing from the values map', () => {
+    const values = new Map<string, CensusValues>([['1', { b01003_001: 100 }]])
+    const { raw } = summarizeBbox(['1', '2', '3'], values, undefined)
+    expect(raw.b01003_001).toBe(100)
+  })
+})
+
+describe('NON_ADDITIVE_CENSUS_COLUMNS', () => {
+  it('lists median_household_income as non-additive', () => {
+    expect(NON_ADDITIVE_CENSUS_COLUMNS.has('median_household_income')).toBe(true)
   })
 })
 
