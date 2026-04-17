@@ -33,38 +33,6 @@
           </button>
         </template>
 
-        <!-- Aggregation-area popup: all demographic elements for one census geography -->
-        <template v-else-if="feature.featureType === 'aggregation'">
-          <div class="popup-feature-type">
-            📊 {{ feature.data.name || 'Aggregation area' }}
-          </div>
-          <div class="popup-details">
-            <div v-if="feature.data.stops_count !== undefined">
-              <strong>Stops:</strong> {{ feature.data.stops_count }}
-            </div>
-            <div v-if="feature.data.routes_count !== undefined">
-              <strong>Routes:</strong> {{ feature.data.routes_count }}
-            </div>
-            <div v-if="feature.data.agencies_count !== undefined">
-              <strong>Agencies:</strong> {{ feature.data.agencies_count }}
-            </div>
-            <div v-if="feature.data.visit_count_total !== undefined">
-              <strong>Stop visits:</strong> {{ feature.data.visit_count_total }}
-            </div>
-          </div>
-          <div class="popup-census-divider" />
-          <div class="popup-details">
-            <div
-              v-for="col of CENSUS_COLUMNS"
-              :key="col.id"
-              :class="{ 'popup-census-highlighted': col.id === highlightedElement }"
-            >
-              <strong>{{ col.label }}:</strong>
-              {{ formatCensusValue(censusValue(col.id), col.format) }}
-            </div>
-          </div>
-        </template>
-
         <!-- Flex service area popup -->
         <template v-else-if="feature.featureType === 'flex'">
           <div class="popup-feature-type">
@@ -115,14 +83,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CENSUS_COLUMNS, formatCensusValue } from '~~/src/core'
 
 /**
  * Structured popup feature data for Vue component rendering
  * This avoids HTML string interpolation and XSS concerns
  */
 export interface PopupFeatureData {
-  featureType: 'stop' | 'route' | 'flex' | 'aggregation'
+  featureType: 'stop' | 'route' | 'flex'
   featureId: string | number
   sourceLayer: string
   data: {
@@ -145,9 +112,6 @@ export interface PopupFeatureData {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
-    // Aggregation fields (#302) — raw row from stopGeoAggregateCsv + derived
-    // census columns merged in. Indexed by column id (see CENSUS_COLUMNS).
-    [key: string]: any
   }
 }
 
@@ -155,9 +119,6 @@ const props = defineProps<{
   feature: PopupFeatureData
   currentIndex: number
   total: number
-  /** ID of the census column currently rendered as choropleth shading. When
-   * the popup is for an aggregation area, that column is highlighted. */
-  highlightedElement?: string
 }>()
 
 defineEmits<{
@@ -168,15 +129,6 @@ defineEmits<{
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
-
-function censusValue (id: string): number | null {
-  const v = props.feature.data[id]
-  if (v === null || v === undefined) {
-    return null
-  }
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : null
-}
 </script>
 
 <style scoped lang="scss">
@@ -266,18 +218,5 @@ function censusValue (id: string): number | null {
 
 .popup-details div {
   font-size: 13px;
-}
-
-.popup-census-divider {
-  border-top: 1px solid #e0e0e0;
-  margin: 8px 0;
-}
-
-.popup-census-highlighted {
-  background: #fff3cd;
-  padding: 2px 4px;
-  margin: -2px -4px;
-  border-radius: 3px;
-  font-weight: 600;
 }
 </style>

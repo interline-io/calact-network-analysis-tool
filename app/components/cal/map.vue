@@ -37,7 +37,6 @@
       :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
       :choropleth-features="props.choroplethFeatures || []"
-      :choropleth-element="props.choroplethElement"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
       :flex-features="flexFeatures"
@@ -77,6 +76,9 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
+  // Aggregation-area polygon click: full aggregate row (geoid, name, counts,
+  // derived census columns) flows to the right-side census panel (#302).
+  selectAggregation: [row: Record<string, any>]
 }>()
 
 const props = defineProps<{
@@ -97,9 +99,6 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
-  // Column id visualized by choropleth shading; forwarded to the popup so
-  // that element can be highlighted in the aggregation-area details (#302).
-  choroplethElement?: string
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string
@@ -1048,17 +1047,11 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       const matchOrder = fp.marked ? 2 : 3
       sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.geoid) {
-      // Aggregation-area (choropleth) popup — shows demographic columns (#302).
-      popupFeature = {
-        point: { lon: pt.lng, lat: pt.lat },
-        featureId: fp.geoid,
-        sourceLayer: 'aggregationPolygons',
-        featureType: 'aggregation',
-        // Pass raw row through; popup looks up CENSUS_COLUMNS for labels/formats.
-        data: { ...fp },
-      }
-      // Sort after flex polygons; aggregation areas are background context.
-      sortKey = [4, 0]
+      // Aggregation-area click — bypass the floating popup and surface the
+      // row via event so tne.vue can render the right-side census panel
+      // (#302, per Nome's wireframe). Do not set popupFeature here.
+      emit('selectAggregation', { ...fp })
+      continue
     }
 
     if (popupFeature) {

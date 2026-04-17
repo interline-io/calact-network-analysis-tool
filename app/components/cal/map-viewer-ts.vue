@@ -56,10 +56,6 @@ const props = defineProps<{
   // Whether the active timeframe filter is "All Day" (no start/end time set);
   // affects mode-aware labels in the choropleth hover tooltip.
   isAllDayMode?: boolean
-  // Column id (from CENSUS_COLUMNS or the built-in counts) currently used for
-  // choropleth shading. Forwarded to the popup so that element can be
-  // highlighted in the aggregation-area details list (#302).
-  choroplethElement?: string
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -915,7 +911,6 @@ function showPopupAtIndex (index: number) {
       },
       currentIndex: currentPopupIndex,
       total: total,
-      highlightedElement: props.choroplethElement,
       onClose: () => {
         if (currentPopup) {
           currentPopup.remove()

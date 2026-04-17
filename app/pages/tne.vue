@@ -144,7 +144,6 @@
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :choropleth-element-options="choroplethElementOptions"
-            :acs-dataset-label="acsDatasetLabel"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
@@ -198,7 +197,6 @@
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
-          :choropleth-element="choroplethElement"
           :show-agg-areas="showAggAreas"
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
@@ -212,7 +210,22 @@
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
+          @select-aggregation="onSelectAggregation"
         />
+
+        <!-- Right-side panel opened by clicking an aggregation-area polygon (#302) -->
+        <cal-census-panel
+          :row="selectedAggregation"
+          :highlighted-element="choroplethElement"
+          :layer-label="aggregateLayerLabel"
+          @close="selectedAggregation = null"
+          @visualize="choroplethElement = $event"
+        />
+
+        <!-- ACS vintage indicator (bottom-left, per wireframe) -->
+        <div v-if="acsDatasetLabel" class="cal-acs-vintage">
+          Showing data for {{ acsDatasetLabel }}
+        </div>
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
@@ -992,6 +1005,14 @@ const choroplethElementOptions = computed((): { label: string, value: string }[]
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
+// Right-side census panel: aggregate row for the clicked polygon, or null.
+// Set by the map's `selectAggregation` event; cleared when the user closes
+// the panel.
+const selectedAggregation = ref<Record<string, any> | null>(null)
+function onSelectAggregation (row: Record<string, any>) {
+  selectedAggregation.value = row
+}
+
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -1704,5 +1725,22 @@ function toTitleCase (str: string): string {
   .o-icon {
     color: #999 !important;
   }
+}
+
+// ACS vintage indicator (#302). Placed bottom-left over the map per Nome's
+// wireframe; unobtrusive caption-style pill.
+.cal-acs-vintage {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--bulma-border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--bulma-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
 }
 </style>

@@ -77,6 +77,10 @@ After making edits, run `pnpm check` to verify correctness (lint with auto-fix +
 
 Never create a PR or merge a PR automatically. Opening and merging PRs is always a 100% manual action by the repo owner. You may prepare branches, commits, and PR descriptions (see "PR Summary" below), but stop short of `gh pr create` or `gh pr merge` unless explicitly instructed in the current turn.
 
+## Working from GitHub issues
+
+Critical information from collaborators is often in the issue follow-up comments, not only the original description. When asked to work on an issue, always read the full comment thread — including wireframes, design mockups, attached images, clarifications, and user feedback — and consider them alongside the original description. Use `gh issue view <num> --comments` and fetch any image attachments (e.g. `curl` the `github.com/user-attachments/...` URLs) so you can view them before planning or implementing.
+
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`
 - 2-space indentation, LF line endings

@@ -501,7 +501,7 @@
           </cat-field>
           <cat-field class="mt-2">
             <template #label>
-              Visualize
+              Shade map by
             </template>
             <cat-select
               v-model="choroplethElement"
@@ -515,9 +515,6 @@
               </option>
             </cat-select>
           </cat-field>
-          <p v-if="acsDatasetLabel" class="help has-text-grey mt-1">
-            Demographic data: {{ acsDatasetLabel }}
-          </p>
 
           <p class="menu-label">
             Overlay
@@ -614,7 +611,6 @@ const props = defineProps<{
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
   choroplethElementOptions?: { label: string, value: string }[]
-  acsDatasetLabel?: string
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
   panelMainWidth?: number
