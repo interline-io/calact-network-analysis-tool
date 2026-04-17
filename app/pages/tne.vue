@@ -137,11 +137,14 @@
             v-model:show-bbox="showBbox"
             v-model:show-agg-areas="showAggAreas"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:choropleth-element="choroplethElement"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
+            :choropleth-element-options="choroplethElementOptions"
+            :acs-dataset-label="acsDatasetLabel"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
@@ -195,6 +198,7 @@
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
+          :choropleth-element="choroplethElement"
           :show-agg-areas="showAggAreas"
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
@@ -286,6 +290,8 @@ import {
   choroplethPalette,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
+  CENSUS_COLUMNS,
+  formatAcsDatasetLabel,
   type DataDisplayMode,
   type FilterTag,
 } from '~~/src/core'
@@ -965,6 +971,27 @@ const showAggAreas = computed<boolean>({
   }
 })
 
+// Choropleth element: which value colors the aggregation-area overlays.
+// Default: total stop visits (original behavior). Also supports any of the
+// ACS demographic columns from #302.
+const CHOROPLETH_DEFAULT = 'visit_count_total'
+const choroplethElement = computed<string>({
+  get () {
+    return route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT
+  },
+  set (v: string) {
+    setQuery({ ...route.query, choroplethElement: v === CHOROPLETH_DEFAULT ? undefined : v })
+  }
+})
+
+const choroplethElementOptions = computed((): { label: string, value: string }[] => [
+  { label: 'Total stop visits', value: 'visit_count_total' },
+  { label: 'Number of stops', value: 'stops_count' },
+  ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
+])
+
+const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
+
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -1313,10 +1340,20 @@ const choroplethFeatures = computed((): Feature[] => {
   const aggData = choroplethAggregateData.value
   if (aggData.length === 0) { return [] }
 
-  // Determine color scale based on visit_count_total using quantile breaks
+  const element = choroplethElement.value
+  function pickValue (agg: typeof aggData[number]): number | null {
+    const v = (agg as Record<string, any>)[element]
+    if (v === null || v === undefined) {
+      return null
+    }
+    const n = typeof v === 'number' ? v : Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+
+  // Determine color scale via quantile breaks over the chosen element.
   const values = aggData
-    .map(a => a.visit_count_total ?? 0)
-    .filter(v => v > 0)
+    .map(pickValue)
+    .filter((v): v is number => v !== null && v > 0)
     .sort((a, b) => a - b)
 
   const palette = choroplethPalette
@@ -1346,27 +1383,22 @@ const choroplethFeatures = computed((): Feature[] => {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
 
-    const value = agg.visit_count_total ?? 0
-    const color = value > 0 ? getColor(value) : palette[0]!
+    const value = pickValue(agg)
+    const color = value !== null && value > 0 ? getColor(value) : palette[0]!
 
+    // Pass through every aggregate column (counts + demographic derivations)
+    // so the popup can render them without refetching.
     features.push({
       type: 'Feature',
       id: geo.id.toString(),
       geometry: geo.geometry,
       properties: {
+        ...agg,
         'fill': color,
         'fill-opacity': 0.45,
         'stroke': '#333',
         'stroke-width': 1.5,
         'stroke-opacity': 0.7,
-        // Aggregate data for hover popup
-        'geoid': agg.geoid,
-        'name': agg.name,
-        'stops_count': agg.stops_count,
-        'routes_count': agg.routes_count,
-        'routes_modes': agg.routes_modes,
-        'agencies_count': agg.agencies_count,
-        'visit_count_total': agg.visit_count_total,
       }
     })
   }

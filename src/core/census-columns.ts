@@ -239,6 +239,22 @@ export function formatCensusValue (value: number | null, format: CensusFormat): 
   }
 }
 
+/**
+ * Render a Transitland ACS dataset name as a human-readable label.
+ * Examples: `acsdt5y2021` → "ACS 5-year 2021"; `acsdt1y2022` → "ACS 1-year 2022".
+ * Unknown formats fall back to the raw string.
+ */
+export function formatAcsDatasetLabel (datasetName: string | undefined): string {
+  if (!datasetName) {
+    return ''
+  }
+  const m = /^acsdt(\d+)y(\d{4})$/.exec(datasetName)
+  if (!m) {
+    return datasetName
+  }
+  return `ACS ${m[1]}-year ${m[2]}`
+}
+
 export function deriveCensusRow (values: CensusValues): Record<string, number | null> {
   const out: Record<string, number | null> = {}
   for (const col of CENSUS_COLUMNS) {

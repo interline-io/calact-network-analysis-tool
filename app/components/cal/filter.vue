@@ -499,6 +499,25 @@
               </option>
             </cat-select>
           </cat-field>
+          <cat-field class="mt-2">
+            <template #label>
+              Visualize
+            </template>
+            <cat-select
+              v-model="choroplethElement"
+            >
+              <option
+                v-for="option of choroplethElementOptions || []"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </cat-select>
+          </cat-field>
+          <p v-if="acsDatasetLabel" class="help has-text-grey mt-1">
+            Demographic data: {{ acsDatasetLabel }}
+          </p>
 
           <p class="menu-label">
             Overlay
@@ -594,6 +613,8 @@ const props = defineProps<{
   geomSource?: string
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
+  choroplethElementOptions?: { label: string, value: string }[]
+  acsDatasetLabel?: string
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
   panelMainWidth?: number
@@ -673,6 +694,7 @@ const showBbox = defineModel<boolean>('showBbox', { default: true })
 // Aggregation overlay
 const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
+const choroplethElement = defineModel<string>('choroplethElement', { default: 'visit_count_total' })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

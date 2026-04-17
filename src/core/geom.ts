@@ -55,7 +55,7 @@ export interface PopupFeature {
   featureId?: string | number // Feature ID for highlighting
   sourceLayer?: string // Source layer name for highlighting (e.g., 'flexPolygons', 'lines', 'points')
   // Structured data for Vue component rendering (preferred - avoids XSS concerns)
-  featureType?: 'stop' | 'route' | 'flex'
+  featureType?: 'stop' | 'route' | 'flex' | 'aggregation'
   data?: {
     // Stop fields
     stop_id?: string
@@ -76,6 +76,9 @@ export interface PopupFeature {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
+    // Aggregation-area fields (#302): raw row from stopGeoAggregateCsv plus
+    // derived census column values, keyed by CensusColumnDef.id.
+    [key: string]: any
   }
   // Legacy HTML text (deprecated - use structured data instead)
   text?: string

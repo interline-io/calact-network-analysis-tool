@@ -3,6 +3,7 @@ import {
   CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
   deriveCensusRow,
+  formatAcsDatasetLabel,
   formatCensusValue,
   type CensusValues,
 } from './census-columns'
@@ -134,5 +135,21 @@ describe('formatCensusValue', () => {
 
   it('formats decimal to 2 places', () => {
     expect(formatCensusValue(2.4567, 'decimal')).toBe('2.46')
+  })
+})
+
+describe('formatAcsDatasetLabel', () => {
+  it('parses standard Transitland dataset names', () => {
+    expect(formatAcsDatasetLabel('acsdt5y2021')).toBe('ACS 5-year 2021')
+    expect(formatAcsDatasetLabel('acsdt1y2022')).toBe('ACS 1-year 2022')
+  })
+
+  it('falls back to raw string on unknown format', () => {
+    expect(formatAcsDatasetLabel('something-else')).toBe('something-else')
+  })
+
+  it('returns empty string for missing input', () => {
+    expect(formatAcsDatasetLabel(undefined)).toBe('')
+    expect(formatAcsDatasetLabel('')).toBe('')
   })
 })

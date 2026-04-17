@@ -37,6 +37,7 @@
       :initial-bounds="props.bbox"
       :overlay-features="overlayFeatures"
       :choropleth-features="props.choroplethFeatures || []"
+      :choropleth-element="props.choroplethElement"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
       :flex-features="flexFeatures"
@@ -96,6 +97,9 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
+  // Column id visualized by choropleth shading; forwarded to the popup so
+  // that element can be highlighted in the aggregation-area details (#302).
+  choroplethElement?: string
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string
@@ -1043,6 +1047,18 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
       const matchOrder = fp.marked ? 2 : 3
       sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
+    } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.geoid) {
+      // Aggregation-area (choropleth) popup — shows demographic columns (#302).
+      popupFeature = {
+        point: { lon: pt.lng, lat: pt.lat },
+        featureId: fp.geoid,
+        sourceLayer: 'aggregationPolygons',
+        featureType: 'aggregation',
+        // Pass raw row through; popup looks up CENSUS_COLUMNS for labels/formats.
+        data: { ...fp },
+      }
+      // Sort after flex polygons; aggregation areas are background context.
+      sortKey = [4, 0]
     }
 
     if (popupFeature) {
