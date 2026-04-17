@@ -73,6 +73,10 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 
 After making edits, run `pnpm check` to verify correctness (lint with auto-fix + typecheck). **Always run this before presenting work as done or ready for testing** — never skip the typecheck step.
 
+## Git & PRs
+
+Never create a PR or merge a PR automatically. Opening and merging PRs is always a 100% manual action by the repo owner. You may prepare branches, commits, and PR descriptions (see "PR Summary" below), but stop short of `gh pr create` or `gh pr merge` unless explicitly instructed in the current turn.
+
 ## Code Conventions
 - Vue 3 Composition API with `<script setup lang="ts">`
 - 2-space indentation, LF line endings
