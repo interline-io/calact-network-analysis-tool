@@ -8,17 +8,33 @@
       variant="dark"
       @close="$emit('close')"
     >
-      <div class="census-panel-geoid">
-        <span class="census-panel-geoid-label">{{ layerLabel || 'GEOID' }}:</span>
-        <span class="census-panel-geoid-value">{{ row.geoid }}</span>
+      <div class="census-panel-meta">
+        <div>
+          <span class="census-panel-meta-label">{{ layerLabel || 'GEOID' }}:</span>
+          <span class="census-panel-meta-value">{{ row.geoid }}</span>
+        </div>
+        <div v-if="areaStats && areaStats.geometryArea !== null">
+          <span class="census-panel-meta-label">Area:</span>
+          <span class="census-panel-meta-value">{{ formatArea(areaStats.geometryArea) }}</span>
+        </div>
+        <div v-if="areaStats && areaStats.intersectionArea !== null">
+          <span class="census-panel-meta-label">Intersection:</span>
+          <span class="census-panel-meta-value">
+            {{ formatArea(areaStats.intersectionArea) }}
+            <span v-if="areaStats.intersectionRatio !== null" class="census-panel-meta-pct">
+              ({{ (areaStats.intersectionRatio * 100).toFixed(0) }}%)
+            </span>
+          </span>
+        </div>
       </div>
 
       <table class="census-panel-table">
         <thead>
           <tr>
             <th>Statistic</th>
-            <th>Value</th>
-            <th>Bounding Box</th>
+            <th>Intersection</th>
+            <th>Geography</th>
+            <th>All Geographies</th>
           </tr>
         </thead>
         <tbody>
@@ -29,10 +45,13 @@
           >
             <td>{{ col.label }}</td>
             <td class="census-panel-num">
+              {{ intersectionCell(col) }}
+            </td>
+            <td class="census-panel-num">
               {{ formatCensusValue(valueFor(col.id), col.format) }}
             </td>
             <td class="census-panel-num">
-              {{ bboxCell(col) }}
+              {{ allGeographiesCell(col) }}
             </td>
           </tr>
         </tbody>
@@ -47,27 +66,37 @@ import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
+  formatArea,
   formatCensusValue,
 } from '~~/src/core'
 
 /**
  * Right-side census details panel for a clicked aggregation area (#302,
- * per Nome's wireframe). Three-column table: Statistic / Value (the clicked
- * geography) / Bounding Box (same statistic summed across the query bbox).
+ * per Nome's wireframe). Four columns:
+ *   - Statistic — column name
+ *   - Intersection — value apportioned by the geography↔query-area overlap;
+ *     for counts this is `raw × intersection_ratio`, for % columns it equals
+ *     the full value (ratios are scale-invariant), for non-additive columns
+ *     (median income) it reads through the full value.
+ *   - Geography — the full (un-apportioned) ACS value for the clicked
+ *     geography.
+ *   - All Geographies — the same statistic summed across every geography in
+ *     the scenario's query area.
  * The element currently used for map shading is hoisted to the top and
- * highlighted.
- *
- * Chrome is rendered via `<cat-msg>` with `variant="dark"` so this panel
- * matches the existing map legend exactly; collapse and close are built-in.
- *
- * Positioning is owned by the parent `.cal-map-sidebar` stack (in
- * `cal-map.vue`); this component does not position itself.
+ * highlighted. Chrome is rendered via `<cat-msg variant="dark">` to match
+ * the map legend.
  */
 const props = defineProps<{
   row?: Record<string, any> | null
   highlightedElement?: string
   layerLabel?: string
-  bboxDerived?: Record<string, number | null> | null
+  apportionedDerived?: Record<string, number | null> | null
+  allDerived?: Record<string, number | null> | null
+  areaStats?: {
+    geometryArea: number | null
+    intersectionArea: number | null
+    intersectionRatio: number | null
+  } | null
 }>()
 
 defineEmits<{
@@ -95,14 +124,21 @@ function valueFor (id: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function bboxCell (col: CensusColumnDef): string {
+function intersectionCell (col: CensusColumnDef): string {
+  if (!props.apportionedDerived) {
+    return '—'
+  }
+  return formatCensusValue(props.apportionedDerived[col.id] ?? null, col.format)
+}
+
+function allGeographiesCell (col: CensusColumnDef): string {
   if (NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)) {
     return '—'
   }
-  if (!props.bboxDerived) {
+  if (!props.allDerived) {
     return '—'
   }
-  return formatCensusValue(props.bboxDerived[col.id] ?? null, col.format)
+  return formatCensusValue(props.allDerived[col.id] ?? null, col.format)
 }
 </script>
 
@@ -117,19 +153,25 @@ function bboxCell (col: CensusColumnDef): string {
   padding: 8px 10px;
 }
 
-.census-panel-geoid {
+.census-panel-meta {
   font-size: 12px;
-  margin-bottom: 10px;
-  opacity: 0.85;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.census-panel-geoid-label {
+.census-panel-meta-label {
   font-weight: 600;
   margin-right: 4px;
 }
 
-.census-panel-geoid-value {
+.census-panel-meta-value {
   font-variant-numeric: tabular-nums;
+}
+
+.census-panel-meta-pct {
+  opacity: 0.7;
 }
 
 .census-panel-table {

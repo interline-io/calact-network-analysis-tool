@@ -144,11 +144,15 @@ export interface ScenarioData {
    */
   censusValues?: Map<string, CensusValues>
   /**
-   * Per-geography intersection ratio (geometry inside the query bbox /
+   * Per-geography intersection ratio (geometry inside the query area /
    * total geometry, clamped to [0, 1]). Keyed by geoid, parallel to
-   * `censusValues`. Used for the bounding-box summary column.
+   * `censusValues`. Used for apportioning values to the intersection.
    */
   censusIntersectionRatios?: Map<string, number>
+  /** Full geography area in m², keyed by geoid. Parallel to `censusValues`. */
+  censusGeographyAreas?: Map<string, number>
+  /** Intersection (geography ∩ query area) in m², keyed by geoid. */
+  censusIntersectionAreas?: Map<string, number>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -209,11 +213,12 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
-    // Batch of (geoid, raw ACS values, intersection_ratio) tuples for the
-    // configured aggregation layer. Sent once per batch during the
-    // census-values stage. The ratio lets the client apportion per-tract
-    // values when summing across the bbox (#302 bounding-box column).
-    censusValues?: [string, CensusValues, number][]
+    // Batch of (geoid, raw ACS values, intersection_ratio, geometry_area,
+    // intersection_area) tuples for the configured aggregation layer. Sent
+    // once per batch during the census-values stage. Areas are in m² and
+    // let the client apportion per-geography values + render the
+    // intersection summary in the census panel (#302).
+    censusValues?: [string, CensusValues, number, number, number][]
   }
   extraData?: any
   config?: any
@@ -740,17 +745,23 @@ export class ScenarioFetcher {
       tableNames: REQUIRED_ACS_TABLES,
       bbox: this.resolvedBbox,
     })
-    const triples: [string, CensusValues, number][] = features.map(
-      f => [f.properties.geoid, f.properties.values, f.properties.intersection_ratio],
+    const tuples: [string, CensusValues, number, number, number][] = features.map(
+      f => [
+        f.properties.geoid,
+        f.properties.values,
+        f.properties.intersection_ratio,
+        f.properties.geometry_area,
+        f.properties.intersection_area,
+      ],
     )
-    console.log(`[CensusValues] Fetched values for ${triples.length} geographies`)
+    console.log(`[CensusValues] Fetched values for ${tuples.length} geographies`)
     this.updateProgress('census-values', true, {
       stops: [],
       routes: [],
       feedVersions: [],
       stopDepartures: [],
       flexAreas: [],
-      censusValues: triples,
+      censusValues: tuples,
     })
   }
 
@@ -1011,6 +1022,8 @@ export class ScenarioDataReceiver {
       tripIdStrings: new Map<number, string>(),
       censusValues: new Map<string, CensusValues>(),
       censusIntersectionRatios: new Map<string, number>(),
+      censusGeographyAreas: new Map<string, number>(),
+      censusIntersectionAreas: new Map<string, number>(),
     }
   }
 
@@ -1065,12 +1078,21 @@ export class ScenarioDataReceiver {
       }
 
       // Merge the per-geoid census values batch. Each tuple carries raw
-      // ACS values plus the geometry intersection ratio (used for the
-      // bounding-box summary column in the census panel).
-      if (progress.partialData.censusValues && this.accumulatedData.censusValues && this.accumulatedData.censusIntersectionRatios) {
-        for (const [geoid, values, ratio] of progress.partialData.censusValues) {
+      // ACS values, the geography/query-area intersection ratio, the full
+      // geography area (m²), and the intersection area (m²) — used for
+      // apportioning values and for the census panel's area summary.
+      if (
+        progress.partialData.censusValues
+        && this.accumulatedData.censusValues
+        && this.accumulatedData.censusIntersectionRatios
+        && this.accumulatedData.censusGeographyAreas
+        && this.accumulatedData.censusIntersectionAreas
+      ) {
+        for (const [geoid, values, ratio, geomArea, intersectArea] of progress.partialData.censusValues) {
           this.accumulatedData.censusValues.set(geoid, values)
           this.accumulatedData.censusIntersectionRatios.set(geoid, ratio)
+          this.accumulatedData.censusGeographyAreas.set(geoid, geomArea)
+          this.accumulatedData.censusIntersectionAreas.set(geoid, intersectArea)
         }
       }
     }

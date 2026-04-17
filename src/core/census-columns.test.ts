@@ -3,8 +3,10 @@ import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
+  deriveApportionedRow,
   deriveCensusRow,
   formatAcsDatasetLabel,
+  formatArea,
   formatCensusBucketLabel,
   formatCensusValue,
   summarizeBbox,
@@ -177,6 +179,44 @@ describe('summarizeBbox', () => {
     const values = new Map<string, CensusValues>([['1', { b01003_001: 100 }]])
     const { raw } = summarizeBbox(['1', '2', '3'], values, undefined)
     expect(raw.b01003_001).toBe(100)
+  })
+})
+
+describe('deriveApportionedRow', () => {
+  it('scales additive count columns by the intersection ratio', () => {
+    const values: CensusValues = { b01003_001: 1000 }
+    const out = deriveApportionedRow(values, 0.6)
+    expect(out.total_population).toBeCloseTo(600)
+  })
+
+  it('leaves ratio columns unchanged (scale-invariant)', () => {
+    const values: CensusValues = { b01003_001: 1000, b02001_002: 600 }
+    // Full geography: (1000 − 600) / 1000 = 0.4
+    // Apportioned: (600 − 360) / 600 = 0.4
+    const out = deriveApportionedRow(values, 0.6)
+    expect(out.pct_people_of_color).toBeCloseTo(0.4)
+  })
+
+  it('reads through the full value for non-additive columns', () => {
+    const values: CensusValues = { b19013_001: 65000 }
+    const out = deriveApportionedRow(values, 0.5)
+    expect(out.median_household_income).toBe(65000)
+  })
+})
+
+describe('formatArea', () => {
+  it('renders m² for small areas', () => {
+    expect(formatArea(1500)).toBe('1,500 m²')
+  })
+
+  it('switches to km² at 1,000,000 m²', () => {
+    expect(formatArea(1_000_000)).toBe('1.00 km²')
+    expect(formatArea(2_500_000)).toBe('2.50 km²')
+  })
+
+  it('renders missing input as em-dash', () => {
+    expect(formatArea(null)).toBe('—')
+    expect(formatArea(undefined)).toBe('—')
   })
 })
 

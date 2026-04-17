@@ -223,6 +223,21 @@ export const REQUIRED_ACS_TABLES: string[] = Array.from(
   new Set(CENSUS_COLUMNS.flatMap(c => c.requiredTables)),
 ).sort()
 
+/**
+ * Render an area in m² as a human-readable string. Uses km² once values are
+ * ≥ 1 km² (1,000,000 m²); otherwise stays in m². Rounds to 2 decimal places
+ * for km² and to whole m².
+ */
+export function formatArea (m2: number | null | undefined): string {
+  if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
+    return '—'
+  }
+  if (m2 >= 1_000_000) {
+    return `${(m2 / 1_000_000).toFixed(2)} km²`
+  }
+  return `${Math.round(m2).toLocaleString('en-US')} m²`
+}
+
 export function formatCensusValue (value: number | null, format: CensusFormat): string {
   if (value === null || !Number.isFinite(value)) {
     return '—'
@@ -293,6 +308,38 @@ export function deriveCensusRow (values: CensusValues): Record<string, number | 
   const out: Record<string, number | null> = {}
   for (const col of CENSUS_COLUMNS) {
     out[col.id] = col.derive(values)
+  }
+  return out
+}
+
+/**
+ * Derive a census row apportioned by an area intersection ratio (used for
+ * the census panel's "Intersection" column, #302).
+ *
+ * Semantics:
+ *   - Additive count columns (population, commuters, etc.) are scaled by
+ *     the ratio: `derive(values * ratio)`.
+ *   - Ratio columns (% POC, % rental, ...) are unchanged — scaling numerator
+ *     and denominator by the same factor cancels out.
+ *   - Non-additive columns (listed in `NON_ADDITIVE_CENSUS_COLUMNS`, e.g.
+ *     median income) are carried through as the full-geography value; an
+ *     area-apportioned median is not meaningful.
+ */
+export function deriveApportionedRow (
+  values: CensusValues,
+  intersectionRatio: number,
+): Record<string, number | null> {
+  const scaled: CensusValues = {}
+  for (const [k, v] of Object.entries(values)) {
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      scaled[k] = v * intersectionRatio
+    }
+  }
+  const out: Record<string, number | null> = {}
+  for (const col of CENSUS_COLUMNS) {
+    out[col.id] = NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)
+      ? col.derive(values)
+      : col.derive(scaled)
   }
   return out
 }

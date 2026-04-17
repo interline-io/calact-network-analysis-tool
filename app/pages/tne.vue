@@ -220,7 +220,9 @@
               :row="selectedAggregation"
               :highlighted-element="choroplethElement"
               :layer-label="aggregateLayerLabel"
-              :bbox-derived="bboxCensusDerived"
+              :apportioned-derived="selectedApportionedDerived"
+              :all-derived="allGeographiesDerived"
+              :area-stats="selectedAreaStats"
               @close="selectedAggregation = null"
             />
           </template>
@@ -310,6 +312,7 @@ import {
   CENSUS_COLUMNS,
   formatAcsDatasetLabel,
   summarizeBbox,
+  deriveApportionedRow,
   type CensusFormat,
   type DataDisplayMode,
   type FilterTag,
@@ -1019,16 +1022,42 @@ function onSelectAggregation (row: Record<string, any>) {
   selectedAggregation.value = row
 }
 
-// Bounding-box aggregate (#302): sum of apportioned raw ACS values across
-// every geography at the aggregation layer inside the bbox. Fed to the
-// census panel's third column.
-const bboxCensusDerived = computed((): Record<string, number | null> | null => {
+// "All Geographies" aggregate (#302): sum of apportioned raw ACS values
+// across every geography at the aggregation layer inside the query area.
+// Fed to the census panel's third column.
+const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const values = scenarioFilterResult.value?.censusValues
   const ratios = scenarioFilterResult.value?.censusIntersectionRatios
   if (!values || values.size === 0) {
     return null
   }
   return summarizeBbox(values.keys(), values, ratios).derived
+})
+
+// Apportioned per-geography derived values for the clicked area: ACS
+// counts × intersection_ratio, leaving ratios and non-additive columns
+// alone. Fed to the census panel's "Intersection" column.
+const selectedApportionedDerived = computed((): Record<string, number | null> | null => {
+  const sel = selectedAggregation.value
+  if (!sel) { return null }
+  const values = scenarioFilterResult.value?.censusValues?.get(sel.geoid)
+  const ratio = scenarioFilterResult.value?.censusIntersectionRatios?.get(sel.geoid)
+  if (!values || ratio === undefined) { return null }
+  return deriveApportionedRow(values, ratio)
+})
+
+// Per-geography area stats for the clicked area: fed to the panel's area
+// summary line (geography size, intersection size, intersection ratio).
+const selectedAreaStats = computed(() => {
+  const sel = selectedAggregation.value
+  if (!sel) { return null }
+  const result = scenarioFilterResult.value
+  if (!result) { return null }
+  return {
+    geometryArea: result.censusGeographyAreas?.get(sel.geoid) ?? null,
+    intersectionArea: result.censusIntersectionAreas?.get(sel.geoid) ?? null,
+    intersectionRatio: result.censusIntersectionRatios?.get(sel.geoid) ?? null,
+  }
 })
 
 /////////////////////////
