@@ -145,15 +145,11 @@ describe('formatCensusValue', () => {
 
 describe('summarizeBbox', () => {
   it('sums raw values apportioned by intersection ratio and runs derivations', () => {
-    const values = new Map<string, CensusValues>([
-      ['1', { b01003_001: 1000, b02001_002: 600 }], // total pop 1000, white 600
-      ['2', { b01003_001: 500, b02001_002: 400 }], // total pop 500, white 400
+    const geos = new Map([
+      ['1', { values: { b01003_001: 1000, b02001_002: 600 }, intersectionRatio: 1.0 }],
+      ['2', { values: { b01003_001: 500, b02001_002: 400 }, intersectionRatio: 0.5 }],
     ])
-    const ratios = new Map([
-      ['1', 1.0],
-      ['2', 0.5], // only half this geography is inside the bbox
-    ])
-    const { raw, derived } = summarizeBbox(['1', '2'], values, ratios)
+    const { raw, derived } = summarizeBbox(['1', '2'], geos)
     // 1000*1.0 + 500*0.5 = 1250
     expect(raw.b01003_001).toBe(1250)
     // 600*1.0 + 400*0.5 = 800
@@ -163,21 +159,17 @@ describe('summarizeBbox', () => {
     expect(derived.total_population).toBe(1250)
   })
 
-  it('defaults the ratio to 1 when missing', () => {
-    const values = new Map<string, CensusValues>([['1', { b01003_001: 100 }]])
-    const { raw } = summarizeBbox(['1'], values, undefined)
-    expect(raw.b01003_001).toBe(100)
-  })
-
-  it('returns an empty object when given no values map', () => {
-    const { raw, derived } = summarizeBbox(['1'], undefined, undefined)
+  it('returns an empty object when given no map', () => {
+    const { raw, derived } = summarizeBbox(['1'], undefined)
     expect(raw).toEqual({})
     expect(derived).toEqual({})
   })
 
-  it('skips geographies missing from the values map', () => {
-    const values = new Map<string, CensusValues>([['1', { b01003_001: 100 }]])
-    const { raw } = summarizeBbox(['1', '2', '3'], values, undefined)
+  it('skips geographies missing from the map', () => {
+    const geos = new Map([
+      ['1', { values: { b01003_001: 100 }, intersectionRatio: 1.0 }],
+    ])
+    const { raw } = summarizeBbox(['1', '2', '3'], geos)
     expect(raw.b01003_001).toBe(100)
   })
 })

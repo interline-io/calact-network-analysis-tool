@@ -16,6 +16,22 @@ import type { CensusValues } from './census-columns'
  * include the scenario aggregation pipeline (#302) and the WSDOT analysis.
  */
 
+/**
+ * Per-geography census payload bundled for the aggregation layer. Streamed
+ * from the scenario pipeline to the client; consumed by the choropleth,
+ * the census panel, and the aggregation table.
+ */
+export interface CensusGeographyData {
+  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
+  values: CensusValues
+  /** Fraction of the geography inside the query area, in [0, 1]. */
+  intersectionRatio: number
+  /** Full geography area in m². */
+  geometryArea: number
+  /** Intersection (geography ∩ query area) in m². */
+  intersectionArea: number
+}
+
 export interface CensusGeographyFeature {
   id: string
   type: 'Feature'

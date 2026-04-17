@@ -225,7 +225,7 @@
               :apportioned-derived="selectedApportionedDerived"
               :all-derived="allGeographiesDerived"
               :area-stats="selectedAreaStats"
-              @close="selectedAggregation = null"
+              @close="selectedAggregationGeoid = null"
             />
           </template>
         </cal-map>
@@ -316,6 +316,8 @@ import {
   summarizeBbox,
   deriveApportionedRow,
   type CensusFormat,
+  type CensusGeographyData,
+  type ChoroplethClassification,
   type DataDisplayMode,
   type FilterTag,
 } from '~~/src/core'
@@ -1046,49 +1048,53 @@ const shadeByDensity = computed<boolean>({
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
-// Right-side census panel: aggregate row for the clicked polygon, or null.
-// Set by the map's `selectAggregation` event; cleared when the user closes
-// the panel.
-const selectedAggregation = ref<Record<string, any> | null>(null)
+// Right-side census panel: geoid of the clicked polygon, or null. Cleared
+// when the user closes the panel. The full aggregate row is looked up on
+// demand from `choroplethAggregateData` so feature properties can stay thin.
+const selectedAggregationGeoid = ref<string | null>(null)
 function onSelectAggregation (row: Record<string, any>) {
-  selectedAggregation.value = row
+  const geoid = row?.geoid
+  selectedAggregationGeoid.value = typeof geoid === 'string' ? geoid : null
 }
-
-// "All Geographies" aggregate (#302): sum of apportioned raw ACS values
-// across every geography at the aggregation layer inside the query area.
-// Fed to the census panel's third column.
-const allGeographiesDerived = computed((): Record<string, number | null> | null => {
-  const values = scenarioFilterResult.value?.censusValues
-  const ratios = scenarioFilterResult.value?.censusIntersectionRatios
-  if (!values || values.size === 0) {
-    return null
-  }
-  return summarizeBbox(values.keys(), values, ratios).derived
+const selectedAggregation = computed((): Record<string, any> | null => {
+  const geoid = selectedAggregationGeoid.value
+  if (!geoid) { return null }
+  return choroplethAggregateData.value.find(r => r.geoid === geoid) ?? null
 })
 
-// Apportioned per-geography derived values for the clicked area: ACS
-// counts × intersection_ratio, leaving ratios and non-additive columns
-// alone. Fed to the census panel's "Intersection" column.
+// "All Geographies" aggregate: sum of apportioned raw ACS values across
+// every geography at the aggregation layer inside the query area. Fed to
+// the census panel's "All Geographies" column.
+const allGeographiesDerived = computed((): Record<string, number | null> | null => {
+  const geos = scenarioFilterResult.value?.censusGeographies
+  if (!geos || geos.size === 0) {
+    return null
+  }
+  return summarizeBbox(geos.keys(), geos).derived
+})
+
+// Apportioned per-geography derived values for the clicked area: ACS counts
+// × intersectionRatio, leaving ratios and non-additive columns alone.
+// Fed to the census panel's "Intersection" column.
 const selectedApportionedDerived = computed((): Record<string, number | null> | null => {
   const sel = selectedAggregation.value
   if (!sel) { return null }
-  const values = scenarioFilterResult.value?.censusValues?.get(sel.geoid)
-  const ratio = scenarioFilterResult.value?.censusIntersectionRatios?.get(sel.geoid)
-  if (!values || ratio === undefined) { return null }
-  return deriveApportionedRow(values, ratio)
+  const geo = scenarioFilterResult.value?.censusGeographies?.get(sel.geoid)
+  if (!geo) { return null }
+  return deriveApportionedRow(geo.values, geo.intersectionRatio)
 })
 
 // Per-geography area stats for the clicked area: fed to the panel's area
-// summary line (geography size, intersection size, intersection ratio).
+// summary line.
 const selectedAreaStats = computed(() => {
   const sel = selectedAggregation.value
   if (!sel) { return null }
-  const result = scenarioFilterResult.value
-  if (!result) { return null }
+  const geo = scenarioFilterResult.value?.censusGeographies?.get(sel.geoid)
+  if (!geo) { return null }
   return {
-    geometryArea: result.censusGeographyAreas?.get(sel.geoid) ?? null,
-    intersectionArea: result.censusIntersectionAreas?.get(sel.geoid) ?? null,
-    intersectionRatio: result.censusIntersectionRatios?.get(sel.geoid) ?? null,
+    geometryArea: geo.geometryArea,
+    intersectionArea: geo.intersectionArea,
+    intersectionRatio: geo.intersectionRatio,
   }
 })
 
@@ -1422,41 +1428,44 @@ const choroplethAggregateData = computed(() => {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusValues)
+  return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusGeographies)
 })
+
+// Pure value picker for the choropleth: returns the number to shade by for a
+// given aggregation row. Applies density conversion when active. Kept as a
+// top-level pure function so both the classification computed and the feature
+// builder use the exact same logic without passing closures across scopes.
+function pickChoroplethValue (
+  agg: Record<string, any>,
+  element: string,
+  isDensity: boolean,
+  geographies: Map<string, CensusGeographyData> | undefined,
+): number | null {
+  const v = agg[element]
+  if (v === null || v === undefined) { return null }
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) { return null }
+  if (!isDensity) { return n }
+  // Density: count per km². Backend geometryArea is m²; scale by 1,000,000
+  // so labels read e.g. "5 per km²" instead of "0.000005 per m²".
+  const area = geographies?.get(agg.geoid)?.geometryArea
+  if (!area || area === 0) { return null }
+  return (n * 1_000_000) / area
+}
 
 // Classification of the chosen element across all aggregation rows: quantile
 // breaks + palette + display metadata. Computed once and reused by both the
 // choropleth feature colors and the legend's bucket list.
-const choroplethClassification = computed(() => {
+const choroplethClassification = computed((): ChoroplethClassification => {
   const element = choroplethElement.value
   const aggData = choroplethAggregateData.value
   const label = choroplethElementOptions.value.find(o => o.value === element)?.label || element
-  // Map element id -> format for the legend's bucket labels.
   const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
-  // Density mode applies only when the user enabled it AND the chosen element
-  // is a count (integer format). Otherwise show raw values.
   const isDensity = shadeByDensity.value && selectedElementIsDensityEligible.value
-  const areas = scenarioFilterResult.value?.censusGeographyAreas
-
-  function pickValue (agg: Record<string, any>): number | null {
-    const v = agg[element]
-    if (v === null || v === undefined) {
-      return null
-    }
-    const n = typeof v === 'number' ? v : Number(v)
-    if (!Number.isFinite(n)) { return null }
-    if (!isDensity) { return n }
-    // Density: count per km². Backend `geometry_area` is m²; convert via
-    // multiplying by 1,000,000 so labels read e.g. "5 per km²" instead of
-    // 0.000005 per m².
-    const area = areas?.get(agg.geoid)
-    if (!area || area === 0) { return null }
-    return (n * 1_000_000) / area
-  }
+  const geos = scenarioFilterResult.value?.censusGeographies
 
   const values = aggData
-    .map(pickValue)
+    .map(a => pickChoroplethValue(a, element, isDensity, geos))
     .filter((v): v is number => v !== null && v > 0)
     .sort((a, b) => a - b)
 
@@ -1473,7 +1482,7 @@ const choroplethClassification = computed(() => {
   }
   const breaks = Array.from(new Set(rawBreaks))
 
-  const hasInsufficient = aggData.some(a => (pickValue(a) ?? 0) <= 0)
+  const hasInsufficient = aggData.some(a => (pickChoroplethValue(a, element, isDensity, geos) ?? 0) <= 0)
 
   return {
     element,
@@ -1484,7 +1493,6 @@ const choroplethClassification = computed(() => {
     breaks,
     hasInsufficient,
     isDensity,
-    pickValue,
   }
 })
 
@@ -1501,36 +1509,45 @@ function getChoroplethColor (value: number | null): string {
   return palette[palette.length - 1]!
 }
 
-// Build choropleth GeoJSON features with data-driven fill colors
+// Geoid -> geometry lookup, memoized on the fetched choropleth geographies
+// so it isn't rebuilt every time the shade-by-density toggle fires.
+const choroplethGeoLookup = computed((): Map<string, CensusGeography> => {
+  const lookup = new Map<string, CensusGeography>()
+  for (const ds of choroplethGeoResult.value?.census_datasets || []) {
+    for (const geo of ds.geographies || []) {
+      lookup.set(geo.geoid, geo)
+    }
+  }
+  return lookup
+})
+
+// Build choropleth GeoJSON features with data-driven fill colors.
+// Feature properties intentionally carry only `geoid` and the styling fields
+// consumed by maplibre — the census panel hydrates from
+// `choroplethAggregateData` by geoid on click rather than reading bulky
+// aggregate fields back out of feature properties.
 const choroplethFeatures = computed((): Feature[] => {
   if (!showAggAreas.value) { return [] }
 
-  // Build a lookup: geoid -> geometry from fetched geographies
-  const geoLookup = new Map<string, CensusGeography>()
-  for (const ds of choroplethGeoResult.value?.census_datasets || []) {
-    for (const geo of ds.geographies || []) {
-      geoLookup.set(geo.geoid, geo)
-    }
-  }
-
   const aggData = choroplethAggregateData.value
   if (aggData.length === 0) { return [] }
-  const { pickValue } = choroplethClassification.value
+  const geoLookup = choroplethGeoLookup.value
+  const { element, isDensity } = choroplethClassification.value
+  const geos = scenarioFilterResult.value?.censusGeographies
 
   const features: Feature[] = []
   for (const agg of aggData) {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
 
-    // Pass through every aggregate column (counts + demographic derivations)
-    // so the popup can render them without refetching.
     features.push({
       type: 'Feature',
       id: geo.id.toString(),
       geometry: geo.geometry,
       properties: {
-        ...agg,
-        'fill': getChoroplethColor(pickValue(agg as Record<string, any>)),
+        'geoid': agg.geoid,
+        'name': agg.name,
+        'fill': getChoroplethColor(pickChoroplethValue(agg as Record<string, any>, element, isDensity, geos)),
         'fill-opacity': 0.45,
         'stroke': '#333',
         'stroke-width': 1.5,

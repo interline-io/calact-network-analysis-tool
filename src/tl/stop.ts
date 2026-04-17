@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames, type CensusValues, deriveCensusRow } from '~~/src/core'
+import { routeTypeNames, type CensusGeographyData, deriveCensusRow } from '~~/src/core'
 
 //////////
 // Stops
@@ -168,7 +168,7 @@ export type Stop = StopGql & StopDerived
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
-  censusValues?: Map<string, CensusValues>,
+  censusGeographies?: Map<string, CensusGeographyData>,
 ): StopGeoAggregateCsv[] {
   const stopAgg = new Map<string, {
     geoid: string
@@ -216,10 +216,10 @@ export function stopGeoAggregateCsv (
       agencies_count: a.agencies_count.size,
       visit_count_total: a.visits_count || 0,
     }
-    if (censusValues) {
-      const values = censusValues.get(a.geoid)
-      if (values) {
-        Object.assign(row, deriveCensusRow(values))
+    if (censusGeographies) {
+      const geo = censusGeographies.get(a.geoid)
+      if (geo) {
+        Object.assign(row, deriveCensusRow(geo.values))
       }
     }
     return row

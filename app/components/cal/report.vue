@@ -462,7 +462,7 @@ const geoReportData = computed((): TableReport => {
     data: stopGeoAggregateCsv(
       (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
       aggregateLayer.value,
-      props.scenarioFilterResult?.censusValues,
+      props.scenarioFilterResult?.censusGeographies,
     ),
     columns: stopGeoAggregateColumns.value
   }

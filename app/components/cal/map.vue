@@ -72,7 +72,7 @@ import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
-import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode } from '~~/src/core'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode, ChoroplethClassification } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -107,7 +107,7 @@ const props = defineProps<{
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
   // Element classification (palette + breaks + format) for the legend bucket list.
-  choroplethClassification?: import('./legend.vue').ChoroplethClassification
+  choroplethClassification?: ChoroplethClassification
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string

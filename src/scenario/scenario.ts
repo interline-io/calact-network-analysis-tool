@@ -17,7 +17,7 @@ import {
   parseHMS,
   fetchCensusIntersection,
   REQUIRED_ACS_TABLES,
-  type CensusValues,
+  type CensusGeographyData,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -137,22 +137,14 @@ export interface ScenarioData {
    */
   tripIdStrings?: Map<number, string>
   /**
-   * Raw ACS values for each census geography at the configured
-   * `aggregateLayer`, keyed by geoid. Populated when the scenario has a
-   * `tableDatasetName` + `aggregateLayer` set. Consumers run the derivations
-   * from `src/core/census-columns` to turn raw values into display columns.
+   * Census geography data keyed by geoid, populated when the scenario has a
+   * `tableDatasetName` + `aggregateLayer` set. Each entry bundles raw ACS
+   * `values`, the geometry↔query-area intersection ratio, the full
+   * `geometryArea` (m²), and the `intersectionArea` (m²). Consumers run the
+   * derivations from `src/core/census-columns` to turn raw values into
+   * display columns.
    */
-  censusValues?: Map<string, CensusValues>
-  /**
-   * Per-geography intersection ratio (geometry inside the query area /
-   * total geometry, clamped to [0, 1]). Keyed by geoid, parallel to
-   * `censusValues`. Used for apportioning values to the intersection.
-   */
-  censusIntersectionRatios?: Map<string, number>
-  /** Full geography area in m², keyed by geoid. Parallel to `censusValues`. */
-  censusGeographyAreas?: Map<string, number>
-  /** Intersection (geography ∩ query area) in m², keyed by geoid. */
-  censusIntersectionAreas?: Map<string, number>
+  censusGeographies?: Map<string, CensusGeographyData>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -213,12 +205,11 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
-    // Batch of (geoid, raw ACS values, intersection_ratio, geometry_area,
-    // intersection_area) tuples for the configured aggregation layer. Sent
-    // once per batch during the census-values stage. Areas are in m² and
-    // let the client apportion per-geography values + render the
-    // intersection summary in the census panel (#302).
-    censusValues?: [string, CensusValues, number, number, number][]
+    // Batch of (geoid, CensusGeographyData) pairs for the configured
+    // aggregation layer. Sent once per batch during the census-values
+    // stage. Areas are in m² and let the client apportion per-geography
+    // values + render the intersection summary in the census panel (#302).
+    censusGeographies?: [string, CensusGeographyData][]
   }
   extraData?: any
   config?: any
@@ -603,20 +594,18 @@ export class ScenarioFetcher {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
-    // Fetch flex service areas if enabled (default: true)
+    // Flex areas and census values both only depend on the resolved bbox
+    // (set during feed-versions) so they can run concurrently.
     const includeFlexAreas = this.config.includeFlexAreas !== false
     console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
-    if (includeFlexAreas) {
-      await this.fetchFlexAreas()
-      logMemory('after-flex-areas')
-    } else {
+    if (!includeFlexAreas) {
       console.log('[Scenario] Skipping flex areas (not enabled)')
     }
-
-    // Fetch census demographic values for aggregation tables (issue #302).
-    // Only runs when the caller chose an aggregation layer and an ACS dataset.
-    await this.fetchCensusValues()
-    logMemory('after-census-values')
+    await Promise.all([
+      includeFlexAreas ? this.fetchFlexAreas() : Promise.resolve(),
+      this.fetchCensusValues(),
+    ])
+    logMemory('after-flex-and-census')
 
     // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
@@ -745,23 +734,23 @@ export class ScenarioFetcher {
       tableNames: REQUIRED_ACS_TABLES,
       bbox: this.resolvedBbox,
     })
-    const tuples: [string, CensusValues, number, number, number][] = features.map(
-      f => [
-        f.properties.geoid,
-        f.properties.values,
-        f.properties.intersection_ratio,
-        f.properties.geometry_area,
-        f.properties.intersection_area,
-      ],
-    )
-    console.log(`[CensusValues] Fetched values for ${tuples.length} geographies`)
+    const entries: [string, CensusGeographyData][] = features.map(f => [
+      f.properties.geoid,
+      {
+        values: f.properties.values,
+        intersectionRatio: f.properties.intersection_ratio,
+        geometryArea: f.properties.geometry_area,
+        intersectionArea: f.properties.intersection_area,
+      },
+    ])
+    console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
     this.updateProgress('census-values', true, {
       stops: [],
       routes: [],
       feedVersions: [],
       stopDepartures: [],
       flexAreas: [],
-      censusValues: tuples,
+      censusGeographies: entries,
     })
   }
 
@@ -1020,10 +1009,7 @@ export class ScenarioDataReceiver {
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
-      censusValues: new Map<string, CensusValues>(),
-      censusIntersectionRatios: new Map<string, number>(),
-      censusGeographyAreas: new Map<string, number>(),
-      censusIntersectionAreas: new Map<string, number>(),
+      censusGeographies: new Map<string, CensusGeographyData>(),
     }
   }
 
@@ -1077,22 +1063,9 @@ export class ScenarioDataReceiver {
         }
       }
 
-      // Merge the per-geoid census values batch. Each tuple carries raw
-      // ACS values, the geography/query-area intersection ratio, the full
-      // geography area (m²), and the intersection area (m²) — used for
-      // apportioning values and for the census panel's area summary.
-      if (
-        progress.partialData.censusValues
-        && this.accumulatedData.censusValues
-        && this.accumulatedData.censusIntersectionRatios
-        && this.accumulatedData.censusGeographyAreas
-        && this.accumulatedData.censusIntersectionAreas
-      ) {
-        for (const [geoid, values, ratio, geomArea, intersectArea] of progress.partialData.censusValues) {
-          this.accumulatedData.censusValues.set(geoid, values)
-          this.accumulatedData.censusIntersectionRatios.set(geoid, ratio)
-          this.accumulatedData.censusGeographyAreas.set(geoid, geomArea)
-          this.accumulatedData.censusIntersectionAreas.set(geoid, intersectArea)
+      if (progress.partialData.censusGeographies && this.accumulatedData.censusGeographies) {
+        for (const [geoid, data] of progress.partialData.censusGeographies) {
+          this.accumulatedData.censusGeographies.set(geoid, data)
         }
       }
     }

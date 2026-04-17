@@ -43,7 +43,7 @@ import {
   getSelectedDateRange,
   type ScenarioConfig,
   type ScenarioData,
-  type ScenarioFilter
+  type ScenarioFilter,
 } from './scenario'
 import {
   routeHeadways,
@@ -57,7 +57,7 @@ import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
-  type CensusValues,
+  type CensusGeographyData,
   dowValues,
   parseHMS,
   routeTypeNames,
@@ -508,12 +508,7 @@ export interface ScenarioFilterResult {
   tripIdStrings?: Map<number, string>
   // Passed through from ScenarioData for the aggregation table demographic
   // columns (#302). Keyed by census geography geoid.
-  censusValues?: Map<string, CensusValues>
-  // Per-geography intersection ratio, parallel to `censusValues`. Used to
-  // apportion counts and drive the census panel area summary.
-  censusIntersectionRatios?: Map<string, number>
-  censusGeographyAreas?: Map<string, number>
-  censusIntersectionAreas?: Map<string, number>
+  censusGeographies?: Map<string, CensusGeographyData>
 }
 
 export function applyScenarioResultFilter (
@@ -674,10 +669,7 @@ export function applyScenarioResultFilter (
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
-    censusValues: data.censusValues,
-    censusIntersectionRatios: data.censusIntersectionRatios,
-    censusGeographyAreas: data.censusGeographyAreas,
-    censusIntersectionAreas: data.censusIntersectionAreas,
+    censusGeographies: data.censusGeographies,
   }
   return result
 }

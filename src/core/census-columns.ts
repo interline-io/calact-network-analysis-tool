@@ -370,34 +370,31 @@ export function deriveApportionedRow (
 
 /**
  * Sum raw ACS values across a collection of geographies, apportioning each
- * geography's values by its bbox intersection ratio. Returns a
- * `{ raw, derived }` pair: `raw` is the summed values object, and `derived`
- * is the per-column result of running each `CensusColumnDef.derive` over it.
+ * geography's values by its intersection ratio. Returns a `{ raw, derived }`
+ * pair: `raw` is the summed values object, and `derived` is the per-column
+ * result of running each `CensusColumnDef.derive` over it.
  *
- * Non-additive metrics (medians, income, household size when derived from
- * ratios of sums) produce meaningful values only when the underlying
- * components are additive — `median_household_income` in particular cannot
- * be aggregated this way and the caller should render it as "—" for the
- * bounding-box column.
+ * Non-additive metrics (medians) produce meaningful values only when the
+ * underlying components are additive — the caller should render
+ * `median_household_income` as "—" for the summary column.
  *
- * Used by the census panel's bounding-box summary column (#302).
+ * Used by the census panel's "All Geographies" column (#302).
  */
 export function summarizeBbox (
   geoids: Iterable<string>,
-  valuesByGeoid: Map<string, CensusValues> | undefined,
-  ratiosByGeoid: Map<string, number> | undefined,
+  geographies: Map<string, { values: CensusValues, intersectionRatio: number }> | undefined,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
-  if (!valuesByGeoid) {
+  if (!geographies) {
     return { raw, derived: {} }
   }
   for (const geoid of geoids) {
-    const values = valuesByGeoid.get(geoid)
-    if (!values) {
+    const geo = geographies.get(geoid)
+    if (!geo) {
       continue
     }
-    const ratio = ratiosByGeoid?.get(geoid) ?? 1
-    for (const [key, v] of Object.entries(values)) {
+    const ratio = geo.intersectionRatio
+    for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue
       }
@@ -419,3 +416,22 @@ export function summarizeBbox (
 export const NON_ADDITIVE_CENSUS_COLUMNS = new Set<string>([
   'median_household_income',
 ])
+
+/**
+ * Choropleth classification shared between the map page (which builds it
+ * from the aggregated rows) and the legend (which renders buckets from it).
+ * Lives in core so the component files that consume it aren't importing
+ * types across component boundaries.
+ */
+export interface ChoroplethClassification {
+  element: string
+  label: string
+  format: CensusFormat
+  palette: readonly string[]
+  values: number[]
+  breaks: number[]
+  hasInsufficient: boolean
+  /** When true, `values`/`breaks` are counts per km² (not raw counts). The
+   * legend heading and bucket labels annotate the unit accordingly. */
+  isDensity: boolean
+}

@@ -164,26 +164,12 @@
 </template>
 
 <script setup lang="ts">
-import { choroplethPalette, formatCensusBucketLabel, type CensusFormat, type DataDisplayMode } from '~~/src/core'
-
-/**
- * Choropleth classification passed from the parent so the legend can render
- * discrete buckets labeled with the currently-shaded element's value ranges
- * (#302). Only the fields used for legend rendering are read here; the full
- * object also carries a `pickValue` closure used by the map code.
- */
-export interface ChoroplethClassification {
-  element: string
-  label: string
-  format: CensusFormat
-  palette: readonly string[]
-  values: number[]
-  breaks: number[]
-  hasInsufficient: boolean
-  /** When true, `values`/`breaks` are counts per km² (not raw counts). The
-   * legend heading and bucket labels annotate the unit accordingly. */
-  isDensity: boolean
-}
+import {
+  choroplethPalette,
+  formatCensusBucketLabel,
+  type ChoroplethClassification,
+  type DataDisplayMode,
+} from '~~/src/core'
 
 interface StyleItem {
   label: string
