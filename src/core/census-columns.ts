@@ -87,6 +87,19 @@ export interface CensusColumnDef {
   format: CensusFormat
   requiredTables: string[]
   derive: (values: CensusValues) => number | null
+  /**
+   * When true, the map choropleth may shade this column as a density
+   * (value / area_km²) rather than as a raw value. Applies to additive
+   * count-type columns (population, commuters, age bins, disability counts)
+   * where dividing by area is meaningful. Does NOT apply to ratios,
+   * currency, or non-additive columns like medians — those stay as raw
+   * values regardless of the user's density toggle.
+   *
+   * Declared explicitly on each column rather than inferred from `format`
+   * because format/type is a brittle proxy (an integer column isn't
+   * automatically a spatially-meaningful count).
+   */
+  densityEligible: boolean
 }
 
 function num (v: number | undefined): number | null {
@@ -120,6 +133,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01003'],
     derive: v => num(v[B01003_TOTAL]),
+    densityEligible: true,
   },
   {
     id: 'pct_people_of_color',
@@ -134,6 +148,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio(total - white, total)
     },
+    densityEligible: false,
   },
   {
     id: 'public_transit_commuters',
@@ -141,6 +156,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b08301'],
     derive: v => num(v[B08301_PUBLIC_TRANSIT]),
+    densityEligible: true,
   },
   {
     id: 'pct_no_vehicle',
@@ -156,6 +172,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio((ownerNone ?? 0) + (renterNone ?? 0), total)
     },
+    densityEligible: false,
   },
   {
     id: 'pct_below_200_poverty',
@@ -170,6 +187,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio(total - atOrAbove, total)
     },
+    densityEligible: false,
   },
   {
     id: 'median_household_income',
@@ -177,6 +195,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'currency',
     requiredTables: ['b19013'],
     derive: v => num(v[B19013_MEDIAN_INCOME]),
+    densityEligible: false,
   },
   {
     id: 'avg_household_size',
@@ -184,6 +203,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'decimal',
     requiredTables: ['b01003', 'b25002'],
     derive: v => ratio(num(v[B01003_TOTAL]), num(v[B25002_OCCUPIED])),
+    densityEligible: false,
   },
   {
     id: 'pct_rental_households',
@@ -191,6 +211,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'percent',
     requiredTables: ['b25002', 'b25008'],
     derive: v => ratio(num(v[B25008_RENTER_OCCUPIED]), num(v[B25002_OCCUPIED])),
+    densityEligible: false,
   },
   {
     id: 'youth_under_18',
@@ -198,6 +219,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01001'],
     derive: v => sum(v, B01001_YOUTH_UNDER_18),
+    densityEligible: true,
   },
   {
     id: 'adults_65_plus',
@@ -205,6 +227,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01001'],
     derive: v => sum(v, B01001_ADULTS_65_PLUS),
+    densityEligible: true,
   },
   {
     id: 'working_age_with_disability',
@@ -212,6 +235,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b23024'],
     derive: v => sum(v, B23024_DISABILITY_COLS),
+    densityEligible: true,
   },
 ]
 

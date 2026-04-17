@@ -1008,23 +1008,28 @@ const choroplethElement = computed<string>({
   }
 })
 
+// Non-census elements surfaced in the "Shade map by" dropdown. Listed
+// explicitly here (rather than inferred) so density eligibility is a
+// deliberate per-element decision alongside CENSUS_COLUMNS.
+interface ChoroplethOption {
+  value: string
+  label: string
+  densityEligible: boolean
+}
+const extraChoroplethOptions: ChoroplethOption[] = [
+  { value: 'visit_count_total', label: 'Total stop visits', densityEligible: true },
+  { value: 'stops_count', label: 'Number of stops', densityEligible: true },
+]
 const choroplethElementOptions = computed((): { label: string, value: string }[] => [
-  { label: 'Total stop visits', value: 'visit_count_total' },
-  { label: 'Number of stops', value: 'stops_count' },
+  ...extraChoroplethOptions.map(o => ({ label: o.label, value: o.value })),
   ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
 ])
-
-// Per-element metadata for the "Shade as density" toggle. Count-type
-// (integer-format) elements are density-eligible: the map can shade by
-// count/km² to remove area bias. Ratios, currency, and decimal averages
-// are not.
-const choroplethElementFormats: Record<string, CensusFormat> = {
-  visit_count_total: 'integer',
-  stops_count: 'integer',
-  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.format])),
+const densityEligibleByElement: Record<string, boolean> = {
+  ...Object.fromEntries(extraChoroplethOptions.map(o => [o.value, o.densityEligible])),
+  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.densityEligible])),
 }
 const selectedElementIsDensityEligible = computed(() => {
-  return choroplethElementFormats[choroplethElement.value] === 'integer'
+  return densityEligibleByElement[choroplethElement.value] === true
 })
 
 // Shade map by density (count / km²) instead of raw count for count-type
