@@ -1001,8 +1001,9 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  // Query all existing layers for click detection
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
+  // Query all existing layers for click detection. Includes `choropleth-fill`
+  // so aggregation-area polygons produce click events (#302 census panel).
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) { return }
