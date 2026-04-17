@@ -1111,7 +1111,7 @@ function handleOpenTimetable (featureId: string | number) {
   position: absolute;
   right: 50px;
   bottom: 30px;
-  width: 340px;
+  width: 400px;
   max-height: calc(100% - 60px);
   overflow-y: auto;
   display: flex;
