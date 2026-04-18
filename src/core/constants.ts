@@ -133,6 +133,18 @@ export const timeOfDayModes = [
 
 export type TimeOfDayMode = typeof timeOfDayModes[number]
 
+// Default start/end times populated when the user toggles "All Day" off
+// under Filter > Time of Day. Chosen to cover a typical AM-peak window so
+// the unchecked state produces an immediately visible filter.
+// Headways shorter than this are treated as scheduling noise (e.g. bunched
+// buses, capacity extras) and excluded from average/fastest/slowest frequency.
+export const MIN_HEADWAY_SECONDS = 2 * 60
+
+export const DEFAULT_TIME_WINDOW = {
+  start: '06:00:00',
+  end: '10:00:00',
+} as const
+
 export const baseMapStyles = [
   { name: 'Streets', icon: 'map-search', available: true },
   { name: 'Satellite', icon: 'satellite', available: false },

@@ -26,6 +26,7 @@ const emit = defineEmits([
   'overlayDragEnd',
   'selectableGeoClick',
   'selectableGeoRightClick',
+  'openTimetable',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
@@ -52,6 +53,9 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // Whether the active timeframe filter is "All Day" (no start/end time set);
+  // affects mode-aware labels in the choropleth hover tooltip.
+  isAllDayMode?: boolean
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -283,11 +287,12 @@ function initMap () {
       const title = document.createElement('strong')
       title.textContent = String(fp?.name || fp?.geoid || '')
       choroplethTooltip.appendChild(title)
+      const visitsLabel = props.isAllDayMode ? 'Total visits' : 'Total visits in window'
       for (const [label, value] of [
         ['Stops', fp?.stops_count ?? 0],
         ['Routes', fp?.routes_count ?? 0],
         ['Agencies', fp?.agencies_count ?? 0],
-        ['Avg. visits/day', fp?.visit_count_daily_average ?? 0],
+        [visitsLabel, fp?.visit_count_total ?? 0],
       ]) {
         choroplethTooltip.appendChild(document.createElement('br'))
         const line = document.createTextNode(`${label}: ${value}`)
@@ -926,6 +931,9 @@ function showPopupAtIndex (index: number) {
         if (currentPopupIndex < currentPopupFeatures.length - 1) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
+      },
+      onOpenTimetable: (featureId: string | number) => {
+        emit('openTimetable', featureId)
       },
     })
   })

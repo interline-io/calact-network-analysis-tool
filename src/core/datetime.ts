@@ -163,3 +163,53 @@ export function dateToSeconds (time: Date | undefined): number | undefined {
   if (!time) { return undefined }
   return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
 }
+
+/**
+ * Render seconds-since-midnight as a GTFS-style HH:MM time.
+ * Does NOT wrap at 24h — a value of 25:30:00 renders as "25:30" to preserve
+ * after-midnight service day semantics. Use a separate helper if wall-clock
+ * rendering is needed later.
+ */
+export function formatGtfsTime (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return ''
+  }
+  const h = Math.floor(value / 3600)
+  const m = Math.floor((value % 3600) / 60)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}
+
+/**
+ * Like `formatGtfsTime` but includes seconds: HH:MM:SS.
+ * Does NOT wrap at 24h — preserves GTFS after-midnight semantics.
+ */
+export function formatGtfsTimeFull (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return ''
+  }
+  const total = Math.floor(value)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+/**
+ * Render a duration in seconds as HH:MM:SS, dropping the leading HH when zero
+ * (e.g. 900 → "15:00", 7200 → "02:00:00").
+ */
+export function formatDuration (value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return ''
+  }
+  const total = Math.round(value)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const mm = m.toString().padStart(2, '0')
+  const ss = s.toString().padStart(2, '0')
+  if (h === 0) {
+    return `${mm}:${ss}`
+  }
+  return `${h.toString().padStart(2, '0')}:${mm}:${ss}`
+}

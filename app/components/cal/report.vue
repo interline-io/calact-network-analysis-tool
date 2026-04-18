@@ -67,6 +67,96 @@
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>
+      <template #column-average_trips_per_day="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ value }}
+        </button>
+      </template>
+      <template #column-average_trips_per_hour="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ value }}
+        </button>
+      </template>
+      <template #column-average_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
+      </template>
+      <template #column-fastest_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
+      </template>
+      <template #column-slowest_frequency="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'frequency')"
+        >
+          {{ formatDuration(value) }}
+        </button>
+      </template>
+      <template #column-earliest_trip_start="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
+      <template #column-earliest_trip_end="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
+      <template #column-latest_trip_start="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
+      <template #column-latest_trip_end="{ value, row }">
+        <button
+          v-if="value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          @click="handleOpenTimetable(row.id, 'trips')"
+        >
+          {{ formatGtfsTime(value) }}
+        </button>
+      </template>
     </cal-datagrid>
     <div class="cal-report-spacer" />
   </div>
@@ -74,15 +164,16 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
+  isAllDayMode: boolean
   startDate?: Date
   endDate?: Date
   // Service type toggles
@@ -90,6 +181,19 @@ const props = defineProps<{
   flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
+
+export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
+
+const emit = defineEmits<{
+  openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
+}>()
+
+function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
+  const route = props.scenarioFilterResult?.routes.find(r => r.id === routeId)
+  if (route) {
+    emit('openTimetable', { route, initialTab })
+  }
+}
 
 /**
  * Features to export as GeoJSON based on current view mode
@@ -153,64 +257,105 @@ watch(dataDisplayMode, (mode) => {
   }
 }, { immediate: true })
 
-const routeColumns: TableColumn[] = [
-  { key: 'route_id', label: 'Route ID', sortable: true },
-  { key: 'route_name', label: 'Route Name', sortable: true },
-  { key: 'route_mode', label: 'Mode', sortable: true },
-  { key: 'agency_name', label: 'Agency', sortable: true },
-  {
-    key: 'average_frequency',
-    label: 'Average Frequency',
-    sortable: true,
-    tooltip: 'The mean average of all times between trips on the indicated route, calculated as the time in seconds between sequential trip start times, excepting the time between trips on different service days, across all service days included within the current filters.',
-  },
-  {
-    key: 'fastest_frequency',
-    label: 'Fastest Frequency',
-    sortable: true,
-    tooltip: 'The shortest time in seconds between two trips of a route, across all service days included within the current filters.',
-  },
-  {
-    key: 'slowest_frequency',
-    label: 'Slowest Frequency',
-    sortable: true,
-    tooltip: 'The longest time in seconds between two trips of a route, across all service days included within the current filters, excepting the time in between trips on different service days.',
-  },
-]
+const routeColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode
+  const timeScope = allDay ? 'across all service days' : 'across all service days and times'
+  return [
+    { key: 'route_id', label: 'Route ID', sortable: true },
+    { key: 'route_name', label: 'Route Name', sortable: true },
+    { key: 'route_mode', label: 'Mode', sortable: true },
+    { key: 'agency_name', label: 'Agency', sortable: true },
+    allDay
+      ? {
+          key: 'average_trips_per_day',
+          label: 'Average Trips per Day',
+          sortable: true,
+          tooltip: 'The sum of all trips on the indicated route, divided by the number of calendar days included within the current filters.',
+        }
+      : {
+          key: 'average_trips_per_hour',
+          label: 'Average Trips per Hour',
+          sortable: true,
+          tooltip: 'The sum of all trips on the indicated route that have any visit at any stop during the days and times included within the current filters, divided by the number of hours across all calendar days included within the current filters.',
+        },
+    {
+      key: 'average_frequency',
+      label: 'Average Frequency',
+      sortable: true,
+      tooltip: allDay
+        ? 'Mean duration between consecutive trips on the indicated route, excepting gaps between trips on different service days, across all service days included within the current filters. Click a cell to see the detailed calculation.'
+        : 'Mean duration between consecutive trips on the indicated route within the days and times included within the current filters. Click a cell to see the detailed calculation.',
+    },
+    {
+      key: 'fastest_frequency',
+      label: 'Fastest Frequency',
+      sortable: true,
+      tooltip: `Shortest duration between two consecutive trips on the indicated route, ${allDay ? 'across all service days' : 'across the days and times'} included within the current filters.`,
+    },
+    {
+      key: 'slowest_frequency',
+      label: 'Slowest Frequency',
+      sortable: true,
+      tooltip: `Longest duration between two consecutive trips on the indicated route, ${allDay ? 'across all service days' : 'across the days and times'} included within the current filters, excepting gaps between trips on different service days.`,
+    },
+    {
+      key: 'earliest_trip_start',
+      label: 'Earliest Trip Start',
+      sortable: true,
+      tooltip: `The time at which the earliest trip on this route begins, ${timeScope} included within the current filters.`,
+    },
+    {
+      key: 'earliest_trip_end',
+      label: 'Earliest Trip End',
+      sortable: true,
+      tooltip: `The time at which the earliest trip on this route ends, ${timeScope} included within the current filters.`,
+    },
+    {
+      key: 'latest_trip_start',
+      label: 'Latest Trip Start',
+      sortable: true,
+      tooltip: `The time at which the latest trip on this route begins, ${timeScope} included within the current filters.`,
+    },
+    {
+      key: 'latest_trip_end',
+      label: 'Latest Trip End',
+      sortable: true,
+      tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
+    },
+  ]
+})
 
-// const routeColumnsAggregate: TableColumn[] = [
-//   { key: 'aggregate_name', label: 'Name', sortable: true },
-//   { key: 'aggregate_total', label: 'Number of Routes', sortable: true },
-//   { key: 'average_frequency', label: 'Average Frequency', sortable: true },
-//   { key: 'fastest_frequency', label: 'Fastest Frequency', sortable: true },
-//   { key: 'slowest_frequency', label: 'Slowest Frequency', sortable: true },
-// ]
-
-const stopColumns: TableColumn[] = [
-  { key: 'stop_id', label: 'Stop ID', sortable: true },
-  { key: 'stop_name', label: 'Stop Name', sortable: true },
-  { key: 'routes_modes', label: 'Modes', sortable: true },
-  {
-    key: 'routes_count',
-    label: 'Routes Served',
-    sortable: true,
-    tooltip: 'The number of routes that visit this stop during days included within the current filters.',
-  },
-  {
-    key: 'agencies_count',
-    label: 'Agencies Served',
-    sortable: true,
-    tooltip: 'The number of agencies that visit this stop during days included within the current filters.',
-  },
-  {
-    key: 'visit_count_daily_average',
-    label: 'Average Visits per Day',
-    sortable: true,
-    tooltip: 'The sum of all visits at the stop by any route, divided by the number of calendar days included within the current filters.',
-  },
-]
+const stopColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode
+  const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
+  return [
+    { key: 'stop_id', label: 'Stop ID', sortable: true },
+    { key: 'stop_name', label: 'Stop Name', sortable: true },
+    { key: 'routes_modes', label: 'Modes', sortable: true },
+    {
+      key: 'routes_count',
+      label: 'Routes Served',
+      sortable: true,
+      tooltip: 'The total number of routes that serve this stop. Not currently filtered by the route, agency, or timeframe filters.',
+    },
+    {
+      key: 'agencies_count',
+      label: 'Agencies Served',
+      sortable: true,
+      tooltip: 'The total number of agencies whose routes serve this stop. Not currently filtered by the route, agency, or timeframe filters.',
+    },
+    {
+      key: 'visit_count_total',
+      label: 'Total Visits During Time Period',
+      sortable: true,
+      tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
+    },
+  ]
+})
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
+  const allDay = props.isAllDayMode
+  const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
@@ -219,19 +364,19 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       key: 'routes_count',
       label: 'Routes Served',
       sortable: true,
-      tooltip: 'The number of routes that visit stops within this area during days included within the current filters.',
+      tooltip: 'The total number of routes that serve stops within this area. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
       key: 'agencies_count',
       label: 'Agencies Served',
       sortable: true,
-      tooltip: 'The number of agencies that visit stops within this area during days included within the current filters.',
+      tooltip: 'The total number of agencies whose routes serve stops within this area. Not currently filtered by the route, agency, or timeframe filters.',
     },
     {
-      key: 'visit_count_daily_average',
-      label: 'Average Visits per Day',
+      key: 'visit_count_total',
+      label: 'Total Visits During Time Period',
       sortable: true,
-      tooltip: 'The sum of all visits at stops within this area by any route, divided by the number of calendar days included within the current filters.',
+      tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
 })
@@ -314,14 +459,14 @@ const geoReportData = computed((): TableReport => {
 const routesReportData = computed((): TableReport => {
   return {
     data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
-    columns: routeColumns
+    columns: routeColumns.value
   }
 })
 
 const stopsReportData = computed((): TableReport => {
   return {
     data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
-    columns: stopColumns
+    columns: stopColumns.value
   }
 })
 
@@ -382,5 +527,20 @@ const activeTableReport = computed((): TableReport => {
 
   .cal-report-spacer {
     min-height: 3rem;
+  }
+
+  .cal-report-cell-button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+
+    &:hover {
+      text-decoration-style: solid;
+    }
   }
 </style>

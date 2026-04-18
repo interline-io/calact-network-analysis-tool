@@ -164,9 +164,11 @@
             :filter-tags="filterTags"
             :start-date="startDate"
             :end-date="endDate"
+            :is-all-day-mode="isAllDayMode"
             :fixed-route-enabled="fixedRouteEnabled"
             :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
+            @open-timetable="openRouteTimetable"
           />
         </div>
 
@@ -200,10 +202,12 @@
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
+          :is-all-day-mode="isAllDayMode"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
+          @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
         />
       </div>
 
@@ -218,6 +222,23 @@
           :error="error"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
+        />
+      </cat-modal>
+
+      <!-- Route Timetable debug modal -->
+      <cat-modal
+        v-model="showTimetable"
+        title="Route Timetable"
+        full-screen
+      >
+        <cal-route-timetable
+          v-if="timetableRoute && scenarioFilterResult"
+          :route="timetableRoute"
+          :scenario-filter-result="scenarioFilterResult"
+          :selected-date-range="selectedDateRange"
+          :start-time="startTime"
+          :end-time="endTime"
+          :initial-tab="timetableInitialTab"
         />
       </cat-modal>
     </template>
@@ -269,8 +290,8 @@ import {
   type FilterTag,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
-import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography } from '~~/src/tl'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -425,6 +446,8 @@ const endTime = computed<Date | undefined>({
     setQuery({ ...route.query, endTime: asTimeString(v) })
   }
 })
+
+const isAllDayMode = computed(() => startTime.value == null && endTime.value == null)
 
 const bbox = computed({
   get () {
@@ -1164,6 +1187,24 @@ function fitToGeographies () {
 // Scenario
 ////////////////////////////
 
+// Route Timetable debug modal state.
+type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
+const timetableRoute = ref<Route | undefined>(undefined)
+const timetableInitialTab = ref<RouteTimetableTab>('frequency')
+const showTimetable = computed({
+  get: () => timetableRoute.value !== undefined,
+  set: (v: boolean) => {
+    if (!v) {
+      timetableRoute.value = undefined
+    }
+  },
+})
+function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetableTab }) {
+  timetableInitialTab.value = payload.initialTab
+  timetableRoute.value = payload.route
+}
+const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
+
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
@@ -1268,9 +1309,9 @@ const choroplethFeatures = computed((): Feature[] => {
   const aggData = choroplethAggregateData.value
   if (aggData.length === 0) { return [] }
 
-  // Determine color scale based on visit_count_daily_average using quantile breaks
+  // Determine color scale based on visit_count_total using quantile breaks
   const values = aggData
-    .map(a => a.visit_count_daily_average ?? 0)
+    .map(a => a.visit_count_total ?? 0)
     .filter(v => v > 0)
     .sort((a, b) => a - b)
 
@@ -1301,7 +1342,7 @@ const choroplethFeatures = computed((): Feature[] => {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
 
-    const value = agg.visit_count_daily_average ?? 0
+    const value = agg.visit_count_total ?? 0
     const color = value > 0 ? getColor(value) : palette[0]!
 
     features.push({
@@ -1321,7 +1362,7 @@ const choroplethFeatures = computed((): Feature[] => {
         'routes_count': agg.routes_count,
         'routes_modes': agg.routes_modes,
         'agencies_count': agg.agencies_count,
-        'visit_count_daily_average': agg.visit_count_daily_average,
+        'visit_count_total': agg.visit_count_total,
       }
     })
   }

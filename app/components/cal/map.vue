@@ -27,6 +27,7 @@
       :has-flex-data="hasFlexData"
       :show-agg-areas="showAggAreas"
       :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
+      :is-all-day-mode="props.isAllDayMode"
     />
 
     <cal-map-viewer-ts
@@ -46,6 +47,7 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
+      :is-all-day-mode="props.isAllDayMode"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -53,6 +55,7 @@
       @overlay-drag-start="onOverlayDragStart"
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
+      @open-timetable="handleOpenTimetable"
     />
   </div>
 </template>
@@ -72,6 +75,7 @@ const emit = defineEmits<{
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
+  openTimetable: [route: Route]
 }>()
 
 const props = defineProps<{
@@ -103,6 +107,8 @@ const props = defineProps<{
   panelWidth?: number
   // Increment to fit map to overlay features
   fitOverlayKey?: number
+  // Whether the active timeframe filter is "All Day" (no start/end time set)
+  isAllDayMode?: boolean
 }>()
 
 const showShareMenu = ref(false)
@@ -1051,6 +1057,13 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
+}
+
+function handleOpenTimetable (featureId: string | number) {
+  const route = props.scenarioFilterResult?.routes?.find(r => r.id.toString() === featureId.toString())
+  if (route) {
+    emit('openTimetable', route)
+  }
 }
 </script>
 

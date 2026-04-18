@@ -47,8 +47,11 @@ import {
 } from './scenario'
 import {
   routeHeadways,
-  newRouteHeadwaySummary,
-  calculateHeadwayStats
+  hasServiceOnWeekday,
+  calculateHeadwayStats,
+  calculateRouteTripStats,
+  pickDominantDirection,
+  type RouteDepartures,
 } from './route-headway'
 import {
   type Weekday,
@@ -62,7 +65,6 @@ import type {
   Agency,
   FeedVersion,
   Route,
-  RouteHeadwayDirections,
   Stop,
   StopDepartureCache,
   StopGql,
@@ -103,47 +105,50 @@ function routeSetDerived (
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
 ) {
-  // Set derived properties
+  // Build per-direction per-date in-window departures. Empty when no
+  // routeIndex is available (both arrays are empty).
+  const deps = routeHeadways(
+    route,
+    selectedDateRange,
+    selectedStartTime,
+    selectedEndTime,
+    routeIndex,
+  )
+
+  // Set derived frequency scalars
   if (routeIndex) {
-    const headwayResult = routeHeadways(
+    // Pick the direction with more total departures across all service days;
+    // the other direction is intentionally dropped (a route's headway is
+    // reported per dominant direction).
+    const chosenDir = pickDominantDirection(deps) === 1 ? deps.dir1 : deps.dir0
+    const stats = calculateHeadwayStats(chosenDir)
+    if (stats) {
+      route.average_frequency = stats.average
+      route.fastest_frequency = stats.fastest
+      route.slowest_frequency = stats.slowest
+    }
+    const tripStats = calculateRouteTripStats(
       route,
       selectedDateRange,
       selectedStartTime,
       selectedEndTime,
       routeIndex,
     )
-    // Assign headways to route so it can be used in filtering
-    route.headways = headwayResult
-    const hwTotal = headwayResult.total
-    let deps = hwTotal.dir0.departures
-    if (hwTotal.dir1.departures.length > hwTotal.dir0.departures.length) {
-      deps = hwTotal.dir1.departures
-    }
-    // Calculate headways from departures
-    const stats = calculateHeadwayStats(deps)
-    if (stats) {
-      route.average_frequency = stats.average
-      route.fastest_frequency = stats.fastest
-      route.slowest_frequency = stats.slowest
-      // console.debug('routeSetDerived:', route.id,
-      //   'departures:', deps.length,
-      //   'avg:', Math.round(stats.average / 60), 'min',
-      //   'fastest:', Math.round(stats.fastest / 60), 'min',
-      //   'slowest:', Math.round(stats.slowest / 60), 'min'
-      // )
-    } else {
-      route.average_frequency = undefined
-      route.fastest_frequency = undefined
-      route.slowest_frequency = undefined
-      // console.debug('routeSetDerived:', route.id,
-      //   'departures:', deps.length,
-      //   'headways: none (need 2+ departures to calculate headways)'
-      // )
+    if (tripStats) {
+      route.average_trips_per_day = tripStats.averageTripsPerDay
+      route.average_trips_per_hour = tripStats.averageTripsPerHour
+      route.earliest_trip_start = tripStats.earliestTripStart
+      route.earliest_trip_end = tripStats.earliestTripEnd
+      route.latest_trip_start = tripStats.latestTripStart
+      route.latest_trip_end = tripStats.latestTripEnd
     }
   }
+
   // Mark after setting frequency values
   route.marked = routeMarked(
     route,
+    deps,
+    selectedDateRange,
     selectedWeekdays,
     selectedWeekdayMode,
     selectedRouteTypes,
@@ -157,6 +162,8 @@ function routeSetDerived (
 // Filter routes
 function routeMarked (
   route: Route,
+  deps: RouteDepartures,
+  selectedDateRange: Date[],
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
@@ -169,31 +176,12 @@ function routeMarked (
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
   if (effectiveWeekdays != null) {
     if (effectiveWeekdays.length === 0) {
-      // console.debug('routeMarked:', route.id, 'unmarked: selectedWeekdays is empty array')
       return false
     }
-    // Check if route has service on selected days using headway data
     let hasAny = false
     let hasAll = true
     for (const sd of effectiveWeekdays) {
-      let dayHeadways: RouteHeadwayDirections | undefined
-      if (sd === 'sunday') {
-        dayHeadways = route.headways?.sunday
-      } else if (sd === 'monday') {
-        dayHeadways = route.headways?.monday
-      } else if (sd === 'tuesday') {
-        dayHeadways = route.headways?.tuesday
-      } else if (sd === 'wednesday') {
-        dayHeadways = route.headways?.wednesday
-      } else if (sd === 'thursday') {
-        dayHeadways = route.headways?.thursday
-      } else if (sd === 'friday') {
-        dayHeadways = route.headways?.friday
-      } else if (sd === 'saturday') {
-        dayHeadways = route.headways?.saturday
-      }
-      const hasService = dayHeadways && (dayHeadways.dir0.departures.length > 0 || dayHeadways.dir1.departures.length > 0)
-      if (hasService) {
+      if (hasServiceOnWeekday(deps, selectedDateRange, sd)) {
         hasAny = true
       } else {
         hasAll = false
@@ -515,6 +503,8 @@ export interface ScenarioFilterResult {
   stopDepartureCache: StopDepartureCache
   feedVersions: FeedVersion[]
   flexAreas: FlexAreaFeature[]
+  // Passed through from ScenarioData for debug UIs (Route Timetable modal).
+  tripIdStrings?: Map<number, string>
 }
 
 export function applyScenarioResultFilter (
@@ -545,7 +535,12 @@ export function applyScenarioResultFilter (
       average_frequency: undefined,
       fastest_frequency: undefined,
       slowest_frequency: undefined,
-      headways: newRouteHeadwaySummary(),
+      average_trips_per_day: undefined,
+      average_trips_per_hour: undefined,
+      earliest_trip_start: undefined,
+      earliest_trip_end: undefined,
+      latest_trip_start: undefined,
+      latest_trip_end: undefined,
       __typename: 'Route', // backwards compat
     }
     routeSetDerived(
@@ -669,6 +664,7 @@ export function applyScenarioResultFilter (
     feedVersions: [],
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
+    tripIdStrings: data.tripIdStrings,
   }
   return result
 }

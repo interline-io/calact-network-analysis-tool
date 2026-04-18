@@ -13,7 +13,10 @@ import {
   getLocalDateNoTime,
   getUTCDateNoTime,
   parseHMS,
-  dateToSeconds
+  dateToSeconds,
+  formatGtfsTime,
+  formatGtfsTimeFull,
+  formatDuration
 } from './datetime'
 
 describe('normalizeDate', () => {
@@ -479,6 +482,86 @@ describe('dateToSeconds', () => {
 
   it('returns undefined for undefined', () => {
     expect(dateToSeconds(undefined)).toBeUndefined()
+  })
+})
+
+describe('formatGtfsTime', () => {
+  it('renders seconds-since-midnight as HH:MM', () => {
+    expect(formatGtfsTime(0)).toBe('00:00')
+    expect(formatGtfsTime(9 * 3600)).toBe('09:00')
+    expect(formatGtfsTime(9 * 3600 + 30 * 60)).toBe('09:30')
+    expect(formatGtfsTime(23 * 3600 + 59 * 60)).toBe('23:59')
+  })
+
+  it('does NOT wrap at 24h (preserves GTFS after-midnight service day semantics)', () => {
+    expect(formatGtfsTime(25 * 3600 + 30 * 60)).toBe('25:30')
+    expect(formatGtfsTime(26 * 3600)).toBe('26:00')
+  })
+
+  it('drops the sub-minute component', () => {
+    expect(formatGtfsTime(9 * 3600 + 45)).toBe('09:00')
+  })
+
+  it('returns empty string for invalid input', () => {
+    expect(formatGtfsTime(undefined)).toBe('')
+    expect(formatGtfsTime(null)).toBe('')
+    expect(formatGtfsTime('09:00')).toBe('')
+    expect(formatGtfsTime(-1)).toBe('')
+    expect(formatGtfsTime(NaN)).toBe('')
+    expect(formatGtfsTime(Infinity)).toBe('')
+  })
+})
+
+describe('formatGtfsTimeFull', () => {
+  it('renders seconds-since-midnight as HH:MM:SS', () => {
+    expect(formatGtfsTimeFull(0)).toBe('00:00:00')
+    expect(formatGtfsTimeFull(9 * 3600)).toBe('09:00:00')
+    expect(formatGtfsTimeFull(9 * 3600 + 30 * 60)).toBe('09:30:00')
+    expect(formatGtfsTimeFull(9 * 3600 + 30 * 60 + 45)).toBe('09:30:45')
+    expect(formatGtfsTimeFull(23 * 3600 + 59 * 60 + 59)).toBe('23:59:59')
+  })
+
+  it('does NOT wrap at 24h (preserves GTFS after-midnight service day semantics)', () => {
+    expect(formatGtfsTimeFull(25 * 3600 + 30 * 60)).toBe('25:30:00')
+    expect(formatGtfsTimeFull(26 * 3600)).toBe('26:00:00')
+  })
+
+  it('returns empty string for invalid input', () => {
+    expect(formatGtfsTimeFull(undefined)).toBe('')
+    expect(formatGtfsTimeFull(null)).toBe('')
+    expect(formatGtfsTimeFull('09:00:00')).toBe('')
+    expect(formatGtfsTimeFull(-1)).toBe('')
+    expect(formatGtfsTimeFull(NaN)).toBe('')
+    expect(formatGtfsTimeFull(Infinity)).toBe('')
+  })
+})
+
+describe('formatDuration', () => {
+  it('renders durations under an hour as MM:SS', () => {
+    expect(formatDuration(0)).toBe('00:00')
+    expect(formatDuration(45)).toBe('00:45')
+    expect(formatDuration(15 * 60)).toBe('15:00')
+    expect(formatDuration(59 * 60 + 59)).toBe('59:59')
+  })
+
+  it('renders durations ≥ 1 hour as HH:MM:SS', () => {
+    expect(formatDuration(3600)).toBe('01:00:00')
+    expect(formatDuration(2 * 3600 + 30 * 60)).toBe('02:30:00')
+    expect(formatDuration(10 * 3600 + 5 * 60 + 7)).toBe('10:05:07')
+  })
+
+  it('rounds fractional seconds to the nearest integer', () => {
+    expect(formatDuration(59.4)).toBe('00:59')
+    expect(formatDuration(59.6)).toBe('01:00')
+  })
+
+  it('returns empty string for invalid input', () => {
+    expect(formatDuration(undefined)).toBe('')
+    expect(formatDuration(null)).toBe('')
+    expect(formatDuration('15:00')).toBe('')
+    expect(formatDuration(-1)).toBe('')
+    expect(formatDuration(NaN)).toBe('')
+    expect(formatDuration(Infinity)).toBe('')
   })
 })
 
