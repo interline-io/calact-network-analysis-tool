@@ -18,5 +18,9 @@ transitland import --activate --storage="tmp" --activate --workers=8
 # Set feeds to public
 psql -c "update feed_states set public = true"
 
+# Load US Census ACS + TIGER data (for the #302 aggregation demographic
+# columns). Idempotent; see rebuild-census.sh for details.
+./rebuild-census.sh
+
 # Dump
 pg_dump -Fc -f calact_tlserver.dump calact_tlserver

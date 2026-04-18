@@ -50,11 +50,11 @@
 
     <!-- Raw ACS values tab: per-geography × per-column matrix -->
     <div v-if="activeTab === 'raw'">
-      <p class="help mb-2">
+      <cat-msg class="mb-3">
         Every raw ACS column returned by the backend for these geographies.
         Missing cells mean the backend had no value for that
         (geography, column) pair.
-      </p>
+      </cat-msg>
       <cal-datagrid
         v-model:table-report="rawTableReport"
         filename="census-raw-values.csv"
@@ -85,11 +85,11 @@
 
     <!-- Coverage tab: per-column + per-ACS-table coverage summary -->
     <div v-if="activeTab === 'coverage'">
-      <p class="help mb-2">
+      <cat-msg class="mb-3">
         How many geographies have a usable value for each display column and
         underlying ACS table. 0% coverage usually means the ACS table isn't
         loaded on the backend yet.
-      </p>
+      </cat-msg>
 
       <h3 class="title is-6 mt-4">
         Display columns
@@ -142,10 +142,10 @@
 
     <!-- Derivation inspector tab: formula + per-geography input values -->
     <div v-if="activeTab === 'inspector'">
-      <p class="help mb-2">
+      <cat-msg class="mb-3">
         See the formula for a column and the actual raw ACS values feeding
         into it for a specific geography.
-      </p>
+      </cat-msg>
       <div class="census-details-inspector-controls">
         <cat-field>
           <template #label>
