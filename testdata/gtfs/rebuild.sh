@@ -3,7 +3,9 @@ set -ex -o pipefail
 rm -rf data tmp || true; mkdir -p data tmp
 
 # Migrate
-export TL_DATABASE_URL=postgres://localhost/calact_tlserver
+export PGDATABASE="calact_tlserver"
+export PGHOST="localhost"
+export TL_DATABASE_URL="postgres://localhost/calact_tlserver"
 dropdb --if-exists calact_tlserver; createdb calact_tlserver
 transitland dbmigrate up
 transitland dbmigrate natural-earth

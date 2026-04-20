@@ -129,7 +129,11 @@ query (
       geometry_area
       intersection_area
       intersection_geometry @include(if: $includeIntersectionGeometry)
-      values(dataset: $tableDatasetName, table_names: $tableNames) {
+      # Explicit high limit: the backend applies a small default to nested
+      # lists, which silently truncates results to a subset of the requested
+      # tables. We need one values row per (geography, table) pair, so bound
+      # this well above REQUIRED_ACS_TABLES.length.
+      values(dataset: $tableDatasetName, table_names: $tableNames, limit: 1000) {
         dataset_name
         geoid
         values
@@ -165,7 +169,17 @@ export async function fetchCensusIntersection (
       }
       const intersectionArea = geography.intersection_area || 0
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
-      const valuesRow = geography.values.find(v => v.dataset_name === config.tableDatasetName)
+      // The backend returns one `values` entry per (geography, ACS table),
+      // each with only that table's columns. Merge every entry matching the
+      // configured dataset into a single flat CensusValues map so consumers
+      // can read any column from any of the requested tables.
+      const values: CensusValues = {}
+      for (const row of geography.values || []) {
+        if (row.dataset_name !== config.tableDatasetName) {
+          continue
+        }
+        Object.assign(values, row.values)
+      }
       features.push({
         id: geography.geoid,
         type: 'Feature',
@@ -181,7 +195,7 @@ export async function fetchCensusIntersection (
           geometry_area: totalArea,
           intersection_area: intersectionArea,
           intersection_ratio: intersectionRatio,
-          values: valuesRow?.values ?? {},
+          values,
         },
         geometry: geography.intersection_geometry,
       })
