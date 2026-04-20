@@ -36,6 +36,9 @@ jobs:
         env:
           NITRO_PRESET: cloudflare_pages
           NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY: ${{ secrets.NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY }}
+          # Required: tlv2-auth's build-time guard bakes a "disabled.invalid" placeholder into
+          # runtimeConfig.auth0 unless NUXT_AUTH0_CLIENT_ID is set during the build.
+          NUXT_AUTH0_CLIENT_ID: ${{ secrets.NUXT_AUTH0_CLIENT_ID }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
