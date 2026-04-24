@@ -136,13 +136,13 @@
               (per km²)
             </span>
           </div>
-          <template v-if="classification && classification.values.length > 0">
-            <div v-if="classification.hasInsufficient" class="choropleth-bucket">
+          <template v-if="props.choroplethClassification && props.choroplethClassification.values.length > 0">
+            <div v-if="props.choroplethClassification.hasInsufficient" class="choropleth-bucket">
               <div class="legend-item legend-marker-square legend-insufficient" />
               <div>Insufficient data</div>
             </div>
             <div
-              v-for="(color, i) in classification.palette"
+              v-for="(color, i) in props.choroplethClassification.palette"
               :key="i"
               class="choropleth-bucket"
             >
@@ -209,10 +209,8 @@ defineEmits<{
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
 
-const classification = computed(() => props.choroplethClassification)
-
 function bucketLabel (i: number): string {
-  const c = classification.value
+  const c = props.choroplethClassification
   if (!c) { return '' }
   const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
   return c.isDensity ? `${base} per km²` : base

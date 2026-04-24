@@ -88,6 +88,7 @@ Critical information from collaborators is often in the issue follow-up comments
 - Always use braces `{}` for `if`/`for`/`while` blocks — never single-line returns without braces
 - Tests use `filename.test.ts` pattern alongside source files in `src/`
 - Package manager: pnpm (v10.x)
+- CSS class names on our own components are prefixed with `cal-` (e.g. `cal-map-sidebar`, `cal-census-details-header`). Do not introduce unprefixed class names for component-internal styling — they can collide with Bulma, Catenary, or other libraries.
 
 ## Environment Variables
 

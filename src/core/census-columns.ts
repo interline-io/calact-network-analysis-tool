@@ -100,19 +100,6 @@ export interface CensusColumnDef {
    * automatically a spatially-meaningful count).
    */
   densityEligible: boolean
-  /**
-   * Human-readable formula rendered in the census-details "Derivation
-   * inspector" tab (#302 debug view). Keep this in sync with the `derive`
-   * function — it documents the same math for people.
-   */
-  formula: string
-  /**
-   * The raw ACS column IDs that `derive` reads from. Used by the
-   * derivation inspector to display per-geography input values alongside
-   * the formula. Declared explicitly so the inspector doesn't have to
-   * introspect the derive function.
-   */
-  sourceColumns: string[]
 }
 
 function num (v: number | undefined): number | null {
@@ -146,9 +133,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01003'],
     derive: v => num(v[B01003_TOTAL]),
-    densityEligible: true,
-    formula: B01003_TOTAL,
-    sourceColumns: [B01003_TOTAL],
+    densityEligible: true
   },
   {
     id: 'pct_people_of_color',
@@ -163,9 +148,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio(total - white, total)
     },
-    densityEligible: false,
-    formula: `(${B01003_TOTAL} − ${B02001_WHITE_ALONE}) / ${B01003_TOTAL}`,
-    sourceColumns: [B01003_TOTAL, B02001_WHITE_ALONE],
+    densityEligible: false
   },
   {
     id: 'public_transit_commuters',
@@ -173,9 +156,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b08301'],
     derive: v => num(v[B08301_PUBLIC_TRANSIT]),
-    densityEligible: true,
-    formula: B08301_PUBLIC_TRANSIT,
-    sourceColumns: [B08301_PUBLIC_TRANSIT],
+    densityEligible: true
   },
   {
     id: 'pct_no_vehicle',
@@ -191,9 +172,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio((ownerNone ?? 0) + (renterNone ?? 0), total)
     },
-    densityEligible: false,
-    formula: `(${B25044_OWNER_NO_VEHICLE} + ${B25044_RENTER_NO_VEHICLE}) / ${B25044_TOTAL}`,
-    sourceColumns: [B25044_TOTAL, B25044_OWNER_NO_VEHICLE, B25044_RENTER_NO_VEHICLE],
+    densityEligible: false
   },
   {
     id: 'pct_below_200_poverty',
@@ -208,9 +187,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
       }
       return ratio(total - atOrAbove, total)
     },
-    densityEligible: false,
-    formula: `(${C17002_TOTAL} − ${C17002_AT_OR_ABOVE_200_PCT}) / ${C17002_TOTAL}`,
-    sourceColumns: [C17002_TOTAL, C17002_AT_OR_ABOVE_200_PCT],
+    densityEligible: false
   },
   {
     id: 'median_household_income',
@@ -218,9 +195,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'currency',
     requiredTables: ['b19013'],
     derive: v => num(v[B19013_MEDIAN_INCOME]),
-    densityEligible: false,
-    formula: B19013_MEDIAN_INCOME,
-    sourceColumns: [B19013_MEDIAN_INCOME],
+    densityEligible: false
   },
   {
     id: 'avg_household_size',
@@ -228,9 +203,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'decimal',
     requiredTables: ['b01003', 'b25002'],
     derive: v => ratio(num(v[B01003_TOTAL]), num(v[B25002_OCCUPIED])),
-    densityEligible: false,
-    formula: `${B01003_TOTAL} / ${B25002_OCCUPIED}`,
-    sourceColumns: [B01003_TOTAL, B25002_OCCUPIED],
+    densityEligible: false
   },
   {
     id: 'pct_rental_households',
@@ -238,9 +211,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'percent',
     requiredTables: ['b25002', 'b25008'],
     derive: v => ratio(num(v[B25008_RENTER_OCCUPIED]), num(v[B25002_OCCUPIED])),
-    densityEligible: false,
-    formula: `${B25008_RENTER_OCCUPIED} / ${B25002_OCCUPIED}`,
-    sourceColumns: [B25008_RENTER_OCCUPIED, B25002_OCCUPIED],
+    densityEligible: false
   },
   {
     id: 'youth_under_18',
@@ -248,9 +219,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01001'],
     derive: v => sum(v, B01001_YOUTH_UNDER_18),
-    densityEligible: true,
-    formula: `sum(${B01001_YOUTH_UNDER_18.join(', ')})`,
-    sourceColumns: B01001_YOUTH_UNDER_18,
+    densityEligible: true
   },
   {
     id: 'adults_65_plus',
@@ -258,9 +227,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b01001'],
     derive: v => sum(v, B01001_ADULTS_65_PLUS),
-    densityEligible: true,
-    formula: `sum(${B01001_ADULTS_65_PLUS.join(', ')})`,
-    sourceColumns: B01001_ADULTS_65_PLUS,
+    densityEligible: true
   },
   {
     id: 'working_age_with_disability',
@@ -268,9 +235,7 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     format: 'integer',
     requiredTables: ['b23024'],
     derive: v => sum(v, B23024_DISABILITY_COLS),
-    densityEligible: true,
-    formula: `sum(${B23024_DISABILITY_COLS.join(', ')})`,
-    sourceColumns: B23024_DISABILITY_COLS,
+    densityEligible: true
   },
 ]
 
@@ -281,6 +246,33 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
 export const REQUIRED_ACS_TABLES: string[] = Array.from(
   new Set(CENSUS_COLUMNS.flatMap(c => c.requiredTables)),
 ).sort()
+
+/**
+ * Discover, at runtime, the set of raw ACS column keys a column's `derive`
+ * reads from. Used by the census-details "Derivation inspector" to list the
+ * inputs without maintaining a separate `sourceColumns` array that can drift
+ * from `derive`.
+ *
+ * Works by invoking `derive` with a Proxy that records every string-keyed
+ * get; all derive functions follow a fixed `values[...]` access pattern so
+ * this observes every key they touch.
+ */
+export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
+  const seen = new Set<string>()
+  const proxy = new Proxy({} as CensusValues, {
+    get (_target, key) {
+      if (typeof key === 'string') { seen.add(key) }
+      return undefined
+    },
+  })
+  try {
+    col.derive(proxy)
+  } catch {
+    // derive may bail early on missing inputs; we only care about the keys
+    // it attempted to read before throwing.
+  }
+  return [...seen].sort()
+}
 
 /**
  * Render an area in m² as a human-readable string. Uses km² once values are

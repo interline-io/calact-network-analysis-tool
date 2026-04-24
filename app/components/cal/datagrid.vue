@@ -92,14 +92,16 @@ const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
 
-function renderCell (column: TableColumn, value: any): string {
+function toNumOrNull (value: unknown): number | null {
+  if (typeof value === 'number') { return Number.isFinite(value) ? value : null }
+  if (value == null) { return null }
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function renderCell (column: TableColumn, value: unknown): string {
   if (column.format !== undefined) {
-    const n = typeof value === 'number' && Number.isFinite(value)
-      ? value
-      : value === null || value === undefined
-        ? null
-        : Number(value)
-    return formatCensusValue(n === null || Number.isNaN(n) ? null : n, column.format)
+    return formatCensusValue(toNumOrNull(value), column.format)
   }
   return value == null ? '' : String(value)
 }

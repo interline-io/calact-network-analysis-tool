@@ -41,24 +41,11 @@
         freeze-first-column
       >
         <template #column-actions="{ row }">
-          <div class="cal-census-details-actions">
-            <button
-              type="button"
-              class="button is-small"
-              title="Copy geoid to clipboard"
-              @click="copyText(String(row.geoid))"
-            >
-              <cat-icon icon="content-copy" size="small" /> geoid
-            </button>
-            <button
-              type="button"
-              class="button is-small"
-              title="Copy full row as JSON"
-              @click="copyJson(row)"
-            >
-              <cat-icon icon="code-json" size="small" /> JSON
-            </button>
-          </div>
+          <cal-census-row-actions
+            :row="row"
+            @copy-text="copyText"
+            @copy-json="copyJson"
+          />
         </template>
       </cal-datagrid>
     </div>
@@ -78,24 +65,11 @@
         freeze-first-column
       >
         <template #column-actions="{ row }">
-          <div class="cal-census-details-actions">
-            <button
-              type="button"
-              class="button is-small"
-              title="Copy geoid to clipboard"
-              @click="copyText(String(row.geoid))"
-            >
-              <cat-icon icon="content-copy" size="small" /> geoid
-            </button>
-            <button
-              type="button"
-              class="button is-small"
-              title="Copy full row as JSON"
-              @click="copyJson(row)"
-            >
-              <cat-icon icon="code-json" size="small" /> JSON
-            </button>
-          </div>
+          <cal-census-row-actions
+            :row="row"
+            @copy-text="copyText"
+            @copy-json="copyJson"
+          />
         </template>
       </cal-datagrid>
     </div>
@@ -124,10 +98,10 @@
         <tbody>
           <tr v-for="row of displayCoverage" :key="row.id">
             <td>{{ row.label }}</td>
-            <td class="census-details-num">
+            <td class="cal-census-details-num">
               {{ row.nonNull }} / {{ row.total }}
             </td>
-            <td class="census-details-num">
+            <td class="cal-census-details-num">
               {{ row.total === 0 ? '—' : formatCensusValue(row.pct, 'percent') }}
             </td>
           </tr>
@@ -148,10 +122,10 @@
         <tbody>
           <tr v-for="row of tableCoverage" :key="row.table">
             <td>{{ row.table }}</td>
-            <td class="census-details-num">
+            <td class="cal-census-details-num">
               {{ row.withAny }} / {{ row.total }}
             </td>
-            <td class="census-details-num">
+            <td class="cal-census-details-num">
               {{ row.total === 0 ? '—' : formatCensusValue(row.pct, 'percent') }}
             </td>
           </tr>
@@ -159,15 +133,15 @@
       </table>
     </div>
 
-    <!-- Derivation inspector tab: formula + per-geography input values -->
+    <!-- Derivation inspector tab: derive source + per-geography input values -->
     <div v-if="activeTab === 'inspector'">
       <cat-msg variant="info" title="About this tool" class="mb-4">
         <p>
-          See the formula for a column and the actual raw ACS values feeding
-          into it for a specific geography.
+          See the derive function for a column and the actual raw ACS values
+          feeding into it for a specific geography.
         </p>
       </cat-msg>
-      <div class="census-details-inspector-controls">
+      <div class="cal-census-details-inspector-controls">
         <cat-field>
           <template #label>
             Column
@@ -198,12 +172,12 @@
         </cat-field>
       </div>
 
-      <div v-if="inspectorSelected" class="census-details-inspector-body">
+      <div v-if="inspectorSelected" class="cal-census-details-inspector-body">
         <p>
-          <strong>Formula:</strong>
-          <code>{{ inspectorSelected.column.formula }}</code>
+          <strong>Derive function:</strong>
         </p>
-        <p>
+        <pre class="cal-census-details-inspector-code">{{ inspectorSelected.deriveSource }}</pre>
+        <p class="mt-3">
           <strong>Required ACS tables:</strong>
           {{ inspectorSelected.column.requiredTables.join(', ') }}
         </p>
@@ -219,9 +193,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="key of inspectorSelected.column.sourceColumns" :key="key">
+            <tr v-for="key of inspectorSelected.sourceKeys" :key="key">
               <td><code>{{ key }}</code></td>
-              <td class="census-details-num">
+              <td class="cal-census-details-num">
                 {{ formatRaw(inspectorSelected.data.values[key]) }}
               </td>
             </tr>
@@ -250,20 +224,25 @@ import {
   REQUIRED_ACS_TABLES,
   deriveApportionedRow,
   deriveCensusRow,
+  detectCensusColumnSourceKeys,
   formatCensusValue,
   type CensusGeographyData,
 } from '~~/src/core'
 
 /**
- * Debug drill-down modal for the census data fetched as part of the current
- * scenario (#302). Mirrors the Route Timetable modal pattern: self-contained,
- * two tabs, reuses the generic datagrid, CSV-exportable.
+ * Drill-down view of the census data fetched as part of the current
+ * scenario (#302). Mirrors the Route Timetable modal pattern:
+ * self-contained, tabbed, reuses the generic datagrid, CSV-exportable.
  *
- * Tab 1 — Geographies: metadata, area, intersection, and derived demographic
- * columns for every geography in the aggregation layer.
- * Tab 2 — Raw ACS values: the raw `<table>_<col>` values the backend
- * returned, in a wide matrix — useful for confirming which ACS tables have
- * been loaded on the server.
+ * Tabs:
+ *  - Geographies       — metadata + derived demographic columns, with an
+ *                        optional intersection-% scaling toggle.
+ *  - Raw ACS values    — per-geography × per-column matrix of the backend
+ *                        values, useful for confirming ACS table coverage.
+ *  - Coverage          — how many geographies have a usable value per
+ *                        column / per ACS source table.
+ *  - Derivation inspector — the derive function source plus the input
+ *                        values feeding it for one (column, geography).
  */
 const props = defineProps<{
   scenarioFilterResult: ScenarioFilterResult
@@ -470,6 +449,11 @@ const inspectorSelected = computed(() => {
     geoid: entry.geoid,
     data: entry.data,
     result: col.derive(entry.data.values),
+    // derive.toString() gives the actual function source — a more honest
+    // "formula" than a hand-maintained string that could drift.
+    deriveSource: col.derive.toString(),
+    // Discovered at runtime from `derive`; no separate array to keep in sync.
+    sourceKeys: detectCensusColumnSourceKeys(col),
   }
 })
 
@@ -482,9 +466,8 @@ function formatRaw (v: number | undefined): string {
 </script>
 
 <style scoped lang="scss">
-.cal-census-details {
-  padding: 12px 20px;
-}
+// Root intentionally has no padding — the enclosing <cat-modal> already
+// provides it, matching the Route Timetable modal's layout.
 
 .cal-census-details-header {
   margin-bottom: 12px;
@@ -503,20 +486,30 @@ function formatRaw (v: number | undefined): string {
   }
 }
 
-.census-details-num {
+.cal-census-details-num {
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-.census-details-inspector-controls {
+.cal-census-details-inspector-code {
+  background: var(--bulma-scheme-main-bis);
+  border: 1px solid var(--bulma-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 0.85em;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.cal-census-details-inspector-controls {
   display: flex;
   gap: 16px;
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
-.census-details-inspector-body {
+.cal-census-details-inspector-body {
   max-width: 640px;
 }
 </style>
