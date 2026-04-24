@@ -41,7 +41,7 @@ describe('CENSUS_COLUMNS', () => {
   it('REQUIRED_ACS_TABLES is the sorted union of per-column requirements', () => {
     expect(REQUIRED_ACS_TABLES).toEqual([
       'b01001', 'b01003', 'b02001', 'b08301', 'b19013',
-      'b23024', 'b25002', 'b25008', 'b25044', 'c17002',
+      'b23024', 'b25002', 'b25003', 'b25044', 'c17002',
     ])
   })
 })
@@ -81,6 +81,13 @@ describe('derivations', () => {
     const col = byId('avg_household_size')
     expect(col.derive({ b01003_001: 2500, b25002_002: 1000 })).toBeCloseTo(2.5)
     expect(col.derive({ b01003_001: 2500, b25002_002: 0 })).toBeNull()
+  })
+
+  it('pct_rental_households = renter-occupied units / total occupied units', () => {
+    const col = byId('pct_rental_households')
+    expect(col.derive({ b25003_001: 1000, b25003_003: 400 })).toBeCloseTo(0.4)
+    expect(col.derive({ b25003_001: 0, b25003_003: 0 })).toBeNull()
+    expect(col.derive({ b25003_001: 1000 })).toBeNull()
   })
 
   it('youth_under_18 sums the expected B01001 age buckets', () => {

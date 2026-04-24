@@ -32,9 +32,15 @@
         <thead>
           <tr>
             <th>Statistic</th>
-            <th>Intersection</th>
-            <th>Geography</th>
-            <th>All Geographies</th>
+            <th title="This geography's raw ACS value scaled by its intersection with the query area. Ratios (% columns) and medians are unchanged.">
+              Intersection
+            </th>
+            <th title="The full raw ACS value for this geography — not scaled by the intersection with the query area.">
+              Geography
+            </th>
+            <th title="Sum of every geography's Intersection value across the query area. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
+              All Geographies
+            </th>
           </tr>
         </thead>
         <tbody>

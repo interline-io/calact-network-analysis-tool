@@ -35,11 +35,13 @@ const B19013_MEDIAN_INCOME = 'b19013_001'
 // B25002 — Occupancy status
 const B25002_OCCUPIED = 'b25002_002'
 
-// B25008 — Total population in occupied housing units by tenure
-// NOTE: issue #302 spec uses B25008 for "% rental households". B25008 is a
-// population count, not a household count, so this ratio mixes units. Kept
-// per-spec until Thomas confirms — may want B25003_003/B25003_001 instead.
-const B25008_RENTER_OCCUPIED = 'b25008_003'
+// B25003 — Tenure (household counts, not population)
+// Issue #302 originally specified B25008 for "% rental households", but
+// B25008 is a population count, not a household count — dividing it by an
+// occupied-housing-unit denominator produced ratios >100%. B25003 is the
+// household-count tenure table, which is what the label promises.
+const B25003_TOTAL = 'b25003_001'
+const B25003_RENTER_OCCUPIED = 'b25003_003'
 
 // B25044 — Tenure by vehicles available
 const B25044_TOTAL = 'b25044_001'
@@ -209,8 +211,8 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
     id: 'pct_rental_households',
     label: '% Rental households',
     format: 'percent',
-    requiredTables: ['b25002', 'b25008'],
-    derive: v => ratio(num(v[B25008_RENTER_OCCUPIED]), num(v[B25002_OCCUPIED])),
+    requiredTables: ['b25003'],
+    derive: v => ratio(num(v[B25003_RENTER_OCCUPIED]), num(v[B25003_TOTAL])),
     densityEligible: false
   },
   {

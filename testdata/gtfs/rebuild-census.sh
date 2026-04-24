@@ -14,8 +14,9 @@ SKIP_FETCH=${SKIP_FETCH:-false}
 # table we need. uac20 omitted: not published in TIGER before 2023.
 CENSUS_LAYERS="state county place cbsa csa tract"
 
-# The 10 ACS tables consumed by src/core/census-columns.ts.
-ACS_TABLES=(b01001 b01003 b02001 b08301 b19013 b23024 b25002 b25008 b25044 c17002)
+# ACS tables consumed by src/core/census-columns.ts. Keep in sync with
+# `REQUIRED_ACS_TABLES` (derived from the per-column `requiredTables`).
+ACS_TABLES=(b01001 b01003 b02001 b08301 b19013 b23024 b25002 b25003 b25044 c17002)
 
 CENSUS_BASE="ftp://ftp.census.gov/programs-surveys/acs/summary_file/${CENSUS_YEAR}/table-based-SF"
 TIGER_BASE="ftp://ftp.census.gov/geo/tiger/TIGER${CENSUS_YEAR}"
