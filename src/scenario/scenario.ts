@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
+import area from '@turf/area'
 import {
   type WeekdayMode,
   type RouteType,
@@ -773,7 +774,7 @@ export class ScenarioFetcher {
     // If using one or more administrative boundaries, compute a bbox around them
     if (this.config.geographyIds && this.config.geographyIds.length > 0) {
       // First get the geometry for the administrative boundaries
-      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.MultiPolygon }[] }[] }>(
+      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }[] }[] }>(
         geographyLayerQuery,
         {
           geography_ids: this.config.geographyIds,
@@ -805,16 +806,28 @@ export class ScenarioFetcher {
 
         // Short-term: capture the first admin geography as a Polygon for
         // census-values intersection. Backend `within` input is typed as
-        // `Polygon` (not MultiPolygon), so we take the first ring of the
-        // MultiPolygon. See TODO in scenario fetcher class field.
-        const firstGeom = features[0]!.geometry
+        // `Polygon` (not MultiPolygon), so for a MultiPolygon we pick the
+        // largest polygon by area — most admin boundaries have one main
+        // body plus smaller annexed pockets/islands, and the main body is
+        // the useful approximation. See #347 for the proper fix.
+        const firstGeom: GeoJSON.Geometry = features[0]!.geometry
         if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
-          this.resolvedWithin = {
-            type: 'Polygon',
-            coordinates: firstGeom.coordinates[0]!,
+          let bestCoords = firstGeom.coordinates[0]!
+          let bestArea = area({ type: 'Polygon', coordinates: bestCoords })
+          for (let i = 1; i < firstGeom.coordinates.length; i++) {
+            const coords = firstGeom.coordinates[i]!
+            const a = area({ type: 'Polygon', coordinates: coords })
+            if (a > bestArea) {
+              bestCoords = coords
+              bestArea = a
+            }
           }
-        } else if ((firstGeom as GeoJSON.Geometry).type === 'Polygon') {
-          this.resolvedWithin = firstGeom as unknown as GeoJSON.Polygon
+          this.resolvedWithin = { type: 'Polygon', coordinates: bestCoords }
+          if (firstGeom.coordinates.length > 1) {
+            console.warn(`[Scenario] Admin boundary is a MultiPolygon with ${firstGeom.coordinates.length} parts; using the largest part for census intersection (#347).`)
+          }
+        } else if (firstGeom.type === 'Polygon') {
+          this.resolvedWithin = firstGeom
         }
       } else {
         console.warn('No features found in census datasets response')
