@@ -1,5 +1,4 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import 'dotenv/config'
 import { defineNuxtConfig } from 'nuxt/config'
 
 const isDev = process.env.NODE_ENV === 'development'

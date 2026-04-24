@@ -596,7 +596,8 @@ import {
   flexColorByModes,
   fmtDate,
   parseTime,
-  DEFAULT_TIME_WINDOW
+  DEFAULT_TIME_WINDOW,
+  CHOROPLETH_DEFAULT_ELEMENT,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -699,7 +700,7 @@ const showBbox = defineModel<boolean>('showBbox', { default: true })
 // Aggregation overlay
 const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
-const choroplethElement = defineModel<string>('choroplethElement', { default: 'visit_count_total' })
+const choroplethElement = defineModel<string>('choroplethElement', { default: CHOROPLETH_DEFAULT_ELEMENT })
 const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
 
 // Fixed-Route Transit toggle

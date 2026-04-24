@@ -20,6 +20,21 @@
 
     <!-- Geographies tab: one row per geography with metadata + derived columns -->
     <div v-if="activeTab === 'geographies'">
+      <cat-msg variant="info" title="About this table" class="mb-4">
+        <p class="mb-2">
+          One row per census geography fetched for the current scenario.
+          <strong>Intersection %</strong> shows the fraction of each geography
+          that falls inside the query area.
+        </p>
+        <p class="mb-3">
+          Demographic columns show the <strong>full ACS value for the whole
+            geography</strong>. Toggle the checkbox below to scale counts by
+          Intersection %. Ratios and medians are unchanged either way.
+        </p>
+        <cat-checkbox v-model="geographiesApportioned">
+          Scale counts by intersection %
+        </cat-checkbox>
+      </cat-msg>
       <cal-datagrid
         v-model:table-report="geographiesTableReport"
         filename="census-geographies.csv"
@@ -50,10 +65,12 @@
 
     <!-- Raw ACS values tab: per-geography × per-column matrix -->
     <div v-if="activeTab === 'raw'">
-      <cat-msg class="mb-3">
-        Every raw ACS column returned by the backend for these geographies.
-        Missing cells mean the backend had no value for that
-        (geography, column) pair.
+      <cat-msg variant="info" title="About this table" class="mb-4">
+        <p>
+          Every raw ACS column returned by the backend for these geographies.
+          Missing cells mean the backend had no value for that
+          (geography, column) pair.
+        </p>
       </cat-msg>
       <cal-datagrid
         v-model:table-report="rawTableReport"
@@ -85,10 +102,12 @@
 
     <!-- Coverage tab: per-column + per-ACS-table coverage summary -->
     <div v-if="activeTab === 'coverage'">
-      <cat-msg class="mb-3">
-        How many geographies have a usable value for each display column and
-        underlying ACS table. 0% coverage usually means the ACS table isn't
-        loaded on the backend yet.
+      <cat-msg variant="info" title="About this table" class="mb-4">
+        <p>
+          How many geographies have a usable value for each display column and
+          underlying ACS table. 0% coverage usually means the ACS table isn't
+          loaded on the backend yet.
+        </p>
       </cat-msg>
 
       <h3 class="title is-6 mt-4">
@@ -142,9 +161,11 @@
 
     <!-- Derivation inspector tab: formula + per-geography input values -->
     <div v-if="activeTab === 'inspector'">
-      <cat-msg class="mb-3">
-        See the formula for a column and the actual raw ACS values feeding
-        into it for a specific geography.
+      <cat-msg variant="info" title="About this tool" class="mb-4">
+        <p>
+          See the formula for a column and the actual raw ACS values feeding
+          into it for a specific geography.
+        </p>
       </cat-msg>
       <div class="census-details-inspector-controls">
         <cat-field>
@@ -227,6 +248,7 @@ import type { TableColumn, TableReport } from './datagrid.vue'
 import {
   CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
+  deriveApportionedRow,
   deriveCensusRow,
   formatCensusValue,
   type CensusGeographyData,
@@ -250,6 +272,12 @@ const props = defineProps<{
 }>()
 
 const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
+
+// Geographies tab: when true, additive count columns are multiplied by the
+// geography's intersection ratio (ratios and medians stay unchanged). Default
+// off — matches historical behavior and avoids silently showing a number that
+// differs from the raw ACS value.
+const geographiesApportioned = ref(false)
 
 const geographies = computed((): Array<{ geoid: string, data: CensusGeographyData }> => {
   const m = props.scenarioFilterResult.censusGeographies
@@ -282,7 +310,9 @@ const geographiesTableReport = computed((): TableReport => ({
     geometry_area_m2: data.geometryArea,
     intersection_area_m2: data.intersectionArea,
     intersection_pct: data.intersectionRatio,
-    ...deriveCensusRow(data.values),
+    ...(geographiesApportioned.value
+      ? deriveApportionedRow(data.values, data.intersectionRatio)
+      : deriveCensusRow(data.values)),
   })),
 }))
 

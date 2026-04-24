@@ -453,6 +453,14 @@ export const NON_ADDITIVE_CENSUS_COLUMNS = new Set<string>([
 ])
 
 /**
+ * Default "Shade map by" element — total stop visits across the aggregation
+ * row. Not a census column (lives in `stopGeoAggregateCsv` output). Exported
+ * so the dropdown in `cal-filter` and the URL-state handling in `tne.vue`
+ * stay in sync without duplicating the literal.
+ */
+export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
+
+/**
  * Choropleth classification shared between the map page (which builds it
  * from the aggregated rows) and the legend (which renders buckets from it).
  * Lives in core so the component files that consume it aren't importing

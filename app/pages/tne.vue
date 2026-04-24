@@ -328,6 +328,7 @@ import {
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   CENSUS_COLUMNS,
+  CHOROPLETH_DEFAULT_ELEMENT,
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
@@ -1016,13 +1017,12 @@ const showAggAreas = computed<boolean>({
 // Choropleth element: which value colors the aggregation-area overlays.
 // Default: total stop visits (original behavior). Also supports any of the
 // ACS demographic columns from #302.
-const CHOROPLETH_DEFAULT = 'visit_count_total'
 const choroplethElement = computed<string>({
   get () {
-    return route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT
+    return route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT
   },
   set (v: string) {
-    setQuery({ ...route.query, choroplethElement: v === CHOROPLETH_DEFAULT ? undefined : v })
+    setQuery({ ...route.query, choroplethElement: v === CHOROPLETH_DEFAULT_ELEMENT ? undefined : v })
   }
 })
 
@@ -1035,7 +1035,7 @@ interface ChoroplethOption {
   densityEligible: boolean
 }
 const extraChoroplethOptions: ChoroplethOption[] = [
-  { value: 'visit_count_total', label: 'Total stop visits', densityEligible: true },
+  { value: CHOROPLETH_DEFAULT_ELEMENT, label: 'Total stop visits', densityEligible: true },
   { value: 'stops_count', label: 'Number of stops', densityEligible: true },
 ]
 const choroplethElementOptions = computed((): { label: string, value: string }[] => [
@@ -1493,8 +1493,8 @@ const choroplethClassification = computed((): ChoroplethClassification => {
     .filter((v): v is number => v !== null && v > 0)
     .sort((a, b) => a - b)
 
-  const palette = choroplethPalette
-  const numClasses = palette.length
+  const fullPalette = choroplethPalette
+  const numClasses = fullPalette.length
 
   // Quantile breaks (numClasses-1 of them). Dedupe to avoid empty buckets
   // when many geographies share the same value.
@@ -1505,6 +1505,12 @@ const choroplethClassification = computed((): ChoroplethClassification => {
     rawBreaks.push(values[idx] ?? 0)
   }
   const breaks = Array.from(new Set(rawBreaks))
+
+  // Truncate the palette to breaks.length + 1 so the legend and the
+  // feature colorer always agree on bucket count. Without this, dedupe
+  // can leave more palette slots than distinct regions — buckets at the
+  // tail would render with undefined bounds as blank rows.
+  const palette = fullPalette.slice(0, breaks.length + 1)
 
   const hasInsufficient = aggData.some(a => (pickChoroplethValue(a, element, isDensity, geos) ?? 0) <= 0)
 
@@ -1559,11 +1565,13 @@ const choroplethFeatures = computed((): Feature[] => {
   const { element, isDensity } = choroplethClassification.value
   const geos = scenarioFilterResult.value?.censusGeographies
 
+  const selectedGeoid = selectedAggregationGeoid.value
   const features: Feature[] = []
   for (const agg of aggData) {
     const geo = geoLookup.get(agg.geoid)
     if (!geo || !geo.geometry) { continue }
 
+    const isSelected = agg.geoid === selectedGeoid
     features.push({
       type: 'Feature',
       id: geo.id.toString(),
@@ -1573,9 +1581,9 @@ const choroplethFeatures = computed((): Feature[] => {
         'name': agg.name,
         'fill': getChoroplethColor(pickChoroplethValue(agg as Record<string, any>, element, isDensity, geos)),
         'fill-opacity': 0.45,
-        'stroke': '#333',
-        'stroke-width': 1.5,
-        'stroke-opacity': 0.7,
+        'stroke': isSelected ? '#dc3545' : '#333',
+        'stroke-width': isSelected ? 3 : 1.5,
+        'stroke-opacity': isSelected ? 1 : 0.7,
       }
     })
   }
