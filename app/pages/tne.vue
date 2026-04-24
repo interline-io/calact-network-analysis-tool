@@ -280,6 +280,7 @@
           :scenario-filter-result="scenarioFilterResult"
           :layer-label="aggregateLayerLabel"
           :highlighted-geoid="highlightedCensusGeoid ?? undefined"
+          @select-geography="onSelectGeographyFromDetails"
         />
       </cat-modal>
     </template>
@@ -1355,6 +1356,16 @@ const highlightedCensusGeoid = ref<string | null>(null)
 function openCensusDetails (geoid?: string) {
   highlightedCensusGeoid.value = geoid ?? null
   showCensusDetails.value = true
+}
+
+// Geoid clicked from inside the census-details modal: close the modal,
+// ensure the aggregation overlay is on (so the selection actually renders
+// on the map), and set the selected geoid — which drives the red outline
+// via useChoroplethClassification and populates the right-side census panel.
+function onSelectGeographyFromDetails (geoid: string) {
+  showCensusDetails.value = false
+  showAggAreas.value = true
+  selectedAggregationGeoid.value = geoid
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 

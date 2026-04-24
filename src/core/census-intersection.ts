@@ -60,6 +60,14 @@ export interface FetchCensusIntersectionConfig {
   tableDatasetName: string
   tableNames: string[]
   bbox?: Bbox
+  /**
+   * GeoJSON Polygon to clip against — passed to the backend's
+   * `location.within`. The server computes `intersection_area` as
+   * `ST_Area(ST_Intersection(geography, within))`, so ratios reflect the
+   * real polygon overlap rather than the axis-aligned bbox. Takes
+   * precedence over `bbox` when both are supplied.
+   */
+  within?: GeoJSON.Polygon
   stopIds?: Iterable<number>
   stopBufferRadius?: number
   includeIntersectionGeometry?: boolean
@@ -98,6 +106,7 @@ query (
   $tableNames: [String!]!,
   $tableDatasetName: String,
   $bbox: BoundingBox,
+  $within: Polygon,
   $stopIds: [Int!],
   $stopBufferRadius: Float,
   $includeIntersectionGeometry: Boolean = false
@@ -112,6 +121,7 @@ query (
         layer: $layer,
         location: {
           bbox: $bbox,
+          within: $within,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
         }
       }
@@ -146,6 +156,9 @@ query (
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
+  // When `within` is supplied the server clips against the real polygon and
+  // `bbox` is redundant — passing both wouldn't be wrong, but `within` alone
+  // is a clearer signal of intent.
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
@@ -153,7 +166,8 @@ export async function fetchCensusIntersection (
     layer: config.geoDatasetLayer,
     stopBufferRadius: config.stopBufferRadius,
     stopIds: config.stopIds ? Array.from(config.stopIds) : [],
-    bbox: convertBbox(config.bbox),
+    bbox: config.within ? undefined : convertBbox(config.bbox),
+    within: config.within,
     includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResponse[] }>(

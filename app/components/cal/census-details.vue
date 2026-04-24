@@ -40,6 +40,16 @@
         filename="census-geographies.csv"
         freeze-first-column
       >
+        <template #column-geoid="{ value }">
+          <button
+            type="button"
+            class="button is-small is-text cal-census-details-geoid-link"
+            title="Select this geography on the map"
+            @click="$emit('selectGeography', String(value))"
+          >
+            {{ value }}
+          </button>
+        </template>
         <template #column-actions="{ row }">
           <cal-census-row-actions
             :row="row"
@@ -64,6 +74,16 @@
         filename="census-raw-values.csv"
         freeze-first-column
       >
+        <template #column-geoid="{ value }">
+          <button
+            type="button"
+            class="button is-small is-text cal-census-details-geoid-link"
+            title="Select this geography on the map"
+            @click="$emit('selectGeography', String(value))"
+          >
+            {{ value }}
+          </button>
+        </template>
         <template #column-actions="{ row }">
           <cal-census-row-actions
             :row="row"
@@ -248,6 +268,12 @@ const props = defineProps<{
   scenarioFilterResult: ScenarioFilterResult
   layerLabel?: string
   highlightedGeoid?: string
+}>()
+
+defineEmits<{
+  // Emitted when the user clicks a geoid link in one of the tables; the host
+  // page closes this modal and highlights the geography on the map.
+  selectGeography: [geoid: string]
 }>()
 
 const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
@@ -490,6 +516,24 @@ function formatRaw (v: number | undefined): string {
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+}
+
+.cal-census-details-geoid-link {
+  // Use the `is-text` Bulma variant styling with our own tightened padding so
+  // the geoid fits the narrow first column without wrapping.
+  padding: 0 4px;
+  height: auto;
+  min-height: 0;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--bulma-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: var(--bulma-link-hover);
+    background: transparent;
+  }
 }
 
 .cal-census-details-inspector-code {

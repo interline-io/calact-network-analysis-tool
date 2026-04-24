@@ -505,6 +505,13 @@ export class ScenarioFetcher {
   // Bbox after admin-boundary expansion in fetchFeedVersions(). Set there,
   // read by fetchCensusValues().
   private resolvedBbox?: Bbox
+  // When the scenario is scoped by one or more `geographyIds`, we also
+  // capture the first admin polygon here. Census values are then fetched
+  // with `within = resolvedWithin` so the server's ST_Intersection is
+  // against the real polygon (not its axis-aligned bbox). Short-term
+  // only the first admin geography contributes — see #347 for the proper
+  // `geography_ids` support on CensusDatasetGeographyLocationFilter.
+  private resolvedWithin?: GeoJSON.Polygon
 
   constructor (
     config: ScenarioConfig,
@@ -726,6 +733,11 @@ export class ScenarioFetcher {
     }
     this.updateProgress('census-values', true)
     console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
+    // Prefer `within` (real polygon) over `bbox` when the scenario is scoped
+    // by one or more admin geographyIds — server-side ST_Intersection is
+    // against the polygon, not its axis-aligned bbox. Short-term: only the
+    // first admin geography contributes to census intersection; multiple
+    // geographies warrant a proper `geographyIds` filter on the backend.
     const features = await fetchCensusIntersection({
       client: this.client,
       geoDatasetName,
@@ -733,6 +745,7 @@ export class ScenarioFetcher {
       tableDatasetName,
       tableNames: REQUIRED_ACS_TABLES,
       bbox: this.resolvedBbox,
+      within: this.resolvedWithin,
     })
     const entries: [string, CensusGeographyData][] = features.map(f => [
       f.properties.geoid,
@@ -788,6 +801,20 @@ export class ScenarioFetcher {
           sw: { lon: minX, lat: minY },
           ne: { lon: maxX, lat: maxY },
           valid: true
+        }
+
+        // Short-term: capture the first admin geography as a Polygon for
+        // census-values intersection. Backend `within` input is typed as
+        // `Polygon` (not MultiPolygon), so we take the first ring of the
+        // MultiPolygon. See TODO in scenario fetcher class field.
+        const firstGeom = features[0]!.geometry
+        if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
+          this.resolvedWithin = {
+            type: 'Polygon',
+            coordinates: firstGeom.coordinates[0]!,
+          }
+        } else if ((firstGeom as GeoJSON.Geometry).type === 'Polygon') {
+          this.resolvedWithin = firstGeom as unknown as GeoJSON.Polygon
         }
       } else {
         console.warn('No features found in census datasets response')

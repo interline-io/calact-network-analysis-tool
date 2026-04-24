@@ -524,6 +524,17 @@
             </cat-checkbox>
           </div>
 
+          <cat-msg
+            v-if="multiGeographyCensusWarning"
+            variant="warning"
+            class="mt-3"
+          >
+            Multiple administrative boundaries are selected, but census
+            intersection values currently use <strong>only the first
+              boundary</strong>. Support for multi-boundary census queries
+            is pending a backend update.
+          </cat-msg>
+
           <p class="menu-label">
             Overlay
           </p>
@@ -702,6 +713,15 @@ const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 const choroplethElement = defineModel<string>('choroplethElement', { default: CHOROPLETH_DEFAULT_ELEMENT })
 const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
+
+// Short-term limitation: when the scenario is scoped by multiple admin
+// boundaries, the backend census-intersection query only accepts a single
+// polygon. Surface a warning so users don't misread census values. See #347.
+const multiGeographyCensusWarning = computed(() => {
+  return props.geomSource === 'adminBoundary'
+    && (props.censusGeographiesSelected?.length ?? 0) > 1
+    && showAggAreas.value
+})
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
