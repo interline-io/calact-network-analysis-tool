@@ -204,8 +204,8 @@ export function stopGeoAggregateCsv (
       stopAgg.set(geog.geoid, a)
     }
   }
-  const result = stopAgg.values().map((a): StopGeoAggregateCsv => {
-    const rmodes = a.routes_modes.values().map((r): string => routeTypeNames.get(r) || 'Unknown')
+  const result = [...stopAgg.values()].map((a): StopGeoAggregateCsv => {
+    const rmodes = [...a.routes_modes.values()].map((r): string => routeTypeNames.get(r) || 'Unknown')
     const row: StopGeoAggregateCsv = {
       geoid: a.geoid,
       layer_name: a.layer_name,
