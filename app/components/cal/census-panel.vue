@@ -32,14 +32,23 @@
         <thead>
           <tr>
             <th>Statistic</th>
-            <th title="This geography's raw ACS value scaled by its intersection with the query area. Ratios (% columns) and medians are unchanged.">
-              Intersection
+            <th>
+              <cat-tooltip text="The full raw ACS value for this geography — not scaled by the intersection with the query area.">
+                Full Geography
+                <cat-icon size="small" icon="information" />
+              </cat-tooltip>
             </th>
-            <th title="The full raw ACS value for this geography — not scaled by the intersection with the query area.">
-              Geography
+            <th>
+              <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the query area. Ratios (% columns) and medians are unchanged.">
+                Intersection
+                <cat-icon size="small" icon="information" />
+              </cat-tooltip>
             </th>
-            <th title="Sum of every geography's Intersection value across the query area. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
-              All Geographies
+            <th>
+              <cat-tooltip text="Sum of every geography's Intersection value across the query area. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
+                Query Area Total
+                <cat-icon size="small" icon="information" />
+              </cat-tooltip>
             </th>
           </tr>
         </thead>
@@ -51,10 +60,10 @@
           >
             <td>{{ col.label }}</td>
             <td class="census-panel-num">
-              {{ intersectionCell(col) }}
+              {{ formatCensusValue(valueFor(col.id), col.format) }}
             </td>
             <td class="census-panel-num">
-              {{ formatCensusValue(valueFor(col.id), col.format) }}
+              {{ intersectionCell(col) }}
             </td>
             <td class="census-panel-num">
               {{ allGeographiesCell(col) }}
