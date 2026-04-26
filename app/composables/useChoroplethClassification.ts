@@ -1,6 +1,7 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
+  CHOROPLETH_INSUFFICIENT_COLOR,
   choroplethPalette,
   type CensusFormat,
   type CensusGeographyData,
@@ -61,9 +62,13 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
     const geos = input.censusGeographies.value
 
+    // 0 is a meaningful count (e.g. "0 transit commuters in this tract") and
+    // should land in the lowest bucket. Only `null` (missing ACS value, null
+    // derivation, or missing geometry area in density mode) reads as
+    // insufficient and is excluded from the quantile breaks.
     const values = aggData
       .map(a => pickChoroplethValue(a as Record<string, any>, element, isDensity, geos))
-      .filter((v): v is number => v !== null && v > 0)
+      .filter((v): v is number => v !== null)
       .sort((a, b) => a - b)
 
     const fullPalette = choroplethPalette
@@ -85,7 +90,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     // tail would render with undefined bounds as blank rows.
     const palette = fullPalette.slice(0, breaks.length + 1)
 
-    const hasInsufficient = aggData.some(a => (pickChoroplethValue(a as Record<string, any>, element, isDensity, geos) ?? 0) <= 0)
+    const hasInsufficient = aggData.some(a => pickChoroplethValue(a as Record<string, any>, element, isDensity, geos) === null)
 
     return {
       element,
@@ -101,8 +106,10 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
 
   function getChoroplethColor (value: number | null): string {
     const { palette, breaks } = choroplethClassification.value
-    if (value === null || value <= 0) {
-      return palette[0]!
+    // Only `null` is "insufficient data" — 0 is a real count and should
+    // land in the lowest bucket via the bucket-finding loop below.
+    if (value === null) {
+      return CHOROPLETH_INSUFFICIENT_COLOR
     }
     for (let i = 0; i < breaks.length; i++) {
       if (value < breaks[i]!) {

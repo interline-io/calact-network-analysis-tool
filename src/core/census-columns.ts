@@ -256,22 +256,25 @@ export const REQUIRED_ACS_TABLES: string[] = Array.from(
  * from `derive`.
  *
  * Works by invoking `derive` with a Proxy that records every string-keyed
- * get; all derive functions follow a fixed `values[...]` access pattern so
- * this observes every key they touch.
+ * get. The proxy returns `1` (a finite, non-zero number) rather than
+ * `undefined` so derivations don't bail on null guards or divide-by-zero
+ * checks before accessing every key they need — every code path inside
+ * `derive` evaluates with a usable sentinel and every key access is
+ * recorded.
  */
 export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
   const seen = new Set<string>()
   const proxy = new Proxy({} as CensusValues, {
     get (_target, key) {
       if (typeof key === 'string') { seen.add(key) }
-      return undefined
+      return 1
     },
   })
   try {
     col.derive(proxy)
   } catch {
-    // derive may bail early on missing inputs; we only care about the keys
-    // it attempted to read before throwing.
+    // derive may bail early on unexpected inputs; we only care about the
+    // keys it attempted to read before throwing.
   }
   return [...seen].sort()
 }

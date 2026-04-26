@@ -230,6 +230,15 @@ export interface FilterTag {
 export const choroplethPalette = ['#eff3ff', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'] as const
 
 /**
+ * Fill color used for choropleth aggregation areas where the shaded element
+ * has no value (raw ACS column missing, derivation hit a null guard, or the
+ * geometry has no area). 0 is a meaningful count and gets a real bucket
+ * color — only `null` reads as insufficient. Kept in sync with the
+ * `.cal-choropleth-insufficient` swatch in legend.vue.
+ */
+export const CHOROPLETH_INSUFFICIENT_COLOR = '#e0e0e0'
+
+/**
  * Human-readable labels for census geography aggregation layers.
  * Singular form for headings (e.g. "Aggregated by County"),
  * plural form for counts (e.g. "42 counties").

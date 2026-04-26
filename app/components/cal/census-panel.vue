@@ -8,27 +8,27 @@
       variant="dark"
       @close="$emit('close')"
     >
-      <div class="census-panel-meta">
+      <div class="cal-census-panel-meta">
         <div>
-          <span class="census-panel-meta-label">{{ layerLabel || 'GEOID' }}:</span>
-          <span class="census-panel-meta-value">{{ row.geoid }}</span>
+          <span class="cal-census-panel-meta-label">{{ layerLabel || 'GEOID' }}:</span>
+          <span class="cal-census-panel-meta-value">{{ row.geoid }}</span>
         </div>
         <div v-if="areaStats && areaStats.geometryArea !== null">
-          <span class="census-panel-meta-label">Area:</span>
-          <span class="census-panel-meta-value">{{ formatArea(areaStats.geometryArea) }}</span>
+          <span class="cal-census-panel-meta-label">Area:</span>
+          <span class="cal-census-panel-meta-value">{{ formatArea(areaStats.geometryArea) }}</span>
         </div>
         <div v-if="areaStats && areaStats.intersectionArea !== null">
-          <span class="census-panel-meta-label">Intersection:</span>
-          <span class="census-panel-meta-value">
+          <span class="cal-census-panel-meta-label">Intersection:</span>
+          <span class="cal-census-panel-meta-value">
             {{ formatArea(areaStats.intersectionArea) }}
-            <span v-if="areaStats.intersectionRatio !== null" class="census-panel-meta-pct">
+            <span v-if="areaStats.intersectionRatio !== null" class="cal-census-panel-meta-pct">
               ({{ (areaStats.intersectionRatio * 100).toFixed(0) }}%)
             </span>
           </span>
         </div>
       </div>
 
-      <table class="census-panel-table">
+      <table class="cal-census-panel-table">
         <thead>
           <tr>
             <th>Statistic</th>
@@ -59,13 +59,13 @@
             :class="{ 'is-highlighted': col.id === highlightedElement }"
           >
             <td>{{ col.label }}</td>
-            <td class="census-panel-num">
+            <td class="cal-census-panel-num">
               {{ formatCensusValue(valueFor(col.id), col.format) }}
             </td>
-            <td class="census-panel-num">
+            <td class="cal-census-panel-num">
               {{ intersectionCell(col) }}
             </td>
-            <td class="census-panel-num">
+            <td class="cal-census-panel-num">
               {{ allGeographiesCell(col) }}
             </td>
           </tr>
@@ -168,7 +168,7 @@ function allGeographiesCell (col: CensusColumnDef): string {
   padding: 8px 10px;
 }
 
-.census-panel-meta {
+.cal-census-panel-meta {
   font-size: 12px;
   margin-bottom: 8px;
   display: flex;
@@ -176,20 +176,20 @@ function allGeographiesCell (col: CensusColumnDef): string {
   gap: 2px;
 }
 
-.census-panel-meta-label {
+.cal-census-panel-meta-label {
   font-weight: 600;
   margin-right: 4px;
 }
 
-.census-panel-meta-value {
+.cal-census-panel-meta-value {
   font-variant-numeric: tabular-nums;
 }
 
-.census-panel-meta-pct {
+.cal-census-panel-meta-pct {
   opacity: 0.7;
 }
 
-.census-panel-table {
+.cal-census-panel-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
@@ -214,7 +214,7 @@ function allGeographiesCell (col: CensusColumnDef): string {
   }
 }
 
-.census-panel-num {
+.cal-census-panel-num {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;

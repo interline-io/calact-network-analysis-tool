@@ -175,6 +175,12 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const writer = inputStream.getWriter()
 
   // Configure fetcher/sender
+  // TODO: ScenarioFetcher will fetch census values for the aggregation layer
+  // because configCopy carries `tableDatasetName` + `aggregateLayer` from
+  // WSDOTReportConfig (#302). WSDOT then independently re-queries geography
+  // data via getGeographyData with different layers/filters and ignores the
+  // scenario-side census map. The duplicate fetch is wasted server work
+  // until WSDOT is reworked to consume the shared CensusGeographyData.
   const configCopy = { ...config, departureMode: 'all' as const, routeHourCompatMode: true }
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)

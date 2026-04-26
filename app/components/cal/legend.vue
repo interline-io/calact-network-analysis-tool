@@ -10,11 +10,11 @@
         <!-- Admin Boundary selection -->
         <div v-if="props.geomSource === 'adminBoundary'" class="cal-map-legend-section">
           <div>
-            <div class="legend-item legend-marker-square legend-geo-unselected" />
+            <div class="legend-item legend-marker-square cal-legend-geo-unselected" />
             <div>Unselected boundary</div>
           </div>
           <div>
-            <div class="legend-item legend-marker-square legend-geo-selected" />
+            <div class="legend-item legend-marker-square cal-legend-geo-selected" />
             <div>Selected boundary</div>
           </div>
         </div>
@@ -132,19 +132,19 @@
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
-            <span v-if="props.choroplethClassification?.isDensity" class="legend-unit-suffix">
+            <span v-if="props.choroplethClassification?.isDensity" class="cal-legend-unit-suffix">
               (per km²)
             </span>
           </div>
           <template v-if="props.choroplethClassification && props.choroplethClassification.values.length > 0">
-            <div v-if="props.choroplethClassification.hasInsufficient" class="choropleth-bucket">
-              <div class="legend-item legend-marker-square legend-insufficient" />
+            <div v-if="props.choroplethClassification.hasInsufficient" class="cal-choropleth-bucket">
+              <div class="legend-item legend-marker-square cal-choropleth-insufficient" />
               <div>Insufficient data</div>
             </div>
             <div
               v-for="(color, i) in props.choroplethClassification.palette"
               :key="i"
-              class="choropleth-bucket"
+              class="cal-choropleth-bucket"
             >
               <div class="legend-item legend-marker-square" :style="{ background: color }" />
               <div>{{ bucketLabel(i) }}</div>
@@ -157,7 +157,7 @@
               <span>High</span>
             </div>
           </template>
-          <div class="choropleth-details-link">
+          <div class="cal-choropleth-details-link">
             <a href="#" @click.prevent="$emit('viewDetails')">
               View all details →
             </a>
@@ -252,7 +252,7 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   font-weight: bold;
 }
 
-.legend-unit-suffix {
+.cal-legend-unit-suffix {
   font-weight: normal;
   font-size: 0.85em;
   opacity: 0.75;
@@ -354,7 +354,7 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   opacity: 0.8;
 }
 
-.choropleth-bucket {
+.cal-choropleth-bucket {
   display: flex;
   align-items: center;
   height: 22px;
@@ -365,18 +365,20 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   }
 }
 
-.legend-insufficient {
+// Swatch color must stay in sync with `CHOROPLETH_INSUFFICIENT_COLOR` in
+// src/core/constants.ts (used for the matching map polygon fill).
+.cal-choropleth-insufficient {
   background: #e0e0e0;
   border: 1px solid #bbb;
 }
 
-.legend-geo-unselected {
+.cal-legend-geo-unselected {
   background-color: #cccccc;
   opacity: 0.6;
   border: 1px solid #666666;
 }
 
-.choropleth-details-link {
+.cal-choropleth-details-link {
   margin-top: 8px;
   font-size: 0.85em;
 
@@ -387,7 +389,7 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   }
 }
 
-.legend-geo-selected {
+.cal-legend-geo-selected {
   background-color: #dc3545;
   opacity: 0.7;
   border: 1px solid #dc3545;
