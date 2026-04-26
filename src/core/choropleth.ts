@@ -8,13 +8,26 @@ import type { CensusGeographyData } from './census-intersection'
 
 export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
 
-// Choropleth elements derived from stop aggregation (not census). The hover
-// tooltip skips the "shaded" line for these to avoid duplicating the
-// already-shown stop/route/visits counts.
-export const STOP_AGG_ELEMENT_IDS = new Set<string>([
-  CHOROPLETH_DEFAULT_ELEMENT,
-  'stops_count',
-])
+// Stop-aggregation choropleth elements (not census). Listed alongside
+// CENSUS_COLUMNS in the "Shade map by" dropdown. None are density-eligible:
+// the numerator is the bbox slice while the divisor would be the full
+// geometry area, so partial-coverage geographies under-report.
+export interface StopAggChoroplethOption {
+  value: string
+  label: string
+  densityEligible: boolean
+}
+
+export const STOP_AGG_CHOROPLETH_OPTIONS: StopAggChoroplethOption[] = [
+  { value: CHOROPLETH_DEFAULT_ELEMENT, label: 'Total stop visits', densityEligible: false },
+  { value: 'stops_count', label: 'Number of stops', densityEligible: false },
+]
+
+// Element IDs from STOP_AGG_CHOROPLETH_OPTIONS, set form. The hover tooltip
+// skips the "shaded" line for these to avoid duplicating already-shown counts.
+export const STOP_AGG_ELEMENT_IDS = new Set<string>(
+  STOP_AGG_CHOROPLETH_OPTIONS.map(o => o.value),
+)
 
 export interface ChoroplethClassification {
   element: string

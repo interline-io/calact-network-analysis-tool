@@ -125,7 +125,6 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <!-- Falls back to a plain gradient when no classification yet. -->
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
@@ -133,27 +132,18 @@
               (per km²)
             </span>
           </div>
-          <template v-if="props.choroplethClassification && props.choroplethClassification.values.length > 0">
-            <div v-if="props.choroplethClassification.hasInsufficient" class="cal-choropleth-bucket">
-              <div class="legend-item legend-marker-square cal-choropleth-insufficient" />
-              <div>Insufficient data</div>
-            </div>
-            <div
-              v-for="(color, i) in props.choroplethClassification.palette"
-              :key="i"
-              class="cal-choropleth-bucket"
-            >
-              <div class="legend-item legend-marker-square" :style="{ background: color }" />
-              <div>{{ bucketLabel(i) }}</div>
-            </div>
-          </template>
-          <template v-else>
-            <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
-            <div class="choropleth-gradient-labels">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </template>
+          <div v-if="props.choroplethClassification?.hasInsufficient" class="cal-choropleth-bucket">
+            <div class="legend-item legend-marker-square cal-choropleth-insufficient" />
+            <div>Insufficient data</div>
+          </div>
+          <div
+            v-for="(color, i) in (props.choroplethClassification?.values.length ? props.choroplethClassification.palette : [])"
+            :key="i"
+            class="cal-choropleth-bucket"
+          >
+            <div class="legend-item legend-marker-square" :style="{ background: color }" />
+            <div>{{ bucketLabel(i) }}</div>
+          </div>
           <div class="cal-choropleth-details-link">
             <a href="#" @click.prevent="$emit('viewDetails')">
               View all details →
@@ -167,7 +157,6 @@
 
 <script setup lang="ts">
 import {
-  choroplethPalette,
   formatCensusBucketLabel,
   type ChoroplethClassification,
   type DataDisplayMode,
@@ -210,8 +199,6 @@ function bucketLabel (i: number): string {
   const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
   return c.isDensity ? `${base} per km²` : base
 }
-
-const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
 </script>
 
 <style scoped lang="scss">
@@ -327,24 +314,6 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
 
 .choropleth-legend {
   margin-bottom: 10px;
-}
-
-.choropleth-legend-subtitle {
-  font-size: 0.85em;
-  opacity: 0.8;
-  margin-bottom: 4px;
-}
-
-.choropleth-gradient-bar {
-  height: 12px;
-  border-radius: 2px;
-}
-
-.choropleth-gradient-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75em;
-  opacity: 0.8;
 }
 
 .cal-choropleth-bucket {

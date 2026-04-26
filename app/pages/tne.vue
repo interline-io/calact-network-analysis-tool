@@ -218,12 +218,12 @@
         >
           <template #sidebar-top>
             <cal-census-panel
-              :row="selectedAggregation"
+              :row="selectedPanelData?.row ?? null"
               :highlighted-element="choroplethElement"
               :layer-label="aggregateLayerLabel"
-              :apportioned-derived="selectedApportionedDerived"
+              :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
               :all-derived="allGeographiesDerived"
-              :area-stats="selectedAreaStats"
+              :area-stats="selectedPanelData?.areaStats ?? null"
               @close="selectedAggregationGeoid = null"
               @select-element="choroplethElement = $event"
             />
@@ -325,6 +325,7 @@ import {
   flexAreaTypes,
   CENSUS_COLUMNS,
   CHOROPLETH_DEFAULT_ELEMENT,
+  STOP_AGG_CHOROPLETH_OPTIONS,
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
@@ -1016,24 +1017,12 @@ const choroplethElement = computed<string>({
   }
 })
 
-interface ChoroplethOption {
-  value: string
-  label: string
-  densityEligible: boolean
-}
-// Stop-derived counts are not density-eligible: numerator is the bbox slice
-// while the divisor is the full geometry area — partial-coverage geographies
-// would under-report.
-const extraChoroplethOptions: ChoroplethOption[] = [
-  { value: CHOROPLETH_DEFAULT_ELEMENT, label: 'Total stop visits', densityEligible: false },
-  { value: 'stops_count', label: 'Number of stops', densityEligible: false },
-]
 const choroplethElementOptions = computed((): { label: string, value: string }[] => [
-  ...extraChoroplethOptions.map(o => ({ label: o.label, value: o.value })),
+  ...STOP_AGG_CHOROPLETH_OPTIONS.map(o => ({ label: o.label, value: o.value })),
   ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
 ])
 const densityEligibleByElement: Record<string, boolean> = {
-  ...Object.fromEntries(extraChoroplethOptions.map(o => [o.value, o.densityEligible])),
+  ...Object.fromEntries(STOP_AGG_CHOROPLETH_OPTIONS.map(o => [o.value, o.densityEligible])),
   ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.densityEligible])),
 }
 const selectedElementIsDensityEligible = computed(() => {
@@ -1057,38 +1046,36 @@ function onSelectAggregation (row: Record<string, any>) {
   const geoid = row?.geoid
   selectedAggregationGeoid.value = typeof geoid === 'string' ? geoid : null
 }
-const selectedAggregation = computed((): Record<string, any> | null => {
+
+// Right-side census panel inputs, all derived from the selected geoid.
+// Null when no polygon is selected or the row hasn't streamed in yet.
+const selectedPanelData = computed(() => {
   const geoid = selectedAggregationGeoid.value
   if (!geoid) { return null }
-  return choroplethAggregateData.value.find(r => r.geoid === geoid) ?? null
+  const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
+  if (!row) { return null }
+  const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
+  return {
+    row,
+    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
+    areaStats: geo
+      ? {
+          geometryArea: geo.geometryArea,
+          intersectionArea: geo.intersectionArea,
+          intersectionRatio: geo.intersectionRatio,
+        }
+      : null,
+  }
 })
 
+// Bbox-wide aggregate, fed to the panel's "Query Area Total" column.
+// Independent of the selection so it doesn't recompute on every click.
 const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
     return null
   }
   return summarizeBbox(geos.keys(), geos).derived
-})
-
-const selectedApportionedDerived = computed((): Record<string, number | null> | null => {
-  const sel = selectedAggregation.value
-  if (!sel) { return null }
-  const geo = scenarioFilterResult.value?.censusGeographies?.get(sel.geoid)
-  if (!geo) { return null }
-  return deriveApportionedRow(geo.values, geo.intersectionRatio)
-})
-
-const selectedAreaStats = computed(() => {
-  const sel = selectedAggregation.value
-  if (!sel) { return null }
-  const geo = scenarioFilterResult.value?.censusGeographies?.get(sel.geoid)
-  if (!geo) { return null }
-  return {
-    geometryArea: geo.geometryArea,
-    intersectionArea: geo.intersectionArea,
-    intersectionRatio: geo.intersectionRatio,
-  }
 })
 
 /////////////////////////
