@@ -1,8 +1,9 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
-  CHOROPLETH_INSUFFICIENT_COLOR,
-  choroplethPalette,
+  buildChoroplethClassification,
+  getChoroplethColor,
+  pickChoroplethValue,
   type CensusFormat,
   type CensusGeographyData,
   type ChoroplethClassification,
@@ -28,96 +29,41 @@ interface UseChoroplethClassificationInput {
  * the GeoJSON features for the map layer from the scenario's aggregate rows
  * and the user's "Shade map by" / density toggles.
  *
- * Pulled out of `tne.vue` so the map-shading math can be unit-tested
- * independently and so the page file isn't 2000+ lines of mixed concerns.
+ * Pure math (value picker, classification builder, color lookup) lives in
+ * `src/core/choropleth.ts`; this composable wires it to Vue refs and
+ * memoizes the per-geography picked values so we don't re-walk the
+ * aggregation rows three times per render.
  */
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  // Pure value picker: returns the number to shade by for a given aggregation
-  // row. Applies density conversion when active.
-  function pickChoroplethValue (
-    agg: Record<string, any>,
-    element: string,
-    isDensity: boolean,
-    geographies: Map<string, CensusGeographyData> | undefined,
-  ): number | null {
-    const v = agg[element]
-    if (v === null || v === undefined) { return null }
-    const n = typeof v === 'number' ? v : Number(v)
-    if (!Number.isFinite(n)) { return null }
-    if (!isDensity) { return n }
-    // Density: count per km². Backend geometryArea is m²; scale by 1,000,000
-    // so labels read e.g. "5 per km²" instead of "0.000005 per m²".
-    const area = geographies?.get(agg.geoid as string)?.geometryArea
-    if (!area || area === 0) { return null }
-    return (n * 1_000_000) / area
-  }
+  // Single pass over aggData → geoid → number|null. Reused by the
+  // classification (for `values` + `hasInsufficient`) and by feature
+  // generation (for fill color lookup).
+  const pickedByGeoid = computed((): Map<string, number | null> => {
+    const aggData = input.choroplethAggregateData.value
+    const element = input.choroplethElement.value
+    const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
+    const geos = input.censusGeographies.value
+    const out = new Map<string, number | null>()
+    for (const a of aggData) {
+      const row = a as Record<string, any>
+      out.set(row.geoid as string, pickChoroplethValue(row, element, isDensity, geos))
+    }
+    return out
+  })
 
-  // Classification of the chosen element across all aggregation rows.
-  // Reused by both the choropleth feature colors and the legend's bucket list.
   const choroplethClassification = computed((): ChoroplethClassification => {
     const element = input.choroplethElement.value
-    const aggData = input.choroplethAggregateData.value
     const label = input.choroplethElementOptions.value.find(o => o.value === element)?.label || element
     const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
     const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
-    const geos = input.censusGeographies.value
-
-    // 0 is a meaningful count (e.g. "0 transit commuters in this tract") and
-    // should land in the lowest bucket. Only `null` (missing ACS value, null
-    // derivation, or missing geometry area in density mode) reads as
-    // insufficient and is excluded from the quantile breaks.
-    const values = aggData
-      .map(a => pickChoroplethValue(a as Record<string, any>, element, isDensity, geos))
-      .filter((v): v is number => v !== null)
-      .sort((a, b) => a - b)
-
-    const fullPalette = choroplethPalette
-    const numClasses = fullPalette.length
-
-    // Quantile breaks (numClasses-1 of them). Dedupe to avoid empty buckets
-    // when many geographies share the same value.
-    // TODO: consider equal-interval fallback when dedup collapses breaks.
-    const rawBreaks: number[] = []
-    for (let i = 1; i < numClasses; i++) {
-      const idx = Math.floor((i / numClasses) * values.length)
-      rawBreaks.push(values[idx] ?? 0)
-    }
-    const breaks = Array.from(new Set(rawBreaks))
-
-    // Truncate the palette to breaks.length + 1 so the legend and the
-    // feature colorer always agree on bucket count. Without this, dedupe
-    // can leave more palette slots than distinct regions — buckets at the
-    // tail would render with undefined bounds as blank rows.
-    const palette = fullPalette.slice(0, breaks.length + 1)
-
-    const hasInsufficient = aggData.some(a => pickChoroplethValue(a as Record<string, any>, element, isDensity, geos) === null)
-
-    return {
+    return buildChoroplethClassification({
+      pickedByGeoid: pickedByGeoid.value,
       element,
       label,
       format,
-      palette,
-      values,
-      breaks,
-      hasInsufficient,
       isDensity,
-    }
+    })
   })
-
-  function getChoroplethColor (value: number | null): string {
-    const { palette, breaks } = choroplethClassification.value
-    // Only `null` is "insufficient data" — 0 is a real count and should
-    // land in the lowest bucket via the bucket-finding loop below.
-    if (value === null) {
-      return CHOROPLETH_INSUFFICIENT_COLOR
-    }
-    for (let i = 0; i < breaks.length; i++) {
-      if (value < breaks[i]!) {
-        return palette[i]!
-      }
-    }
-    return palette[palette.length - 1]!
-  }
 
   // Geoid -> geometry lookup, memoized on the fetched choropleth geographies
   // so it isn't rebuilt every time the shade-by-density toggle fires.
@@ -142,8 +88,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
     const geoLookup = choroplethGeoLookup.value
-    const { element, isDensity } = choroplethClassification.value
-    const geos = input.censusGeographies.value
+    const { palette, breaks } = choroplethClassification.value
+    const picked = pickedByGeoid.value
     const selectedGeoid = input.selectedAggregationGeoid.value
 
     const features: Feature[] = []
@@ -160,7 +106,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
         properties: {
           'geoid': aggRow.geoid,
           'name': aggRow.name,
-          'fill': getChoroplethColor(pickChoroplethValue(aggRow, element, isDensity, geos)),
+          'fill': getChoroplethColor(picked.get(aggRow.geoid as string) ?? null, palette, breaks),
           'fill-opacity': 0.45,
           'stroke': isSelected ? '#dc3545' : '#333',
           'stroke-width': isSelected ? 3 : 1.5,

@@ -256,25 +256,33 @@ export const REQUIRED_ACS_TABLES: string[] = Array.from(
  * from `derive`.
  *
  * Works by invoking `derive` with a Proxy that records every string-keyed
- * get. The proxy returns `1` (a finite, non-zero number) rather than
- * `undefined` so derivations don't bail on null guards or divide-by-zero
- * checks before accessing every key they need — every code path inside
- * `derive` evaluates with a usable sentinel and every key access is
- * recorded.
+ * get. We run `derive` once per sentinel value (1, 1e9) — keys are
+ * accumulated across both runs — so derivations that branch on a numeric
+ * threshold (`if (v[X] > 100) return v[Y]`) still record both branches'
+ * inputs. Both sentinels stay finite and non-zero so `Number.isFinite`
+ * checks and divide-by-X guards don't bail before any key is touched.
+ *
+ * Constraints:
+ *   - Derivations should access keys with `v[CONST_ID]` literals (the
+ *     `derive` functions in this file all do).
+ *   - Derivations may not loop based on values' contents (the Proxy has
+ *     no enumeration support); use an explicit `keys` list, as `sum()` does.
  */
 export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
   const seen = new Set<string>()
-  const proxy = new Proxy({} as CensusValues, {
+  const makeProxy = (sentinel: number) => new Proxy({} as CensusValues, {
     get (_target, key) {
       if (typeof key === 'string') { seen.add(key) }
-      return 1
+      return sentinel
     },
   })
-  try {
-    col.derive(proxy)
-  } catch {
-    // derive may bail early on unexpected inputs; we only care about the
-    // keys it attempted to read before throwing.
+  for (const sentinel of [1, 1_000_000_000]) {
+    try {
+      col.derive(makeProxy(sentinel))
+    } catch {
+      // derive may bail on unexpected inputs; we only care about keys
+      // touched before throwing.
+    }
   }
   return [...seen].sort()
 }
@@ -449,29 +457,5 @@ export const NON_ADDITIVE_CENSUS_COLUMNS = new Set<string>([
   'median_household_income',
 ])
 
-/**
- * Default "Shade map by" element — total stop visits across the aggregation
- * row. Not a census column (lives in `stopGeoAggregateCsv` output). Exported
- * so the dropdown in `cal-filter` and the URL-state handling in `tne.vue`
- * stay in sync without duplicating the literal.
- */
-export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
-
-/**
- * Choropleth classification shared between the map page (which builds it
- * from the aggregated rows) and the legend (which renders buckets from it).
- * Lives in core so the component files that consume it aren't importing
- * types across component boundaries.
- */
-export interface ChoroplethClassification {
-  element: string
-  label: string
-  format: CensusFormat
-  palette: readonly string[]
-  values: number[]
-  breaks: number[]
-  hasInsufficient: boolean
-  /** When true, `values`/`breaks` are counts per km² (not raw counts). The
-   * legend heading and bucket labels annotate the unit accordingly. */
-  isDensity: boolean
-}
+// `CHOROPLETH_DEFAULT_ELEMENT` and the `ChoroplethClassification` type live
+// in `./choropleth` alongside the bucket math; re-exported via core's barrel.
