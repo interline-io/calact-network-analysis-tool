@@ -2,6 +2,7 @@ import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
   buildChoroplethClassification,
+  deriveApportionedRow,
   getChoroplethColor,
   pickChoroplethValue,
   type CensusFormat,
@@ -71,7 +72,11 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
     const geoLookup = choroplethGeoLookup.value
-    const { palette, breaks } = choroplethClassification.value
+    const censusGeos = input.censusGeographies.value
+    const { palette, breaks, label, format } = choroplethClassification.value
+    const element = input.choroplethElement.value
+    const elementCol = CENSUS_COLUMNS.find(c => c.id === element)
+    const elementIsDensityEligible = elementCol?.densityEligible ?? false
     const picked = pickedByGeoid.value
     const selectedGeoid = input.selectedAggregationGeoid.value
 
@@ -82,6 +87,22 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       if (!geo || !geo.geometry) { continue }
 
       const isSelected = aggRow.geoid === selectedGeoid
+      const pickedValue = picked.get(aggRow.geoid as string) ?? null
+      const fullValue = (aggRow[element] ?? null) as number | null
+
+      // Per-feature scaled (apportioned) + density values for the hover
+      // tooltip. Both come from the per-geography ACS payload, so they're
+      // null for non-census shading elements.
+      let scaledValue: number | null = null
+      let densityValue: number | null = null
+      const censusGeo = elementCol ? censusGeos?.get(aggRow.geoid as string) : undefined
+      if (elementCol && censusGeo) {
+        scaledValue = deriveApportionedRow(censusGeo.values, censusGeo.intersectionRatio)[element] ?? null
+        if (elementIsDensityEligible && fullValue !== null && censusGeo.geometryArea > 0) {
+          densityValue = (fullValue * 1_000_000) / censusGeo.geometryArea
+        }
+      }
+
       features.push({
         type: 'Feature',
         id: geo.id.toString(),
@@ -89,7 +110,18 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
         properties: {
           'geoid': aggRow.geoid,
           'name': aggRow.name,
-          'fill': getChoroplethColor(picked.get(aggRow.geoid as string) ?? null, palette, breaks),
+          // Hover-tooltip fields read by map-viewer-ts.
+          'stops_count': aggRow.stops_count ?? 0,
+          'routes_count': aggRow.routes_count ?? 0,
+          'agencies_count': aggRow.agencies_count ?? 0,
+          'visit_count_total': aggRow.visit_count_total ?? 0,
+          // Currently-shaded element: total / scaled / density values.
+          'shaded_label': label,
+          'shaded_format': format,
+          'shaded_full_value': fullValue,
+          'shaded_scaled_value': scaledValue,
+          'shaded_density_value': densityValue,
+          'fill': getChoroplethColor(pickedValue, palette, breaks),
           'fill-opacity': 0.45,
           'stroke': isSelected ? '#dc3545' : '#333',
           'stroke-width': isSelected ? 3 : 1.5,

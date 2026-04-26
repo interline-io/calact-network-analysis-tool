@@ -134,6 +134,18 @@ query (
 }
 `
 
+// ACS "jam values": negative sentinels the Census Bureau publishes in place
+// of an estimate when the value is unavailable, not applicable, or suppressed
+// for sample size. Drop them so derivations + the UI see missing data and
+// render "—" instead of surfacing e.g. -$666,666,666 as median income.
+// Authoritative list: 2024_Jam_Values.xlsx on
+// census.gov/programs-surveys/acs/technical-documentation/code-lists.html.
+// (MoE-only jam values like -222222222 are intentionally omitted — we read
+// estimate fields, not MoE.)
+const ACS_JAM_VALUES = new Set<number>([
+  -666666666, -888888888, -999999999,
+])
+
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
@@ -162,13 +174,17 @@ export async function fetchCensusIntersection (
       const intersectionArea = geography.intersection_area || 0
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
       // Backend returns one entry per (geography, ACS table); flatten them
-      // into a single keyed map for consumers.
+      // into a single keyed map for consumers, dropping ACS jam values.
       const values: CensusValues = {}
       for (const row of geography.values || []) {
         if (row.dataset_name !== config.tableDatasetName) {
           continue
         }
-        Object.assign(values, row.values)
+        for (const [k, v] of Object.entries(row.values)) {
+          if (typeof v === 'number' && Number.isFinite(v) && !ACS_JAM_VALUES.has(v)) {
+            values[k] = v
+          }
+        }
       }
       features.push({
         id: geography.geoid,

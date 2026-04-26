@@ -225,6 +225,7 @@
               :all-derived="allGeographiesDerived"
               :area-stats="selectedAreaStats"
               @close="selectedAggregationGeoid = null"
+              @select-element="choroplethElement = $event"
             />
           </template>
         </cal-map>

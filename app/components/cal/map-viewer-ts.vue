@@ -7,7 +7,8 @@ import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from '
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import { formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -297,6 +298,31 @@ function initMap () {
         choroplethTooltip.appendChild(document.createElement('br'))
         const line = document.createTextNode(`${label}: ${value}`)
         choroplethTooltip.appendChild(line)
+      }
+      // Currently-shaded element: total / scaled / density. Skip when the
+      // shaded label duplicates one of the four counts above.
+      const shadedLabel = fp?.shaded_label as string | undefined
+      const dupes = new Set(['Stops', 'Routes', 'Agencies', visitsLabel, 'Total stop visits', 'Number of stops'])
+      if (shadedLabel && !dupes.has(shadedLabel)) {
+        const fmt = (fp?.shaded_format as CensusFormat | undefined) ?? 'integer'
+        const full = fp?.shaded_full_value ?? null
+        const scaled = fp?.shaded_scaled_value ?? null
+        const density = fp?.shaded_density_value ?? null
+        choroplethTooltip.appendChild(document.createElement('br'))
+        const heading = document.createElement('strong')
+        heading.textContent = shadedLabel
+        choroplethTooltip.appendChild(heading)
+        const lines: Array<[string, string]> = [['Total', formatCensusValue(full as number | null, fmt)]]
+        if (scaled !== null) {
+          lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
+        }
+        if (density !== null) {
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} per km²`])
+        }
+        for (const [k, v] of lines) {
+          choroplethTooltip.appendChild(document.createElement('br'))
+          choroplethTooltip.appendChild(document.createTextNode(`  ${k}: ${v}`))
+        }
       }
       choroplethTooltip.style.display = 'block'
       choroplethTooltip.style.left = `${e.originalEvent.offsetX + 15}px`

@@ -54,11 +54,22 @@
         </thead>
         <tbody>
           <tr
-            v-for="col of orderedColumns"
+            v-for="col of CENSUS_COLUMNS"
             :key="col.id"
             :class="{ 'is-highlighted': col.id === highlightedElement }"
           >
-            <td>{{ col.label }}</td>
+            <td>
+              <span v-if="col.id === highlightedElement">{{ col.label }}</span>
+              <button
+                v-else
+                type="button"
+                class="cal-census-panel-stat-link"
+                title="Shade map by this statistic"
+                @click="$emit('selectElement', col.id)"
+              >
+                {{ col.label }}
+              </button>
+            </td>
             <td class="cal-census-panel-num">
               {{ formatCensusValue(valueFor(col.id), col.format) }}
             </td>
@@ -76,7 +87,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
@@ -100,19 +110,8 @@ const props = defineProps<{
 
 defineEmits<{
   close: []
+  selectElement: [id: string]
 }>()
-
-const orderedColumns = computed((): CensusColumnDef[] => {
-  const highlight = props.highlightedElement
-  if (!highlight) {
-    return CENSUS_COLUMNS
-  }
-  const match = CENSUS_COLUMNS.find(c => c.id === highlight)
-  if (!match) {
-    return CENSUS_COLUMNS
-  }
-  return [match, ...CENSUS_COLUMNS.filter(c => c.id !== highlight)]
-})
 
 function valueFor (id: string): number | null {
   const v = props.row?.[id]
@@ -200,5 +199,21 @@ function allGeographiesCell (col: CensusColumnDef): string {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
+}
+
+.cal-census-panel-stat-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--bulma-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--bulma-link-hover);
+  }
 }
 </style>
