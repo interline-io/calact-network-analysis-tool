@@ -113,7 +113,6 @@ describe('summarizeBbox', () => {
     expect(derived.pct_people_of_color).toBeCloseTo(0.36)
     expect(derived.total_population).toBe(1250)
   })
-
 })
 
 describe('deriveApportionedRow', () => {
