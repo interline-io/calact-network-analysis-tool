@@ -74,7 +74,5 @@ export default defineNuxtConfig({
   tlv2Auth: {
     loginGate: true,
     requireLogin: true,
-    proxyEnabled: true,
-    autoAppBaseUrl: true,
   },
 })
