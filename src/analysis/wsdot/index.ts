@@ -174,13 +174,9 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   const { inputStream, outputStream } = multiplexStream(requestStream(controller))
   const writer = inputStream.getWriter()
 
-  // Configure fetcher/sender
-  // TODO: ScenarioFetcher will fetch census values for the aggregation layer
-  // because configCopy carries `tableDatasetName` + `aggregateLayer` from
-  // WSDOTReportConfig (#302). WSDOT then independently re-queries geography
-  // data via getGeographyData with different layers/filters and ignores the
-  // scenario-side census map. The duplicate fetch is wasted server work
-  // until WSDOT is reworked to consume the shared CensusGeographyData.
+  // TODO: ScenarioFetcher fetches census values from configCopy here, but
+  // WSDOT re-queries them via getGeographyData and ignores the scenario map.
+  // Drop the duplicate once WSDOT consumes CensusGeographyData directly.
   const configCopy = { ...config, departureMode: 'all' as const, routeHourCompatMode: true }
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
@@ -792,13 +788,8 @@ function intersection<T> (set1: Set<T>, set2: Set<T>): Set<T> {
 // Fetch geography data for a set of stop IDs
 ////////////////
 
-/**
- * WSDOT-facing geography feature. Adds pre-computed `total_population` and
- * `intersection_population` fields (derived from the configured
- * `tableDatasetTableCol`) on top of the generic `CensusGeographyFeature` so
- * wsdot-viewer.vue can read them directly without knowing which ACS column
- * the user picked.
- */
+// Adds pre-computed total_population/intersection_population from the
+// configured tableDatasetTableCol on top of CensusGeographyFeature.
 interface GeographyDataFeature {
   id: string
   type: string

@@ -85,22 +85,6 @@ import {
   formatCensusValue,
 } from '~~/src/core'
 
-/**
- * Right-side census details panel for a clicked aggregation area (#302,
- * per Nome's wireframe). Four columns:
- *   - Statistic — column name
- *   - Intersection — value apportioned by the geography↔query-area overlap;
- *     for counts this is `raw × intersection_ratio`, for % columns it equals
- *     the full value (ratios are scale-invariant), for non-additive columns
- *     (median income) it reads through the full value.
- *   - Geography — the full (un-apportioned) ACS value for the clicked
- *     geography.
- *   - All Geographies — the same statistic summed across every geography in
- *     the scenario's query area.
- * The element currently used for map shading is hoisted to the top and
- * highlighted. Chrome is rendered via `<cat-msg variant="dark">` to match
- * the map legend.
- */
 const props = defineProps<{
   row?: Record<string, any> | null
   highlightedElement?: string
@@ -162,8 +146,6 @@ function allGeographiesCell (col: CensusColumnDef): string {
   color: black;
 }
 
-// Tighten up <cat-msg>'s default message-body padding for this panel only;
-// the three-column table supplies its own cell padding.
 .cal-map-census-panel :deep(.message-body) {
   padding: 8px 10px;
 }

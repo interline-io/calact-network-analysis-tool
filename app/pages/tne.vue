@@ -216,8 +216,6 @@
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails()"
         >
-          <!-- Slotted into cal-map's right-side sidebar stack above the
-               legend; shares chrome via `<cat-msg variant="dark">` (#302). -->
           <template #sidebar-top>
             <cal-census-panel
               :row="selectedAggregation"
@@ -231,7 +229,6 @@
           </template>
         </cal-map>
 
-        <!-- ACS vintage indicator (bottom-left, per wireframe) -->
         <div v-if="acsDatasetLabel" class="cal-acs-vintage">
           Showing data for {{ acsDatasetLabel }}
         </div>
@@ -268,8 +265,6 @@
         />
       </cat-modal>
 
-      <!-- Census Details debug modal (#302): full drill-down into every
-           geography fetched for the aggregation layer, plus raw ACS values. -->
       <cat-modal
         v-model="showCensusDetails"
         title="Census Details"
@@ -1011,9 +1006,6 @@ const showAggAreas = computed<boolean>({
   }
 })
 
-// Choropleth element: which value colors the aggregation-area overlays.
-// Default: total stop visits (original behavior). Also supports any of the
-// ACS demographic columns from #302.
 const choroplethElement = computed<string>({
   get () {
     return route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT
@@ -1023,17 +1015,17 @@ const choroplethElement = computed<string>({
   }
 })
 
-// Non-census elements surfaced in the "Shade map by" dropdown. Listed
-// explicitly here (rather than inferred) so density eligibility is a
-// deliberate per-element decision alongside CENSUS_COLUMNS.
 interface ChoroplethOption {
   value: string
   label: string
   densityEligible: boolean
 }
+// Stop-derived counts are not density-eligible: numerator is the bbox slice
+// while the divisor is the full geometry area — partial-coverage geographies
+// would under-report.
 const extraChoroplethOptions: ChoroplethOption[] = [
-  { value: CHOROPLETH_DEFAULT_ELEMENT, label: 'Total stop visits', densityEligible: true },
-  { value: 'stops_count', label: 'Number of stops', densityEligible: true },
+  { value: CHOROPLETH_DEFAULT_ELEMENT, label: 'Total stop visits', densityEligible: false },
+  { value: 'stops_count', label: 'Number of stops', densityEligible: false },
 ]
 const choroplethElementOptions = computed((): { label: string, value: string }[] => [
   ...extraChoroplethOptions.map(o => ({ label: o.label, value: o.value })),
@@ -1047,11 +1039,9 @@ const selectedElementIsDensityEligible = computed(() => {
   return densityEligibleByElement[choroplethElement.value] === true
 })
 
-// Shade map by density (count / km²) instead of raw count for count-type
-// elements. Defaults to true. URL-backed so map state survives reloads.
+// Default true; only the off state is persisted to the URL.
 const shadeByDensity = computed<boolean>({
   get () {
-    // Default true; stored as "false" in URL only when the user turns it off
     return route.query.shadeByDensity !== 'false'
   },
   set (v: boolean) {
@@ -1061,9 +1051,6 @@ const shadeByDensity = computed<boolean>({
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
-// Right-side census panel: geoid of the clicked polygon, or null. Cleared
-// when the user closes the panel. The full aggregate row is looked up on
-// demand from `choroplethAggregateData` so feature properties can stay thin.
 const selectedAggregationGeoid = ref<string | null>(null)
 function onSelectAggregation (row: Record<string, any>) {
   const geoid = row?.geoid
@@ -1075,9 +1062,6 @@ const selectedAggregation = computed((): Record<string, any> | null => {
   return choroplethAggregateData.value.find(r => r.geoid === geoid) ?? null
 })
 
-// "All Geographies" aggregate: sum of apportioned raw ACS values across
-// every geography at the aggregation layer inside the query area. Fed to
-// the census panel's "All Geographies" column.
 const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
@@ -1086,9 +1070,6 @@ const allGeographiesDerived = computed((): Record<string, number | null> | null 
   return summarizeBbox(geos.keys(), geos).derived
 })
 
-// Apportioned per-geography derived values for the clicked area: ACS counts
-// × intersectionRatio, leaving ratios and non-additive columns alone.
-// Fed to the census panel's "Intersection" column.
 const selectedApportionedDerived = computed((): Record<string, number | null> | null => {
   const sel = selectedAggregation.value
   if (!sel) { return null }
@@ -1097,8 +1078,6 @@ const selectedApportionedDerived = computed((): Record<string, number | null> | 
   return deriveApportionedRow(geo.values, geo.intersectionRatio)
 })
 
-// Per-geography area stats for the clicked area: fed to the panel's area
-// summary line.
 const selectedAreaStats = computed(() => {
   const sel = selectedAggregation.value
   if (!sel) { return null }
@@ -1350,7 +1329,6 @@ function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetable
   timetableRoute.value = payload.route
 }
 
-// Census details debug modal — mirrors the Route Timetable pattern.
 const showCensusDetails = ref(false)
 const highlightedCensusGeoid = ref<string | null>(null)
 function openCensusDetails (geoid?: string) {
@@ -1358,10 +1336,7 @@ function openCensusDetails (geoid?: string) {
   showCensusDetails.value = true
 }
 
-// Geoid clicked from inside the census-details modal: close the modal,
-// ensure the aggregation overlay is on (so the selection actually renders
-// on the map), and set the selected geoid — which drives the red outline
-// via useChoroplethClassification and populates the right-side census panel.
+// Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
   showAggAreas.value = true
@@ -1372,8 +1347,6 @@ const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.val
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
-  // Default ACS dataset for aggregation-table demographic columns (#302).
-  // Paired with aggregateLayer so the BFF knows which layer to fetch values for.
   tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
   aggregateLayer: aggregateLayer.value,
   reportName: 'Transit Network Explorer',
@@ -1774,8 +1747,6 @@ function toTitleCase (str: string): string {
   }
 }
 
-// ACS vintage indicator (#302). Placed bottom-left over the map per Nome's
-// wireframe; unobtrusive caption-style pill.
 .cal-acs-vintage {
   position: absolute;
   bottom: 12px;

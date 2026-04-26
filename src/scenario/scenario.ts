@@ -70,11 +70,8 @@ export interface ScenarioConfig {
   aggregateLayer?: string
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
-  /**
-   * ACS dataset used for demographic values (e.g. `acsdt5y2021`). When set
-   * alongside `aggregateLayer`, the scenario pipeline fetches census values
-   * for the aggregation geographies within the scenario bbox.
-   */
+  // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
+  // pipeline fetches census values for those geographies.
   tableDatasetName?: string
   /**
    * Whether to fetch fixed-route transit data (stops, routes, departures)
@@ -137,14 +134,7 @@ export interface ScenarioData {
    * so existing non-streaming constructions of ScenarioData keep compiling.
    */
   tripIdStrings?: Map<number, string>
-  /**
-   * Census geography data keyed by geoid, populated when the scenario has a
-   * `tableDatasetName` + `aggregateLayer` set. Each entry bundles raw ACS
-   * `values`, the geometry↔query-area intersection ratio, the full
-   * `geometryArea` (m²), and the `intersectionArea` (m²). Consumers run the
-   * derivations from `src/core/census-columns` to turn raw values into
-   * display columns.
-   */
+  // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
 }
 
@@ -206,10 +196,6 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
-    // Batch of (geoid, CensusGeographyData) pairs for the configured
-    // aggregation layer. Sent once per batch during the census-values
-    // stage. Areas are in m² and let the client apportion per-geography
-    // values + render the intersection summary in the census panel (#302).
     censusGeographies?: [string, CensusGeographyData][]
   }
   extraData?: any
@@ -503,15 +489,10 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
-  // Bbox after admin-boundary expansion in fetchFeedVersions(). Set there,
-  // read by fetchCensusValues().
+  // Set by fetchFeedVersions(), read by fetchCensusValues().
   private resolvedBbox?: Bbox
-  // When the scenario is scoped by one or more `geographyIds`, we also
-  // capture the first admin polygon here. Census values are then fetched
-  // with `within = resolvedWithin` so the server's ST_Intersection is
-  // against the real polygon (not its axis-aligned bbox). Short-term
-  // only the first admin geography contributes — see #347 for the proper
-  // `geography_ids` support on CensusDatasetGeographyLocationFilter.
+  // First admin polygon, used as `within` for census intersection so the
+  // server clips against the real polygon. Multi-boundary support is #347.
   private resolvedWithin?: GeoJSON.Polygon
 
   constructor (
@@ -717,11 +698,7 @@ export class ScenarioFetcher {
     }
   }
 
-  /**
-   * Fetch ACS values for the aggregation layer across the resolved bbox.
-   * Issue #302: surfaces demographic columns in aggregation tables and the
-   * map view. Skipped when the caller didn't set an ACS dataset or layer.
-   */
+  // Skipped when the caller didn't set an ACS dataset or aggregation layer.
   private async fetchCensusValues (): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
@@ -734,11 +711,6 @@ export class ScenarioFetcher {
     }
     this.updateProgress('census-values', true)
     console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
-    // Prefer `within` (real polygon) over `bbox` when the scenario is scoped
-    // by one or more admin geographyIds — server-side ST_Intersection is
-    // against the polygon, not its axis-aligned bbox. Short-term: only the
-    // first admin geography contributes to census intersection; multiple
-    // geographies warrant a proper `geographyIds` filter on the backend.
     const features = await fetchCensusIntersection({
       client: this.client,
       geoDatasetName,
@@ -804,12 +776,8 @@ export class ScenarioFetcher {
           valid: true
         }
 
-        // Short-term: capture the first admin geography as a Polygon for
-        // census-values intersection. Backend `within` input is typed as
-        // `Polygon` (not MultiPolygon), so for a MultiPolygon we pick the
-        // largest polygon by area — most admin boundaries have one main
-        // body plus smaller annexed pockets/islands, and the main body is
-        // the useful approximation. See #347 for the proper fix.
+        // Backend `within` is typed as Polygon, so for a MultiPolygon pick
+        // the largest part as a stand-in until #347 lands.
         const firstGeom: GeoJSON.Geometry = features[0]!.geometry
         if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
           let bestCoords = firstGeom.coordinates[0]!

@@ -77,8 +77,7 @@ export interface TableColumn {
   label: string
   sortable: boolean
   tooltip?: string
-  /** When set, the default cell renderer formats the value using
-   * `formatCensusValue` (from `src/core/census-columns`). */
+  // When set, the default cell renderer routes the value through formatCensusValue.
   format?: CensusFormat
 }
 
@@ -108,9 +107,7 @@ function renderCell (column: TableColumn, value: unknown): string {
 
 const props = defineProps<{
   filename?: string
-  /** When true, the table is horizontally scrollable and the first column
-   * (and header cell) sticks to the left edge while the rest scrolls.
-   * Off by default so existing tables are unaffected. */
+  // Horizontally scrollable, with the first column pinned.
   freezeFirstColumn?: boolean
 }>()
 
@@ -199,13 +196,8 @@ const rangeEnd = computed(() => {
   }
 }
 
-// Opt-in: horizontal scroll inside the table-container with the first
-// column pinned to the left edge. The corner header cell stacks above
-// both the row cells (sticky-left) and the column headers (sticky-top).
-//
-// Note: `border-collapse: collapse` on Bulma's .table suppresses cell
-// box-shadows, so we get the soft right-edge shade via a ::after
-// pseudo-element overlaying the start of the scrollable area instead.
+// `border-collapse: collapse` on Bulma's .table suppresses cell box-shadows,
+// so the right-edge shade comes from a ::after instead.
 .table-container.is-freeze-first {
   overflow-x: auto;
 
@@ -215,7 +207,6 @@ const rangeEnd = computed(() => {
       position: sticky;
       left: 0;
       z-index: 2;
-      // Solid background so scrolling content doesn't bleed through.
       background: var(--bulma-scheme-main);
 
       &::after {
@@ -223,7 +214,6 @@ const rangeEnd = computed(() => {
         position: absolute;
         top: 0;
         bottom: 0;
-        // Sit just outside the cell's right edge, inside the table area.
         right: -8px;
         width: 8px;
         pointer-events: none;

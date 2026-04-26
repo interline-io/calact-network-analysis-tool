@@ -249,21 +249,7 @@ import {
   type CensusGeographyData,
 } from '~~/src/core'
 
-/**
- * Drill-down view of the census data fetched as part of the current
- * scenario (#302). Mirrors the Route Timetable modal pattern:
- * self-contained, tabbed, reuses the generic datagrid, CSV-exportable.
- *
- * Tabs:
- *  - Geographies       — metadata + derived demographic columns, with an
- *                        optional intersection-% scaling toggle.
- *  - Raw ACS values    — per-geography × per-column matrix of the backend
- *                        values, useful for confirming ACS table coverage.
- *  - Coverage          — how many geographies have a usable value per
- *                        column / per ACS source table.
- *  - Derivation inspector — the derive function source plus the input
- *                        values feeding it for one (column, geography).
- */
+// Drill-down debug view of the census data fetched for the current scenario.
 const props = defineProps<{
   scenarioFilterResult: ScenarioFilterResult
   layerLabel?: string
@@ -271,17 +257,13 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  // Emitted when the user clicks a geoid link in one of the tables; the host
-  // page closes this modal and highlights the geography on the map.
   selectGeography: [geoid: string]
 }>()
 
 const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
 
-// Geographies tab: when true, additive count columns are multiplied by the
-// geography's intersection ratio (ratios and medians stay unchanged). Default
-// off — matches historical behavior and avoids silently showing a number that
-// differs from the raw ACS value.
+// Default off — apportioning silently changes the displayed number relative
+// to the raw ACS value, which is misleading without an opt-in.
 const geographiesApportioned = ref(false)
 
 const geographies = computed((): Array<{ geoid: string, data: CensusGeographyData }> => {
@@ -289,8 +271,6 @@ const geographies = computed((): Array<{ geoid: string, data: CensusGeographyDat
   if (!m) { return [] }
   return [...m.entries()].map(([geoid, data]) => ({ geoid, data }))
 })
-
-// --- Geographies tab ---------------------------------------------------
 
 const geographiesColumns = computed((): TableColumn[] => [
   { key: 'geoid', label: 'GEOID', sortable: true },
@@ -321,10 +301,8 @@ const geographiesTableReport = computed((): TableReport => ({
   })),
 }))
 
-// --- Raw ACS values tab ------------------------------------------------
-
-// Union of every column key observed across all geographies. Gives a stable
-// list of columns even if some geographies are missing some keys.
+// Union of every column key observed across all geographies, so the column
+// list is stable even when some geographies miss some keys.
 const allRawColumnKeys = computed((): string[] => {
   const keys = new Set<string>()
   for (const { data } of geographies.value) {
@@ -356,11 +334,6 @@ const rawTableReport = computed((): TableReport => ({
   })),
 }))
 
-// --- Helpers -----------------------------------------------------------
-
-// Lookup geography name from the scenario's stop.census_geographies list
-// (the same source stopGeoAggregateCsv uses). Keeps the modal self-sufficient
-// without an extra fetch.
 const geoMeta = computed((): Map<string, { name: string }> => {
   const m = new Map<string, { name: string }>()
   for (const stop of props.scenarioFilterResult.stops) {
@@ -378,15 +351,11 @@ function nameFor (geoid: string): string {
 }
 
 function pluralize (label: string): string {
-  // Simple "Census Tract" -> "Census Tracts". Handles the three aggregation
-  // layers we expose; extend if more singular/plural quirks show up.
   if (label.endsWith('y')) {
     return `${label.slice(0, -1)}ies`
   }
   return `${label}s`
 }
-
-// --- Copy affordances --------------------------------------------------
 
 const copiedMessage = ref('')
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
@@ -407,14 +376,11 @@ async function copyText (text: string) {
 }
 
 async function copyJson (row: Record<string, unknown>) {
-  // Strip internal fields before copying.
   const clean = Object.fromEntries(
     Object.entries(row).filter(([k]) => !k.startsWith('_')),
   )
   await copyText(JSON.stringify(clean, null, 2))
 }
-
-// --- Coverage tab ------------------------------------------------------
 
 const displayCoverage = computed(() => {
   const total = geographies.value.length
@@ -453,13 +419,9 @@ const tableCoverage = computed(() => {
   })
 })
 
-// --- Derivation inspector tab ------------------------------------------
-
 const inspectorColumnId = ref<string>(CENSUS_COLUMNS[0]?.id ?? '')
 const inspectorGeoid = ref<string>('')
 
-// Default the inspector's geography to the highlighted one on open, or to
-// the first available geography otherwise.
 if (props.highlightedGeoid) {
   inspectorGeoid.value = props.highlightedGeoid
 } else if (geographies.value.length > 0) {
@@ -475,10 +437,7 @@ const inspectorSelected = computed(() => {
     geoid: entry.geoid,
     data: entry.data,
     result: col.derive(entry.data.values),
-    // derive.toString() gives the actual function source — a more honest
-    // "formula" than a hand-maintained string that could drift.
     deriveSource: col.derive.toString(),
-    // Discovered at runtime from `derive`; no separate array to keep in sync.
     sourceKeys: detectCensusColumnSourceKeys(col),
   }
 })
@@ -492,9 +451,6 @@ function formatRaw (v: number | undefined): string {
 </script>
 
 <style scoped lang="scss">
-// Root intentionally has no padding — the enclosing <cat-modal> already
-// provides it, matching the Route Timetable modal's layout.
-
 .cal-census-details-header {
   margin-bottom: 12px;
 }
@@ -519,8 +475,6 @@ function formatRaw (v: number | undefined): string {
 }
 
 .cal-census-details-geoid-link {
-  // Use the `is-text` Bulma variant styling with our own tightened padding so
-  // the geoid fits the narrow first column without wrapping.
   padding: 0 4px;
   height: auto;
   min-height: 0;

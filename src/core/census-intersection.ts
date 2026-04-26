@@ -4,23 +4,9 @@ import { convertBbox } from './geom'
 import type { GraphQLClient } from './graphql'
 import type { CensusValues } from './census-columns'
 
-/**
- * Fetches census geographies (optionally constrained by bbox and/or stop
- * buffer) together with ACS values from one or more tables. Each returned
- * feature carries the raw `values` map plus the area-overlap ratio, which
- * callers can apply to apportion additive counts (population, HH counts)
- * across partial-coverage geographies.
- *
- * This is the single source of truth for the Transitland
- * `census_datasets.geographies` query shape with intersection data; consumers
- * include the scenario aggregation pipeline (#302) and the WSDOT analysis.
- */
+// Single source of truth for the Transitland `census_datasets.geographies`
+// query with intersection data. Used by both the scenario pipeline and WSDOT.
 
-/**
- * Per-geography census payload bundled for the aggregation layer. Streamed
- * from the scenario pipeline to the client; consumed by the choropleth,
- * the census panel, and the aggregation table.
- */
 export interface CensusGeographyData {
   /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
   values: CensusValues
@@ -60,13 +46,8 @@ export interface FetchCensusIntersectionConfig {
   tableDatasetName: string
   tableNames: string[]
   bbox?: Bbox
-  /**
-   * GeoJSON Polygon to clip against — passed to the backend's
-   * `location.within`. The server computes `intersection_area` as
-   * `ST_Area(ST_Intersection(geography, within))`, so ratios reflect the
-   * real polygon overlap rather than the axis-aligned bbox. Takes
-   * precedence over `bbox` when both are supplied.
-   */
+  // Polygon to clip against — server computes intersection_area against this
+  // rather than an axis-aligned bbox. Takes precedence over `bbox`.
   within?: GeoJSON.Polygon
   stopIds?: Iterable<number>
   stopBufferRadius?: number
@@ -156,9 +137,6 @@ query (
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
-  // When `within` is supplied the server clips against the real polygon and
-  // `bbox` is redundant — passing both wouldn't be wrong, but `within` alone
-  // is a clearer signal of intent.
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
@@ -183,10 +161,8 @@ export async function fetchCensusIntersection (
       }
       const intersectionArea = geography.intersection_area || 0
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
-      // The backend returns one `values` entry per (geography, ACS table),
-      // each with only that table's columns. Merge every entry matching the
-      // configured dataset into a single flat CensusValues map so consumers
-      // can read any column from any of the requested tables.
+      // Backend returns one entry per (geography, ACS table); flatten them
+      // into a single keyed map for consumers.
       const values: CensusValues = {}
       for (const row of geography.values || []) {
         if (row.dataset_name !== config.tableDatasetName) {

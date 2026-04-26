@@ -1,24 +1,7 @@
-/**
- * Catalogue of ACS demographic columns surfaced in aggregation tables and the
- * map view. See issue #302.
- *
- * All ACS column IDs used by derivations are declared at the top of this file
- * so the full source mapping is auditable in one place. Derivations below
- * reference these constants rather than hardcoding column IDs inline.
- *
- * Column ID format: lowercase `<table>_<col>`, e.g. `b01001_001`. Matches
- * the `tableDatasetTableCol` format used by WSDOTReportConfig and the
- * Transitland GraphQL `values` payload.
- *
- * Derivations return `null` when required inputs are missing or a denominator
- * is zero, so the UI can render "—" instead of bogus zeros. The backend may
- * have not yet loaded some of these tables; `values` will be sparse in that
- * case and derivations will naturally return `null`.
- */
-
-// =============================================================================
-// ACS column ID mapping. Audit here — do not bury column IDs inline in derives.
-// =============================================================================
+// ACS demographic columns surfaced in aggregation tables and the map view (#302).
+// Column ID format: lowercase `<table>_<col>` (e.g. `b01001_001`). Derivations
+// return null when inputs are missing or denominators are zero so the UI can
+// render "—" instead of misleading zeros.
 
 // B01003 — Total population
 const B01003_TOTAL = 'b01003_001'
@@ -35,11 +18,8 @@ const B19013_MEDIAN_INCOME = 'b19013_001'
 // B25002 — Occupancy status
 const B25002_OCCUPIED = 'b25002_002'
 
-// B25003 — Tenure (household counts, not population)
-// Issue #302 originally specified B25008 for "% rental households", but
-// B25008 is a population count, not a household count — dividing it by an
-// occupied-housing-unit denominator produced ratios >100%. B25003 is the
-// household-count tenure table, which is what the label promises.
+// B25003 — Tenure (household counts; not B25008 which is population —
+// using B25008 as numerator over an HH-unit denominator produces ratios >100%)
 const B25003_TOTAL = 'b25003_001'
 const B25003_RENTER_OCCUPIED = 'b25003_003'
 
@@ -67,18 +47,12 @@ const B01001_ADULTS_65_PLUS = [
   'b01001_044', 'b01001_045', 'b01001_046', 'b01001_047', 'b01001_048', 'b01001_049',
 ]
 
-// B23024 — Poverty status × disability × employment (ages 18-64)
-// Best-effort per issue #302: sum "with a disability" counts from the
-// below-poverty and at/above-poverty branches. Exact column offsets should be
-// spot-checked against the ACS codebook once data is loaded on prod.
+// B23024 — Poverty status × disability × employment (ages 18-64).
+// Best-effort: spot-check against the ACS codebook once prod data is loaded.
 const B23024_DISABILITY_COLS = [
   'b23024_003', // Below poverty, with a disability
   'b23024_019', // At or above poverty, with a disability
 ]
-
-// =============================================================================
-// Column definitions
-// =============================================================================
 
 export type CensusValues = Record<string, number | undefined>
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -89,18 +63,8 @@ export interface CensusColumnDef {
   format: CensusFormat
   requiredTables: string[]
   derive: (values: CensusValues) => number | null
-  /**
-   * When true, the map choropleth may shade this column as a density
-   * (value / area_km²) rather than as a raw value. Applies to additive
-   * count-type columns (population, commuters, age bins, disability counts)
-   * where dividing by area is meaningful. Does NOT apply to ratios,
-   * currency, or non-additive columns like medians — those stay as raw
-   * values regardless of the user's density toggle.
-   *
-   * Declared explicitly on each column rather than inferred from `format`
-   * because format/type is a brittle proxy (an integer column isn't
-   * automatically a spatially-meaningful count).
-   */
+  // True for additive count columns where shading by value/km² is meaningful.
+  // Declared per-column because format alone is too coarse a signal.
   densityEligible: boolean
 }
 
@@ -241,33 +205,15 @@ export const CENSUS_COLUMNS: CensusColumnDef[] = [
   },
 ]
 
-/**
- * Union of all ACS table names required to compute every column. Use this as
- * the `tableNames` argument to the census intersection query.
- */
 export const REQUIRED_ACS_TABLES: string[] = Array.from(
   new Set(CENSUS_COLUMNS.flatMap(c => c.requiredTables)),
 ).sort()
 
-/**
- * Discover, at runtime, the set of raw ACS column keys a column's `derive`
- * reads from. Used by the census-details "Derivation inspector" to list the
- * inputs without maintaining a separate `sourceColumns` array that can drift
- * from `derive`.
- *
- * Works by invoking `derive` with a Proxy that records every string-keyed
- * get. We run `derive` once per sentinel value (1, 1e9) — keys are
- * accumulated across both runs — so derivations that branch on a numeric
- * threshold (`if (v[X] > 100) return v[Y]`) still record both branches'
- * inputs. Both sentinels stay finite and non-zero so `Number.isFinite`
- * checks and divide-by-X guards don't bail before any key is touched.
- *
- * Constraints:
- *   - Derivations should access keys with `v[CONST_ID]` literals (the
- *     `derive` functions in this file all do).
- *   - Derivations may not loop based on values' contents (the Proxy has
- *     no enumeration support); use an explicit `keys` list, as `sum()` does.
- */
+// Discover the raw ACS keys a `derive` reads by invoking it with a
+// recording Proxy. Run with two finite, non-zero sentinels so threshold
+// branches in derive (`if (v[X] > 100) return v[Y]`) still register both
+// sides. Derivations must access keys via literal indexing — no looping
+// over Object.keys(values).
 export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
   const seen = new Set<string>()
   const makeProxy = (sentinel: number) => new Proxy({} as CensusValues, {
@@ -280,18 +226,13 @@ export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
     try {
       col.derive(makeProxy(sentinel))
     } catch {
-      // derive may bail on unexpected inputs; we only care about keys
-      // touched before throwing.
+      // ignore — only the keys touched before the throw matter
     }
   }
   return [...seen].sort()
 }
 
-/**
- * Render an area in m² as a human-readable string. Uses km² once values are
- * ≥ 1 km² (1,000,000 m²); otherwise stays in m². Rounds to 2 decimal places
- * for km² and to whole m².
- */
+// Switches to km² at 1,000,000 m².
 export function formatArea (m2: number | null | undefined): string {
   if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
     return '—'
@@ -318,11 +259,7 @@ export function formatCensusValue (value: number | null, format: CensusFormat): 
   }
 }
 
-/**
- * Render a Transitland ACS dataset name as a human-readable label.
- * Examples: `acsdt5y2021` → "ACS 5-year 2021"; `acsdt1y2022` → "ACS 1-year 2022".
- * Unknown formats fall back to the raw string.
- */
+// `acsdt5y2021` → "ACS 5-year 2021". Unknown formats pass through.
 export function formatAcsDatasetLabel (datasetName: string | undefined): string {
   if (!datasetName) {
     return ''
@@ -334,12 +271,8 @@ export function formatAcsDatasetLabel (datasetName: string | undefined): string 
   return `ACS ${m[1]}-year ${m[2]}`
 }
 
-/**
- * Render a choropleth bucket label for a palette of `n` colors paired with
- * `n-1` monotonically increasing break values. Index 0 is "<= first break",
- * the last index is ">= last break", and the middle buckets are "a to b".
- * Used by the map legend (#302).
- */
+// Bucket label for `n` palette colors and `n-1` increasing breaks.
+// First bucket: "<= breaks[0]"; last: ">= breaks[-1]"; middle: "a to b".
 export function formatCensusBucketLabel (
   index: number,
   breaks: number[],
@@ -376,19 +309,9 @@ export function deriveCensusRow (values: CensusValues): Record<string, number | 
   return out
 }
 
-/**
- * Derive a census row apportioned by an area intersection ratio (used for
- * the census panel's "Intersection" column, #302).
- *
- * Semantics:
- *   - Additive count columns (population, commuters, etc.) are scaled by
- *     the ratio: `derive(values * ratio)`.
- *   - Ratio columns (% POC, % rental, ...) are unchanged — scaling numerator
- *     and denominator by the same factor cancels out.
- *   - Non-additive columns (listed in `NON_ADDITIVE_CENSUS_COLUMNS`, e.g.
- *     median income) are carried through as the full-geography value; an
- *     area-apportioned median is not meaningful.
- */
+// Counts are scaled by `intersectionRatio`; ratio columns are unchanged
+// (cancels out); `NON_ADDITIVE_CENSUS_COLUMNS` (medians) read through as
+// the full-geography value.
 export function deriveApportionedRow (
   values: CensusValues,
   intersectionRatio: number,
@@ -408,18 +331,9 @@ export function deriveApportionedRow (
   return out
 }
 
-/**
- * Sum raw ACS values across a collection of geographies, apportioning each
- * geography's values by its intersection ratio. Returns a `{ raw, derived }`
- * pair: `raw` is the summed values object, and `derived` is the per-column
- * result of running each `CensusColumnDef.derive` over it.
- *
- * Non-additive metrics (medians) produce meaningful values only when the
- * underlying components are additive — the caller should render
- * `median_household_income` as "—" for the summary column.
- *
- * Used by the census panel's "All Geographies" column (#302).
- */
+// Sum apportioned raw ACS values across geographies, then run derivations.
+// Non-additive columns (medians) come out as nonsense — callers must render
+// `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
 export function summarizeBbox (
   geoids: Iterable<string>,
   geographies: Map<string, { values: CensusValues, intersectionRatio: number }> | undefined,
@@ -448,14 +362,7 @@ export function summarizeBbox (
   return { raw, derived }
 }
 
-/**
- * Columns that are not additive across geographies. The bounding-box summary
- * column in the census panel renders these as "—" because a
- * population-weighted sum is nonsense for a median.
- */
+// Columns that can't be summed across geographies (medians).
 export const NON_ADDITIVE_CENSUS_COLUMNS = new Set<string>([
   'median_household_income',
 ])
-
-// `CHOROPLETH_DEFAULT_ELEMENT` and the `ChoroplethClassification` type live
-// in `./choropleth` alongside the bucket math; re-exported via core's barrel.

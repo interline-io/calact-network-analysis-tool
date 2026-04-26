@@ -23,21 +23,9 @@ interface UseChoroplethClassificationInput {
   selectedAggregationGeoid: Ref<string | null>
 }
 
-/**
- * Choropleth state for the aggregation-area overlay (#302). Produces the
- * element classification (quantile breaks + palette + display metadata) and
- * the GeoJSON features for the map layer from the scenario's aggregate rows
- * and the user's "Shade map by" / density toggles.
- *
- * Pure math (value picker, classification builder, color lookup) lives in
- * `src/core/choropleth.ts`; this composable wires it to Vue refs and
- * memoizes the per-geography picked values so we don't re-walk the
- * aggregation rows three times per render.
- */
+// Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  // Single pass over aggData → geoid → number|null. Reused by the
-  // classification (for `values` + `hasInsufficient`) and by feature
-  // generation (for fill color lookup).
+  // Memoized so classification + feature generation share one pass.
   const pickedByGeoid = computed((): Map<string, number | null> => {
     const aggData = input.choroplethAggregateData.value
     const element = input.choroplethElement.value
@@ -65,8 +53,6 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     })
   })
 
-  // Geoid -> geometry lookup, memoized on the fetched choropleth geographies
-  // so it isn't rebuilt every time the shade-by-density toggle fires.
   const choroplethGeoLookup = computed((): Map<string, CensusGeography> => {
     const lookup = new Map<string, CensusGeography>()
     for (const ds of input.choroplethGeoResult.value?.census_datasets || []) {
@@ -77,11 +63,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     return lookup
   })
 
-  // GeoJSON features for the map's choropleth layer. Feature properties
-  // intentionally carry only `geoid`/`name` and the styling fields consumed
-  // by maplibre — the census panel hydrates from `choroplethAggregateData`
-  // by geoid on click rather than reading bulky aggregate fields back out
-  // of feature properties.
+  // Feature properties carry only geoid/name + styling — the census panel
+  // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
     if (!input.showAggAreas.value) { return [] }
 

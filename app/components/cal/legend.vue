@@ -125,10 +125,7 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <!-- Choropleth aggregation legend: one row per palette bucket,
-             labeled with the value range for the currently-shaded element
-             (#302). Falls back to a plain gradient when no classification
-             is available yet. -->
+        <!-- Falls back to a plain gradient when no classification yet. -->
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
@@ -197,9 +194,7 @@ const props = defineProps<{
   // Choropleth aggregation
   showAggAreas?: boolean
   hasChoroplethData?: boolean
-  // Classification for the currently-shaded element; drives the bucket list.
   choroplethClassification?: ChoroplethClassification
-  // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
 }>()
 
@@ -221,9 +216,7 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
 
 <style scoped lang="scss">
 .cal-map-legend {
-  // Positioning is owned by the parent `.cal-map-sidebar` stack in map.vue
-  // so the legend and other right-side panels (e.g. the census panel) share
-  // layout and chrome.
+  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue.
   width: 100%;
   color: black;
 }

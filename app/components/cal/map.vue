@@ -13,9 +13,7 @@
       />
     </div>
 
-    <!-- Right-side stack: any panels slotted here render above the legend,
-         sharing identical chrome (`<cat-msg variant="dark">`). Used by the
-         census panel in tne.vue. -->
+    <!-- Slotted panels render above the legend; chrome shared via cat-msg. -->
     <div class="cal-map-sidebar">
       <slot name="sidebar-top" />
       <cal-legend
@@ -84,11 +82,7 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
-  // Aggregation-area polygon click: full aggregate row (geoid, name, counts,
-  // derived census columns) flows to the right-side census panel (#302).
   selectAggregation: [row: Record<string, any>]
-  // "View all details" link in the choropleth legend opens the
-  // census-details debug modal.
   viewCensusDetails: []
 }>()
 
@@ -110,7 +104,6 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
-  // Element classification (palette + breaks + format) for the legend bucket list.
   choroplethClassification?: ChoroplethClassification
   // Flex Services props
   flexServicesEnabled?: boolean
@@ -1060,9 +1053,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       const matchOrder = fp.marked ? 2 : 3
       sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
     } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.geoid) {
-      // Aggregation-area click — bypass the floating popup and surface the
-      // row via event so tne.vue can render the right-side census panel
-      // (#302, per Nome's wireframe). Do not set popupFeature here.
+      // Aggregation-area click: skip the popup, surface the row via event.
       emit('selectAggregation', { ...fp })
       continue
     }
@@ -1110,10 +1101,7 @@ function handleOpenTimetable (featureId: string | number) {
   z-index:10;
 }
 
-// Right-side stack: census panel (when set) on top, legend below. Panels
-// collapse/expand naturally via flex. The legend used to self-position at
-// right:50px; bottom:30px; that now lives here so multiple panels can share
-// the column.
+// Right-side stack hosting the legend and any slotted panels (census etc.).
 .cal-map-sidebar {
   position: absolute;
   right: 50px;
