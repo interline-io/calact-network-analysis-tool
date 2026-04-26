@@ -41,14 +41,16 @@
         freeze-first-column
       >
         <template #column-geoid="{ value }">
-          <button
-            type="button"
-            class="button is-small is-text cal-census-details-geoid-link"
-            title="Select this geography on the map"
-            @click="$emit('selectGeography', String(value))"
-          >
-            {{ value }}
-          </button>
+          <span title="Select this geography on the map">
+            <cat-button
+              variant="text"
+              size="small"
+              class="cal-census-details-geoid-link"
+              @click="$emit('selectGeography', String(value))"
+            >
+              {{ value }}
+            </cat-button>
+          </span>
         </template>
         <template #column-actions="{ row }">
           <cal-census-row-actions
@@ -75,14 +77,16 @@
         freeze-first-column
       >
         <template #column-geoid="{ value }">
-          <button
-            type="button"
-            class="button is-small is-text cal-census-details-geoid-link"
-            title="Select this geography on the map"
-            @click="$emit('selectGeography', String(value))"
-          >
-            {{ value }}
-          </button>
+          <span title="Select this geography on the map">
+            <cat-button
+              variant="text"
+              size="small"
+              class="cal-census-details-geoid-link"
+              @click="$emit('selectGeography', String(value))"
+            >
+              {{ value }}
+            </cat-button>
+          </span>
         </template>
         <template #column-actions="{ row }">
           <cal-census-row-actions

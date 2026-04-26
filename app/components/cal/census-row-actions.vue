@@ -1,21 +1,19 @@
 <template>
   <div class="cal-census-details-actions">
-    <button
-      type="button"
-      class="button is-small"
-      title="Copy geoid to clipboard"
+    <cat-button
+      size="small"
+      icon-left="content-copy"
       @click="$emit('copyText', String(row.geoid))"
     >
-      <cat-icon icon="content-copy" size="small" /> geoid
-    </button>
-    <button
-      type="button"
-      class="button is-small"
-      title="Copy full row as JSON"
+      Copy geoid
+    </cat-button>
+    <cat-button
+      size="small"
+      icon-left="code-json"
       @click="$emit('copyJson', row)"
     >
-      <cat-icon icon="code-json" size="small" /> JSON
-    </button>
+      Copy JSON
+    </cat-button>
   </div>
 </template>
 
