@@ -246,6 +246,7 @@ import {
   deriveCensusRow,
   detectCensusColumnSourceKeys,
   formatCensusValue,
+  toFiniteNumber,
   type CensusGeographyData,
 } from '~~/src/core'
 
@@ -443,10 +444,8 @@ const inspectorSelected = computed(() => {
 })
 
 function formatRaw (v: number | undefined): string {
-  if (v === undefined || v === null || !Number.isFinite(v)) {
-    return '—'
-  }
-  return v.toLocaleString('en-US')
+  const n = toFiniteNumber(v)
+  return n === null ? '—' : n.toLocaleString('en-US')
 }
 </script>
 

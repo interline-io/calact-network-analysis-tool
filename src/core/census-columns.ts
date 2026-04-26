@@ -68,6 +68,20 @@ export interface CensusColumnDef {
   densityEligible: boolean
 }
 
+// Coerce arbitrary input to a finite number, or null. Accepts numeric
+// strings, rejects NaN/Infinity. Used by the datagrid, census-panel, and
+// census-details for cell-value normalization.
+export function toFiniteNumber (value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (value === null || value === undefined) {
+    return null
+  }
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
 function num (v: number | undefined): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
@@ -329,6 +343,39 @@ export function deriveApportionedRow (
       : col.derive(scaled)
   }
   return out
+}
+
+// Same semantics as `deriveApportionedRow` but for a single column. Avoids
+// running the other 10 derivations on the per-feature hot path; only scales
+// the keys this column actually reads. Source keys are memoized lazily via
+// `detectCensusColumnSourceKeys`.
+const SOURCE_KEYS_CACHE = new Map<string, string[]>()
+
+export function deriveApportionedColumn (
+  values: CensusValues,
+  intersectionRatio: number,
+  columnId: string,
+): number | null {
+  const col = CENSUS_COLUMNS.find(c => c.id === columnId)
+  if (!col) {
+    return null
+  }
+  if (NON_ADDITIVE_CENSUS_COLUMNS.has(columnId)) {
+    return col.derive(values)
+  }
+  let keys = SOURCE_KEYS_CACHE.get(columnId)
+  if (!keys) {
+    keys = detectCensusColumnSourceKeys(col)
+    SOURCE_KEYS_CACHE.set(columnId, keys)
+  }
+  const scaled: CensusValues = {}
+  for (const k of keys) {
+    const v = values[k]
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      scaled[k] = v * intersectionRatio
+    }
+  }
+  return col.derive(scaled)
 }
 
 // Sum apportioned raw ACS values across geographies, then run derivations.

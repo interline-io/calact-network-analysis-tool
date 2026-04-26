@@ -8,7 +8,7 @@ import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
-import { formatCensusValue } from '~~/src/core'
+import { STOP_AGG_ELEMENT_IDS, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -299,11 +299,12 @@ function initMap () {
         const line = document.createTextNode(`${label}: ${value}`)
         choroplethTooltip.appendChild(line)
       }
-      // Currently-shaded element: total / scaled / density. Skip when the
-      // shaded label duplicates one of the four counts above.
+      // Currently-shaded element: total / scaled / density. Skip stop-derived
+      // elements (visit_count_total, stops_count) since their values already
+      // appear in the four counts above.
+      const shadedElement = fp?.shaded_element as string | undefined
       const shadedLabel = fp?.shaded_label as string | undefined
-      const dupes = new Set(['Stops', 'Routes', 'Agencies', visitsLabel, 'Total stop visits', 'Number of stops'])
-      if (shadedLabel && !dupes.has(shadedLabel)) {
+      if (shadedLabel && shadedElement && !STOP_AGG_ELEMENT_IDS.has(shadedElement)) {
         const fmt = (fp?.shaded_format as CensusFormat | undefined) ?? 'integer'
         const full = fp?.shaded_full_value ?? null
         const scaled = fp?.shaded_scaled_value ?? null

@@ -2,7 +2,8 @@ import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
   buildChoroplethClassification,
-  deriveApportionedRow,
+  densityPerKm2,
+  deriveApportionedColumn,
   getChoroplethColor,
   pickChoroplethValue,
   type CensusFormat,
@@ -97,9 +98,9 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       let densityValue: number | null = null
       const censusGeo = elementCol ? censusGeos?.get(aggRow.geoid as string) : undefined
       if (elementCol && censusGeo) {
-        scaledValue = deriveApportionedRow(censusGeo.values, censusGeo.intersectionRatio)[element] ?? null
-        if (elementIsDensityEligible && fullValue !== null && censusGeo.geometryArea > 0) {
-          densityValue = (fullValue * 1_000_000) / censusGeo.geometryArea
+        scaledValue = deriveApportionedColumn(censusGeo.values, censusGeo.intersectionRatio, element)
+        if (elementIsDensityEligible) {
+          densityValue = densityPerKm2(fullValue, censusGeo.geometryArea)
         }
       }
 
@@ -116,6 +117,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
           'agencies_count': aggRow.agencies_count ?? 0,
           'visit_count_total': aggRow.visit_count_total ?? 0,
           // Currently-shaded element: total / scaled / density values.
+          'shaded_element': element,
           'shaded_label': label,
           'shaded_format': format,
           'shaded_full_value': fullValue,

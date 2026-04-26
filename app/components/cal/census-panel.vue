@@ -93,6 +93,7 @@ import {
   type CensusColumnDef,
   formatArea,
   formatCensusValue,
+  toFiniteNumber,
 } from '~~/src/core'
 
 const props = defineProps<{
@@ -114,12 +115,7 @@ defineEmits<{
 }>()
 
 function valueFor (id: string): number | null {
-  const v = props.row?.[id]
-  if (v === null || v === undefined) {
-    return null
-  }
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : null
+  return toFiniteNumber(props.row?.[id])
 }
 
 function intersectionCell (col: CensusColumnDef): string {

@@ -8,6 +8,14 @@ import type { CensusGeographyData } from './census-intersection'
 
 export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
 
+// Choropleth elements derived from stop aggregation (not census). The hover
+// tooltip skips the "shaded" line for these to avoid duplicating the
+// already-shown stop/route/visits counts.
+export const STOP_AGG_ELEMENT_IDS = new Set<string>([
+  CHOROPLETH_DEFAULT_ELEMENT,
+  'stops_count',
+])
+
 export interface ChoroplethClassification {
   element: string
   label: string
@@ -31,10 +39,16 @@ export function pickChoroplethValue (
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) { return null }
   if (!isDensity) { return n }
-  // Scale m² → km² so labels read "5 per km²" not "0.000005 per m²".
-  const area = geographies?.get(agg.geoid as string)?.geometryArea
-  if (!area) { return null }
-  return (n * 1_000_000) / area
+  return densityPerKm2(n, geographies?.get(agg.geoid as string)?.geometryArea)
+}
+
+// Scale m² → km² so labels read "5 per km²" not "0.000005 per m²".
+// Returns null when the value or area is missing/zero.
+export function densityPerKm2 (value: number | null, areaM2: number | undefined): number | null {
+  if (value === null || !Number.isFinite(value) || !areaM2 || areaM2 <= 0) {
+    return null
+  }
+  return (value * 1_000_000) / areaM2
 }
 
 // Quantile breaks are deduped (so the legend doesn't show empty buckets when
