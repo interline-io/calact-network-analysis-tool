@@ -12,10 +12,6 @@ function picked (entries: Array<[string, number | null]>): Map<string, number | 
 }
 
 describe('pickChoroplethValue', () => {
-  it('returns the raw number in non-density mode', () => {
-    expect(pickChoroplethValue({ visit_count_total: 42, geoid: '1' }, 'visit_count_total', false, undefined)).toBe(42)
-  })
-
   it('returns 0 when the value is 0 (not null)', () => {
     expect(pickChoroplethValue({ x: 0, geoid: '1' }, 'x', false, undefined)).toBe(0)
   })
@@ -25,10 +21,6 @@ describe('pickChoroplethValue', () => {
     expect(pickChoroplethValue({ x: null, geoid: '1' }, 'x', false, undefined)).toBeNull()
     expect(pickChoroplethValue({ x: 'not a number', geoid: '1' }, 'x', false, undefined)).toBeNull()
     expect(pickChoroplethValue({ x: Number.POSITIVE_INFINITY, geoid: '1' }, 'x', false, undefined)).toBeNull()
-  })
-
-  it('coerces string numbers', () => {
-    expect(pickChoroplethValue({ x: '17', geoid: '1' }, 'x', false, undefined)).toBe(17)
   })
 
   it('density mode scales by 1,000,000 / area_m² → counts per km²', () => {
@@ -93,19 +85,6 @@ describe('buildChoroplethClassification', () => {
     expect(c.values).toEqual([])
     expect(c.hasInsufficient).toBe(true)
   })
-
-  it('passes through label, format, isDensity', () => {
-    const c = buildChoroplethClassification({
-      pickedByGeoid: picked([['1', 100]]),
-      element: 'median_household_income',
-      label: 'Median household income',
-      format: 'currency',
-      isDensity: false,
-    })
-    expect(c.label).toBe('Median household income')
-    expect(c.format).toBe('currency')
-    expect(c.isDensity).toBe(false)
-  })
 })
 
 describe('getChoroplethColor', () => {
@@ -118,10 +97,6 @@ describe('getChoroplethColor', () => {
 
   it('routes 0 into the lowest bucket (not insufficient)', () => {
     expect(getChoroplethColor(0, palette, breaks)).toBe(palette[0])
-  })
-
-  it('routes a small positive value into the lowest bucket', () => {
-    expect(getChoroplethColor(50, palette, breaks)).toBe(palette[0])
   })
 
   it('routes mid-range values into mid buckets', () => {

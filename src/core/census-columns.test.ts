@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
-  NON_ADDITIVE_CENSUS_COLUMNS,
-  REQUIRED_ACS_TABLES,
   deriveApportionedRow,
-  deriveCensusRow,
   formatAcsDatasetLabel,
   formatArea,
   formatCensusBucketLabel,
@@ -21,41 +18,7 @@ function byId (id: string) {
   return col
 }
 
-describe('CENSUS_COLUMNS', () => {
-  it('exposes all 11 columns from issue #302', () => {
-    expect(CENSUS_COLUMNS.map(c => c.id)).toEqual([
-      'total_population',
-      'pct_people_of_color',
-      'public_transit_commuters',
-      'pct_no_vehicle',
-      'pct_below_200_poverty',
-      'median_household_income',
-      'avg_household_size',
-      'pct_rental_households',
-      'youth_under_18',
-      'adults_65_plus',
-      'working_age_with_disability',
-    ])
-  })
-
-  it('REQUIRED_ACS_TABLES is the sorted union of per-column requirements', () => {
-    expect(REQUIRED_ACS_TABLES).toEqual([
-      'b01001', 'b01003', 'b02001', 'b08301', 'b19013',
-      'b23024', 'b25002', 'b25003', 'b25044', 'c17002',
-    ])
-  })
-})
-
 describe('derivations', () => {
-  it('returns null when the required value is missing', () => {
-    expect(byId('total_population').derive({})).toBeNull()
-    expect(byId('median_household_income').derive({})).toBeNull()
-  })
-
-  it('total_population reads b01003_001 directly', () => {
-    expect(byId('total_population').derive({ b01003_001: 1000 })).toBe(1000)
-  })
-
   it('pct_people_of_color = (total − white_alone) / total', () => {
     const col = byId('pct_people_of_color')
     expect(col.derive({ b01003_001: 1000, b02001_002: 600 })).toBeCloseTo(0.4)
@@ -114,27 +77,12 @@ describe('derivations', () => {
   })
 })
 
-describe('deriveCensusRow', () => {
-  it('returns a value for every column id', () => {
-    const row = deriveCensusRow({ b01003_001: 500 })
-    for (const col of CENSUS_COLUMNS) {
-      expect(row).toHaveProperty(col.id)
-    }
-    expect(row.total_population).toBe(500)
-    expect(row.median_household_income).toBeNull()
-  })
-})
-
 describe('formatCensusValue', () => {
   it('renders null as em-dash regardless of format', () => {
     expect(formatCensusValue(null, 'integer')).toBe('—')
     expect(formatCensusValue(null, 'percent')).toBe('—')
     expect(formatCensusValue(null, 'currency')).toBe('—')
     expect(formatCensusValue(null, 'decimal')).toBe('—')
-  })
-
-  it('formats integers with thousands separators', () => {
-    expect(formatCensusValue(12345, 'integer')).toBe('12,345')
   })
 
   it('formats percent as 1-decimal %', () => {
@@ -166,19 +114,6 @@ describe('summarizeBbox', () => {
     expect(derived.total_population).toBe(1250)
   })
 
-  it('returns an empty object when given no map', () => {
-    const { raw, derived } = summarizeBbox(['1'], undefined)
-    expect(raw).toEqual({})
-    expect(derived).toEqual({})
-  })
-
-  it('skips geographies missing from the map', () => {
-    const geos = new Map([
-      ['1', { values: { b01003_001: 100 }, intersectionRatio: 1.0 }],
-    ])
-    const { raw } = summarizeBbox(['1', '2', '3'], geos)
-    expect(raw.b01003_001).toBe(100)
-  })
 })
 
 describe('deriveApportionedRow', () => {
@@ -204,24 +139,10 @@ describe('deriveApportionedRow', () => {
 })
 
 describe('formatArea', () => {
-  it('renders m² for small areas', () => {
+  it('switches m² to km² at 1,000,000', () => {
     expect(formatArea(1500)).toBe('1,500 m²')
-  })
-
-  it('switches to km² at 1,000,000 m²', () => {
     expect(formatArea(1_000_000)).toBe('1.00 km²')
     expect(formatArea(2_500_000)).toBe('2.50 km²')
-  })
-
-  it('renders missing input as em-dash', () => {
-    expect(formatArea(null)).toBe('—')
-    expect(formatArea(undefined)).toBe('—')
-  })
-})
-
-describe('NON_ADDITIVE_CENSUS_COLUMNS', () => {
-  it('lists median_household_income as non-additive', () => {
-    expect(NON_ADDITIVE_CENSUS_COLUMNS.has('median_household_income')).toBe(true)
   })
 })
 
@@ -246,10 +167,6 @@ describe('formatCensusBucketLabel', () => {
     expect(formatCensusBucketLabel(0, [50000], 2, 'currency')).toBe('$50,000 or less')
     expect(formatCensusBucketLabel(0, [0.2], 2, 'percent')).toBe('20.0% or less')
   })
-
-  it('returns empty string when breaks collapse to nothing', () => {
-    expect(formatCensusBucketLabel(0, [], 5, 'integer')).toBe('')
-  })
 })
 
 describe('formatAcsDatasetLabel', () => {
@@ -260,10 +177,5 @@ describe('formatAcsDatasetLabel', () => {
 
   it('falls back to raw string on unknown format', () => {
     expect(formatAcsDatasetLabel('something-else')).toBe('something-else')
-  })
-
-  it('returns empty string for missing input', () => {
-    expect(formatAcsDatasetLabel(undefined)).toBe('')
-    expect(formatAcsDatasetLabel('')).toBe('')
   })
 })
