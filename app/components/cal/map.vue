@@ -120,7 +120,7 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
-  unitSystem?: UnitSystem
+  unitSystem: UnitSystem
 }>()
 
 const showShareMenu = ref(false)

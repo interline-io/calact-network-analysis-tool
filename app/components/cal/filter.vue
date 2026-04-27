@@ -668,7 +668,7 @@ const startDate = defineModel<Date>('startDate', { required: true })
 const endDate = defineModel<Date>('endDate', { required: true })
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
-const unitSystem = defineModel<UnitSystem>('unitSystem')
+const unitSystem = defineModel<UnitSystem>('unitSystem', { default: 'us' })
 const hideUnmarked = defineModel<boolean>('hideUnmarked')
 
 const showFiltered = computed({

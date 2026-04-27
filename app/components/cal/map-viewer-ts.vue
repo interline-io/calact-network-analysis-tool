@@ -319,7 +319,7 @@ function initMap () {
           lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
         }
         if (density !== null) {
-          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem)}`])
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem ?? 'us')}`])
         }
         for (const [k, v] of lines) {
           choroplethTooltip.appendChild(document.createElement('br'))

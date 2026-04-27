@@ -108,7 +108,7 @@ const props = defineProps<{
     intersectionArea: number | null
     intersectionRatio: number | null
   } | null
-  unitSystem?: UnitSystem
+  unitSystem: UnitSystem
 }>()
 
 defineEmits<{

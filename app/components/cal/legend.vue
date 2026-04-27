@@ -187,7 +187,7 @@ const props = defineProps<{
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
   isAllDayMode?: boolean
-  unitSystem?: UnitSystem
+  unitSystem: UnitSystem
 }>()
 
 defineEmits<{
