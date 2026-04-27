@@ -53,11 +53,7 @@
           </span>
         </template>
         <template #column-actions="{ row }">
-          <cal-census-row-actions
-            :row="row"
-            @copy-text="copyText"
-            @copy-json="copyJson"
-          />
+          <cal-census-row-actions :row="row" />
         </template>
       </cal-datagrid>
     </div>
@@ -89,11 +85,7 @@
           </span>
         </template>
         <template #column-actions="{ row }">
-          <cal-census-row-actions
-            :row="row"
-            @copy-text="copyText"
-            @copy-json="copyJson"
-          />
+          <cal-census-row-actions :row="row" />
         </template>
       </cal-datagrid>
     </div>
@@ -232,10 +224,6 @@
         </p>
       </div>
     </div>
-
-    <p v-if="copiedMessage" class="help has-text-success mt-2">
-      {{ copiedMessage }}
-    </p>
   </div>
 </template>
 
@@ -360,31 +348,6 @@ function pluralize (label: string): string {
     return `${label.slice(0, -1)}ies`
   }
   return `${label}s`
-}
-
-const copiedMessage = ref('')
-let copiedTimer: ReturnType<typeof setTimeout> | undefined
-
-function flashCopied (msg: string) {
-  copiedMessage.value = msg
-  if (copiedTimer) { clearTimeout(copiedTimer) }
-  copiedTimer = setTimeout(() => { copiedMessage.value = '' }, 2000)
-}
-
-async function copyText (text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    flashCopied(`Copied: ${text}`)
-  } catch (err) {
-    console.warn('clipboard write failed', err)
-  }
-}
-
-async function copyJson (row: Record<string, unknown>) {
-  const clean = Object.fromEntries(
-    Object.entries(row).filter(([k]) => !k.startsWith('_')),
-  )
-  await copyText(JSON.stringify(clean, null, 2))
 }
 
 const displayCoverage = computed(() => {
