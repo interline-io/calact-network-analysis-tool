@@ -723,6 +723,8 @@ export class ScenarioFetcher {
     const entries: [string, CensusGeographyData][] = features.map(f => [
       f.properties.geoid,
       {
+        id: f.properties.geography_id,
+        name: f.properties.name,
         values: f.properties.values,
         intersectionRatio: f.properties.intersection_ratio,
         geometryArea: f.properties.geometry_area,

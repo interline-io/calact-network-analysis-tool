@@ -181,6 +181,22 @@ export function stopGeoAggregateCsv (
     agencies_count: Set<number>
   }>()
 
+  // Seed every geography so stop-less tracts still produce a row.
+  if (censusGeographies) {
+    for (const [geoid, geo] of censusGeographies) {
+      stopAgg.set(geoid, {
+        geoid,
+        layer_name: aggregationKey,
+        name: geo.name,
+        visits_count: 0,
+        stops_count: new Set<number>(),
+        routes_count: new Set<number>(),
+        routes_modes: new Set<number>(),
+        agencies_count: new Set<number>(),
+      })
+    }
+  }
+
   for (const stop of stops) {
     const geogs = (stop.census_geographies || []).filter(g => g.layer_name === aggregationKey)
     for (const geog of geogs) {

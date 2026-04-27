@@ -8,13 +8,12 @@ import type { CensusValues } from './census-columns'
 // query with intersection data. Used by both the scenario pipeline and WSDOT.
 
 export interface CensusGeographyData {
-  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
+  id: number
+  name: string
   values: CensusValues
   /** Fraction of the geography inside the query area, in [0, 1]. */
   intersectionRatio: number
-  /** Full geography area in m². */
   geometryArea: number
-  /** Intersection (geography ∩ query area) in m². */
   intersectionArea: number
 }
 
@@ -22,6 +21,7 @@ export interface CensusGeographyFeature {
   id: string
   type: 'Feature'
   properties: {
+    geography_id: number
     dataset_name: string
     layer_name: string
     geoid: string
@@ -190,6 +190,7 @@ export async function fetchCensusIntersection (
         id: geography.geoid,
         type: 'Feature',
         properties: {
+          geography_id: geography.id,
           name: geography.name,
           dataset_name: geoDataset.name,
           layer_name: geography.layer_name,

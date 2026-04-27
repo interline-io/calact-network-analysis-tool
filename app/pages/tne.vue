@@ -1393,10 +1393,13 @@ const aggregateLayerLabel = computed((): string => {
 // Choropleth aggregation overlay
 /////////////////
 
-// Only fetch geometries when the choropleth toggle is on
+// All census geographies in the query area, used to fetch geometry for the
+// choropleth. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
-  return aggregateGeoIds.value
+  const geos = scenarioFilterResult.value?.censusGeographies
+  if (!geos) { return [] }
+  return [...geos.values()].map(g => g.id)
 })
 
 // Fetch geometry for the choropleth geographies
