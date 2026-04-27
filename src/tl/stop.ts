@@ -169,6 +169,7 @@ export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
   censusGeographies?: Map<string, CensusGeographyData>,
+  options?: { onlyWithStops?: boolean },
 ): StopGeoAggregateCsv[] {
   const stopAgg = new Map<string, {
     geoid: string
@@ -181,8 +182,9 @@ export function stopGeoAggregateCsv (
     agencies_count: Set<number>
   }>()
 
-  // Seed every geography so stop-less tracts still produce a row.
-  if (censusGeographies) {
+  // Seed every geography so stop-less tracts still produce a row. Skipped
+  // when the caller only wants stop-touched rows.
+  if (censusGeographies && !options?.onlyWithStops) {
     for (const [geoid, geo] of censusGeographies) {
       stopAgg.set(geoid, {
         geoid,

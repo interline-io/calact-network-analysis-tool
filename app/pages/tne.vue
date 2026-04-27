@@ -210,7 +210,7 @@
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
           :is-all-day-mode="isAllDayMode"
-          :unit-system="unitSystemTyped"
+          :unit-system="unitSystem"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -227,7 +227,7 @@
               :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
               :all-derived="allGeographiesDerived"
               :area-stats="selectedPanelData?.areaStats ?? null"
-              :unit-system="unitSystemTyped"
+              :unit-system="unitSystem"
               @close="selectedAggregationGeoid = null"
               @select-element="choroplethElement = $event"
             />
@@ -508,11 +508,11 @@ const bbox = computed({
   }
 })
 
-const unitSystem = computed<string | undefined>({
+const unitSystem = computed<UnitSystem>({
   get () {
-    return route.query.unitSystem?.toString() || 'us'
+    return route.query.unitSystem === 'eu' ? 'eu' : 'us'
   },
-  set (v?: string) {
+  set (v: UnitSystem) {
     setQuery({ ...route.query, unitSystem: v })
   }
 })
@@ -1440,11 +1440,13 @@ const choroplethAggregateData = computed(() => {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  const rows = stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusGeographies)
-  return onlyWithStops.value ? rows.filter(r => (r.stops_count ?? 0) > 0) : rows
+  return stopGeoAggregateCsv(
+    markedStops,
+    aggregateLayer.value,
+    scenarioFilterResult.value.censusGeographies,
+    { onlyWithStops: onlyWithStops.value },
+  )
 })
-
-const unitSystemTyped = computed<UnitSystem>(() => unitSystem.value === 'eu' ? 'eu' : 'us')
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   showAggAreas,
@@ -1456,7 +1458,7 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
   selectedAggregationGeoid,
-  unitSystem: unitSystemTyped,
+  unitSystem,
 })
 
 // Loading progress tracking for modal

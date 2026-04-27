@@ -1,5 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import { sqMetersPerLargeUnit, type CensusFormat, type UnitSystem } from './census-columns'
+import { sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem } from './census-columns'
 import type { CensusGeographyData } from './census-intersection'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
@@ -46,12 +46,10 @@ export function pickChoroplethValue (
   element: string,
   isDensity: boolean,
   geographies: Map<string, CensusGeographyData> | undefined,
-  unitSystem: UnitSystem = 'eu',
+  unitSystem: UnitSystem,
 ): number | null {
-  const v = agg[element]
-  if (v === null || v === undefined) { return null }
-  const n = typeof v === 'number' ? v : Number(v)
-  if (!Number.isFinite(n)) { return null }
+  const n = toFiniteNumber(agg[element])
+  if (n === null) { return null }
   if (!isDensity) { return n }
   return densityPerArea(n, geographies?.get(agg.geoid as string)?.geometryArea, unitSystem)
 }
@@ -60,7 +58,7 @@ export function pickChoroplethValue (
 export function densityPerArea (
   value: number | null,
   areaM2: number | undefined,
-  unitSystem: UnitSystem = 'eu',
+  unitSystem: UnitSystem,
 ): number | null {
   if (value === null || !Number.isFinite(value) || !areaM2 || areaM2 <= 0) {
     return null

@@ -10,10 +10,13 @@ import type { CensusValues } from './census-columns'
 export interface CensusGeographyData {
   id: number
   name: string
+  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
   values: CensusValues
   /** Fraction of the geography inside the query area, in [0, 1]. */
   intersectionRatio: number
+  /** Full geography area in m². */
   geometryArea: number
+  /** Intersection (geography ∩ query area) in m². */
   intersectionArea: number
 }
 

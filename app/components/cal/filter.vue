@@ -603,6 +603,7 @@ import {
   parseTime,
   DEFAULT_TIME_WINDOW,
   CHOROPLETH_DEFAULT_ELEMENT,
+  type UnitSystem,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -667,7 +668,7 @@ const startDate = defineModel<Date>('startDate', { required: true })
 const endDate = defineModel<Date>('endDate', { required: true })
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
-const unitSystem = defineModel<string>('unitSystem')
+const unitSystem = defineModel<UnitSystem>('unitSystem')
 const hideUnmarked = defineModel<boolean>('hideUnmarked')
 
 const showFiltered = computed({

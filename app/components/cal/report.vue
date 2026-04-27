@@ -459,13 +459,13 @@ const geoReportData = computed((): TableReport => {
   if (aggregateLayer.value === '' || aggregateLayer.value === 'none') {
     return { data: [], columns: [] }
   }
-  const rows = stopGeoAggregateCsv(
-    (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
-    aggregateLayer.value,
-    props.scenarioFilterResult?.censusGeographies,
-  )
   return {
-    data: onlyWithStops.value ? rows.filter(r => (r.stops_count ?? 0) > 0) : rows,
+    data: stopGeoAggregateCsv(
+      (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
+      aggregateLayer.value,
+      props.scenarioFilterResult?.censusGeographies,
+      { onlyWithStops: onlyWithStops.value },
+    ),
     columns: stopGeoAggregateColumns.value
   }
 })

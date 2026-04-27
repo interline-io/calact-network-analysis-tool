@@ -252,7 +252,7 @@ const SQ_M_PER_SQ_MI = 2_589_988.110336
 const SQ_FT_PER_SQ_M = 10.7639104
 
 // Switches m²↔km² (eu) or ft²↔mi² (us) at the natural threshold.
-export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem = 'eu'): string {
+export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem): string {
   if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
     return '—'
   }
@@ -270,12 +270,12 @@ export function formatArea (m2: number | null | undefined, unitSystem: UnitSyste
 }
 
 // Label for "per <area unit>" used in density-mode legend / tooltip.
-export function densityUnitLabel (unitSystem: UnitSystem = 'eu'): string {
+export function densityUnitLabel (unitSystem: UnitSystem): string {
   return unitSystem === 'us' ? 'per mi²' : 'per km²'
 }
 
 // m² per the unit-system's "large area" (mi² or km²). Used by densityPerArea.
-export function sqMetersPerLargeUnit (unitSystem: UnitSystem = 'eu'): number {
+export function sqMetersPerLargeUnit (unitSystem: UnitSystem): number {
   return unitSystem === 'us' ? SQ_M_PER_SQ_MI : 1_000_000
 }
 
