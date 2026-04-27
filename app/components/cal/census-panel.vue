@@ -28,6 +28,12 @@
         </div>
       </div>
 
+      <div class="cal-census-panel-actions">
+        <a href="#" @click.prevent="$emit('viewDetails')">
+          View census details for this area →
+        </a>
+      </div>
+
       <table class="cal-census-panel-table">
         <thead>
           <tr>
@@ -114,6 +120,7 @@ const props = defineProps<{
 defineEmits<{
   close: []
   selectElement: [id: string]
+  viewDetails: []
 }>()
 
 function valueFor (id: string): number | null {
@@ -197,6 +204,17 @@ function allGeographiesCell (col: CensusColumnDef): string {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
+}
+
+.cal-census-panel-actions {
+  font-size: 0.85em;
+  margin-bottom: 8px;
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 
 .cal-census-panel-stat-link {

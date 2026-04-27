@@ -11,6 +11,12 @@
       </p>
     </div>
 
+    <cat-msg v-if="highlightedGeoid" variant="warning" class="mb-3">
+      Filtered to a single geography: <strong>{{ highlightedGeoid }}</strong>
+      <span v-if="nameFor(highlightedGeoid)"> — {{ nameFor(highlightedGeoid) }}</span>.
+      <a href="#" @click.prevent="$emit('clearFilter')">Show all geographies</a>
+    </cat-msg>
+
     <cat-tabs v-model="activeTab" type="boxed">
       <cat-tab-item value="geographies" label="Geographies" />
       <cat-tab-item value="raw" label="Raw ACS values" />
@@ -251,6 +257,7 @@ const props = defineProps<{
 
 defineEmits<{
   selectGeography: [geoid: string]
+  clearFilter: []
 }>()
 
 const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
@@ -259,10 +266,15 @@ const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geograp
 // to the raw ACS value, which is misleading without an opt-in.
 const geographiesApportioned = ref(false)
 
+// All geographies in the scenario; filtered to one when `highlightedGeoid`
+// is set (i.e. the user opened the modal from a clicked tract's panel).
 const geographies = computed((): Array<{ geoid: string, data: CensusGeographyData }> => {
   const m = props.scenarioFilterResult.censusGeographies
   if (!m) { return [] }
-  return [...m.entries()].map(([geoid, data]) => ({ geoid, data }))
+  const entries = [...m.entries()]
+  const filterGeoid = props.highlightedGeoid
+  const filtered = filterGeoid ? entries.filter(([geoid]) => geoid === filterGeoid) : entries
+  return filtered.map(([geoid, data]) => ({ geoid, data }))
 })
 
 const geographiesColumns = computed((): TableColumn[] => [

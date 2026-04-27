@@ -230,6 +230,7 @@
               :unit-system="unitSystem"
               @close="selectedAggregationGeoid = null"
               @select-element="choroplethElement = $event"
+              @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
             />
           </template>
         </cal-map>
@@ -281,6 +282,7 @@
           :layer-label="aggregateLayerLabel"
           :highlighted-geoid="highlightedCensusGeoid ?? undefined"
           @select-geography="onSelectGeographyFromDetails"
+          @clear-filter="highlightedCensusGeoid = null"
         />
       </cat-modal>
     </template>
@@ -289,7 +291,7 @@
 
 <script lang="ts" setup>
 import { addDays, endOfYesterday, nextMonday } from 'date-fns'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
@@ -1340,6 +1342,11 @@ function openCensusDetails (geoid?: string) {
   highlightedCensusGeoid.value = geoid ?? null
   showCensusDetails.value = true
 }
+// Clear the geoid filter whenever the modal closes so the next open from
+// the legend starts unfiltered.
+watch(showCensusDetails, (open) => {
+  if (!open) { highlightedCensusGeoid.value = null }
+})
 
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
