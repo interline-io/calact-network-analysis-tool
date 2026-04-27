@@ -32,6 +32,7 @@
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
         :is-all-day-mode="props.isAllDayMode"
+        :unit-system="props.unitSystem"
         @view-details="emit('viewCensusDetails')"
       />
     </div>
@@ -54,6 +55,7 @@
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
       :is-all-day-mode="props.isAllDayMode"
+      :unit-system="props.unitSystem"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -71,7 +73,7 @@ import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
-import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode, ChoroplethClassification } from '~~/src/core'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode, ChoroplethClassification, UnitSystem } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -118,6 +120,7 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
+  unitSystem?: UnitSystem
 }>()
 
 const showShareMenu = ref(false)

@@ -129,7 +129,7 @@
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
             <span v-if="props.choroplethClassification?.isDensity" class="cal-legend-unit-suffix">
-              (per km²)
+              ({{ densityUnitLabel(props.unitSystem) }})
             </span>
           </div>
           <div v-if="props.choroplethClassification?.hasInsufficient" class="cal-choropleth-bucket">
@@ -157,9 +157,11 @@
 
 <script setup lang="ts">
 import {
+  densityUnitLabel,
   formatCensusBucketLabel,
   type ChoroplethClassification,
   type DataDisplayMode,
+  type UnitSystem,
 } from '~~/src/core'
 
 interface StyleItem {
@@ -185,6 +187,7 @@ const props = defineProps<{
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
   isAllDayMode?: boolean
+  unitSystem?: UnitSystem
 }>()
 
 defineEmits<{
@@ -197,7 +200,7 @@ function bucketLabel (i: number): string {
   const c = props.choroplethClassification
   if (!c) { return '' }
   const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
-  return c.isDensity ? `${base} per km²` : base
+  return c.isDensity ? `${base} ${densityUnitLabel(props.unitSystem)}` : base
 }
 </script>
 

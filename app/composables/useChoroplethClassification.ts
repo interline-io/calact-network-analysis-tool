@@ -2,7 +2,7 @@ import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
   buildChoroplethClassification,
-  densityPerKm2,
+  densityPerArea,
   deriveApportionedColumn,
   getChoroplethColor,
   pickChoroplethValue,
@@ -10,6 +10,7 @@ import {
   type CensusGeographyData,
   type ChoroplethClassification,
   type Feature,
+  type UnitSystem,
 } from '~~/src/core'
 import type { CensusDataset, CensusGeography } from '~~/src/tl'
 
@@ -23,6 +24,7 @@ interface UseChoroplethClassificationInput {
   censusGeographies: ComputedRef<Map<string, CensusGeographyData> | undefined>
   choroplethGeoResult: Ref<{ census_datasets: CensusDataset[] } | null | undefined>
   selectedAggregationGeoid: Ref<string | null>
+  unitSystem: Ref<UnitSystem> | ComputedRef<UnitSystem>
 }
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
@@ -33,10 +35,11 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const element = input.choroplethElement.value
     const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
     const geos = input.censusGeographies.value
+    const unit = input.unitSystem.value
     const out = new Map<string, number | null>()
     for (const a of aggData) {
       const row = a as Record<string, any>
-      out.set(row.geoid as string, pickChoroplethValue(row, element, isDensity, geos))
+      out.set(row.geoid as string, pickChoroplethValue(row, element, isDensity, geos, unit))
     }
     return out
   })
@@ -100,7 +103,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       if (elementCol && censusGeo) {
         scaledValue = deriveApportionedColumn(censusGeo.values, censusGeo.intersectionRatio, element)
         if (elementIsDensityEligible) {
-          densityValue = densityPerKm2(fullValue, censusGeo.geometryArea)
+          densityValue = densityPerArea(fullValue, censusGeo.geometryArea, input.unitSystem.value)
         }
       }
 

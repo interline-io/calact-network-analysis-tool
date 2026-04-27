@@ -246,15 +246,37 @@ export function detectCensusColumnSourceKeys (col: CensusColumnDef): string[] {
   return [...seen].sort()
 }
 
-// Switches to km² at 1,000,000 m².
-export function formatArea (m2: number | null | undefined): string {
+export type UnitSystem = 'us' | 'eu'
+
+const SQ_M_PER_SQ_MI = 2_589_988.110336
+const SQ_FT_PER_SQ_M = 10.7639104
+
+// Switches m²↔km² (eu) or ft²↔mi² (us) at the natural threshold.
+export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem = 'eu'): string {
   if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
     return '—'
+  }
+  if (unitSystem === 'us') {
+    const sqMi = m2 / SQ_M_PER_SQ_MI
+    if (sqMi >= 0.1) {
+      return `${sqMi.toFixed(2)} mi²`
+    }
+    return `${Math.round(m2 * SQ_FT_PER_SQ_M).toLocaleString('en-US')} ft²`
   }
   if (m2 >= 1_000_000) {
     return `${(m2 / 1_000_000).toFixed(2)} km²`
   }
   return `${Math.round(m2).toLocaleString('en-US')} m²`
+}
+
+// Label for "per <area unit>" used in density-mode legend / tooltip.
+export function densityUnitLabel (unitSystem: UnitSystem = 'eu'): string {
+  return unitSystem === 'us' ? 'per mi²' : 'per km²'
+}
+
+// m² per the unit-system's "large area" (mi² or km²). Used by densityPerArea.
+export function sqMetersPerLargeUnit (unitSystem: UnitSystem = 'eu'): number {
+  return unitSystem === 'us' ? SQ_M_PER_SQ_MI : 1_000_000
 }
 
 export function formatCensusValue (value: number | null, format: CensusFormat): string {

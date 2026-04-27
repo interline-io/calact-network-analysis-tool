@@ -7,8 +7,8 @@ import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from '
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
-import { STOP_AGG_ELEMENT_IDS, formatCensusValue } from '~~/src/core'
+import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature, UnitSystem } from '~~/src/core'
+import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -57,6 +57,7 @@ const props = defineProps<{
   // Whether the active timeframe filter is "All Day" (no start/end time set);
   // affects mode-aware labels in the choropleth hover tooltip.
   isAllDayMode?: boolean
+  unitSystem?: UnitSystem
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -318,7 +319,7 @@ function initMap () {
           lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
         }
         if (density !== null) {
-          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} per km²`])
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem)}`])
         }
         for (const [k, v] of lines) {
           choroplethTooltip.appendChild(document.createElement('br'))

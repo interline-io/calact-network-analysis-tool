@@ -1,5 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import type { CensusFormat } from './census-columns'
+import { sqMetersPerLargeUnit, type CensusFormat, type UnitSystem } from './census-columns'
 import type { CensusGeographyData } from './census-intersection'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
@@ -46,22 +46,26 @@ export function pickChoroplethValue (
   element: string,
   isDensity: boolean,
   geographies: Map<string, CensusGeographyData> | undefined,
+  unitSystem: UnitSystem = 'eu',
 ): number | null {
   const v = agg[element]
   if (v === null || v === undefined) { return null }
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) { return null }
   if (!isDensity) { return n }
-  return densityPerKm2(n, geographies?.get(agg.geoid as string)?.geometryArea)
+  return densityPerArea(n, geographies?.get(agg.geoid as string)?.geometryArea, unitSystem)
 }
 
-// Scale m² → km² so labels read "5 per km²" not "0.000005 per m²".
-// Returns null when the value or area is missing/zero.
-export function densityPerKm2 (value: number | null, areaM2: number | undefined): number | null {
+// Counts per km² (eu) or per mi² (us). Returns null when value/area missing.
+export function densityPerArea (
+  value: number | null,
+  areaM2: number | undefined,
+  unitSystem: UnitSystem = 'eu',
+): number | null {
   if (value === null || !Number.isFinite(value) || !areaM2 || areaM2 <= 0) {
     return null
   }
-  return (value * 1_000_000) / areaM2
+  return (value * sqMetersPerLargeUnit(unitSystem)) / areaM2
 }
 
 // Quantile breaks are deduped (so the legend doesn't show empty buckets when

@@ -15,12 +15,12 @@
         </div>
         <div v-if="areaStats && areaStats.geometryArea !== null">
           <span class="cal-census-panel-meta-label">Area:</span>
-          <span class="cal-census-panel-meta-value">{{ formatArea(areaStats.geometryArea) }}</span>
+          <span class="cal-census-panel-meta-value">{{ formatArea(areaStats.geometryArea, unitSystem) }}</span>
         </div>
         <div v-if="areaStats && areaStats.intersectionArea !== null">
           <span class="cal-census-panel-meta-label">Intersection:</span>
           <span class="cal-census-panel-meta-value">
-            {{ formatArea(areaStats.intersectionArea) }}
+            {{ formatArea(areaStats.intersectionArea, unitSystem) }}
             <span v-if="areaStats.intersectionRatio !== null" class="cal-census-panel-meta-pct">
               ({{ (areaStats.intersectionRatio * 100).toFixed(0) }}%)
             </span>
@@ -91,6 +91,7 @@ import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
+  type UnitSystem,
   formatArea,
   formatCensusValue,
   toFiniteNumber,
@@ -107,6 +108,7 @@ const props = defineProps<{
     intersectionArea: number | null
     intersectionRatio: number | null
   } | null
+  unitSystem?: UnitSystem
 }>()
 
 defineEmits<{

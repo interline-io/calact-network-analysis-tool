@@ -208,6 +208,7 @@
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
           :is-all-day-mode="isAllDayMode"
+          :unit-system="unitSystemTyped"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -224,6 +225,7 @@
               :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
               :all-derived="allGeographiesDerived"
               :area-stats="selectedPanelData?.areaStats ?? null"
+              :unit-system="unitSystemTyped"
               @close="selectedAggregationGeoid = null"
               @select-element="choroplethElement = $event"
             />
@@ -331,6 +333,7 @@ import {
   deriveApportionedRow,
   type DataDisplayMode,
   type FilterTag,
+  type UnitSystem,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
@@ -1426,6 +1429,8 @@ const choroplethAggregateData = computed(() => {
   return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusGeographies)
 })
 
+const unitSystemTyped = computed<UnitSystem>(() => unitSystem.value === 'eu' ? 'eu' : 'us')
+
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   showAggAreas,
   choroplethAggregateData,
@@ -1436,6 +1441,7 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
   selectedAggregationGeoid,
+  unitSystem: unitSystemTyped,
 })
 
 // Loading progress tracking for modal
