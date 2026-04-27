@@ -523,6 +523,11 @@
               Shade as density (per km²)
             </cat-checkbox>
           </div>
+          <div class="mt-2">
+            <cat-checkbox v-model="onlyWithStops">
+              Only show geographies with stops
+            </cat-checkbox>
+          </div>
 
           <p class="menu-label">
             Overlay
@@ -702,6 +707,7 @@ const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
 const choroplethElement = defineModel<string>('choroplethElement', { default: CHOROPLETH_DEFAULT_ELEMENT })
 const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
+const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

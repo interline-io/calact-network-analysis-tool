@@ -139,6 +139,7 @@
             v-model:aggregate-layer="aggregateLayer"
             v-model:choropleth-element="choroplethElement"
             v-model:shade-by-density="shadeByDensity"
+            v-model:only-with-stops="onlyWithStops"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :geom-source="geomSource"
@@ -162,6 +163,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:only-with-stops="onlyWithStops"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
@@ -1042,6 +1044,18 @@ const shadeByDensity = computed<boolean>({
   }
 })
 
+// Filter out geographies with no marked stops in the map + report. Off by
+// default — the choropleth shows the full bbox so demographic comparison
+// works across areas with no transit.
+const onlyWithStops = computed<boolean>({
+  get () {
+    return route.query.onlyWithStops === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, onlyWithStops: v ? 'true' : undefined })
+  }
+})
+
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
 const selectedAggregationGeoid = ref<string | null>(null)
@@ -1426,7 +1440,8 @@ const choroplethAggregateData = computed(() => {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusGeographies)
+  const rows = stopGeoAggregateCsv(markedStops, aggregateLayer.value, scenarioFilterResult.value.censusGeographies)
+  return onlyWithStops.value ? rows.filter(r => (r.stops_count ?? 0) > 0) : rows
 })
 
 const unitSystemTyped = computed<UnitSystem>(() => unitSystem.value === 'eu' ? 'eu' : 'us')

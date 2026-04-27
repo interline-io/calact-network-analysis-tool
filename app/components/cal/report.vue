@@ -216,6 +216,7 @@ const reportHeading = computed(() => {
 
 const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
 const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
+const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
 
 type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'
 
@@ -458,12 +459,13 @@ const geoReportData = computed((): TableReport => {
   if (aggregateLayer.value === '' || aggregateLayer.value === 'none') {
     return { data: [], columns: [] }
   }
+  const rows = stopGeoAggregateCsv(
+    (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
+    aggregateLayer.value,
+    props.scenarioFilterResult?.censusGeographies,
+  )
   return {
-    data: stopGeoAggregateCsv(
-      (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
-      aggregateLayer.value,
-      props.scenarioFilterResult?.censusGeographies,
-    ),
+    data: onlyWithStops.value ? rows.filter(r => (r.stops_count ?? 0) > 0) : rows,
     columns: stopGeoAggregateColumns.value
   }
 })
