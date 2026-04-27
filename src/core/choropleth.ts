@@ -119,7 +119,7 @@ export function getChoroplethColor (
     return CHOROPLETH_INSUFFICIENT_COLOR
   }
   for (let i = 0; i < breaks.length; i++) {
-    if (value < breaks[i]!) {
+    if (value <= breaks[i]!) {
       return palette[i]!
     }
   }

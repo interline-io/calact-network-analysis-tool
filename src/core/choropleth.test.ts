@@ -109,9 +109,9 @@ describe('getChoroplethColor', () => {
     expect(getChoroplethColor(10_000, palette, breaks)).toBe(palette[palette.length - 1])
   })
 
-  it('is exclusive on break boundaries (value < break)', () => {
-    // exactly at a break value lands in the next-up bucket
-    expect(getChoroplethColor(100, palette, breaks)).toBe(palette[1])
-    expect(getChoroplethColor(500, palette, breaks)).toBe(palette[2])
+  it('is inclusive on break boundaries (value <= break) so labels match', () => {
+    // legend label "100 or less" must include exactly 100
+    expect(getChoroplethColor(100, palette, breaks)).toBe(palette[0])
+    expect(getChoroplethColor(500, palette, breaks)).toBe(palette[1])
   })
 })

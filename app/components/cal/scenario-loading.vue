@@ -132,6 +132,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'routes': 'Loading routes...',
     'schedules': 'Loading schedules...',
     'flex-areas': 'Loading flex service areas...',
+    'census-values': 'Loading census data...',
     'complete': 'Complete',
     'ready': 'Ready',
   }
