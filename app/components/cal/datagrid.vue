@@ -20,7 +20,7 @@
       </cat-field>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <thead>
           <tr>
@@ -42,7 +42,7 @@
                 :column="column"
                 :value="row[column.key]"
               >
-                {{ row[column.key] }}
+                {{ renderCell(column, row[column.key]) }}
               </slot>
             </td>
           </tr>
@@ -66,27 +66,42 @@
 </template>
 
 <script lang="ts">
+import type { CensusFormat } from '~~/src/core'
+</script>
+
+<script setup lang="ts">
+import { formatCensusValue, toFiniteNumber } from '~~/src/core'
+
 export interface TableColumn {
   key: string
   label: string
   sortable: boolean
   tooltip?: string
+  // When set, the default cell renderer routes the value through formatCensusValue.
+  format?: CensusFormat
 }
 
 export interface TableReport {
   columns: TableColumn[]
   data: Record<string, any>[]
 }
-</script>
 
-<script setup lang="ts">
 const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
 
+function renderCell (column: TableColumn, value: unknown): string {
+  if (column.format !== undefined) {
+    return formatCensusValue(toFiniteNumber(value), column.format)
+  }
+  return value == null ? '' : String(value)
+}
+
 const props = defineProps<{
   filename?: string
+  // Horizontally scrollable, with the first column pinned.
+  freezeFirstColumn?: boolean
 }>()
 
 const searchQuery = ref('')
@@ -171,6 +186,42 @@ const rangeEnd = computed(() => {
 
   td:first-child {
     background: var(--bulma-scheme-main);
+  }
+}
+
+// `border-collapse: collapse` on Bulma's .table suppresses cell box-shadows,
+// so the right-edge shade comes from a ::after instead.
+.table-container.is-freeze-first {
+  overflow-x: auto;
+
+  .cal-report-table {
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background: var(--bulma-scheme-main);
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: -8px;
+        width: 8px;
+        pointer-events: none;
+        background: linear-gradient(
+          to right,
+          rgba(0, 0, 0, 0.12),
+          rgba(0, 0, 0, 0)
+        );
+      }
+    }
+
+    thead th:first-child {
+      background: var(--bulma-scheme-main-ter);
+      z-index: 3;
+    }
   }
 }
 

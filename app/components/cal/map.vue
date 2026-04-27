@@ -13,22 +13,29 @@
       />
     </div>
 
-    <cal-legend
-      :data-display-mode="dataDisplayMode"
-      :style-data="styleData"
-      :has-data="hasData"
-      :display-edit-bbox-mode="displayEditBboxMode"
-      :show-bbox="showBbox"
-      :geom-source="geomSource"
-      :hide-unmarked="hideUnmarked"
-      :flex-enabled="flexServicesEnabled"
-      :flex-color-by="flexColorBy"
-      :flex-style-data="flexStyleData"
-      :has-flex-data="hasFlexData"
-      :show-agg-areas="showAggAreas"
-      :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
-      :is-all-day-mode="props.isAllDayMode"
-    />
+    <!-- Slotted panels render above the legend; chrome shared via cat-msg. -->
+    <div class="cal-map-sidebar">
+      <slot name="sidebar-top" />
+      <cal-legend
+        :data-display-mode="dataDisplayMode"
+        :style-data="styleData"
+        :has-data="hasData"
+        :display-edit-bbox-mode="displayEditBboxMode"
+        :show-bbox="showBbox"
+        :geom-source="geomSource"
+        :hide-unmarked="hideUnmarked"
+        :flex-enabled="flexServicesEnabled"
+        :flex-color-by="flexColorBy"
+        :flex-style-data="flexStyleData"
+        :has-flex-data="hasFlexData"
+        :show-agg-areas="showAggAreas"
+        :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
+        :choropleth-classification="props.choroplethClassification"
+        :is-all-day-mode="props.isAllDayMode"
+        :unit-system="props.unitSystem"
+        @view-details="emit('viewCensusDetails')"
+      />
+    </div>
 
     <cal-map-viewer-ts
       map-class="tall"
@@ -48,6 +55,7 @@
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
       :is-all-day-mode="props.isAllDayMode"
+      :unit-system="props.unitSystem"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -65,7 +73,7 @@ import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
-import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode } from '~~/src/core'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode, ChoroplethClassification, UnitSystem } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -76,6 +84,8 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
+  selectAggregation: [row: Record<string, any>]
+  viewCensusDetails: []
 }>()
 
 const props = defineProps<{
@@ -96,6 +106,7 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   showAggAreas?: boolean
+  choroplethClassification?: ChoroplethClassification
   // Flex Services props
   flexServicesEnabled?: boolean
   flexColorBy?: string
@@ -109,6 +120,7 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Whether the active timeframe filter is "All Day" (no start/end time set)
   isAllDayMode?: boolean
+  unitSystem: UnitSystem
 }>()
 
 const showShareMenu = ref(false)
@@ -1043,6 +1055,10 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       // Use POSITIVE_INFINITY for missing area so unknown-size areas sort last within their group.
       const matchOrder = fp.marked ? 2 : 3
       sortKey = [matchOrder, fp.area_m2 ?? Number.POSITIVE_INFINITY]
+    } else if ((ft === 'Polygon' || ft === 'MultiPolygon') && fp.geoid) {
+      // Aggregation-area click: skip the popup, surface the row via event.
+      emit('selectAggregation', { ...fp })
+      continue
     }
 
     if (popupFeature) {
@@ -1086,6 +1102,25 @@ function handleOpenTimetable (featureId: string | number) {
   padding:5px;
   height:150px;
   z-index:10;
+}
+
+// Right-side stack hosting the legend and any slotted panels (census etc.).
+.cal-map-sidebar {
+  position: absolute;
+  right: 50px;
+  bottom: 30px;
+  width: 400px;
+  max-height: calc(100% - 60px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
 }
 
 /* Custom marker styles */

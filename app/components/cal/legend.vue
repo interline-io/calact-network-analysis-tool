@@ -10,11 +10,11 @@
         <!-- Admin Boundary selection -->
         <div v-if="props.geomSource === 'adminBoundary'" class="cal-map-legend-section">
           <div>
-            <div class="legend-item legend-marker-square legend-geo-unselected" />
+            <div class="legend-item legend-marker-square cal-legend-geo-unselected" />
             <div>Unselected boundary</div>
           </div>
           <div>
-            <div class="legend-item legend-marker-square legend-geo-selected" />
+            <div class="legend-item legend-marker-square cal-legend-geo-selected" />
             <div>Selected boundary</div>
           </div>
         </div>
@@ -125,18 +125,29 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <!-- Choropleth aggregation legend -->
         <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
-            Aggregated Areas:
+            {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
+            <span v-if="props.choroplethClassification?.isDensity" class="cal-legend-unit-suffix">
+              ({{ densityUnitLabel(props.unitSystem) }})
+            </span>
           </div>
-          <div class="choropleth-legend-subtitle">
-            {{ props.isAllDayMode ? 'Total visits' : 'Total visits in window' }}
+          <div v-if="props.choroplethClassification?.hasInsufficient" class="cal-choropleth-bucket">
+            <div class="legend-item legend-marker-square cal-choropleth-insufficient" />
+            <div>Insufficient data</div>
           </div>
-          <div class="choropleth-gradient-bar" :style="{ background: choroplethGradient }" />
-          <div class="choropleth-gradient-labels">
-            <span>Low</span>
-            <span>High</span>
+          <div
+            v-for="(color, i) in (props.choroplethClassification?.values.length ? props.choroplethClassification.palette : [])"
+            :key="i"
+            class="cal-choropleth-bucket"
+          >
+            <div class="legend-item legend-marker-square" :style="{ background: color }" />
+            <div>{{ bucketLabel(i) }}</div>
+          </div>
+          <div class="cal-choropleth-details-link">
+            <a href="#" @click.prevent="$emit('viewDetails')">
+              View all details →
+            </a>
           </div>
         </div>
       </div>
@@ -145,7 +156,13 @@
 </template>
 
 <script setup lang="ts">
-import { choroplethPalette, type DataDisplayMode } from '~~/src/core'
+import {
+  densityUnitLabel,
+  formatCensusBucketLabel,
+  type ChoroplethClassification,
+  type DataDisplayMode,
+  type UnitSystem,
+} from '~~/src/core'
 
 interface StyleItem {
   label: string
@@ -168,23 +185,30 @@ const props = defineProps<{
   // Choropleth aggregation
   showAggAreas?: boolean
   hasChoroplethData?: boolean
-  // Whether the active timeframe filter is "All Day" (no start/end time set)
+  choroplethClassification?: ChoroplethClassification
   isAllDayMode?: boolean
+  unitSystem: UnitSystem
+}>()
+
+defineEmits<{
+  viewDetails: []
 }>()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
 
-const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join(', ')})`
+function bucketLabel (i: number): string {
+  const c = props.choroplethClassification
+  if (!c) { return '' }
+  const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
+  return c.isDensity ? `${base} ${densityUnitLabel(props.unitSystem)}` : base
+}
 </script>
 
 <style scoped lang="scss">
 .cal-map-legend {
-  position: absolute;
-  right: 50px;
-  bottom: 30px;
-  width: 300px;
+  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue.
+  width: 100%;
   color: black;
-  z-index: 10;
 }
 
 .message-header {
@@ -209,6 +233,13 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
 
 .legend-heading {
   font-weight: bold;
+}
+
+.cal-legend-unit-suffix {
+  font-weight: normal;
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin-left: 4px;
 }
 
 .legend-item {
@@ -288,31 +319,42 @@ const choroplethGradient = `linear-gradient(to right, ${choroplethPalette.join('
   margin-bottom: 10px;
 }
 
-.choropleth-legend-subtitle {
-  font-size: 0.85em;
-  opacity: 0.8;
-  margin-bottom: 4px;
-}
-
-.choropleth-gradient-bar {
-  height: 12px;
-  border-radius: 2px;
-}
-
-.choropleth-gradient-labels {
+.cal-choropleth-bucket {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.75em;
-  opacity: 0.8;
+  align-items: center;
+  height: 22px;
+
+  div:nth-child(2) {
+    padding-left: 10px;
+    font-size: 0.85em;
+  }
 }
 
-.legend-geo-unselected {
+// Swatch color must stay in sync with `CHOROPLETH_INSUFFICIENT_COLOR` in
+// src/core/constants.ts (used for the matching map polygon fill).
+.cal-choropleth-insufficient {
+  background: #e0e0e0;
+  border: 1px solid #bbb;
+}
+
+.cal-legend-geo-unselected {
   background-color: #cccccc;
   opacity: 0.6;
   border: 1px solid #666666;
 }
 
-.legend-geo-selected {
+.cal-choropleth-details-link {
+  margin-top: 8px;
+  font-size: 0.85em;
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+.cal-legend-geo-selected {
   background-color: #dc3545;
   opacity: 0.7;
   border: 1px solid #dc3545;

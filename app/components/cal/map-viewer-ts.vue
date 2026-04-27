@@ -7,7 +7,8 @@ import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from '
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
+import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature, UnitSystem } from '~~/src/core'
+import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -56,6 +57,7 @@ const props = defineProps<{
   // Whether the active timeframe filter is "All Day" (no start/end time set);
   // affects mode-aware labels in the choropleth hover tooltip.
   isAllDayMode?: boolean
+  unitSystem?: UnitSystem
 }>()
 
 // Stages during which we should skip expensive map updates
@@ -297,6 +299,32 @@ function initMap () {
         choroplethTooltip.appendChild(document.createElement('br'))
         const line = document.createTextNode(`${label}: ${value}`)
         choroplethTooltip.appendChild(line)
+      }
+      // Currently-shaded element: total / scaled / density. Skip stop-derived
+      // elements (visit_count_total, stops_count) since their values already
+      // appear in the four counts above.
+      const shadedElement = fp?.shaded_element as string | undefined
+      const shadedLabel = fp?.shaded_label as string | undefined
+      if (shadedLabel && shadedElement && !STOP_AGG_ELEMENT_IDS.has(shadedElement)) {
+        const fmt = (fp?.shaded_format as CensusFormat | undefined) ?? 'integer'
+        const full = fp?.shaded_full_value ?? null
+        const scaled = fp?.shaded_scaled_value ?? null
+        const density = fp?.shaded_density_value ?? null
+        choroplethTooltip.appendChild(document.createElement('br'))
+        const heading = document.createElement('strong')
+        heading.textContent = shadedLabel
+        choroplethTooltip.appendChild(heading)
+        const lines: Array<[string, string]> = [['Total', formatCensusValue(full as number | null, fmt)]]
+        if (scaled !== null) {
+          lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
+        }
+        if (density !== null) {
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem ?? 'us')}`])
+        }
+        for (const [k, v] of lines) {
+          choroplethTooltip.appendChild(document.createElement('br'))
+          choroplethTooltip.appendChild(document.createTextNode(`  ${k}: ${v}`))
+        }
       }
       choroplethTooltip.style.display = 'block'
       choroplethTooltip.style.left = `${e.originalEvent.offsetX + 15}px`
@@ -1001,8 +1029,7 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  // Query all existing layers for click detection
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed']
+  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) { return }

@@ -2,6 +2,9 @@ tmp**
 **/tmp**
 .output
 testdata/gtfs/data/*.zip
+# Census raw downloads (fetched by rebuild-census.sh; the filtered data
+# lands in the committed calact_tlserver.dump).
+testdata/gtfs/census-data/
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Node template

@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import bbox from '@turf/bbox'
+import area from '@turf/area'
 import {
   type WeekdayMode,
   type RouteType,
@@ -15,6 +16,9 @@ import {
   chunkArray,
   logMemory,
   parseHMS,
+  fetchCensusIntersection,
+  REQUIRED_ACS_TABLES,
+  type CensusGeographyData,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -66,6 +70,9 @@ export interface ScenarioConfig {
   aggregateLayer?: string
   departureMode?: 'all' | 'departures'
   geoDatasetName: string
+  // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
+  // pipeline fetches census values for those geographies.
+  tableDatasetName?: string
   /**
    * Whether to fetch fixed-route transit data (stops, routes, departures)
    * Defaults to true
@@ -127,6 +134,8 @@ export interface ScenarioData {
    * so existing non-streaming constructions of ScenarioData keep compiling.
    */
   tripIdStrings?: Map<number, string>
+  // Populated when `tableDatasetName` + `aggregateLayer` are both set.
+  censusGeographies?: Map<string, CensusGeographyData>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -170,7 +179,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -187,6 +196,7 @@ export interface ScenarioProgress {
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
+    censusGeographies?: [string, CensusGeographyData][]
   }
   extraData?: any
   config?: any
@@ -479,6 +489,11 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
+  // Set by fetchFeedVersions(), read by fetchCensusValues().
+  private resolvedBbox?: Bbox
+  // First admin polygon, used as `within` for census intersection so the
+  // server clips against the real polygon. Multi-boundary support is #347.
+  private resolvedWithin?: GeoJSON.Polygon
 
   constructor (
     config: ScenarioConfig,
@@ -568,15 +583,18 @@ export class ScenarioFetcher {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
-    // Fetch flex service areas if enabled (default: true)
+    // Flex areas and census values both only depend on the resolved bbox
+    // (set during feed-versions) so they can run concurrently.
     const includeFlexAreas = this.config.includeFlexAreas !== false
     console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
-    if (includeFlexAreas) {
-      await this.fetchFlexAreas()
-      logMemory('after-flex-areas')
-    } else {
+    if (!includeFlexAreas) {
       console.log('[Scenario] Skipping flex areas (not enabled)')
     }
+    await Promise.all([
+      includeFlexAreas ? this.fetchFlexAreas() : Promise.resolve(),
+      this.fetchCensusValues(),
+    ])
+    logMemory('after-flex-and-census')
 
     // Done - send completion progress event (client will handle onComplete)
     this.updateProgress('complete', false)
@@ -680,13 +698,57 @@ export class ScenarioFetcher {
     }
   }
 
+  // Skipped when the caller didn't set an ACS dataset or aggregation layer.
+  private async fetchCensusValues (): Promise<void> {
+    const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
+    if (!tableDatasetName || !aggregateLayer) {
+      console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
+      return
+    }
+    if (!this.resolvedBbox) {
+      console.warn('[CensusValues] No resolved bbox — skipping')
+      return
+    }
+    this.updateProgress('census-values', true)
+    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
+    const features = await fetchCensusIntersection({
+      client: this.client,
+      geoDatasetName,
+      geoDatasetLayer: aggregateLayer,
+      tableDatasetName,
+      tableNames: REQUIRED_ACS_TABLES,
+      bbox: this.resolvedBbox,
+      within: this.resolvedWithin,
+    })
+    const entries: [string, CensusGeographyData][] = features.map(f => [
+      f.properties.geoid,
+      {
+        id: f.properties.geography_id,
+        name: f.properties.name,
+        values: f.properties.values,
+        intersectionRatio: f.properties.intersection_ratio,
+        geometryArea: f.properties.geometry_area,
+        intersectionArea: f.properties.intersection_area,
+      },
+    ])
+    console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
+    this.updateProgress('census-values', true, {
+      stops: [],
+      routes: [],
+      feedVersions: [],
+      stopDepartures: [],
+      flexAreas: [],
+      censusGeographies: entries,
+    })
+  }
+
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<FeedVersion[]> {
     let searchBbox = this.config.bbox
     // If using one or more administrative boundaries, compute a bbox around them
     if (this.config.geographyIds && this.config.geographyIds.length > 0) {
       // First get the geometry for the administrative boundaries
-      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.MultiPolygon }[] }[] }>(
+      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }[] }[] }>(
         geographyLayerQuery,
         {
           geography_ids: this.config.geographyIds,
@@ -715,10 +777,34 @@ export class ScenarioFetcher {
           ne: { lon: maxX, lat: maxY },
           valid: true
         }
+
+        // Backend `within` is typed as Polygon, so for a MultiPolygon pick
+        // the largest part as a stand-in until #347 lands.
+        const firstGeom: GeoJSON.Geometry = features[0]!.geometry
+        if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
+          let bestCoords = firstGeom.coordinates[0]!
+          let bestArea = area({ type: 'Polygon', coordinates: bestCoords })
+          for (let i = 1; i < firstGeom.coordinates.length; i++) {
+            const coords = firstGeom.coordinates[i]!
+            const a = area({ type: 'Polygon', coordinates: coords })
+            if (a > bestArea) {
+              bestCoords = coords
+              bestArea = a
+            }
+          }
+          this.resolvedWithin = { type: 'Polygon', coordinates: bestCoords }
+          if (firstGeom.coordinates.length > 1) {
+            console.warn(`[Scenario] Admin boundary is a MultiPolygon with ${firstGeom.coordinates.length} parts; using the largest part for census intersection (#347).`)
+          }
+        } else if (firstGeom.type === 'Polygon') {
+          this.resolvedWithin = firstGeom
+        }
       } else {
         console.warn('No features found in census datasets response')
       }
     }
+
+    this.resolvedBbox = searchBbox
 
     // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
     // Paginate to ensure we get all feeds (API default limit is 100)
@@ -933,6 +1019,7 @@ export class ScenarioDataReceiver {
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
+      censusGeographies: new Map<string, CensusGeographyData>(),
     }
   }
 
@@ -983,6 +1070,12 @@ export class ScenarioDataReceiver {
             FlexDepartureTuple.locationId(tuple),
             FlexDepartureTuple.departureDate(tuple),
           )
+        }
+      }
+
+      if (progress.partialData.censusGeographies && this.accumulatedData.censusGeographies) {
+        for (const [geoid, data] of progress.partialData.censusGeographies) {
+          this.accumulatedData.censusGeographies.set(geoid, data)
         }
       }
     }

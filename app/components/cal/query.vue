@@ -149,6 +149,17 @@
               </template>
             </cat-taginput>
           </cat-field>
+
+          <cat-msg
+            v-if="geographyIds.length > 1"
+            variant="warning"
+            class="mt-3"
+          >
+            Multiple administrative boundaries are selected, but census
+            intersection values currently use <strong>only the first
+              boundary</strong>. Support for multi-boundary census queries
+            is pending a backend update (#347).
+          </cat-msg>
         </div>
       </cat-msg>
 

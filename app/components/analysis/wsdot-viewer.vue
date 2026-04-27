@@ -396,6 +396,9 @@ const displayFeatures = computed(() => {
       }
       const layerFeatures = (wsdotReport.value.levelLayers[levelName] || {})['tract']
       for (const feature of layerFeatures || []) {
+        if (!feature.geometry) {
+          continue
+        }
         features.push({
           id: feature.id,
           type: 'Feature',

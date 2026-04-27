@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames } from '~~/src/core'
+import { routeTypeNames, type CensusGeographyData, deriveCensusRow } from '~~/src/core'
 
 //////////
 // Stops
@@ -154,6 +154,9 @@ interface StopGeoAggregateCsv {
   stops_count: number
   agencies_count: number
   visit_count_total?: number
+  // Derived demographic columns merged in when censusValues is provided.
+  // Keyed by CensusColumnDef.id (e.g. total_population, pct_people_of_color).
+  [key: string]: string | number | null | undefined
 }
 
 export type Stop = StopGql & StopDerived
@@ -162,7 +165,12 @@ export type Stop = StopGql & StopDerived
 // Stop csv
 ///////////////////////////
 
-export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): StopGeoAggregateCsv[] {
+export function stopGeoAggregateCsv (
+  stops: Stop[],
+  aggregationKey: string,
+  censusGeographies?: Map<string, CensusGeographyData>,
+  options?: { onlyWithStops?: boolean },
+): StopGeoAggregateCsv[] {
   const stopAgg = new Map<string, {
     geoid: string
     layer_name: string
@@ -173,6 +181,23 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
     routes_modes: Set<number>
     agencies_count: Set<number>
   }>()
+
+  // Seed every geography so stop-less tracts still produce a row. Skipped
+  // when the caller only wants stop-touched rows.
+  if (censusGeographies && !options?.onlyWithStops) {
+    for (const [geoid, geo] of censusGeographies) {
+      stopAgg.set(geoid, {
+        geoid,
+        layer_name: aggregationKey,
+        name: geo.name,
+        visits_count: 0,
+        stops_count: new Set<number>(),
+        routes_count: new Set<number>(),
+        routes_modes: new Set<number>(),
+        agencies_count: new Set<number>(),
+      })
+    }
+  }
 
   for (const stop of stops) {
     const geogs = (stop.census_geographies || []).filter(g => g.layer_name === aggregationKey)
@@ -197,9 +222,9 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
       stopAgg.set(geog.geoid, a)
     }
   }
-  const result = stopAgg.values().map((a): StopGeoAggregateCsv => {
-    const rmodes = a.routes_modes.values().map((r): string => routeTypeNames.get(r) || 'Unknown')
-    return {
+  const result = [...stopAgg.values()].map((a): StopGeoAggregateCsv => {
+    const rmodes = [...a.routes_modes.values()].map((r): string => routeTypeNames.get(r) || 'Unknown')
+    const row: StopGeoAggregateCsv = {
       geoid: a.geoid,
       layer_name: a.layer_name,
       name: a.name,
@@ -209,6 +234,13 @@ export function stopGeoAggregateCsv (stops: Stop[], aggregationKey: string): Sto
       agencies_count: a.agencies_count.size,
       visit_count_total: a.visits_count || 0,
     }
+    if (censusGeographies) {
+      const geo = censusGeographies.get(a.geoid)
+      if (geo) {
+        Object.assign(row, deriveCensusRow(geo.values))
+      }
+    }
+    return row
   })
   return [...result]
 }

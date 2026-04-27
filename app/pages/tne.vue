@@ -137,11 +137,16 @@
             v-model:show-bbox="showBbox"
             v-model:show-agg-areas="showAggAreas"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:choropleth-element="choroplethElement"
+            v-model:shade-by-density="shadeByDensity"
+            v-model:only-with-stops="onlyWithStops"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
+            :choropleth-element-options="choroplethElementOptions"
+            :shade-by-density-eligible="selectedElementIsDensityEligible"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
@@ -158,6 +163,7 @@
           <cal-report
             v-model:data-display-mode="dataDisplayMode"
             v-model:aggregate-layer="aggregateLayer"
+            v-model:only-with-stops="onlyWithStops"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
@@ -195,6 +201,7 @@
           :hide-unmarked="hideUnmarked"
           :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
+          :choropleth-classification="choroplethClassification"
           :show-agg-areas="showAggAreas"
           :flex-services-enabled="flexServicesEnabled"
           :flex-color-by="flexColorBy"
@@ -203,12 +210,34 @@
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
           :is-all-day-mode="isAllDayMode"
+          :unit-system="unitSystem"
           @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
-        />
+          @select-aggregation="onSelectAggregation"
+          @view-census-details="openCensusDetails()"
+        >
+          <template #sidebar-top>
+            <cal-census-panel
+              :row="selectedPanelData?.row ?? null"
+              :highlighted-element="choroplethElement"
+              :layer-label="aggregateLayerLabel"
+              :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
+              :all-derived="allGeographiesDerived"
+              :area-stats="selectedPanelData?.areaStats ?? null"
+              :unit-system="unitSystem"
+              @close="selectedAggregationGeoid = null"
+              @select-element="choroplethElement = $event"
+              @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
+            />
+          </template>
+        </cal-map>
+
+        <div v-if="acsDatasetLabel" class="cal-acs-vintage">
+          Showing data for {{ acsDatasetLabel }}
+        </div>
       </div>
 
       <!-- Loading Progress Modal - positioned at the end for highest z-index -->
@@ -241,13 +270,28 @@
           :initial-tab="timetableInitialTab"
         />
       </cat-modal>
+
+      <cat-modal
+        v-model="showCensusDetails"
+        title="Census Details"
+        full-screen
+      >
+        <cal-census-details
+          v-if="scenarioFilterResult"
+          :scenario-filter-result="scenarioFilterResult"
+          :layer-label="aggregateLayerLabel"
+          :highlighted-geoid="highlightedCensusGeoid ?? undefined"
+          @select-geography="onSelectGeographyFromDetails"
+          @clear-filter="highlightedCensusGeoid = null"
+        />
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
 
 <script lang="ts" setup>
 import { addDays, endOfYesterday, nextMonday } from 'date-fns'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
@@ -283,11 +327,17 @@ import {
   convertBbox,
   SCENARIO_DEFAULTS,
   censusLayerLabels,
-  choroplethPalette,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
+  CENSUS_COLUMNS,
+  CHOROPLETH_DEFAULT_ELEMENT,
+  STOP_AGG_CHOROPLETH_OPTIONS,
+  formatAcsDatasetLabel,
+  summarizeBbox,
+  deriveApportionedRow,
   type DataDisplayMode,
   type FilterTag,
+  type UnitSystem,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
@@ -460,11 +510,11 @@ const bbox = computed({
   }
 })
 
-const unitSystem = computed<string | undefined>({
+const unitSystem = computed<UnitSystem>({
   get () {
-    return route.query.unitSystem?.toString() || 'us'
+    return route.query.unitSystem === 'eu' ? 'eu' : 'us'
   },
-  set (v?: string) {
+  set (v: UnitSystem) {
     setQuery({ ...route.query, unitSystem: v })
   }
 })
@@ -965,6 +1015,88 @@ const showAggAreas = computed<boolean>({
   }
 })
 
+const choroplethElement = computed<string>({
+  get () {
+    return route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT
+  },
+  set (v: string) {
+    setQuery({ ...route.query, choroplethElement: v === CHOROPLETH_DEFAULT_ELEMENT ? undefined : v })
+  }
+})
+
+const choroplethElementOptions = computed((): { label: string, value: string }[] => [
+  ...STOP_AGG_CHOROPLETH_OPTIONS.map(o => ({ label: o.label, value: o.value })),
+  ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
+])
+const densityEligibleByElement: Record<string, boolean> = {
+  ...Object.fromEntries(STOP_AGG_CHOROPLETH_OPTIONS.map(o => [o.value, o.densityEligible])),
+  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.densityEligible])),
+}
+const selectedElementIsDensityEligible = computed(() => {
+  return densityEligibleByElement[choroplethElement.value] === true
+})
+
+// Default true; only the off state is persisted to the URL.
+const shadeByDensity = computed<boolean>({
+  get () {
+    return route.query.shadeByDensity !== 'false'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, shadeByDensity: v ? undefined : 'false' })
+  }
+})
+
+// Filter out geographies with no marked stops in the map + report. Off by
+// default — the choropleth shows the full bbox so demographic comparison
+// works across areas with no transit.
+const onlyWithStops = computed<boolean>({
+  get () {
+    return route.query.onlyWithStops === 'true'
+  },
+  set (v: boolean) {
+    setQuery({ ...route.query, onlyWithStops: v ? 'true' : undefined })
+  }
+})
+
+const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
+
+const selectedAggregationGeoid = ref<string | null>(null)
+function onSelectAggregation (row: Record<string, any>) {
+  const geoid = row?.geoid
+  selectedAggregationGeoid.value = typeof geoid === 'string' ? geoid : null
+}
+
+// Right-side census panel inputs, all derived from the selected geoid.
+// Null when no polygon is selected or the row hasn't streamed in yet.
+const selectedPanelData = computed(() => {
+  const geoid = selectedAggregationGeoid.value
+  if (!geoid) { return null }
+  const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
+  if (!row) { return null }
+  const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
+  return {
+    row,
+    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
+    areaStats: geo
+      ? {
+          geometryArea: geo.geometryArea,
+          intersectionArea: geo.intersectionArea,
+          intersectionRatio: geo.intersectionRatio,
+        }
+      : null,
+  }
+})
+
+// Bbox-wide aggregate, fed to the panel's "Query Area Total" column.
+// Independent of the selection so it doesn't recompute on every click.
+const allGeographiesDerived = computed((): Record<string, number | null> | null => {
+  const geos = scenarioFilterResult.value?.censusGeographies
+  if (!geos || geos.size === 0) {
+    return null
+  }
+  return summarizeBbox(geos.keys(), geos).derived
+})
+
 /////////////////////////
 // Event passing
 /////////////////////////
@@ -1203,11 +1335,32 @@ function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetable
   timetableInitialTab.value = payload.initialTab
   timetableRoute.value = payload.route
 }
+
+const showCensusDetails = ref(false)
+const highlightedCensusGeoid = ref<string | null>(null)
+function openCensusDetails (geoid?: string) {
+  highlightedCensusGeoid.value = geoid ?? null
+  showCensusDetails.value = true
+}
+// Clear the geoid filter whenever the modal closes so the next open from
+// the legend starts unfiltered.
+watch(showCensusDetails, (open) => {
+  if (!open) { highlightedCensusGeoid.value = null }
+})
+
+// Force the overlay on so the selection actually renders on the map.
+function onSelectGeographyFromDetails (geoid: string) {
+  showCensusDetails.value = false
+  showAggAreas.value = true
+  selectedAggregationGeoid.value = geoid
+}
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
+  tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+  aggregateLayer: aggregateLayer.value,
   reportName: 'Transit Network Explorer',
   bbox: bbox.value,
   startDate: startDate.value,
@@ -1264,10 +1417,13 @@ const aggregateLayerLabel = computed((): string => {
 // Choropleth aggregation overlay
 /////////////////
 
-// Only fetch geometries when the choropleth toggle is on
+// All census geographies in the query area, used to fetch geometry for the
+// choropleth. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
-  return aggregateGeoIds.value
+  const geos = scenarioFilterResult.value?.censusGeographies
+  if (!geos) { return [] }
+  return [...geos.values()].map(g => g.id)
 })
 
 // Fetch geometry for the choropleth geographies
@@ -1291,83 +1447,25 @@ const choroplethAggregateData = computed(() => {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(markedStops, aggregateLayer.value)
+  return stopGeoAggregateCsv(
+    markedStops,
+    aggregateLayer.value,
+    scenarioFilterResult.value.censusGeographies,
+    { onlyWithStops: onlyWithStops.value },
+  )
 })
 
-// Build choropleth GeoJSON features with data-driven fill colors
-const choroplethFeatures = computed((): Feature[] => {
-  if (!showAggAreas.value) { return [] }
-
-  // Build a lookup: geoid -> geometry from fetched geographies
-  const geoLookup = new Map<string, CensusGeography>()
-  for (const ds of choroplethGeoResult.value?.census_datasets || []) {
-    for (const geo of ds.geographies || []) {
-      geoLookup.set(geo.geoid, geo)
-    }
-  }
-
-  const aggData = choroplethAggregateData.value
-  if (aggData.length === 0) { return [] }
-
-  // Determine color scale based on visit_count_total using quantile breaks
-  const values = aggData
-    .map(a => a.visit_count_total ?? 0)
-    .filter(v => v > 0)
-    .sort((a, b) => a - b)
-
-  const palette = choroplethPalette
-  const numClasses = palette.length
-
-  // Compute quantile breaks
-  // TODO: When many geographies share the same value (e.g. low-service areas),
-  // breaks can be identical, causing most features to land in the last color class.
-  // Consider deduplicating breaks or falling back to equal-interval classification.
-  const breaks: number[] = []
-  for (let i = 1; i < numClasses; i++) {
-    const idx = Math.floor((i / numClasses) * values.length)
-    breaks.push(values[idx] ?? 0)
-  }
-
-  function getColor (value: number): string {
-    for (let i = 0; i < breaks.length; i++) {
-      if (value < breaks[i]!) {
-        return palette[i]!
-      }
-    }
-    return palette[numClasses - 1]!
-  }
-
-  const features: Feature[] = []
-  for (const agg of aggData) {
-    const geo = geoLookup.get(agg.geoid)
-    if (!geo || !geo.geometry) { continue }
-
-    const value = agg.visit_count_total ?? 0
-    const color = value > 0 ? getColor(value) : palette[0]!
-
-    features.push({
-      type: 'Feature',
-      id: geo.id.toString(),
-      geometry: geo.geometry,
-      properties: {
-        'fill': color,
-        'fill-opacity': 0.45,
-        'stroke': '#333',
-        'stroke-width': 1.5,
-        'stroke-opacity': 0.7,
-        // Aggregate data for hover popup
-        'geoid': agg.geoid,
-        'name': agg.name,
-        'stops_count': agg.stops_count,
-        'routes_count': agg.routes_count,
-        'routes_modes': agg.routes_modes,
-        'agencies_count': agg.agencies_count,
-        'visit_count_total': agg.visit_count_total,
-      }
-    })
-  }
-
-  return features
+const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
+  showAggAreas,
+  choroplethAggregateData,
+  choroplethElement,
+  choroplethElementOptions,
+  shadeByDensity,
+  isDensityEligible: selectedElementIsDensityEligible,
+  censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
+  choroplethGeoResult,
+  selectedAggregationGeoid,
+  unitSystem,
 })
 
 // Loading progress tracking for modal
@@ -1668,5 +1766,20 @@ function toTitleCase (str: string): string {
   .o-icon {
     color: #999 !important;
   }
+}
+
+.cal-acs-vintage {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--bulma-border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--bulma-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
 }
 </style>

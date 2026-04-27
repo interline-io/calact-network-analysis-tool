@@ -43,7 +43,7 @@ import {
   getSelectedDateRange,
   type ScenarioConfig,
   type ScenarioData,
-  type ScenarioFilter
+  type ScenarioFilter,
 } from './scenario'
 import {
   routeHeadways,
@@ -57,6 +57,7 @@ import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
+  type CensusGeographyData,
   dowValues,
   parseHMS,
   routeTypeNames,
@@ -505,6 +506,9 @@ export interface ScenarioFilterResult {
   flexAreas: FlexAreaFeature[]
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
   tripIdStrings?: Map<number, string>
+  // Passed through from ScenarioData for the aggregation table demographic
+  // columns (#302). Keyed by census geography geoid.
+  censusGeographies?: Map<string, CensusGeographyData>
 }
 
 export function applyScenarioResultFilter (
@@ -665,6 +669,7 @@ export function applyScenarioResultFilter (
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
+    censusGeographies: data.censusGeographies,
   }
   return result
 }
