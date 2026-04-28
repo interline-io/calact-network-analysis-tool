@@ -173,7 +173,6 @@ const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
-  isAllDayMode: boolean
   startDate?: Date
   endDate?: Date
   // Service type toggles
@@ -181,6 +180,9 @@ const props = defineProps<{
   flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
+
+const { aggregateLayer, onlyWithStops, dataDisplayMode } = useScenarioUrlState()
+const { isAllDayMode } = useDisplayPreferences()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
@@ -213,10 +215,6 @@ const reportHeading = computed(() => {
   }
   return `Reports: ${fmtDate(props.startDate, 'dd MMM, yyyy')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
 })
-
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
-const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
 
 type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'
 
@@ -259,7 +257,7 @@ watch(dataDisplayMode, (mode) => {
 }, { immediate: true })
 
 const routeColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const timeScope = allDay ? 'across all service days' : 'across all service days and times'
   return [
     { key: 'route_id', label: 'Route ID', sortable: true },
@@ -327,7 +325,7 @@ const routeColumns = computed((): TableColumn[] => {
 })
 
 const stopColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'stop_id', label: 'Stop ID', sortable: true },
@@ -362,7 +360,7 @@ const censusColumns: TableColumn[] = CENSUS_COLUMNS.map(c => ({
 }))
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'name', label: 'Name', sortable: true },

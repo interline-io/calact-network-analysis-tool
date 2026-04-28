@@ -17,22 +17,17 @@
     <div class="cal-map-sidebar">
       <slot name="sidebar-top" />
       <cal-legend
-        :data-display-mode="dataDisplayMode"
         :style-data="styleData"
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
         :show-bbox="showBbox"
         :geom-source="geomSource"
-        :hide-unmarked="hideUnmarked"
         :flex-enabled="flexServicesEnabled"
         :flex-color-by="flexColorBy"
         :flex-style-data="flexStyleData"
         :has-flex-data="hasFlexData"
-        :show-agg-areas="showAggAreas"
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
-        :is-all-day-mode="props.isAllDayMode"
-        :unit-system="props.unitSystem"
         @view-details="emit('viewCensusDetails')"
       />
     </div>
@@ -54,8 +49,6 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
-      :is-all-day-mode="props.isAllDayMode"
-      :unit-system="props.unitSystem"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -73,7 +66,7 @@ import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
-import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, DataDisplayMode, ChoroplethClassification, UnitSystem } from '~~/src/core'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, ChoroplethClassification } from '~~/src/core'
 import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -90,10 +83,8 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   bbox: Bbox
-  dataDisplayMode?: DataDisplayMode
   displayEditBboxMode?: boolean
   showBbox?: boolean
-  hideUnmarked?: boolean
   censusGeographiesSelected: CensusGeography[]
   // Viewport geographies for click-to-select in adminBoundary mode
   viewportGeographies?: CensusGeography[]
@@ -105,7 +96,6 @@ const props = defineProps<{
   fixedRouteEnabled?: boolean
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
-  showAggAreas?: boolean
   choroplethClassification?: ChoroplethClassification
   // Flex Services props
   flexServicesEnabled?: boolean
@@ -118,10 +108,9 @@ const props = defineProps<{
   panelWidth?: number
   // Increment to fit map to overlay features
   fitOverlayKey?: number
-  // Whether the active timeframe filter is "All Day" (no start/end time set)
-  isAllDayMode?: boolean
-  unitSystem: UnitSystem
 }>()
+
+const { dataDisplayMode, hideUnmarked } = useScenarioUrlState()
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
@@ -610,15 +599,15 @@ const styleData = computed((): Matcher[] => {
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
-  if (props.dataDisplayMode === 'Agency') {
+  if (dataDisplayMode.value === 'Agency') {
     rules.push(...getAgencyMatchers())
-  } else if (props.dataDisplayMode === 'Transit mode') {
+  } else if (dataDisplayMode.value === 'Transit mode') {
     rules.push(...getModeMatchers())
-  } else if (props.dataDisplayMode === 'Route frequency') {
+  } else if (dataDisplayMode.value === 'Route frequency') {
     rules.push(...getRouteFrequencyMatchers())
-  } else if (props.dataDisplayMode === 'Stop visits') {
+  } else if (dataDisplayMode.value === 'Stop visits') {
     rules.push(...getStopVisitMatchers())
-  } else if (props.dataDisplayMode === 'Service area') {
+  } else if (dataDisplayMode.value === 'Service area') {
     // report-only mode; no map color rules
   }
 
@@ -791,7 +780,7 @@ const displayFeatures = computed((): Feature[] => {
 
   // Gather routes
   for (const rp of props.scenarioFilterResult?.routes || []) {
-    if (props.hideUnmarked && !rp.marked) {
+    if (hideUnmarked.value && !rp.marked) {
       continue
     }
 
@@ -819,7 +808,7 @@ const displayFeatures = computed((): Feature[] => {
 
   // Gather stops
   for (const sp of props.scenarioFilterResult?.stops || []) {
-    if (props.hideUnmarked && !sp.marked) {
+    if (hideUnmarked.value && !sp.marked) {
       continue
     }
 

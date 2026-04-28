@@ -584,11 +584,9 @@
 
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
-import { defineEmits } from 'vue'
 import {
   type WeekdayMode,
   type Weekday,
-  type DataDisplayMode,
   type RouteType,
   type AgencyFilterItem,
   dowValues,
@@ -602,8 +600,6 @@ import {
   fmtDate,
   parseTime,
   DEFAULT_TIME_WINDOW,
-  CHOROPLETH_DEFAULT_ELEMENT,
-  type UnitSystem,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -633,6 +629,17 @@ const props = defineProps<{
   panelSubWidth?: number
   panelPadding?: number
 }>()
+
+const {
+  showAggAreas,
+  aggregateLayer,
+  choroplethElement,
+  shadeByDensity,
+  onlyWithStops,
+  dataDisplayMode,
+  hideUnmarked,
+} = useScenarioUrlState()
+const { unitSystem } = useDisplayPreferences()
 
 const geographicBoundaryLabel = computed(() => {
   if (props.geomSource === 'adminBoundary' && props.censusGeographiesSelected?.length) {
@@ -668,15 +675,12 @@ const startDate = defineModel<Date>('startDate', { required: true })
 const endDate = defineModel<Date>('endDate', { required: true })
 const startTime = defineModel<Date>('startTime')
 const endTime = defineModel<Date>('endTime')
-const unitSystem = defineModel<UnitSystem>('unitSystem', { default: 'us' })
-const hideUnmarked = defineModel<boolean>('hideUnmarked')
 
 const showFiltered = computed({
   get: () => !hideUnmarked.value,
   set: (v: boolean) => { hideUnmarked.value = !v }
 })
 
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
 const baseMap = defineModel<string>('baseMap')
 const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')
 const selectedRouteTypes = defineModel<RouteType[] | undefined>('selectedRouteTypes')
@@ -702,13 +706,6 @@ const minFare = defineModel<number>('minFare')
 
 // Bbox display toggle
 const showBbox = defineModel<boolean>('showBbox', { default: true })
-
-// Aggregation overlay
-const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
-const choroplethElement = defineModel<string>('choroplethElement', { default: CHOROPLETH_DEFAULT_ELEMENT })
-const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
-const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
 
 // Fixed-Route Transit toggle
 const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default

@@ -44,7 +44,7 @@
             <div class="legend-item legend-full-line" />
             <div>Routes satisfying all filters</div>
           </div>
-          <div v-if="!props.hideUnmarked">
+          <div v-if="!hideUnmarked">
             <div class="legend-item legend-thin-line" />
             <div>Routes <em>not</em> satisfying all filters</div>
           </div>
@@ -52,7 +52,7 @@
             <div class="legend-item legend-large-circle" />
             <div>Stops satisfying all filters</div>
           </div>
-          <div v-if="!props.hideUnmarked">
+          <div v-if="!hideUnmarked">
             <div class="legend-item legend-small-circle" />
             <div>Stops <em>not</em> satisfying all filters</div>
           </div>
@@ -60,19 +60,19 @@
 
         <!-- Color Style -->
         <div v-if="props.hasData" class="cal-map-legend-section">
-          <div v-if="props.dataDisplayMode === 'Agency'" class="legend-heading">
+          <div v-if="dataDisplayMode === 'Agency'" class="legend-heading">
             Agencies:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Transit mode'" class="legend-heading">
+          <div v-else-if="dataDisplayMode === 'Transit mode'" class="legend-heading">
             Transit modes:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Route frequency'" class="legend-heading">
+          <div v-else-if="dataDisplayMode === 'Route frequency'" class="legend-heading">
             Avg. minutes between trips:
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Stop visits'" class="legend-heading">
-            {{ props.isAllDayMode ? 'Total visits:' : 'Total visits in window:' }}
+          <div v-else-if="dataDisplayMode === 'Stop visits'" class="legend-heading">
+            {{ isAllDayMode ? 'Total visits:' : 'Total visits in window:' }}
           </div>
-          <div v-else-if="props.dataDisplayMode === 'Service area'" class="legend-heading">
+          <div v-else-if="dataDisplayMode === 'Service area'" class="legend-heading">
             Service areas:
           </div>
           <div v-for="s of styleData" :key="s.color">
@@ -114,7 +114,7 @@
             />
             <div>Satisfying all filters</div>
           </div>
-          <div v-if="!props.hideUnmarked">
+          <div v-if="!hideUnmarked">
             <div
               class="legend-item legend-flex-area-dashed"
               :style="{
@@ -125,11 +125,11 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <div v-if="props.showAggAreas && props.hasChoroplethData" class="choropleth-legend">
+        <div v-if="showAggAreas && props.hasChoroplethData" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
             <span v-if="props.choroplethClassification?.isDensity" class="cal-legend-unit-suffix">
-              ({{ densityUnitLabel(props.unitSystem) }})
+              ({{ densityUnitLabel(unitSystem) }})
             </span>
           </div>
           <div v-if="props.choroplethClassification?.hasInsufficient" class="cal-choropleth-bucket">
@@ -160,8 +160,6 @@ import {
   densityUnitLabel,
   formatCensusBucketLabel,
   type ChoroplethClassification,
-  type DataDisplayMode,
-  type UnitSystem,
 } from '~~/src/core'
 
 interface StyleItem {
@@ -170,37 +168,35 @@ interface StyleItem {
 }
 
 const props = defineProps<{
-  dataDisplayMode?: DataDisplayMode
   styleData: StyleItem[]
   hasData: boolean
   displayEditBboxMode?: boolean
   showBbox?: boolean
   geomSource?: string
-  hideUnmarked?: boolean
   // Flex Services props
   flexEnabled?: boolean
   flexColorBy?: string
   flexStyleData?: StyleItem[]
   hasFlexData?: boolean
   // Choropleth aggregation
-  showAggAreas?: boolean
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
-  isAllDayMode?: boolean
-  unitSystem: UnitSystem
 }>()
 
 defineEmits<{
   viewDetails: []
 }>()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (props.showAggAreas && props.hasChoroplethData))
+const { showAggAreas, hideUnmarked, dataDisplayMode } = useScenarioUrlState()
+const { unitSystem, isAllDayMode } = useDisplayPreferences()
+
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification
   if (!c) { return '' }
   const base = formatCensusBucketLabel(i, c.breaks, c.palette.length, c.format)
-  return c.isDensity ? `${base} ${densityUnitLabel(props.unitSystem)}` : base
+  return c.isDensity ? `${base} ${densityUnitLabel(unitSystem.value)}` : base
 }
 </script>
 
