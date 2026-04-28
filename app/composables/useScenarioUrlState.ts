@@ -9,6 +9,7 @@ interface ScenarioUrlState {
   onlyWithStops: WritableComputedRef<boolean>
   dataDisplayMode: WritableComputedRef<DataDisplayMode | undefined>
   hideUnmarked: WritableComputedRef<boolean>
+  baseMap: WritableComputedRef<string | undefined>
 }
 
 // URL-backed display state shared between tne.vue, cal-filter, cal-map, etc.
@@ -63,6 +64,11 @@ export function useScenarioUrlState (): ScenarioUrlState {
     set: (v) => { setQuery({ hideUnmarked: v ? '' : 'false' }) }
   })
 
+  const baseMap = computed<string | undefined>({
+    get: () => route.query.baseMap?.toString() || 'Streets',
+    set: (v) => { setQuery({ baseMap: v }) }
+  })
+
   return {
     showAggAreas,
     aggregateLayer,
@@ -71,5 +77,6 @@ export function useScenarioUrlState (): ScenarioUrlState {
     onlyWithStops,
     dataDisplayMode,
     hideUnmarked,
+    baseMap,
   }
 }

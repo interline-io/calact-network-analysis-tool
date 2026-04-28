@@ -36,7 +36,7 @@
       map-class="tall"
       :center="centerPoint"
       :zoom="14"
-      :initial-bounds="props.bbox"
+      :initial-bounds="bbox"
       :overlay-features="overlayFeatures"
       :choropleth-features="props.choroplethFeatures || []"
       :selectable-geographies="selectableGeographies"
@@ -71,7 +71,6 @@ import { colors, routeTypeNames, flexColors } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
 const emit = defineEmits<{
-  setBbox: [value: Bbox]
   setMapExtent: [value: Bbox]
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
@@ -82,24 +81,15 @@ const emit = defineEmits<{
 }>()
 
 const props = defineProps<{
-  bbox: Bbox
   displayEditBboxMode?: boolean
   showBbox?: boolean
   censusGeographiesSelected: CensusGeography[]
   // Viewport geographies for click-to-select in adminBoundary mode
   viewportGeographies?: CensusGeography[]
-  geographyIds?: number[]
-  geomSource?: string
-  geomLayer?: string
   scenarioFilterResult?: ScenarioFilterResult
-  // Fixed-Route Transit toggle (on by default)
-  fixedRouteEnabled?: boolean
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
-  // Flex Services props
-  flexServicesEnabled?: boolean
-  flexColorBy?: string
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
   // Loading stage - allow map updates during geometry stages, skip during schedules
@@ -111,6 +101,8 @@ const props = defineProps<{
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioUrlState()
+const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
+const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 
 const showShareMenu = ref(false)
 const toggleShareMenu = useToggle(showShareMenu)
@@ -120,15 +112,15 @@ const toggleShareMenu = useToggle(showShareMenu)
 
 // Compute initial center point; do not update
 const centerPoint: Point = {
-  lon: (props.bbox.sw.lon + props.bbox.ne.lon) / 2,
-  lat: (props.bbox.sw.lat + props.bbox.ne.lat) / 2
+  lon: (bbox.value.sw.lon + bbox.value.ne.lon) / 2,
+  lat: (bbox.value.sw.lat + bbox.value.ne.lat) / 2
 }
 
 // Track fitBounds requests — only refit for external bbox changes, not map-originated drags
 const fitBoundsKey = ref(0)
 let bboxChangeFromMap = false
 
-watch(() => props.bbox, (newBbox, oldBbox) => {
+watch(() => bbox.value, (newBbox, oldBbox) => {
   if (oldBbox
     && newBbox.sw.lon === oldBbox.sw.lon && newBbox.sw.lat === oldBbox.sw.lat
     && newBbox.ne.lon === oldBbox.ne.lon && newBbox.ne.lat === oldBbox.ne.lat) {
@@ -170,7 +162,7 @@ const draggingMarker = shallowRef<Marker | null>(null)
 // Polygon for drawing bbox area
 const bboxArea = computed(() => {
   const f: Feature[] = []
-  const activeBbox = draggingBbox.value || props.bbox
+  const activeBbox = draggingBbox.value || bbox.value
   if (activeBbox.valid && (props.displayEditBboxMode || props.showBbox)) {
     const p = activeBbox
     const coords = [[
@@ -243,14 +235,14 @@ const bboxMarkers = computed(() => {
   }
 
   // Read bbox once for initial positions only (not tracked reactively after this)
-  const bbox = props.bbox
+  const initialBbox = bbox.value
 
   // Build the corners array, order as clockwise:  ne, se, sw, nw
   corners = [
-    { point: { lon: bbox.ne.lon, lat: bbox.ne.lat } },
-    { point: { lon: bbox.ne.lon, lat: bbox.sw.lat } },
-    { point: { lon: bbox.sw.lon, lat: bbox.sw.lat } },
-    { point: { lon: bbox.sw.lon, lat: bbox.ne.lat } }
+    { point: { lon: initialBbox.ne.lon, lat: initialBbox.ne.lat } },
+    { point: { lon: initialBbox.ne.lon, lat: initialBbox.sw.lat } },
+    { point: { lon: initialBbox.sw.lon, lat: initialBbox.sw.lat } },
+    { point: { lon: initialBbox.sw.lon, lat: initialBbox.ne.lat } }
   ] as CornerData[]
 
   for (let i = 0; i < 4; i++) {
@@ -336,7 +328,7 @@ const bboxMarkers = computed(() => {
         draggingBbox.value = null
         if (box) {
           bboxChangeFromMap = true
-          emit('setBbox', box)
+          bbox.value = box
         }
       }
     })
@@ -391,7 +383,7 @@ function onOverlayDragEnd () {
 
   if (box) {
     bboxChangeFromMap = true
-    emit('setBbox', box)
+    bbox.value = box
   }
 }
 
@@ -625,10 +617,10 @@ const styleData = computed((): Matcher[] => {
 //   2. Current layer, selected — red highlight, clickable
 //   3. Other layer, selected — light red fill/dashed outline, not clickable
 const selectableGeographies = computed((): Feature[] => {
-  if (props.geomSource !== 'adminBoundary' || !props.viewportGeographies?.length) {
+  if (geomSource.value !== 'adminBoundary' || !props.viewportGeographies?.length) {
     return []
   }
-  const selectedIds = new Set(props.geographyIds || [])
+  const selectedIds = new Set(geographyIds.value || [])
   const viewportIds = new Set<number>()
   const features: Feature[] = []
 
@@ -661,7 +653,7 @@ const selectableGeographies = computed((): Feature[] => {
       continue
     }
     // Only show if it's from a different layer than the current one
-    if (geo.layer?.name === props.geomLayer) {
+    if (geo.layer?.name === geomLayer.value) {
       continue
     }
     const stateDesc = geo.adm1_name ? `, ${geo.adm1_name}` : ''
@@ -715,7 +707,7 @@ function onSelectableGeoRightClick (featureId: string) {
   if (Number.isNaN(geoId)) {
     return
   }
-  const ids = props.geographyIds || []
+  const ids = geographyIds.value || []
   if (ids.includes(geoId)) {
     emit('toggleGeography', geoId)
   }
@@ -744,7 +736,7 @@ const overlayFeatures = computed((): Feature[] => {
   // click or viewport change.
   // Only suppress overlay features when the selectable geography layer is active
   // (pre-query with viewport geos loaded). Post-query, let overlay features show normally.
-  const inAdminBoundaryMode = props.geomSource === 'adminBoundary' && (props.viewportGeographies?.length ?? 0) > 0
+  const inAdminBoundaryMode = geomSource.value === 'adminBoundary' && (props.viewportGeographies?.length ?? 0) > 0
 
   // Show admin geographies OR bbox, never both (mirrors server-side priority)
   if (hasGeographies && !inAdminBoundaryMode) {
@@ -769,7 +761,7 @@ const overlayFeatures = computed((): Feature[] => {
 const displayFeatures = computed((): Feature[] => {
   // Return empty array if fixed-route transit is disabled
   // (allows user to focus on flex services only)
-  if (props.fixedRouteEnabled === false) {
+  if (fixedRouteEnabled.value === false) {
     return []
   }
 
@@ -900,13 +892,13 @@ watch(exportFeatures, () => {
  * Returns empty array if flex is disabled (similar to how displayFeatures handles fixedRouteEnabled)
  */
 const flexFeatures = computed((): Feature[] => {
-  if (!props.flexServicesEnabled) { return [] }
+  if (!flexServicesEnabled.value) { return [] }
   return props.flexDisplayFeatures || []
 })
 
 // Is there fixed-route data to display?
 const hasData = computed((): boolean => {
-  if (props.fixedRouteEnabled === false) {
+  if (fixedRouteEnabled.value === false) {
     return false
   }
   return !!(props.scenarioFilterResult?.stops.length || props.scenarioFilterResult?.routes.length)
@@ -914,7 +906,7 @@ const hasData = computed((): boolean => {
 
 // Does flex have data to display?
 const hasFlexData = computed((): boolean => {
-  return !!(props.flexServicesEnabled && props.flexDisplayFeatures?.length)
+  return !!(flexServicesEnabled.value && props.flexDisplayFeatures?.length)
 })
 
 /**
@@ -923,11 +915,11 @@ const hasFlexData = computed((): boolean => {
  * - Advance notice mode: Three swatches for booking categories
  */
 const flexStyleData = computed(() => {
-  if (!props.flexServicesEnabled || !props.flexDisplayFeatures?.length) {
+  if (!flexServicesEnabled.value || !props.flexDisplayFeatures?.length) {
     return []
   }
 
-  const colorBy = props.flexColorBy || 'Agency'
+  const colorBy = flexColorBy.value || 'Agency'
 
   if (colorBy === 'Advance notice') {
     // Show advance notice categories with their semantic colors
@@ -945,7 +937,7 @@ const flexStyleData = computed(() => {
 /////////////////
 // Map events
 
-const extentBbox = ref(props.bbox)
+const extentBbox = ref(bbox.value)
 
 function mapMove (v: any) {
   const b = v.bbox

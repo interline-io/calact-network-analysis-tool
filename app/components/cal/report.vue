@@ -23,10 +23,10 @@
       </div>
 
       <cat-tabs v-model="activeReportTab" type="boxed">
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="routes" label="Routes" />
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="stops" label="Stops (Individual)" />
-        <cat-tab-item v-if="props.fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="agencies" label="Agencies" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="routes" label="Routes" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="stops" label="Stops (Individual)" />
+        <cat-tab-item v-if="fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" value="flex" label="Flex Areas" />
       </cat-tabs>
     </div>
@@ -173,16 +173,12 @@ const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
-  startDate?: Date
-  endDate?: Date
-  // Service type toggles
-  fixedRouteEnabled?: boolean
-  flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode } = useScenarioUrlState()
 const { isAllDayMode } = useDisplayPreferences()
+const { startDate, endDate, fixedRouteEnabled } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
@@ -206,14 +202,14 @@ const downloadFeatures = computed((): Feature[] => {
 })
 
 const reportHeading = computed(() => {
-  if (!props.startDate || !props.endDate) {
+  if (!startDate.value || !endDate.value) {
     return 'Reports'
   }
-  const sameMonthYear = fmtDate(props.startDate, 'MMM yyyy') === fmtDate(props.endDate, 'MMM yyyy')
+  const sameMonthYear = fmtDate(startDate.value, 'MMM yyyy') === fmtDate(endDate.value, 'MMM yyyy')
   if (sameMonthYear) {
-    return `Reports: ${fmtDate(props.startDate, 'dd')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
+    return `Reports: ${fmtDate(startDate.value, 'dd')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
   }
-  return `Reports: ${fmtDate(props.startDate, 'dd MMM, yyyy')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
+  return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
 type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'

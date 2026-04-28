@@ -76,26 +76,15 @@
       <div style="position:relative">
         <div v-if="activeTab.tab === 'query'" class="cal-tab-content cal-tab-query">
           <cal-query
-            v-model:start-date="startDate"
-            v-model:end-date="endDate"
-            v-model:geom-source="geomSource"
-            v-model:geom-layer="geomLayer"
-            v-model:geography-ids="geographyIds"
-            v-model:canned-bbox="cannedBbox"
-            v-model:include-fixed-route="includeFixedRoute"
-            v-model:include-flex-areas="includeFlexAreas"
-            v-model:geo-dataset-name="geoDatasetName"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :viewport-geographies="viewportGeographies"
             :viewport-geographies-loading="viewportGeoLoading"
             :viewport-geographies-limit="VIEWPORT_GEO_LIMIT"
-            :bbox="bbox"
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
             :panel-width="QUERY_PANEL_WIDTH"
             :panel-padding="PANEL_PADDING"
-            @set-bbox="bbox = $event"
             @explore="runQuery()"
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
@@ -110,31 +99,9 @@
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
           <cal-filter
-            v-model:start-date="startDate"
-            v-model:end-date="endDate"
-            v-model:start-time="startTime"
-            v-model:end-time="endTime"
-            v-model:base-map="baseMap"
-            v-model:selected-weekdays="selectedWeekdays"
-            v-model:selected-route-types="selectedRouteTypes"
-            v-model:selected-agencies="selectedAgencies"
-            v-model:selected-weekday-mode="selectedWeekdayMode"
-            v-model:frequency-under="frequencyUnder"
-            v-model:frequency-over="frequencyOver"
-            v-model:calculate-frequency-mode="calculateFrequencyMode"
-            v-model:max-fare-enabled="maxFareEnabled"
-            v-model:max-fare="maxFare"
-            v-model:min-fare-enabled="minFareEnabled"
-            v-model:min-fare="minFare"
-            v-model:fixed-route-enabled="fixedRouteEnabled"
-            v-model:flex-services-enabled="flexServicesEnabled"
-            v-model:flex-advance-notice="flexAdvanceNotice"
-            v-model:flex-area-types-selected="flexAreaTypesSelected"
-            v-model:flex-color-by="flexColorBy"
             v-model:show-bbox="showBbox"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
-            :geom-source="geomSource"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :choropleth-element-options="choroplethElementOptions"
@@ -146,7 +113,6 @@
             :panel-sub-width="FILTER_SUB_WIDTH"
             :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
-            @set-time-range="setTimeRange"
             @show-query="activeTab = { tab: 'query', sub: '' }"
           />
         </div>
@@ -157,10 +123,6 @@
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
             :filter-tags="filterTags"
-            :start-date="startDate"
-            :end-date="endDate"
-            :fixed-route-enabled="fixedRouteEnabled"
-            :flex-services-enabled="flexServicesEnabled"
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
           />
@@ -176,25 +138,17 @@
 
         <!-- This is a component for displaying the map and legend -->
         <cal-map
-          :bbox="bbox"
           :census-geographies-selected="censusGeographiesSelected"
           :viewport-geographies="viewportGeographies"
-          :geography-ids="geographyIds"
-          :geom-source="geomSource"
-          :geom-layer="geomLayer"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
-          :fixed-route-enabled="fixedRouteEnabled"
           :choropleth-features="choroplethFeatures"
           :choropleth-classification="choroplethClassification"
-          :flex-services-enabled="flexServicesEnabled"
-          :flex-color-by="flexColorBy"
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
-          @set-bbox="bbox = $event"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -270,7 +224,6 @@
 </template>
 
 <script lang="ts" setup>
-import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
@@ -283,26 +236,15 @@ import {
   stopGeoAggregateCsv,
 } from '~~/src/tl'
 import {
-  type RouteType,
-  type Weekday,
   type Bbox,
   type Point,
   type Feature,
-  type WeekdayMode,
   type AgencyFilterItem,
   createCategoryColorScale,
   flexColors,
-  parseBbox,
-  bboxString,
   routeTypeNames,
-  cannedBboxes,
   fmtDate,
   fmtTime,
-  asDateString,
-  asTimeString,
-  parseDate,
-  normalizeDate,
-  parseTime,
   dateToSeconds,
   convertBbox,
   SCENARIO_DEFAULTS,
@@ -329,6 +271,32 @@ const {
   onlyWithStops,
   hideUnmarked,
 } = useScenarioUrlState()
+const {
+  bbox,
+  cannedBbox,
+  startDate,
+  endDate,
+  geographyIds,
+  geomSource,
+  geomLayer,
+  geoDatasetName,
+  includeFixedRoute,
+  includeFlexAreas,
+} = useScenarioInputs()
+const {
+  startTime,
+  endTime,
+  selectedRouteTypes,
+  selectedAgencies,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  frequencyUnder,
+  frequencyOver,
+  flexServicesEnabled,
+  flexAdvanceNotice,
+  flexAreaTypesSelected,
+  flexColorBy,
+} = useScenarioFilters()
 
 definePageMeta({
   layout: false
@@ -383,16 +351,10 @@ router.beforeEach((to, from) => {
 // Track whether a query has been submitted — stops map extent from updating bbox
 const querySubmitted = ref(false)
 
-const cannedBbox = computed({
-  get () {
-    return route.query.example?.toString() || 'downtown-portland'
-  },
-  set (v: string) {
-    // Clear explicit bbox so the canned bbox value takes effect
-    querySubmitted.value = false
-    setQuery({ ...route.query, example: v || undefined, bbox: undefined })
-  }
-})
+// Reset querySubmitted when the user picks a different canned bbox so the
+// new bbox value takes effect rather than the stale explicit bbox.
+watch(cannedBbox, () => { querySubmitted.value = false })
+
 const error = ref(undefined as Error | string | undefined)
 
 // Runs on explore event from query (when user clicks "Run Query")
@@ -411,310 +373,6 @@ const runQuery = async () => {
   }
   loadingProgress.value = undefined
 }
-
-const geomSource = computed<string | undefined>({
-  get () {
-    return route.query.geomSource?.toString() || 'bbox'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, geomSource: v })
-  }
-})
-
-const geomLayer = computed<string>({
-  get () {
-    return route.query.geomLayer?.toString() || 'place'
-  },
-  set (v: string) {
-    setQuery({ ...route.query, geomLayer: v || undefined })
-  }
-})
-
-const geographyIds = computed<number[]>({
-  get () {
-    return route.query.geographyIds?.toString().split(',').map(p => (Number.parseInt(p))) || []
-  },
-  set (v: number[]) {
-    setQuery({ ...route.query, geographyIds: v.length > 0 ? v.map(String).join(',') : undefined })
-  }
-})
-
-const startDate = computed<Date>({
-  get (): Date {
-    const str = route.query.startDate?.toString()
-    // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week)
-    // normalizeDate strips the time component so the date serializes consistently across timezones
-    return parseDate(str) || normalizeDate(nextMonday(endOfYesterday()))!
-  },
-  set (v: unknown) {
-    setQuery({ ...route.query, startDate: asDateString(v) })
-  }
-})
-
-const endDate = computed<Date>({
-  get (): Date {
-    const str = route.query.endDate?.toString()
-    return parseDate(str) || addDays(startDate.value, 6)
-  },
-  set (v: unknown) {
-    setQuery({ ...route.query, endDate: asDateString(v) })
-  }
-})
-
-const startTime = computed<Date | undefined>({
-  get (): Date | undefined {
-    const str = route.query.startTime?.toString()
-    return parseTime(str)
-  },
-  set (v: unknown) {
-    setQuery({ ...route.query, startTime: asTimeString(v) })
-  }
-})
-
-const endTime = computed<Date | undefined>({
-  get (): Date | undefined {
-    const str = route.query.endTime?.toString()
-    return parseTime(str)
-  },
-  set (v: unknown) {
-    setQuery({ ...route.query, endTime: asTimeString(v) })
-  }
-})
-
-const bbox = computed({
-  get () {
-    const defaultBbox = cannedBboxes[cannedBbox.value as keyof typeof cannedBboxes]?.bboxString || ''
-    const bbox = route.query.bbox?.toString() ?? defaultBbox
-    return parseBbox(bbox)
-  },
-  set (v: Bbox) {
-    setQuery({ ...route.query, bbox: bboxString(v) })
-  }
-})
-
-const geoDatasetName = computed({
-  get () {
-    return route.query.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName
-  },
-  set (v: string) {
-    setQuery({ ...route.query, geoDatasetName: v === SCENARIO_DEFAULTS.geoDatasetName ? undefined : v })
-  }
-})
-
-// Data loading toggles (Query tab > Advanced Settings)
-// These control what data is fetched from the API
-const includeFixedRoute = computed<boolean | undefined>({
-  get () {
-    // Default to true (on) if not specified
-    return route.query.includeFixedRoute?.toString() !== 'false'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, includeFixedRoute: v ? '' : 'false' })
-  }
-})
-
-const includeFlexAreas = computed<boolean | undefined>({
-  get () {
-    // Default to true (on) if not specified
-    return route.query.includeFlexAreas?.toString() !== 'false'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, includeFlexAreas: v ? '' : 'false' })
-  }
-})
-
-const baseMap = computed<string | undefined>({
-  get () {
-    return route.query.baseMap?.toString() || 'Streets'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, baseMap: v })
-  }
-})
-
-const selectedWeekdayMode = computed<WeekdayMode | undefined>({
-  get (): WeekdayMode | undefined {
-    return (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode
-  },
-  set (v?: WeekdayMode) {
-    setQuery({ ...route.query, selectedWeekdayMode: v === 'Any' ? '' : v })
-  }
-})
-
-const selectedRouteTypes = computed({
-  get (): RouteType[] | undefined {
-    const d = arrayParamOrUndefined('selectedRouteTypes')
-    return d ? d.map(s => Number.parseInt(s)) : undefined
-  },
-  set (v?: RouteType[]) {
-    setQuery({ ...route.query, selectedRouteTypes: v ? v.join(',') : undefined })
-  }
-})
-
-const selectedAgencies = computed({
-  get (): string[] | undefined {
-    return arrayParamOrUndefined('selectedAgencies') as string[]
-  },
-  set (v?: string[]) {
-    setQuery({ ...route.query, selectedAgencies: v ? v.join(',') : undefined })
-  }
-})
-
-const selectedWeekdays = computed({
-  get (): Weekday[] | undefined {
-    return arrayParamOrUndefined('selectedWeekdays') as Weekday[]
-  },
-  set (v?: Weekday[]) {
-    setQuery({ ...route.query, selectedWeekdays: v ? v.join(',') : undefined })
-  }
-})
-
-const frequencyUnder = computed({
-  get (): number | undefined {
-    const val = route.query.frequencyUnder?.toString()
-    return val ? Number.parseInt(val) : undefined
-  },
-  set (v: number | undefined) {
-    setQuery({ ...route.query, frequencyUnder: v != null ? v.toString() : undefined })
-  }
-})
-
-const frequencyOver = computed({
-  get (): number | undefined {
-    const val = route.query.frequencyOver?.toString()
-    return val ? Number.parseInt(val) : undefined
-  },
-  set (v: number | undefined) {
-    setQuery({ ...route.query, frequencyOver: v != null ? v.toString() : undefined })
-  }
-})
-
-const calculateFrequencyMode = computed<boolean | undefined>({
-  get () {
-    return route.query.calculateFrequencyMode?.toString() === 'true'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, calculateFrequencyMode: v ? 'true' : '' })
-  }
-})
-
-const maxFareEnabled = computed<boolean | undefined>({
-  get () {
-    return route.query.maxFareEnabled?.toString() === 'true'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, maxFareEnabled: v ? 'true' : '' })
-  }
-})
-
-const maxFare = computed<number | undefined>({
-  get () {
-    return Number.parseInt(route.query.maxFare?.toString() || '') || 0
-  },
-  set (v?: number) {
-    setQuery({ ...route.query, maxFare: (v || '').toString() })
-  }
-})
-
-const minFareEnabled = computed<boolean | undefined>({
-  get () {
-    return route.query.minFareEnabled?.toString() === 'true'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, minFareEnabled: v ? 'true' : '' })
-  }
-})
-
-const minFare = computed<number | undefined>({
-  get () {
-    return Number.parseInt(route.query.minFare?.toString() || '') || 0
-  },
-  set (v?: number) {
-    setQuery({ ...route.query, minFare: (v || '').toString() })
-  }
-})
-
-/////////////////
-// Fixed-Route Transit toggle
-/////////////////
-
-const fixedRouteEnabled = computed<boolean | undefined>({
-  get () {
-    // On by default - only false if explicitly set to 'false'
-    return route.query.fixedRouteEnabled?.toString() !== 'false'
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, fixedRouteEnabled: v ? '' : 'false' })
-  }
-})
-
-/////////////////
-// Flex Services (DRT) filters
-// TODO: Integrate with transitland-server GraphQL resolvers for GTFS-Flex data
-// Related PR: https://github.com/interline-io/transitland-lib/pull/527
-// Will query: booking_rules.booking_type, stop_times.pickup_type/drop_off_type
-// Polygons come from locations.geojson linked via stop_times.location_id
-/////////////////
-
-const flexServicesEnabled = computed<boolean | undefined> ({
-  get () {
-    // Default: off when showing fixed-route, on when only showing flex
-    const param = route.query.flexServicesEnabled?.toString()
-    if (param === 'true') { return true }
-    if (param === 'false') { return false }
-    // No explicit param - default based on includeFixedRoute
-    return !includeFixedRoute.value
-  },
-  set (v?: boolean) {
-    setQuery({ ...route.query, flexServicesEnabled: v ? 'true' : 'false' })
-  }
-})
-
-const flexAdvanceNotice = computed<string[] | undefined>({
-  get (): string[] | undefined {
-    // All selected by default per PRD (when param is not present)
-    // Maps to booking_rules.booking_type: 0=On-Demand, 1=Same Day, 2=More than 24 hours
-    return arrayParamOrUndefined('flexAdvanceNotice')
-  },
-  set (v?: string[]) {
-    if (v === undefined) {
-      setQuery({ ...route.query, flexAdvanceNotice: undefined })
-    } else if (v.length === 0) {
-      setQuery({ ...route.query, flexAdvanceNotice: '' })
-    } else {
-      setQuery({ ...route.query, flexAdvanceNotice: v.join(',') })
-    }
-  }
-})
-
-const flexAreaTypesSelected = computed<string[] | undefined>({
-  get (): string[] | undefined {
-    // All selected by default per PRD (when param is not present)
-    // Based on stop_times.pickup_type and drop_off_type
-    return arrayParamOrUndefined('flexAreaTypesSelected')
-  },
-  set (v?: string[]) {
-    if (v === undefined) {
-      setQuery({ ...route.query, flexAreaTypesSelected: undefined })
-    } else if (v.length === 0) {
-      setQuery({ ...route.query, flexAreaTypesSelected: '' })
-    } else {
-      setQuery({ ...route.query, flexAreaTypesSelected: v.join(',') })
-    }
-  }
-})
-
-const flexColorBy = computed<string | undefined>({
-  get () {
-    // Agency coloring by default per PRD
-    // Can also color by Advance notice (booking_type category)
-    // Future: add service quality heatmap using safe_duration_factor/safe_duration_offset
-    return route.query.flexColorBy?.toString() || 'Agency'
-  },
-  set (v?: string) {
-    setQuery({ ...route.query, flexColorBy: v === 'Agency' ? '' : v })
-  }
-})
 
 // Scenario data ref - defined early so flex computed properties can reference it
 // This is populated when fetchScenario runs
@@ -1548,15 +1206,6 @@ async function setQuery (params: Record<string, any>) {
   await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
 }
 
-// Handle time range updates from filter component (both start and end in single navigation)
-async function setTimeRange (times: { startTime: Date | undefined, endTime: Date | undefined }) {
-  await setQuery({
-    ...route.query,
-    startTime: times.startTime ? fmtTime(times.startTime) : undefined,
-    endTime: times.endTime ? fmtTime(times.endTime) : undefined,
-  })
-}
-
 async function resetFilters () {
   const p = removeEmpty({
     ...route.query,
@@ -1601,17 +1250,6 @@ function itemHelper (p: string): string {
     return 'is-active'
   }
   return 'is-secondary'
-}
-
-function arrayParamOrUndefined (p: string): string[] | undefined {
-  if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
-    return undefined // Not set - no filter applied
-  }
-  const param = route.query[p]
-  if (!param) {
-    return [] // Explicitly empty - all unchecked (handles '', null, undefined)
-  }
-  return param.toString().split(',').filter(Boolean)
 }
 
 function toTitleCase (str: string): string {
