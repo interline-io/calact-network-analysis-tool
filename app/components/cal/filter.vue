@@ -507,7 +507,7 @@
               v-model="choroplethElement"
             >
               <option
-                v-for="option of choroplethElementOptions || []"
+                v-for="option of CHOROPLETH_ELEMENT_OPTIONS"
                 :key="option.value"
                 :value="option.value"
               >
@@ -599,6 +599,8 @@ import {
   fmtDate,
   parseTime,
   DEFAULT_TIME_WINDOW,
+  CHOROPLETH_ELEMENT_OPTIONS,
+  isElementDensityEligible,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -619,14 +621,14 @@ const props = defineProps<{
   agencyFilterItems?: AgencyFilterItem[]
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
-  choroplethElementOptions?: { label: string, value: string }[]
-  shadeByDensityEligible?: boolean
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
   panelMainWidth?: number
   panelSubWidth?: number
   panelPadding?: number
 }>()
+
+const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 
 const {
   showAggAreas,
@@ -711,7 +713,7 @@ const frequencyOverEnabled = computed({
 })
 
 // Bbox display toggle (local UI state, not URL-backed)
-const showBbox = defineModel<boolean>('showBbox', { default: true })
+const { showBbox } = useUiState()
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({

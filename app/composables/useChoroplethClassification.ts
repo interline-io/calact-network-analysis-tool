@@ -1,10 +1,12 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
+  CHOROPLETH_ELEMENT_OPTIONS,
   buildChoroplethClassification,
   densityPerArea,
   deriveApportionedColumn,
   getChoroplethColor,
+  isElementDensityEligible,
   pickChoroplethValue,
   type CensusFormat,
   type CensusGeographyData,
@@ -17,8 +19,6 @@ import { useDisplayPreferences } from './useDisplayPreferences'
 
 interface UseChoroplethClassificationInput {
   choroplethAggregateData: ComputedRef<Array<Record<string, unknown>>>
-  choroplethElementOptions: ComputedRef<Array<{ label: string, value: string }>>
-  isDensityEligible: Ref<boolean> | ComputedRef<boolean>
   censusGeographies: ComputedRef<Map<string, CensusGeographyData> | undefined>
   choroplethGeoResult: Ref<{ census_datasets: CensusDataset[] } | null | undefined>
   selectedAggregationGeoid: Ref<string | null>
@@ -29,11 +29,13 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   const { showAggAreas, choroplethElement, shadeByDensity } = useScenarioUrlState()
   const { unitSystem } = useDisplayPreferences()
 
+  const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
+
   // Memoized so classification + feature generation share one pass.
   const pickedByGeoid = computed((): Map<string, number | null> => {
     const aggData = input.choroplethAggregateData.value
     const element = choroplethElement.value
-    const isDensity = shadeByDensity.value && input.isDensityEligible.value
+    const isDensity = shadeByDensity.value && isDensityEligible.value
     const geos = input.censusGeographies.value
     const unit = unitSystem.value
     const out = new Map<string, number | null>()
@@ -46,9 +48,9 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
 
   const choroplethClassification = computed((): ChoroplethClassification => {
     const element = choroplethElement.value
-    const label = input.choroplethElementOptions.value.find(o => o.value === element)?.label || element
+    const label = CHOROPLETH_ELEMENT_OPTIONS.find(o => o.value === element)?.label || element
     const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
-    const isDensity = shadeByDensity.value && input.isDensityEligible.value
+    const isDensity = shadeByDensity.value && isDensityEligible.value
     return buildChoroplethClassification({
       pickedByGeoid: pickedByGeoid.value,
       element,

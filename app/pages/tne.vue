@@ -85,10 +85,10 @@
             :scenario-loaded="!!scenarioData"
             :panel-width="QUERY_PANEL_WIDTH"
             :panel-padding="PANEL_PADDING"
-            @explore="runQuery()"
+            @explore="runQuery"
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
-            @reset-scenario="clearScenario()"
+            @reset-scenario="clearScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
           />
@@ -99,13 +99,10 @@
           :class="['cal-tab-content', 'cal-tab-filter', { 'has-subtab': activeTab.sub }]"
         >
           <cal-filter
-            v-model:show-bbox="showBbox"
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
-            :choropleth-element-options="choroplethElementOptions"
-            :shade-by-density-eligible="selectedElementIsDensityEligible"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
@@ -154,7 +151,7 @@
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
-          @view-census-details="openCensusDetails()"
+          @view-census-details="openCensusDetails"
         >
           <template #sidebar-top>
             <cal-census-panel
@@ -251,8 +248,6 @@ import {
   censusLayerLabels,
   flexAdvanceNoticeTypes,
   flexAreaTypes,
-  CENSUS_COLUMNS,
-  STOP_AGG_CHOROPLETH_OPTIONS,
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
@@ -267,7 +262,6 @@ const { buildFlexAreaProperties } = useFlexAreaFormatting()
 const {
   showAggAreas,
   aggregateLayer,
-  choroplethElement,
   onlyWithStops,
   hideUnmarked,
 } = useScenarioUrlState()
@@ -609,18 +603,6 @@ const censusGeographiesSelected = computed((): CensusGeography[] => {
   return ret
 })
 
-const choroplethElementOptions = computed((): { label: string, value: string }[] => [
-  ...STOP_AGG_CHOROPLETH_OPTIONS.map(o => ({ label: o.label, value: o.value })),
-  ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
-])
-const densityEligibleByElement: Record<string, boolean> = {
-  ...Object.fromEntries(STOP_AGG_CHOROPLETH_OPTIONS.map(o => [o.value, o.densityEligible])),
-  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.densityEligible])),
-}
-const selectedElementIsDensityEligible = computed(() => {
-  return densityEligibleByElement[choroplethElement.value] === true
-})
-
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
 const selectedAggregationGeoid = ref<string | null>(null)
@@ -698,7 +680,7 @@ const advancedReport = computed({
   }
 })
 
-const showBbox = ref(true)
+const { showBbox } = useUiState()
 
 // showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
 const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')
@@ -1020,8 +1002,6 @@ const choroplethAggregateData = computed(() => {
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   choroplethAggregateData,
-  choroplethElementOptions,
-  isDensityEligible: selectedElementIsDensityEligible,
   censusGeographies: computed(() => scenarioFilterResult.value?.censusGeographies),
   choroplethGeoResult,
   selectedAggregationGeoid,
