@@ -601,6 +601,9 @@ import {
   DEFAULT_TIME_WINDOW,
   CHOROPLETH_ELEMENT_OPTIONS,
   isElementDensityEligible,
+  PANEL_PADDING,
+  FILTER_MAIN_WIDTH,
+  FILTER_SUB_WIDTH,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -623,9 +626,6 @@ const props = defineProps<{
   censusGeographyLayerOptions?: { label: string, value: string }[]
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
-  panelMainWidth?: number
-  panelSubWidth?: number
-  panelPadding?: number
 }>()
 
 const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
@@ -686,10 +686,9 @@ const markedRouteCount = computed(() => (props.scenarioFilterResult?.routes ?? [
 const totalStopCount = computed(() => props.scenarioFilterResult?.stops.length ?? 0)
 const markedStopCount = computed(() => (props.scenarioFilterResult?.stops ?? []).reduce((n, s) => n + (s.marked ? 1 : 0), 0))
 
-// CSS bindings from layout props (single source of truth defined in tne.vue)
-const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
-const panelSubWidthPx = computed(() => `${props.panelSubWidth ?? 400}px`)
-const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
+const panelMainWidthPx = `${FILTER_MAIN_WIDTH}px`
+const panelSubWidthPx = `${FILTER_SUB_WIDTH}px`
+const panelPaddingPx = `${PANEL_PADDING}px`
 
 const emit = defineEmits([
   'resetFilters',

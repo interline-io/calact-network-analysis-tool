@@ -83,8 +83,6 @@
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
-            :panel-width="QUERY_PANEL_WIDTH"
-            :panel-padding="PANEL_PADDING"
             @explore="runQuery"
             @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
@@ -106,9 +104,6 @@
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
             :active-tab="activeTab.sub"
-            :panel-main-width="FILTER_MAIN_WIDTH"
-            :panel-sub-width="FILTER_SUB_WIDTH"
-            :panel-padding="PANEL_PADDING"
             @reset-filters="resetFilters"
             @show-query="activeTab = { tab: 'query', sub: '' }"
           />
@@ -252,6 +247,9 @@ import {
   summarizeBbox,
   deriveApportionedRow,
   type FilterTag,
+  QUERY_PANEL_WIDTH,
+  FILTER_COLLAPSED_WIDTH,
+  FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { navigateTo, useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
@@ -648,15 +646,6 @@ const allGeographiesDerived = computed((): Record<string, number | null> | null 
 
 // Tab handling
 const activeTab = ref({ tab: 'query', sub: '' })
-
-// Panel layout constants — single source of truth for widths.
-// Used both for CSS (via v-bind) and for map padding computation.
-const PANEL_PADDING = 20
-const QUERY_PANEL_WIDTH = 620
-const FILTER_MAIN_WIDTH = 300
-const FILTER_SUB_WIDTH = 400
-const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING // 320
-const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING // 720
 
 // CSS binding for filter expanded width (used via v-bind in <style>)
 const filterExpandedWidthPx = `${FILTER_EXPANDED_WIDTH}px`

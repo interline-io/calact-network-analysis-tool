@@ -247,7 +247,7 @@ import { computed, nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Point } from '~~/src/core'
-import { cannedBboxes, geomSources, normalizeDate } from '~~/src/core'
+import { cannedBboxes, geomSources, normalizeDate, PANEL_PADDING, QUERY_PANEL_WIDTH } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
 
 const emit = defineEmits([
@@ -271,13 +271,10 @@ const props = defineProps<{
   mapExtentCenter?: Point
   censusGeographiesSelected?: CensusGeography[]
   scenarioLoaded?: boolean
-  panelWidth?: number
-  panelPadding?: number
 }>()
 
-// CSS bindings from layout props (single source of truth defined in tne.vue)
-const panelWidthPx = computed(() => `${props.panelWidth ?? 600}px`)
-const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
+const panelWidthPx = `${QUERY_PANEL_WIDTH}px`
+const panelPaddingPx = `${PANEL_PADDING}px`
 
 const {
   bbox,
