@@ -251,12 +251,13 @@ import {
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
-import { navigateTo, useToastNotification, useRouter } from '#imports'
+import { useToastNotification, useRouter } from '#imports'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
+const { setQuery } = useUrlQuery()
 const {
   showAggAreas,
   aggregateLayer,
@@ -665,7 +666,7 @@ const advancedReport = computed({
     return route.query.advancedReport?.toString() || ''
   },
   set (v: string) {
-    setQuery({ ...route.query, advancedReport: v || undefined })
+    setQuery({ advancedReport: v || undefined })
   }
 })
 
@@ -1170,14 +1171,8 @@ const filterTags = computed((): FilterTag[] => {
 // Helpers
 //////////////////////
 
-// Handle query parameters
-async function setQuery (params: Record<string, any>) {
-  await navigateTo({ replace: true, query: removeEmpty({ ...route.query, ...params }) })
-}
-
 async function resetFilters () {
-  const p = removeEmpty({
-    ...route.query,
+  await setQuery({
     selectedAgencies: undefined,
     startTime: undefined,
     endTime: undefined,
@@ -1191,7 +1186,6 @@ async function resetFilters () {
     maxFare: undefined,
     minFareEnabled: undefined,
     minFare: undefined,
-
     unitSystem: undefined,
     hideUnmarked: undefined,
     baseMap: undefined,
@@ -1201,17 +1195,6 @@ async function resetFilters () {
     flexAreaTypesSelected: undefined,
     flexColorBy: undefined,
   })
-  await navigateTo({ replace: true, query: p })
-}
-
-function removeEmpty (v: Record<string, any>): Record<string, any> {
-  const r: Record<string, any> = {}
-  for (const k in v) {
-    if (v[k] !== null && v[k] !== undefined) {
-      r[k] = v[k]
-    }
-  }
-  return r
 }
 
 function itemHelper (p: string): string {

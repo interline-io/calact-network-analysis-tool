@@ -120,7 +120,7 @@ const centerPoint: Point = {
 const fitBoundsKey = ref(0)
 let bboxChangeFromMap = false
 
-watch(() => bbox.value, (newBbox, oldBbox) => {
+watch(bbox, (newBbox, oldBbox) => {
   if (oldBbox
     && newBbox.sw.lon === oldBbox.sw.lon && newBbox.sw.lat === oldBbox.sw.lat
     && newBbox.ne.lon === oldBbox.ne.lon && newBbox.ne.lat === oldBbox.ne.lat) {

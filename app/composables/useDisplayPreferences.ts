@@ -1,5 +1,6 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
 import type { UnitSystem } from '~~/src/core'
+import { useUrlQuery } from './useUrlQuery'
 
 interface DisplayPreferences {
   unitSystem: WritableComputedRef<UnitSystem>
@@ -10,17 +11,11 @@ interface DisplayPreferences {
 // map-viewer-ts, census-panel) without needing to be plumbed through props.
 export function useDisplayPreferences (): DisplayPreferences {
   const route = useRoute()
+  const { setQuery } = useUrlQuery()
 
   const unitSystem = computed<UnitSystem>({
     get: () => route.query.unitSystem === 'eu' ? 'eu' : 'us',
-    set: (v) => {
-      const merged: Record<string, any> = {}
-      const source: Record<string, any> = { ...route.query, unitSystem: v }
-      for (const k in source) {
-        if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-      }
-      navigateTo({ replace: true, query: merged })
-    }
+    set: (v) => { setQuery({ unitSystem: v }) }
   })
 
   const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)

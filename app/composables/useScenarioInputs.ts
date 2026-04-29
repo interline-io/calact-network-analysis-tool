@@ -10,6 +10,7 @@ import {
   SCENARIO_DEFAULTS,
   type Bbox,
 } from '~~/src/core'
+import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>
@@ -17,7 +18,7 @@ interface ScenarioInputs {
   startDate: WritableComputedRef<Date>
   endDate: WritableComputedRef<Date>
   geographyIds: WritableComputedRef<number[]>
-  geomSource: WritableComputedRef<string | undefined>
+  geomSource: WritableComputedRef<string>
   geomLayer: WritableComputedRef<string>
   geoDatasetName: WritableComputedRef<string>
   includeFixedRoute: WritableComputedRef<boolean | undefined>
@@ -30,15 +31,7 @@ interface ScenarioInputs {
 // directly instead of receiving the values as props/v-models.
 export function useScenarioInputs (): ScenarioInputs {
   const route = useRoute()
-
-  function setQuery (params: Record<string, any>) {
-    const merged: Record<string, any> = {}
-    const source = { ...route.query, ...params }
-    for (const k in source) {
-      if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-    }
-    return navigateTo({ replace: true, query: merged })
-  }
+  const { setQuery } = useUrlQuery()
 
   const cannedBbox = computed<string>({
     get: () => route.query.example?.toString() || 'downtown-portland',
@@ -71,7 +64,7 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ geographyIds: v.length > 0 ? v.map(String).join(',') : undefined }) }
   })
 
-  const geomSource = computed<string | undefined>({
+  const geomSource = computed<string>({
     get: () => route.query.geomSource?.toString() || 'bbox',
     set: (v) => { setQuery({ geomSource: v }) }
   })

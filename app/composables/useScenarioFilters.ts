@@ -6,6 +6,7 @@ import {
   type Weekday,
   type WeekdayMode,
 } from '~~/src/core'
+import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioFilters {
   startTime: WritableComputedRef<Date | undefined>
@@ -18,9 +19,9 @@ interface ScenarioFilters {
   frequencyOver: WritableComputedRef<number | undefined>
   calculateFrequencyMode: WritableComputedRef<boolean | undefined>
   maxFareEnabled: WritableComputedRef<boolean | undefined>
-  maxFare: WritableComputedRef<number | undefined>
+  maxFare: WritableComputedRef<number>
   minFareEnabled: WritableComputedRef<boolean | undefined>
-  minFare: WritableComputedRef<number | undefined>
+  minFare: WritableComputedRef<number>
   flexServicesEnabled: WritableComputedRef<boolean | undefined>
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
@@ -33,15 +34,7 @@ interface ScenarioFilters {
 // computed in tne.vue) call this directly instead of plumbing v-models.
 export function useScenarioFilters (): ScenarioFilters {
   const route = useRoute()
-
-  function setQuery (params: Record<string, any>) {
-    const merged: Record<string, any> = {}
-    const source = { ...route.query, ...params }
-    for (const k in source) {
-      if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-    }
-    return navigateTo({ replace: true, query: merged })
-  }
+  const { setQuery } = useUrlQuery()
 
   function arrayParamOrUndefined (p: string): string[] | undefined {
     if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
@@ -123,9 +116,9 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ maxFareEnabled: v ? 'true' : '' }) }
   })
 
-  const maxFare = computed<number | undefined>({
+  const maxFare = computed<number>({
     get: () => Number.parseInt(route.query.maxFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ maxFare: (v || '').toString() }) }
+    set: (v) => { setQuery({ maxFare: v != null ? v.toString() : undefined }) }
   })
 
   const minFareEnabled = computed<boolean | undefined>({
@@ -133,19 +126,15 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ minFareEnabled: v ? 'true' : '' }) }
   })
 
-  const minFare = computed<number | undefined>({
+  const minFare = computed<number>({
     get: () => Number.parseInt(route.query.minFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ minFare: (v || '').toString() }) }
+    set: (v) => { setQuery({ minFare: v != null ? v.toString() : undefined }) }
   })
 
+  // Off by default. Independent of includeFixedRoute — the user can have
+  // both fetch toggles off and just see an empty map until they enable one.
   const flexServicesEnabled = computed<boolean | undefined>({
-    get: () => {
-      // Default off when fetching fixed-route, on when only flex is fetched.
-      const param = route.query.flexServicesEnabled?.toString()
-      if (param === 'true') { return true }
-      if (param === 'false') { return false }
-      return route.query.includeFixedRoute?.toString() === 'false'
-    },
+    get: () => route.query.flexServicesEnabled?.toString() === 'true',
     set: (v) => { setQuery({ flexServicesEnabled: v ? 'true' : 'false' }) }
   })
 

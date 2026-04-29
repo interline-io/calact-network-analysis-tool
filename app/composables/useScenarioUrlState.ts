@@ -1,5 +1,6 @@
 import { computed, type WritableComputedRef } from 'vue'
 import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode } from '~~/src/core'
+import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioUrlState {
   showAggAreas: WritableComputedRef<boolean>
@@ -17,15 +18,7 @@ interface ScenarioUrlState {
 // so adding a new flag is a one-file change.
 export function useScenarioUrlState (): ScenarioUrlState {
   const route = useRoute()
-
-  function setQuery (params: Record<string, any>) {
-    const merged: Record<string, any> = {}
-    const source = { ...route.query, ...params }
-    for (const k in source) {
-      if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-    }
-    return navigateTo({ replace: true, query: merged })
-  }
+  const { setQuery } = useUrlQuery()
 
   const showAggAreas = computed<boolean>({
     get: () => route.query.showAggAreas?.toString() === 'true',
