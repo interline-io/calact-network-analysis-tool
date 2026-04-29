@@ -187,8 +187,7 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { showAggAreas, hideUnmarked, dataDisplayMode } = useScenarioUrlState()
-const { unitSystem, isAllDayMode } = useDisplayPreferences()
+const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
 

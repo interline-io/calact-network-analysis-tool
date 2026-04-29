@@ -639,8 +639,9 @@ const {
   dataDisplayMode,
   hideUnmarked,
   baseMap,
-} = useScenarioUrlState()
-const { unitSystem } = useDisplayPreferences()
+  unitSystem,
+  showBbox,
+} = useScenarioDisplay()
 const {
   startDate,
   endDate,
@@ -710,9 +711,6 @@ const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
   set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
 })
-
-// Bbox display toggle (local UI state, not URL-backed)
-const { showBbox } = useUiState()
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({

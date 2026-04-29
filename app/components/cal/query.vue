@@ -288,7 +288,7 @@ const {
   includeFixedRoute,
   includeFlexAreas,
 } = useScenarioInputs()
-const { aggregateLayer } = useScenarioUrlState()
+const { aggregateLayer } = useScenarioDisplay()
 const debugMenu = useDebugMenu()
 const geomSearch = ref('')
 const selectSingleDay = ref(true)

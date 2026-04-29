@@ -1,3 +1,5 @@
+import { navigateTo } from '#imports'
+
 // Shared helper for the URL-backed composables. Merges new params over
 // the current route query and strips null/undefined so removed values
 // disappear from the URL. Use a single navigation per call so multiple

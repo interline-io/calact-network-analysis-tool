@@ -100,7 +100,7 @@ const props = defineProps<{
   fitOverlayKey?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked } = useScenarioUrlState()
+const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
 const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
 const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 

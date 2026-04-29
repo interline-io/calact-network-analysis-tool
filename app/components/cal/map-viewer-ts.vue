@@ -56,7 +56,7 @@ const props = defineProps<{
   fitTargetFeatures?: Feature[]
 }>()
 
-const { unitSystem, isAllDayMode } = useDisplayPreferences()
+const { unitSystem, isAllDayMode } = useScenarioDisplay()
 
 // Stages during which we should skip expensive map updates
 const skipUpdateStages = new Set(['schedules'])

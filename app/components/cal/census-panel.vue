@@ -119,8 +119,7 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { choroplethElement } = useScenarioUrlState()
-const { unitSystem } = useDisplayPreferences()
+const { choroplethElement, unitSystem } = useScenarioDisplay()
 
 function valueFor (id: string): number | null {
   return toFiniteNumber(props.row?.[id])

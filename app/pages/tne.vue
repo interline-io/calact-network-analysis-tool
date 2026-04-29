@@ -263,7 +263,8 @@ const {
   aggregateLayer,
   onlyWithStops,
   hideUnmarked,
-} = useScenarioUrlState()
+  showBbox,
+} = useScenarioDisplay()
 const {
   bbox,
   cannedBbox,
@@ -669,8 +670,6 @@ const advancedReport = computed({
     setQuery({ advancedReport: v || undefined })
   }
 })
-
-const { showBbox } = useUiState()
 
 // showBboxOnMap controls the bbox outline — visible when the filter toggle is on or on the query tab
 const showBboxOnMap = computed(() => showBbox.value || activeTab.value.tab === 'query')

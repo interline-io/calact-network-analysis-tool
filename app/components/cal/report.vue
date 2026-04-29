@@ -176,8 +176,7 @@ const props = defineProps<{
   flexDisplayFeatures?: Feature[]
 }>()
 
-const { aggregateLayer, onlyWithStops, dataDisplayMode } = useScenarioUrlState()
-const { isAllDayMode } = useDisplayPreferences()
+const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
 const { startDate, endDate, fixedRouteEnabled } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'

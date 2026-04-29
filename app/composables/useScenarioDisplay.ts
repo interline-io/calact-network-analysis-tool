@@ -1,8 +1,8 @@
-import { computed, type WritableComputedRef } from 'vue'
-import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode } from '~~/src/core'
+import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
+import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode, type UnitSystem } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
-interface ScenarioUrlState {
+interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
@@ -11,12 +11,15 @@ interface ScenarioUrlState {
   dataDisplayMode: WritableComputedRef<DataDisplayMode | undefined>
   hideUnmarked: WritableComputedRef<boolean>
   baseMap: WritableComputedRef<string | undefined>
+  unitSystem: WritableComputedRef<UnitSystem>
+  showBbox: WritableComputedRef<boolean>
+  isAllDayMode: ComputedRef<boolean>
 }
 
-// URL-backed display state shared between tne.vue, cal-filter, cal-map, etc.
-// Each consumer calls this directly instead of receiving the values as props,
-// so adding a new flag is a one-file change.
-export function useScenarioUrlState (): ScenarioUrlState {
+// URL-backed display state shared between tne.vue, cal-filter, cal-map and
+// their descendants. Each consumer calls this directly instead of receiving
+// values as props, so adding a new flag is a one-file change.
+export function useScenarioDisplay (): ScenarioDisplay {
   const route = useRoute()
   const { setQuery } = useUrlQuery()
 
@@ -62,6 +65,20 @@ export function useScenarioUrlState (): ScenarioUrlState {
     set: (v) => { setQuery({ baseMap: v }) }
   })
 
+  const unitSystem = computed<UnitSystem>({
+    get: () => route.query.unitSystem === 'eu' ? 'eu' : 'us',
+    set: (v) => { setQuery({ unitSystem: v }) }
+  })
+
+  // Default true; only the off state is persisted to the URL.
+  const showBbox = computed<boolean>({
+    get: () => route.query.showBbox?.toString() !== 'false',
+    set: (v) => { setQuery({ showBbox: v ? undefined : 'false' }) }
+  })
+
+  // Derived from filter state; read-only.
+  const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)
+
   return {
     showAggAreas,
     aggregateLayer,
@@ -71,5 +88,8 @@ export function useScenarioUrlState (): ScenarioUrlState {
     dataDisplayMode,
     hideUnmarked,
     baseMap,
+    unitSystem,
+    showBbox,
+    isAllDayMode,
   }
 }
