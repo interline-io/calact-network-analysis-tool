@@ -8,9 +8,9 @@ interface ScenarioDisplay {
   choroplethElement: WritableComputedRef<string>
   shadeByDensity: WritableComputedRef<boolean>
   onlyWithStops: WritableComputedRef<boolean>
-  dataDisplayMode: WritableComputedRef<DataDisplayMode | undefined>
+  dataDisplayMode: WritableComputedRef<DataDisplayMode>
   hideUnmarked: WritableComputedRef<boolean>
-  baseMap: WritableComputedRef<string | undefined>
+  baseMap: WritableComputedRef<string>
   unitSystem: WritableComputedRef<UnitSystem>
   showBbox: WritableComputedRef<boolean>
   isAllDayMode: ComputedRef<boolean>
@@ -49,25 +49,25 @@ export function useScenarioDisplay (): ScenarioDisplay {
     set: (v) => { setQuery({ onlyWithStops: v ? 'true' : undefined }) }
   })
 
-  const dataDisplayMode = computed<DataDisplayMode | undefined>({
+  const dataDisplayMode = computed<DataDisplayMode>({
     get: () => (route.query.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode,
-    set: (v) => { setQuery({ dataDisplayMode: v }) }
+    set: (v) => { setQuery({ dataDisplayMode: v === 'Transit mode' ? undefined : v }) }
   })
 
-  // Default true: hide filtered routes/stops unless explicitly set to false.
+  // Default true; only the off state is persisted to the URL.
   const hideUnmarked = computed<boolean>({
     get: () => route.query.hideUnmarked?.toString() !== 'false',
-    set: (v) => { setQuery({ hideUnmarked: v ? '' : 'false' }) }
+    set: (v) => { setQuery({ hideUnmarked: v ? undefined : 'false' }) }
   })
 
-  const baseMap = computed<string | undefined>({
+  const baseMap = computed<string>({
     get: () => route.query.baseMap?.toString() || 'Streets',
-    set: (v) => { setQuery({ baseMap: v }) }
+    set: (v) => { setQuery({ baseMap: v === 'Streets' ? undefined : v }) }
   })
 
   const unitSystem = computed<UnitSystem>({
     get: () => route.query.unitSystem === 'eu' ? 'eu' : 'us',
-    set: (v) => { setQuery({ unitSystem: v }) }
+    set: (v) => { setQuery({ unitSystem: v === 'us' ? undefined : v }) }
   })
 
   // Default true; only the off state is persisted to the URL.

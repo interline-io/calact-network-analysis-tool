@@ -8,7 +8,7 @@
     >
       <div class="cal-map-legend-box">
         <!-- Admin Boundary selection -->
-        <div v-if="props.geomSource === 'adminBoundary'" class="cal-map-legend-section">
+        <div v-if="geomSource === 'adminBoundary'" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-marker-square cal-legend-geo-unselected" />
             <div>Unselected boundary</div>
@@ -172,7 +172,6 @@ const props = defineProps<{
   hasData: boolean
   displayEditBboxMode?: boolean
   showBbox?: boolean
-  geomSource?: string
   // Flex Services props
   flexEnabled?: boolean
   flexColorBy?: string
@@ -188,8 +187,9 @@ defineEmits<{
 }>()
 
 const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
+const { geomSource } = useScenarioInputs()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || props.geomSource === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification

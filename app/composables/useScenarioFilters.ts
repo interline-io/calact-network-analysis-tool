@@ -30,32 +30,10 @@ interface ScenarioFilters {
   setTimeRange: (start: Date | undefined, end: Date | undefined) => void
 }
 
-// URL-backed post-fetch filters. Consumers (cal-filter, scenarioFilter
-// computed in tne.vue) call this directly instead of plumbing v-models.
+// URL-backed post-fetch filters.
 export function useScenarioFilters (): ScenarioFilters {
   const route = useRoute()
-  const { setQuery } = useUrlQuery()
-
-  function arrayParamOrUndefined (p: string): string[] | undefined {
-    if (!Object.prototype.hasOwnProperty.call(route.query, p)) {
-      return undefined // Not set - no filter applied.
-    }
-    const param = route.query[p]
-    if (!param) {
-      return [] // Explicitly empty - all unchecked.
-    }
-    return param.toString().split(',').filter(Boolean)
-  }
-
-  function setArrayParam (key: string, v: string[] | undefined) {
-    if (v === undefined) {
-      setQuery({ [key]: undefined })
-    } else if (v.length === 0) {
-      setQuery({ [key]: '' })
-    } else {
-      setQuery({ [key]: v.join(',') })
-    }
-  }
+  const { setQuery, getArrayParam, setArrayParam } = useUrlQuery()
 
   const startTime = computed<Date | undefined>({
     get: () => parseTime(route.query.startTime?.toString()),
@@ -69,24 +47,21 @@ export function useScenarioFilters (): ScenarioFilters {
 
   const selectedWeekdayMode = computed<WeekdayMode | undefined>({
     get: () => (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode,
-    set: (v) => { setQuery({ selectedWeekdayMode: v === 'Any' ? '' : v }) }
+    set: (v) => { setQuery({ selectedWeekdayMode: v === 'Any' ? undefined : v }) }
   })
 
   const selectedRouteTypes = computed<RouteType[] | undefined>({
-    get: () => {
-      const d = arrayParamOrUndefined('selectedRouteTypes')
-      return d ? d.map(s => Number.parseInt(s)) : undefined
-    },
+    get: () => getArrayParam('selectedRouteTypes')?.map(s => Number.parseInt(s)),
     set: (v) => { setQuery({ selectedRouteTypes: v ? v.join(',') : undefined }) }
   })
 
   const selectedAgencies = computed<string[] | undefined>({
-    get: () => arrayParamOrUndefined('selectedAgencies'),
+    get: () => getArrayParam('selectedAgencies'),
     set: (v) => { setQuery({ selectedAgencies: v ? v.join(',') : undefined }) }
   })
 
   const selectedWeekdays = computed<Weekday[] | undefined>({
-    get: () => arrayParamOrUndefined('selectedWeekdays') as Weekday[] | undefined,
+    get: () => getArrayParam('selectedWeekdays') as Weekday[] | undefined,
     set: (v) => { setQuery({ selectedWeekdays: v ? v.join(',') : undefined }) }
   })
 
@@ -108,49 +83,49 @@ export function useScenarioFilters (): ScenarioFilters {
 
   const calculateFrequencyMode = computed<boolean | undefined>({
     get: () => route.query.calculateFrequencyMode?.toString() === 'true',
-    set: (v) => { setQuery({ calculateFrequencyMode: v ? 'true' : '' }) }
+    set: (v) => { setQuery({ calculateFrequencyMode: v ? 'true' : undefined }) }
   })
 
   const maxFareEnabled = computed<boolean | undefined>({
     get: () => route.query.maxFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ maxFareEnabled: v ? 'true' : '' }) }
+    set: (v) => { setQuery({ maxFareEnabled: v ? 'true' : undefined }) }
   })
 
   const maxFare = computed<number>({
     get: () => Number.parseInt(route.query.maxFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ maxFare: v != null ? v.toString() : undefined }) }
+    set: (v) => { setQuery({ maxFare: v.toString() }) }
   })
 
   const minFareEnabled = computed<boolean | undefined>({
     get: () => route.query.minFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ minFareEnabled: v ? 'true' : '' }) }
+    set: (v) => { setQuery({ minFareEnabled: v ? 'true' : undefined }) }
   })
 
   const minFare = computed<number>({
     get: () => Number.parseInt(route.query.minFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ minFare: v != null ? v.toString() : undefined }) }
+    set: (v) => { setQuery({ minFare: v.toString() }) }
   })
 
-  // Off by default. Independent of includeFixedRoute — the user can have
-  // both fetch toggles off and just see an empty map until they enable one.
+  // Off by default. Independent of includeFixedRoute — both fetch toggles
+  // can be off, leaving the map empty until the user enables one.
   const flexServicesEnabled = computed<boolean | undefined>({
     get: () => route.query.flexServicesEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ flexServicesEnabled: v ? 'true' : 'false' }) }
+    set: (v) => { setQuery({ flexServicesEnabled: v ? 'true' : undefined }) }
   })
 
   const flexAdvanceNotice = computed<string[] | undefined>({
-    get: () => arrayParamOrUndefined('flexAdvanceNotice'),
+    get: () => getArrayParam('flexAdvanceNotice'),
     set: (v) => { setArrayParam('flexAdvanceNotice', v) }
   })
 
   const flexAreaTypesSelected = computed<string[] | undefined>({
-    get: () => arrayParamOrUndefined('flexAreaTypesSelected'),
+    get: () => getArrayParam('flexAreaTypesSelected'),
     set: (v) => { setArrayParam('flexAreaTypesSelected', v) }
   })
 
   const flexColorBy = computed<string | undefined>({
     get: () => route.query.flexColorBy?.toString() || 'Agency',
-    set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? '' : v }) }
+    set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
   function setTimeRange (start: Date | undefined, end: Date | undefined) {

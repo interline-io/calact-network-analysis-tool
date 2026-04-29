@@ -26,12 +26,10 @@ interface ScenarioInputs {
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
 }
 
-// URL-backed inputs that drive scenario fetching. All consumers
-// (cal-query, cal-filter, cal-map, tne.vue's scenarioConfig) call this
-// directly instead of receiving the values as props/v-models.
+// URL-backed inputs that drive scenario fetching.
 export function useScenarioInputs (): ScenarioInputs {
   const route = useRoute()
-  const { setQuery } = useUrlQuery()
+  const { setQuery, getArrayParam } = useUrlQuery()
 
   const cannedBbox = computed<string>({
     get: () => route.query.example?.toString() || 'downtown-portland',
@@ -60,7 +58,7 @@ export function useScenarioInputs (): ScenarioInputs {
   })
 
   const geographyIds = computed<number[]>({
-    get: () => route.query.geographyIds?.toString().split(',').map(p => Number.parseInt(p)) || [],
+    get: () => getArrayParam('geographyIds')?.map(s => Number.parseInt(s)) || [],
     set: (v) => { setQuery({ geographyIds: v.length > 0 ? v.map(String).join(',') : undefined }) }
   })
 
@@ -81,18 +79,18 @@ export function useScenarioInputs (): ScenarioInputs {
 
   const includeFixedRoute = computed<boolean | undefined>({
     get: () => route.query.includeFixedRoute?.toString() !== 'false',
-    set: (v) => { setQuery({ includeFixedRoute: v ? '' : 'false' }) }
+    set: (v) => { setQuery({ includeFixedRoute: v ? undefined : 'false' }) }
   })
 
   const includeFlexAreas = computed<boolean | undefined>({
     get: () => route.query.includeFlexAreas?.toString() !== 'false',
-    set: (v) => { setQuery({ includeFlexAreas: v ? '' : 'false' }) }
+    set: (v) => { setQuery({ includeFlexAreas: v ? undefined : 'false' }) }
   })
 
   // Display toggle that filters fixed-route features out of the map; on by default.
   const fixedRouteEnabled = computed<boolean | undefined>({
     get: () => route.query.fixedRouteEnabled?.toString() !== 'false',
-    set: (v) => { setQuery({ fixedRouteEnabled: v ? '' : 'false' }) }
+    set: (v) => { setQuery({ fixedRouteEnabled: v ? undefined : 'false' }) }
   })
 
   return {

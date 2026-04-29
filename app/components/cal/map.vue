@@ -21,7 +21,6 @@
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
         :show-bbox="showBbox"
-        :geom-source="geomSource"
         :flex-enabled="flexServicesEnabled"
         :flex-color-by="flexColorBy"
         :flex-style-data="flexStyleData"
