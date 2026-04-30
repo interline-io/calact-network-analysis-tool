@@ -246,12 +246,11 @@
 import { computed, nextTick } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
-import type { Bbox, Point } from '~~/src/core'
-import { cannedBboxes, geomSources, normalizeDate } from '~~/src/core'
+import type { Point } from '~~/src/core'
+import { cannedBboxes, geomSources, normalizeDate, PANEL_PADDING, QUERY_PANEL_WIDTH } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
 
 const emit = defineEmits([
-  'setBbox',
   'fitToGeographies',
   'clearGeographies',
   'explore',
@@ -270,30 +269,29 @@ const props = defineProps<{
   viewportGeographiesLoading?: boolean
   viewportGeographiesLimit?: number
   mapExtentCenter?: Point
+  censusGeographiesSelected?: CensusGeography[]
   scenarioLoaded?: boolean
-  panelWidth?: number
-  panelPadding?: number
 }>()
 
-// CSS bindings from layout props (single source of truth defined in tne.vue)
-const panelWidthPx = computed(() => `${props.panelWidth ?? 600}px`)
-const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
+const panelWidthPx = `${QUERY_PANEL_WIDTH}px`
+const panelPaddingPx = `${PANEL_PADDING}px`
 
-const bbox = defineModel<Bbox>('bbox')
-const geographyIds = defineModel<number[]>('geographyIds', { default: () => [] })
-const censusGeographiesSelected = defineModel<CensusGeography[]>('censusGeographiesSelected', { default: [] })
-const includeFixedRoute = defineModel<boolean>('includeFixedRoute', { default: true })
-const includeFlexAreas = defineModel<boolean>('includeFlexAreas', { default: true })
-const geoDatasetName = defineModel<string>('geoDatasetName', { required: true })
-const geomLayer = defineModel<string>('geomLayer', { default: 'place' })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: 'tract' })
-const cannedBbox = defineModel<string>('cannedBbox', { default: '' })
+const {
+  bbox,
+  cannedBbox,
+  startDate,
+  endDate,
+  geographyIds,
+  geomSource,
+  geomLayer,
+  geoDatasetName,
+  includeFixedRoute,
+  includeFlexAreas,
+} = useScenarioInputs()
+const { aggregateLayer } = useScenarioDisplay()
 const debugMenu = useDebugMenu()
-const endDate = defineModel<Date>('endDate', { required: true })
 const geomSearch = ref('')
-const geomSource = defineModel<string | undefined>('geomSource')
 const selectSingleDay = ref(true)
-const startDate = defineModel<Date>('startDate', { required: true })
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 // Transitland API results are currently based on only active feed versions,
@@ -387,11 +385,11 @@ watch(geomSource, (newValue, oldValue) => {
       }
     })
   } else if (oldValue === 'adminBoundary' && newValue !== 'adminBoundary') {
-    // Clear selected geographies when switching away from Administrative Boundary
+    // Clear selected geographies when switching away from Administrative Boundary.
+    // censusGeographiesSelected upstream is computed from geographyIds so it
+    // updates automatically once we clear the IDs.
     geographyIds.value = []
-    censusGeographiesSelected.value = []
     geomSearch.value = ''
-    // Clear search results
     geomResult.value = undefined
   }
 })
@@ -399,7 +397,7 @@ watch(geomSource, (newValue, oldValue) => {
 const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
   // Combine selected geographies, viewport geographies, and search results
   const geogs: CensusGeography[] = []
-  for (const geo of censusGeographiesSelected.value || []) {
+  for (const geo of props.censusGeographiesSelected || []) {
     geogs.push({
       ...geo,
     })

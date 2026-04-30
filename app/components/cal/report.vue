@@ -23,10 +23,10 @@
       </div>
 
       <cat-tabs v-model="activeReportTab" type="boxed">
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="routes" label="Routes" />
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="stops" label="Stops (Individual)" />
-        <cat-tab-item v-if="props.fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
-        <cat-tab-item v-if="props.fixedRouteEnabled" value="agencies" label="Agencies" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="routes" label="Routes" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="stops" label="Stops (Individual)" />
+        <cat-tab-item v-if="fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
+        <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" value="flex" label="Flex Areas" />
       </cat-tabs>
     </div>
@@ -173,14 +173,11 @@ const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]
   scenarioFilterResult?: ScenarioFilterResult
   exportFeatures?: Feature[]
-  isAllDayMode: boolean
-  startDate?: Date
-  endDate?: Date
-  // Service type toggles
-  fixedRouteEnabled?: boolean
-  flexServicesEnabled?: boolean
   flexDisplayFeatures?: Feature[]
 }>()
+
+const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
+const { startDate, endDate, fixedRouteEnabled } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
@@ -204,19 +201,15 @@ const downloadFeatures = computed((): Feature[] => {
 })
 
 const reportHeading = computed(() => {
-  if (!props.startDate || !props.endDate) {
+  if (!startDate.value || !endDate.value) {
     return 'Reports'
   }
-  const sameMonthYear = fmtDate(props.startDate, 'MMM yyyy') === fmtDate(props.endDate, 'MMM yyyy')
+  const sameMonthYear = fmtDate(startDate.value, 'MMM yyyy') === fmtDate(endDate.value, 'MMM yyyy')
   if (sameMonthYear) {
-    return `Reports: ${fmtDate(props.startDate, 'dd')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
+    return `Reports: ${fmtDate(startDate.value, 'dd')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
   }
-  return `Reports: ${fmtDate(props.startDate, 'dd MMM, yyyy')} - ${fmtDate(props.endDate, 'dd MMM, yyyy')}`
+  return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
-
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode', { default: 'Stop visits' })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
-const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
 
 type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'
 
@@ -259,7 +252,7 @@ watch(dataDisplayMode, (mode) => {
 }, { immediate: true })
 
 const routeColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const timeScope = allDay ? 'across all service days' : 'across all service days and times'
   return [
     { key: 'route_id', label: 'Route ID', sortable: true },
@@ -327,7 +320,7 @@ const routeColumns = computed((): TableColumn[] => {
 })
 
 const stopColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'stop_id', label: 'Stop ID', sortable: true },
@@ -362,7 +355,7 @@ const censusColumns: TableColumn[] = CENSUS_COLUMNS.map(c => ({
 }))
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
-  const allDay = props.isAllDayMode
+  const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
   return [
     { key: 'name', label: 'Name', sortable: true },

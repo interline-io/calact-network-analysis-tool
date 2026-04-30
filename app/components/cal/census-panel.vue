@@ -62,16 +62,16 @@
           <tr
             v-for="col of CENSUS_COLUMNS"
             :key="col.id"
-            :class="{ 'is-highlighted': col.id === highlightedElement }"
+            :class="{ 'is-highlighted': col.id === choroplethElement }"
           >
             <td>
-              <span v-if="col.id === highlightedElement">{{ col.label }}</span>
+              <span v-if="col.id === choroplethElement">{{ col.label }}</span>
               <button
                 v-else
                 type="button"
                 class="cal-census-panel-stat-link"
                 title="Shade map by this statistic"
-                @click="$emit('selectElement', col.id)"
+                @click="choroplethElement = col.id"
               >
                 {{ col.label }}
               </button>
@@ -97,7 +97,6 @@ import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
-  type UnitSystem,
   formatArea,
   formatCensusValue,
   toFiniteNumber,
@@ -105,7 +104,6 @@ import {
 
 const props = defineProps<{
   row?: Record<string, any> | null
-  highlightedElement?: string
   layerLabel?: string
   apportionedDerived?: Record<string, number | null> | null
   allDerived?: Record<string, number | null> | null
@@ -114,14 +112,14 @@ const props = defineProps<{
     intersectionArea: number | null
     intersectionRatio: number | null
   } | null
-  unitSystem: UnitSystem
 }>()
 
 defineEmits<{
   close: []
-  selectElement: [id: string]
   viewDetails: []
 }>()
+
+const { choroplethElement, unitSystem } = useScenarioDisplay()
 
 function valueFor (id: string): number | null {
   return toFiniteNumber(props.row?.[id])

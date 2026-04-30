@@ -1,41 +1,41 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import {
   CENSUS_COLUMNS,
+  CHOROPLETH_ELEMENT_OPTIONS,
   buildChoroplethClassification,
   densityPerArea,
   deriveApportionedColumn,
   getChoroplethColor,
+  isElementDensityEligible,
   pickChoroplethValue,
   type CensusFormat,
   type CensusGeographyData,
   type ChoroplethClassification,
   type Feature,
-  type UnitSystem,
 } from '~~/src/core'
 import type { CensusDataset, CensusGeography } from '~~/src/tl'
+import { useScenarioDisplay } from './useScenarioDisplay'
 
 interface UseChoroplethClassificationInput {
-  showAggAreas: Ref<boolean> | ComputedRef<boolean>
   choroplethAggregateData: ComputedRef<Array<Record<string, unknown>>>
-  choroplethElement: Ref<string> | ComputedRef<string>
-  choroplethElementOptions: ComputedRef<Array<{ label: string, value: string }>>
-  shadeByDensity: Ref<boolean> | ComputedRef<boolean>
-  isDensityEligible: Ref<boolean> | ComputedRef<boolean>
   censusGeographies: ComputedRef<Map<string, CensusGeographyData> | undefined>
   choroplethGeoResult: Ref<{ census_datasets: CensusDataset[] } | null | undefined>
   selectedAggregationGeoid: Ref<string | null>
-  unitSystem: Ref<UnitSystem> | ComputedRef<UnitSystem>
 }
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
+  const { showAggAreas, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
+
+  const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
+
   // Memoized so classification + feature generation share one pass.
   const pickedByGeoid = computed((): Map<string, number | null> => {
     const aggData = input.choroplethAggregateData.value
-    const element = input.choroplethElement.value
-    const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
+    const element = choroplethElement.value
+    const isDensity = shadeByDensity.value && isDensityEligible.value
     const geos = input.censusGeographies.value
-    const unit = input.unitSystem.value
+    const unit = unitSystem.value
     const out = new Map<string, number | null>()
     for (const a of aggData) {
       const row = a as Record<string, any>
@@ -45,10 +45,10 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   })
 
   const choroplethClassification = computed((): ChoroplethClassification => {
-    const element = input.choroplethElement.value
-    const label = input.choroplethElementOptions.value.find(o => o.value === element)?.label || element
+    const element = choroplethElement.value
+    const label = CHOROPLETH_ELEMENT_OPTIONS.find(o => o.value === element)?.label || element
     const format: CensusFormat = CENSUS_COLUMNS.find(c => c.id === element)?.format || 'integer'
-    const isDensity = input.shadeByDensity.value && input.isDensityEligible.value
+    const isDensity = shadeByDensity.value && isDensityEligible.value
     return buildChoroplethClassification({
       pickedByGeoid: pickedByGeoid.value,
       element,
@@ -71,14 +71,14 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   // Feature properties carry only geoid/name + styling — the census panel
   // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
-    if (!input.showAggAreas.value) { return [] }
+    if (!showAggAreas.value) { return [] }
 
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
     const geoLookup = choroplethGeoLookup.value
     const censusGeos = input.censusGeographies.value
     const { palette, breaks, label, format } = choroplethClassification.value
-    const element = input.choroplethElement.value
+    const element = choroplethElement.value
     const elementCol = CENSUS_COLUMNS.find(c => c.id === element)
     const elementIsDensityEligible = elementCol?.densityEligible ?? false
     const picked = pickedByGeoid.value
@@ -103,7 +103,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       if (elementCol && censusGeo) {
         scaledValue = deriveApportionedColumn(censusGeo.values, censusGeo.intersectionRatio, element)
         if (elementIsDensityEligible) {
-          densityValue = densityPerArea(fullValue, censusGeo.geometryArea, input.unitSystem.value)
+          densityValue = densityPerArea(fullValue, censusGeo.geometryArea, unitSystem.value)
         }
       }
 

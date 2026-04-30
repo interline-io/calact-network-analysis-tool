@@ -1,5 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import { sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem } from './census-columns'
+import { CENSUS_COLUMNS, sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem } from './census-columns'
 import type { CensusGeographyData } from './census-intersection'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
@@ -28,6 +28,22 @@ export const STOP_AGG_CHOROPLETH_OPTIONS: StopAggChoroplethOption[] = [
 export const STOP_AGG_ELEMENT_IDS = new Set<string>(
   STOP_AGG_CHOROPLETH_OPTIONS.map(o => o.value),
 )
+
+// Full set of "Shade map by" dropdown options (stop-aggregation + census).
+export const CHOROPLETH_ELEMENT_OPTIONS: { label: string, value: string }[] = [
+  ...STOP_AGG_CHOROPLETH_OPTIONS.map(o => ({ label: o.label, value: o.value })),
+  ...CENSUS_COLUMNS.map(c => ({ label: c.label, value: c.id })),
+]
+
+const DENSITY_ELIGIBLE_BY_ELEMENT: Record<string, boolean> = {
+  ...Object.fromEntries(STOP_AGG_CHOROPLETH_OPTIONS.map(o => [o.value, o.densityEligible])),
+  ...Object.fromEntries(CENSUS_COLUMNS.map(c => [c.id, c.densityEligible])),
+}
+
+// Whether the "Shade as density" toggle applies to the given element id.
+export function isElementDensityEligible (elementId: string): boolean {
+  return DENSITY_ELIGIBLE_BY_ELEMENT[elementId] === true
+}
 
 export interface ChoroplethClassification {
   element: string

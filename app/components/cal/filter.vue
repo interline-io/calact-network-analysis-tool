@@ -507,7 +507,7 @@
               v-model="choroplethElement"
             >
               <option
-                v-for="option of choroplethElementOptions || []"
+                v-for="option of CHOROPLETH_ELEMENT_OPTIONS"
                 :key="option.value"
                 :value="option.value"
               >
@@ -584,11 +584,8 @@
 
 <script lang="ts">
 import { eachDayOfInterval } from 'date-fns'
-import { defineEmits } from 'vue'
 import {
-  type WeekdayMode,
   type Weekday,
-  type DataDisplayMode,
   type RouteType,
   type AgencyFilterItem,
   dowValues,
@@ -602,8 +599,11 @@ import {
   fmtDate,
   parseTime,
   DEFAULT_TIME_WINDOW,
-  CHOROPLETH_DEFAULT_ELEMENT,
-  type UnitSystem,
+  CHOROPLETH_ELEMENT_OPTIONS,
+  isElementDensityEligible,
+  PANEL_PADDING,
+  FILTER_MAIN_WIDTH,
+  FILTER_SUB_WIDTH,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -622,25 +622,60 @@ const menuItems = [
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
-  geomSource?: string
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
-  choroplethElementOptions?: { label: string, value: string }[]
-  shadeByDensityEligible?: boolean
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
-  panelMainWidth?: number
-  panelSubWidth?: number
-  panelPadding?: number
 }>()
 
+const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
+
+const {
+  showAggAreas,
+  aggregateLayer,
+  choroplethElement,
+  shadeByDensity,
+  onlyWithStops,
+  dataDisplayMode,
+  hideUnmarked,
+  baseMap,
+  unitSystem,
+  showBbox,
+} = useScenarioDisplay()
+const {
+  startDate,
+  endDate,
+  geomSource,
+  fixedRouteEnabled,
+} = useScenarioInputs()
+const {
+  startTime,
+  endTime,
+  selectedWeekdayMode,
+  selectedRouteTypes,
+  selectedWeekdays,
+  selectedAgencies,
+  frequencyUnder,
+  frequencyOver,
+  calculateFrequencyMode,
+  maxFareEnabled,
+  maxFare,
+  minFareEnabled,
+  minFare,
+  flexServicesEnabled,
+  flexAdvanceNotice,
+  flexAreaTypesSelected,
+  flexColorBy,
+  setTimeRange,
+} = useScenarioFilters()
+
 const geographicBoundaryLabel = computed(() => {
-  if (props.geomSource === 'adminBoundary' && props.censusGeographiesSelected?.length) {
+  if (geomSource.value === 'adminBoundary' && props.censusGeographiesSelected?.length) {
     return props.censusGeographiesSelected
       .map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
       .join('; ')
   }
-  if (props.geomSource === 'mapExtent') {
+  if (geomSource.value === 'mapExtent') {
     return 'Selected map extent'
   }
   return 'Selected bounding box'
@@ -652,38 +687,20 @@ const markedRouteCount = computed(() => (props.scenarioFilterResult?.routes ?? [
 const totalStopCount = computed(() => props.scenarioFilterResult?.stops.length ?? 0)
 const markedStopCount = computed(() => (props.scenarioFilterResult?.stops ?? []).reduce((n, s) => n + (s.marked ? 1 : 0), 0))
 
-// CSS bindings from layout props (single source of truth defined in tne.vue)
-const panelMainWidthPx = computed(() => `${props.panelMainWidth ?? 300}px`)
-const panelSubWidthPx = computed(() => `${props.panelSubWidth ?? 400}px`)
-const panelPaddingPx = computed(() => `${props.panelPadding ?? 20}px`)
+const panelMainWidthPx = `${FILTER_MAIN_WIDTH}px`
+const panelSubWidthPx = `${FILTER_SUB_WIDTH}px`
+const panelPaddingPx = `${PANEL_PADDING}px`
 
 const emit = defineEmits([
   'resetFilters',
-  'setTimeRange',
   'showQuery',
 ])
 const activeTab = defineModel<string>('activeTab')
-
-const startDate = defineModel<Date>('startDate', { required: true })
-const endDate = defineModel<Date>('endDate', { required: true })
-const startTime = defineModel<Date>('startTime')
-const endTime = defineModel<Date>('endTime')
-const unitSystem = defineModel<UnitSystem>('unitSystem', { default: 'us' })
-const hideUnmarked = defineModel<boolean>('hideUnmarked')
 
 const showFiltered = computed({
   get: () => !hideUnmarked.value,
   set: (v: boolean) => { hideUnmarked.value = !v }
 })
-
-const dataDisplayMode = defineModel<DataDisplayMode>('dataDisplayMode')
-const baseMap = defineModel<string>('baseMap')
-const selectedWeekdayMode = defineModel<WeekdayMode>('selectedWeekdayMode')
-const selectedRouteTypes = defineModel<RouteType[] | undefined>('selectedRouteTypes')
-const selectedWeekdays = defineModel<Weekday[] | undefined>('selectedWeekdays')
-const selectedAgencies = defineModel<string[] | undefined>('selectedAgencies')
-const frequencyUnder = defineModel<number>('frequencyUnder')
-const frequencyOver = defineModel<number>('frequencyOver')
 
 // Derived checkbox state: checked when value is defined, unchecked sets to undefined
 const frequencyUnderEnabled = computed({
@@ -694,41 +711,15 @@ const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
   set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
 })
-const calculateFrequencyMode = defineModel<boolean>('calculateFrequencyMode')
-const maxFareEnabled = defineModel<boolean>('maxFareEnabled')
-const maxFare = defineModel<number>('maxFare')
-const minFareEnabled = defineModel<boolean>('minFareEnabled')
-const minFare = defineModel<number>('minFare')
-
-// Bbox display toggle
-const showBbox = defineModel<boolean>('showBbox', { default: true })
-
-// Aggregation overlay
-const showAggAreas = defineModel<boolean>('showAggAreas', { default: false })
-const aggregateLayer = defineModel<string>('aggregateLayer', { default: '' })
-const choroplethElement = defineModel<string>('choroplethElement', { default: CHOROPLETH_DEFAULT_ELEMENT })
-const shadeByDensity = defineModel<boolean>('shadeByDensity', { default: true })
-const onlyWithStops = defineModel<boolean>('onlyWithStops', { default: false })
-
-// Fixed-Route Transit toggle
-const fixedRouteEnabled = defineModel<boolean | undefined>('fixedRouteEnabled') // On by default
-
-// Flex Services (DRT) filter models
-const flexServicesEnabled = defineModel<boolean | undefined>('flexServicesEnabled') // Off by default
-const flexAdvanceNotice = defineModel<string[] | undefined>('flexAdvanceNotice') // undefined = not set (default all), [] = none selected
-const flexAreaTypesSelected = defineModel<string[] | undefined>('flexAreaTypesSelected') // undefined = not set (default all), [] = none selected
-const flexColorBy = defineModel<string>('flexColorBy') // 'Agency' by default
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
 const isAllDayMode = computed({
   get: () => startTime.value == null && endTime.value == null,
   set: (checked: boolean) => {
     if (checked) {
-      // Emit event to parent to update both params in single navigation
-      emit('setTimeRange', { startTime: undefined, endTime: undefined })
+      setTimeRange(undefined, undefined)
     } else {
-      // Emit event to parent to update both params in single navigation
-      emit('setTimeRange', { startTime: parseTime(DEFAULT_TIME_WINDOW.start), endTime: parseTime(DEFAULT_TIME_WINDOW.end) })
+      setTimeRange(parseTime(DEFAULT_TIME_WINDOW.start), parseTime(DEFAULT_TIME_WINDOW.end))
     }
   }
 })

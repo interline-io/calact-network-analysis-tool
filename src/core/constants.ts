@@ -243,6 +243,15 @@ export const CHOROPLETH_INSUFFICIENT_COLOR = '#e0e0e0'
  * Singular form for headings (e.g. "Aggregated by County"),
  * plural form for counts (e.g. "42 counties").
  */
+// Side-panel layout sizes (px). Shared between tne.vue and the panel
+// components so widths and the map's left padding stay in sync.
+export const PANEL_PADDING = 20
+export const QUERY_PANEL_WIDTH = 620
+export const FILTER_MAIN_WIDTH = 300
+export const FILTER_SUB_WIDTH = 400
+export const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING
+export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING
+
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
   'county': { singular: 'County', plural: 'counties' },

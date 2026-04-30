@@ -7,7 +7,7 @@ import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from '
 import maplibre from 'maplibre-gl'
 import { noLabels, labels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature, UnitSystem } from '~~/src/core'
+import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
@@ -54,11 +54,9 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
-  // Whether the active timeframe filter is "All Day" (no start/end time set);
-  // affects mode-aware labels in the choropleth hover tooltip.
-  isAllDayMode?: boolean
-  unitSystem?: UnitSystem
 }>()
+
+const { unitSystem, isAllDayMode } = useScenarioDisplay()
 
 // Stages during which we should skip expensive map updates
 const skipUpdateStages = new Set(['schedules'])
@@ -289,7 +287,7 @@ function initMap () {
       const title = document.createElement('strong')
       title.textContent = String(fp?.name || fp?.geoid || '')
       choroplethTooltip.appendChild(title)
-      const visitsLabel = props.isAllDayMode ? 'Total visits' : 'Total visits in window'
+      const visitsLabel = isAllDayMode.value ? 'Total visits' : 'Total visits in window'
       for (const [label, value] of [
         ['Stops', fp?.stops_count ?? 0],
         ['Routes', fp?.routes_count ?? 0],
@@ -319,7 +317,7 @@ function initMap () {
           lines.push(['Intersection', formatCensusValue(scaled as number | null, fmt)])
         }
         if (density !== null) {
-          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(props.unitSystem ?? 'us')}`])
+          lines.push(['Density', `${formatCensusValue(density as number | null, fmt)} ${densityUnitLabel(unitSystem.value)}`])
         }
         for (const [k, v] of lines) {
           choroplethTooltip.appendChild(document.createElement('br'))
