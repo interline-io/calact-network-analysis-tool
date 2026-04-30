@@ -39,9 +39,7 @@ export default defineNuxtConfig({
     },
     public: {
       tlv2: {
-        protomapsApikey: '',
-        loginGate: true,
-        requireLogin: true,
+        protomapsApikey: ''
       },
     },
   },
@@ -74,5 +72,6 @@ export default defineNuxtConfig({
   tlv2Auth: {
     loginGate: true,
     requireLogin: true,
+    autoAppBaseUrl: true
   },
 })
