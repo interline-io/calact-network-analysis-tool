@@ -34,7 +34,7 @@ export default defineNuxtConfig({
     tlv2: {
       graphqlApikey: '',
       proxyBase: {
-        default: '',
+        default: 'proxy',
       },
     },
     public: {
@@ -72,6 +72,7 @@ export default defineNuxtConfig({
   tlv2Auth: {
     loginGate: true,
     requireLogin: true,
+    proxyEnabled: true,
     autoAppBaseUrl: true
   },
 })
