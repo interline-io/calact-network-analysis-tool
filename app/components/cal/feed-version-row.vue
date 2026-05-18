@@ -36,12 +36,9 @@
       :feed-info-end-date="fv.service_window?.feed_end_date"
     />
     <div class="cal-fv-row-action">
-      <!-- Submit/retry is hidden until the jobs wiring lands; only the
-           imported / in-progress states show, as read-only badges. -->
-      <cat-button
-        v-if="status === 'imported' || status === 'in_progress'"
-        disabled
-      >
+      <!-- Always rendered (disabled until jobs wiring lands) so row heights
+           stay uniform across feeds; label tracks the current status. -->
+      <cat-button disabled>
         {{ importLabel }}
       </cat-button>
     </div>
@@ -150,7 +147,6 @@ const importLabel = computed(() => {
 .cal-fv-row-fetched {
   flex: 0 0 auto;
   min-width: 110px;
-  font-family: monospace;
   color: #333;
   cursor: help;
   display: inline-flex;

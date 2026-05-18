@@ -189,9 +189,8 @@ function domainIso (d: Date): string {
 }
 
 // TODO: wire jobs into picker — submit import via the tlv2 jobs API and
-// stream status back to per-row badges. The plumbing (jobs.ts client) is
-// already in place; this stub keeps the row's emit interface stable so the
-// wiring is a localized change.
+// stream status back to per-row badges. The jobs client lives in a separate
+// follow-up PR; this stub keeps the row's emit interface stable.
 function onImport (fvId: number) {
   useToastNotification().showToast(`Import for feed version ${fvId} — submit not wired yet`)
 }

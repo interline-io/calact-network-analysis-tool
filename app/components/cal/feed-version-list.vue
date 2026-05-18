@@ -1,28 +1,43 @@
 <template>
   <cat-card class="cal-fv-feed-card" :class="{ 'is-excluded': excluded }">
     <template #header>
-      <p class="card-header-title cal-fv-feed-title">
-        <span>{{ feed.name || feed.onestop_id }}</span>
-        <span v-if="showOnestopId" class="has-text-grey has-text-weight-normal cal-fv-feed-osid">
-          {{ feed.onestop_id }}
-        </span>
-        <span v-if="agencyNames.length > 0" class="has-text-grey has-text-weight-normal">
-          — {{ agencyNames.join(', ') }}
-        </span>
-      </p>
-    </template>
-    <template #actions>
-      <span class="has-text-grey">
-        {{ feed.feed_versions.length }} version{{ feed.feed_versions.length === 1 ? '' : 's' }}
-      </span>
-      <cat-tooltip v-if="selectable" text="Exclude this feed from the scenario">
-        <cat-checkbox
-          :model-value="!!excluded"
-          @update:model-value="(v) => emit('exclude', v)"
+      <div class="card-header-title cal-fv-feed-title-block">
+        <div class="cal-fv-feed-title-row">
+          <div class="cal-fv-feed-title-name">
+            <span>{{ feed.name || feed.onestop_id }}</span>
+            <span v-if="showOnestopId" class="has-text-grey has-text-weight-normal cal-fv-feed-osid">
+              {{ feed.onestop_id }}
+            </span>
+          </div>
+          <div class="cal-fv-feed-title-actions">
+            <span class="has-text-grey has-text-weight-normal">
+              {{ feed.feed_versions.length }} version{{ feed.feed_versions.length === 1 ? '' : 's' }}
+            </span>
+            <cat-tooltip v-if="selectable" text="Exclude this feed from the scenario">
+              <cat-checkbox
+                :model-value="!!excluded"
+                @update:model-value="(v) => emit('exclude', v)"
+              >
+                Exclude
+              </cat-checkbox>
+            </cat-tooltip>
+          </div>
+        </div>
+        <!-- Agencies can be a long list (NYC-MTA-style feeds have 30+).
+             Default to a one-line clipped row with a right-edge fade as
+             an affordance; click to expand. Reliable overflow detection
+             isn't possible in pure CSS so the fade is shown even for
+             short lists — it reads as a stylistic cue rather than a lie. -->
+        <div
+          v-if="agencyNames.length > 0"
+          class="cal-fv-feed-agencies has-text-grey has-text-weight-normal"
+          :class="{ 'is-expanded': agenciesExpanded }"
+          :title="agenciesExpanded ? 'Collapse' : 'Click to expand'"
+          @click="agenciesExpanded = !agenciesExpanded"
         >
-          Exclude
-        </cat-checkbox>
-      </cat-tooltip>
+          {{ agencyNames.join(', ') }}
+        </div>
+      </div>
     </template>
     <p v-if="sortedVersions.length === 0" class="has-text-grey is-italic">
       No feed versions available.
@@ -48,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import CalFeedVersionRow from '~/components/cal/feed-version-row.vue'
 import type { FeedWithVersions } from '~~/src/tl'
 
@@ -87,6 +102,8 @@ const effectiveSelectedFvId = computed(() => {
 // (or when the name is empty and we're already showing the onestop_id as
 // the name).
 const showOnestopId = computed(() => !!props.feed.name && props.feed.name !== props.feed.onestop_id)
+
+const agenciesExpanded = ref(false)
 
 const agencyNames = computed<string[]>(() => {
   const ags = props.feed.feed_state?.feed_version?.agencies ?? []
@@ -132,11 +149,44 @@ const sortedVersions = computed(() => {
 .cal-fv-feed-card.is-excluded {
   opacity: 0.55;
 }
-.cal-fv-feed-title {
+.cal-fv-feed-title-block {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.cal-fv-feed-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
 }
+.cal-fv-feed-title-name {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.cal-fv-feed-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
 .cal-fv-feed-osid {
   font-family: monospace;
+}
+.cal-fv-feed-agencies {
+  cursor: pointer;
+  user-select: none;
+  max-height: 1.4em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+  mask-image: linear-gradient(to right, black 80%, transparent 100%);
+}
+.cal-fv-feed-agencies.is-expanded {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 </style>
