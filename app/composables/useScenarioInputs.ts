@@ -24,6 +24,8 @@ interface ScenarioInputs {
   includeFixedRoute: WritableComputedRef<boolean | undefined>
   includeFlexAreas: WritableComputedRef<boolean | undefined>
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
+  // fvids CSV — see parseFvids/serializeFvids for the encoding.
+  fvids: WritableComputedRef<string>
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -93,6 +95,11 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ fixedRouteEnabled: v ? undefined : 'false' }) }
   })
 
+  const fvids = computed<string>({
+    get: () => route.query.fvids?.toString() || '',
+    set: (v) => { setQuery({ fvids: v || undefined }) }
+  })
+
   return {
     bbox,
     cannedBbox,
@@ -105,5 +112,6 @@ export function useScenarioInputs (): ScenarioInputs {
     includeFixedRoute,
     includeFlexAreas,
     fixedRouteEnabled,
+    fvids,
   }
 }

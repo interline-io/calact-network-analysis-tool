@@ -34,6 +34,9 @@ import {
   StopDepartureCache,
   FlexDepartureCache,
   feedVersionQuery,
+  feedVersionsByIdsQuery,
+  HIDDEN_FEED_ONESTOP_IDS,
+  applyFeedVersionOverrides,
   routeQuery,
   stopDepartureQuery,
   stopTimeQuery,
@@ -83,6 +86,10 @@ export interface ScenarioConfig {
    * Defaults to true
    */
   includeFlexAreas?: boolean
+  // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
+  feedVersionOverrides?: Record<string, number>
+  // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
+  excludedFeeds?: string[]
 }
 
 export interface ScenarioFilter {
@@ -184,6 +191,8 @@ export interface ScenarioProgress {
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
   error?: any
+  // Non-fatal warnings the consumer should toast. Drained per delivery.
+  warnings?: string[]
   // Partial data available during progress
   partialData?: {
     stops: StopGql[]
@@ -489,6 +498,9 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
+  // Drained on the next updateProgress() so non-fatal stage warnings ride the
+  // existing progress channel without a new transport.
+  private pendingWarnings: string[] = []
   // Set by fetchFeedVersions(), read by fetchCensusValues().
   private resolvedBbox?: Bbox
   // First admin polygon, used as `within` for census intersection so the
@@ -815,7 +827,12 @@ export class ScenarioFetcher {
       const variables = { where: { bbox: bboxForQuery }, limit: this.feedVersionPageSize, after }
       const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
       const page = response.data?.feeds || []
-      allFeeds.push(...page)
+      // Drop feeds with known-broken bbox metadata so they don't poison
+      // every other bbox query with their over-broad coverage claim.
+      for (const f of page) {
+        if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
+        allFeeds.push(f)
+      }
       if (page.length < this.feedVersionPageSize) {
         break
       }
@@ -825,10 +842,48 @@ export class ScenarioFetcher {
       }
       after = nextAfter
     }
-    const feedVersions = allFeeds.map(feed => feed.feed_state.feed_version)
+    const feedVersions = await this.resolveFeedVersionsForScenario(allFeeds)
 
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
+    return feedVersions
+  }
+
+  // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
+  // (pure projection, tested separately).
+  private async resolveFeedVersionsForScenario (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
+    const overrides = new Map<string, number>(
+      this.config.feedVersionOverrides ? Object.entries(this.config.feedVersionOverrides) : []
+    )
+    const excluded = new Set<string>(this.config.excludedFeeds || [])
+
+    const overrideById = new Map<number, FeedVersion>()
+    if (overrides.size > 0) {
+      const needed: number[] = []
+      for (const f of allFeeds) {
+        if (excluded.has(f.onestop_id)) { continue }
+        const id = overrides.get(f.onestop_id)
+        if (id != null) { needed.push(id) }
+      }
+      if (needed.length > 0) {
+        const resp = await this.client.query<{ feed_versions: FeedVersion[] }>(
+          feedVersionsByIdsQuery,
+          { ids: needed }
+        )
+        for (const fv of resp.data?.feed_versions || []) {
+          // fv.id arrives as a string from GraphQL — coerce for Map key parity.
+          const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
+          if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
+        }
+      }
+    }
+
+    const { feedVersions, missing } = applyFeedVersionOverrides(allFeeds, overrides, excluded, overrideById)
+    if (missing.length > 0) {
+      const msg = `Could not resolve ${missing.length} pinned feed version(s): ${missing.map(m => `${m.onestop_id}:${m.fv_id}`).join(', ')}`
+      console.warn(`[Scenario] ${msg}`)
+      this.pendingWarnings.push(msg)
+    }
     return feedVersions
   }
 
@@ -987,12 +1042,15 @@ export class ScenarioFetcher {
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {
+    const warnings = this.pendingWarnings.length > 0 ? this.pendingWarnings : undefined
+    if (warnings) { this.pendingWarnings = [] }
     this.callbacks.onProgress?.({
       isLoading: loading,
       stopDepartureProgress: this.stopDepartureProgress,
       feedVersionProgress: this.feedVersionProgress,
       currentStage: stage,
       partialData: newData,
+      warnings,
     })
   }
 }
