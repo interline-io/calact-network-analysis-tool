@@ -1045,6 +1045,14 @@ const fetchScenario = async (loadExample: string) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
 
+      // Surface any non-fatal warnings the fetcher attached to this event
+      // (e.g. unresolved feed-version picks from the picker modal).
+      if (progress.warnings && progress.warnings.length > 0) {
+        for (const msg of progress.warnings) {
+          useToastNotification().showToast(msg)
+        }
+      }
+
       // Apply filters to partial data and emit (without schedule-dependent features)
       // Skip if no route/stop/flex data in this progress update
       const hasRoutes = (progress.partialData?.routes.length || 0) > 0

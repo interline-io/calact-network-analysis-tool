@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { parseFvids, serializeFvids } from './feed-version'
+import { applyFeedVersionOverrides, parseFvids, serializeFvids, type FeedGql, type FeedVersion } from './feed-version'
+
+function feed (osid: string, activeFvId: number | null = null): FeedGql {
+  return {
+    id: osid,
+    onestop_id: osid,
+    feed_state: activeFvId == null
+      ? null
+      : { feed_version: { id: String(activeFvId), sha1: `sha-${activeFvId}`, feed: { id: 1, onestop_id: osid } } },
+  }
+}
+
+function fv (id: number, osid: string): FeedVersion {
+  return { id: String(id), sha1: `sha-${id}`, feed: { id: 1, onestop_id: osid } }
+}
 
 describe('parseFvids', () => {
   it('returns empty maps for empty input', () => {
@@ -74,5 +88,54 @@ describe('serializeFvids', () => {
     const reparsed = parseFvids(serializeFvids(parsed))
     expect(reparsed.picks).toEqual(parsed.picks)
     expect(reparsed.excluded).toEqual(parsed.excluded)
+  })
+})
+
+describe('applyFeedVersionOverrides', () => {
+  it('falls back to active feed_version when no override is set', () => {
+    const allFeeds = [feed('a', 10), feed('b', 20)]
+    const r = applyFeedVersionOverrides(allFeeds, new Map(), new Set(), new Map())
+    expect(r.feedVersions.map(f => f.id)).toEqual(['10', '20'])
+    expect(r.missing).toEqual([])
+  })
+
+  it('drops excluded feeds without consulting overrides', () => {
+    const allFeeds = [feed('a', 10), feed('b', 20)]
+    const overrides = new Map<string, number>([['b', 99]])
+    const r = applyFeedVersionOverrides(allFeeds, overrides, new Set(['b']), new Map([[99, fv(99, 'b')]]))
+    expect(r.feedVersions.map(f => f.id)).toEqual(['10'])
+    expect(r.missing).toEqual([])
+  })
+
+  it('swaps in resolved overrides', () => {
+    const allFeeds = [feed('a', 10), feed('b', 20)]
+    const overrides = new Map<string, number>([['a', 11]])
+    const overrideById = new Map<number, FeedVersion>([[11, fv(11, 'a')]])
+    const r = applyFeedVersionOverrides(allFeeds, overrides, new Set(), overrideById)
+    expect(r.feedVersions.map(f => f.id)).toEqual(['11', '20'])
+    expect(r.missing).toEqual([])
+  })
+
+  it('reports unresolved overrides as missing and skips that feed', () => {
+    const allFeeds = [feed('a', 10), feed('b', 20)]
+    const overrides = new Map<string, number>([['a', 999]])
+    const r = applyFeedVersionOverrides(allFeeds, overrides, new Set(), new Map())
+    expect(r.feedVersions.map(f => f.id)).toEqual(['20'])
+    expect(r.missing).toEqual([{ onestop_id: 'a', fv_id: 999 }])
+  })
+
+  it('silently drops feeds with no active feed_version and no override', () => {
+    // A bbox query can return feeds with no active FV (never imported);
+    // these can't be scenario inputs, so they're dropped without warning.
+    const allFeeds = [feed('a', 10), feed('b', null)]
+    const r = applyFeedVersionOverrides(allFeeds, new Map(), new Set(), new Map())
+    expect(r.feedVersions.map(f => f.id)).toEqual(['10'])
+    expect(r.missing).toEqual([])
+  })
+
+  it('preserves input feed order', () => {
+    const allFeeds = [feed('c', 30), feed('a', 10), feed('b', 20)]
+    const r = applyFeedVersionOverrides(allFeeds, new Map(), new Set(), new Map())
+    expect(r.feedVersions.map(f => f.feed.onestop_id)).toEqual(['c', 'a', 'b'])
   })
 })

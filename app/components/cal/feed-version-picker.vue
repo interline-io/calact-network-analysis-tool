@@ -20,7 +20,6 @@
       v-for="feed in visibleFeeds"
       :key="feed.id"
       :feed="feed"
-      :active-job-fv-ids="emptyActiveJobs"
       :domain-start="domainStart"
       :domain-end="domainEnd"
       :analysis-start="analysisStart"
@@ -66,19 +65,15 @@ const props = withDefaults(defineProps<{
   selectable?: boolean
   // CSV `fvids` value (e.g. "osid1:123,osid2:0"). Empty string = no overrides.
   modelValue?: string
-  // Whether to bypass the in-domain service filter and show every FV.
-  showAllFeeds?: boolean
 }>(), {
   analysisStart: null,
   analysisEnd: null,
   selectable: false,
   modelValue: '',
-  showAllFeeds: false,
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
-  (e: 'update:showAllFeeds', value: boolean): void
   // Stream the de-duped list of feeds the bbox query returned so parents
   // (e.g. the modal) can drive bulk actions like "Exclude all".
   (e: 'update:feedOnestopIds', value: string[]): void
@@ -157,11 +152,10 @@ watch(feeds, (fs) => {
   emit('update:feedOnestopIds', ids)
 }, { immediate: true })
 
-// Drop FVs with no scheduled service in the visible domain unless
-// `showAllFeeds` is on. Always keep each feed's active FV. Sort feeds desc
-// by the busiest FV's service total inside the analysis window (fallback to
-// visible domain when dates are unset). Feeds with no surviving FVs are
-// dropped from the picker entirely.
+// Drop FVs with no scheduled service in the visible domain. Always keep
+// each feed's active FV. Sort feeds desc by the busiest FV's service total
+// inside the analysis window (fallback to visible domain when dates are
+// unset). Feeds with no surviving FVs are dropped from the picker entirely.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const startIso = domainIso(domainStart.value)
   const endIso = domainIso(domainEnd.value)
@@ -172,11 +166,9 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
   for (const f of feeds.value) {
     if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
     const activeId = f.feed_state?.feed_version?.id ?? null
-    const kept = props.showAllFeeds
-      ? [...f.feed_versions]
-      : f.feed_versions.filter(fv =>
-          fv.id === activeId || feedVersionHasServiceInRange(fv.service_levels, startIso, endIso)
-        )
+    const kept = f.feed_versions.filter(fv =>
+      fv.id === activeId || feedVersionHasServiceInRange(fv.service_levels, startIso, endIso)
+    )
     if (kept.length === 0) { continue }
     let sortKey = 0
     for (const fv of kept) {
@@ -196,12 +188,11 @@ function domainIso (d: Date): string {
   return `${y}-${m}-${dd}`
 }
 
-// Active-jobs reconciliation is not wired yet (see PR #363 review). Stable
-// empty Set so the prop reference doesn't churn between renders.
-const emptyActiveJobs = new Set<number>()
-
+// TODO: wire jobs into picker — submit import via the tlv2 jobs API and
+// stream status back to per-row badges. The plumbing (jobs.ts client) is
+// already in place; this stub keeps the row's emit interface stable so the
+// wiring is a localized change.
 function onImport (fvId: number) {
-  // Submit + watch wiring lands with the modal/scenario integration.
   useToastNotification().showToast(`Import for feed version ${fvId} — submit not wired yet`)
 }
 </script>

@@ -36,6 +36,7 @@ import {
   feedVersionQuery,
   feedVersionsByIdsQuery,
   HIDDEN_FEED_ONESTOP_IDS,
+  applyFeedVersionOverrides,
   routeQuery,
   stopDepartureQuery,
   stopTimeQuery,
@@ -199,6 +200,9 @@ export interface ScenarioProgress {
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
   error?: any
+  // Non-fatal warnings collected during the current stage. Consumers should
+  // toast them. Drained after delivery; later progress events won't repeat.
+  warnings?: string[]
   // Partial data available during progress
   partialData?: {
     stops: StopGql[]
@@ -504,6 +508,10 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
+  // Drained on the next updateProgress() call (typically end of feed-versions
+  // stage). Collected here because the stage-end emit is the natural place to
+  // surface non-fatal stage warnings to the UI.
+  private pendingWarnings: string[] = []
   // Set by fetchFeedVersions(), read by fetchCensusValues().
   private resolvedBbox?: Bbox
   // First admin polygon, used as `within` for census intersection so the
@@ -852,65 +860,43 @@ export class ScenarioFetcher {
     return feedVersions
   }
 
-  // Apply the picker's overrides + excludes from ScenarioConfig to the
-  // bbox-derived feed list. Drops excluded feeds, swaps in user-picked FVs
-  // (resolved via a single batched lookup for sha1s), and falls back to
-  // `feed_state.feed_version` for any feed without an explicit pick.
+  // Resolve picker overrides against the bbox-derived feed list. Does the
+  // batched fv lookup, then delegates the projection to a pure function so
+  // it can be unit-tested without a GraphQL client. Surfaces unresolved
+  // picks via `warnings` on the next progress event.
   private async applyFeedVersionOverrides (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
-    const overridesObj = this.config.feedVersionOverrides
-    const excludedList = this.config.excludedFeeds
-
-    // JSON-friendly inputs (Record/array) — convert here to the
-    // ergonomic Map/Set the body of this method wants.
     const overrides = new Map<string, number>(
-      overridesObj ? Object.entries(overridesObj) : []
+      this.config.feedVersionOverrides ? Object.entries(this.config.feedVersionOverrides) : []
     )
-    const excluded = new Set<string>(excludedList || [])
+    const excluded = new Set<string>(this.config.excludedFeeds || [])
 
-    const kept = excluded.size > 0
-      ? allFeeds.filter(f => !excluded.has(f.onestop_id))
-      : allFeeds
-
-    // Collect override fv_ids whose sha1 we still need.
-    const needed: number[] = []
+    const overrideById = new Map<number, FeedVersion>()
     if (overrides.size > 0) {
-      for (const f of kept) {
+      const needed: number[] = []
+      for (const f of allFeeds) {
+        if (excluded.has(f.onestop_id)) { continue }
         const id = overrides.get(f.onestop_id)
         if (id != null) { needed.push(id) }
       }
-    }
-
-    const overrideById = new Map<number, FeedVersion>()
-    if (needed.length > 0) {
-      const resp = await this.client.query<{ feed_versions: FeedVersion[] }>(
-        feedVersionsByIdsQuery,
-        { ids: needed }
-      )
-      for (const fv of resp.data?.feed_versions || []) {
-        const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
-        if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
-      }
-    }
-
-    const out: FeedVersion[] = []
-    for (const f of kept) {
-      const overrideId = overrides.get(f.onestop_id)
-      if (overrideId != null) {
-        const fv = overrideById.get(overrideId)
-        if (fv) {
-          out.push(fv)
-          continue
+      if (needed.length > 0) {
+        const resp = await this.client.query<{ feed_versions: FeedVersion[] }>(
+          feedVersionsByIdsQuery,
+          { ids: needed }
+        )
+        for (const fv of resp.data?.feed_versions || []) {
+          const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
+          if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
         }
-        // Override referenced an FV the API didn't return (deleted? wrong feed?).
-        // Skip rather than silently fall back to active — operators expect their
-        // explicit picks to be honored or noisy when they can't be.
-        console.warn(`[Scenario] override fv_id=${overrideId} for ${f.onestop_id} could not be resolved; skipping this feed.`)
-        continue
       }
-      // No explicit pick: fall back to the active feed version.
-      out.push(f.feed_state.feed_version)
     }
-    return out
+
+    const { feedVersions, missing } = applyFeedVersionOverrides(allFeeds, overrides, excluded, overrideById)
+    if (missing.length > 0) {
+      const msg = `Could not resolve ${missing.length} pinned feed version(s): ${missing.map(m => `${m.onestop_id}:${m.fv_id}`).join(', ')}`
+      console.warn(`[Scenario] ${msg}`)
+      this.pendingWarnings.push(msg)
+    }
+    return feedVersions
   }
 
   // Fetch stops from GraphQL API
@@ -1068,12 +1054,15 @@ export class ScenarioFetcher {
   }
 
   private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {
+    const warnings = this.pendingWarnings.length > 0 ? this.pendingWarnings : undefined
+    if (warnings) { this.pendingWarnings = [] }
     this.callbacks.onProgress?.({
       isLoading: loading,
       stopDepartureProgress: this.stopDepartureProgress,
       feedVersionProgress: this.feedVersionProgress,
       currentStage: stage,
       partialData: newData,
+      warnings,
     })
   }
 }

@@ -36,9 +36,11 @@
       :feed-info-end-date="fv.service_window?.feed_end_date"
     />
     <div class="cal-fv-row-action">
+      <!-- Submit/retry is hidden until the jobs wiring lands; only the
+           imported / in-progress states show, as read-only badges. -->
       <cat-button
-        :disabled="status === 'imported' || status === 'in_progress'"
-        @click="emit('import', fv.id)"
+        v-if="status === 'imported' || status === 'in_progress'"
+        disabled
       >
         {{ importLabel }}
       </cat-button>
@@ -55,7 +57,6 @@ import { feedVersionImportStatus, type FeedVersionDetail, type FeedVersionImport
 const props = defineProps<{
   fv: FeedVersionDetail
   isActive: boolean
-  hasActiveJob: boolean
   domainStart: Date
   domainEnd: Date
   analysisStart?: Date | null
@@ -77,7 +78,7 @@ const emit = defineEmits<{
   (e: 'select', fvId: number): void
 }>()
 
-const status = computed<FeedVersionImportStatus>(() => feedVersionImportStatus(props.fv.feed_version_gtfs_import, props.hasActiveJob))
+const status = computed<FeedVersionImportStatus>(() => feedVersionImportStatus(props.fv.feed_version_gtfs_import, false))
 
 const fetchedAtShort = computed(() => {
   const d = parseISO(props.fv.fetched_at)

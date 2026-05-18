@@ -4,33 +4,20 @@
     title="Pick feed versions"
     full-screen
   >
-    <div class="cal-fv-modal">
-      <cal-feed-version-picker
-        v-model="staged"
-        v-model:show-all-feeds="showAllFeeds"
-        :bbox="bbox"
-        :analysis-start="analysisStart"
-        :analysis-end="analysisEnd"
-        selectable
-        @update:feed-onestop-ids="onFeedList"
-      />
-    </div>
+    <cal-feed-version-picker
+      v-model="staged"
+      :bbox="bbox"
+      :analysis-start="analysisStart"
+      :analysis-end="analysisEnd"
+      selectable
+      @update:feed-onestop-ids="onFeedList"
+    />
 
     <template #footer>
       <div class="cal-fv-modal-actions">
         <span class="cal-fv-modal-count" :class="{ 'is-empty': overrideCount === 0 }">
           {{ overrideCount }} override{{ overrideCount === 1 ? '' : 's' }} staged
         </span>
-        <cat-tooltip text="By default, feed versions with no scheduled service inside the analysis window are hidden. Turn this on to see every feed version returned by the bbox query, including those that don't overlap.">
-          <label class="cal-fv-modal-toggle">
-            <input
-              type="checkbox"
-              :checked="showAllFeeds"
-              @change="showAllFeeds = ($event.target as HTMLInputElement).checked"
-            >
-            <span>Show all</span>
-          </label>
-        </cat-tooltip>
         <cat-button variant="light" @click="onCancel">
           Cancel
         </cat-button>
@@ -80,7 +67,6 @@ const modelOpen = computed<boolean>({
 // Staged copy of the picks. Initialized from props.modelValue every time the
 // modal opens so Cancel discards in-modal changes.
 const staged = ref<string>(props.modelValue)
-const showAllFeeds = ref<boolean>(false)
 // Set of feed onestop_ids currently in the picker's bbox query (minus the
 // hardcoded denylist). Streamed up from the picker; used to drive bulk
 // actions like "Exclude all".
@@ -100,8 +86,6 @@ function onExcludeAll () {
 watch(() => props.open, (open) => {
   if (open) {
     staged.value = props.modelValue
-    // Leave showAllFeeds sticky across opens — operator preference, not
-    // tied to the committed picks.
   }
 })
 
@@ -126,9 +110,6 @@ function onReset () {
 </script>
 
 <style scoped>
-.cal-fv-modal {
-  padding: 8px 0;
-}
 .cal-fv-modal-count {
   margin-right: auto;
   color: #1d6fb8;
@@ -143,13 +124,5 @@ function onReset () {
   align-items: center;
   gap: 8px;
   width: 100%;
-}
-.cal-fv-modal-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #444;
-  cursor: pointer;
-  user-select: none;
 }
 </style>

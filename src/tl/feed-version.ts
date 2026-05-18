@@ -31,8 +31,8 @@ export interface FeedGql {
   id: string
   onestop_id: string
   feed_state: {
-    feed_version: FeedVersion
-  }
+    feed_version: FeedVersion | null
+  } | null
 }
 
 // Hardcoded denylist of feeds with broken bbox metadata that pollute
@@ -57,7 +57,7 @@ query ($ids: [Int!]) {
   }
 }`
 
-// --- Feed version browser (fv.vue) ---
+// --- Feed version browser (used by the picker on the Query tab) ---
 
 // Per-day seconds of scheduled service for one week of a FV.
 export interface FeedVersionServiceLevelRow {
@@ -229,8 +229,8 @@ function ordinalDaysToIso (ord: number): string {
 
 // --- fvids URL param ---
 //
-// The /tne Query tab and the standalone /fv page persist explicit feed
-// version picks (and per-feed excludes) in a single CSV-shaped URL param:
+// The /tne Query tab's picker modal persists explicit feed version picks
+// (and per-feed excludes) in a single CSV-shaped URL param:
 //
 //   ?fvids=onestop_id:fv_id,onestop_id:fv_id,onestop_id:0
 //
@@ -268,6 +268,48 @@ export function parseFvids (raw: string | null | undefined): ParsedFvids {
     }
   }
   return { picks, excluded }
+}
+
+// Pure projection used by the scenario fetcher to turn the bbox-derived feed
+// list + picker overrides into the concrete list of feed versions to pull.
+// `overrideById` is the result of the batched lookup keyed by fv_id.
+//
+// Drops feeds in `excluded`. For remaining feeds: when an override exists it
+// substitutes that FV; otherwise falls back to the feed's active FV. Feeds
+// with no active FV and no resolvable override are dropped silently. Picks
+// that point at FVs the API didn't return (deleted? wrong feed?) are surfaced
+// in `missing` so the caller can warn the user — silent drop would be a bad
+// UX since the user explicitly picked them.
+export interface AppliedFeedVersions {
+  feedVersions: FeedVersion[]
+  // (onestop_id, fv_id) pairs the user picked but couldn't be resolved.
+  missing: { onestop_id: string, fv_id: number }[]
+}
+
+export function applyFeedVersionOverrides (
+  allFeeds: FeedGql[],
+  overrides: Map<string, number>,
+  excluded: Set<string>,
+  overrideById: Map<number, FeedVersion>
+): AppliedFeedVersions {
+  const feedVersions: FeedVersion[] = []
+  const missing: { onestop_id: string, fv_id: number }[] = []
+  for (const f of allFeeds) {
+    if (excluded.has(f.onestop_id)) { continue }
+    const overrideId = overrides.get(f.onestop_id)
+    if (overrideId != null) {
+      const fv = overrideById.get(overrideId)
+      if (fv) {
+        feedVersions.push(fv)
+      } else {
+        missing.push({ onestop_id: f.onestop_id, fv_id: overrideId })
+      }
+      continue
+    }
+    const active = f.feed_state?.feed_version
+    if (active) { feedVersions.push(active) }
+  }
+  return { feedVersions, missing }
 }
 
 export function serializeFvids (parsed: ParsedFvids): string {

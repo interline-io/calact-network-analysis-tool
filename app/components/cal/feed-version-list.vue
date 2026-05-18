@@ -32,7 +32,6 @@
       :key="fv.id"
       :fv="fv"
       :is-active="activeFvId === fv.id"
-      :has-active-job="activeJobFvIds.has(fv.id)"
       :domain-start="domainStart"
       :domain-end="domainEnd"
       :analysis-start="analysisStart"
@@ -55,7 +54,6 @@ import type { FeedWithVersions } from '~~/src/tl'
 
 const props = defineProps<{
   feed: FeedWithVersions
-  activeJobFvIds: Set<number>
   domainStart: Date
   domainEnd: Date
   analysisStart?: Date | null
