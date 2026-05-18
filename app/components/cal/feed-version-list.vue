@@ -52,7 +52,9 @@
       :selected="effectiveSelectedFvId === fv.id"
       :excluded="excluded"
       :radio-group="feed.onestop_id"
+      :pending-job="pendingJobs?.[fv.id] ?? null"
       @import="emit('import', $event)"
+      @unimport="emit('unimport', $event)"
       @select="emit('select', $event)"
     />
   </cat-card>
@@ -61,7 +63,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CalFeedVersionRow from '~/components/cal/feed-version-row.vue'
-import { maxServiceSecondsPerDay, type FeedWithVersions } from '~~/src/tl'
+import { maxServiceSecondsPerDay, type FeedVersionPendingJob, type FeedWithVersions } from '~~/src/tl'
 
 const props = defineProps<{
   feed: FeedWithVersions
@@ -73,10 +75,13 @@ const props = defineProps<{
   // null = use the feed's active FV.
   selectedFvId?: number | null
   excluded?: boolean
+  // Keyed by feed-version id; owner (picker) drives the map.
+  pendingJobs?: Record<number, FeedVersionPendingJob>
 }>()
 
 const emit = defineEmits<{
   (e: 'import', fvId: number): void
+  (e: 'unimport', fvId: number): void
   (e: 'select', fvId: number): void
   (e: 'exclude', value: boolean): void
 }>()

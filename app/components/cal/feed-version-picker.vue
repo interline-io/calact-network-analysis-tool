@@ -27,7 +27,9 @@
       :selectable="selectable"
       :selected-fv-id="explicitPicks.get(feed.onestop_id) ?? null"
       :excluded="excludedFeeds.has(feed.onestop_id)"
+      :pending-jobs="pendingJobs"
       @import="onImport"
+      @unimport="onUnimport"
       @select="(fvId) => onSelect(feed, fvId)"
       @exclude="(v) => onExclude(feed, v)"
     />
@@ -35,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { addDays, differenceInDays, subDays } from 'date-fns'
 import CalFeedVersionList from '~/components/cal/feed-version-list.vue'
@@ -48,9 +50,12 @@ import {
   serializeFvids,
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
+  JOB_TERMINAL_STATES,
+  type FeedVersionPendingJob,
+  type FeedVersionPendingJobKind,
   type FeedWithVersions,
 } from '~~/src/tl'
-import { convertBbox, fmtDate, type Bbox } from '~~/src/core'
+import { capitalize, convertBbox, fmtDate, type Bbox } from '~~/src/core'
 import { useToastNotification } from '#imports'
 
 // Pad the analysis window so FVs that almost-cover still render. Scales with
@@ -178,10 +183,90 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
   return decorated.map(d => d.feed)
 })
 
-// TODO: wire jobs API in follow-up PR; stub keeps the row's emit interface stable.
-function onImport (fvId: number) {
-  useToastNotification().showToast(`Import for feed version ${fvId} — submit not wired yet`)
+// pendingJobs is keyed by feed-version id and propagates down to each row so
+// the import button can switch into "watch" mode. Entries persist for the life
+// of the picker — once a job hits a terminal state the row reflects the new
+// status (imported/error) without needing a graphql refetch.
+const pendingJobs = ref<Record<number, FeedVersionPendingJob>>({})
+const pollTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
+function stopPolling (fvId: number) {
+  const t = pollTimers.get(fvId)
+  if (t != null) {
+    clearTimeout(t)
+    pollTimers.delete(fvId)
+  }
 }
+
+function queueForKind (kind: FeedVersionPendingJobKind): string {
+  return kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
+}
+
+async function pollJob (fvId: number, jobId: string, kind: FeedVersionPendingJobKind) {
+  try {
+    const res = await fetch(`/proxy/default/jobs/queues/${queueForKind(kind)}/jobs/${encodeURIComponent(jobId)}`)
+    if (res.ok) {
+      const status = await res.json()
+      const state = status?.state || 'unknown'
+      pendingJobs.value = { ...pendingJobs.value, [fvId]: { jobId, state, kind } }
+      if (JOB_TERMINAL_STATES.has(state)) {
+        stopPolling(fvId)
+        return
+      }
+    }
+  } catch {
+    // Transient errors fall through to the next tick; if the job genuinely
+    // 404s we keep retrying — that's noisy but safe and self-correcting.
+  }
+  pollTimers.set(fvId, setTimeout(() => pollJob(fvId, jobId, kind), 1000))
+}
+
+async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
+  const toast = useToastNotification()
+  const queue = queueForKind(kind)
+  try {
+    const res = await fetch(`/proxy/default/jobs/queues/${queue}/jobs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: queue, args: { feed_version_id: fvId } }),
+    })
+    const text = await res.text()
+    if (!res.ok) {
+      throw new Error(`${res.status} ${res.statusText} — ${text}`)
+    }
+    const parsed = JSON.parse(text)
+    const jobId = parsed?.job?.id
+    if (!jobId) {
+      throw new Error('Job submitted but no id returned')
+    }
+    const idStr = String(jobId)
+    stopPolling(fvId)
+    pendingJobs.value = {
+      ...pendingJobs.value,
+      [fvId]: { jobId: idStr, state: parsed.state || 'queued', kind },
+    }
+    pollJob(fvId, idStr, kind)
+    toast.showToast(`${capitalize(kind)} submitted for feed version ${fvId}`, 'success')
+  } catch (e) {
+    toast.showToast(`${capitalize(kind)} failed: ${e instanceof Error ? e.message : String(e)}`, 'danger', 5000)
+  }
+}
+
+function onImport (fvId: number) {
+  submitJob(fvId, 'import')
+}
+
+function onUnimport (fvId: number) {
+  if (!confirm('Unimport this feed version? This removes the imported GTFS data from the database; it will need to be re-imported if needed.')) {
+    return
+  }
+  submitJob(fvId, 'unimport')
+}
+
+onBeforeUnmount(() => {
+  for (const t of pollTimers.values()) { clearTimeout(t) }
+  pollTimers.clear()
+})
 </script>
 
 <style scoped>
