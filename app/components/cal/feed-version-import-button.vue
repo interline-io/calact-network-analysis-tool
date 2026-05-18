@@ -1,6 +1,17 @@
 <template>
   <div class="cal-fv-import-button">
+    <cat-tooltip v-if="errorTooltip" :text="errorTooltip">
+      <cat-button
+        class="cal-fv-import-button-cta"
+        variant="danger"
+        :disabled="!canAct"
+        @click="onClick"
+      >
+        {{ buttonLabel }}
+      </cat-button>
+    </cat-tooltip>
     <cat-button
+      v-else
       class="cal-fv-import-button-cta"
       :disabled="!canAct"
       :icon-left="isWatching ? 'clock' : undefined"
@@ -69,6 +80,14 @@ const statusUrl = computed(() => {
   if (!p) { return '' }
   const queue = p.kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
   return `/job-status/${queue}/${encodeURIComponent(p.jobId)}`
+})
+
+// Only surface a tooltip when there's actually error text to show — empty
+// or trimmed-whitespace messages would render an empty hover bubble.
+const errorTooltip = computed(() => {
+  if (status.value !== 'error') { return '' }
+  const msg = props.pendingJob?.errorMessage?.trim()
+  return msg || ''
 })
 
 function onClick () {

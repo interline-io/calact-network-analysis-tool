@@ -51,6 +51,7 @@ import {
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   watchJob,
+  JOB_TERMINAL_STATES,
   type FeedVersionPendingJob,
   type FeedVersionPendingJobKind,
   type FeedWithVersions,
@@ -133,7 +134,7 @@ const queryVars = computed(() => {
   }
 })
 
-const { result, loading, error } = useQuery<{ feeds: FeedWithVersions[] }>(
+const { result, loading, error, refetch } = useQuery<{ feeds: FeedWithVersions[] }>(
   feedsForImportQuery,
   () => queryVars.value ?? {},
   () => ({ enabled: queryVars.value !== null })
@@ -238,8 +239,24 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
       jobId: idStr,
       useSSE: sse,
       pollIntervalMs: 1000,
-      onState: (state) => {
-        pendingJobs.value = { ...pendingJobs.value, [fvId]: { jobId: idStr, state, kind } }
+      onState: (state, info) => {
+        pendingJobs.value = {
+          ...pendingJobs.value,
+          [fvId]: { jobId: idStr, state, kind, errorMessage: info?.message },
+        }
+        if (!JOB_TERMINAL_STATES.has(state)) { return }
+        // Refresh the underlying graphql data so feed_version_gtfs_import
+        // catches up — the pendingJobs override is only in-memory and won't
+        // survive a modal close/reopen otherwise.
+        void refetch()
+        const action = capitalize(kind)
+        if (state === 'succeeded') {
+          toast.showToast(`${action} succeeded for feed version ${fvId}`, 'success')
+        } else if (state === 'failed') {
+          toast.showToast(`${action} failed for feed version ${fvId}${info?.message ? `: ${info.message}` : ''}`, 'danger', 5000)
+        } else if (state === 'cancelled') {
+          toast.showToast(`${action} cancelled for feed version ${fvId}`, 'warning', 5000)
+        }
       },
     }))
     toast.showToast(`${capitalize(kind)} submitted for feed version ${fvId}`, 'success')

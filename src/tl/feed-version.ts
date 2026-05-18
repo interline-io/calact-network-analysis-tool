@@ -356,6 +356,9 @@ export interface FeedVersionPendingJob {
   jobId: string
   state: string
   kind: FeedVersionPendingJobKind
+  // Populated on terminal failure so the button can show a tooltip without
+  // a separate JobGet round-trip.
+  errorMessage?: string
 }
 
 // Reduce the gtfs_import row plus any in-flight job into a single badge state.

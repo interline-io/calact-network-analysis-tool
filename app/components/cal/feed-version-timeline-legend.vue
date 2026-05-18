@@ -1,10 +1,6 @@
 <template>
   <div class="cal-fv-legend" role="group" aria-label="Timeline legend">
     <div class="cal-fv-legend-item">
-      <span class="swatch swatch-coverage" />
-      <span>Feed version coverage</span>
-    </div>
-    <div class="cal-fv-legend-item">
       <span class="swatch swatch-service-low" />
       <span class="swatch swatch-service-mid" />
       <span class="swatch swatch-service-high" />

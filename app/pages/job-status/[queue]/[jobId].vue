@@ -15,13 +15,19 @@
             <span>Job ID:</span>
             <cat-safelink :text="jobId" />
           </div>
-          <div>
+          <div v-if="!notFound">
             State:
             <strong>{{ stateLabel }}</strong>
           </div>
+          <div v-if="timing" class="has-text-grey is-size-7">
+            {{ timing }}
+          </div>
         </div>
 
-        <cat-notification v-if="error" variant="danger">
+        <cat-notification v-if="notFound" variant="warning">
+          Job not found — it may have been completed and pruned from the job store.
+        </cat-notification>
+        <cat-notification v-else-if="error" variant="danger">
           {{ error }}
         </cat-notification>
 
@@ -57,6 +63,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { formatDistance, formatDistanceStrict } from 'date-fns'
 import { capitalize } from '~~/src/core'
 import { JOB_TERMINAL_STATES, watchJob, type WatchJobHandle } from '~~/src/tl'
 
@@ -75,13 +82,33 @@ const sse = false
 const status = ref<any>(null)
 const state = ref<string>('')
 const error = ref<string>('')
+const notFound = ref(false)
 const loading = ref(false)
 const cancelling = ref(false)
 const lastPolledAt = ref<Date | null>(null)
+const now = ref(new Date())
 const terminal = computed(() => JOB_TERMINAL_STATES.has(state.value))
 const stateLabel = computed(() => {
   if (!state.value) { return loading.value ? 'Loading…' : 'Unknown' }
   return capitalize(state.value)
+})
+
+// "Submitted 2s ago" / "Running for 18s" / "Ran for 45s" depending on which
+// timestamps are populated. Reads `now` so it ticks once per second while
+// the job is still going.
+const timing = computed(() => {
+  const s = status.value
+  if (!s) { return '' }
+  const submittedAt = s.submitted_at ? new Date(s.submitted_at) : null
+  const startedAt = s.started_at ? new Date(s.started_at) : null
+  const finishedAt = s.finished_at ? new Date(s.finished_at) : null
+  if (finishedAt) {
+    if (startedAt) { return `Ran for ${formatDistanceStrict(startedAt, finishedAt)}` }
+    return `Finished ${formatDistance(finishedAt, now.value, { addSuffix: true })}`
+  }
+  if (startedAt) { return `Running for ${formatDistanceStrict(startedAt, now.value)}` }
+  if (submittedAt) { return `Submitted ${formatDistanceStrict(submittedAt, now.value, { addSuffix: true })}` }
+  return ''
 })
 
 let watchHandle: WatchJobHandle | null = null
@@ -107,10 +134,16 @@ async function fetchStatus () {
       `/proxy/default/jobs/queues/${encodeURIComponent(queue.value)}/jobs/${encodeURIComponent(jobId.value)}`
     )
     const text = await res.text()
+    if (res.status === 404) {
+      notFound.value = true
+      error.value = ''
+      return
+    }
     if (!res.ok) {
       error.value = `${res.status} ${res.statusText} — ${text}`
       return
     }
+    notFound.value = false
     error.value = ''
     const parsed = JSON.parse(text)
     status.value = parsed
@@ -125,7 +158,7 @@ async function fetchStatus () {
 
 async function start () {
   await fetchStatus()
-  if (terminal.value || error.value) { return }
+  if (terminal.value || error.value || notFound.value) { return }
   unsubscribe()
   watchHandle = watchJob({
     queue: queue.value,
@@ -167,8 +200,18 @@ async function cancel () {
   }
 }
 
-onMounted(start)
-onBeforeUnmount(unsubscribe)
+// Cheap 1s ticker so the `timing` computed updates while we wait. Stops on
+// unmount; no need to gate on terminal — one Date instance per second is
+// negligible and keeps the lifecycle simple.
+let nowTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  start()
+  nowTimer = setInterval(() => { now.value = new Date() }, 1000)
+})
+onBeforeUnmount(() => {
+  unsubscribe()
+  if (nowTimer != null) { clearInterval(nowTimer) }
+})
 </script>
 
 <style scoped>

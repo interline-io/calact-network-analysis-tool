@@ -12,10 +12,16 @@ export interface WatchJobOptions {
   // Subscribe's per-pod fanout.
   useSSE: boolean
   pollIntervalMs?: number
-  // Fires for every state update including the terminal one. The handle is
-  // auto-unsubscribed after the terminal callback returns, so callers don't
-  // need to call unsubscribe themselves for the happy path.
-  onState: (state: string) => void
+  // Fires for every state update including the terminal one. `info.message`
+  // carries the worker's error message on terminal failure (and is unset
+  // otherwise). The handle is auto-unsubscribed after the terminal callback
+  // returns, so callers don't need to call unsubscribe themselves for the
+  // happy path.
+  onState: (state: string, info?: WatchJobUpdate) => void
+}
+
+export interface WatchJobUpdate {
+  message?: string
 }
 
 export interface WatchJobHandle {
@@ -43,9 +49,9 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
   }
 
   // Returns true when the new state is terminal; caller stops polling/SSE.
-  function emit (state: string): boolean {
+  function emit (state: string, message?: string): boolean {
     if (!state) { return false }
-    opts.onState(state)
+    opts.onState(state, message ? { message } : undefined)
     return JOB_TERMINAL_STATES.has(state)
   }
 
@@ -60,7 +66,7 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
         const res = await fetch(baseUrl)
         if (res.ok) {
           const status = await res.json()
-          if (emit(status?.state || '')) {
+          if (emit(status?.state || '', status?.error)) {
             unsubscribe()
             return
           }
@@ -74,7 +80,7 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
       es.onmessage = (msg) => {
         try {
           const evt = JSON.parse(msg.data)
-          if (emit(evt?.state || '')) { unsubscribe() }
+          if (emit(evt?.state || '', evt?.message)) { unsubscribe() }
         } catch {
           // Malformed payload — ignore; subsequent events may recover.
         }
@@ -90,7 +96,7 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
         const res = await fetch(baseUrl)
         if (res.ok) {
           const status = await res.json()
-          terminal = emit(status?.state || 'unknown')
+          terminal = emit(status?.state || 'unknown', status?.error)
         }
       } catch {
         // Transient errors fall through to the next tick.
