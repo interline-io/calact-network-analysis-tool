@@ -5,7 +5,7 @@
       :model-value="selected ? fv.id : undefined"
       :native-value="fv.id"
       :name="`fv-${radioGroup}`"
-      :disabled="excluded"
+      :disabled="excluded || status !== 'imported'"
       class="cal-fv-row-select"
       @update:model-value="emit('select', fv.id)"
     >

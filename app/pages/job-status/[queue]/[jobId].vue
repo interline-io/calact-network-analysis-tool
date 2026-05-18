@@ -7,8 +7,14 @@
         </h1>
 
         <div class="cal-job-status-header">
-          <div>Queue: <code>{{ queue }}</code></div>
-          <div>Job ID: <code>{{ jobId }}</code></div>
+          <div class="cal-job-status-field">
+            <span>Queue:</span>
+            <cat-safelink :text="queue" />
+          </div>
+          <div class="cal-job-status-field">
+            <span>Job ID:</span>
+            <cat-safelink :text="jobId" />
+          </div>
           <div>
             State:
             <strong>{{ stateLabel }}</strong>
@@ -52,6 +58,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { capitalize } from '~~/src/core'
+import { JOB_TERMINAL_STATES, watchJob, type WatchJobHandle } from '~~/src/tl'
 
 definePageMeta({ layout: false })
 
@@ -59,8 +66,11 @@ const route = useRoute()
 const queue = computed(() => String(route.params.queue || ''))
 const jobId = computed(() => String(route.params.jobId || ''))
 
-const TERMINAL_STATES = new Set(['succeeded', 'failed', 'cancelled'])
 const POLL_INTERVAL_MS = 5000
+
+// true → /watch SSE; false → JobGet polling. Shared with the picker;
+// toggle while debugging.
+const sse = false
 
 const status = ref<any>(null)
 const state = ref<string>('')
@@ -68,23 +78,24 @@ const error = ref<string>('')
 const loading = ref(false)
 const cancelling = ref(false)
 const lastPolledAt = ref<Date | null>(null)
-const terminal = computed(() => TERMINAL_STATES.has(state.value))
+const terminal = computed(() => JOB_TERMINAL_STATES.has(state.value))
 const stateLabel = computed(() => {
   if (!state.value) { return loading.value ? 'Loading…' : 'Unknown' }
   return capitalize(state.value)
 })
 
-let pollTimer: ReturnType<typeof setTimeout> | null = null
+let watchHandle: WatchJobHandle | null = null
 
-function stopPolling () {
-  if (pollTimer != null) {
-    clearTimeout(pollTimer)
-    pollTimer = null
+function unsubscribe () {
+  if (watchHandle != null) {
+    watchHandle.unsubscribe()
+    watchHandle = null
   }
 }
 
-// JobGet reads from postgres so it works from any pod, unlike the SSE /watch
-// endpoint whose events only fire on the pod that processed the job.
+// One-shot JobGet for the Advanced JSON dump and the initial snapshot.
+// watchJob owns the live updates; this just refills the wrapper after
+// terminal so the dump shows finished state.
 async function fetchStatus () {
   if (!queue.value || !jobId.value) {
     error.value = 'Missing queue or job id'
@@ -98,7 +109,6 @@ async function fetchStatus () {
     const text = await res.text()
     if (!res.ok) {
       error.value = `${res.status} ${res.statusText} — ${text}`
-      stopPolling()
       return
     }
     error.value = ''
@@ -106,11 +116,6 @@ async function fetchStatus () {
     status.value = parsed
     state.value = parsed?.state || 'unknown'
     lastPolledAt.value = new Date()
-    if (terminal.value) {
-      stopPolling()
-    } else {
-      pollTimer = setTimeout(fetchStatus, POLL_INTERVAL_MS)
-    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -118,8 +123,26 @@ async function fetchStatus () {
   }
 }
 
+async function start () {
+  await fetchStatus()
+  if (terminal.value || error.value) { return }
+  unsubscribe()
+  watchHandle = watchJob({
+    queue: queue.value,
+    jobId: jobId.value,
+    useSSE: sse,
+    pollIntervalMs: POLL_INTERVAL_MS,
+    onState: (s) => {
+      state.value = s
+      lastPolledAt.value = new Date()
+      if (JOB_TERMINAL_STATES.has(s)) {
+        fetchStatus()
+      }
+    },
+  })
+}
+
 function refreshNow () {
-  stopPolling()
   fetchStatus()
 }
 
@@ -144,8 +167,8 @@ async function cancel () {
   }
 }
 
-onMounted(fetchStatus)
-onBeforeUnmount(stopPolling)
+onMounted(start)
+onBeforeUnmount(unsubscribe)
 </script>
 
 <style scoped>
@@ -154,6 +177,11 @@ onBeforeUnmount(stopPolling)
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.cal-job-status-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .cal-job-status-actions {
   display: flex;

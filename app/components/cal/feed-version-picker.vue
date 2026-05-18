@@ -50,10 +50,11 @@ import {
   serializeFvids,
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
-  JOB_TERMINAL_STATES,
+  watchJob,
   type FeedVersionPendingJob,
   type FeedVersionPendingJobKind,
   type FeedWithVersions,
+  type WatchJobHandle,
 } from '~~/src/tl'
 import { capitalize, convertBbox, fmtDate, type Bbox } from '~~/src/core'
 import { useToastNotification } from '#imports'
@@ -188,37 +189,24 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
 // of the picker — once a job hits a terminal state the row reflects the new
 // status (imported/error) without needing a graphql refetch.
 const pendingJobs = ref<Record<number, FeedVersionPendingJob>>({})
-const pollTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
-function stopPolling (fvId: number) {
-  const t = pollTimers.get(fvId)
-  if (t != null) {
-    clearTimeout(t)
-    pollTimers.delete(fvId)
-  }
-}
+// true → /watch SSE; false → JobGet polling. Shared with the status page;
+// toggle while debugging.
+const sse = false
+
+// One handle per fvId — replaced on resubmit, drained on unmount.
+const watchHandles = new Map<number, WatchJobHandle>()
 
 function queueForKind (kind: FeedVersionPendingJobKind): string {
   return kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
 }
 
-async function pollJob (fvId: number, jobId: string, kind: FeedVersionPendingJobKind) {
-  try {
-    const res = await fetch(`/proxy/default/jobs/queues/${queueForKind(kind)}/jobs/${encodeURIComponent(jobId)}`)
-    if (res.ok) {
-      const status = await res.json()
-      const state = status?.state || 'unknown'
-      pendingJobs.value = { ...pendingJobs.value, [fvId]: { jobId, state, kind } }
-      if (JOB_TERMINAL_STATES.has(state)) {
-        stopPolling(fvId)
-        return
-      }
-    }
-  } catch {
-    // Transient errors fall through to the next tick; if the job genuinely
-    // 404s we keep retrying — that's noisy but safe and self-correcting.
+function unsubscribeJob (fvId: number) {
+  const h = watchHandles.get(fvId)
+  if (h != null) {
+    h.unsubscribe()
+    watchHandles.delete(fvId)
   }
-  pollTimers.set(fvId, setTimeout(() => pollJob(fvId, jobId, kind), 1000))
 }
 
 async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
@@ -240,12 +228,20 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
       throw new Error('Job submitted but no id returned')
     }
     const idStr = String(jobId)
-    stopPolling(fvId)
     pendingJobs.value = {
       ...pendingJobs.value,
       [fvId]: { jobId: idStr, state: parsed.state || 'queued', kind },
     }
-    pollJob(fvId, idStr, kind)
+    unsubscribeJob(fvId)
+    watchHandles.set(fvId, watchJob({
+      queue,
+      jobId: idStr,
+      useSSE: sse,
+      pollIntervalMs: 1000,
+      onState: (state) => {
+        pendingJobs.value = { ...pendingJobs.value, [fvId]: { jobId: idStr, state, kind } }
+      },
+    }))
     toast.showToast(`${capitalize(kind)} submitted for feed version ${fvId}`, 'success')
   } catch (e) {
     toast.showToast(`${capitalize(kind)} failed: ${e instanceof Error ? e.message : String(e)}`, 'danger', 5000)
@@ -264,8 +260,8 @@ function onUnimport (fvId: number) {
 }
 
 onBeforeUnmount(() => {
-  for (const t of pollTimers.values()) { clearTimeout(t) }
-  pollTimers.clear()
+  for (const h of watchHandles.values()) { h.unsubscribe() }
+  watchHandles.clear()
 })
 </script>
 
