@@ -213,6 +213,13 @@ function unsubscribeJob (fvId: number) {
 async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
   const toast = useToastNotification()
   const queue = queueForKind(kind)
+  // Optimistic placeholder so the button disables the moment the user clicks
+  // — without it, a fast double-click before the POST resolves would submit
+  // twice. Replaced with the real jobId on success, rolled back on failure.
+  pendingJobs.value = {
+    ...pendingJobs.value,
+    [fvId]: { jobId: '', state: 'queued', kind },
+  }
   try {
     const res = await fetch(`/proxy/default/jobs/queues/${queue}/jobs`, {
       method: 'POST',
@@ -238,7 +245,6 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
       queue,
       jobId: idStr,
       useSSE: sse,
-      pollIntervalMs: 1000,
       onState: (state, info) => {
         pendingJobs.value = {
           ...pendingJobs.value,
@@ -261,6 +267,11 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
     }))
     toast.showToast(`${capitalize(kind)} submitted for feed version ${fvId}`, 'success')
   } catch (e) {
+    // Roll back the optimistic placeholder so the button is re-enabled and
+    // the row reverts to its underlying graphql-derived status.
+    const { [fvId]: _removed, ...rest } = pendingJobs.value
+    void _removed
+    pendingJobs.value = rest
     toast.showToast(`${capitalize(kind)} failed: ${e instanceof Error ? e.message : String(e)}`, 'danger', 5000)
   }
 }

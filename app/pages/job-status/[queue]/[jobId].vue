@@ -73,8 +73,6 @@ const route = useRoute()
 const queue = computed(() => String(route.params.queue || ''))
 const jobId = computed(() => String(route.params.jobId || ''))
 
-const POLL_INTERVAL_MS = 5000
-
 // true → /watch SSE; false → JobGet polling. Shared with the picker;
 // toggle while debugging.
 const sse = false
@@ -93,21 +91,38 @@ const stateLabel = computed(() => {
   return capitalize(state.value)
 })
 
+function parseDateMaybe (s: string | null | undefined): Date | null {
+  if (!s) { return null }
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+
 // "Submitted 2s ago" / "Running for 18s" / "Ran for 45s" depending on which
 // timestamps are populated. Reads `now` so it ticks once per second while
-// the job is still going.
+// the job is still going. Guards against invalid dates and clock skew
+// (server timestamp slightly ahead of client clock) so the display never
+// reads "in 2 seconds".
 const timing = computed(() => {
   const s = status.value
   if (!s) { return '' }
-  const submittedAt = s.submitted_at ? new Date(s.submitted_at) : null
-  const startedAt = s.started_at ? new Date(s.started_at) : null
-  const finishedAt = s.finished_at ? new Date(s.finished_at) : null
+  const submittedAt = parseDateMaybe(s.submitted_at)
+  const startedAt = parseDateMaybe(s.started_at)
+  const finishedAt = parseDateMaybe(s.finished_at)
+  const nowTime = now.value
   if (finishedAt) {
-    if (startedAt) { return `Ran for ${formatDistanceStrict(startedAt, finishedAt)}` }
-    return `Finished ${formatDistance(finishedAt, now.value, { addSuffix: true })}`
+    if (startedAt && finishedAt >= startedAt) {
+      return `Ran for ${formatDistanceStrict(startedAt, finishedAt)}`
+    }
+    return `Finished ${formatDistance(finishedAt, nowTime, { addSuffix: true })}`
   }
-  if (startedAt) { return `Running for ${formatDistanceStrict(startedAt, now.value)}` }
-  if (submittedAt) { return `Submitted ${formatDistanceStrict(submittedAt, now.value, { addSuffix: true })}` }
+  if (startedAt) {
+    const safeStart = startedAt <= nowTime ? startedAt : nowTime
+    return `Running for ${formatDistanceStrict(safeStart, nowTime)}`
+  }
+  if (submittedAt) {
+    const safeSubmit = submittedAt <= nowTime ? submittedAt : nowTime
+    return `Submitted ${formatDistanceStrict(safeSubmit, nowTime, { addSuffix: true })}`
+  }
   return ''
 })
 
@@ -164,7 +179,6 @@ async function start () {
     queue: queue.value,
     jobId: jobId.value,
     useSSE: sse,
-    pollIntervalMs: POLL_INTERVAL_MS,
     onState: (s) => {
       state.value = s
       lastPolledAt.value = new Date()

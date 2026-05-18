@@ -76,8 +76,10 @@ const watchLabel = computed(() => capitalize(props.pendingJob?.state || ''))
 const buttonLabel = computed(() => isWatching.value ? watchLabel.value : ACTION_LABELS[status.value])
 
 const statusUrl = computed(() => {
+  // Empty jobId is the optimistic-submit placeholder window; suppress the
+  // link until the real id arrives so we don't render a broken URL.
   const p = props.pendingJob
-  if (!p) { return '' }
+  if (!p || !p.jobId) { return '' }
   const queue = p.kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
   return `/job-status/${queue}/${encodeURIComponent(p.jobId)}`
 })

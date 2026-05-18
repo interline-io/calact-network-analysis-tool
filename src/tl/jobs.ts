@@ -29,7 +29,7 @@ export interface WatchJobHandle {
 }
 
 export function watchJob (opts: WatchJobOptions): WatchJobHandle {
-  const pollInterval = opts.pollIntervalMs ?? 5000
+  const pollInterval = opts.pollIntervalMs ?? 2000
   const baseUrl = `/proxy/default/jobs/queues/${encodeURIComponent(opts.queue)}/jobs/${encodeURIComponent(opts.jobId)}`
 
   let pollTimer: ReturnType<typeof setTimeout> | null = null
@@ -49,8 +49,11 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
   }
 
   // Returns true when the new state is terminal; caller stops polling/SSE.
+  // No-op once `stopped` is true — callers may race unsubscribe with an
+  // in-flight fetch/SSE event and we don't want to deliver onState after
+  // unsubscribe.
   function emit (state: string, message?: string): boolean {
-    if (!state) { return false }
+    if (stopped || !state) { return false }
     opts.onState(state, message ? { message } : undefined)
     return JOB_TERMINAL_STATES.has(state)
   }
@@ -64,6 +67,11 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
     void (async () => {
       try {
         const res = await fetch(baseUrl)
+        if (res.status === 404) {
+          // Job already pruned or never existed — don't bother with SSE.
+          unsubscribe()
+          return
+        }
         if (res.ok) {
           const status = await res.json()
           if (emit(status?.state || '', status?.error)) {
@@ -94,6 +102,12 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
       let terminal = false
       try {
         const res = await fetch(baseUrl)
+        if (res.status === 404) {
+          // Permanent — job pruned or never existed. Stop polling rather
+          // than retry forever.
+          unsubscribe()
+          return
+        }
         if (res.ok) {
           const status = await res.json()
           terminal = emit(status?.state || 'unknown', status?.error)
