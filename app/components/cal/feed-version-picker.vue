@@ -144,8 +144,8 @@ watch(feeds, (fs) => {
   emit('update:feedOnestopIds', ids)
 }, { immediate: true })
 
-// Sort by busiest FV's in-window service. Active FV always kept so an empty
-// analysis window doesn't drop a feed from the picker entirely.
+// Sort by busiest FV's in-window service. Active FV is always kept even when
+// it has no in-window service, so operators can see what's currently running.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const startIso = fmtDate(domainStart.value)
   const endIso = fmtDate(domainEnd.value)

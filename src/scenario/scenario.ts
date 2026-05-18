@@ -842,7 +842,7 @@ export class ScenarioFetcher {
       }
       after = nextAfter
     }
-    const feedVersions = await this.applyFeedVersionOverrides(allFeeds)
+    const feedVersions = await this.resolveFeedVersionsForScenario(allFeeds)
 
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
@@ -851,7 +851,7 @@ export class ScenarioFetcher {
 
   // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
   // (pure projection, tested separately).
-  private async applyFeedVersionOverrides (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
+  private async resolveFeedVersionsForScenario (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
     const overrides = new Map<string, number>(
       this.config.feedVersionOverrides ? Object.entries(this.config.feedVersionOverrides) : []
     )
