@@ -119,7 +119,7 @@ const importLabel = computed(() => {
   flex: 0 0 auto;
   width: 110px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 .cal-fv-row-action :deep(.cat-button) {
   width: 100%;
