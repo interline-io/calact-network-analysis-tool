@@ -34,3 +34,182 @@ export interface FeedGql {
     feed_version: FeedVersion
   }
 }
+
+// --- Feed version browser (fv.vue) ---
+
+// Per-day seconds of scheduled service for one week of a FV.
+export interface FeedVersionServiceLevelRow {
+  start_date: string
+  end_date: string
+  monday: number
+  tuesday: number
+  wednesday: number
+  thursday: number
+  friday: number
+  saturday: number
+  sunday: number
+}
+
+export interface FeedVersionGtfsImportRow {
+  id: number
+  in_progress: boolean
+  success: boolean
+  exception_log: string
+  entity_count: Record<string, number> | null
+  warning_count: Record<string, number> | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface FeedVersionServiceWindow {
+  feed_start_date: string | null
+  feed_end_date: string | null
+  earliest_calendar_date: string | null
+  latest_calendar_date: string | null
+  fallback_week: string | null
+  default_timezone: string | null
+}
+
+export interface FeedVersionDetail {
+  id: number
+  sha1: string
+  fetched_at: string
+  name: string | null
+  earliest_calendar_date: string
+  latest_calendar_date: string
+  service_window: FeedVersionServiceWindow | null
+  service_levels: FeedVersionServiceLevelRow[]
+  feed_version_gtfs_import: FeedVersionGtfsImportRow | null
+}
+
+export interface FeedWithVersions {
+  id: number
+  onestop_id: string
+  name: string | null
+  spec: string | null
+  feed_state: {
+    feed_version: { id: number } | null
+  } | null
+  feed_versions: FeedVersionDetail[]
+}
+
+// Browse feeds in a bbox, their candidate feed versions overlapping a date
+// window, plus weekly service-level rows for an in-page timeline. `covers`
+// is intentionally NOT applied to feed_versions so operators can see FVs
+// that *almost* cover the window and choose to import one regardless. The
+// service_levels date filter is also disabled for now while we diagnose
+// why filtered queries return no rows on the demo DB.
+export const feedsForImportQuery = gql`
+query ($bbox: BoundingBox!) {
+  feeds(limit: 100, where: { bbox: $bbox, spec: [GTFS] }) {
+    id
+    onestop_id
+    name
+    spec
+    feed_state {
+      feed_version { id }
+    }
+    feed_versions(limit: 10) {
+      id
+      sha1
+      fetched_at
+      name
+      earliest_calendar_date
+      latest_calendar_date
+      service_window {
+        feed_start_date
+        feed_end_date
+        earliest_calendar_date
+        latest_calendar_date
+        fallback_week
+        default_timezone
+      }
+      service_levels(limit: 1000) {
+        start_date
+        end_date
+        monday
+        tuesday
+        wednesday
+        thursday
+        friday
+        saturday
+        sunday
+      }
+      feed_version_gtfs_import {
+        id
+        in_progress
+        success
+        exception_log
+        entity_count
+        warning_count
+        created_at
+        updated_at
+      }
+    }
+  }
+}`
+
+// Returns true if any day in [start, end] (inclusive) has > 0 seconds of
+// scheduled service in the FV's weekly service_levels rows. start/end are
+// 'YYYY-MM-DD' strings; comparisons are string-based to dodge TZ drift.
+// FVs with empty service_levels return false (e.g. unimported FVs).
+export function feedVersionHasServiceInRange (
+  rows: FeedVersionServiceLevelRow[] | null | undefined,
+  start: string,
+  end: string
+): boolean {
+  return feedVersionServiceSecondsInRange(rows, start, end) > 0
+}
+
+// Sums all scheduled service seconds in [start, end] (inclusive) across a
+// FV's weekly service_levels rows. Used both for the empty-FV filter and as
+// a sort key for ordering feeds by total in-window activity.
+export function feedVersionServiceSecondsInRange (
+  rows: FeedVersionServiceLevelRow[] | null | undefined,
+  start: string,
+  end: string
+): number {
+  if (!rows || rows.length === 0) { return 0 }
+  const dayCols: (keyof FeedVersionServiceLevelRow)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+  let total = 0
+  for (const r of rows) {
+    const startIso = (r.start_date || '').slice(0, 10)
+    if (!startIso) { continue }
+    const startOrd = isoToOrdinalDays(startIso)
+    for (let i = 0; i < 7; i++) {
+      const seconds = r[dayCols[i]!] as number
+      if (seconds <= 0) { continue }
+      const dayIso = ordinalDaysToIso(startOrd + i)
+      if (dayIso >= start && dayIso <= end) { total += seconds }
+    }
+  }
+  return total
+}
+
+function isoToOrdinalDays (iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
+}
+
+function ordinalDaysToIso (ord: number): string {
+  const dt = new Date(ord * 86_400_000)
+  const y = dt.getUTCFullYear()
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(dt.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export type FeedVersionImportStatus = 'not_imported' | 'in_progress' | 'imported' | 'error'
+
+// Reduce the gtfs_import row plus any in-flight job into a single badge state.
+// `scheduleRemoved` is intentionally not surfaced — legacy state per project lead.
+export function feedVersionImportStatus (
+  gtfs: FeedVersionGtfsImportRow | null | undefined,
+  hasActiveJob: boolean
+): FeedVersionImportStatus {
+  if (hasActiveJob) { return 'in_progress' }
+  if (!gtfs) { return 'not_imported' }
+  if (gtfs.in_progress) { return 'in_progress' }
+  if (gtfs.success) { return 'imported' }
+  return 'error'
+}
