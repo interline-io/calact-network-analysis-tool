@@ -34,6 +34,8 @@ import {
   StopDepartureCache,
   FlexDepartureCache,
   feedVersionQuery,
+  feedVersionsByIdsQuery,
+  HIDDEN_FEED_ONESTOP_IDS,
   routeQuery,
   stopDepartureQuery,
   stopTimeQuery,
@@ -83,6 +85,19 @@ export interface ScenarioConfig {
    * Defaults to true
    */
   includeFlexAreas?: boolean
+  /**
+   * Explicit feed-version picks from the picker modal, keyed by feed
+   * onestop_id. When set, the fetcher uses the named FV instead of the
+   * feed's active version. Feeds with no entry continue to use the
+   * `feed_state.feed_version` as before. Plain object (not Map) so the
+   * config round-trips through the BFF's JSON.
+   */
+  feedVersionOverrides?: Record<string, number>
+  /**
+   * Feed onestop_ids excluded by the picker. The fetcher drops these from
+   * phase 1 entirely so no downstream stop/route fetches run against them.
+   */
+  excludedFeeds?: string[]
 }
 
 export interface ScenarioFilter {
@@ -815,7 +830,12 @@ export class ScenarioFetcher {
       const variables = { where: { bbox: bboxForQuery }, limit: this.feedVersionPageSize, after }
       const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
       const page = response.data?.feeds || []
-      allFeeds.push(...page)
+      // Drop feeds with known-broken bbox metadata so they don't poison
+      // every other bbox query with their over-broad coverage claim.
+      for (const f of page) {
+        if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
+        allFeeds.push(f)
+      }
       if (page.length < this.feedVersionPageSize) {
         break
       }
@@ -825,11 +845,72 @@ export class ScenarioFetcher {
       }
       after = nextAfter
     }
-    const feedVersions = allFeeds.map(feed => feed.feed_state.feed_version)
+    const feedVersions = await this.applyFeedVersionOverrides(allFeeds)
 
     this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
 
     return feedVersions
+  }
+
+  // Apply the picker's overrides + excludes from ScenarioConfig to the
+  // bbox-derived feed list. Drops excluded feeds, swaps in user-picked FVs
+  // (resolved via a single batched lookup for sha1s), and falls back to
+  // `feed_state.feed_version` for any feed without an explicit pick.
+  private async applyFeedVersionOverrides (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
+    const overridesObj = this.config.feedVersionOverrides
+    const excludedList = this.config.excludedFeeds
+
+    // JSON-friendly inputs (Record/array) — convert here to the
+    // ergonomic Map/Set the body of this method wants.
+    const overrides = new Map<string, number>(
+      overridesObj ? Object.entries(overridesObj) : []
+    )
+    const excluded = new Set<string>(excludedList || [])
+
+    const kept = excluded.size > 0
+      ? allFeeds.filter(f => !excluded.has(f.onestop_id))
+      : allFeeds
+
+    // Collect override fv_ids whose sha1 we still need.
+    const needed: number[] = []
+    if (overrides.size > 0) {
+      for (const f of kept) {
+        const id = overrides.get(f.onestop_id)
+        if (id != null) { needed.push(id) }
+      }
+    }
+
+    const overrideById = new Map<number, FeedVersion>()
+    if (needed.length > 0) {
+      const resp = await this.client.query<{ feed_versions: FeedVersion[] }>(
+        feedVersionsByIdsQuery,
+        { ids: needed }
+      )
+      for (const fv of resp.data?.feed_versions || []) {
+        const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
+        if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
+      }
+    }
+
+    const out: FeedVersion[] = []
+    for (const f of kept) {
+      const overrideId = overrides.get(f.onestop_id)
+      if (overrideId != null) {
+        const fv = overrideById.get(overrideId)
+        if (fv) {
+          out.push(fv)
+          continue
+        }
+        // Override referenced an FV the API didn't return (deleted? wrong feed?).
+        // Skip rather than silently fall back to active — operators expect their
+        // explicit picks to be honored or noisy when they can't be.
+        console.warn(`[Scenario] override fv_id=${overrideId} for ${f.onestop_id} could not be resolved; skipping this feed.`)
+        continue
+      }
+      // No explicit pick: fall back to the active feed version.
+      out.push(f.feed_state.feed_version)
+    }
+    return out
   }
 
   // Fetch stops from GraphQL API

@@ -35,6 +35,28 @@ export interface FeedGql {
   }
 }
 
+// Hardcoded denylist of feeds with broken bbox metadata that pollute
+// otherwise-unrelated bbox queries (their reported geometry covers far more
+// area than the actual service). Apply this in any flow that consumes the
+// bbox-feeds query — picker and scenario fetcher — so users never see them.
+export const HIDDEN_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
+  'f-r6-nswtrainlink~sydneytrains~buswayswesternsydney~interlinebus',
+])
+
+// Batched lookup for the picker overrides — fetches the explicit feed
+// version ids the user picked so the scenario fetcher knows their sha1s.
+export const feedVersionsByIdsQuery = gql`
+query ($ids: [Int!]) {
+  feed_versions(ids: $ids) {
+    id
+    sha1
+    feed {
+      id
+      onestop_id
+    }
+  }
+}`
+
 // --- Feed version browser (fv.vue) ---
 
 // Per-day seconds of scheduled service for one week of a FV.
@@ -88,7 +110,10 @@ export interface FeedWithVersions {
   name: string | null
   spec: string | null
   feed_state: {
-    feed_version: { id: number } | null
+    feed_version: {
+      id: number
+      agencies: { agency_name: string }[]
+    } | null
   } | null
   feed_versions: FeedVersionDetail[]
 }
@@ -107,7 +132,10 @@ query ($bbox: BoundingBox!) {
     name
     spec
     feed_state {
-      feed_version { id }
+      feed_version {
+        id
+        agencies { agency_name }
+      }
     }
     feed_versions(limit: 10) {
       id
@@ -197,6 +225,65 @@ function ordinalDaysToIso (ord: number): string {
   const m = String(dt.getUTCMonth() + 1).padStart(2, '0')
   const d = String(dt.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+// --- fvids URL param ---
+//
+// The /tne Query tab and the standalone /fv page persist explicit feed
+// version picks (and per-feed excludes) in a single CSV-shaped URL param:
+//
+//   ?fvids=onestop_id:fv_id,onestop_id:fv_id,onestop_id:0
+//
+// Per token:
+//   - `osid:N`   (N > 0) — use feed version N for this feed.
+//   - `osid:0`   — exclude this feed from the scenario.
+//   - `osid`     — same as `osid:0` (compact exclude form).
+// Tokens for feeds with no entry are absent: the scenario fetcher uses the
+// feed's active feed version as before.
+
+export interface ParsedFvids {
+  picks: Map<string, number>
+  excluded: Set<string>
+}
+
+export function parseFvids (raw: string | null | undefined): ParsedFvids {
+  const picks = new Map<string, number>()
+  const excluded = new Set<string>()
+  if (!raw) { return { picks, excluded } }
+  for (const tok of raw.split(',')) {
+    const trimmed = tok.trim()
+    if (!trimmed) { continue }
+    const [osidRaw, fvidRaw] = trimmed.split(':')
+    const osid = (osidRaw || '').trim()
+    if (!osid) { continue }
+    const fvid = parseInt((fvidRaw || '').trim(), 10)
+    if (!fvid || fvid <= 0 || !Number.isFinite(fvid)) {
+      // Exclude wins over any earlier pick for the same osid; later tokens
+      // override earlier ones so URLs can be merged without re-parsing.
+      excluded.add(osid)
+      picks.delete(osid)
+    } else {
+      picks.set(osid, fvid)
+      excluded.delete(osid)
+    }
+  }
+  return { picks, excluded }
+}
+
+export function serializeFvids (parsed: ParsedFvids): string {
+  const tokens: string[] = []
+  // Sort keys for stable URL output — avoids needless history churn when
+  // picks shuffle.
+  const pickKeys = [...parsed.picks.keys()].sort()
+  for (const osid of pickKeys) {
+    if (parsed.excluded.has(osid)) { continue }
+    tokens.push(`${osid}:${parsed.picks.get(osid)}`)
+  }
+  const excludeKeys = [...parsed.excluded].sort()
+  for (const osid of excludeKeys) {
+    tokens.push(`${osid}:0`)
+  }
+  return tokens.join(',')
 }
 
 export type FeedVersionImportStatus = 'not_imported' | 'in_progress' | 'imported' | 'error'

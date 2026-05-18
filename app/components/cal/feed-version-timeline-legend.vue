@@ -36,7 +36,6 @@
   border: 1px solid var(--bulma-border, #e0e0e0);
   border-radius: 4px;
   background: #fafafa;
-  font-size: 0.85rem;
   color: #444;
 }
 .cal-fv-legend-item {

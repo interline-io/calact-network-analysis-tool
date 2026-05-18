@@ -226,6 +226,7 @@ import {
   geographyLayerQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
+  parseFvids,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -276,6 +277,7 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  fvids,
 } = useScenarioInputs()
 const {
   startTime,
@@ -890,6 +892,22 @@ function onSelectGeographyFromDetails (geoid: string) {
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
+// Parsed feed-version picker state from the URL. Empty when the user hasn't
+// committed any overrides — the fetcher then auto-discovers active FVs as
+// before. Computed (vs. ref) so URL changes propagate without manual sync.
+const fvidsParsed = computed(() => parseFvids(fvids.value))
+
+// Convert to JSON-safe shapes (Record/array) so the config can round-trip
+// through the /api/scenario BFF without losing Map/Set semantics.
+const fvidsForConfig = computed(() => {
+  const picks = fvidsParsed.value.picks
+  const excluded = fvidsParsed.value.excluded
+  return {
+    feedVersionOverrides: picks.size > 0 ? Object.fromEntries(picks) : undefined,
+    excludedFeeds: excluded.size > 0 ? [...excluded] : undefined,
+  }
+})
+
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
@@ -903,6 +921,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
+  // Feed version picks from the Query-tab picker modal (URL-backed).
+  feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
+  excludedFeeds: fvidsForConfig.value.excludedFeeds,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({

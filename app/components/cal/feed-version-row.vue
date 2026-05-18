@@ -1,6 +1,22 @@
 <template>
-  <div class="cal-fv-row" :class="{ 'is-active': isActive }">
-    <cat-tooltip :text="tooltip">
+  <div class="cal-fv-row" :class="{ 'is-active': isActive, 'is-selected': selected }">
+    <label v-if="selectable" class="cal-fv-row-select" :title="selected ? 'Currently selected' : 'Use this version'">
+      <input
+        type="radio"
+        :name="`fv-${radioGroup}`"
+        :value="fv.id"
+        :checked="selected"
+        :disabled="excluded"
+        @change="emit('select', fv.id)"
+      >
+      <cat-tooltip :text="tooltip">
+        <span class="cal-fv-row-fetched">
+          {{ fetchedAtShort }}
+          <span v-if="isActive" class="cal-fv-active-dot" />
+        </span>
+      </cat-tooltip>
+    </label>
+    <cat-tooltip v-else :text="tooltip">
       <span class="cal-fv-row-fetched">
         {{ fetchedAtShort }}
         <span v-if="isActive" class="cal-fv-active-dot" />
@@ -21,7 +37,6 @@
     />
     <div class="cal-fv-row-action">
       <cat-button
-        size="small"
         :disabled="status === 'imported' || status === 'in_progress'"
         @click="emit('import', fv.id)"
       >
@@ -46,10 +61,20 @@ const props = defineProps<{
   analysisStart?: Date | null
   analysisEnd?: Date | null
   maxDaySeconds?: number
+  // When `selectable` is true, the row shows a radio button keyed off
+  // `radioGroup` (typically the feed's onestop_id) and emits `select` events.
+  // `selected` marks the row as the current pick for that feed.
+  // `excluded` disables the radio (the whole feed is excluded from the
+  // scenario).
+  selectable?: boolean
+  selected?: boolean
+  excluded?: boolean
+  radioGroup?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'import', fvId: number): void
+  (e: 'select', fvId: number): void
 }>()
 
 const status = computed<FeedVersionImportStatus>(() => feedVersionImportStatus(props.fv.feed_version_gtfs_import, props.hasActiveJob))
@@ -100,11 +125,31 @@ const importLabel = computed(() => {
   gap: 10px;
   padding: 4px 8px;
 }
+.cal-fv-row.is-selected {
+  background: rgba(29, 111, 184, 0.06);
+  border-radius: 3px;
+}
+.cal-fv-row-select {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.cal-fv-row-select input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+.cal-fv-row-select input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+.cal-fv-row-select .cal-fv-row-fetched {
+  cursor: pointer;
+}
 .cal-fv-row-fetched {
   flex: 0 0 auto;
   min-width: 110px;
   font-family: monospace;
-  font-size: 0.85rem;
   color: #333;
   cursor: help;
   display: inline-flex;

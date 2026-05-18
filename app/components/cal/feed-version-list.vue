@@ -1,19 +1,32 @@
 <template>
-  <cat-card class="cal-fv-feed-card">
+  <cat-card class="cal-fv-feed-card" :class="{ 'is-excluded': excluded }">
     <template #header>
-      <div class="cal-fv-feed-head">
-        <div>
-          <strong>{{ feed.name || feed.onestop_id }}</strong>
-          <span v-if="showOnestopId" class="cal-fv-feed-osid">{{ feed.onestop_id }}</span>
-        </div>
-        <span class="cal-fv-feed-counts">
-          {{ feed.feed_versions.length }} version{{ feed.feed_versions.length === 1 ? '' : 's' }}
+      <p class="card-header-title cal-fv-feed-title">
+        <span>{{ feed.name || feed.onestop_id }}</span>
+        <span v-if="showOnestopId" class="has-text-grey has-text-weight-normal cal-fv-feed-osid">
+          {{ feed.onestop_id }}
         </span>
-      </div>
+        <span v-if="agencyNames.length > 0" class="has-text-grey has-text-weight-normal">
+          — {{ agencyNames.join(', ') }}
+        </span>
+      </p>
     </template>
-    <div v-if="sortedVersions.length === 0" class="cal-fv-feed-empty">
+    <template #actions>
+      <span class="has-text-grey">
+        {{ feed.feed_versions.length }} version{{ feed.feed_versions.length === 1 ? '' : 's' }}
+      </span>
+      <cat-tooltip v-if="selectable" text="Exclude this feed from the scenario">
+        <cat-checkbox
+          :model-value="!!excluded"
+          @update:model-value="(v) => emit('exclude', v)"
+        >
+          Exclude
+        </cat-checkbox>
+      </cat-tooltip>
+    </template>
+    <p v-if="sortedVersions.length === 0" class="has-text-grey is-italic">
       No feed versions available.
-    </div>
+    </p>
     <cal-feed-version-row
       v-for="fv in sortedVersions"
       :key="fv.id"
@@ -25,7 +38,12 @@
       :analysis-start="analysisStart"
       :analysis-end="analysisEnd"
       :max-day-seconds="maxDaySeconds"
+      :selectable="selectable"
+      :selected="effectiveSelectedFvId === fv.id"
+      :excluded="excluded"
+      :radio-group="feed.onestop_id"
       @import="emit('import', $event)"
+      @select="emit('select', $event)"
     />
   </cat-card>
 </template>
@@ -42,18 +60,48 @@ const props = defineProps<{
   domainEnd: Date
   analysisStart?: Date | null
   analysisEnd?: Date | null
+  // Picker controls. `selectable` enables the per-row radios and the Exclude
+  // checkbox. `selectedFvId` is the explicit pick (null = use default). The
+  // row computes its `selected` state by comparing against the effective
+  // pick (explicit or active fallback).
+  selectable?: boolean
+  selectedFvId?: number | null
+  excluded?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'import', fvId: number): void
+  (e: 'select', fvId: number): void
+  (e: 'exclude', value: boolean): void
 }>()
 
 const activeFvId = computed(() => props.feed.feed_state?.feed_version?.id ?? null)
+
+// Effective selection: explicit pick if set, otherwise fall back to active.
+// Used to render the radio "checked" state — excluded feeds intentionally
+// show no checked row so the user sees the feed has no FV in play.
+const effectiveSelectedFvId = computed(() => {
+  if (props.excluded) { return null }
+  return props.selectedFvId ?? activeFvId.value
+})
 
 // Hide the redundant onestop_id chip when it's identical to the display name
 // (or when the name is empty and we're already showing the onestop_id as
 // the name).
 const showOnestopId = computed(() => !!props.feed.name && props.feed.name !== props.feed.onestop_id)
+
+const agencyNames = computed<string[]>(() => {
+  const ags = props.feed.feed_state?.feed_version?.agencies ?? []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const a of ags) {
+    const name = a.agency_name
+    if (!name || seen.has(name)) { continue }
+    seen.add(name)
+    out.push(name)
+  }
+  return out
+})
 
 // Feed-scoped opacity ceiling: largest single-day service across all of this
 // feed's FVs. Each FV's timeline cells normalize against it so a quieter FV
@@ -83,25 +131,14 @@ const sortedVersions = computed(() => {
 .cal-fv-feed-card {
   margin-bottom: 12px;
 }
-.cal-fv-feed-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.cal-fv-feed-card.is-excluded {
+  opacity: 0.55;
+}
+.cal-fv-feed-title {
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .cal-fv-feed-osid {
-  color: #888;
-  font-size: 0.85rem;
-  margin-left: 8px;
   font-family: monospace;
-}
-.cal-fv-feed-counts {
-  color: #666;
-  font-size: 0.85rem;
-}
-.cal-fv-feed-empty {
-  color: #888;
-  font-style: italic;
-  font-size: 0.9rem;
 }
 </style>
