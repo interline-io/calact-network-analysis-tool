@@ -24,8 +24,7 @@ interface ScenarioInputs {
   includeFixedRoute: WritableComputedRef<boolean | undefined>
   includeFlexAreas: WritableComputedRef<boolean | undefined>
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
-  // CSV `fvids` from the feed-version picker; see src/tl/feed-version.ts
-  // for the encoding. Empty string = no overrides (auto-discover active FVs).
+  // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
 }
 

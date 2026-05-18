@@ -43,15 +43,13 @@ import type { Bbox } from '~~/src/core'
 
 const props = withDefaults(defineProps<{
   open: boolean
-  // v-model: committed CSV `fvids` value.
+  // v-model: committed fvids CSV.
   modelValue?: string
   bbox: Bbox
-  analysisStart?: Date | null
-  analysisEnd?: Date | null
+  analysisStart: Date
+  analysisEnd: Date
 }>(), {
   modelValue: '',
-  analysisStart: null,
-  analysisEnd: null,
 })
 
 const emit = defineEmits<{
@@ -64,12 +62,8 @@ const modelOpen = computed<boolean>({
   set: (v) => { emit('update:open', v) }
 })
 
-// Staged copy of the picks. Initialized from props.modelValue every time the
-// modal opens so Cancel discards in-modal changes.
+// Staged so Cancel discards in-modal edits. Reset on each open below.
 const staged = ref<string>(props.modelValue)
-// Set of feed onestop_ids currently in the picker's bbox query (minus the
-// hardcoded denylist). Streamed up from the picker; used to drive bulk
-// actions like "Exclude all".
 const feedOnestopIds = ref<string[]>([])
 
 function onFeedList (ids: string[]) {
@@ -77,8 +71,7 @@ function onFeedList (ids: string[]) {
 }
 
 function onExcludeAll () {
-  // Snapshot the current bbox-feed set into the staged exclude list so the
-  // user can then opt feeds back in one by one via their radio buttons.
+  // Sets up opt-in-by-row by excluding everything currently in view.
   const excluded = new Set(feedOnestopIds.value)
   staged.value = serializeFvids({ picks: new Map(), excluded })
 }

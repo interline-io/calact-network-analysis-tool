@@ -892,13 +892,9 @@ function onSelectGeographyFromDetails (geoid: string) {
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
-// Parsed feed-version picker state from the URL. Empty when the user hasn't
-// committed any overrides — the fetcher then auto-discovers active FVs as
-// before. Computed (vs. ref) so URL changes propagate without manual sync.
 const fvidsParsed = computed(() => parseFvids(fvids.value))
 
-// Convert to JSON-safe shapes (Record/array) so the config can round-trip
-// through the /api/scenario BFF without losing Map/Set semantics.
+// Map/Set don't survive the BFF JSON boundary — emit Record/array instead.
 const fvidsForConfig = computed(() => {
   const picks = fvidsParsed.value.picks
   const excluded = fvidsParsed.value.excluded
@@ -1045,8 +1041,6 @@ const fetchScenario = async (loadExample: string) => {
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
 
-      // Surface any non-fatal warnings the fetcher attached to this event
-      // (e.g. unresolved feed-version picks from the picker modal).
       if (progress.warnings && progress.warnings.length > 0) {
         for (const msg of progress.warnings) {
           useToastNotification().showToast(msg)

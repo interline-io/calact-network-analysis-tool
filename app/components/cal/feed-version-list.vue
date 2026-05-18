@@ -23,11 +23,7 @@
             </cat-tooltip>
           </div>
         </div>
-        <!-- Agencies can be a long list (NYC-MTA-style feeds have 30+).
-             Default to a one-line clipped row with a right-edge fade as
-             an affordance; click to expand. Reliable overflow detection
-             isn't possible in pure CSS so the fade is shown even for
-             short lists — it reads as a stylistic cue rather than a lie. -->
+        <!-- Clipped + faded by default since some feeds publish 30+ agencies. -->
         <div
           v-if="agencyNames.length > 0"
           class="cal-fv-feed-agencies has-text-grey has-text-weight-normal"
@@ -73,11 +69,8 @@ const props = defineProps<{
   domainEnd: Date
   analysisStart?: Date | null
   analysisEnd?: Date | null
-  // Picker controls. `selectable` enables the per-row radios and the Exclude
-  // checkbox. `selectedFvId` is the explicit pick (null = use default). The
-  // row computes its `selected` state by comparing against the effective
-  // pick (explicit or active fallback).
   selectable?: boolean
+  // null = use the feed's active FV.
   selectedFvId?: number | null
   excluded?: boolean
 }>()
@@ -90,17 +83,13 @@ const emit = defineEmits<{
 
 const activeFvId = computed(() => props.feed.feed_state?.feed_version?.id ?? null)
 
-// Effective selection: explicit pick if set, otherwise fall back to active.
-// Used to render the radio "checked" state — excluded feeds intentionally
-// show no checked row so the user sees the feed has no FV in play.
+// Excluded feeds intentionally render with no checked row so the user can see
+// the feed has no FV in play.
 const effectiveSelectedFvId = computed(() => {
   if (props.excluded) { return null }
   return props.selectedFvId ?? activeFvId.value
 })
 
-// Hide the redundant onestop_id chip when it's identical to the display name
-// (or when the name is empty and we're already showing the onestop_id as
-// the name).
 const showOnestopId = computed(() => !!props.feed.name && props.feed.name !== props.feed.onestop_id)
 
 const agenciesExpanded = ref(false)
@@ -118,9 +107,7 @@ const agencyNames = computed<string[]>(() => {
   return out
 })
 
-// Feed-scoped opacity ceiling: largest single-day service across all of this
-// feed's FVs. Each FV's timeline cells normalize against it so a quieter FV
-// reads as quieter against its busier siblings.
+// Feed-scoped ceiling so quieter FVs read as quieter against their busier siblings.
 const maxDaySeconds = computed<number>(() => {
   let max = 0
   for (const fv of props.feed.feed_versions) {
@@ -133,8 +120,6 @@ const maxDaySeconds = computed<number>(() => {
   return max
 })
 
-// Sort strictly by fetched_at desc; the active FV is tagged inline by the
-// row and doesn't need to be promoted above newer versions.
 const sortedVersions = computed(() => {
   return [...props.feed.feed_versions].sort(
     (a, b) => (b.fetched_at || '').localeCompare(a.fetched_at || '')

@@ -86,18 +86,9 @@ export interface ScenarioConfig {
    * Defaults to true
    */
   includeFlexAreas?: boolean
-  /**
-   * Explicit feed-version picks from the picker modal, keyed by feed
-   * onestop_id. When set, the fetcher uses the named FV instead of the
-   * feed's active version. Feeds with no entry continue to use the
-   * `feed_state.feed_version` as before. Plain object (not Map) so the
-   * config round-trips through the BFF's JSON.
-   */
+  // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>
-  /**
-   * Feed onestop_ids excluded by the picker. The fetcher drops these from
-   * phase 1 entirely so no downstream stop/route fetches run against them.
-   */
+  // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
   excludedFeeds?: string[]
 }
 
@@ -200,8 +191,7 @@ export interface ScenarioProgress {
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
   error?: any
-  // Non-fatal warnings collected during the current stage. Consumers should
-  // toast them. Drained after delivery; later progress events won't repeat.
+  // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
   // Partial data available during progress
   partialData?: {
@@ -508,9 +498,8 @@ export class ScenarioFetcher {
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
-  // Drained on the next updateProgress() call (typically end of feed-versions
-  // stage). Collected here because the stage-end emit is the natural place to
-  // surface non-fatal stage warnings to the UI.
+  // Drained on the next updateProgress() so non-fatal stage warnings ride the
+  // existing progress channel without a new transport.
   private pendingWarnings: string[] = []
   // Set by fetchFeedVersions(), read by fetchCensusValues().
   private resolvedBbox?: Bbox
@@ -860,10 +849,8 @@ export class ScenarioFetcher {
     return feedVersions
   }
 
-  // Resolve picker overrides against the bbox-derived feed list. Does the
-  // batched fv lookup, then delegates the projection to a pure function so
-  // it can be unit-tested without a GraphQL client. Surfaces unresolved
-  // picks via `warnings` on the next progress event.
+  // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
+  // (pure projection, tested separately).
   private async applyFeedVersionOverrides (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
     const overrides = new Map<string, number>(
       this.config.feedVersionOverrides ? Object.entries(this.config.feedVersionOverrides) : []
@@ -884,6 +871,7 @@ export class ScenarioFetcher {
           { ids: needed }
         )
         for (const fv of resp.data?.feed_versions || []) {
+          // fv.id arrives as a string from GraphQL — coerce for Map key parity.
           const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
           if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
         }

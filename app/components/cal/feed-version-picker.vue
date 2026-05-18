@@ -52,46 +52,31 @@ import {
 import { convertBbox, type Bbox } from '~~/src/core'
 import { useToastNotification } from '#imports'
 
-// Timeline domain pads the analysis window so users can see FVs that almost
-// cover. Falls back to ±90d around today when the analysis window is unset.
+// Pad the analysis window so FVs that almost-cover still render.
 const DOMAIN_BUFFER_DAYS = 7
 
 const props = withDefaults(defineProps<{
   bbox: Bbox
-  analysisStart?: Date | null
-  analysisEnd?: Date | null
-  // When true the picker renders per-row radios and per-feed exclude
-  // checkboxes; emits change via `update:modelValue` as a CSV `fvids` string.
+  analysisStart: Date
+  analysisEnd: Date
   selectable?: boolean
-  // CSV `fvids` value (e.g. "osid1:123,osid2:0"). Empty string = no overrides.
   modelValue?: string
 }>(), {
-  analysisStart: null,
-  analysisEnd: null,
   selectable: false,
   modelValue: '',
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
-  // Stream the de-duped list of feeds the bbox query returned so parents
-  // (e.g. the modal) can drive bulk actions like "Exclude all".
+  // Lets the parent drive bulk actions ("Exclude all") without re-fetching.
   (e: 'update:feedOnestopIds', value: string[]): void
 }>()
 
 const bboxValid = computed(() => !!props.bbox?.valid)
 
-const domainStart = computed(() => {
-  const s = props.analysisStart ?? subDays(new Date(), 90)
-  return subDays(s, DOMAIN_BUFFER_DAYS)
-})
-const domainEnd = computed(() => {
-  const e = props.analysisEnd ?? addDays(new Date(), 90)
-  return addDays(e, DOMAIN_BUFFER_DAYS)
-})
+const domainStart = computed(() => subDays(props.analysisStart, DOMAIN_BUFFER_DAYS))
+const domainEnd = computed(() => addDays(props.analysisEnd, DOMAIN_BUFFER_DAYS))
 
-// Parsed view of the modelValue CSV. `explicitPicks` carries `osid → fv_id`
-// for active overrides; `excludedFeeds` carries `osid` for excluded feeds.
 const parsed = computed(() => parseFvids(props.modelValue))
 const explicitPicks = computed<Map<string, number>>(() => parsed.value.picks)
 const excludedFeeds = computed<Set<string>>(() => parsed.value.excluded)
@@ -101,9 +86,7 @@ function emitParsed (picks: Map<string, number>, excluded: Set<string>) {
 }
 
 function onSelect (feed: FeedWithVersions, fvId: number) {
-  // Clone current state and apply the new pick. Drop the entry entirely when
-  // the user selects the active FV — the default already covers that case
-  // and keeps the URL clean.
+  // Drop the entry when the pick equals the active FV — keeps the URL clean.
   const picks = new Map(explicitPicks.value)
   const excluded = new Set(excludedFeeds.value)
   excluded.delete(feed.onestop_id)
@@ -130,7 +113,12 @@ function onExclude (feed: FeedWithVersions, value: boolean) {
 
 const queryVars = computed(() => {
   if (!bboxValid.value) { return null }
-  return { bbox: convertBbox(props.bbox) }
+  // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
+  return {
+    bbox: convertBbox(props.bbox),
+    serviceLevelStart: domainIso(domainEnd.value),
+    serviceLevelEnd: domainIso(domainStart.value),
+  }
 })
 
 const { result, loading, error } = useQuery<{ feeds: FeedWithVersions[] }>(
@@ -141,8 +129,6 @@ const { result, loading, error } = useQuery<{ feeds: FeedWithVersions[] }>(
 
 const feeds = computed<FeedWithVersions[]>(() => result.value?.feeds || [])
 
-// Surface the bbox-feeds set (minus the always-hidden denylist) to the
-// parent so it can drive bulk operations without re-fetching.
 watch(feeds, (fs) => {
   const ids: string[] = []
   for (const f of fs) {
@@ -152,15 +138,13 @@ watch(feeds, (fs) => {
   emit('update:feedOnestopIds', ids)
 }, { immediate: true })
 
-// Drop FVs with no scheduled service in the visible domain. Always keep
-// each feed's active FV. Sort feeds desc by the busiest FV's service total
-// inside the analysis window (fallback to visible domain when dates are
-// unset). Feeds with no surviving FVs are dropped from the picker entirely.
+// Sort by busiest FV's in-window service. Active FV always kept so an empty
+// analysis window doesn't drop a feed from the picker entirely.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const startIso = domainIso(domainStart.value)
   const endIso = domainIso(domainEnd.value)
-  const sortStart = props.analysisStart ? domainIso(props.analysisStart) : startIso
-  const sortEnd = props.analysisEnd ? domainIso(props.analysisEnd) : endIso
+  const sortStart = domainIso(props.analysisStart)
+  const sortEnd = domainIso(props.analysisEnd)
 
   const decorated: { feed: FeedWithVersions, sortKey: number }[] = []
   for (const f of feeds.value) {
@@ -188,9 +172,7 @@ function domainIso (d: Date): string {
   return `${y}-${m}-${dd}`
 }
 
-// TODO: wire jobs into picker — submit import via the tlv2 jobs API and
-// stream status back to per-row badges. The jobs client lives in a separate
-// follow-up PR; this stub keeps the row's emit interface stable.
+// TODO: wire jobs API in follow-up PR; stub keeps the row's emit interface stable.
 function onImport (fvId: number) {
   useToastNotification().showToast(`Import for feed version ${fvId} — submit not wired yet`)
 }

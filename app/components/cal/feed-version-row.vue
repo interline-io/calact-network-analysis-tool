@@ -36,8 +36,7 @@
       :feed-info-end-date="fv.service_window?.feed_end_date"
     />
     <div class="cal-fv-row-action">
-      <!-- Always rendered (disabled until jobs wiring lands) so row heights
-           stay uniform across feeds; label tracks the current status. -->
+      <!-- Always rendered (even when disabled) so row heights stay uniform. -->
       <cat-button disabled>
         {{ importLabel }}
       </cat-button>
@@ -59,13 +58,9 @@ const props = defineProps<{
   analysisStart?: Date | null
   analysisEnd?: Date | null
   maxDaySeconds?: number
-  // When `selectable` is true, the row shows a radio button keyed off
-  // `radioGroup` (typically the feed's onestop_id) and emits `select` events.
-  // `selected` marks the row as the current pick for that feed.
-  // `excluded` disables the radio (the whole feed is excluded from the
-  // scenario).
   selectable?: boolean
   selected?: boolean
+  // excluded disables the radio — the whole feed is excluded from the scenario.
   excluded?: boolean
   radioGroup?: string
 }>()
@@ -75,6 +70,7 @@ const emit = defineEmits<{
   (e: 'select', fvId: number): void
 }>()
 
+// hasActiveJob hardcoded false until the jobs API is wired (follow-up PR).
 const status = computed<FeedVersionImportStatus>(() => feedVersionImportStatus(props.fv.feed_version_gtfs_import, false))
 
 const fetchedAtShort = computed(() => {

@@ -118,14 +118,16 @@ export interface FeedWithVersions {
   feed_versions: FeedVersionDetail[]
 }
 
-// Browse feeds in a bbox, their candidate feed versions overlapping a date
-// window, plus weekly service-level rows for an in-page timeline. `covers`
-// is intentionally NOT applied to feed_versions so operators can see FVs
-// that *almost* cover the window and choose to import one regardless. The
-// service_levels date filter is also disabled for now while we diagnose
-// why filtered queries return no rows on the demo DB.
+// `covers` is intentionally NOT applied so operators can see FVs that almost
+// cover and import one anyway.
+//
+// service_levels filter is overlap-via-swap: server treats
+// where.start_date as `row.start_date <= X` and where.end_date as
+// `row.end_date >= Y`, so callers pass windowEnd → start_date and
+// windowStart → end_date to get rows overlapping [windowStart, windowEnd].
+// See transitland-lib/server/finders/dbfinder/feed_version.go.
 export const feedsForImportQuery = gql`
-query ($bbox: BoundingBox!) {
+query ($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date) {
   feeds(limit: 100, where: { bbox: $bbox, spec: [GTFS] }) {
     id
     onestop_id
@@ -152,7 +154,7 @@ query ($bbox: BoundingBox!) {
         fallback_week
         default_timezone
       }
-      service_levels(limit: 1000) {
+      service_levels(limit: 1000, where: { start_date: $serviceLevelStart, end_date: $serviceLevelEnd }) {
         start_date
         end_date
         monday
@@ -177,10 +179,7 @@ query ($bbox: BoundingBox!) {
   }
 }`
 
-// Returns true if any day in [start, end] (inclusive) has > 0 seconds of
-// scheduled service in the FV's weekly service_levels rows. start/end are
-// 'YYYY-MM-DD' strings; comparisons are string-based to dodge TZ drift.
-// FVs with empty service_levels return false (e.g. unimported FVs).
+// start/end are YYYY-MM-DD strings — string compare dodges TZ drift.
 export function feedVersionHasServiceInRange (
   rows: FeedVersionServiceLevelRow[] | null | undefined,
   start: string,
@@ -189,9 +188,6 @@ export function feedVersionHasServiceInRange (
   return feedVersionServiceSecondsInRange(rows, start, end) > 0
 }
 
-// Sums all scheduled service seconds in [start, end] (inclusive) across a
-// FV's weekly service_levels rows. Used both for the empty-FV filter and as
-// a sort key for ordering feeds by total in-window activity.
 export function feedVersionServiceSecondsInRange (
   rows: FeedVersionServiceLevelRow[] | null | undefined,
   start: string,
@@ -258,8 +254,7 @@ export function parseFvids (raw: string | null | undefined): ParsedFvids {
     if (!osid) { continue }
     const fvid = parseInt((fvidRaw || '').trim(), 10)
     if (!fvid || fvid <= 0 || !Number.isFinite(fvid)) {
-      // Exclude wins over any earlier pick for the same osid; later tokens
-      // override earlier ones so URLs can be merged without re-parsing.
+      // Later tokens override earlier ones so URLs can be merged.
       excluded.add(osid)
       picks.delete(osid)
     } else {
@@ -270,19 +265,11 @@ export function parseFvids (raw: string | null | undefined): ParsedFvids {
   return { picks, excluded }
 }
 
-// Pure projection used by the scenario fetcher to turn the bbox-derived feed
-// list + picker overrides into the concrete list of feed versions to pull.
-// `overrideById` is the result of the batched lookup keyed by fv_id.
-//
-// Drops feeds in `excluded`. For remaining feeds: when an override exists it
-// substitutes that FV; otherwise falls back to the feed's active FV. Feeds
-// with no active FV and no resolvable override are dropped silently. Picks
-// that point at FVs the API didn't return (deleted? wrong feed?) are surfaced
-// in `missing` so the caller can warn the user — silent drop would be a bad
-// UX since the user explicitly picked them.
+// Pure projection from bbox-derived feeds + picker state → concrete FVs.
+// `missing` carries explicit picks the API didn't return so the caller can
+// warn — silent drops would hide intent.
 export interface AppliedFeedVersions {
   feedVersions: FeedVersion[]
-  // (onestop_id, fv_id) pairs the user picked but couldn't be resolved.
   missing: { onestop_id: string, fv_id: number }[]
 }
 
@@ -314,8 +301,7 @@ export function applyFeedVersionOverrides (
 
 export function serializeFvids (parsed: ParsedFvids): string {
   const tokens: string[] = []
-  // Sort keys for stable URL output — avoids needless history churn when
-  // picks shuffle.
+  // Sorted output keeps URL stable across pick shuffles.
   const pickKeys = [...parsed.picks.keys()].sort()
   for (const osid of pickKeys) {
     if (parsed.excluded.has(osid)) { continue }

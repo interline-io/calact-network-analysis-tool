@@ -4,26 +4,19 @@
     role="img"
     :aria-label="`Service intensity from ${domainStartIso} to ${domainEndIso}`"
   >
-    <!-- Analysis window highlight (behind the cells) -->
     <div
       v-if="analysisRect"
       class="cal-fv-timeline-window"
       :style="{ left: analysisRect.left, width: analysisRect.width }"
     />
 
-    <!-- Coverage extent stripe — visible even when no service_levels rows
-         exist (e.g., FV not yet imported), so the FV's date range stays
-         distinguishable from siblings -->
+    <!-- Coverage stripe keeps the FV range visible even when service_levels is empty. -->
     <div
       v-if="coverageRect"
       class="cal-fv-timeline-coverage"
       :style="{ left: coverageRect.left, width: coverageRect.width }"
     />
 
-    <!-- Per-day cells, flex-equalized across the domain. Cells outside
-         feed_info.txt's declared validity get a hatched overlay so the
-         publisher's stated range stays distinguishable from the calendar
-         coverage extent. -->
     <div class="cal-fv-timeline-cells">
       <div
         v-for="cell in dayCells"
@@ -41,48 +34,31 @@
 import { computed } from 'vue'
 import type { FeedVersionServiceLevelRow } from '~~/src/tl'
 
-// Number of discrete intensity buckets for daily cells. Each cell snaps to
-// 1..N where N is full intensity; legend shows three representative shades.
 const SERVICE_BUCKETS = 10
 
 const props = defineProps<{
   serviceLevels: FeedVersionServiceLevelRow[]
-  // The full timeline x-axis (ISO YYYY-MM-DD or Date). All FV rows in a feed
-  // should share this so alignment across rows is consistent.
   domainStart: Date | string
   domainEnd: Date | string
-  // The user's analysis window, overlaid as a highlighted band.
   analysisStart?: Date | string | null
   analysisEnd?: Date | string | null
-  // Per-day seconds ceiling for opacity normalization. Pass the feed's
-  // observed max so all FVs in the same feed share the scale.
+  // Feed-scoped ceiling so per-FV cells share the same opacity scale.
   maxDaySeconds?: number
-  // Coverage extent — cells outside this range render as fully transparent
-  // so coverage differences between FVs are visible at a glance.
   earliestCalendarDate?: string | null
   latestCalendarDate?: string | null
-  // feed_info.txt declared validity. When present these mark publisher intent
-  // and often differ from the calendar-derived coverage extent.
   feedInfoStartDate?: string | null
   feedInfoEndDate?: string | null
 }>()
 
-// --- TZ-safe date helpers ---
-// All date math here keys off the ISO YYYY-MM-DD string directly, avoiding
-// the local-vs-UTC drift that bit the previous SVG version (a Date parsed
-// from "2026-04-13" at midnight UTC becomes "2026-04-12" when format()-ed
-// in a PST/PDT browser).
+// All date math runs on YYYY-MM-DD strings + UTC-ordinal ints to avoid the
+// local-vs-UTC drift that hit the previous SVG version.
 function toIso (v: Date | string | null | undefined): string | null {
   if (v == null) { return null }
   if (typeof v === 'string') {
-    // Accept YYYY-MM-DD or anything starting with one; ignore the rest.
     const m = v.match(/^(\d{4}-\d{2}-\d{2})/)
     return m ? m[1]! : null
   }
-  // Date input represents a local-calendar day (date-fns parseDate / subDays
-  // build local-midnight Date objects). Read local components to recover the
-  // calendar day the caller meant — using getUTC* shifts by ±1 day when the
-  // browser is west/east of UTC.
+  // Local getters, not getUTC*: callers build local-midnight Dates via date-fns.
   const y = v.getFullYear()
   const mm = String(v.getMonth() + 1).padStart(2, '0')
   const dd = String(v.getDate()).padStart(2, '0')
@@ -118,8 +94,7 @@ const latestOrd = computed<number | null>(() => {
   return iso ? isoToOrdinal(iso) : null
 })
 
-// Expand weekly service_levels rows into Map<isoDay, seconds>. Each row's
-// start_date is Monday; columns are Mon..Sun seconds.
+// Each service_levels row is one Mon-start week; columns are Mon..Sun seconds.
 const dailySeconds = computed<Map<string, number>>(() => {
   const out = new Map<string, number>()
   for (const r of props.serviceLevels || []) {
@@ -151,22 +126,17 @@ const dayCells = computed<DayCell[]>(() => {
     let color: string
     let tooltip: string
     if (!inCoverage) {
-      // Outside the FV's [earliest, latest] window: render nothing so
-      // coverage differences between FVs are visible at a glance.
       color = 'transparent'
       tooltip = `${iso} — outside feed version coverage`
     } else if (max <= 0) {
-      // No service_levels data at all (e.g. FV not imported). Don't paint a
-      // cell — the coverage stripe behind already marks the extent.
+      // No service_levels rows (typically a not-yet-imported FV).
       color = 'transparent'
       tooltip = `${iso} — no service data`
     } else if (seconds <= 0) {
-      // In coverage with data but zero service that day (holiday / blackout).
       color = 'rgba(29, 111, 184, 0.08)'
       tooltip = `${iso} — no scheduled service`
     } else {
-      // Snap to 10 discrete buckets (1..10) so cells visually quantize and
-      // small differences read as the same shade.
+      // Quantize into N buckets so visually close days read as the same shade.
       const intensity = Math.min(1, seconds / max)
       const bucket = Math.min(SERVICE_BUCKETS, Math.max(1, Math.ceil(intensity * SERVICE_BUCKETS)))
       const opacity = bucket / SERVICE_BUCKETS
@@ -291,9 +261,7 @@ function isOutsideFeedInfo (ord: number): boolean {
   min-width: 0;
 }
 .cal-fv-timeline-day.is-outside-feed-info {
-  /* background-color stays inline (driven by service intensity); layer a
-     diagonal hatch on top via background-image so the cell still reads as
-     "service" but visibly outside the publisher's stated validity. */
+  /* Hatch overlays the inline background-color (service intensity). */
   background-image: repeating-linear-gradient(
     45deg,
     rgba(0, 0, 0, 0.18) 0,
