@@ -51,6 +51,8 @@ import {
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   watchJob,
+  jobApiPath,
+  JOBS_USE_SSE,
   JOB_TERMINAL_STATES,
   type FeedVersionPendingJob,
   type FeedVersionPendingJobKind,
@@ -191,15 +193,26 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
 // status (imported/error) without needing a graphql refetch.
 const pendingJobs = ref<Record<number, FeedVersionPendingJob>>({})
 
-// true → /watch SSE; false → JobGet polling. Shared with the status page;
-// toggle while debugging.
-const sse = false
-
 // One handle per fvId — replaced on resubmit, drained on unmount.
 const watchHandles = new Map<number, WatchJobHandle>()
 
 function queueForKind (kind: FeedVersionPendingJobKind): string {
   return kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
+}
+
+// Toast text helper — looks up the feed name and fetched_at so toasts read
+// "TriMet (2024-01-15)" instead of "feed version 654523". Falls back to the
+// fvId when the lookup misses (feed got hidden / data changed).
+function describeFv (fvId: number): string {
+  for (const f of feeds.value) {
+    const fv = f.feed_versions.find(v => v.id === fvId)
+    if (fv) {
+      const name = f.name || f.onestop_id
+      const fetched = fmtDate(fv.fetched_at) || fv.fetched_at
+      return `${name} (${fetched})`
+    }
+  }
+  return `feed version ${fvId}`
 }
 
 function unsubscribeJob (fvId: number) {
@@ -220,8 +233,9 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
     ...pendingJobs.value,
     [fvId]: { jobId: '', state: 'queued', kind },
   }
+  const fvLabel = describeFv(fvId)
   try {
-    const res = await fetch(`/proxy/default/jobs/queues/${queue}/jobs`, {
+    const res = await fetch(jobApiPath(queue), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ kind: queue, args: { feed_version_id: fvId } }),
@@ -244,7 +258,7 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
     watchHandles.set(fvId, watchJob({
       queue,
       jobId: idStr,
-      useSSE: sse,
+      useSSE: JOBS_USE_SSE,
       onState: (state, info) => {
         pendingJobs.value = {
           ...pendingJobs.value,
@@ -257,22 +271,22 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
         void refetch()
         const action = capitalize(kind)
         if (state === 'succeeded') {
-          toast.showToast(`${action} succeeded for feed version ${fvId}`, 'success')
+          toast.showToast(`${action} succeeded for ${fvLabel}`, 'success')
         } else if (state === 'failed') {
-          toast.showToast(`${action} failed for feed version ${fvId}${info?.message ? `: ${info.message}` : ''}`, 'danger', 5000)
+          toast.showToast(`${action} failed for ${fvLabel}${info?.message ? `: ${info.message}` : ''}`, 'danger', 5000)
         } else if (state === 'cancelled') {
-          toast.showToast(`${action} cancelled for feed version ${fvId}`, 'warning', 5000)
+          toast.showToast(`${action} cancelled for ${fvLabel}`, 'warning', 5000)
         }
       },
     }))
-    toast.showToast(`${capitalize(kind)} submitted for feed version ${fvId}`, 'success')
+    toast.showToast(`${capitalize(kind)} submitted for ${fvLabel}`, 'success')
   } catch (e) {
     // Roll back the optimistic placeholder so the button is re-enabled and
     // the row reverts to its underlying graphql-derived status.
     const { [fvId]: _removed, ...rest } = pendingJobs.value
     void _removed
     pendingJobs.value = rest
-    toast.showToast(`${capitalize(kind)} failed: ${e instanceof Error ? e.message : String(e)}`, 'danger', 5000)
+    toast.showToast(`${capitalize(kind)} for ${fvLabel} failed: ${e instanceof Error ? e.message : String(e)}`, 'danger', 5000)
   }
 }
 

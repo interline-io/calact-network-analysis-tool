@@ -1,15 +1,59 @@
-// Shared subscription helper for the tlv2 jobs API. Used by both the
-// job-status page and the feed-version picker so the SSE/poll switch and
-// the proxy URL shape live in one place.
+// Shared subscription helper and types for the tlv2 jobs API. Used by the
+// job-status page, the feed-version picker, and the debug-jobs page so the
+// proxy URL shape, SSE/poll switch, and wire types live in one place.
 
 export const JOB_TERMINAL_STATES: ReadonlySet<string> = new Set(['succeeded', 'failed', 'cancelled'])
+
+// Single toggle: true → /watch SSE; false → JobGet polling. Polling is
+// pod-independent (reads postgres) and was the more reliable path during
+// multi-pod river Subscribe debugging.
+export const JOBS_USE_SSE = false
+
+// Path builder for the tlv2-auth proxy → jobs API. Centralized so a future
+// proxy-base or routing change is one edit. Pass jobId for per-job endpoints
+// and `action` for `/cancel` or `/watch`.
+export function jobApiPath (queue: string, jobId?: string, action?: 'cancel' | 'watch'): string {
+  const q = encodeURIComponent(queue)
+  if (!jobId) { return `/proxy/default/jobs/queues/${q}/jobs` }
+  const id = encodeURIComponent(jobId)
+  if (action) { return `/proxy/default/jobs/queues/${q}/jobs/${id}/${action}` }
+  return `/proxy/default/jobs/queues/${q}/jobs/${id}`
+}
+
+// Wire types matching tlv2's JSON shapes. JobStatus is the JobGet payload;
+// JobEvent is the per-event payload over SSE /watch. `args` is worker-
+// specific so left as Record<string, unknown>.
+export interface Job {
+  kind: string
+  args?: Record<string, unknown>
+  opts?: {
+    user_id?: string
+    deadline?: string
+    unique?: boolean
+  }
+}
+
+export interface JobStatus {
+  state: string
+  job: Job
+  submitted_at?: string
+  started_at?: string
+  finished_at?: string
+  error?: string
+  attempt?: number
+}
+
+export interface JobEvent {
+  job_id: string
+  state: string
+  attempt?: number
+  message?: string
+  time: string
+}
 
 export interface WatchJobOptions {
   queue: string
   jobId: string
-  // true → /watch SSE; false → JobGet polling fallback. The polling path is
-  // pod-independent (reads postgres) and was useful while debugging river
-  // Subscribe's per-pod fanout.
   useSSE: boolean
   pollIntervalMs?: number
   // Fires for every state update including the terminal one. `info.message`
@@ -30,7 +74,8 @@ export interface WatchJobHandle {
 
 export function watchJob (opts: WatchJobOptions): WatchJobHandle {
   const pollInterval = opts.pollIntervalMs ?? 2000
-  const baseUrl = `/proxy/default/jobs/queues/${encodeURIComponent(opts.queue)}/jobs/${encodeURIComponent(opts.jobId)}`
+  const baseUrl = jobApiPath(opts.queue, opts.jobId)
+  const watchUrl = jobApiPath(opts.queue, opts.jobId, 'watch')
 
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let eventSource: EventSource | null = null
@@ -83,7 +128,7 @@ export function watchJob (opts: WatchJobOptions): WatchJobHandle {
         // Transient — fall through to SSE, which may still deliver terminal.
       }
       if (stopped) { return }
-      const es = new EventSource(`${baseUrl}/watch`)
+      const es = new EventSource(watchUrl)
       eventSource = es
       es.onmessage = (msg) => {
         try {

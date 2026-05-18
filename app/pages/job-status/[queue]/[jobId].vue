@@ -3,7 +3,7 @@
     <template #main>
       <div class="container is-fluid" style="padding: 16px 24px; max-width: 1000px;">
         <h1 class="title">
-          Job status
+          {{ heading }}
         </h1>
 
         <div class="cal-job-status-header">
@@ -63,9 +63,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useHead } from '#imports'
 import { formatDistance, formatDistanceStrict } from 'date-fns'
 import { capitalize } from '~~/src/core'
-import { JOB_TERMINAL_STATES, watchJob, type WatchJobHandle } from '~~/src/tl'
+import {
+  JOB_TERMINAL_STATES,
+  JOBS_USE_SSE,
+  jobApiPath,
+  watchJob,
+  type JobStatus,
+  type WatchJobHandle,
+} from '~~/src/tl'
 
 definePageMeta({ layout: false })
 
@@ -73,11 +81,7 @@ const route = useRoute()
 const queue = computed(() => String(route.params.queue || ''))
 const jobId = computed(() => String(route.params.jobId || ''))
 
-// true → /watch SSE; false → JobGet polling. Shared with the picker;
-// toggle while debugging.
-const sse = false
-
-const status = ref<any>(null)
+const status = ref<JobStatus | null>(null)
 const state = ref<string>('')
 const error = ref<string>('')
 const notFound = ref(false)
@@ -89,6 +93,26 @@ const terminal = computed(() => JOB_TERMINAL_STATES.has(state.value))
 const stateLabel = computed(() => {
   if (!state.value) { return loading.value ? 'Loading…' : 'Unknown' }
   return capitalize(state.value)
+})
+
+// Human-readable title derived from the queue and the job args (when the
+// JobStatus has landed). Pre-fetch we fall back to a queue-only label so
+// the heading isn't empty on first paint.
+const heading = computed(() => {
+  const q = queue.value
+  const fvId = status.value?.job?.args?.feed_version_id
+  if (q === 'feed-version-import') {
+    return fvId != null ? `Importing feed version ${fvId}` : 'Importing feed version'
+  }
+  if (q === 'feed-version-unimport') {
+    return fvId != null ? `Unimporting feed version ${fvId}` : 'Unimporting feed version'
+  }
+  return q ? `Job: ${q}` : 'Job status'
+})
+
+// Browser tab title: state-first so the tab strip shows progress at a glance.
+useHead({
+  title: () => `[${stateLabel.value}] ${heading.value}`,
 })
 
 function parseDateMaybe (s: string | null | undefined): Date | null {
@@ -145,9 +169,7 @@ async function fetchStatus () {
   }
   loading.value = true
   try {
-    const res = await fetch(
-      `/proxy/default/jobs/queues/${encodeURIComponent(queue.value)}/jobs/${encodeURIComponent(jobId.value)}`
-    )
+    const res = await fetch(jobApiPath(queue.value, jobId.value))
     const text = await res.text()
     if (res.status === 404) {
       notFound.value = true
@@ -178,12 +200,13 @@ async function start () {
   watchHandle = watchJob({
     queue: queue.value,
     jobId: jobId.value,
-    useSSE: sse,
+    useSSE: JOBS_USE_SSE,
     onState: (s) => {
       state.value = s
       lastPolledAt.value = new Date()
       if (JOB_TERMINAL_STATES.has(s)) {
         fetchStatus()
+        stopNowTicker()
       }
     },
   })
@@ -198,7 +221,7 @@ async function cancel () {
   cancelling.value = true
   try {
     const res = await fetch(
-      `/proxy/default/jobs/queues/${encodeURIComponent(queue.value)}/jobs/${encodeURIComponent(jobId.value)}/cancel`,
+      jobApiPath(queue.value, jobId.value, 'cancel'),
       { method: 'POST' }
     )
     if (!res.ok) {
@@ -214,17 +237,24 @@ async function cancel () {
   }
 }
 
-// Cheap 1s ticker so the `timing` computed updates while we wait. Stops on
-// unmount; no need to gate on terminal — one Date instance per second is
-// negligible and keeps the lifecycle simple.
+// 1s ticker so the `timing` computed updates while we wait. Stopped on
+// terminal (no live duration to render) and on unmount.
 let nowTimer: ReturnType<typeof setInterval> | null = null
+function stopNowTicker () {
+  if (nowTimer != null) {
+    clearInterval(nowTimer)
+    nowTimer = null
+  }
+}
 onMounted(() => {
   start()
-  nowTimer = setInterval(() => { now.value = new Date() }, 1000)
+  if (!terminal.value) {
+    nowTimer = setInterval(() => { now.value = new Date() }, 1000)
+  }
 })
 onBeforeUnmount(() => {
   unsubscribe()
-  if (nowTimer != null) { clearInterval(nowTimer) }
+  stopNowTicker()
 })
 </script>
 

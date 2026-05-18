@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { jobApiPath } from '~~/src/tl'
 
 definePageMeta({ layout: false })
 
@@ -115,10 +116,10 @@ async function callProxy (url: string, init: RequestInit = {}) {
 }
 
 async function fetchJobs () {
-  // Hits the tlv2-auth proxy: /proxy/{backend}/{...upstreamPath}.
+  // jobApiPath hits the tlv2-auth proxy: /proxy/{backend}/{...upstreamPath}.
   // Backend "default" → runtimeConfig.tlv2.proxyBase.default (the tlv2 base).
   const qs = states.value ? `?states=${encodeURIComponent(states.value)}` : ''
-  await callProxy(`/proxy/default/jobs/queues/${encodeURIComponent(queue.value)}/jobs${qs}`)
+  await callProxy(`${jobApiPath(queue.value)}${qs}`)
 }
 
 async function fetchMe () {
@@ -141,7 +142,7 @@ function parseSubmitArgs (): unknown | undefined {
 async function submitJob () {
   const args = parseSubmitArgs()
   if (args === undefined) { return }
-  await callProxy(`/proxy/default/jobs/queues/${encodeURIComponent(submitQueue.value)}/jobs`, {
+  await callProxy(jobApiPath(submitQueue.value), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ kind: submitKind.value, args }),

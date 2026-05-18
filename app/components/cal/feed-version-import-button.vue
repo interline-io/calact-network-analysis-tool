@@ -85,11 +85,17 @@ const statusUrl = computed(() => {
 })
 
 // Only surface a tooltip when there's actually error text to show — empty
-// or trimmed-whitespace messages would render an empty hover bubble.
+// or trimmed-whitespace messages would render an empty hover bubble. Cap
+// the length so a multi-line stack trace doesn't overflow the tooltip; the
+// full text is still available on the job-status page.
+const MAX_ERROR_TOOLTIP_LEN = 200
 const errorTooltip = computed(() => {
   if (status.value !== 'error') { return '' }
   const msg = props.pendingJob?.errorMessage?.trim()
-  return msg || ''
+  if (!msg) { return '' }
+  return msg.length > MAX_ERROR_TOOLTIP_LEN
+    ? msg.slice(0, MAX_ERROR_TOOLTIP_LEN) + '…'
+    : msg
 })
 
 function onClick () {
