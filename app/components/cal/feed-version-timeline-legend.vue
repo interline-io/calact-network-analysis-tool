@@ -22,6 +22,10 @@
       <span class="swatch swatch-feedinfo-outside" />
       <span>Outside feed_info dates</span>
     </div>
+    <div class="cal-fv-legend-item">
+      <span class="swatch swatch-active-dot" />
+      <span>Active feed version</span>
+    </div>
   </div>
 </template>
 
@@ -74,5 +78,11 @@
     transparent 1px,
     transparent 4px
   );
+}
+.swatch-active-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1d6fb8;
 }
 </style>

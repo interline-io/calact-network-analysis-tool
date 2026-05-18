@@ -196,28 +196,30 @@ export function feedVersionHasServiceInRange (
   return feedVersionServiceSecondsInRange(rows, start, end) > 0
 }
 
+export const SERVICE_LEVEL_DAY_COLS: ReadonlyArray<keyof FeedVersionServiceLevelRow> = [
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+]
+
 export function feedVersionServiceSecondsInRange (
   rows: FeedVersionServiceLevelRow[] | null | undefined,
   start: string,
   end: string
 ): number {
   if (!rows || rows.length === 0) { return 0 }
-  const dayCols: (keyof FeedVersionServiceLevelRow)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
   let total = 0
   for (const r of rows) {
     const startIso = (r.start_date || '').slice(0, 10)
     const endIso = (r.end_date || '').slice(0, 10)
     if (!startIso || !endIso) { continue }
-    // Skip rows that don't overlap the query window before iterating days.
     if (endIso < start || startIso > end) { continue }
-    const startOrd = isoToOrdinalDays(startIso)
-    const endOrd = isoToOrdinalDays(endIso)
-    // Day-of-week of the row's start_date, mapped to the Mon=0..Sun=6 column index.
+    const startOrd = isoToOrdinal(startIso)
+    const endOrd = isoToOrdinal(endIso)
+    // Mon=0..Sun=6 column index of the row's start_date.
     let weekday = (new Date(startOrd * 86_400_000).getUTCDay() + 6) % 7
     for (let ord = startOrd; ord <= endOrd; ord++) {
-      const seconds = r[dayCols[weekday]!] as number
+      const seconds = r[SERVICE_LEVEL_DAY_COLS[weekday]!] as number
       if (seconds > 0) {
-        const dayIso = ordinalDaysToIso(ord)
+        const dayIso = ordinalToIso(ord)
         if (dayIso >= start && dayIso <= end) { total += seconds }
       }
       weekday = (weekday + 1) % 7
@@ -226,12 +228,24 @@ export function feedVersionServiceSecondsInRange (
   return total
 }
 
-function isoToOrdinalDays (iso: string): number {
+export function maxServiceSecondsPerDay (rows: FeedVersionServiceLevelRow[] | null | undefined): number {
+  if (!rows || rows.length === 0) { return 0 }
+  let max = 0
+  for (const r of rows) {
+    for (const col of SERVICE_LEVEL_DAY_COLS) {
+      const v = r[col] as number
+      if (v > max) { max = v }
+    }
+  }
+  return max
+}
+
+export function isoToOrdinal (iso: string): number {
   const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
   return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
 }
 
-function ordinalDaysToIso (ord: number): string {
+export function ordinalToIso (ord: number): string {
   const dt = new Date(ord * 86_400_000)
   const y = dt.getUTCFullYear()
   const m = String(dt.getUTCMonth() + 1).padStart(2, '0')

@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CalFeedVersionRow from '~/components/cal/feed-version-row.vue'
-import type { FeedWithVersions } from '~~/src/tl'
+import { maxServiceSecondsPerDay, type FeedWithVersions } from '~~/src/tl'
 
 const props = defineProps<{
   feed: FeedWithVersions
@@ -111,11 +111,8 @@ const agencyNames = computed<string[]>(() => {
 const maxDaySeconds = computed<number>(() => {
   let max = 0
   for (const fv of props.feed.feed_versions) {
-    for (const r of fv.service_levels) {
-      for (const v of [r.monday, r.tuesday, r.wednesday, r.thursday, r.friday, r.saturday, r.sunday]) {
-        if (v > max) { max = v }
-      }
-    }
+    const m = maxServiceSecondsPerDay(fv.service_levels)
+    if (m > max) { max = m }
   }
   return max
 })

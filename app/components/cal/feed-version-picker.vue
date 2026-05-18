@@ -50,7 +50,7 @@ import {
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   type FeedWithVersions,
 } from '~~/src/tl'
-import { convertBbox, type Bbox } from '~~/src/core'
+import { convertBbox, fmtDate, type Bbox } from '~~/src/core'
 import { useToastNotification } from '#imports'
 
 // Pad the analysis window so FVs that almost-cover still render. Scales with
@@ -122,8 +122,8 @@ const queryVars = computed(() => {
   // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
   return {
     bbox: convertBbox(props.bbox),
-    serviceLevelStart: domainIso(domainEnd.value),
-    serviceLevelEnd: domainIso(domainStart.value),
+    serviceLevelStart: fmtDate(domainEnd.value),
+    serviceLevelEnd: fmtDate(domainStart.value),
   }
 })
 
@@ -147,10 +147,10 @@ watch(feeds, (fs) => {
 // Sort by busiest FV's in-window service. Active FV always kept so an empty
 // analysis window doesn't drop a feed from the picker entirely.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
-  const startIso = domainIso(domainStart.value)
-  const endIso = domainIso(domainEnd.value)
-  const sortStart = domainIso(props.analysisStart)
-  const sortEnd = domainIso(props.analysisEnd)
+  const startIso = fmtDate(domainStart.value)
+  const endIso = fmtDate(domainEnd.value)
+  const sortStart = fmtDate(props.analysisStart)
+  const sortEnd = fmtDate(props.analysisEnd)
 
   const decorated: { feed: FeedWithVersions, sortKey: number, demoted: boolean }[] = []
   for (const f of feeds.value) {
@@ -177,13 +177,6 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
   })
   return decorated.map(d => d.feed)
 })
-
-function domainIso (d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${dd}`
-}
 
 // TODO: wire jobs API in follow-up PR; stub keeps the row's emit interface stable.
 function onImport (fvId: number) {

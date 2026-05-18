@@ -1,21 +1,21 @@
 <template>
-  <div class="cal-fv-row" :class="{ 'is-active': isActive, 'is-selected': selected }">
-    <label v-if="selectable" class="cal-fv-row-select" :title="selected ? 'Currently selected' : 'Use this version'">
-      <input
-        type="radio"
-        :name="`fv-${radioGroup}`"
-        :value="fv.id"
-        :checked="selected"
-        :disabled="excluded"
-        @change="emit('select', fv.id)"
-      >
+  <div class="cal-fv-row" :class="{ 'is-selected': selected }">
+    <cat-radio
+      v-if="selectable"
+      :model-value="selected ? fv.id : undefined"
+      :native-value="fv.id"
+      :name="`fv-${radioGroup}`"
+      :disabled="excluded"
+      class="cal-fv-row-select"
+      @update:model-value="emit('select', fv.id)"
+    >
       <cat-tooltip :text="tooltip">
         <span class="cal-fv-row-fetched">
           {{ fetchedAtShort }}
           <span v-if="isActive" class="cal-fv-active-dot" />
         </span>
       </cat-tooltip>
-    </label>
+    </cat-radio>
     <cat-tooltip v-else :text="tooltip">
       <span class="cal-fv-row-fetched">
         {{ fetchedAtShort }}
@@ -46,9 +46,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { parseISO, format } from 'date-fns'
 import CalFeedVersionTimeline from '~/components/cal/feed-version-timeline.vue'
 import { feedVersionImportStatus, type FeedVersionDetail, type FeedVersionImportStatus } from '~~/src/tl'
+import { fmtDate } from '~~/src/core'
 
 const props = defineProps<{
   fv: FeedVersionDetail
@@ -73,19 +73,17 @@ const emit = defineEmits<{
 // hasActiveJob hardcoded false until the jobs API is wired (follow-up PR).
 const status = computed<FeedVersionImportStatus>(() => feedVersionImportStatus(props.fv.feed_version_gtfs_import, false))
 
-const fetchedAtShort = computed(() => {
-  const d = parseISO(props.fv.fetched_at)
-  return Number.isNaN(d.getTime()) ? props.fv.fetched_at : format(d, 'yyyy-MM-dd')
-})
+const fetchedAtShort = computed(() => fmtDate(props.fv.fetched_at) || props.fv.fetched_at)
 
-const statusLabel = computed(() => {
-  switch (status.value) {
-    case 'imported': return 'Imported'
-    case 'in_progress': return 'In progress'
-    case 'error': return 'Import error'
-    default: return 'Not imported'
-  }
-})
+const STATUS_LABELS: Record<FeedVersionImportStatus, { status: string, action: string }> = {
+  imported: { status: 'Imported', action: 'Imported' },
+  in_progress: { status: 'In progress', action: 'In progress…' },
+  error: { status: 'Import error', action: 'Retry' },
+  not_imported: { status: 'Not imported', action: 'Import' },
+}
+
+const statusLabel = computed(() => STATUS_LABELS[status.value].status)
+const importLabel = computed(() => STATUS_LABELS[status.value].action)
 
 const tooltip = computed(() => {
   const lines = [
@@ -100,15 +98,6 @@ const tooltip = computed(() => {
     lines.push('', `Error: ${errLog.slice(0, 500)}${errLog.length > 500 ? '…' : ''}`)
   }
   return lines.join('\n')
-})
-
-const importLabel = computed(() => {
-  switch (status.value) {
-    case 'imported': return 'Imported'
-    case 'in_progress': return 'In progress…'
-    case 'error': return 'Retry'
-    default: return 'Import'
-  }
 })
 </script>
 
@@ -125,17 +114,6 @@ const importLabel = computed(() => {
 }
 .cal-fv-row-select {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-.cal-fv-row-select input[type="radio"] {
-  margin: 0;
-  cursor: pointer;
-}
-.cal-fv-row-select input[type="radio"]:disabled {
-  cursor: not-allowed;
 }
 .cal-fv-row-select .cal-fv-row-fetched {
   cursor: pointer;

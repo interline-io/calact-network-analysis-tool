@@ -32,7 +32,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { FeedVersionServiceLevelRow } from '~~/src/tl'
+import {
+  isoToOrdinal,
+  maxServiceSecondsPerDay,
+  ordinalToIso,
+  SERVICE_LEVEL_DAY_COLS,
+  type FeedVersionServiceLevelRow,
+} from '~~/src/tl'
+import { asDateString } from '~~/src/core'
 
 const SERVICE_BUCKETS = 10
 
@@ -50,32 +57,11 @@ const props = defineProps<{
   feedInfoEndDate?: string | null
 }>()
 
-// All date math runs on YYYY-MM-DD strings + UTC-ordinal ints to avoid the
-// local-vs-UTC drift that hit the previous SVG version.
+// asDateString handles both Date and 'YYYY-MM-DD' string inputs without
+// the local-vs-UTC drift that bit the previous SVG version.
 function toIso (v: Date | string | null | undefined): string | null {
   if (v == null) { return null }
-  if (typeof v === 'string') {
-    const m = v.match(/^(\d{4}-\d{2}-\d{2})/)
-    return m ? m[1]! : null
-  }
-  // Local getters, not getUTC*: callers build local-midnight Dates via date-fns.
-  const y = v.getFullYear()
-  const mm = String(v.getMonth() + 1).padStart(2, '0')
-  const dd = String(v.getDate()).padStart(2, '0')
-  return `${y}-${mm}-${dd}`
-}
-
-function isoToOrdinal (iso: string): number {
-  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
-  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
-}
-
-function ordinalToIso (ord: number): string {
-  const dt = new Date(ord * 86_400_000)
-  const y = dt.getUTCFullYear()
-  const m = String(dt.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(dt.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return asDateString(v) ?? null
 }
 
 const domainStartIso = computed(() => toIso(props.domainStart) ?? '')
@@ -103,11 +89,9 @@ const dailySeconds = computed<Map<string, number>>(() => {
     if (!startIso || !endIso) { continue }
     const startOrd = isoToOrdinal(startIso)
     const endOrd = isoToOrdinal(endIso)
-    const cols = [r.monday, r.tuesday, r.wednesday, r.thursday, r.friday, r.saturday, r.sunday]
-    // Day-of-week of the row's start_date, mapped to Mon=0..Sun=6.
     let weekday = (new Date(startOrd * 86_400_000).getUTCDay() + 6) % 7
     for (let ord = startOrd; ord <= endOrd; ord++) {
-      out.set(ordinalToIso(ord), cols[weekday] ?? 0)
+      out.set(ordinalToIso(ord), (r[SERVICE_LEVEL_DAY_COLS[weekday]!] as number) ?? 0)
       weekday = (weekday + 1) % 7
     }
   }
@@ -119,7 +103,7 @@ interface DayCell { iso: string, color: string, tooltip: string, outsideFeedInfo
 const dayCells = computed<DayCell[]>(() => {
   const max = props.maxDaySeconds && props.maxDaySeconds > 0
     ? props.maxDaySeconds
-    : computeMaxFromRows(props.serviceLevels)
+    : maxServiceSecondsPerDay(props.serviceLevels)
 
   const cells: DayCell[] = []
   for (let i = 0; i < domainDays.value; i++) {
@@ -166,16 +150,6 @@ function isInCoverage (ord: number): boolean {
   if (lo != null && ord < lo) { return false }
   if (hi != null && ord > hi) { return false }
   return true
-}
-
-function computeMaxFromRows (rows: FeedVersionServiceLevelRow[]): number {
-  let max = 0
-  for (const r of rows || []) {
-    for (const v of [r.monday, r.tuesday, r.wednesday, r.thursday, r.friday, r.saturday, r.sunday]) {
-      if (v > max) { max = v }
-    }
-  }
-  return max
 }
 
 function pct (n: number): string {
