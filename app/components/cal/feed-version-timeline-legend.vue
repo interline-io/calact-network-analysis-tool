@@ -65,12 +65,12 @@
   border: 2px solid #d8b440;
 }
 .swatch-feedinfo-outside {
-  /* 0% bucket background so the hatch reads cleanly, not muddled by tint. */
+  /* 0% bucket bg so the hatch reads cleanly. */
   background-color: rgba(29, 111, 184, 0.08);
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(0, 0, 0, 0.18) 0,
-    rgba(0, 0, 0, 0.18) 1px,
+    #d8b440 0,
+    #d8b440 1px,
     transparent 1px,
     transparent 4px
   );

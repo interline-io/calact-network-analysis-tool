@@ -94,16 +94,21 @@ const latestOrd = computed<number | null>(() => {
   return iso ? isoToOrdinal(iso) : null
 })
 
-// Each service_levels row is one Mon-start week; columns are Mon..Sun seconds.
+// Rows can span multiple weeks; day columns repeat across the [start, end] span.
 const dailySeconds = computed<Map<string, number>>(() => {
   const out = new Map<string, number>()
   for (const r of props.serviceLevels || []) {
     const startIso = toIso(r.start_date)
-    if (!startIso) { continue }
+    const endIso = toIso(r.end_date)
+    if (!startIso || !endIso) { continue }
     const startOrd = isoToOrdinal(startIso)
+    const endOrd = isoToOrdinal(endIso)
     const cols = [r.monday, r.tuesday, r.wednesday, r.thursday, r.friday, r.saturday, r.sunday]
-    for (let i = 0; i < 7; i++) {
-      out.set(ordinalToIso(startOrd + i), cols[i] ?? 0)
+    // Day-of-week of the row's start_date, mapped to Mon=0..Sun=6.
+    let weekday = (new Date(startOrd * 86_400_000).getUTCDay() + 6) % 7
+    for (let ord = startOrd; ord <= endOrd; ord++) {
+      out.set(ordinalToIso(ord), cols[weekday] ?? 0)
+      weekday = (weekday + 1) % 7
     }
   }
   return out
@@ -264,8 +269,8 @@ function isOutsideFeedInfo (ord: number): boolean {
   /* Hatch overlays the inline background-color (service intensity). */
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(0, 0, 0, 0.18) 0,
-    rgba(0, 0, 0, 0.18) 1px,
+    #d8b440 0,
+    #d8b440 1px,
     transparent 1px,
     transparent 4px
   );

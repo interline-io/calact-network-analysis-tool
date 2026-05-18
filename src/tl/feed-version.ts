@@ -43,6 +43,14 @@ export const HIDDEN_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
   'f-r6-nswtrainlink~sydneytrains~buswayswesternsydney~interlinebus',
 ])
 
+// Intercity / charter feeds that match many bboxes but rarely match user
+// intent. Sorted last in the picker so they don't crowd local agencies.
+export const DEPRIORITIZED_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
+  'f-9-flixbus',
+  'f-utel~uiuc~intercity~bus',
+  'f-9-amtrak~amtrakcalifornia~amtrakcharteredvehicle',
+])
+
 // Batched lookup for the picker overrides — fetches the explicit feed
 // version ids the user picked so the scenario fetcher knows their sha1s.
 export const feedVersionsByIdsQuery = gql`
@@ -198,13 +206,21 @@ export function feedVersionServiceSecondsInRange (
   let total = 0
   for (const r of rows) {
     const startIso = (r.start_date || '').slice(0, 10)
-    if (!startIso) { continue }
+    const endIso = (r.end_date || '').slice(0, 10)
+    if (!startIso || !endIso) { continue }
+    // Skip rows that don't overlap the query window before iterating days.
+    if (endIso < start || startIso > end) { continue }
     const startOrd = isoToOrdinalDays(startIso)
-    for (let i = 0; i < 7; i++) {
-      const seconds = r[dayCols[i]!] as number
-      if (seconds <= 0) { continue }
-      const dayIso = ordinalDaysToIso(startOrd + i)
-      if (dayIso >= start && dayIso <= end) { total += seconds }
+    const endOrd = isoToOrdinalDays(endIso)
+    // Day-of-week of the row's start_date, mapped to the Mon=0..Sun=6 column index.
+    let weekday = (new Date(startOrd * 86_400_000).getUTCDay() + 6) % 7
+    for (let ord = startOrd; ord <= endOrd; ord++) {
+      const seconds = r[dayCols[weekday]!] as number
+      if (seconds > 0) {
+        const dayIso = ordinalDaysToIso(ord)
+        if (dayIso >= start && dayIso <= end) { total += seconds }
+      }
+      weekday = (weekday + 1) % 7
     }
   }
   return total

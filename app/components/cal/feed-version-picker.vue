@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
-import { addDays, subDays } from 'date-fns'
+import { addDays, differenceInDays, subDays } from 'date-fns'
 import CalFeedVersionList from '~/components/cal/feed-version-list.vue'
 import CalFeedVersionTimelineLegend from '~/components/cal/feed-version-timeline-legend.vue'
 import {
@@ -47,13 +47,15 @@ import {
   parseFvids,
   serializeFvids,
   HIDDEN_FEED_ONESTOP_IDS,
+  DEPRIORITIZED_FEED_ONESTOP_IDS,
   type FeedWithVersions,
 } from '~~/src/tl'
 import { convertBbox, type Bbox } from '~~/src/core'
 import { useToastNotification } from '#imports'
 
-// Pad the analysis window so FVs that almost-cover still render.
-const DOMAIN_BUFFER_DAYS = 7
+// Pad the analysis window so FVs that almost-cover still render. Scales with
+// the window length so a multi-month query gets context on each side.
+const MIN_BUFFER_DAYS = 7
 
 const props = withDefaults(defineProps<{
   bbox: Bbox
@@ -74,8 +76,12 @@ const emit = defineEmits<{
 
 const bboxValid = computed(() => !!props.bbox?.valid)
 
-const domainStart = computed(() => subDays(props.analysisStart, DOMAIN_BUFFER_DAYS))
-const domainEnd = computed(() => addDays(props.analysisEnd, DOMAIN_BUFFER_DAYS))
+const bufferDays = computed(() => Math.max(
+  MIN_BUFFER_DAYS,
+  differenceInDays(props.analysisEnd, props.analysisStart)
+))
+const domainStart = computed(() => subDays(props.analysisStart, bufferDays.value))
+const domainEnd = computed(() => addDays(props.analysisEnd, bufferDays.value))
 
 const parsed = computed(() => parseFvids(props.modelValue))
 const explicitPicks = computed<Map<string, number>>(() => parsed.value.picks)
@@ -146,7 +152,7 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const sortStart = domainIso(props.analysisStart)
   const sortEnd = domainIso(props.analysisEnd)
 
-  const decorated: { feed: FeedWithVersions, sortKey: number }[] = []
+  const decorated: { feed: FeedWithVersions, sortKey: number, demoted: boolean }[] = []
   for (const f of feeds.value) {
     if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
     const activeId = f.feed_state?.feed_version?.id ?? null
@@ -159,9 +165,16 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
       const s = feedVersionServiceSecondsInRange(fv.service_levels, sortStart, sortEnd)
       if (s > sortKey) { sortKey = s }
     }
-    decorated.push({ feed: { ...f, feed_versions: kept }, sortKey })
+    decorated.push({
+      feed: { ...f, feed_versions: kept },
+      sortKey,
+      demoted: DEPRIORITIZED_FEED_ONESTOP_IDS.has(f.onestop_id),
+    })
   }
-  decorated.sort((a, b) => b.sortKey - a.sortKey)
+  decorated.sort((a, b) => {
+    if (a.demoted !== b.demoted) { return a.demoted ? 1 : -1 }
+    return b.sortKey - a.sortKey
+  })
   return decorated.map(d => d.feed)
 })
 
