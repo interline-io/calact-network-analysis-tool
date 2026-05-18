@@ -246,9 +246,13 @@ function stopNowTicker () {
     nowTimer = null
   }
 }
-onMounted(() => {
-  start()
-  if (!terminal.value) {
+// Await start() so the synchronous terminal check below sees the real
+// post-bootstrap state — otherwise a deep-link to an already-terminal job
+// starts the ticker before the fetch resolves and never stops it (watchJob
+// is not wired for terminal-at-mount, so onState never fires).
+onMounted(async () => {
+  await start()
+  if (status.value && !terminal.value) {
     nowTimer = setInterval(() => { now.value = new Date() }, 1000)
   }
 })
