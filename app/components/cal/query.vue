@@ -214,11 +214,13 @@
           </cat-field>
 
           <!-- Feed Versions Section -->
-          <cat-field label="Feed versions">
-            <p>
-              By default the analysis uses each feed's currently-active feed version. Override that here to
-              pin specific versions or exclude individual feeds.
-            </p>
+          <cat-field>
+            <template #label>
+              <cat-tooltip text="By default the analysis uses each feed's currently-active feed version. Override that here to pin specific versions or exclude individual feeds.">
+                Feed versions
+                <cat-icon icon="information" />
+              </cat-tooltip>
+            </template>
             <div class="cal-query-fv-actions">
               <cat-button @click="showFvPicker = true">
                 Pick feed versions

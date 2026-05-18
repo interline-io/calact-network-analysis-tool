@@ -346,6 +346,21 @@ export function serializeFvids (parsed: ParsedFvids): string {
 
 export type FeedVersionImportStatus = 'not_imported' | 'in_progress' | 'imported' | 'error'
 
+// Transient state for a feed-version-import/unimport job submitted in the
+// current session — picker watches and propagates this down to the row so
+// the UI tracks progress without a graphql refetch. `state` is the
+// river/jobs API state string (queued, running, succeeded, failed,
+// cancelled, ...). `kind` decides what a succeeded job means for the badge.
+export type FeedVersionPendingJobKind = 'import' | 'unimport'
+export interface FeedVersionPendingJob {
+  jobId: string
+  state: string
+  kind: FeedVersionPendingJobKind
+  // Populated on terminal failure so the button can show a tooltip without
+  // a separate JobGet round-trip.
+  errorMessage?: string
+}
+
 // Reduce the gtfs_import row plus any in-flight job into a single badge state.
 // `scheduleRemoved` is intentionally not surfaced — legacy state per project lead.
 export function feedVersionImportStatus (
@@ -357,4 +372,20 @@ export function feedVersionImportStatus (
   if (gtfs.in_progress) { return 'in_progress' }
   if (gtfs.success) { return 'imported' }
   return 'error'
+}
+
+// A live pendingJob overrides the GraphQL-derived state so the UI tracks job
+// progress without a refetch. `cancelled` falls through since nothing landed.
+export function effectiveImportStatus (
+  fv: FeedVersionDetail,
+  pendingJob?: FeedVersionPendingJob | null
+): FeedVersionImportStatus {
+  if (pendingJob) {
+    if (pendingJob.state === 'succeeded') {
+      return pendingJob.kind === 'unimport' ? 'not_imported' : 'imported'
+    }
+    if (pendingJob.state === 'failed') { return 'error' }
+    if (pendingJob.state !== 'cancelled') { return 'in_progress' }
+  }
+  return feedVersionImportStatus(fv.feed_version_gtfs_import, false)
 }

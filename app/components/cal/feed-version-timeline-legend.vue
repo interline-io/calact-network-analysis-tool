@@ -1,10 +1,6 @@
 <template>
   <div class="cal-fv-legend" role="group" aria-label="Timeline legend">
     <div class="cal-fv-legend-item">
-      <span class="swatch swatch-coverage" />
-      <span>Feed version coverage</span>
-    </div>
-    <div class="cal-fv-legend-item">
       <span class="swatch swatch-service-low" />
       <span class="swatch swatch-service-mid" />
       <span class="swatch swatch-service-high" />
@@ -53,10 +49,6 @@
   height: 14px;
   border-radius: 2px;
   vertical-align: middle;
-}
-.swatch-coverage {
-  background: rgba(29, 111, 184, 0.06);
-  border: 1px solid rgba(29, 111, 184, 0.4);
 }
 .swatch-service-low  { background: rgba(29, 111, 184, 0.2); }
 .swatch-service-mid  { background: rgba(29, 111, 184, 0.6); }
