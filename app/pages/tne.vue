@@ -226,6 +226,7 @@ import {
   geographyLayerQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
+  parseFvids,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -276,6 +277,7 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  fvids,
 } = useScenarioInputs()
 const {
   startTime,
@@ -890,6 +892,18 @@ function onSelectGeographyFromDetails (geoid: string) {
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
 
+const fvidsParsed = computed(() => parseFvids(fvids.value))
+
+// Map/Set don't survive the BFF JSON boundary — emit Record/array instead.
+const fvidsForConfig = computed(() => {
+  const picks = fvidsParsed.value.picks
+  const excluded = fvidsParsed.value.excluded
+  return {
+    feedVersionOverrides: picks.size > 0 ? Object.fromEntries(picks) : undefined,
+    excludedFeeds: excluded.size > 0 ? [...excluded] : undefined,
+  }
+})
+
 // Computed properties for config and filter to avoid duplication
 const scenarioConfig = computed((): ScenarioConfig => ({
   geoDatasetName: geoDatasetName.value,
@@ -903,6 +917,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
+  // Feed version picks from the Query-tab picker modal (URL-backed).
+  feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
+  excludedFeeds: fvidsForConfig.value.excludedFeeds,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1023,6 +1040,12 @@ const fetchScenario = async (loadExample: string) => {
       // Update progress for modal
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+
+      if (progress.warnings && progress.warnings.length > 0) {
+        for (const msg of progress.warnings) {
+          useToastNotification().showToast(msg)
+        }
+      }
 
       // Apply filters to partial data and emit (without schedule-dependent features)
       // Skip if no route/stop/flex data in this progress update

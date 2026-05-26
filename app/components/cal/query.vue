@@ -212,6 +212,25 @@
               </option>
             </cat-select>
           </cat-field>
+
+          <!-- Feed Versions Section -->
+          <cat-field>
+            <template #label>
+              <cat-tooltip text="By default the analysis uses each feed's currently-active feed version. Override that here to pin specific versions or exclude individual feeds.">
+                Feed versions
+                <cat-icon icon="information" />
+              </cat-tooltip>
+            </template>
+            <div class="cal-query-fv-actions">
+              <cat-button @click="showFvPicker = true">
+                Pick feed versions
+                <span v-if="fvOverrideCount > 0" class="cal-query-fv-badge">{{ fvOverrideCount }}</span>
+              </cat-button>
+              <cat-button v-if="fvOverrideCount > 0" variant="light" @click="fvids = ''">
+                Clear
+              </cat-button>
+            </div>
+          </cat-field>
         </div>
       </cat-msg>
 
@@ -239,16 +258,25 @@
         </cat-button>
       </div>
     </div>
+
+    <cal-feed-version-picker-modal
+      v-model:open="showFvPicker"
+      v-model="fvids"
+      :bbox="bbox"
+      :analysis-start="startDate"
+      :analysis-end="endDate"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Point } from '~~/src/core'
 import { cannedBboxes, geomSources, normalizeDate, PANEL_PADDING, QUERY_PANEL_WIDTH } from '~~/src/core'
-import { type CensusDataset, type CensusGeography, geographySearchQuery } from '~~/src/tl'
+import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFvids } from '~~/src/tl'
+import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
 
 const emit = defineEmits([
   'fitToGeographies',
@@ -287,7 +315,14 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  fvids,
 } = useScenarioInputs()
+
+const showFvPicker = ref(false)
+const fvOverrideCount = computed(() => {
+  const parsed = parseFvids(fvids.value)
+  return parsed.picks.size + parsed.excluded.size
+})
 const { aggregateLayer } = useScenarioDisplay()
 const debugMenu = useDebugMenu()
 const geomSearch = ref('')
@@ -488,6 +523,26 @@ const validQueryParams = computed(() => {
     :deep(.control) {
       flex-grow: 1;
     }
+  }
+
+  .cal-query-fv-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .cal-query-fv-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    margin-left: 6px;
+    background: #1d6fb8;
+    color: #fff;
+    font-size: 0.75rem;
+    border-radius: 9px;
   }
 
   .cal-bbox-info {

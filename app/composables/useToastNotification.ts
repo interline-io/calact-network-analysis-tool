@@ -15,12 +15,14 @@ export const useToastNotification = () => {
     if (!container) {
       container = document.createElement('div')
       container.id = 'toast-container'
+      // z-index must exceed `.cat-modal { z-index: 99999 !important }` in
+      // app/assets/main.scss so toasts surface above an open modal.
       container.style.cssText = `
         position: fixed;
         bottom: 1rem;
         left: 50%;
         transform: translateX(-50%);
-        z-index: 9999;
+        z-index: 1000000;
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
