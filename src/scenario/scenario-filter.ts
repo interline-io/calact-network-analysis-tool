@@ -72,7 +72,8 @@ import type {
   StopVisitCounts,
   StopVisitSummary,
   FlexAreaFeature,
-  RouteDepartureIndex
+  RouteDepartureIndex,
+  TractIntersection,
 } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
@@ -509,6 +510,9 @@ export interface ScenarioFilterResult {
   // Passed through from ScenarioData for the aggregation table demographic
   // columns (#302). Keyed by census geography geoid.
   censusGeographies?: Map<string, CensusGeographyData>
+  // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
+  // ran with `stopBufferRadius > 0`.
+  stopBufferTracts?: Map<number, TractIntersection[]>
 }
 
 export function applyScenarioResultFilter (
@@ -670,6 +674,7 @@ export function applyScenarioResultFilter (
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
     censusGeographies: data.censusGeographies,
+    stopBufferTracts: data.stopBufferTracts,
   }
   return result
 }

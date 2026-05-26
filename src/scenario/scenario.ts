@@ -30,6 +30,7 @@ import type { FlexAreaFeature,
   StopTime,
   FlexLocationQueryResponse,
   FlexStopTimesQueryResponse,
+  TractIntersection,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
@@ -45,7 +46,9 @@ import {
   flexLocationQuery,
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
+  fetchStopBufferTracts,
 } from '~~/src/tl'
+import { STOP_BUFFER_TRACT_LAYER } from '~~/src/core'
 import { geographyLayerQuery } from '~~/src/tl/census'
 
 // Constants for progress updates
@@ -152,6 +155,14 @@ export interface ScenarioData {
   tripIdStrings?: Map<number, string>
   // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
+  /**
+   * Per-stop tract intersections + ACS values for the stop statistical
+   * radius buffer (#315). Populated when `stopBufferRadius > 0`. Keyed by
+   * Stop.id (numeric, internal). Each entry's TractIntersection[] is the
+   * union of tracts the stop's buffer touches; consumers apportion via
+   * `apportionBuffer()` from `src/core/census-buffer.ts`.
+   */
+  stopBufferTracts?: Map<number, TractIntersection[]>
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -181,6 +192,10 @@ interface RouteFetchTask {
   ids: number[]
 }
 
+interface StopBufferTask {
+  stopIds: number[]
+}
+
 /**
  * Callback interface for scenario fetching events
  */
@@ -195,7 +210,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-tracts' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -215,6 +230,9 @@ export interface ScenarioProgress {
     // single accumulated map.
     tripIdStrings?: [number, string][]
     censusGeographies?: [string, CensusGeographyData][]
+    // Per-stop buffer tract intersections (#315). Streamed in chunks; the
+    // receiver merges into a single Map<stopId, TractIntersection[]>.
+    stopBufferTracts?: [number, TractIntersection[]][]
   }
   extraData?: any
   config?: any
@@ -503,6 +521,7 @@ export class ScenarioFetcher {
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
   private flexFetchQueue: TaskQueue<FeedVersion>
+  private stopBufferQueue: TaskQueue<StopBufferTask>
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
@@ -555,6 +574,13 @@ export class ScenarioFetcher {
         onError: error => this.callbacks.onError?.(error)
       }
     )
+
+    this.stopBufferQueue = new TaskQueue<StopBufferTask>(
+      this.maxConcurrentRequests,
+      task => this.fetchStopBuffers(task), {
+        onError: error => this.callbacks.onError?.(error)
+      }
+    )
   }
 
   async fetch () {
@@ -594,12 +620,18 @@ export class ScenarioFetcher {
       this.stopFetchQueue.run()
       this.routeFetchQueue.run()
       this.stopDepartureQueue.run()
+      // Pass C (#315): per-stop buffer tracts. Tasks are enqueued from
+      // fetchStops() as each batch of stops returns; the queue runs in
+      // parallel with routes / schedules. Skipped when the buffer is off.
+      this.stopBufferQueue.run()
       await this.stopFetchQueue.wait()
       logMemory('after-stops')
       await this.routeFetchQueue.wait()
       logMemory('after-routes')
       await this.stopDepartureQueue.wait()
       logMemory('after-departures')
+      await this.stopBufferQueue.wait()
+      logMemory('after-stop-buffer')
     } else {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
@@ -771,6 +803,36 @@ export class ScenarioFetcher {
       stopDepartures: [],
       flexAreas: [],
       censusGeographies: entries,
+    })
+  }
+
+  // Pass C (#315): per-stop tract intersections at the configured buffer
+  // radius, with ACS values inline so apportionment is self-contained.
+  // Skipped entirely when the buffer radius is 0 or the ACS dataset isn't
+  // configured (no values to apportion).
+  private async fetchStopBuffers (task: StopBufferTask): Promise<void> {
+    const { tableDatasetName, geoDatasetName } = this.config
+    const radius = this.config.stopBufferRadius ?? 0
+    if (radius <= 0 || !tableDatasetName || task.stopIds.length === 0) {
+      return
+    }
+    const results = await fetchStopBufferTracts({
+      client: this.client,
+      ids: task.stopIds,
+      geoDataset: geoDatasetName,
+      tableDataset: tableDatasetName,
+      tableNames: REQUIRED_ACS_TABLES,
+      layer: STOP_BUFFER_TRACT_LAYER,
+      radius,
+    })
+    const entries: [number, TractIntersection[]][] = results.map(r => [r.stopId, r.tracts])
+    this.updateProgress('stop-buffer-tracts', true, {
+      stops: [],
+      routes: [],
+      feedVersions: [],
+      stopDepartures: [],
+      flexAreas: [],
+      stopBufferTracts: entries,
     })
   }
 
@@ -964,6 +1026,14 @@ export class ScenarioFetcher {
       }
     }
 
+    // Pass C (#315): per-stop buffer tracts. Chunked at the same batch size
+    // as departures so the request payload stays small and bounded.
+    if ((this.config.stopBufferRadius ?? 0) > 0 && stopIds.length > 0) {
+      for (const chunk of chunkArray(stopIds, this.stopTimeBatchSize)) {
+        this.stopBufferQueue.enqueueOne({ stopIds: chunk })
+      }
+    }
+
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
     const lastStopId = stopIds[stopIds.length - 1]
@@ -1098,6 +1168,7 @@ export class ScenarioDataReceiver {
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
+      stopBufferTracts: new Map<number, TractIntersection[]>(),
     }
   }
 
@@ -1154,6 +1225,12 @@ export class ScenarioDataReceiver {
       if (progress.partialData.censusGeographies && this.accumulatedData.censusGeographies) {
         for (const [geoid, data] of progress.partialData.censusGeographies) {
           this.accumulatedData.censusGeographies.set(geoid, data)
+        }
+      }
+
+      if (progress.partialData.stopBufferTracts && this.accumulatedData.stopBufferTracts) {
+        for (const [stopId, tracts] of progress.partialData.stopBufferTracts) {
+          this.accumulatedData.stopBufferTracts.set(stopId, tracts)
         }
       }
     }
