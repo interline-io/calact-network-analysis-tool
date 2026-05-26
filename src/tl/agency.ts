@@ -1,3 +1,6 @@
+import { apportionBuffer } from '~~/src/core'
+import type { TractIntersection } from './stop-buffer'
+
 //////////
 // Agencies
 //////////
@@ -31,12 +34,15 @@ export type AgencyCsv = AgencyGtfs & {
   routes_count: number
   routes_modes: string
   stops_count: number
+  // Apportioned demographic columns merged in when bufferTracts are
+  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
+  [key: string]: string | number | boolean | null | undefined
 }
 
 export type Agency = AgencyGql & AgencyDerived
 
-export function agencyToAgencyCsv (agency: Agency): AgencyCsv {
-  return {
+export function agencyToAgencyCsv (agency: Agency, bufferTracts?: TractIntersection[]): AgencyCsv {
+  const row: AgencyCsv = {
     marked: agency.marked,
     routes_count: agency.routes_count,
     routes_modes: agency.routes_modes,
@@ -51,4 +57,8 @@ export function agencyToAgencyCsv (agency: Agency): AgencyCsv {
     agency_phone: agency.agency_phone,
     agency_timezone: agency.agency_timezone,
   }
+  if (bufferTracts && bufferTracts.length > 0) {
+    Object.assign(row, apportionBuffer(bufferTracts).values)
+  }
+  return row
 }

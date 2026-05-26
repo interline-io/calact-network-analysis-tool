@@ -1,5 +1,12 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames, type CensusGeographyData, deriveCensusRow } from '~~/src/core'
+import {
+  routeTypeNames,
+  type CensusGeographyData,
+  deriveCensusRow,
+  apportionBuffer,
+  tractsForAggregationRow,
+} from '~~/src/core'
+import type { TractIntersection } from './stop-buffer'
 
 //////////
 // Stops
@@ -143,6 +150,9 @@ export type StopCsv = StopGtfs & {
   visit_count_friday_total?: number
   visit_count_saturday_total?: number
   visit_count_sunday_total?: number
+  // Apportioned demographic columns merged in when bufferTracts are
+  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
+  [key: string]: string | number | boolean | null | undefined
 }
 
 interface StopGeoAggregateCsv {
@@ -154,10 +164,20 @@ interface StopGeoAggregateCsv {
   stops_count: number
   agencies_count: number
   visit_count_total?: number
-  // Derived demographic columns merged in when censusValues is provided.
-  // Keyed by CensusColumnDef.id (e.g. total_population, pct_people_of_color).
+  // Fraction of the row's geometry covered by the union of stop statistical
+  // radii (#315 Pass F). Populated only when aggregationBufferTracts is
+  // provided AND the aggregation layer is hierarchical.
+  pct_buffer_coverage?: number | null
+  // Derived demographic columns merged in when censusValues or
+  // aggregationBufferTracts are provided. Keyed by CensusColumnDef.id.
   [key: string]: string | number | null | undefined
 }
+
+// TIGER aggregation layers whose GEOIDs are strict prefixes of tract
+// GEOIDs. Pass F's tract list can roll up cleanly into these layers by
+// FIPS prefix; the others (place / cbsa / csa / uac20 / fta-uac20-nonurban)
+// need geometric containment we don't have yet.
+const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract'])
 
 export type Stop = StopGql & StopDerived
 
@@ -169,8 +189,11 @@ export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
   censusGeographies?: Map<string, CensusGeographyData>,
-  options?: { onlyWithStops?: boolean },
+  options?: { onlyWithStops?: boolean, aggregationBufferTracts?: TractIntersection[] },
 ): StopGeoAggregateCsv[] {
+  const bufferTracts = options?.aggregationBufferTracts
+  const useBuffer = !!(bufferTracts && bufferTracts.length > 0
+    && HIERARCHICAL_TIGER_LAYERS.has(aggregationKey))
   const stopAgg = new Map<string, {
     geoid: string
     layer_name: string
@@ -234,7 +257,15 @@ export function stopGeoAggregateCsv (
       agencies_count: a.agencies_count.size,
       visit_count_total: a.visits_count || 0,
     }
-    if (censusGeographies) {
+    if (useBuffer) {
+      // Pass F-driven apportionment: roll the union-of-stop-buffers tract
+      // list up to this row by FIPS prefix, then apportion. Replaces the
+      // bbox-clipped Pass A semantics for this row.
+      const matched = tractsForAggregationRow(a.geoid, bufferTracts!)
+      const result = apportionBuffer(matched)
+      Object.assign(row, result.values)
+      row.pct_buffer_coverage = result.pctCoverage
+    } else if (censusGeographies) {
       const geo = censusGeographies.get(a.geoid)
       if (geo) {
         Object.assign(row, deriveCensusRow(geo.values))
@@ -245,7 +276,7 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop): StopCsv {
+export function stopToStopCsv (stop: Stop, bufferTracts?: TractIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
@@ -257,7 +288,7 @@ export function stopToStopCsv (stop: Stop): StopCsv {
       modes.add(mode)
     }
   }
-  return {
+  const row: StopCsv = {
     // GTFS properties
     id: stop.id,
     stop_lon: stop.geometry.coordinates[0] || undefined,
@@ -286,4 +317,8 @@ export function stopToStopCsv (stop: Stop): StopCsv {
     visit_count_saturday_total: stop.visits?.saturday?.visit_count,
     visit_count_sunday_total: stop.visits?.sunday?.visit_count,
   }
+  if (bufferTracts && bufferTracts.length > 0) {
+    Object.assign(row, apportionBuffer(bufferTracts).values)
+  }
+  return row
 }

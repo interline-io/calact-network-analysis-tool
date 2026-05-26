@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
-import { formatGtfsTimeFull } from '../core'
+import { formatGtfsTimeFull, apportionBuffer } from '../core'
+import type { TractIntersection } from './stop-buffer'
 
 //////////
 // Routes
@@ -109,6 +110,9 @@ export type RouteCsv = RouteGtfs & {
   earliest_trip_end_time?: string
   latest_trip_start_time?: string
   latest_trip_end_time?: string
+  // Apportioned demographic columns merged in when bufferTracts are
+  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
+  [key: string]: string | number | boolean | null | undefined
 }
 
 export type Route = RouteGql & RouteDerived
@@ -117,8 +121,8 @@ export type Route = RouteGql & RouteDerived
 // Route csv
 ////////////////////
 
-export function routeToRouteCsv (route: Route): RouteCsv {
-  return {
+export function routeToRouteCsv (route: Route, bufferTracts?: TractIntersection[]): RouteCsv {
+  const row: RouteCsv = {
     id: route.id,
     marked: route.marked,
     average_frequency: route.average_frequency ? Math.round(route.average_frequency) : undefined,
@@ -150,4 +154,8 @@ export function routeToRouteCsv (route: Route): RouteCsv {
     continuous_drop_off: route.continuous_drop_off,
     continuous_pickup: route.continuous_pickup,
   }
+  if (bufferTracts && bufferTracts.length > 0) {
+    Object.assign(row, apportionBuffer(bufferTracts).values)
+  }
+  return row
 }

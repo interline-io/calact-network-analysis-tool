@@ -177,7 +177,7 @@ const props = defineProps<{
 }>()
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
-const { startDate, endDate, fixedRouteEnabled } = useScenarioInputs()
+const { startDate, endDate, fixedRouteEnabled, stopBufferRadius } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
@@ -254,7 +254,7 @@ watch(dataDisplayMode, (mode) => {
 const routeColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const timeScope = allDay ? 'across all service days' : 'across all service days and times'
-  return [
+  const cols: TableColumn[] = [
     { key: 'route_id', label: 'Route ID', sortable: true },
     { key: 'route_name', label: 'Route Name', sortable: true },
     { key: 'route_mode', label: 'Mode', sortable: true },
@@ -317,12 +317,16 @@ const routeColumns = computed((): TableColumn[] => {
       tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
   ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
 })
 
 const stopColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
-  return [
+  const cols: TableColumn[] = [
     { key: 'stop_id', label: 'Stop ID', sortable: true },
     { key: 'stop_name', label: 'Stop Name', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
@@ -345,19 +349,40 @@ const stopColumns = computed((): TableColumn[] => {
       tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
 })
 
-const censusColumns: TableColumn[] = CENSUS_COLUMNS.map(c => ({
-  key: c.id,
-  label: c.label,
-  sortable: true,
-  format: c.format,
-}))
+function buildCensusColumns (apportioned: boolean): TableColumn[] {
+  const tooltip = apportioned
+    ? 'Apportioned to the area within the stop statistical radius. Median values are not apportioned and render as "—".'
+    : undefined
+  return CENSUS_COLUMNS.map(c => ({
+    key: c.id,
+    label: c.label,
+    sortable: true,
+    format: c.format,
+    tooltip,
+  }))
+}
+
+// Pass F-driven apportionment is hierarchical-only: tract / county / state
+// are FIPS-prefixed and can be rolled up cleanly from tract data. Other
+// layers (place / cbsa / etc.) fall back to Pass A semantics.
+const HIERARCHICAL_AGG_LAYERS = new Set(['state', 'county', 'tract'])
+
+const bufferAggregationActive = computed(() => {
+  return stopBufferRadius.value > 0
+    && HIERARCHICAL_AGG_LAYERS.has(aggregateLayer.value)
+    && (props.scenarioFilterResult?.aggregationBufferTracts?.length ?? 0) > 0
+})
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
-  return [
+  const cols: TableColumn[] = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
@@ -379,16 +404,32 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       sortable: true,
       tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
-    ...censusColumns,
+    ...buildCensusColumns(bufferAggregationActive.value),
   ]
+  if (bufferAggregationActive.value) {
+    cols.push({
+      key: 'pct_buffer_coverage',
+      label: '% Area within Stop Radius',
+      sortable: true,
+      format: 'percent',
+      tooltip: 'Percentage of this area covered by the union of stop statistical radii. Demographic columns are apportioned to that covered portion.',
+    })
+  }
+  return cols
 })
-const agencyColumns: TableColumn[] = [
-  { key: 'agency_id', label: 'Agency ID', sortable: true },
-  { key: 'agency_name', label: 'Agency Name', sortable: true },
-  { key: 'routes_count', label: 'Number of Routes', sortable: true },
-  { key: 'routes_modes', label: 'Modes', sortable: true },
-  { key: 'stops_count', label: 'Number of Stops', sortable: true },
-]
+const agencyColumns = computed((): TableColumn[] => {
+  const cols: TableColumn[] = [
+    { key: 'agency_id', label: 'Agency ID', sortable: true },
+    { key: 'agency_name', label: 'Agency Name', sortable: true },
+    { key: 'routes_count', label: 'Number of Routes', sortable: true },
+    { key: 'routes_modes', label: 'Modes', sortable: true },
+    { key: 'stops_count', label: 'Number of Stops', sortable: true },
+  ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
+})
 
 const flexAreaColumns: TableColumn[] = [
   { key: 'location_name', label: 'Location Name', sortable: true },
@@ -457,30 +498,44 @@ const geoReportData = computed((): TableReport => {
       (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
       aggregateLayer.value,
       props.scenarioFilterResult?.censusGeographies,
-      { onlyWithStops: onlyWithStops.value },
+      {
+        onlyWithStops: onlyWithStops.value,
+        aggregationBufferTracts: bufferAggregationActive.value
+          ? props.scenarioFilterResult?.aggregationBufferTracts
+          : undefined,
+      },
     ),
     columns: stopGeoAggregateColumns.value
   }
 })
 
 const routesReportData = computed((): TableReport => {
+  const routeBufferTracts = props.scenarioFilterResult?.routeBufferTracts
   return {
-    data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
+    data: (props.scenarioFilterResult?.routes || [])
+      .filter(s => s.marked)
+      .map(r => routeToRouteCsv(r, routeBufferTracts?.get(r.id))),
     columns: routeColumns.value
   }
 })
 
 const stopsReportData = computed((): TableReport => {
+  const stopBufferTracts = props.scenarioFilterResult?.stopBufferTracts
   return {
-    data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
+    data: (props.scenarioFilterResult?.stops || [])
+      .filter(s => s.marked)
+      .map(s => stopToStopCsv(s, stopBufferTracts?.get(s.id))),
     columns: stopColumns.value
   }
 })
 
 const agenciesReportData = computed((): TableReport => {
+  const agencyBufferTracts = props.scenarioFilterResult?.agencyBufferTracts
   return {
-    data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
-    columns: agencyColumns
+    data: (props.scenarioFilterResult?.agencies || [])
+      .filter(s => s.marked)
+      .map(a => agencyToAgencyCsv(a, agencyBufferTracts?.get(a.id))),
+    columns: agencyColumns.value
   }
 })
 

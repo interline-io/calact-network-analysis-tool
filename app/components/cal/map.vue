@@ -828,6 +828,8 @@ const exportFeatures = computed((): Feature[] => {
   const bgOpacity = 0.4
   const styleRules = styleData.value || []
   const forExport: Feature[] = []
+  const routeBufferTracts = props.scenarioFilterResult?.routeBufferTracts
+  const stopBufferTracts = props.scenarioFilterResult?.stopBufferTracts
 
   // Gather routes
   for (const rp of props.scenarioFilterResult?.routes || []) {
@@ -849,7 +851,7 @@ const exportFeatures = computed((): Feature[] => {
         'agency_id': rp.agency?.agency_id
       }
     }
-    Object.assign(feature.properties, routeToRouteCsv(rp))
+    Object.assign(feature.properties, routeToRouteCsv(rp, routeBufferTracts?.get(rp.id)))
     forExport.push(feature)
   }
 
@@ -871,7 +873,7 @@ const exportFeatures = computed((): Feature[] => {
         'marker-opacity': sp.marked ? 1 : bgOpacity
       }
     }
-    Object.assign(feature.properties, stopToStopCsv(sp))
+    Object.assign(feature.properties, stopToStopCsv(sp, stopBufferTracts?.get(sp.id)))
     forExport.push(feature)
   }
 
