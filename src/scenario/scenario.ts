@@ -19,6 +19,7 @@ import {
   fetchCensusIntersection,
   REQUIRED_ACS_TABLES,
   type CensusGeographyData,
+  padBboxMeters,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -90,6 +91,14 @@ export interface ScenarioConfig {
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
   excludedFeeds?: string[]
+  /**
+   * Stop statistical radius in meters (issue #315). When > 0, the pipeline
+   * fetches per-stop / per-route / per-agency / aggregation-union census
+   * intersections at the tract layer in addition to the bbox-clipped Pass A,
+   * powering apportioned demographic columns in the report tables. 0
+   * disables — Pass A retains today's bbox-only semantics.
+   */
+  stopBufferRadius?: number
 }
 
 export interface ScenarioFilter {
@@ -711,6 +720,12 @@ export class ScenarioFetcher {
   }
 
   // Skipped when the caller didn't set an ACS dataset or aggregation layer.
+  // Single-layer fetch (the active `aggregateLayer`). When
+  // `stopBufferRadius > 0`, the bbox is padded by the radius so that buffers
+  // crossing the edge still see the tracts they overlap. Buffer-specific
+  // tract values (#315) come from the per-entity Passes C / D / E / F, which
+  // request `values` inline via the stop_buffer resolver, so this pass is
+  // intentionally kept narrow.
   private async fetchCensusValues (): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
@@ -722,14 +737,18 @@ export class ScenarioFetcher {
       return
     }
     this.updateProgress('census-values', true)
-    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
+    const radius = this.config.stopBufferRadius && this.config.stopBufferRadius > 0
+      ? this.config.stopBufferRadius
+      : 0
+    const fetchBbox = radius > 0 ? padBboxMeters(this.resolvedBbox, radius) : this.resolvedBbox
+    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer} (radius padding=${radius}m)`)
     const features = await fetchCensusIntersection({
       client: this.client,
       geoDatasetName,
       geoDatasetLayer: aggregateLayer,
       tableDatasetName,
       tableNames: REQUIRED_ACS_TABLES,
-      bbox: this.resolvedBbox,
+      bbox: fetchBbox,
       within: this.resolvedWithin,
     })
     const entries: [string, CensusGeographyData][] = features.map(f => [
@@ -741,6 +760,7 @@ export class ScenarioFetcher {
         intersectionRatio: f.properties.intersection_ratio,
         geometryArea: f.properties.geometry_area,
         intersectionArea: f.properties.intersection_area,
+        layer: aggregateLayer,
       },
     ])
     console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)

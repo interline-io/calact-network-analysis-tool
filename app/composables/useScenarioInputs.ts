@@ -8,6 +8,7 @@ import {
   parseBbox,
   parseDate,
   SCENARIO_DEFAULTS,
+  STOP_BUFFER_DEFAULT_RADIUS,
   type Bbox,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
@@ -26,6 +27,8 @@ interface ScenarioInputs {
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
+  // Stop statistical radius in meters (issue #315). 0 disables the feature.
+  stopBufferRadius: WritableComputedRef<number>
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -100,6 +103,23 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ fvids: v || undefined }) }
   })
 
+  // Stop statistical radius (meters). Default is on at the quarter-mile
+  // value; users can drag to 0 to disable. URL is omitted when at default
+  // to keep links short.
+  const stopBufferRadius = computed<number>({
+    get: () => {
+      const raw = route.query.stopBufferRadius?.toString()
+      if (raw == null || raw === '') {
+        return STOP_BUFFER_DEFAULT_RADIUS
+      }
+      const n = Number.parseFloat(raw)
+      return Number.isFinite(n) && n >= 0 ? n : STOP_BUFFER_DEFAULT_RADIUS
+    },
+    set: (v) => {
+      setQuery({ stopBufferRadius: v === STOP_BUFFER_DEFAULT_RADIUS ? undefined : String(v) })
+    }
+  })
+
   return {
     bbox,
     cannedBbox,
@@ -113,5 +133,6 @@ export function useScenarioInputs (): ScenarioInputs {
     includeFlexAreas,
     fixedRouteEnabled,
     fvids,
+    stopBufferRadius,
   }
 }

@@ -208,6 +208,38 @@
           </cat-field>
 
           <p class="menu-label">
+            <cat-tooltip text="Apportions census data to the area within this radius of each stop. Used in the Stops, Routes, Agencies, and Aggregation tables. Set to 0 to disable.">
+              Stop statistical radius
+              <cat-icon icon="information" />
+            </cat-tooltip>
+          </p>
+          <cat-field>
+            <div class="level">
+              <div class="level-item">
+                <cat-slider
+                  v-model="stopBufferRadius"
+                  :min="0"
+                  :max="1600"
+                />
+              </div>
+              <div class="level-right">
+                <div class="ml-4 level-item">
+                  <div class="cal-input-width-100">
+                    <cat-input
+                      v-model="stopBufferRadius"
+                      type="number"
+                      min="0"
+                    />
+                  </div>
+                  <div class="ml-2">
+                    m
+                  </div>
+                </div>
+              </div>
+            </div>
+          </cat-field>
+
+          <p class="menu-label">
             Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
             </cat-tooltip>
@@ -647,6 +679,7 @@ const {
   endDate,
   geomSource,
   fixedRouteEnabled,
+  stopBufferRadius,
 } = useScenarioInputs()
 const {
   startTime,

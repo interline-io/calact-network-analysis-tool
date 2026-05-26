@@ -18,6 +18,13 @@ export interface CensusGeographyData {
   geometryArea: number
   /** Intersection (geography ∩ query area) in m². */
   intersectionArea: number
+  /**
+   * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
+   * Optional for backward compatibility with code paths that don't carry it,
+   * but populated by the scenario pipeline so the UI can filter by layer
+   * without parsing GEOID length.
+   */
+  layer?: string
 }
 
 export interface CensusGeographyFeature {

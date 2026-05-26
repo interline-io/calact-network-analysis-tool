@@ -278,6 +278,7 @@ const {
   includeFixedRoute,
   includeFlexAreas,
   fvids,
+  stopBufferRadius,
 } = useScenarioInputs()
 const {
   startTime,
@@ -920,6 +921,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
+  // Per-stop demographic buffer (issue #315). 0 = feature off.
+  stopBufferRadius: stopBufferRadius.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1216,6 +1219,7 @@ async function resetFilters () {
     flexAdvanceNotice: undefined,
     flexAreaTypesSelected: undefined,
     flexColorBy: undefined,
+    stopBufferRadius: undefined,
   })
 }
 

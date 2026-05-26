@@ -252,6 +252,17 @@ export const FILTER_SUB_WIDTH = 400
 export const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING
 export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING
 
+// Stop statistical radius (issue #315). When > 0, demographic columns in the
+// Stops, Routes, Agencies, and Aggregation tables are apportioned from the
+// circular buffer around each stop (or union over a route/agency's stops).
+// 402 m ≈ 1/4 mile, the default agreed in #315; 0 turns the feature off and
+// reverts the aggregation table to bbox-intersection semantics.
+export const STOP_BUFFER_DEFAULT_RADIUS = 402
+
+// Layer at which buffer ↔ census intersections are computed. Tract for now;
+// switching to block-group is a one-line change once transitland-server loads BG.
+export const STOP_BUFFER_TRACT_LAYER = 'tract'
+
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
   'county': { singular: 'County', plural: 'counties' },

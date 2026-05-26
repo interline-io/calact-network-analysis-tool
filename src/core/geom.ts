@@ -100,6 +100,26 @@ export interface MarkerFeature {
   element?: HTMLElement // Optional HTML element for custom marker
 }
 
+// Expand a bbox by `meters` in all four directions. Used when the scenario
+// stop_buffer radius may include census geographies that lie outside the
+// query bbox — we widen the Pass A fetch so the apportionment math has the
+// right ACS rows to draw from. Arithmetic only (per CLAUDE.md geom rules):
+// degrees-per-meter is approximate, biased toward over-padding.
+export function padBboxMeters (bbox: Bbox | undefined, meters: number): Bbox | undefined {
+  if (!bbox || !bbox.valid || meters <= 0) {
+    return bbox
+  }
+  const latDelta = meters / 111320 // 1° latitude ≈ 111.32 km
+  const midLat = (bbox.sw.lat + bbox.ne.lat) / 2
+  const cosLat = Math.cos((midLat * Math.PI) / 180)
+  const lonDelta = cosLat > 0.001 ? meters / (111320 * cosLat) : latDelta
+  return {
+    sw: { lon: bbox.sw.lon - lonDelta, lat: bbox.sw.lat - latDelta },
+    ne: { lon: bbox.ne.lon + lonDelta, lat: bbox.ne.lat + latDelta },
+    valid: true,
+  }
+}
+
 export function convertBbox (bbox?: Bbox): { min_lon?: number, min_lat?: number, max_lon?: number, max_lat?: number } | undefined {
   if (!bbox) { return undefined }
   return {
