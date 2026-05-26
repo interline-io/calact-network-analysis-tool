@@ -513,6 +513,13 @@ export interface ScenarioFilterResult {
   // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
   // ran with `stopBufferRadius > 0`.
   stopBufferTracts?: Map<number, TractIntersection[]>
+  // Pass D (#315): per-route buffer tracts.
+  routeBufferTracts?: Map<number, TractIntersection[]>
+  // Pass E (#315): per-agency buffer tracts.
+  agencyBufferTracts?: Map<number, TractIntersection[]>
+  // Pass F (#315): one-shot union over every stop's buffer at the chosen
+  // radius. Drives the aggregation-table apportioned values.
+  aggregationBufferTracts?: TractIntersection[]
 }
 
 export function applyScenarioResultFilter (
@@ -675,6 +682,9 @@ export function applyScenarioResultFilter (
     tripIdStrings: data.tripIdStrings,
     censusGeographies: data.censusGeographies,
     stopBufferTracts: data.stopBufferTracts,
+    routeBufferTracts: data.routeBufferTracts,
+    agencyBufferTracts: data.agencyBufferTracts,
+    aggregationBufferTracts: data.aggregationBufferTracts,
   }
   return result
 }

@@ -47,6 +47,8 @@ import {
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
   fetchStopBufferTracts,
+  fetchRouteBufferTracts,
+  fetchAgencyBufferTracts,
 } from '~~/src/tl'
 import { STOP_BUFFER_TRACT_LAYER } from '~~/src/core'
 import { geographyLayerQuery } from '~~/src/tl/census'
@@ -55,6 +57,11 @@ import { geographyLayerQuery } from '~~/src/tl/census'
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
+
+// Per-request batch sizes for the route / agency buffer passes (#315 D, E).
+// Smaller than the stop batch because each entity expands to its full stop
+// set server-side, multiplying the cost of a single request.
+const BUFFER_ENTITY_BATCH_SIZE = 50
 
 /**
  * Maximum number of flex locations to fetch per feed version.
@@ -163,6 +170,22 @@ export interface ScenarioData {
    * `apportionBuffer()` from `src/core/census-buffer.ts`.
    */
   stopBufferTracts?: Map<number, TractIntersection[]>
+  /**
+   * Per-route buffer tract intersections (Pass D). Server unions the buffer
+   * over every stop the route touches (full stop set, not bbox-clipped).
+   */
+  routeBufferTracts?: Map<number, TractIntersection[]>
+  /**
+   * Per-agency buffer tract intersections (Pass E). Same union semantics
+   * as routes, but rolled up to the agency's full stop set.
+   */
+  agencyBufferTracts?: Map<number, TractIntersection[]>
+  /**
+   * Single-payload aggregation buffer (Pass F): the union of every stop's
+   * buffer in the scenario, intersected with tracts. Drives the
+   * aggregation-table apportioned values + the `pct_buffer_coverage` column.
+   */
+  aggregationBufferTracts?: TractIntersection[]
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -192,10 +215,6 @@ interface RouteFetchTask {
   ids: number[]
 }
 
-interface StopBufferTask {
-  stopIds: number[]
-}
-
 /**
  * Callback interface for scenario fetching events
  */
@@ -210,7 +229,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-tracts' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-tracts' | 'route-buffer-tracts' | 'agency-buffer-tracts' | 'aggregation-buffer-tracts' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -233,6 +252,15 @@ export interface ScenarioProgress {
     // Per-stop buffer tract intersections (#315). Streamed in chunks; the
     // receiver merges into a single Map<stopId, TractIntersection[]>.
     stopBufferTracts?: [number, TractIntersection[]][]
+    // Per-route buffer tract intersections (#315 Pass D). Server-side
+    // union over each route's stops.
+    routeBufferTracts?: [number, TractIntersection[]][]
+    // Per-agency buffer tract intersections (#315 Pass E). Server-side
+    // union over each agency's stops.
+    agencyBufferTracts?: [number, TractIntersection[]][]
+    // Aggregation-row tract intersections (#315 Pass F): union over all
+    // marked stops at the configured radius. Single payload, not chunked.
+    aggregationBufferTracts?: TractIntersection[]
   }
   extraData?: any
   config?: any
@@ -521,10 +549,16 @@ export class ScenarioFetcher {
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
   private flexFetchQueue: TaskQueue<FeedVersion>
-  private stopBufferQueue: TaskQueue<StopBufferTask>
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
+  // Agency IDs we've already enqueued for the agency-buffer pass (#315 E).
+  // Agencies are not fetched explicitly — we discover them inside route data.
+  private bufferAgencyIds: Set<number> = new Set()
+  // Accumulated stop IDs for the one-shot Pass F union (#315 F). Populated
+  // alongside the per-stop buffer queue so we don't need to walk receiver
+  // state at the end of the fetch.
+  private bufferStopIds: number[] = []
   private feedVersions: FeedVersion[] = []
   // Drained on the next updateProgress() so non-fatal stage warnings ride the
   // existing progress channel without a new transport.
@@ -574,13 +608,6 @@ export class ScenarioFetcher {
         onError: error => this.callbacks.onError?.(error)
       }
     )
-
-    this.stopBufferQueue = new TaskQueue<StopBufferTask>(
-      this.maxConcurrentRequests,
-      task => this.fetchStopBuffers(task), {
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
   }
 
   async fetch () {
@@ -620,18 +647,17 @@ export class ScenarioFetcher {
       this.stopFetchQueue.run()
       this.routeFetchQueue.run()
       this.stopDepartureQueue.run()
-      // Pass C (#315): per-stop buffer tracts. Tasks are enqueued from
-      // fetchStops() as each batch of stops returns; the queue runs in
-      // parallel with routes / schedules. Skipped when the buffer is off.
-      this.stopBufferQueue.run()
       await this.stopFetchQueue.wait()
       logMemory('after-stops')
       await this.routeFetchQueue.wait()
       logMemory('after-routes')
       await this.stopDepartureQueue.wait()
       logMemory('after-departures')
-      await this.stopBufferQueue.wait()
-      logMemory('after-stop-buffer')
+      // Buffer passes (#315) run after stops + routes are known. Serial,
+      // batched — concurrency adds complexity for marginal speedup at the
+      // entity counts we see; revisit if a scenario ever feels slow here.
+      await this.fetchBufferData()
+      logMemory('after-buffer-passes')
     } else {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
@@ -806,34 +832,100 @@ export class ScenarioFetcher {
     })
   }
 
-  // Pass C (#315): per-stop tract intersections at the configured buffer
-  // radius, with ACS values inline so apportionment is self-contained.
-  // Skipped entirely when the buffer radius is 0 or the ACS dataset isn't
-  // configured (no values to apportion).
-  private async fetchStopBuffers (task: StopBufferTask): Promise<void> {
+  // Runs Passes C / D / E / F (#315) in sequence after stops + routes are
+  // fully fetched. No concurrency: entity counts are small enough that
+  // batched serial requests are fine, and serializing keeps the code
+  // straightforward. Each batch streams partial progress so the UI can
+  // render incrementally.
+  private async fetchBufferData (): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
-    if (radius <= 0 || !tableDatasetName || task.stopIds.length === 0) {
+    if (radius <= 0 || !tableDatasetName) {
       return
     }
-    const results = await fetchStopBufferTracts({
-      client: this.client,
-      ids: task.stopIds,
-      geoDataset: geoDatasetName,
-      tableDataset: tableDatasetName,
-      tableNames: REQUIRED_ACS_TABLES,
-      layer: STOP_BUFFER_TRACT_LAYER,
-      radius,
-    })
-    const entries: [number, TractIntersection[]][] = results.map(r => [r.stopId, r.tracts])
-    this.updateProgress('stop-buffer-tracts', true, {
-      stops: [],
-      routes: [],
-      feedVersions: [],
-      stopDepartures: [],
-      flexAreas: [],
-      stopBufferTracts: entries,
-    })
+
+    // Pass C — per-stop. Largest of the four; chunked at the stop-time
+    // batch size so the request payload stays small.
+    const stopIds = this.bufferStopIds
+    for (const chunk of chunkArray(stopIds, this.stopTimeBatchSize)) {
+      const results = await fetchStopBufferTracts({
+        client: this.client,
+        ids: chunk,
+        geoDataset: geoDatasetName,
+        tableDataset: tableDatasetName,
+        tableNames: REQUIRED_ACS_TABLES,
+        layer: STOP_BUFFER_TRACT_LAYER,
+        radius,
+      })
+      this.updateProgress('stop-buffer-tracts', true, {
+        stops: [], routes: [], feedVersions: [], stopDepartures: [], flexAreas: [],
+        stopBufferTracts: results.map(r => [r.stopId, r.tracts]),
+      })
+    }
+
+    // Pass D — per-route. Server unions each route's stop set.
+    const routeIds = [...this.fetchedRouteIds]
+    for (const chunk of chunkArray(routeIds, BUFFER_ENTITY_BATCH_SIZE)) {
+      const results = await fetchRouteBufferTracts({
+        client: this.client,
+        ids: chunk,
+        geoDataset: geoDatasetName,
+        tableDataset: tableDatasetName,
+        tableNames: REQUIRED_ACS_TABLES,
+        layer: STOP_BUFFER_TRACT_LAYER,
+        radius,
+      })
+      this.updateProgress('route-buffer-tracts', true, {
+        stops: [], routes: [], feedVersions: [], stopDepartures: [], flexAreas: [],
+        routeBufferTracts: results.map(r => [r.routeId, r.tracts]),
+      })
+    }
+
+    // Pass E — per-agency.
+    const agencyIds = [...this.bufferAgencyIds]
+    for (const chunk of chunkArray(agencyIds, BUFFER_ENTITY_BATCH_SIZE)) {
+      const results = await fetchAgencyBufferTracts({
+        client: this.client,
+        ids: chunk,
+        geoDataset: geoDatasetName,
+        tableDataset: tableDatasetName,
+        tableNames: REQUIRED_ACS_TABLES,
+        layer: STOP_BUFFER_TRACT_LAYER,
+        radius,
+      })
+      this.updateProgress('agency-buffer-tracts', true, {
+        stops: [], routes: [], feedVersions: [], stopDepartures: [], flexAreas: [],
+        agencyBufferTracts: results.map(r => [r.agencyId, r.tracts]),
+      })
+    }
+
+    // Pass F — single top-level query unioning every stop's buffer; powers
+    // the aggregation-table apportioned values + `pct_buffer_coverage`.
+    if (stopIds.length > 0) {
+      const features = await fetchCensusIntersection({
+        client: this.client,
+        geoDatasetName,
+        geoDatasetLayer: STOP_BUFFER_TRACT_LAYER,
+        tableDatasetName,
+        tableNames: REQUIRED_ACS_TABLES,
+        stopIds,
+        stopBufferRadius: radius,
+      })
+      const tracts: TractIntersection[] = features
+        .filter(f => (f.properties.geometry_area ?? 0) > 0)
+        .map(f => ({
+          geoid: f.properties.geoid,
+          layer: f.properties.layer_name || STOP_BUFFER_TRACT_LAYER,
+          geometryArea: f.properties.geometry_area,
+          intersectionArea: f.properties.intersection_area,
+          values: f.properties.values,
+        }))
+      console.log(`[AggregationBuffer] union over ${stopIds.length} stops → ${tracts.length} tracts`)
+      this.updateProgress('aggregation-buffer-tracts', true, {
+        stops: [], routes: [], feedVersions: [], stopDepartures: [], flexAreas: [],
+        aggregationBufferTracts: tracts,
+      })
+    }
   }
 
   // Fetch active feed versions in the specified area
@@ -1026,12 +1118,9 @@ export class ScenarioFetcher {
       }
     }
 
-    // Pass C (#315): per-stop buffer tracts. Chunked at the same batch size
-    // as departures so the request payload stays small and bounded.
+    // Accumulate stop IDs for #315 buffer passes (run later in fetchBufferData).
     if ((this.config.stopBufferRadius ?? 0) > 0 && stopIds.length > 0) {
-      for (const chunk of chunkArray(stopIds, this.stopTimeBatchSize)) {
-        this.stopBufferQueue.enqueueOne({ stopIds: chunk })
-      }
+      this.bufferStopIds.push(...stopIds)
     }
 
     // Continue fetching more stops only if we got a full batch
@@ -1060,6 +1149,17 @@ export class ScenarioFetcher {
     // Send progress updates in batches using the generic helper function
     for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
       this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [], flexAreas: [] })
+    }
+
+    // Accumulate agency IDs for the #315 buffer passes; routes are already
+    // collected via `fetchedRouteIds`.
+    if ((this.config.stopBufferRadius ?? 0) > 0) {
+      for (const r of routeData) {
+        const aid = r.agency?.id
+        if (aid != null) {
+          this.bufferAgencyIds.add(aid)
+        }
+      }
     }
 
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
@@ -1169,6 +1269,9 @@ export class ScenarioDataReceiver {
       tripIdStrings: new Map<number, string>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
       stopBufferTracts: new Map<number, TractIntersection[]>(),
+      routeBufferTracts: new Map<number, TractIntersection[]>(),
+      agencyBufferTracts: new Map<number, TractIntersection[]>(),
+      aggregationBufferTracts: [],
     }
   }
 
@@ -1232,6 +1335,22 @@ export class ScenarioDataReceiver {
         for (const [stopId, tracts] of progress.partialData.stopBufferTracts) {
           this.accumulatedData.stopBufferTracts.set(stopId, tracts)
         }
+      }
+
+      if (progress.partialData.routeBufferTracts && this.accumulatedData.routeBufferTracts) {
+        for (const [routeId, tracts] of progress.partialData.routeBufferTracts) {
+          this.accumulatedData.routeBufferTracts.set(routeId, tracts)
+        }
+      }
+
+      if (progress.partialData.agencyBufferTracts && this.accumulatedData.agencyBufferTracts) {
+        for (const [agencyId, tracts] of progress.partialData.agencyBufferTracts) {
+          this.accumulatedData.agencyBufferTracts.set(agencyId, tracts)
+        }
+      }
+
+      if (progress.partialData.aggregationBufferTracts && this.accumulatedData.aggregationBufferTracts) {
+        this.accumulatedData.aggregationBufferTracts.push(...progress.partialData.aggregationBufferTracts)
       }
     }
 
