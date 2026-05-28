@@ -176,7 +176,11 @@
           {{ formatGtfsTime(value) }}
         </button>
       </template>
-      <template #column-total_population="{ value, row }">
+      <template
+        v-for="col of CENSUS_COLUMNS"
+        :key="col.id"
+        #[`column-${col.id}`]="{ value, row }"
+      >
         <button
           v-if="drillableBufferTab && value != null && row.id != null"
           type="button"
@@ -184,10 +188,10 @@
           :title="`View per-geography derivation for this ${drillableBufferTab}`"
           @click="handleOpenBufferDetails(row)"
         >
-          {{ formatCensusValue(toFiniteNumber(value), 'integer') }}
+          {{ formatCensusValue(toFiniteNumber(value), col.format) }}
         </button>
-        <span v-else-if="value != null">
-          {{ formatCensusValue(toFiniteNumber(value), 'integer') }}
+        <span v-else>
+          {{ formatCensusValue(toFiniteNumber(value), col.format) }}
         </span>
       </template>
     </cal-datagrid>

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { gql } from 'graphql-tag'
 import { apiFetch, BasicGraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
-import { runBufferPasses, type ScenarioProgress } from './scenario'
+import { runBufferPasses } from './buffer-passes'
+import type { ScenarioProgress } from './scenario'
 
 // Integration tests for the buffer-only fetch path (#315 Passes C/D/E/F).
 // Hits a live transitland-server connected to the test DB. Gate is opt-in so
