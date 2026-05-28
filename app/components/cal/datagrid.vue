@@ -24,16 +24,63 @@
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <thead>
           <tr>
-            <th v-for="column in tableReport.columns" :key="column.key">
-              <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
-                {{ column.label }}
-                <cat-icon icon="information" size="small" />
-              </cat-tooltip>
-              <span v-else>{{ column.label }}</span>
+            <th
+              v-for="column in tableReport.columns"
+              :key="column.key"
+              :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
+              @click="cycleSort(column)"
+            >
+              <span class="th-content">
+                <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
+                  {{ column.label }}
+                  <cat-icon icon="information" size="small" />
+                </cat-tooltip>
+                <span v-else>{{ column.label }}</span>
+                <!-- Sort indicator slot. Always rendered for sortable
+                     columns so adding/removing the active chevron doesn't
+                     change column width. Inactive state uses a hidden
+                     chevron-up as a width spacer. -->
+                <span v-if="column.sortable" class="cal-datagrid-sort-icon">
+                  <cat-icon
+                    v-if="sortKey === column.key && sortDir === 'asc'"
+                    icon="chevron-up"
+                    size="small"
+                  />
+                  <cat-icon
+                    v-else-if="sortKey === column.key && sortDir === 'desc'"
+                    icon="chevron-down"
+                    size="small"
+                  />
+                  <cat-icon
+                    v-else
+                    icon="chevron-up"
+                    size="small"
+                    class="cal-datagrid-sort-icon-placeholder"
+                  />
+                </span>
+              </span>
             </th>
           </tr>
         </thead>
         <tbody>
+          <!-- Width shim: invisible row carrying the per-column widest cell
+               in the full filtered dataset, so the browser's auto-layout
+               sizes each column to the worst case and widths stay constant
+               across pagination / sort. -->
+          <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
+            <td v-for="column in tableReport.columns" :key="column.key">
+              <div class="cal-datagrid-shim-cell">
+                <slot
+                  :name="`column-${column.key}`"
+                  :row="layoutShimRow"
+                  :column="column"
+                  :value="layoutShimRow[column.key]"
+                >
+                  {{ renderCell(column, layoutShimRow[column.key]) }}
+                </slot>
+              </div>
+            </td>
+          </tr>
           <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
             <td v-for="column in tableReport.columns" :key="column.key">
               <slot
@@ -105,6 +152,27 @@ const props = defineProps<{
 }>()
 
 const searchQuery = ref('')
+const sortKey = ref<string | null>(null)
+const sortDir = ref<'asc' | 'desc' | null>(null)
+
+function cycleSort (column: TableColumn) {
+  if (!column.sortable) {
+    return
+  }
+  if (sortKey.value !== column.key) {
+    sortKey.value = column.key
+    sortDir.value = 'asc'
+    return
+  }
+  if (sortDir.value === 'asc') {
+    sortDir.value = 'desc'
+  } else if (sortDir.value === 'desc') {
+    sortKey.value = null
+    sortDir.value = null
+  } else {
+    sortDir.value = 'asc'
+  }
+}
 
 const filteredData = computed(() => {
   const data = tableReport?.value?.data || []
@@ -119,12 +187,46 @@ const filteredData = computed(() => {
   )
 })
 
+// Sort the filtered data. Nullish values are pushed to the end regardless
+// of direction so they don't pollute either tail of a sorted column.
+const sortedData = computed(() => {
+  const base = filteredData.value
+  const key = sortKey.value
+  const dir = sortDir.value
+  if (!key || !dir) {
+    return base
+  }
+  const col = tableReport.value?.columns.find(c => c.key === key)
+  const numeric = col?.format !== undefined
+  const sign = dir === 'asc' ? 1 : -1
+  return [...base].sort((a, b) => {
+    const va = a[key]
+    const vb = b[key]
+    const aNil = va == null || va === ''
+    const bNil = vb == null || vb === ''
+    if (aNil && bNil) { return 0 }
+    if (aNil) { return 1 }
+    if (bNil) { return -1 }
+    if (numeric) {
+      const na = toFiniteNumber(va)
+      const nb = toFiniteNumber(vb)
+      if (na === null && nb === null) { return 0 }
+      if (na === null) { return 1 }
+      if (nb === null) { return -1 }
+      return sign * (na - nb)
+    }
+    return sign * String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
+  })
+})
+
 watch(searchQuery, () => {
   current.value = 1
 })
 
 watch(() => tableReport.value?.columns, () => {
   searchQuery.value = ''
+  sortKey.value = null
+  sortDir.value = null
 })
 
 // Reset pagination when data changes (e.g. tab switch, filter update)
@@ -132,13 +234,47 @@ watch(() => tableReport.value?.data, () => {
   current.value = 1
 })
 
+// Reset pagination when sort changes so the user sees the new top of the list
+watch([sortKey, sortDir], () => {
+  current.value = 1
+})
+
 const currentRows = computed(() => {
   const start = (current.value - 1) * perPage
   const end = start + perPage
-  return filteredData.value.slice(start, end)
+  return sortedData.value.slice(start, end)
+})
+
+// One synthetic row whose per-column values are taken from whichever real
+// row renders longest in that column. Rendered hidden at the top of tbody
+// so the browser's table auto-layout sees the worst-case width for every
+// column and never reflows as pagination/sort change the visible 20 rows.
+const layoutShimRow = computed((): Record<string, any> | null => {
+  const cols = tableReport.value?.columns ?? []
+  const data = filteredData.value
+  if (cols.length === 0 || data.length === 0) {
+    return null
+  }
+  const widest: Record<string, { value: any, len: number }> = {}
+  for (const col of cols) {
+    widest[col.key] = { value: undefined, len: -1 }
+  }
+  for (const row of data) {
+    for (const col of cols) {
+      const rendered = renderCell(col, row[col.key])
+      if (rendered.length > widest[col.key]!.len) {
+        widest[col.key] = { value: row[col.key], len: rendered.length }
+      }
+    }
+  }
+  const shim: Record<string, any> = {}
+  for (const col of cols) {
+    shim[col.key] = widest[col.key]!.value
+  }
+  return shim
 })
 const total = computed(() => {
-  return filteredData.value.length
+  return sortedData.value.length
 })
 const rangeStart = computed(() => {
   return total.value === 0 ? 0 : (current.value - 1) * perPage + 1
@@ -174,6 +310,34 @@ const rangeEnd = computed(() => {
       gap: 0.25rem;
       cursor: default;
     }
+
+    .th-content {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .cal-datagrid-sort-icon {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .cal-datagrid-sort-icon-placeholder {
+      visibility: hidden;
+    }
+
+    &.is-sortable-th {
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        background: var(--bulma-scheme-main-bis);
+      }
+    }
+
+    &.is-sorted {
+      background: var(--bulma-scheme-main-bis);
+    }
   }
 
   td {
@@ -182,6 +346,30 @@ const rangeEnd = computed(() => {
 
   tr:hover td {
     background: var(--bulma-scheme-main-bis);
+  }
+
+  // Width-shim row: zero vertical footprint, no hover, but still contributes
+  // its content width to the browser's table-layout calculation.
+  tr.cal-datagrid-shim {
+    pointer-events: none;
+
+    td {
+      padding-top: 0;
+      padding-bottom: 0;
+      border-top-width: 0;
+      border-bottom-width: 0;
+      background: var(--bulma-scheme-main);
+    }
+
+    .cal-datagrid-shim-cell {
+      height: 0;
+      overflow: hidden;
+      visibility: hidden;
+    }
+  }
+
+  tr.cal-datagrid-shim:hover td {
+    background: var(--bulma-scheme-main);
   }
 
   td:first-child {
