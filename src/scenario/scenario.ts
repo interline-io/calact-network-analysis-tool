@@ -62,6 +62,14 @@ const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 // set server-side, multiplying the cost of a single request.
 const BUFFER_ENTITY_BATCH_SIZE = 50
 
+// Wire-stage + partialData key for each buffer entity kind. Centralized so
+// `runEntityBufferPass` only needs the kind to know what to emit.
+const BUFFER_PASS_BY_KIND = {
+  stops: { stage: 'stop-buffer-geographies', partialKey: 'stopBufferGeographies' },
+  routes: { stage: 'route-buffer-geographies', partialKey: 'routeBufferGeographies' },
+  agencies: { stage: 'agency-buffer-geographies', partialKey: 'agencyBufferGeographies' },
+} as const
+
 /**
  * Maximum number of flex locations to fetch per feed version.
  * This limit is enforced server-side by transitland-server.
@@ -821,20 +829,11 @@ export class ScenarioFetcher {
     }
 
     // Passes C, D, E share the same chunked-fetch + progress-emit shape;
-    // only the entity kind, the id source, the batch size, and the wire
-    // stage / field differ.
-    await this.runEntityBufferPass(
-      'stops', [...this.bufferStopIds], this.stopTimeBatchSize,
-      'stop-buffer-geographies', 'stopBufferGeographies', baseConfig,
-    )
-    await this.runEntityBufferPass(
-      'routes', [...this.bufferRouteIds], BUFFER_ENTITY_BATCH_SIZE,
-      'route-buffer-geographies', 'routeBufferGeographies', baseConfig,
-    )
-    await this.runEntityBufferPass(
-      'agencies', [...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE,
-      'agency-buffer-geographies', 'agencyBufferGeographies', baseConfig,
-    )
+    // only the entity kind, the id source, and the batch size differ.
+    // Stage + partialData key are looked up from BUFFER_PASS_BY_KIND.
+    await this.runEntityBufferPass('stops', [...this.bufferStopIds], this.stopTimeBatchSize, baseConfig)
+    await this.runEntityBufferPass('routes', [...this.bufferRouteIds], BUFFER_ENTITY_BATCH_SIZE, baseConfig)
+    await this.runEntityBufferPass('agencies', [...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE, baseConfig)
 
     // Pass F is structurally different: one top-level union query over
     // every stop's buffer, returning a flat array of intersected
@@ -869,10 +868,9 @@ export class ScenarioFetcher {
     kind: BufferEntityKind,
     ids: number[],
     batchSize: number,
-    stage: ScenarioProgress['currentStage'],
-    partialKey: 'stopBufferGeographies' | 'routeBufferGeographies' | 'agencyBufferGeographies',
     baseConfig: Omit<Parameters<typeof fetchEntityBufferGeographies>[1], 'ids'>,
   ): Promise<void> {
+    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
     for (const chunk of chunkArray(ids, batchSize)) {
       const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
       this.updateProgress(stage, true, { [partialKey]: results })
@@ -1194,6 +1192,18 @@ export class ScenarioFetcher {
   }
 }
 
+function mergeIntoMap<K, V> (
+  partial: [K, V][] | undefined,
+  accumulator: Map<K, V> | undefined,
+): void {
+  if (!partial || !accumulator) {
+    return
+  }
+  for (const [k, v] of partial) {
+    accumulator.set(k, v)
+  }
+}
+
 // ============================================================================
 // SCENARIO DATA RECEIVER - Core accumulation logic
 // ============================================================================
@@ -1251,11 +1261,7 @@ export class ScenarioDataReceiver {
           )
         }
       }
-      if (p.tripIdStrings && this.accumulatedData.tripIdStrings) {
-        for (const [numericId, stringId] of p.tripIdStrings) {
-          this.accumulatedData.tripIdStrings.set(numericId, stringId)
-        }
-      }
+      mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
       if (p.flexAreas) {
         this.accumulatedData.flexAreas.push(...p.flexAreas)
       }
@@ -1267,26 +1273,10 @@ export class ScenarioDataReceiver {
           )
         }
       }
-      if (p.censusGeographies && this.accumulatedData.censusGeographies) {
-        for (const [geoid, data] of p.censusGeographies) {
-          this.accumulatedData.censusGeographies.set(geoid, data)
-        }
-      }
-      if (p.stopBufferGeographies && this.accumulatedData.stopBufferGeographies) {
-        for (const [stopId, tracts] of p.stopBufferGeographies) {
-          this.accumulatedData.stopBufferGeographies.set(stopId, tracts)
-        }
-      }
-      if (p.routeBufferGeographies && this.accumulatedData.routeBufferGeographies) {
-        for (const [routeId, tracts] of p.routeBufferGeographies) {
-          this.accumulatedData.routeBufferGeographies.set(routeId, tracts)
-        }
-      }
-      if (p.agencyBufferGeographies && this.accumulatedData.agencyBufferGeographies) {
-        for (const [agencyId, tracts] of p.agencyBufferGeographies) {
-          this.accumulatedData.agencyBufferGeographies.set(agencyId, tracts)
-        }
-      }
+      mergeIntoMap(p.censusGeographies, this.accumulatedData.censusGeographies)
+      mergeIntoMap(p.stopBufferGeographies, this.accumulatedData.stopBufferGeographies)
+      mergeIntoMap(p.routeBufferGeographies, this.accumulatedData.routeBufferGeographies)
+      mergeIntoMap(p.agencyBufferGeographies, this.accumulatedData.agencyBufferGeographies)
       if (p.aggregationBufferGeographies && this.accumulatedData.aggregationBufferGeographies) {
         this.accumulatedData.aggregationBufferGeographies.push(...p.aggregationBufferGeographies)
       }

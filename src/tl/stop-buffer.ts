@@ -41,35 +41,98 @@ interface BufferGeographyResponse {
   values: { dataset_name: string, values: Record<string, number> }[]
 }
 
-function bufferQuery (kind: BufferEntityKind) {
-  return gql`
-    query (
-      $ids: [Int!]!,
-      $dataset: String,
-      $layer: String!,
-      $radius: Float!,
-      $tableDataset: String,
-      $tableNames: [String!]!
-    ) {
-      ${kind}(ids: $ids) {
-        id
-        census_geographies(
-          limit: 10000,
-          where: {dataset: $dataset, layer: $layer, radius: $radius}
-        ) {
-          geoid
-          layer_name
-          geometry_area
-          intersection_area
-          values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
-            dataset_name
-            values
-          }
+// One const gql per entity kind. We accept the duplication rather than
+// interpolating `${kind}` into a single template — gql queries must read as
+// if they lived in a .gql file.
+const stopsBufferQuery = gql`
+  query (
+    $ids: [Int!]!,
+    $dataset: String,
+    $layer: String!,
+    $radius: Float!,
+    $tableDataset: String,
+    $tableNames: [String!]!
+  ) {
+    stops(ids: $ids) {
+      id
+      census_geographies(
+        limit: 10000,
+        where: {dataset: $dataset, layer: $layer, radius: $radius}
+      ) {
+        geoid
+        layer_name
+        geometry_area
+        intersection_area
+        values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
+          dataset_name
+          values
         }
       }
     }
-  `
-}
+  }
+`
+
+const routesBufferQuery = gql`
+  query (
+    $ids: [Int!]!,
+    $dataset: String,
+    $layer: String!,
+    $radius: Float!,
+    $tableDataset: String,
+    $tableNames: [String!]!
+  ) {
+    routes(ids: $ids) {
+      id
+      census_geographies(
+        limit: 10000,
+        where: {dataset: $dataset, layer: $layer, radius: $radius}
+      ) {
+        geoid
+        layer_name
+        geometry_area
+        intersection_area
+        values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
+          dataset_name
+          values
+        }
+      }
+    }
+  }
+`
+
+const agenciesBufferQuery = gql`
+  query (
+    $ids: [Int!]!,
+    $dataset: String,
+    $layer: String!,
+    $radius: Float!,
+    $tableDataset: String,
+    $tableNames: [String!]!
+  ) {
+    agencies(ids: $ids) {
+      id
+      census_geographies(
+        limit: 10000,
+        where: {dataset: $dataset, layer: $layer, radius: $radius}
+      ) {
+        geoid
+        layer_name
+        geometry_area
+        intersection_area
+        values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
+          dataset_name
+          values
+        }
+      }
+    }
+  }
+`
+
+const BUFFER_QUERY_BY_KIND = {
+  stops: stopsBufferQuery,
+  routes: routesBufferQuery,
+  agencies: agenciesBufferQuery,
+} as const
 
 function parseGeographyRow (g: BufferGeographyResponse, tableDataset: string): BufferGeographyIntersection | null {
   const geometryArea = g.geometry_area ?? 0
@@ -101,7 +164,7 @@ export async function fetchEntityBufferGeographies (
   config: FetchBufferConfig,
 ): Promise<EntityBufferResult[]> {
   const response = await config.client.query<Record<BufferEntityKind, BufferEntityResponse[]>>(
-    bufferQuery(kind),
+    BUFFER_QUERY_BY_KIND[kind],
     {
       ids: config.ids,
       dataset: config.geoDataset,
