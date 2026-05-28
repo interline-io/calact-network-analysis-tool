@@ -117,7 +117,7 @@
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
-            @open-buffer-details="openBufferDetails"
+            @open-buffer-details="bufferDetails.open"
           />
         </div>
 
@@ -217,21 +217,21 @@
            the census details modal, in buffer mode (entity header,
            apportionment tab, lazy-loaded map). -->
       <cat-modal
-        v-model="showBufferDetails"
+        v-model="bufferDetails.show.value"
         title="Stop Statistical Radius — Derivation"
         full-screen
       >
         <cal-census-details
-          v-if="bufferDetailsPayload"
-          :key="bufferDetailsPayload.entityId"
-          :entries="bufferEntries"
-          :header-props="bufferHeaderProps"
-          :apportionment-summary="bufferApportionment"
-          :filename-prefix="bufferFilenamePrefix"
+          v-if="bufferDetails.payload.value"
+          :key="bufferDetails.payload.value.entityId"
+          :entries="bufferDetails.entries.value"
+          :header-props="bufferDetails.headerProps.value"
+          :apportionment-summary="bufferDetails.apportionment.value"
+          :filename-prefix="bufferDetails.filenamePrefix.value"
           show-map
-          :map-loading="bufferGeometryLoading"
-          :map-error="bufferGeometryError"
-          @load-geometry="loadBufferGeometry"
+          :map-loading="bufferDetails.geometryLoading.value"
+          :map-error="bufferDetails.geometryError.value"
+          @load-geometry="bufferDetails.loadGeometry"
         />
       </cat-modal>
     </template>
@@ -240,8 +240,9 @@
 
 <script lang="ts" setup>
 import { computed, shallowRef, watch } from 'vue'
-import { useQuery, useLazyQuery, useApolloClient } from '@vue/apollo-composable'
+import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
+import { useBufferDetails } from '~/composables/useBufferDetails'
 import {
   getFlexAreaType,
   getFlexAdvanceNotice,
@@ -250,8 +251,6 @@ import {
   geographyBboxQuery,
   stopGeoAggregateCsv,
   parseFvids,
-  BUFFER_QUERY_BY_KIND,
-  parseGeographyRow,
 } from '~~/src/tl'
 import type {
   FlexAdvanceNotice,
@@ -260,7 +259,6 @@ import type {
   CensusDataset,
   CensusGeography,
   Route,
-  BufferEntityKind,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -281,9 +279,7 @@ import {
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
-  apportionBuffer,
   censusGeographyMapToEntries,
-  REQUIRED_ACS_TABLES,
   type CensusGeographyEntry,
   type FilterTag,
   QUERY_PANEL_WIDTH,
@@ -291,8 +287,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
-import type { BufferDetailsPayload } from '~/components/cal/report.vue'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress, type BufferFetchConfig } from '~~/src/scenario'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -943,116 +938,9 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
 })
 
-const bufferDetailsPayload = ref<BufferDetailsPayload | undefined>(undefined)
-const showBufferDetails = computed({
-  get: () => bufferDetailsPayload.value !== undefined,
-  set: (v: boolean) => {
-    if (!v) { bufferDetailsPayload.value = undefined }
-  },
-})
-function openBufferDetails (payload: BufferDetailsPayload) {
-  // Reset lazy-geometry state for the new entity so the map tab refetches.
-  bufferGeometryEntries.value = undefined
-  bufferGeometryLoading.value = false
-  bufferGeometryError.value = null
-  bufferDetailsPayload.value = payload
-}
-
-// Buffer modal derived props. `bufferEntries` switches to the
-// geometry-enriched fetch result once the Map tab has loaded.
-const bufferEntries = computed<CensusGeographyEntry[]>(() => {
-  return bufferGeometryEntries.value ?? bufferDetailsPayload.value?.entries ?? []
-})
-
-const BUFFER_KIND_LABELS: Record<BufferDetailsPayload['kind'], string> = {
-  stop: 'Stop',
-  route: 'Route',
-  agency: 'Agency',
-}
-
-const bufferHeaderProps = computed(() => {
-  const p = bufferDetailsPayload.value
-  if (!p) { return undefined }
-  return {
-    kindLabel: BUFFER_KIND_LABELS[p.kind],
-    id: p.entityId,
-    name: p.entityLabel,
-    radius: p.radius,
-    layer: p.layer,
-  }
-})
-
-const bufferApportionment = computed(() => {
-  const p = bufferDetailsPayload.value
-  if (!p) { return undefined }
-  return apportionBuffer(p.entries)
-})
-
-const bufferFilenamePrefix = computed(() => {
-  const p = bufferDetailsPayload.value
-  return p ? `${p.kind}-${p.entityId}-buffer` : 'buffer'
-})
-
-// Lazy-loaded geometry-enriched buffer entries. Populated on the first
-// activation of the Map tab inside the buffer modal via `loadBufferGeometry`.
-const bufferGeometryEntries = ref<CensusGeographyEntry[] | undefined>(undefined)
-const bufferGeometryLoading = ref(false)
-const bufferGeometryError = ref<string | null>(null)
-
-const DETAILS_KIND_TO_BUFFER_KIND: Record<BufferDetailsPayload['kind'], BufferEntityKind> = {
-  stop: 'stops',
-  route: 'routes',
-  agency: 'agencies',
-}
-
-const { resolveClient } = useApolloClient()
-
-async function loadBufferGeometry (): Promise<void> {
-  const p = bufferDetailsPayload.value
-  if (!p) { return }
-  // Capture the entity at request time so a stale response (from a prior
-  // entity whose fetch hadn't resolved before the user switched modals)
-  // doesn't overwrite the current entity's state.
-  const requestEntityId = p.entityId
-  const isStale = () => bufferDetailsPayload.value?.entityId !== requestEntityId
-
-  bufferGeometryLoading.value = true
-  bufferGeometryError.value = null
-  try {
-    const bufferKind = DETAILS_KIND_TO_BUFFER_KIND[p.kind]
-    const result = await resolveClient().query({
-      query: BUFFER_QUERY_BY_KIND[bufferKind],
-      variables: {
-        ids: [p.entityId],
-        dataset: p.geoDatasetName,
-        layer: p.layer,
-        radius: p.radius,
-        tableDataset: p.tableDatasetName,
-        tableNames: REQUIRED_ACS_TABLES,
-        includeGeometry: true,
-      },
-      fetchPolicy: 'no-cache',
-    })
-    if (isStale()) { return }
-    const ent = (result.data as Record<string, { id: number, census_geographies?: any[] }[]>)
-      ?.[bufferKind]?.[0]
-    const parsed: CensusGeographyEntry[] = []
-    for (const g of ent?.census_geographies || []) {
-      const row = parseGeographyRow(g, p.tableDatasetName)
-      if (row) {
-        parsed.push(row)
-      }
-    }
-    bufferGeometryEntries.value = parsed
-  } catch (err: any) {
-    if (isStale()) { return }
-    bufferGeometryError.value = err?.message || String(err)
-  } finally {
-    if (!isStale()) {
-      bufferGeometryLoading.value = false
-    }
-  }
-}
+// Buffer modal state machine — payload, geometry fetch, derived header/
+// apportionment props. See `~/composables/useBufferDetails`.
+const bufferDetails = useBufferDetails()
 
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
@@ -1191,14 +1079,16 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
-// Held across calls so the buffer-only refetch (#315) can merge new
-// geographies into the same accumulator the main scenario fetch populated.
-const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
-// AbortController for the in-flight buffer refetch. New radius/layer
-// changes abort the previous request before issuing a new one.
-let bufferRefetchAbort: AbortController | undefined
-// Debounce timer for slider drags.
-let bufferRefetchTimer: ReturnType<typeof setTimeout> | undefined
+// Buffer-only refetch state machine (#315): debounced watch on
+// radius/layer that POSTs to /api/buffer-geographies and streams the
+// result back into the existing receiver. See `~/composables/useBufferRefetch`.
+const { scenarioReceiver } = useBufferRefetch({
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+})
 
 const loadExampleData = async (exampleName: string) => {
   console.log('loading example data:', exampleName)
@@ -1279,91 +1169,6 @@ const fetchScenario = async (loadExample: string) => {
     error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
   }
 }
-
-// Re-run only the buffer passes (#315 C/D/E/F) when the user changes radius
-// or layer. Reuses the existing accumulator so other scenario state (stops,
-// routes, departures, etc.) is preserved.
-async function refetchBufferGeographies (): Promise<void> {
-  const receiver = scenarioReceiver.value
-  const data = scenarioData.value
-  if (!receiver || !data) {
-    return
-  }
-  bufferRefetchAbort?.abort()
-  const abort = new AbortController()
-  bufferRefetchAbort = abort
-
-  receiver.clearBufferGeographies()
-  scenarioData.value = receiver.getCurrentData()
-
-  showLoadingModal.value = true
-  loadingProgress.value = {
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Recomputing buffer demographics...',
-  }
-
-  const agencyIds = [...new Set(
-    data.routes.map(r => r.agency?.id).filter((id): id is number => id != null),
-  )]
-  const body: BufferFetchConfig = {
-    radius: stopBufferRadius.value,
-    layer: stopBufferLayer.value,
-    geoDatasetName: geoDatasetName.value,
-    tableDatasetName: scenarioConfig.value.tableDatasetName ?? SCENARIO_DEFAULTS.tableDatasetName,
-    stopIds: data.stops.map(s => s.id),
-    routeIds: data.routes.map(r => r.id),
-    agencyIds,
-  }
-
-  try {
-    const response = await fetch('/api/buffer-geographies', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: abort.signal,
-    })
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} from /api/buffer-geographies`)
-    }
-    if (!response.body) {
-      throw new Error('No response body from /api/buffer-geographies')
-    }
-    const streamer = new ScenarioStreamReceiver()
-    const { success } = await streamer.processStream(response.body, receiver)
-    if (!success) {
-      throw new Error('Buffer refetch stream ended unexpectedly')
-    }
-    scenarioData.value = receiver.getCurrentData()
-  } catch (err: any) {
-    if (err?.name === 'AbortError') {
-      return
-    }
-    error.value = err
-  } finally {
-    if (bufferRefetchAbort === abort) {
-      bufferRefetchAbort = undefined
-      showLoadingModal.value = false
-      loadingProgress.value = undefined
-    }
-  }
-}
-
-// Debounce radius/layer commits so a slider drag doesn't fire a request per
-// step. Only triggers when a scenario has already been loaded — initial
-// query reads the live values via `scenarioConfig` directly.
-watch([stopBufferRadius, stopBufferLayer], () => {
-  if (!scenarioReceiver.value || !scenarioData.value) {
-    return
-  }
-  if (bufferRefetchTimer) {
-    clearTimeout(bufferRefetchTimer)
-  }
-  bufferRefetchTimer = setTimeout(() => {
-    bufferRefetchTimer = undefined
-    refetchBufferGeographies()
-  }, 500)
-})
 
 // Apply filters and emit results when data or filters change
 watch(() => [
