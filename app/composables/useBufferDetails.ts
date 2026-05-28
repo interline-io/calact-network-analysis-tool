@@ -1,12 +1,5 @@
-// Buffer details modal state machine (#315). Owns:
-//   - the payload passed in from a report tab's drill-down click,
-//   - the modal's open/close v-model,
-//   - the props the unified `<cal-census-details>` consumes in buffer mode
-//     (entries, header, apportionment summary, filename prefix),
-//   - the lazy geometry fetch that fires when the Map tab is first opened.
-//
-// Pulled out of tne.vue so the page file stays focused on top-level page
-// composition rather than per-modal plumbing.
+// Buffer details modal state (#315): payload, open/close, derived props for
+// `<cal-census-details>` in buffer mode, and the lazy Map-tab geometry fetch.
 
 import { computed, ref } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
@@ -37,14 +30,11 @@ const DETAILS_KIND_TO_BUFFER_KIND: Record<BufferDetailsPayload['kind'], BufferEn
 export function useBufferDetails () {
   const payload = ref<BufferDetailsPayload | undefined>(undefined)
 
-  // Lazy-loaded geometry-enriched buffer entries. Populated on the first
-  // activation of the Map tab via `loadGeometry`.
+  // Populated lazily on first Map-tab activation via `loadGeometry`.
   const geometryEntries = ref<CensusGeographyEntry[] | undefined>(undefined)
   const geometryLoading = ref(false)
   const geometryError = ref<string | null>(null)
 
-  // Modal v-model. Closing the modal clears the payload, which unmounts the
-  // census-details component (so `:key` doesn't matter for cross-entity reset).
   const show = computed({
     get: () => payload.value !== undefined,
     set: (v: boolean) => {
@@ -53,15 +43,12 @@ export function useBufferDetails () {
   })
 
   function open (next: BufferDetailsPayload): void {
-    // Reset lazy-geometry state for the new entity so the Map tab refetches.
     geometryEntries.value = undefined
     geometryLoading.value = false
     geometryError.value = null
     payload.value = next
   }
 
-  // Entries swap to the geometry-enriched fetch result once the Map tab has
-  // loaded; until then, the entries shipped with the payload are used.
   const entries = computed<CensusGeographyEntry[]>(() => {
     return geometryEntries.value ?? payload.value?.entries ?? []
   })
@@ -78,9 +65,8 @@ export function useBufferDetails () {
     }
   })
 
-  // Locked at modal-open time — uses the original payload entries, not the
-  // geometry-enriched fetch result. Apportionment math doesn't depend on
-  // geometry, so this stays stable while the Map tab loads.
+  // Locked to the original payload entries — apportionment math doesn't need
+  // geometry, so this stays stable while the Map tab fetches.
   const apportionment = computed(() => {
     const p = payload.value
     if (!p) { return undefined }
@@ -97,9 +83,7 @@ export function useBufferDetails () {
   async function loadGeometry (): Promise<void> {
     const p = payload.value
     if (!p) { return }
-    // Capture the entity at request time so a stale response (from a prior
-    // entity whose fetch hadn't resolved before the user switched modals)
-    // doesn't overwrite the current entity's state.
+    // Drop the response if the user pivoted to another entity before we resolved.
     const requestEntityId = p.entityId
     const isStale = () => payload.value?.entityId !== requestEntityId
 

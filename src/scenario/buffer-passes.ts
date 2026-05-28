@@ -1,12 +1,6 @@
-// Buffer-only passes for issue #315 — extracted from scenario.ts so the
-// main pipeline file stays focused on the scenario fetcher and stream wiring.
-//
-// `runBufferPasses` is the shared implementation behind two callers:
-//   - `ScenarioFetcher.fetchBufferData()` inside the main scenario pipeline.
-//   - `streamBufferGeographies()` in scenario.ts, which the
-//     `/api/buffer-geographies` endpoint uses to refetch only the buffer
-//     state when the user changes radius or layer without re-running the
-//     full scenario.
+// Buffer-only passes for #315. Shared by `ScenarioFetcher.fetchBufferData()`
+// (inline pipeline) and `streamBufferGeographies()` (the standalone refetch
+// endpoint that fires when the user changes radius/layer).
 
 import {
   type GraphQLClient,
@@ -21,22 +15,16 @@ import {
 } from '~~/src/tl'
 import type { ScenarioProgress } from './scenario'
 
-// Per-request batch sizes for the route / agency buffer passes (#315 D, E).
-// Smaller than the stop batch because each entity expands to its full stop
-// set server-side, multiplying the cost of a single request.
+// Smaller than the stop batch because each route/agency expands to its full
+// stop set server-side, multiplying per-request cost.
 const BUFFER_ENTITY_BATCH_SIZE = 50
 
-// Wire-stage + partialData key for each buffer entity kind. Centralized so
-// the per-kind buffer-fetch loop only needs the kind to know what to emit.
 const BUFFER_PASS_BY_KIND = {
   stops: { stage: 'stop-buffer-geographies', partialKey: 'stopBufferGeographies' },
   routes: { stage: 'route-buffer-geographies', partialKey: 'routeBufferGeographies' },
   agencies: { stage: 'agency-buffer-geographies', partialKey: 'agencyBufferGeographies' },
 } as const
 
-// Inputs for the buffer-only fetch (#315 Passes C/D/E/F). Used both inline
-// during the main scenario pipeline and standalone via the buffer-refetch
-// endpoint when the user changes radius or layer.
 export interface BufferFetchConfig {
   radius: number
   layer: string
@@ -51,9 +39,8 @@ export interface BufferFetchConfig {
   entityChunkSize?: number
 }
 
-// Shared implementation for Passes C / D / E / F. Pure with respect to its
-// inputs; emits ScenarioProgress events through `emit`. Callers wrap this
-// with a sender (stream) or accumulator (in-process).
+// Pure over its inputs; callers wrap `emit` with either a stream sender or
+// an in-process accumulator.
 export async function runBufferPasses (
   config: BufferFetchConfig,
   client: GraphQLClient,
@@ -82,7 +69,7 @@ export async function runBufferPasses (
     }
   }
 
-  // Pass F — single union query through fetchCensusIntersection.
+  // Pass F — server-side union of every stop's buffer ∩ tracts.
   if (config.stopIds.length > 0) {
     const features = await fetchCensusIntersection({
       client,

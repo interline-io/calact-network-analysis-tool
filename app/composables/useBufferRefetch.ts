@@ -1,11 +1,6 @@
-// Debounced buffer-only refetch (#315). When the user changes the stop
-// statistical radius or buffer layer, this composable POSTs the current
-// scenario's entity IDs to `/api/buffer-geographies`, streams the result
-// back into the existing ScenarioDataReceiver (so non-buffer state is
-// preserved), and drives the loading modal.
-//
-// Pulled out of tne.vue to keep the page file focused on top-level
-// composition rather than the buffer-refetch state machine.
+// Debounced buffer-only refetch (#315) on radius/layer change. Streams the
+// result into the existing ScenarioDataReceiver so non-buffer state (stops,
+// routes, departures, …) stays untouched.
 
 import { shallowRef, watch, onScopeDispose, type Ref } from 'vue'
 import { useScenarioInputs } from './useScenarioInputs'
@@ -28,19 +23,16 @@ interface UseBufferRefetchDeps {
   error: Ref<any>
 }
 
-// Debounce window for radius/layer changes — slider drags would otherwise
-// fire one request per step.
+// Without debounce a slider drag fires one request per step.
 const DEBOUNCE_MS = 500
 
 export function useBufferRefetch (deps: UseBufferRefetchDeps) {
-  // Held across calls so the buffer-only refetch can merge new geographies
-  // into the same accumulator the main scenario fetch populated.
+  // Shared with the main fetch path so refetched buffer state lands in the
+  // same accumulator.
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
 
-  // AbortController for the in-flight refetch. New radius/layer changes
-  // abort the previous request before issuing a new one.
+  // Aborted on the next radius/layer change before issuing the new request.
   let abort: AbortController | undefined
-  // Debounce timer for slider drags.
   let timer: ReturnType<typeof setTimeout> | undefined
 
   const { stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
@@ -111,9 +103,8 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps) {
     }
   }
 
-  // Debounce radius/layer commits so a slider drag doesn't fire a request
-  // per step. Only triggers when a scenario has already been loaded —
-  // initial query reads the live values via `scenarioConfig` directly.
+  // Initial query reads radius/layer via `scenarioConfig` directly; this
+  // watch only kicks in once a scenario is loaded.
   watch([stopBufferRadius, stopBufferLayer], () => {
     if (!scenarioReceiver.value || !deps.scenarioData.value) {
       return

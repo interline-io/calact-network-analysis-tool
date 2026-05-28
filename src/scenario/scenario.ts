@@ -94,21 +94,9 @@ export interface ScenarioConfig {
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
   excludedFeeds?: string[]
-  /**
-   * Stop statistical radius in meters (issue #315). When > 0, the pipeline
-   * fetches per-stop / per-route / per-agency / aggregation-union census
-   * intersections at the tract layer in addition to the bbox-clipped Pass A,
-   * powering apportioned demographic columns in the report tables. 0
-   * disables — Pass A retains today's bbox-only semantics.
-   */
+  // 0 disables the per-entity buffer passes (#315 C/D/E/F).
   stopBufferRadius?: number
-  /**
-   * Census layer at which buffer ↔ census intersections are computed
-   * (#315). Defaults to `STOP_BUFFER_DEFAULT_LAYER` ('tract'). Switching
-   * this changes the resolution of apportioned values. Pass F's
-   * aggregation-table roll-up only applies when the layer is in
-   * `HIERARCHICAL_TIGER_LAYERS`.
-   */
+  // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
   stopBufferLayer?: string
 }
 
@@ -163,29 +151,13 @@ export interface ScenarioData {
   tripIdStrings?: Map<number, string>
   // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
-  /**
-   * Per-stop tract intersections + ACS values for the stop statistical
-   * radius buffer (#315). Populated when `stopBufferRadius > 0`. Keyed by
-   * Stop.id (numeric, internal). Each entry's BufferGeographyIntersection[] is the
-   * union of tracts the stop's buffer touches; consumers apportion via
-   * `apportionBuffer()` from `src/core/census-buffer.ts`.
-   */
+  // Populated when `stopBufferRadius > 0`. Keyed by Stop.id.
   stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  /**
-   * Per-route buffer tract intersections (Pass D). Server unions the buffer
-   * over every stop the route touches (full stop set, not bbox-clipped).
-   */
+  // Pass D — server unions the buffer over the route's full stop set, not bbox-clipped.
   routeBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  /**
-   * Per-agency buffer tract intersections (Pass E). Same union semantics
-   * as routes, but rolled up to the agency's full stop set.
-   */
+  // Pass E — same union semantics as routes, rolled up to the agency's full stop set.
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  /**
-   * Single-payload aggregation buffer (Pass F): the union of every stop's
-   * buffer in the scenario, intersected with tracts. Drives the
-   * aggregation-table apportioned values + the `pct_buffer_coverage` column.
-   */
+  // Pass F — union over every stop's buffer. Drives aggregation-table apportionment.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
 }
 
@@ -237,8 +209,7 @@ export interface ScenarioProgress {
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
-  // Partial data available during progress. All fields optional — only the
-  // pass that fired the event sets the relevant ones.
+  // Each pass sets only the fields it produces.
   partialData?: {
     stops?: StopGql[]
     routes?: RouteGql[]
@@ -471,11 +442,7 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   writer.close()
 }
 
-// Standalone streaming entry point for the buffer-only refetch (#315).
-// Mirrors streamScenario but runs only Passes C/D/E/F against caller-supplied
-// entity IDs. Powers /api/buffer-geographies, which the SPA hits when the
-// user changes the stop statistical radius or census layer without re-running
-// the full scenario.
+// Powers /api/buffer-geographies — the SPA's snappy radius/layer refetch path.
 export async function streamBufferGeographies (
   controller: ReadableStreamDefaultController,
   config: BufferFetchConfig,
@@ -578,10 +545,7 @@ export class ScenarioFetcher {
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
-  // IDs accumulated during the main fetches for the #315 buffer passes.
-  // bufferRouteIds is populated alongside fetchedRouteIds; we keep a separate
-  // set so all three passes (C/D/E) read from symmetrically-named state.
-  // Agencies are discovered inside route data, not fetched explicitly.
+  // Accumulated for the #315 buffer passes; consumed by fetchBufferData().
   private bufferStopIds: Set<number> = new Set()
   private bufferRouteIds: Set<number> = new Set()
   private bufferAgencyIds: Set<number> = new Set()
@@ -679,9 +643,7 @@ export class ScenarioFetcher {
       logMemory('after-routes')
       await this.stopDepartureQueue.wait()
       logMemory('after-departures')
-      // Buffer passes (#315) run after stops + routes are known. Serial,
-      // batched — concurrency adds complexity for marginal speedup at the
-      // entity counts we see; revisit if a scenario ever feels slow here.
+      // Serial batched (no measured need for concurrency at current entity counts).
       await this.fetchBufferData()
       logMemory('after-buffer-passes')
     } else {
@@ -790,13 +752,8 @@ export class ScenarioFetcher {
     }
   }
 
-  // Skipped when the caller didn't set an ACS dataset or aggregation layer.
-  // Single-layer fetch (the active `aggregateLayer`). When
-  // `stopBufferRadius > 0`, the bbox is padded by the radius so that buffers
-  // crossing the edge still see the tracts they overlap. Buffer-specific
-  // tract values (#315) come from the per-entity Passes C / D / E / F, which
-  // request `values` inline via the stop_buffer resolver, so this pass is
-  // intentionally kept narrow.
+  // Skipped without `tableDatasetName` + `aggregateLayer`. Bbox is padded by
+  // the radius so edge-crossing buffers can apportion against the right tracts.
   private async fetchCensusValues (): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
@@ -838,10 +795,8 @@ export class ScenarioFetcher {
     this.updateProgress('census-values', true, { censusGeographies: entries })
   }
 
-  // Passes C / D / E / F (#315). Serial; each chunk streams partial progress.
-  // Thin wrapper that builds a BufferFetchConfig from the fetcher's internal
-  // state and delegates to the shared `runBufferPasses` so the same logic
-  // can run standalone via /api/buffer-geographies.
+  // Delegates to `runBufferPasses` so the same logic runs standalone via
+  // /api/buffer-geographies on radius/layer changes.
   private async fetchBufferData (): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
@@ -1054,7 +1009,6 @@ export class ScenarioFetcher {
       }
     }
 
-    // Accumulate stop IDs for #315 buffer passes (run later in fetchBufferData).
     if ((this.config.stopBufferRadius ?? 0) > 0) {
       for (const id of stopIds) {
         this.bufferStopIds.add(id)
@@ -1089,7 +1043,6 @@ export class ScenarioFetcher {
       this.updateProgress('routes', true, { routes: routeBatch })
     }
 
-    // Accumulate route + agency IDs for the #315 buffer passes (D, E).
     if ((this.config.stopBufferRadius ?? 0) > 0) {
       for (const r of routeData) {
         this.bufferRouteIds.add(r.id)
@@ -1286,12 +1239,7 @@ export class ScenarioDataReceiver {
     this.callbacks.onError?.(error)
   }
 
-  /**
-   * Clear all buffer-geography state before a refetch so stale entries from
-   * a previous radius/layer don't linger. The aggregation list uses
-   * push-append on each progress event; the per-entity Maps would otherwise
-   * retain ids that aren't in the new fetch.
-   */
+  // Reset before a radius/layer refetch so stale ids don't linger in the maps.
   clearBufferGeographies (): void {
     this.accumulatedData.stopBufferGeographies?.clear()
     this.accumulatedData.routeBufferGeographies?.clear()
