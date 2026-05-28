@@ -110,9 +110,6 @@ export type RouteCsv = RouteGtfs & {
   earliest_trip_end_time?: string
   latest_trip_start_time?: string
   latest_trip_end_time?: string
-  // Apportioned demographic columns merged in when bufferTracts are
-  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
-  [key: string]: string | number | boolean | null | undefined
 }
 
 export type Route = RouteGql & RouteDerived
@@ -154,8 +151,7 @@ export function routeToRouteCsv (route: Route, bufferTracts?: TractIntersection[
     continuous_drop_off: route.continuous_drop_off,
     continuous_pickup: route.continuous_pickup,
   }
-  if (bufferTracts && bufferTracts.length > 0) {
-    Object.assign(row, apportionBuffer(bufferTracts).values)
-  }
-  return row
+  return bufferTracts?.length
+    ? { ...row, ...apportionBuffer(bufferTracts).values }
+    : row
 }

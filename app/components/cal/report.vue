@@ -166,7 +166,7 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, CENSUS_COLUMNS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -368,14 +368,9 @@ function buildCensusColumns (apportioned: boolean): TableColumn[] {
   }))
 }
 
-// Pass F-driven apportionment is hierarchical-only: tract / county / state
-// are FIPS-prefixed and can be rolled up cleanly from tract data. Other
-// layers (place / cbsa / etc.) fall back to Pass A semantics.
-const HIERARCHICAL_AGG_LAYERS = new Set(['state', 'county', 'tract'])
-
 const bufferAggregationActive = computed(() => {
   return stopBufferRadius.value > 0
-    && HIERARCHICAL_AGG_LAYERS.has(aggregateLayer.value)
+    && HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer.value)
     && (props.scenarioFilterResult?.aggregationBufferTracts?.length ?? 0) > 0
 })
 

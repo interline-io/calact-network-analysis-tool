@@ -152,7 +152,7 @@ query (
 // census.gov/programs-surveys/acs/technical-documentation/code-lists.html.
 // (MoE-only jam values like -222222222 are intentionally omitted — we read
 // estimate fields, not MoE.)
-const ACS_JAM_VALUES = new Set<number>([
+export const ACS_JAM_VALUES = new Set<number>([
   -666666666, -888888888, -999999999,
 ])
 

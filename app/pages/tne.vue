@@ -1042,7 +1042,7 @@ const fetchScenario = async (loadExample: string) => {
     onProgress: (progress: ScenarioProgress) => {
       // Update progress for modal
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
 
       if (progress.warnings && progress.warnings.length > 0) {
         for (const msg of progress.warnings) {
@@ -1052,9 +1052,9 @@ const fetchScenario = async (loadExample: string) => {
 
       // Apply filters to partial data and emit (without schedule-dependent features)
       // Skip if no route/stop/flex data in this progress update
-      const hasRoutes = (progress.partialData?.routes.length || 0) > 0
-      const hasStops = (progress.partialData?.stops.length || 0) > 0
-      const hasFlexAreas = (progress.partialData?.flexAreas.length || 0) > 0
+      const hasRoutes = (progress.partialData?.routes?.length || 0) > 0
+      const hasStops = (progress.partialData?.stops?.length || 0) > 0
+      const hasFlexAreas = (progress.partialData?.flexAreas?.length || 0) > 0
       if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }

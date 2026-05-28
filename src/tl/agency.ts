@@ -34,9 +34,6 @@ export type AgencyCsv = AgencyGtfs & {
   routes_count: number
   routes_modes: string
   stops_count: number
-  // Apportioned demographic columns merged in when bufferTracts are
-  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
-  [key: string]: string | number | boolean | null | undefined
 }
 
 export type Agency = AgencyGql & AgencyDerived
@@ -57,8 +54,7 @@ export function agencyToAgencyCsv (agency: Agency, bufferTracts?: TractIntersect
     agency_phone: agency.agency_phone,
     agency_timezone: agency.agency_timezone,
   }
-  if (bufferTracts && bufferTracts.length > 0) {
-    Object.assign(row, apportionBuffer(bufferTracts).values)
-  }
-  return row
+  return bufferTracts?.length
+    ? { ...row, ...apportionBuffer(bufferTracts).values }
+    : row
 }

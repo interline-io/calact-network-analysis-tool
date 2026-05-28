@@ -211,8 +211,8 @@ const fetchScenario = async (loadExample: string) => {
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
-      if (progress.partialData?.routes.length === 0 && progress.partialData?.stops.length === 0) {
+      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      if ((progress.partialData?.routes?.length ?? 0) === 0 && (progress.partialData?.stops?.length ?? 0) === 0) {
         return
       }
       // Update both scenario data and WSDOT report from the receiver

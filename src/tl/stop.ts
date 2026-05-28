@@ -5,6 +5,7 @@ import {
   deriveCensusRow,
   apportionBuffer,
   tractsForAggregationRow,
+  HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
 import type { TractIntersection } from './stop-buffer'
 
@@ -150,9 +151,6 @@ export type StopCsv = StopGtfs & {
   visit_count_friday_total?: number
   visit_count_saturday_total?: number
   visit_count_sunday_total?: number
-  // Apportioned demographic columns merged in when bufferTracts are
-  // provided. Keyed by CensusColumnDef.id (e.g. total_population).
-  [key: string]: string | number | boolean | null | undefined
 }
 
 interface StopGeoAggregateCsv {
@@ -172,12 +170,6 @@ interface StopGeoAggregateCsv {
   // aggregationBufferTracts are provided. Keyed by CensusColumnDef.id.
   [key: string]: string | number | null | undefined
 }
-
-// TIGER aggregation layers whose GEOIDs are strict prefixes of tract
-// GEOIDs. Pass F's tract list can roll up cleanly into these layers by
-// FIPS prefix; the others (place / cbsa / csa / uac20 / fta-uac20-nonurban)
-// need geometric containment we don't have yet.
-const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract'])
 
 export type Stop = StopGql & StopDerived
 
@@ -317,8 +309,7 @@ export function stopToStopCsv (stop: Stop, bufferTracts?: TractIntersection[]): 
     visit_count_saturday_total: stop.visits?.saturday?.visit_count,
     visit_count_sunday_total: stop.visits?.sunday?.visit_count,
   }
-  if (bufferTracts && bufferTracts.length > 0) {
-    Object.assign(row, apportionBuffer(bufferTracts).values)
-  }
-  return row
+  return bufferTracts?.length
+    ? { ...row, ...apportionBuffer(bufferTracts).values }
+    : row
 }
