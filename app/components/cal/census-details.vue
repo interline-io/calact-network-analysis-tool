@@ -402,10 +402,10 @@ const inspectorMode = computed<'single' | 'apportioned'>(() =>
 )
 
 // Map fetch is one-shot: emit only on the first activation. Parent caches.
-let geometryRequested = false
+const geometryRequested = ref(false)
 watch(activeTab, (tab) => {
-  if (tab === 'map' && props.showMap && !geometryRequested) {
-    geometryRequested = true
+  if (tab === 'map' && props.showMap && !geometryRequested.value) {
+    geometryRequested.value = true
     emit('loadGeometry')
   }
 })

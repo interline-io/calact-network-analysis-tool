@@ -1010,6 +1010,12 @@ const { resolveClient } = useApolloClient()
 async function loadBufferGeometry (): Promise<void> {
   const p = bufferDetailsPayload.value
   if (!p) { return }
+  // Capture the entity at request time so a stale response (from a prior
+  // entity whose fetch hadn't resolved before the user switched modals)
+  // doesn't overwrite the current entity's state.
+  const requestEntityId = p.entityId
+  const isStale = () => bufferDetailsPayload.value?.entityId !== requestEntityId
+
   bufferGeometryLoading.value = true
   bufferGeometryError.value = null
   try {
@@ -1027,6 +1033,7 @@ async function loadBufferGeometry (): Promise<void> {
       },
       fetchPolicy: 'no-cache',
     })
+    if (isStale()) { return }
     const ent = (result.data as Record<string, { id: number, census_geographies?: any[] }[]>)
       ?.[bufferKind]?.[0]
     const parsed: CensusGeographyEntry[] = []
@@ -1038,9 +1045,12 @@ async function loadBufferGeometry (): Promise<void> {
     }
     bufferGeometryEntries.value = parsed
   } catch (err: any) {
+    if (isStale()) { return }
     bufferGeometryError.value = err?.message || String(err)
   } finally {
-    bufferGeometryLoading.value = false
+    if (!isStale()) {
+      bufferGeometryLoading.value = false
+    }
   }
 }
 
