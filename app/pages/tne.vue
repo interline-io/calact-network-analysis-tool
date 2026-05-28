@@ -205,7 +205,7 @@
       >
         <cal-census-details
           v-if="scenarioFilterResult"
-          :scenario-filter-result="scenarioFilterResult"
+          :entries="censusDetailsEntries"
           :layer-label="aggregateLayerLabel"
           :highlighted-geoid="highlightedCensusGeoid ?? undefined"
           @select-geography="onSelectGeographyFromDetails"
@@ -213,22 +213,25 @@
         />
       </cat-modal>
 
-      <!-- Stop Statistical Radius (buffer) debug modal -->
+      <!-- Stop Statistical Radius (buffer) debug modal — same component as
+           the census details modal, in buffer mode (entity header,
+           apportionment tab, lazy-loaded map). -->
       <cat-modal
         v-model="showBufferDetails"
         title="Stop Statistical Radius — Derivation"
         full-screen
       >
-        <cal-buffer-details
+        <cal-census-details
           v-if="bufferDetailsPayload"
-          :kind="bufferDetailsPayload.kind"
-          :entity-id="bufferDetailsPayload.entityId"
-          :entity-label="bufferDetailsPayload.entityLabel"
-          :tracts="bufferDetailsPayload.tracts"
-          :radius="bufferDetailsPayload.radius"
-          :layer="bufferDetailsPayload.layer"
-          :geo-dataset-name="bufferDetailsPayload.geoDatasetName"
-          :table-dataset-name="bufferDetailsPayload.tableDatasetName"
+          :key="bufferDetailsPayload.entityId"
+          :entries="bufferEntries"
+          :header-props="bufferHeaderProps"
+          :apportionment-summary="bufferApportionment"
+          :filename-prefix="bufferFilenamePrefix"
+          show-map
+          :map-loading="bufferGeometryLoading"
+          :map-error="bufferGeometryError"
+          @load-geometry="loadBufferGeometry"
         />
       </cat-modal>
     </template>
@@ -237,7 +240,7 @@
 
 <script lang="ts" setup>
 import { computed, shallowRef, watch } from 'vue'
-import { useQuery, useLazyQuery } from '@vue/apollo-composable'
+import { useQuery, useLazyQuery, useApolloClient } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
   getFlexAreaType,
@@ -247,6 +250,17 @@ import {
   geographyBboxQuery,
   stopGeoAggregateCsv,
   parseFvids,
+  BUFFER_QUERY_BY_KIND,
+  parseGeographyRow,
+} from '~~/src/tl'
+import type {
+  FlexAdvanceNotice,
+  FlexAreaType,
+  FlexAreaFeature,
+  CensusDataset,
+  CensusGeography,
+  Route,
+  BufferEntityKind,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -267,6 +281,10 @@ import {
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
+  apportionBuffer,
+  censusGeographyMapToEntries,
+  REQUIRED_ACS_TABLES,
+  type CensusGeographyEntry,
   type FilterTag,
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
@@ -274,7 +292,6 @@ import {
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
 import type { BufferDetailsPayload } from '~/components/cal/report.vue'
-import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress, type BufferFetchConfig } from '~~/src/scenario'
 
 // Initialize composables
@@ -907,6 +924,25 @@ watch(showCensusDetails, (open) => {
   if (!open) { highlightedCensusGeoid.value = null }
 })
 
+// Census details entries — built from the scenario's accumulated census map,
+// with names joined in from stops.census_geographies (the only place that
+// carries human-readable names today).
+const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
+  const result = scenarioFilterResult.value
+  if (!result?.censusGeographies) {
+    return []
+  }
+  const nameMap = new Map<string, string>()
+  for (const stop of result.stops || []) {
+    for (const g of stop.census_geographies || []) {
+      if (g.name && !nameMap.has(g.geoid)) {
+        nameMap.set(g.geoid, g.name)
+      }
+    }
+  }
+  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+})
+
 const bufferDetailsPayload = ref<BufferDetailsPayload | undefined>(undefined)
 const showBufferDetails = computed({
   get: () => bufferDetailsPayload.value !== undefined,
@@ -915,7 +951,97 @@ const showBufferDetails = computed({
   },
 })
 function openBufferDetails (payload: BufferDetailsPayload) {
+  // Reset lazy-geometry state for the new entity so the map tab refetches.
+  bufferGeometryEntries.value = undefined
+  bufferGeometryLoading.value = false
+  bufferGeometryError.value = null
   bufferDetailsPayload.value = payload
+}
+
+// Buffer modal derived props. `bufferEntries` switches to the
+// geometry-enriched fetch result once the Map tab has loaded.
+const bufferEntries = computed<CensusGeographyEntry[]>(() => {
+  return bufferGeometryEntries.value ?? bufferDetailsPayload.value?.entries ?? []
+})
+
+const BUFFER_KIND_LABELS: Record<BufferDetailsPayload['kind'], string> = {
+  stop: 'Stop',
+  route: 'Route',
+  agency: 'Agency',
+}
+
+const bufferHeaderProps = computed(() => {
+  const p = bufferDetailsPayload.value
+  if (!p) { return undefined }
+  return {
+    kindLabel: BUFFER_KIND_LABELS[p.kind],
+    id: p.entityId,
+    name: p.entityLabel,
+    radius: p.radius,
+    layer: p.layer,
+  }
+})
+
+const bufferApportionment = computed(() => {
+  const p = bufferDetailsPayload.value
+  if (!p) { return undefined }
+  return apportionBuffer(p.entries)
+})
+
+const bufferFilenamePrefix = computed(() => {
+  const p = bufferDetailsPayload.value
+  return p ? `${p.kind}-${p.entityId}-buffer` : 'buffer'
+})
+
+// Lazy-loaded geometry-enriched buffer entries. Populated on the first
+// activation of the Map tab inside the buffer modal via `loadBufferGeometry`.
+const bufferGeometryEntries = ref<CensusGeographyEntry[] | undefined>(undefined)
+const bufferGeometryLoading = ref(false)
+const bufferGeometryError = ref<string | null>(null)
+
+const DETAILS_KIND_TO_BUFFER_KIND: Record<BufferDetailsPayload['kind'], BufferEntityKind> = {
+  stop: 'stops',
+  route: 'routes',
+  agency: 'agencies',
+}
+
+const { resolveClient } = useApolloClient()
+
+async function loadBufferGeometry (): Promise<void> {
+  const p = bufferDetailsPayload.value
+  if (!p) { return }
+  bufferGeometryLoading.value = true
+  bufferGeometryError.value = null
+  try {
+    const bufferKind = DETAILS_KIND_TO_BUFFER_KIND[p.kind]
+    const result = await resolveClient().query({
+      query: BUFFER_QUERY_BY_KIND[bufferKind],
+      variables: {
+        ids: [p.entityId],
+        dataset: p.geoDatasetName,
+        layer: p.layer,
+        radius: p.radius,
+        tableDataset: p.tableDatasetName,
+        tableNames: REQUIRED_ACS_TABLES,
+        includeGeometry: true,
+      },
+      fetchPolicy: 'no-cache',
+    })
+    const ent = (result.data as Record<string, { id: number, census_geographies?: any[] }[]>)
+      ?.[bufferKind]?.[0]
+    const parsed: CensusGeographyEntry[] = []
+    for (const g of ent?.census_geographies || []) {
+      const row = parseGeographyRow(g, p.tableDatasetName)
+      if (row) {
+        parsed.push(row)
+      }
+    }
+    bufferGeometryEntries.value = parsed
+  } catch (err: any) {
+    bufferGeometryError.value = err?.message || String(err)
+  } finally {
+    bufferGeometryLoading.value = false
+  }
 }
 
 // Force the overlay on so the selection actually renders on the map.

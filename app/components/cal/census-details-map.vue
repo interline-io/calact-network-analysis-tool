@@ -1,17 +1,17 @@
 <template>
-  <div class="cal-buffer-details-map">
-    <p v-if="loading" class="has-text-grey cal-buffer-details-map-msg">
+  <div class="cal-census-details-map">
+    <p v-if="loading" class="has-text-grey cal-census-details-map-msg">
       Loading geometry…
     </p>
-    <p v-else-if="error" class="has-text-danger cal-buffer-details-map-msg">
+    <p v-else-if="error" class="has-text-danger cal-census-details-map-msg">
       Failed to load geometry: {{ error }}
     </p>
-    <p v-else-if="geographies.length === 0" class="has-text-grey cal-buffer-details-map-msg">
+    <p v-else-if="geographies.length === 0" class="has-text-grey cal-census-details-map-msg">
       No geometry to display.
     </p>
     <div
       ref="mapContainer"
-      class="cal-buffer-details-map-canvas"
+      class="cal-census-details-map-canvas"
     />
   </div>
 </template>
@@ -21,10 +21,10 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import maplibre from 'maplibre-gl'
 import { noLabels } from 'protomaps-themes-base'
 import { useRuntimeConfig } from '#imports'
-import type { BufferGeographyIntersection } from '~~/src/tl'
+import type { CensusGeographyEntry } from '~~/src/core'
 
 const props = defineProps<{
-  geographies: BufferGeographyIntersection[]
+  geographies: CensusGeographyEntry[]
   loading?: boolean
   error?: string | null
 }>()
@@ -71,7 +71,7 @@ function buildPopupHtml (p: Record<string, unknown>): string {
   const geoid = escapeHtml(String(p.geoid ?? ''))
   const pop = typeof p.population === 'number' ? p.population.toLocaleString('en-US') : '—'
   const pct = typeof p.fraction === 'number' ? `${(p.fraction * 100).toFixed(1)}%` : '—'
-  return `<div class="cal-buffer-details-map-popup">
+  return `<div class="cal-census-details-map-popup">
     <div><strong>${layer}</strong> ${geoid}</div>
     <div>Population: ${pop}</div>
     <div>Intersection: ${pct}</div>
@@ -222,18 +222,18 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @import 'maplibre-gl/dist/maplibre-gl';
 
-.cal-buffer-details-map {
+.cal-census-details-map {
   position: relative;
 }
 
-.cal-buffer-details-map-canvas {
+.cal-census-details-map-canvas {
   width: 100%;
   height: 480px;
   border: 1px solid var(--bulma-border);
   border-radius: 4px;
 }
 
-.cal-buffer-details-map-msg {
+.cal-census-details-map-msg {
   position: absolute;
   inset: 0;
   display: flex;
@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-:deep(.cal-buffer-details-map-popup) {
+:deep(.cal-census-details-map-popup) {
   font-size: 0.85em;
   line-height: 1.4;
 

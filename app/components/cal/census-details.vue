@@ -1,15 +1,51 @@
 <template>
   <div class="cal-census-details">
-    <div class="cal-census-details-header">
-      <h2 class="title is-5">
-        Census Details
-      </h2>
-      <p class="subtitle is-6">
-        {{ geographies.length }}
-        {{ geographies.length === 1 ? layerLabel || 'geography' : (layerLabel ? pluralize(layerLabel) : 'geographies') }}
-        fetched for the current scenario
-      </p>
-    </div>
+    <!-- Header: entity context (buffer mode) OR scenario summary (census mode) -->
+    <header class="cal-census-details-header">
+      <template v-if="headerProps">
+        <h2 class="title is-5">
+          {{ headerProps.kindLabel }}: {{ headerProps.name }}
+        </h2>
+        <div class="field is-grouped is-grouped-multiline">
+          <div class="control">
+            <div class="tags has-addons">
+              <span class="tag is-dark">{{ headerProps.kindLabel }} ID</span>
+              <span class="tag is-light">{{ headerProps.id }}</span>
+            </div>
+          </div>
+          <div v-if="headerProps.radius != null" class="control">
+            <div class="tags has-addons">
+              <span class="tag is-dark">Buffer radius</span>
+              <span class="tag is-light">{{ headerProps.radius }} m</span>
+            </div>
+          </div>
+          <div class="control">
+            <div class="tags has-addons">
+              <span class="tag is-dark">Contributing geographies</span>
+              <span class="tag is-light">{{ entries.length }}</span>
+            </div>
+          </div>
+          <div v-if="apportionmentSummary" class="control">
+            <div class="tags has-addons">
+              <span class="tag is-dark">Buffer area covered</span>
+              <span class="tag is-light">
+                {{ formatCensusValue(apportionmentSummary.pctCoverage, 'percent') }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <h2 class="title is-5">
+          Census Details
+        </h2>
+        <p class="subtitle is-6">
+          {{ entries.length }}
+          {{ entries.length === 1 ? layerLabel || 'geography' : (layerLabel ? pluralize(layerLabel) : 'geographies') }}
+          fetched for the current scenario
+        </p>
+      </template>
+    </header>
 
     <cat-msg v-if="highlightedGeoid" variant="warning" class="mb-3">
       Filtered to a single geography: <strong>{{ highlightedGeoid }}</strong>
@@ -21,16 +57,22 @@
       <cat-tab-item value="geographies" label="Geographies" />
       <cat-tab-item value="raw" label="Raw ACS values" />
       <cat-tab-item value="coverage" label="Coverage" />
+      <cat-tab-item
+        v-if="apportionmentSummary"
+        value="apportionment"
+        label="Apportionment"
+      />
       <cat-tab-item value="inspector" label="Derivation inspector" />
+      <cat-tab-item v-if="showMap" value="map" label="Map" />
     </cat-tabs>
 
     <!-- Geographies tab: one row per geography with metadata + derived columns -->
     <div v-if="activeTab === 'geographies'">
       <cat-msg variant="info" title="About this table" class="mb-4">
         <p class="mb-2">
-          One row per census geography fetched for the current scenario.
+          One row per census geography.
           <strong>Intersection %</strong> shows the fraction of each geography
-          that falls inside the query area.
+          that falls inside the query area or stop buffer.
         </p>
         <p class="mb-3">
           Demographic columns show the <strong>full ACS value for the whole
@@ -43,7 +85,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="geographiesTableReport"
-        filename="census-geographies.csv"
+        :filename="csvFilename('geographies')"
         freeze-first-column
       >
         <template #column-geoid="{ value }">
@@ -75,7 +117,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="rawTableReport"
-        filename="census-raw-values.csv"
+        :filename="csvFilename('raw')"
         freeze-first-column
       >
         <template #column-geoid="{ value }">
@@ -155,12 +197,34 @@
       </table>
     </div>
 
-    <!-- Derivation inspector tab: derive source + per-geography input values -->
+    <!-- Apportionment tab: only rendered in buffer mode. Headline rolled-up
+         values for each display column. -->
+    <div v-if="activeTab === 'apportionment' && apportionmentSummary">
+      <cat-msg variant="info" title="About this view" class="mb-4">
+        <p class="mb-2">
+          Each demographic column is computed as
+          <code>Σ (raw × intersection %)</code> across contributing geographies,
+          then run through the column's derivation. Use the Derivation inspector
+          tab to see per-geography contributions for any column.
+        </p>
+      </cat-msg>
+      <cal-datagrid
+        v-model:table-report="apportionmentTableReport"
+        :filename="csvFilename('apportionment')"
+      />
+    </div>
+
+    <!-- Derivation inspector: pick a column (+ a geography in single-geo mode)
+         to see the derive source and the inputs that feed it. -->
     <div v-if="activeTab === 'inspector'">
       <cat-msg variant="info" title="About this tool" class="mb-4">
-        <p>
-          See the derive function for a column and the actual raw ACS values
-          feeding into it for a specific geography.
+        <p v-if="inspectorMode === 'apportioned'">
+          Pick a column to see its derive function and how each contributing
+          geography's raw value feeds into the apportioned sum.
+        </p>
+        <p v-else>
+          Pick a column and a geography to see the derive function and the
+          actual raw ACS values feeding into it.
         </p>
       </cat-msg>
       <div class="cal-census-details-inspector-controls">
@@ -178,13 +242,13 @@
             </option>
           </cat-select>
         </cat-field>
-        <cat-field>
+        <cat-field v-if="inspectorMode === 'single'">
           <template #label>
             Geography
           </template>
           <cat-select v-model="inspectorGeoid">
             <option
-              v-for="g of geographies"
+              v-for="g of entries"
               :key="g.geoid"
               :value="g.geoid"
             >
@@ -194,18 +258,18 @@
         </cat-field>
       </div>
 
-      <div v-if="inspectorSelected" class="cal-census-details-inspector-body">
+      <div v-if="inspectorSingle" class="cal-census-details-inspector-body">
         <p>
           <strong>Derive function:</strong>
         </p>
-        <pre class="cal-census-details-inspector-code">{{ inspectorSelected.deriveSource }}</pre>
+        <pre class="cal-census-details-inspector-code">{{ inspectorSingle.deriveSource }}</pre>
         <p class="mt-3">
           <strong>Required ACS tables:</strong>
-          {{ inspectorSelected.column.requiredTables.join(', ') }}
+          {{ inspectorSingle.column.requiredTables.join(', ') }}
         </p>
 
         <h4 class="title is-6 mt-4">
-          Input values for {{ inspectorSelected.geoid }}
+          Input values for {{ inspectorSingle.geoid }}
         </h4>
         <table class="table is-striped is-narrow">
           <thead>
@@ -215,10 +279,10 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="key of inspectorSelected.sourceKeys" :key="key">
+            <tr v-for="key of inspectorSingle.sourceKeys" :key="key">
               <td><code>{{ key }}</code></td>
               <td class="cal-census-details-num">
-                {{ formatRaw(inspectorSelected.data.values[key]) }}
+                {{ formatRaw(inspectorSingle.entry.values[key]) }}
               </td>
             </tr>
           </tbody>
@@ -226,56 +290,161 @@
 
         <p class="mt-3">
           <strong>Result:</strong>
-          {{ formatCensusValue(inspectorSelected.result, inspectorSelected.column.format) }}
+          {{ formatCensusValue(inspectorSingle.result, inspectorSingle.column.format) }}
         </p>
       </div>
+
+      <div v-else-if="inspectorApportioned" class="cal-census-details-inspector-body">
+        <p>
+          <strong>Derive function:</strong>
+        </p>
+        <pre class="cal-census-details-inspector-code">{{ inspectorApportioned.deriveSource }}</pre>
+        <p class="mt-3">
+          <strong>Source ACS tables:</strong>
+          {{ inspectorApportioned.column.requiredTables.join(', ') }}
+        </p>
+        <p v-if="inspectorApportioned.isMedian" class="mt-3 has-text-grey">
+          Median column — not apportioned across geographies; renders as "—".
+        </p>
+        <template v-else>
+          <h4 class="title is-6 mt-4">
+            Per-geography contribution
+          </h4>
+          <cal-datagrid
+            v-model:table-report="inspectorApportioned.tableReport"
+            :filename="csvFilename(`inspect-${inspectorColumnId}`)"
+            freeze-first-column
+          />
+          <p class="mt-3">
+            <strong>Apportioned value:</strong>
+            {{ formatCensusValue(inspectorApportioned.apportionedValue, inspectorApportioned.column.format) }}
+          </p>
+        </template>
+      </div>
+    </div>
+
+    <!-- Map tab: rendered geographies + intersection polygons. Geometry is
+         fetched lazily by the parent on first activation. -->
+    <div v-if="activeTab === 'map' && showMap">
+      <cal-census-details-map
+        :geographies="entries"
+        :loading="mapLoading"
+        :error="mapError"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { ScenarioFilterResult } from '~~/src/scenario'
+import { computed, ref, watch } from 'vue'
 import type { TableColumn, TableReport } from './datagrid.vue'
 import {
   CENSUS_COLUMNS,
+  NON_ADDITIVE_CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
+  type CensusGeographyEntry,
   deriveApportionedRow,
   deriveCensusRow,
   detectCensusColumnSourceKeys,
   formatCensusValue,
   toFiniteNumber,
-  type CensusGeographyData,
 } from '~~/src/core'
 
-// Drill-down debug view of the census data fetched for the current scenario.
+// Inspector + tab union — kept narrow so accidental string typos fail fast.
+type TabId = 'geographies' | 'raw' | 'coverage' | 'apportionment' | 'inspector' | 'map'
+
 const props = defineProps<{
-  scenarioFilterResult: ScenarioFilterResult
+  // The geographies to show — unified shape produced from either the scenario
+  // pipeline's CensusGeographyData map or the buffer fetch's array.
+  entries: CensusGeographyEntry[]
+  // Default-mode summary text — only used when `headerProps` is unset.
   layerLabel?: string
+  // Single-geography filter banner (census-modal use case).
   highlightedGeoid?: string
+  // Entity context (buffer modal use case): swaps the header for a per-entity
+  // title + tag row.
+  headerProps?: {
+    kindLabel: string
+    id: number | string
+    name: string
+    radius?: number
+    layer?: string
+  }
+  // Buffer-mode rolled-up values — drives the Apportionment tab and switches
+  // the Inspector tab into multi-geography mode.
+  apportionmentSummary?: {
+    values: Record<string, number | null>
+    pctCoverage: number
+  }
+  // Map tab gating. Parent is responsible for fetching geometry and merging
+  // it into `entries` after `loadGeometry` is emitted.
+  showMap?: boolean
+  mapLoading?: boolean
+  mapError?: string | null
+  // CSV filename prefix; the suffix encodes the tab.
+  filenamePrefix?: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   selectGeography: [geoid: string]
   clearFilter: []
+  // Fired once when the user first activates the Map tab. Parent loads
+  // geometry and merges it into `entries`.
+  loadGeometry: []
 }>()
 
-const activeTab = ref<'geographies' | 'raw' | 'coverage' | 'inspector'>('geographies')
+const activeTab = ref<TabId>('geographies')
+
+// Apportionment summary keys off the prop, so the inspector knows which mode
+// to render without an extra prop.
+const inspectorMode = computed<'single' | 'apportioned'>(() =>
+  props.apportionmentSummary ? 'apportioned' : 'single',
+)
+
+// Map fetch is one-shot: emit only on the first activation. Parent caches.
+let geometryRequested = false
+watch(activeTab, (tab) => {
+  if (tab === 'map' && props.showMap && !geometryRequested) {
+    geometryRequested = true
+    emit('loadGeometry')
+  }
+})
 
 // Default off — apportioning silently changes the displayed number relative
 // to the raw ACS value, which is misleading without an opt-in.
 const geographiesApportioned = ref(false)
 
-// All geographies in the scenario; filtered to one when `highlightedGeoid`
-// is set (i.e. the user opened the modal from a clicked tract's panel).
-const geographies = computed((): Array<{ geoid: string, data: CensusGeographyData }> => {
-  const m = props.scenarioFilterResult.censusGeographies
-  if (!m) { return [] }
-  const entries = [...m.entries()]
-  const filterGeoid = props.highlightedGeoid
-  const filtered = filterGeoid ? entries.filter(([geoid]) => geoid === filterGeoid) : entries
-  return filtered.map(([geoid, data]) => ({ geoid, data }))
+const filenamePrefix = computed(() => props.filenamePrefix || 'census')
+
+function csvFilename (suffix: string): string {
+  return `${filenamePrefix.value}-${suffix}.csv`
+}
+
+// Best-effort name lookup — entries can carry `name`; if absent we just show
+// the bare GEOID.
+function nameFor (geoid: string): string {
+  return props.entries.find(e => e.geoid === geoid)?.name || ''
+}
+
+function pluralize (label: string): string {
+  if (label.endsWith('y')) {
+    return `${label.slice(0, -1)}ies`
+  }
+  return `${label}s`
+}
+
+// Either filtered to a single GEOID (single-geo modal mode) or every entry.
+const visibleEntries = computed<CensusGeographyEntry[]>(() => {
+  const filter = props.highlightedGeoid
+  return filter ? props.entries.filter(e => e.geoid === filter) : props.entries
 })
+
+function entryRatio (entry: CensusGeographyEntry): number {
+  if (entry.intersectionRatio != null) {
+    return entry.intersectionRatio
+  }
+  return entry.geometryArea > 0 ? entry.intersectionArea / entry.geometryArea : 0
+}
 
 const geographiesColumns = computed((): TableColumn[] => [
   { key: 'geoid', label: 'GEOID', sortable: true },
@@ -294,24 +463,27 @@ const geographiesColumns = computed((): TableColumn[] => [
 
 const geographiesTableReport = computed((): TableReport => ({
   columns: geographiesColumns.value,
-  data: geographies.value.map(({ geoid, data }) => ({
-    geoid,
-    name: nameFor(geoid),
-    geometry_area_m2: data.geometryArea,
-    intersection_area_m2: data.intersectionArea,
-    intersection_pct: data.intersectionRatio,
-    ...(geographiesApportioned.value
-      ? deriveApportionedRow(data.values, data.intersectionRatio)
-      : deriveCensusRow(data.values)),
-  })),
+  data: visibleEntries.value.map((entry) => {
+    const ratio = entryRatio(entry)
+    return {
+      geoid: entry.geoid,
+      name: entry.name || '',
+      geometry_area_m2: entry.geometryArea,
+      intersection_area_m2: entry.intersectionArea,
+      intersection_pct: ratio,
+      ...(geographiesApportioned.value
+        ? deriveApportionedRow(entry.values, ratio)
+        : deriveCensusRow(entry.values)),
+    }
+  }),
 }))
 
-// Union of every column key observed across all geographies, so the column
-// list is stable even when some geographies miss some keys.
+// Union of every column key observed across all entries, so the column list
+// is stable even when some entries miss some keys.
 const allRawColumnKeys = computed((): string[] => {
   const keys = new Set<string>()
-  for (const { data } of geographies.value) {
-    for (const k of Object.keys(data.values)) {
+  for (const entry of visibleEntries.value) {
+    for (const k of Object.keys(entry.values)) {
       keys.add(k)
     }
   }
@@ -332,42 +504,19 @@ const rawColumns = computed((): TableColumn[] => [
 
 const rawTableReport = computed((): TableReport => ({
   columns: rawColumns.value,
-  data: geographies.value.map(({ geoid, data }) => ({
-    geoid,
-    name: nameFor(geoid),
-    ...data.values,
+  data: visibleEntries.value.map(entry => ({
+    geoid: entry.geoid,
+    name: entry.name || '',
+    ...entry.values,
   })),
 }))
 
-const geoMeta = computed((): Map<string, { name: string }> => {
-  const m = new Map<string, { name: string }>()
-  for (const stop of props.scenarioFilterResult.stops) {
-    for (const g of stop.census_geographies || []) {
-      if (!m.has(g.geoid)) {
-        m.set(g.geoid, { name: g.name })
-      }
-    }
-  }
-  return m
-})
-
-function nameFor (geoid: string): string {
-  return geoMeta.value.get(geoid)?.name || ''
-}
-
-function pluralize (label: string): string {
-  if (label.endsWith('y')) {
-    return `${label.slice(0, -1)}ies`
-  }
-  return `${label}s`
-}
-
 const displayCoverage = computed(() => {
-  const total = geographies.value.length
+  const total = visibleEntries.value.length
   return CENSUS_COLUMNS.map((col) => {
     let nonNull = 0
-    for (const { data } of geographies.value) {
-      if (col.derive(data.values) !== null) {
+    for (const entry of visibleEntries.value) {
+      if (col.derive(entry.values) !== null) {
         nonNull++
       }
     }
@@ -382,12 +531,12 @@ const displayCoverage = computed(() => {
 })
 
 const tableCoverage = computed(() => {
-  const total = geographies.value.length
+  const total = visibleEntries.value.length
   return REQUIRED_ACS_TABLES.map((table) => {
     const prefix = `${table}_`
     let withAny = 0
-    for (const { data } of geographies.value) {
-      const hasAny = Object.keys(data.values).some(k => k.startsWith(prefix))
+    for (const entry of visibleEntries.value) {
+      const hasAny = Object.keys(entry.values).some(k => k.startsWith(prefix))
       if (hasAny) { withAny++ }
     }
     return {
@@ -399,27 +548,96 @@ const tableCoverage = computed(() => {
   })
 })
 
+// Apportionment summary tab: one row per CENSUS_COLUMN with the rolled-up
+// apportioned value and the source ACS tables.
+const apportionmentTableReport = computed((): TableReport => ({
+  columns: [
+    { key: 'column', label: 'Demographic column', sortable: true },
+    { key: 'apportioned', label: 'Apportioned value', sortable: false },
+    { key: 'tables', label: 'ACS source tables', sortable: false },
+  ],
+  data: CENSUS_COLUMNS.map((c) => {
+    const value = props.apportionmentSummary?.values?.[c.id] ?? null
+    return {
+      column: c.label,
+      apportioned: NON_ADDITIVE_CENSUS_COLUMNS.has(c.id)
+        ? '— (median, not apportioned)'
+        : formatCensusValue(value, c.format),
+      tables: c.requiredTables.join(', '),
+    }
+  }),
+}))
+
+// Inspector state.
 const inspectorColumnId = ref<string>(CENSUS_COLUMNS[0]?.id ?? '')
 const inspectorGeoid = ref<string>('')
 
 if (props.highlightedGeoid) {
   inspectorGeoid.value = props.highlightedGeoid
-} else if (geographies.value.length > 0) {
-  inspectorGeoid.value = geographies.value[0]!.geoid
+} else if (props.entries.length > 0) {
+  inspectorGeoid.value = props.entries[0]!.geoid
 }
 
-const inspectorSelected = computed(() => {
+// Single-geography inspector (census mode).
+const inspectorSingle = computed(() => {
+  if (inspectorMode.value !== 'single') {
+    return null
+  }
   const col = CENSUS_COLUMNS.find(c => c.id === inspectorColumnId.value)
-  const entry = geographies.value.find(g => g.geoid === inspectorGeoid.value)
-  if (!col || !entry) { return null }
+  const entry = props.entries.find(e => e.geoid === inspectorGeoid.value)
+  if (!col || !entry) {
+    return null
+  }
   return {
     column: col,
     geoid: entry.geoid,
-    data: entry.data,
-    result: col.derive(entry.data.values),
+    entry,
+    result: col.derive(entry.values),
     deriveSource: col.derive.toString(),
     sourceKeys: detectCensusColumnSourceKeys(col),
   }
+})
+
+// Multi-geography apportioned inspector (buffer mode). Builds a per-geo
+// breakdown table showing raw value × intersection % for each contributing
+// geography, plus the rolled-up apportioned result.
+const inspectorApportioned = computed(() => {
+  if (inspectorMode.value !== 'apportioned') {
+    return null
+  }
+  const col = CENSUS_COLUMNS.find(c => c.id === inspectorColumnId.value)
+  if (!col) {
+    return null
+  }
+  const isMedian = NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)
+  const deriveSource = col.derive.toString()
+  const apportionedValue = props.apportionmentSummary?.values?.[col.id] ?? null
+  if (isMedian) {
+    return { column: col, isMedian, deriveSource, tableReport: null, apportionedValue }
+  }
+  const sourceKeys = detectCensusColumnSourceKeys(col)
+  const tableReport: TableReport = {
+    columns: [
+      { key: 'geoid', label: 'GEOID', sortable: true },
+      { key: 'fraction', label: 'Intersection %', sortable: true, format: 'percent' as const },
+      ...sourceKeys.flatMap(k => [
+        { key: `raw_${k}`, label: `${k} (raw)`, sortable: true, format: 'integer' as const },
+        { key: `contrib_${k}`, label: `${k} × intersection %`, sortable: true, format: 'integer' as const },
+      ]),
+    ],
+    data: props.entries.map((g) => {
+      const fraction = entryRatio(g)
+      const row: Record<string, string | number | null> = { geoid: g.geoid, fraction }
+      for (const k of sourceKeys) {
+        const raw = g.values[k]
+        const rawNum = typeof raw === 'number' ? raw : null
+        row[`raw_${k}`] = rawNum
+        row[`contrib_${k}`] = rawNum != null ? rawNum * fraction : null
+      }
+      return row
+    }),
+  }
+  return { column: col, isMedian, deriveSource, tableReport, apportionedValue }
 })
 
 function formatRaw (v: number | undefined): string {
@@ -486,6 +704,6 @@ function formatRaw (v: number | undefined): string {
 }
 
 .cal-census-details-inspector-body {
-  max-width: 640px;
+  max-width: 720px;
 }
 </style>

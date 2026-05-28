@@ -197,10 +197,13 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency, type BufferGeographyIntersection } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
-import type { BufferDetailsKind } from './buffer-details.vue'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+
+// What kind of entity the buffer-details modal is showing — kept here so the
+// report tab can emit a typed payload without importing from the modal.
+export type BufferDetailsKind = 'stop' | 'route' | 'agency'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -219,7 +222,9 @@ export interface BufferDetailsPayload {
   kind: BufferDetailsKind
   entityId: number
   entityLabel: string
-  tracts: BufferGeographyIntersection[]
+  // Renamed from `tracts` for layer-agnostic naming — these are
+  // CensusGeographyEntry rows at whatever `stopBufferLayer` resolved to.
+  entries: CensusGeographyEntry[]
   radius: number
   layer: string
   geoDatasetName: string
@@ -281,7 +286,7 @@ function handleOpenBufferDetails (row: { id?: number }) {
     if (!stop) { return }
     emit('openBufferDetails', {
       kind, entityId: stop.id, entityLabel: stopLabel(stop),
-      tracts: filterResult.stopBufferGeographies?.get(stop.id) ?? [],
+      entries: filterResult.stopBufferGeographies?.get(stop.id) ?? [],
       ...common,
     })
   } else if (kind === 'route') {
@@ -289,7 +294,7 @@ function handleOpenBufferDetails (row: { id?: number }) {
     if (!route) { return }
     emit('openBufferDetails', {
       kind, entityId: route.id, entityLabel: routeLabel(route),
-      tracts: filterResult.routeBufferGeographies?.get(route.id) ?? [],
+      entries: filterResult.routeBufferGeographies?.get(route.id) ?? [],
       ...common,
     })
   } else if (kind === 'agency') {
@@ -297,7 +302,7 @@ function handleOpenBufferDetails (row: { id?: number }) {
     if (!agency) { return }
     emit('openBufferDetails', {
       kind, entityId: agency.id, entityLabel: agencyLabel(agency),
-      tracts: filterResult.agencyBufferGeographies?.get(agency.id) ?? [],
+      entries: filterResult.agencyBufferGeographies?.get(agency.id) ?? [],
       ...common,
     })
   }
