@@ -157,6 +157,20 @@
           {{ formatGtfsTime(value) }}
         </button>
       </template>
+      <template #column-total_population="{ value, row }">
+        <button
+          v-if="drillableBufferTab && value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          :title="`View per-tract derivation for this ${drillableBufferTab}`"
+          @click="handleOpenBufferDetails(row)"
+        >
+          {{ formatCensusValue(toFiniteNumber(value), 'integer') }}
+        </button>
+        <span v-else-if="value != null">
+          {{ formatCensusValue(toFiniteNumber(value), 'integer') }}
+        </span>
+      </template>
     </cal-datagrid>
     <div class="cal-report-spacer" />
   </div>
@@ -164,9 +178,10 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency, type TractIntersection } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import type { BufferDetailsKind } from './buffer-details.vue'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -181,14 +196,80 @@ const { startDate, endDate, fixedRouteEnabled, stopBufferRadius } = useScenarioI
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
+export interface BufferDetailsPayload {
+  kind: BufferDetailsKind
+  entityId: number
+  entityLabel: string
+  tracts: TractIntersection[]
+  radius: number
+}
+
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
+  openBufferDetails: [payload: BufferDetailsPayload]
 }>()
 
 function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
   const route = props.scenarioFilterResult?.routes.find(r => r.id === routeId)
   if (route) {
     emit('openTimetable', { route, initialTab })
+  }
+}
+
+const drillableBufferTab = computed<BufferDetailsKind | null>(() => {
+  if (stopBufferRadius.value <= 0) {
+    return null
+  }
+  switch (activeReportTab.value) {
+    case 'stops': return 'stop'
+    case 'routes': return 'route'
+    case 'agencies': return 'agency'
+    default: return null
+  }
+})
+
+function stopLabel (s: Stop): string {
+  return `${s.stop_name || '(unnamed)'} (${s.stop_id})`
+}
+
+function routeLabel (r: Route): string {
+  const agency = r.agency?.agency_name
+  const name = r.route_short_name || r.route_long_name || r.route_id
+  return agency ? `${agency} — ${name}` : name
+}
+
+function agencyLabel (a: Agency): string {
+  return `${a.agency_name} (${a.agency_id})`
+}
+
+function handleOpenBufferDetails (row: { id?: number }) {
+  const kind = drillableBufferTab.value
+  const filterResult = props.scenarioFilterResult
+  if (!kind || !filterResult || row.id == null) {
+    return
+  }
+  const radius = stopBufferRadius.value
+  if (kind === 'stop') {
+    const stop = filterResult.stops?.find(s => s.id === row.id)
+    if (!stop) { return }
+    emit('openBufferDetails', {
+      kind, entityId: stop.id, entityLabel: stopLabel(stop), radius,
+      tracts: filterResult.stopBufferTracts?.get(stop.id) ?? [],
+    })
+  } else if (kind === 'route') {
+    const route = filterResult.routes?.find(r => r.id === row.id)
+    if (!route) { return }
+    emit('openBufferDetails', {
+      kind, entityId: route.id, entityLabel: routeLabel(route), radius,
+      tracts: filterResult.routeBufferTracts?.get(route.id) ?? [],
+    })
+  } else if (kind === 'agency') {
+    const agency = filterResult.agencies?.find(a => a.id === row.id)
+    if (!agency) { return }
+    emit('openBufferDetails', {
+      kind, entityId: agency.id, entityLabel: agencyLabel(agency), radius,
+      tracts: filterResult.agencyBufferTracts?.get(agency.id) ?? [],
+    })
   }
 }
 

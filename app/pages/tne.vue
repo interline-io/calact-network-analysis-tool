@@ -117,6 +117,7 @@
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
+            @open-buffer-details="openBufferDetails"
           />
         </div>
 
@@ -211,6 +212,22 @@
           @clear-filter="highlightedCensusGeoid = null"
         />
       </cat-modal>
+
+      <!-- Stop Statistical Radius (buffer) debug modal -->
+      <cat-modal
+        v-model="showBufferDetails"
+        title="Stop Statistical Radius — Derivation"
+        full-screen
+      >
+        <cal-buffer-details
+          v-if="bufferDetailsPayload"
+          :kind="bufferDetailsPayload.kind"
+          :entity-id="bufferDetailsPayload.entityId"
+          :entity-label="bufferDetailsPayload.entityLabel"
+          :tracts="bufferDetailsPayload.tracts"
+          :radius="bufferDetailsPayload.radius"
+        />
+      </cat-modal>
     </template>
   </NuxtLayout>
 </template>
@@ -253,6 +270,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
+import type { BufferDetailsPayload } from '~/components/cal/report.vue'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
@@ -884,6 +902,17 @@ function openCensusDetails (geoid?: string) {
 watch(showCensusDetails, (open) => {
   if (!open) { highlightedCensusGeoid.value = null }
 })
+
+const bufferDetailsPayload = ref<BufferDetailsPayload | undefined>(undefined)
+const showBufferDetails = computed({
+  get: () => bufferDetailsPayload.value !== undefined,
+  set: (v: boolean) => {
+    if (!v) { bufferDetailsPayload.value = undefined }
+  },
+})
+function openBufferDetails (payload: BufferDetailsPayload) {
+  bufferDetailsPayload.value = payload
+}
 
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
