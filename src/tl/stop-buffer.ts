@@ -14,6 +14,11 @@ export interface BufferGeographyIntersection {
   geometryArea: number
   intersectionArea: number
   values: CensusValues
+  // Populated only when the fetch was made with `includeGeometry: true` —
+  // gated by an `@include` directive so the main scenario pipeline doesn't
+  // pay for polygon payloads it'll never render.
+  geometry?: GeoJSON.MultiPolygon
+  intersectionGeometry?: GeoJSON.Geometry
 }
 
 export interface FetchBufferConfig {
@@ -24,6 +29,10 @@ export interface FetchBufferConfig {
   tableNames: string[]
   layer: string
   radius: number
+  // Default false. When true, the GraphQL response includes the tract's
+  // full geometry and the intersection geometry with the stop buffer —
+  // used by the buffer-details modal's map view.
+  includeGeometry?: boolean
 }
 
 export type EntityBufferResult = [id: number, geographies: BufferGeographyIntersection[]]
@@ -38,20 +47,23 @@ interface BufferGeographyResponse {
   layer_name: string
   geometry_area: number | null
   intersection_area: number | null
+  geometry?: GeoJSON.MultiPolygon
+  intersection_geometry?: GeoJSON.Geometry
   values: { dataset_name: string, values: Record<string, number> }[]
 }
 
 // One const gql per entity kind. We accept the duplication rather than
 // interpolating `${kind}` into a single template — gql queries must read as
 // if they lived in a .gql file.
-const stopsBufferQuery = gql`
+export const stopsBufferQuery = gql`
   query (
     $ids: [Int!]!,
     $dataset: String,
     $layer: String!,
     $radius: Float!,
     $tableDataset: String,
-    $tableNames: [String!]!
+    $tableNames: [String!]!,
+    $includeGeometry: Boolean = false
   ) {
     stops(ids: $ids) {
       id
@@ -63,6 +75,8 @@ const stopsBufferQuery = gql`
         layer_name
         geometry_area
         intersection_area
+        geometry @include(if: $includeGeometry)
+        intersection_geometry @include(if: $includeGeometry)
         values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
           dataset_name
           values
@@ -72,14 +86,15 @@ const stopsBufferQuery = gql`
   }
 `
 
-const routesBufferQuery = gql`
+export const routesBufferQuery = gql`
   query (
     $ids: [Int!]!,
     $dataset: String,
     $layer: String!,
     $radius: Float!,
     $tableDataset: String,
-    $tableNames: [String!]!
+    $tableNames: [String!]!,
+    $includeGeometry: Boolean = false
   ) {
     routes(ids: $ids) {
       id
@@ -91,6 +106,8 @@ const routesBufferQuery = gql`
         layer_name
         geometry_area
         intersection_area
+        geometry @include(if: $includeGeometry)
+        intersection_geometry @include(if: $includeGeometry)
         values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
           dataset_name
           values
@@ -100,14 +117,15 @@ const routesBufferQuery = gql`
   }
 `
 
-const agenciesBufferQuery = gql`
+export const agenciesBufferQuery = gql`
   query (
     $ids: [Int!]!,
     $dataset: String,
     $layer: String!,
     $radius: Float!,
     $tableDataset: String,
-    $tableNames: [String!]!
+    $tableNames: [String!]!,
+    $includeGeometry: Boolean = false
   ) {
     agencies(ids: $ids) {
       id
@@ -119,6 +137,8 @@ const agenciesBufferQuery = gql`
         layer_name
         geometry_area
         intersection_area
+        geometry @include(if: $includeGeometry)
+        intersection_geometry @include(if: $includeGeometry)
         values(table_names: $tableNames, dataset: $tableDataset, limit: 1000) {
           dataset_name
           values
@@ -128,13 +148,13 @@ const agenciesBufferQuery = gql`
   }
 `
 
-const BUFFER_QUERY_BY_KIND = {
+export const BUFFER_QUERY_BY_KIND = {
   stops: stopsBufferQuery,
   routes: routesBufferQuery,
   agencies: agenciesBufferQuery,
 } as const
 
-function parseGeographyRow (g: BufferGeographyResponse, tableDataset: string): BufferGeographyIntersection | null {
+export function parseGeographyRow (g: BufferGeographyResponse, tableDataset: string): BufferGeographyIntersection | null {
   const geometryArea = g.geometry_area ?? 0
   if (geometryArea <= 0) {
     return null
@@ -156,6 +176,8 @@ function parseGeographyRow (g: BufferGeographyResponse, tableDataset: string): B
     geometryArea,
     intersectionArea: g.intersection_area ?? 0,
     values,
+    geometry: g.geometry,
+    intersectionGeometry: g.intersection_geometry,
   }
 }
 
@@ -172,6 +194,7 @@ export async function fetchEntityBufferGeographies (
       radius: config.radius,
       tableDataset: config.tableDataset,
       tableNames: config.tableNames,
+      includeGeometry: config.includeGeometry ?? false,
     },
   )
   return (response.data?.[kind] || []).map((ent): EntityBufferResult => {

@@ -226,6 +226,9 @@
           :entity-label="bufferDetailsPayload.entityLabel"
           :tracts="bufferDetailsPayload.tracts"
           :radius="bufferDetailsPayload.radius"
+          :layer="bufferDetailsPayload.layer"
+          :geo-dataset-name="bufferDetailsPayload.geoDatasetName"
+          :table-dataset-name="bufferDetailsPayload.tableDatasetName"
         />
       </cat-modal>
     </template>

@@ -19,7 +19,7 @@
         </div>
         <div class="control">
           <div class="tags has-addons">
-            <span class="tag is-dark">Contributing tracts</span>
+            <span class="tag is-dark">Contributing geographies</span>
             <span class="tag is-light">{{ tracts.length }}</span>
           </div>
         </div>
@@ -32,32 +32,23 @@
       </div>
     </header>
 
-    <cat-msg variant="info" title="About this view" class="mb-4">
-      <p>
-        Demographic columns shown in the report are computed by apportioning each
-        contributing tract's raw ACS value by <strong>intersection area / tract area</strong>,
-        then summing across tracts and running the column's derivation.
-        Median columns ({{ medianColumnLabels.join(', ') || 'none' }}) are not apportioned
-        and render as "—".
-      </p>
-    </cat-msg>
-
     <p v-if="tracts.length === 0" class="has-text-grey">
-      No contributing tracts. The buffer may fall outside the loaded census layer.
+      No contributing geographies. The buffer may fall outside the loaded census layer.
     </p>
 
     <template v-else>
       <cat-tabs v-model="activeTab" type="boxed">
-        <cat-tab-item value="tracts" label="Contributing tracts" />
+        <cat-tab-item value="tracts" label="Contributing geographies" />
         <cat-tab-item value="raw" label="Raw ACS values" />
         <cat-tab-item value="apportionment" label="Apportionment" />
+        <cat-tab-item value="map" label="Map" />
       </cat-tabs>
 
       <div v-if="activeTab === 'tracts'">
         <cat-msg variant="info" title="About this table" class="mb-4">
           <p>
-            One row per contributing tract.
-            <strong>Intersection %</strong> = intersection area ÷ tract area, the weight
+            One row per contributing geography.
+            <strong>Intersection %</strong> = intersection area ÷ geography area, the weight
             used to apportion raw ACS values.
           </p>
         </cat-msg>
@@ -70,9 +61,9 @@
       <div v-if="activeTab === 'raw'">
         <cat-msg variant="info" title="About this table" class="mb-4">
           <p>
-            Every raw ACS column returned for the contributing tracts.
+            Every raw ACS column returned for the contributing geographies.
             Missing cells mean the backend had no value for that
-            (tract, column) pair, or it was filtered as an ACS jam value.
+            (geography, column) pair, or it was filtered as an ACS jam value.
           </p>
         </cat-msg>
         <cal-datagrid
@@ -86,9 +77,9 @@
         <cat-msg variant="info" title="About this view" class="mb-4">
           <p class="mb-2">
             For each demographic column the apportioned value is computed as
-            <code>Σ (raw × intersection %)</code> across contributing tracts, then run
+            <code>Σ (raw × intersection %)</code> across contributing geographies, then run
             through the column's derivation. Pick a column below to see the
-            per-tract breakdown.
+            per-geography breakdown.
           </p>
         </cat-msg>
 
@@ -123,11 +114,11 @@
             </p>
             <pre class="cal-buffer-details-inspector-code">{{ inspectorSelected.deriveSource }}</pre>
             <p v-if="inspectorSelected.isMedian" class="mt-3 has-text-grey">
-              Median column — not apportioned across tracts; renders as "—" in tables.
+              Median column — not apportioned across geographies; renders as "—" in tables.
             </p>
             <template v-else>
               <h4 class="title is-6 mt-4">
-                Per-tract contribution
+                Per-geography contribution
               </h4>
               <cal-datagrid
                 :table-report="inspectorSelected.tableReport"
@@ -142,17 +133,41 @@
           </div>
         </div>
       </div>
+
+      <div v-if="activeTab === 'map'">
+        <cat-msg variant="info" title="About this view" class="mb-4">
+          <p>
+            Geographies fetched on demand — the main scenario response stays
+            slim. Outlines show each contributing geography's full boundary;
+            filled shapes are the buffer ∩ geography intersection used for the
+            apportionment math.
+          </p>
+        </cat-msg>
+        <cal-buffer-details-map
+          :key="props.entityId"
+          :geographies="geographyResult.geographies"
+          :loading="geographyResult.loading"
+          :error="geographyResult.error"
+        />
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useLazyQuery } from '@vue/apollo-composable'
 import type { TableReport } from './datagrid.vue'
-import type { BufferGeographyIntersection } from '~~/src/tl'
+import {
+  BUFFER_QUERY_BY_KIND,
+  type BufferGeographyIntersection,
+  type BufferEntityKind,
+  parseGeographyRow,
+} from '~~/src/tl'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
+  REQUIRED_ACS_TABLES,
   apportionBuffer,
   detectCensusColumnSourceKeys,
   formatCensusValue,
@@ -160,15 +175,24 @@ import {
 
 export type BufferDetailsKind = 'stop' | 'route' | 'agency'
 
+const DETAILS_KIND_TO_BUFFER_KIND: Record<BufferDetailsKind, BufferEntityKind> = {
+  stop: 'stops',
+  route: 'routes',
+  agency: 'agencies',
+}
+
 const props = defineProps<{
   kind: BufferDetailsKind
   entityId: number
   entityLabel: string
   tracts: BufferGeographyIntersection[]
   radius: number
+  layer: string
+  geoDatasetName: string
+  tableDatasetName: string
 }>()
 
-const activeTab = ref<'tracts' | 'raw' | 'apportionment'>('tracts')
+const activeTab = ref<'tracts' | 'raw' | 'apportionment' | 'map'>('tracts')
 const inspectorColumnId = ref<string>(CENSUS_COLUMNS[0]?.id ?? '')
 
 const ENTITY_KIND_LABELS: Record<BufferDetailsKind, string> = {
@@ -177,10 +201,6 @@ const ENTITY_KIND_LABELS: Record<BufferDetailsKind, string> = {
   agency: 'Agency',
 }
 const entityKindLabel = computed(() => ENTITY_KIND_LABELS[props.kind])
-
-const medianColumnLabels = computed(() =>
-  CENSUS_COLUMNS.filter(c => NON_ADDITIVE_CENSUS_COLUMNS.has(c.id)).map(c => c.label),
-)
 
 function csvFilename (suffix: string): string {
   return `${props.kind}-${props.entityId}-buffer-${suffix}.csv`
@@ -193,7 +213,7 @@ const tractsTableReport = computed((): TableReport => ({
     { key: 'geoid', label: 'GEOID', sortable: true },
     { key: 'layer', label: 'Layer', sortable: true },
     { key: 'intersection_area_m2', label: 'Intersection (m²)', sortable: true, format: 'integer' },
-    { key: 'geometry_area_m2', label: 'Tract area (m²)', sortable: true, format: 'integer' },
+    { key: 'geometry_area_m2', label: 'Geography area (m²)', sortable: true, format: 'integer' },
     { key: 'fraction', label: 'Intersection %', sortable: true, format: 'percent' },
   ],
   data: props.tracts.map(t => ({
@@ -290,6 +310,90 @@ const inspectorSelected = computed(() => {
     data: buildInspectorRows(sourceKeys, props.tracts),
   }
   return { column: col, isMedian, deriveSource, tableReport, apportionedValue }
+})
+
+// Lazy geometry fetch (#315). Reuses the existing buffer queries; the
+// `@include(if: $includeGeometry)` directive keeps geometry off the main
+// pipeline payload and on the modal-only payload. Fires the first time
+// the Map tab is opened; cached for subsequent activations.
+interface BufferEntityWithGeographies {
+  id: number
+  census_geographies: Parameters<typeof parseGeographyRow>[0][]
+}
+interface BufferQueryResponse {
+  stops?: BufferEntityWithGeographies[]
+  routes?: BufferEntityWithGeographies[]
+  agencies?: BufferEntityWithGeographies[]
+}
+
+const geographyResult = reactive<{
+  geographies: BufferGeographyIntersection[]
+  loading: boolean
+  error: string | null
+  loadedFor: number | null
+}>({
+  geographies: [],
+  loading: false,
+  error: null,
+  loadedFor: null,
+})
+
+const { load, onResult, onError } = useLazyQuery<BufferQueryResponse>(
+  BUFFER_QUERY_BY_KIND[DETAILS_KIND_TO_BUFFER_KIND[props.kind]],
+)
+
+onResult((result) => {
+  const bufferKind = DETAILS_KIND_TO_BUFFER_KIND[props.kind]
+  const ent = result.data?.[bufferKind]?.[0]
+  geographyResult.loading = false
+  geographyResult.error = null
+  if (!ent) {
+    geographyResult.geographies = []
+    return
+  }
+  const parsed: BufferGeographyIntersection[] = []
+  for (const g of ent.census_geographies || []) {
+    const row = parseGeographyRow(g, props.tableDatasetName)
+    if (row) {
+      parsed.push(row)
+    }
+  }
+  geographyResult.geographies = parsed
+  geographyResult.loadedFor = props.entityId
+})
+
+onError((err) => {
+  geographyResult.loading = false
+  geographyResult.error = err.message
+})
+
+// Reset cached geometry whenever the modal pivots to a new entity. Combined
+// with `:key="props.entityId"` on cal-buffer-details-map this guarantees the
+// map is torn down and rebuilt — no chance of stale geographies bleeding across
+// stop/route/agency switches while the new fetch is in flight.
+watch([activeTab, () => props.entityId], ([tab, id], [_prevTab, prevId]) => {
+  if (id !== prevId) {
+    geographyResult.geographies = []
+    geographyResult.loadedFor = null
+    geographyResult.error = null
+  }
+  if (tab !== 'map') {
+    return
+  }
+  if (geographyResult.loadedFor === id) {
+    return
+  }
+  geographyResult.loading = true
+  geographyResult.error = null
+  load(undefined, {
+    ids: [id],
+    dataset: props.geoDatasetName,
+    layer: props.layer,
+    radius: props.radius,
+    tableDataset: props.tableDatasetName,
+    tableNames: REQUIRED_ACS_TABLES,
+    includeGeometry: true,
+  }, { fetchPolicy: 'no-cache' })
 })
 </script>
 

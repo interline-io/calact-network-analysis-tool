@@ -162,7 +162,7 @@
           v-if="drillableBufferTab && value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          :title="`View per-tract derivation for this ${drillableBufferTab}`"
+          :title="`View per-geography derivation for this ${drillableBufferTab}`"
           @click="handleOpenBufferDetails(row)"
         >
           {{ formatCensusValue(toFiniteNumber(value), 'integer') }}
@@ -180,7 +180,7 @@
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency, type BufferGeographyIntersection } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 import type { BufferDetailsKind } from './buffer-details.vue'
 
 const props = defineProps<{
@@ -192,7 +192,7 @@ const props = defineProps<{
 }>()
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
-const { startDate, endDate, fixedRouteEnabled, stopBufferRadius } = useScenarioInputs()
+const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
@@ -202,6 +202,9 @@ export interface BufferDetailsPayload {
   entityLabel: string
   tracts: BufferGeographyIntersection[]
   radius: number
+  layer: string
+  geoDatasetName: string
+  tableDatasetName: string
 }
 
 const emit = defineEmits<{
@@ -248,27 +251,35 @@ function handleOpenBufferDetails (row: { id?: number }) {
   if (!kind || !filterResult || row.id == null) {
     return
   }
-  const radius = stopBufferRadius.value
+  const common = {
+    radius: stopBufferRadius.value,
+    layer: stopBufferLayer.value,
+    geoDatasetName: geoDatasetName.value,
+    tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName!,
+  }
   if (kind === 'stop') {
     const stop = filterResult.stops?.find(s => s.id === row.id)
     if (!stop) { return }
     emit('openBufferDetails', {
-      kind, entityId: stop.id, entityLabel: stopLabel(stop), radius,
+      kind, entityId: stop.id, entityLabel: stopLabel(stop),
       tracts: filterResult.stopBufferGeographies?.get(stop.id) ?? [],
+      ...common,
     })
   } else if (kind === 'route') {
     const route = filterResult.routes?.find(r => r.id === row.id)
     if (!route) { return }
     emit('openBufferDetails', {
-      kind, entityId: route.id, entityLabel: routeLabel(route), radius,
+      kind, entityId: route.id, entityLabel: routeLabel(route),
       tracts: filterResult.routeBufferGeographies?.get(route.id) ?? [],
+      ...common,
     })
   } else if (kind === 'agency') {
     const agency = filterResult.agencies?.find(a => a.id === row.id)
     if (!agency) { return }
     emit('openBufferDetails', {
-      kind, entityId: agency.id, entityLabel: agencyLabel(agency), radius,
+      kind, entityId: agency.id, entityLabel: agencyLabel(agency),
       tracts: filterResult.agencyBufferGeographies?.get(agency.id) ?? [],
+      ...common,
     })
   }
 }
