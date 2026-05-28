@@ -178,7 +178,7 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency, type TractIntersection } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency, type BufferGeographyIntersection } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 import type { BufferDetailsKind } from './buffer-details.vue'
@@ -200,7 +200,7 @@ export interface BufferDetailsPayload {
   kind: BufferDetailsKind
   entityId: number
   entityLabel: string
-  tracts: TractIntersection[]
+  tracts: BufferGeographyIntersection[]
   radius: number
 }
 

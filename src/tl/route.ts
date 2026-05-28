@@ -1,6 +1,6 @@
 import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
-import type { TractIntersection } from './stop-buffer'
+import type { BufferGeographyIntersection } from './stop-buffer'
 
 //////////
 // Routes
@@ -118,7 +118,7 @@ export type Route = RouteGql & RouteDerived
 // Route csv
 ////////////////////
 
-export function routeToRouteCsv (route: Route, bufferTracts?: TractIntersection[]): RouteCsv {
+export function routeToRouteCsv (route: Route, bufferTracts?: BufferGeographyIntersection[]): RouteCsv {
   const row: RouteCsv = {
     id: route.id,
     marked: route.marked,

@@ -73,7 +73,7 @@ import type {
   StopVisitSummary,
   FlexAreaFeature,
   RouteDepartureIndex,
-  TractIntersection,
+  BufferGeographyIntersection,
 } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
@@ -512,14 +512,14 @@ export interface ScenarioFilterResult {
   censusGeographies?: Map<string, CensusGeographyData>
   // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
   // ran with `stopBufferRadius > 0`.
-  stopBufferTracts?: Map<number, TractIntersection[]>
+  stopBufferTracts?: Map<number, BufferGeographyIntersection[]>
   // Pass D (#315): per-route buffer tracts.
-  routeBufferTracts?: Map<number, TractIntersection[]>
+  routeBufferTracts?: Map<number, BufferGeographyIntersection[]>
   // Pass E (#315): per-agency buffer tracts.
-  agencyBufferTracts?: Map<number, TractIntersection[]>
+  agencyBufferTracts?: Map<number, BufferGeographyIntersection[]>
   // Pass F (#315): one-shot union over every stop's buffer at the chosen
   // radius. Drives the aggregation-table apportioned values.
-  aggregationBufferTracts?: TractIntersection[]
+  aggregationBufferTracts?: BufferGeographyIntersection[]
 }
 
 export function applyScenarioResultFilter (

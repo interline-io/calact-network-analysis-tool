@@ -259,9 +259,10 @@ export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANE
 // reverts the aggregation table to bbox-intersection semantics.
 export const STOP_BUFFER_DEFAULT_RADIUS = 402
 
-// Layer at which buffer ↔ census intersections are computed. Tract for now;
-// switching to block-group is a one-line change once transitland-server loads BG.
-export const STOP_BUFFER_TRACT_LAYER = 'tract'
+// Default layer at which buffer ↔ census intersections are computed. Tract
+// for now; switching to block-group is a one-line change once
+// transitland-server loads BG. Call sites pass this through as a parameter.
+export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },

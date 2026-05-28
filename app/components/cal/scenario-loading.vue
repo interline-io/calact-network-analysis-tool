@@ -133,6 +133,10 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'schedules': 'Loading schedules...',
     'flex-areas': 'Loading flex service areas...',
     'census-values': 'Loading census data...',
+    'stop-buffer-tracts': 'Loading per-stop buffer demographics...',
+    'route-buffer-tracts': 'Loading per-route buffer demographics...',
+    'agency-buffer-tracts': 'Loading per-agency buffer demographics...',
+    'aggregation-buffer-tracts': 'Loading aggregation buffer demographics...',
     'complete': 'Complete',
     'ready': 'Ready',
   }

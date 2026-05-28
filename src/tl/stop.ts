@@ -4,10 +4,10 @@ import {
   type CensusGeographyData,
   deriveCensusRow,
   apportionBuffer,
-  tractsForAggregationRow,
+  geographiesForAggregationRow,
   HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
-import type { TractIntersection } from './stop-buffer'
+import type { BufferGeographyIntersection } from './stop-buffer'
 
 //////////
 // Stops
@@ -181,7 +181,7 @@ export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
   censusGeographies?: Map<string, CensusGeographyData>,
-  options?: { onlyWithStops?: boolean, aggregationBufferTracts?: TractIntersection[] },
+  options?: { onlyWithStops?: boolean, aggregationBufferTracts?: BufferGeographyIntersection[] },
 ): StopGeoAggregateCsv[] {
   const bufferTracts = options?.aggregationBufferTracts
   const useBuffer = !!(bufferTracts && bufferTracts.length > 0
@@ -250,10 +250,10 @@ export function stopGeoAggregateCsv (
       visit_count_total: a.visits_count || 0,
     }
     if (useBuffer) {
-      // Pass F-driven apportionment: roll the union-of-stop-buffers tract
-      // list up to this row by FIPS prefix, then apportion. Replaces the
-      // bbox-clipped Pass A semantics for this row.
-      const matched = tractsForAggregationRow(a.geoid, bufferTracts!)
+      // Pass F-driven apportionment: roll the union-of-stop-buffers
+      // geography list up to this row by FIPS prefix, then apportion.
+      // Replaces the bbox-clipped Pass A semantics for this row.
+      const matched = geographiesForAggregationRow(a.geoid, bufferTracts!)
       const result = apportionBuffer(matched)
       Object.assign(row, result.values)
       row.pct_buffer_coverage = result.pctCoverage
@@ -268,7 +268,7 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop, bufferTracts?: TractIntersection[]): StopCsv {
+export function stopToStopCsv (stop: Stop, bufferTracts?: BufferGeographyIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()

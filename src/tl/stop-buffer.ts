@@ -1,12 +1,14 @@
 import { gql } from 'graphql-tag'
 import { ACS_JAM_VALUES, type CensusValues, type GraphQLClient } from '~~/src/core'
 
-// Per-stop / per-route / per-agency buffer tract intersections + inline ACS
-// values (issue #315). Apportionment math lives in `src/core/census-buffer.ts`.
+// Per-stop / per-route / per-agency buffer geography intersections + inline
+// ACS values (issue #315). The census layer is a parameter; today's callers
+// use `tract`, but nothing here assumes it. Apportionment math lives in
+// `src/core/census-buffer.ts`.
 
 export type BufferEntityKind = 'stops' | 'routes' | 'agencies'
 
-export interface TractIntersection {
+export interface BufferGeographyIntersection {
   geoid: string
   layer: string
   geometryArea: number
@@ -24,7 +26,7 @@ export interface FetchBufferConfig {
   radius: number
 }
 
-export type EntityBufferResult = [id: number, tracts: TractIntersection[]]
+export type EntityBufferResult = [id: number, geographies: BufferGeographyIntersection[]]
 
 interface BufferEntityResponse {
   id: number
@@ -69,7 +71,7 @@ function bufferQuery (kind: BufferEntityKind) {
   `
 }
 
-function parseTractRow (g: BufferGeographyResponse, tableDataset: string): TractIntersection | null {
+function parseGeographyRow (g: BufferGeographyResponse, tableDataset: string): BufferGeographyIntersection | null {
   const geometryArea = g.geometry_area ?? 0
   if (geometryArea <= 0) {
     return null
@@ -94,7 +96,7 @@ function parseTractRow (g: BufferGeographyResponse, tableDataset: string): Tract
   }
 }
 
-export async function fetchEntityBufferTracts (
+export async function fetchEntityBufferGeographies (
   kind: BufferEntityKind,
   config: FetchBufferConfig,
 ): Promise<EntityBufferResult[]> {
@@ -110,13 +112,13 @@ export async function fetchEntityBufferTracts (
     },
   )
   return (response.data?.[kind] || []).map((ent): EntityBufferResult => {
-    const tracts: TractIntersection[] = []
+    const geographies: BufferGeographyIntersection[] = []
     for (const g of ent.census_geographies || []) {
-      const t = parseTractRow(g, config.tableDataset)
-      if (t) {
-        tracts.push(t)
+      const parsed = parseGeographyRow(g, config.tableDataset)
+      if (parsed) {
+        geographies.push(parsed)
       }
     }
-    return [ent.id, tracts]
+    return [ent.id, geographies]
   })
 }

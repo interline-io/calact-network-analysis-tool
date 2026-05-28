@@ -149,7 +149,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { TableReport } from './datagrid.vue'
-import type { TractIntersection } from '~~/src/tl'
+import type { BufferGeographyIntersection } from '~~/src/tl'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
@@ -164,7 +164,7 @@ const props = defineProps<{
   kind: BufferDetailsKind
   entityId: number
   entityLabel: string
-  tracts: TractIntersection[]
+  tracts: BufferGeographyIntersection[]
   radius: number
 }>()
 

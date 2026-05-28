@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { TractIntersection } from '~~/src/tl/stop-buffer'
-import { apportionBuffer, geoidFips, tractsForAggregationRow } from './census-buffer'
+import type { BufferGeographyIntersection } from '~~/src/tl/stop-buffer'
+import { apportionBuffer, geoidFips, geographiesForAggregationRow } from './census-buffer'
 
-// Helper: build a TractIntersection with sensible defaults so tests focus
-// on the bits they care about.
-function tract (opts: Partial<TractIntersection> & { geoid: string }): TractIntersection {
+// Helper: build a BufferGeographyIntersection with sensible defaults so tests
+// focus on the bits they care about.
+function geography (opts: Partial<BufferGeographyIntersection> & { geoid: string }): BufferGeographyIntersection {
   return {
     geoid: opts.geoid,
     layer: opts.layer ?? 'tract',
@@ -17,7 +17,7 @@ function tract (opts: Partial<TractIntersection> & { geoid: string }): TractInte
 describe('apportionBuffer', () => {
   it('full overlap of a single tract returns the tract\'s population as-is', () => {
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 1000,
         intersectionArea: 1000,
@@ -30,7 +30,7 @@ describe('apportionBuffer', () => {
 
   it('half overlap of a single tract halves the count', () => {
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 1000,
         intersectionArea: 500,
@@ -46,7 +46,7 @@ describe('apportionBuffer', () => {
     // and 25% of it is covered by stop statistical radii, then the number
     // reported should be 1k". Same math applies to tracts.
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 4000,
         intersectionArea: 1000,
@@ -59,13 +59,13 @@ describe('apportionBuffer', () => {
 
   it('sums apportioned counts across multiple tracts', () => {
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 1000,
         intersectionArea: 500,
         values: { b01003_001: 2000 },
       }),
-      tract({
+      geography({
         geoid: '1400000US41051000200',
         geometryArea: 2000,
         intersectionArea: 500,
@@ -80,7 +80,7 @@ describe('apportionBuffer', () => {
 
   it('median income renders as null (non-additive across geographies)', () => {
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 1000,
         intersectionArea: 500,
@@ -92,13 +92,13 @@ describe('apportionBuffer', () => {
 
   it('skips tracts with zero geometry_area', () => {
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 0,
         intersectionArea: 0,
         values: { b01003_001: 9999 },
       }),
-      tract({
+      geography({
         geoid: '1400000US41051000200',
         geometryArea: 1000,
         intersectionArea: 1000,
@@ -120,7 +120,7 @@ describe('apportionBuffer', () => {
     // tract that's 1000 total / 600 white should still report 0.4 because
     // both numerator and denominator scale by the same ratio.
     const out = apportionBuffer([
-      tract({
+      geography({
         geoid: '1400000US41051000100',
         geometryArea: 1000,
         intersectionArea: 500,
@@ -143,16 +143,16 @@ describe('geoidFips', () => {
   })
 })
 
-describe('tractsForAggregationRow', () => {
+describe('geographiesForAggregationRow', () => {
   const tracts = [
-    tract({ geoid: '1400000US41051010100' }), // Multnomah County
-    tract({ geoid: '1400000US41051010200' }), // Multnomah County
-    tract({ geoid: '1400000US41067030100' }), // Washington County
-    tract({ geoid: '1400000US53033010100' }), // King County, WA
+    geography({ geoid: '1400000US41051010100' }), // Multnomah County
+    geography({ geoid: '1400000US41051010200' }), // Multnomah County
+    geography({ geoid: '1400000US41067030100' }), // Washington County
+    geography({ geoid: '1400000US53033010100' }), // King County, WA
   ]
 
   it('filters tracts within a county by FIPS prefix', () => {
-    const out = tractsForAggregationRow('0500000US41051', tracts)
+    const out = geographiesForAggregationRow('0500000US41051', tracts)
     expect(out.map(t => t.geoid)).toEqual([
       '1400000US41051010100',
       '1400000US41051010200',
@@ -160,7 +160,7 @@ describe('tractsForAggregationRow', () => {
   })
 
   it('returns every tract in a state when given the state GEOID', () => {
-    const out = tractsForAggregationRow('0400000US41', tracts)
+    const out = geographiesForAggregationRow('0400000US41', tracts)
     expect(out.map(t => t.geoid)).toEqual([
       '1400000US41051010100',
       '1400000US41051010200',
@@ -169,11 +169,11 @@ describe('tractsForAggregationRow', () => {
   })
 
   it('exact tract GEOID returns just that tract', () => {
-    const out = tractsForAggregationRow('1400000US41051010100', tracts)
+    const out = geographiesForAggregationRow('1400000US41051010100', tracts)
     expect(out.map(t => t.geoid)).toEqual(['1400000US41051010100'])
   })
 
   it('no match returns empty', () => {
-    expect(tractsForAggregationRow('0500000US99999', tracts)).toEqual([])
+    expect(geographiesForAggregationRow('0500000US99999', tracts)).toEqual([])
   })
 })

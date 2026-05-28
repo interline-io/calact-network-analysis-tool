@@ -1,32 +1,32 @@
-import type { TractIntersection } from '~~/src/tl/stop-buffer'
+import type { BufferGeographyIntersection } from '~~/src/tl/stop-buffer'
 import type { CensusValues } from './census-columns'
 import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
 
 // TIGER layers whose GEOIDs are strict prefixes of tract GEOIDs. Pass F's
-// tract list can roll up cleanly into these layers by FIPS prefix; place,
-// cbsa, csa, uac20, fta-uac20-nonurban need geometric containment we don't
-// have yet.
+// geography list can roll up cleanly into these layers by FIPS prefix;
+// place, cbsa, csa, uac20, fta-uac20-nonurban need geometric containment we
+// don't have yet.
 export const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract'])
 
-export function apportionBuffer (intersections: TractIntersection[]): {
+export function apportionBuffer (intersections: BufferGeographyIntersection[]): {
   values: Record<string, number | null>
   pctCoverage: number
 } {
   const apportioned: CensusValues = {}
   let totalGeometryArea = 0
   let totalIntersectionArea = 0
-  for (const t of intersections) {
-    if (!(t.geometryArea > 0)) {
+  for (const g of intersections) {
+    if (!(g.geometryArea > 0)) {
       continue
     }
-    const ratio = t.intersectionArea / t.geometryArea
-    for (const [k, v] of Object.entries(t.values)) {
+    const ratio = g.intersectionArea / g.geometryArea
+    for (const [k, v] of Object.entries(g.values)) {
       if (typeof v === 'number' && Number.isFinite(v)) {
         apportioned[k] = (apportioned[k] ?? 0) + v * ratio
       }
     }
-    totalGeometryArea += t.geometryArea
-    totalIntersectionArea += t.intersectionArea
+    totalGeometryArea += g.geometryArea
+    totalIntersectionArea += g.intersectionArea
   }
   const values: Record<string, number | null> = {}
   for (const col of CENSUS_COLUMNS) {
@@ -47,13 +47,13 @@ export function geoidFips (geoid: string): string {
   return idx < 0 ? geoid : geoid.slice(idx + 2)
 }
 
-export function tractsForAggregationRow (
+export function geographiesForAggregationRow (
   rowGeoid: string,
-  tracts: TractIntersection[],
-): TractIntersection[] {
+  geographies: BufferGeographyIntersection[],
+): BufferGeographyIntersection[] {
   const prefix = geoidFips(rowGeoid)
   if (!prefix) {
     return []
   }
-  return tracts.filter(t => geoidFips(t.geoid).startsWith(prefix))
+  return geographies.filter(g => geoidFips(g.geoid).startsWith(prefix))
 }

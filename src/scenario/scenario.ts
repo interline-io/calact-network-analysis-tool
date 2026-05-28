@@ -30,7 +30,7 @@ import type { FlexAreaFeature,
   StopTime,
   FlexLocationQueryResponse,
   FlexStopTimesQueryResponse,
-  TractIntersection,
+  BufferGeographyIntersection,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
@@ -46,9 +46,9 @@ import {
   flexLocationQuery,
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
-  fetchEntityBufferTracts,
+  fetchEntityBufferGeographies,
 } from '~~/src/tl'
-import { STOP_BUFFER_TRACT_LAYER } from '~~/src/core'
+import { STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
 import { geographyLayerQuery } from '~~/src/tl/census'
 
 // Constants for progress updates
@@ -163,27 +163,27 @@ export interface ScenarioData {
   /**
    * Per-stop tract intersections + ACS values for the stop statistical
    * radius buffer (#315). Populated when `stopBufferRadius > 0`. Keyed by
-   * Stop.id (numeric, internal). Each entry's TractIntersection[] is the
+   * Stop.id (numeric, internal). Each entry's BufferGeographyIntersection[] is the
    * union of tracts the stop's buffer touches; consumers apportion via
    * `apportionBuffer()` from `src/core/census-buffer.ts`.
    */
-  stopBufferTracts?: Map<number, TractIntersection[]>
+  stopBufferTracts?: Map<number, BufferGeographyIntersection[]>
   /**
    * Per-route buffer tract intersections (Pass D). Server unions the buffer
    * over every stop the route touches (full stop set, not bbox-clipped).
    */
-  routeBufferTracts?: Map<number, TractIntersection[]>
+  routeBufferTracts?: Map<number, BufferGeographyIntersection[]>
   /**
    * Per-agency buffer tract intersections (Pass E). Same union semantics
    * as routes, but rolled up to the agency's full stop set.
    */
-  agencyBufferTracts?: Map<number, TractIntersection[]>
+  agencyBufferTracts?: Map<number, BufferGeographyIntersection[]>
   /**
    * Single-payload aggregation buffer (Pass F): the union of every stop's
    * buffer in the scenario, intersected with tracts. Drives the
    * aggregation-table apportioned values + the `pct_buffer_coverage` column.
    */
-  aggregationBufferTracts?: TractIntersection[]
+  aggregationBufferTracts?: BufferGeographyIntersection[]
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -248,10 +248,10 @@ export interface ScenarioProgress {
     // single accumulated map.
     tripIdStrings?: [number, string][]
     censusGeographies?: [string, CensusGeographyData][]
-    stopBufferTracts?: [number, TractIntersection[]][]
-    routeBufferTracts?: [number, TractIntersection[]][]
-    agencyBufferTracts?: [number, TractIntersection[]][]
-    aggregationBufferTracts?: TractIntersection[]
+    stopBufferTracts?: [number, BufferGeographyIntersection[]][]
+    routeBufferTracts?: [number, BufferGeographyIntersection[]][]
+    agencyBufferTracts?: [number, BufferGeographyIntersection[]][]
+    aggregationBufferTracts?: BufferGeographyIntersection[]
   }
   extraData?: any
   config?: any
@@ -812,20 +812,20 @@ export class ScenarioFetcher {
       geoDataset: geoDatasetName,
       tableDataset: tableDatasetName,
       tableNames: REQUIRED_ACS_TABLES,
-      layer: STOP_BUFFER_TRACT_LAYER,
+      layer: STOP_BUFFER_DEFAULT_LAYER,
       radius,
     }
     const stopIds = [...this.bufferStopIds]
     for (const chunk of chunkArray(stopIds, this.stopTimeBatchSize)) {
-      const results = await fetchEntityBufferTracts('stops', { ...baseConfig, ids: chunk })
+      const results = await fetchEntityBufferGeographies('stops', { ...baseConfig, ids: chunk })
       this.updateProgress('stop-buffer-tracts', true, { stopBufferTracts: results })
     }
     for (const chunk of chunkArray([...this.fetchedRouteIds], BUFFER_ENTITY_BATCH_SIZE)) {
-      const results = await fetchEntityBufferTracts('routes', { ...baseConfig, ids: chunk })
+      const results = await fetchEntityBufferGeographies('routes', { ...baseConfig, ids: chunk })
       this.updateProgress('route-buffer-tracts', true, { routeBufferTracts: results })
     }
     for (const chunk of chunkArray([...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE)) {
-      const results = await fetchEntityBufferTracts('agencies', { ...baseConfig, ids: chunk })
+      const results = await fetchEntityBufferGeographies('agencies', { ...baseConfig, ids: chunk })
       this.updateProgress('agency-buffer-tracts', true, { agencyBufferTracts: results })
     }
 
@@ -834,17 +834,17 @@ export class ScenarioFetcher {
       const features = await fetchCensusIntersection({
         client: this.client,
         geoDatasetName,
-        geoDatasetLayer: STOP_BUFFER_TRACT_LAYER,
+        geoDatasetLayer: STOP_BUFFER_DEFAULT_LAYER,
         tableDatasetName,
         tableNames: REQUIRED_ACS_TABLES,
         stopIds,
         stopBufferRadius: radius,
       })
-      const tracts: TractIntersection[] = features
+      const tracts: BufferGeographyIntersection[] = features
         .filter(f => (f.properties.geometry_area ?? 0) > 0)
         .map(f => ({
           geoid: f.properties.geoid,
-          layer: f.properties.layer_name || STOP_BUFFER_TRACT_LAYER,
+          layer: f.properties.layer_name || STOP_BUFFER_DEFAULT_LAYER,
           geometryArea: f.properties.geometry_area,
           intersectionArea: f.properties.intersection_area,
           values: f.properties.values,
@@ -1192,9 +1192,9 @@ export class ScenarioDataReceiver {
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
-      stopBufferTracts: new Map<number, TractIntersection[]>(),
-      routeBufferTracts: new Map<number, TractIntersection[]>(),
-      agencyBufferTracts: new Map<number, TractIntersection[]>(),
+      stopBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
+      routeBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
+      agencyBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
       aggregationBufferTracts: [],
     }
   }
