@@ -28,9 +28,8 @@ interface ScenarioInputs {
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
-  // Stop statistical radius in meters (issue #315). 0 disables the feature.
+  // #315 — 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
-  // Census layer used for buffer ↔ geography intersections (#315).
   stopBufferLayer: WritableComputedRef<string>
 }
 
@@ -106,9 +105,7 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ fvids: v || undefined }) }
   })
 
-  // Stop statistical radius (meters). Default is on at the quarter-mile
-  // value; users can drag to 0 to disable. URL is omitted when at default
-  // to keep links short.
+  // Omit URL param when at default to keep shared links short.
   const stopBufferRadius = computed<number>({
     get: () => {
       const raw = route.query.stopBufferRadius?.toString()

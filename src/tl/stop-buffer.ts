@@ -1,10 +1,8 @@
 import { gql } from 'graphql-tag'
 import { ACS_JAM_VALUES, type CensusValues, type GraphQLClient } from '~~/src/core'
 
-// Per-stop / per-route / per-agency buffer geography intersections + inline
-// ACS values (issue #315). The census layer is a parameter; today's callers
-// use `tract`, but nothing here assumes it. Apportionment math lives in
-// `src/core/census-buffer.ts`.
+// #315 — per-entity buffer ∩ census intersections + inline ACS values.
+// Layer is a parameter; apportionment math is in `src/core/census-buffer.ts`.
 
 export type BufferEntityKind = 'stops' | 'routes' | 'agencies'
 
@@ -14,9 +12,7 @@ export interface BufferGeographyIntersection {
   geometryArea: number
   intersectionArea: number
   values: CensusValues
-  // Populated only when the fetch was made with `includeGeometry: true` —
-  // gated by an `@include` directive so the main scenario pipeline doesn't
-  // pay for polygon payloads it'll never render.
+  // Gated by `@include` so the main pipeline doesn't pay for polygons.
   geometry?: GeoJSON.MultiPolygon
   intersectionGeometry?: GeoJSON.Geometry
 }
@@ -29,9 +25,7 @@ export interface FetchBufferConfig {
   tableNames: string[]
   layer: string
   radius: number
-  // Default false. When true, the GraphQL response includes the tract's
-  // full geometry and the intersection geometry with the stop buffer —
-  // used by the buffer-details modal's map view.
+  // Opt-in (default false) — used by the map view.
   includeGeometry?: boolean
 }
 
@@ -52,9 +46,8 @@ interface BufferGeographyResponse {
   values: { dataset_name: string, values: Record<string, number> }[]
 }
 
-// One const gql per entity kind. We accept the duplication rather than
-// interpolating `${kind}` into a single template — gql queries must read as
-// if they lived in a .gql file.
+// Three queries instead of one templated — `gql` strings stay readable as
+// standalone GraphQL documents.
 export const stopsBufferQuery = gql`
   query (
     $ids: [Int!]!,

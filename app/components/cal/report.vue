@@ -201,8 +201,6 @@ import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv,
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
-// What kind of entity the buffer-details modal is showing — kept here so the
-// report tab can emit a typed payload without importing from the modal.
 export type BufferDetailsKind = 'stop' | 'route' | 'agency'
 
 const props = defineProps<{
@@ -222,8 +220,6 @@ export interface BufferDetailsPayload {
   kind: BufferDetailsKind
   entityId: number
   entityLabel: string
-  // Renamed from `tracts` for layer-agnostic naming — these are
-  // CensusGeographyEntry rows at whatever `stopBufferLayer` resolved to.
   entries: CensusGeographyEntry[]
   radius: number
   layer: string

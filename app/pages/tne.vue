@@ -213,9 +213,6 @@
         />
       </cat-modal>
 
-      <!-- Stop Statistical Radius (buffer) debug modal — same component as
-           the census details modal, in buffer mode (entity header,
-           apportionment tab, lazy-loaded map). -->
       <cat-modal
         v-model="bufferDetails.show.value"
         title="Stop Statistical Radius — Derivation"
@@ -919,9 +916,7 @@ watch(showCensusDetails, (open) => {
   if (!open) { highlightedCensusGeoid.value = null }
 })
 
-// Census details entries — built from the scenario's accumulated census map,
-// with names joined in from stops.census_geographies (the only place that
-// carries human-readable names today).
+// Names come from stops.census_geographies — the only source today.
 const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   const result = scenarioFilterResult.value
   if (!result?.censusGeographies) {
@@ -938,8 +933,6 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
 })
 
-// Buffer modal state machine — payload, geometry fetch, derived header/
-// apportionment props. See `~/composables/useBufferDetails`.
 const bufferDetails = useBufferDetails()
 
 // Force the overlay on so the selection actually renders on the map.
@@ -978,7 +971,6 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
-  // Per-stop demographic buffer (issue #315). 0 = feature off.
   stopBufferRadius: stopBufferRadius.value,
   stopBufferLayer: stopBufferLayer.value,
 }))
@@ -1079,9 +1071,6 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
-// Buffer-only refetch state machine (#315): debounced watch on
-// radius/layer that POSTs to /api/buffer-geographies and streams the
-// result back into the existing receiver. See `~/composables/useBufferRefetch`.
 const { scenarioReceiver } = useBufferRefetch({
   scenarioData,
   scenarioConfig,

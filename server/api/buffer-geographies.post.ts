@@ -1,11 +1,4 @@
-/**
- * Buffer-only refetch endpoint (#315).
- *
- * Re-runs the per-stop / per-route / per-agency / aggregation buffer passes
- * against caller-supplied entity IDs and a new radius / layer. Powers
- * snappy radius and layer changes in the SPA without re-running the full
- * scenario (feed-versions, stops, routes, departures, etc.).
- */
+// Powers radius/layer changes in the SPA without re-running the full scenario.
 
 import { createError } from 'h3'
 import type { BufferFetchConfig } from '~~/src/scenario'

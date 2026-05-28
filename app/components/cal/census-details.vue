@@ -1,6 +1,5 @@
 <template>
   <div class="cal-census-details">
-    <!-- Header: entity context (buffer mode) OR scenario summary (census mode) -->
     <header class="cal-census-details-header">
       <template v-if="headerProps">
         <h2 class="title is-5">
@@ -66,7 +65,6 @@
       <cat-tab-item v-if="showMap" value="map" label="Map" />
     </cat-tabs>
 
-    <!-- Geographies tab: one row per geography with metadata + derived columns -->
     <div v-if="activeTab === 'geographies'">
       <cat-msg variant="info" title="About this table" class="mb-4">
         <p class="mb-2">
@@ -106,7 +104,6 @@
       </cal-datagrid>
     </div>
 
-    <!-- Raw ACS values tab: per-geography × per-column matrix -->
     <div v-if="activeTab === 'raw'">
       <cat-msg variant="info" title="About this table" class="mb-4">
         <p>
@@ -138,7 +135,6 @@
       </cal-datagrid>
     </div>
 
-    <!-- Coverage tab: per-column + per-ACS-table coverage summary -->
     <div v-if="activeTab === 'coverage'">
       <cat-msg variant="info" title="About this table" class="mb-4">
         <p>
@@ -197,8 +193,6 @@
       </table>
     </div>
 
-    <!-- Apportionment tab: only rendered in buffer mode. Headline rolled-up
-         values for each display column. -->
     <div v-if="activeTab === 'apportionment' && apportionmentSummary">
       <cat-msg variant="info" title="About this view" class="mb-4">
         <p class="mb-2">
@@ -214,8 +208,6 @@
       />
     </div>
 
-    <!-- Derivation inspector: pick a column (+ a geography in single-geo mode)
-         to see the derive source and the inputs that feed it. -->
     <div v-if="activeTab === 'inspector'">
       <cat-msg variant="info" title="About this tool" class="mb-4">
         <p v-if="inspectorMode === 'apportioned'">
@@ -323,8 +315,6 @@
       </div>
     </div>
 
-    <!-- Map tab: rendered geographies + intersection polygons. Geometry is
-         fetched lazily by the parent on first activation. -->
     <div v-if="activeTab === 'map' && showMap">
       <cal-census-details-map
         :geographies="entries"
@@ -350,19 +340,13 @@ import {
   toFiniteNumber,
 } from '~~/src/core'
 
-// Inspector + tab union — kept narrow so accidental string typos fail fast.
 type TabId = 'geographies' | 'raw' | 'coverage' | 'apportionment' | 'inspector' | 'map'
 
 const props = defineProps<{
-  // The geographies to show — unified shape produced from either the scenario
-  // pipeline's CensusGeographyData map or the buffer fetch's array.
   entries: CensusGeographyEntry[]
-  // Default-mode summary text — only used when `headerProps` is unset.
   layerLabel?: string
-  // Single-geography filter banner (census-modal use case).
   highlightedGeoid?: string
-  // Entity context (buffer modal use case): swaps the header for a per-entity
-  // title + tag row.
+  // When set, swap the default scenario-summary header for entity context.
   headerProps?: {
     kindLabel: string
     id: number | string
@@ -370,38 +354,34 @@ const props = defineProps<{
     radius?: number
     layer?: string
   }
-  // Buffer-mode rolled-up values — drives the Apportionment tab and switches
-  // the Inspector tab into multi-geography mode.
+  // Presence flips the Inspector tab into multi-geography mode + reveals the
+  // Apportionment tab.
   apportionmentSummary?: {
     values: Record<string, number | null>
     pctCoverage: number
   }
-  // Map tab gating. Parent is responsible for fetching geometry and merging
-  // it into `entries` after `loadGeometry` is emitted.
+  // Parent fetches geometry and merges it back into `entries` after
+  // `loadGeometry` is emitted.
   showMap?: boolean
   mapLoading?: boolean
   mapError?: string | null
-  // CSV filename prefix; the suffix encodes the tab.
   filenamePrefix?: string
 }>()
 
 const emit = defineEmits<{
   selectGeography: [geoid: string]
   clearFilter: []
-  // Fired once when the user first activates the Map tab. Parent loads
-  // geometry and merges it into `entries`.
+  // Fired once on first Map-tab activation.
   loadGeometry: []
 }>()
 
 const activeTab = ref<TabId>('geographies')
 
-// Apportionment summary keys off the prop, so the inspector knows which mode
-// to render without an extra prop.
 const inspectorMode = computed<'single' | 'apportioned'>(() =>
   props.apportionmentSummary ? 'apportioned' : 'single',
 )
 
-// Map fetch is one-shot: emit only on the first activation. Parent caches.
+// Map fetch is one-shot — parent caches.
 const geometryRequested = ref(false)
 watch(activeTab, (tab) => {
   if (tab === 'map' && props.showMap && !geometryRequested.value) {
@@ -410,8 +390,7 @@ watch(activeTab, (tab) => {
   }
 })
 
-// Default off — apportioning silently changes the displayed number relative
-// to the raw ACS value, which is misleading without an opt-in.
+// Opt-in: apportioning silently rescales the displayed numbers.
 const geographiesApportioned = ref(false)
 
 const filenamePrefix = computed(() => props.filenamePrefix || 'census')
@@ -420,8 +399,6 @@ function csvFilename (suffix: string): string {
   return `${filenamePrefix.value}-${suffix}.csv`
 }
 
-// Best-effort name lookup — entries can carry `name`; if absent we just show
-// the bare GEOID.
 function nameFor (geoid: string): string {
   return props.entries.find(e => e.geoid === geoid)?.name || ''
 }
@@ -433,7 +410,6 @@ function pluralize (label: string): string {
   return `${label}s`
 }
 
-// Either filtered to a single GEOID (single-geo modal mode) or every entry.
 const visibleEntries = computed<CensusGeographyEntry[]>(() => {
   const filter = props.highlightedGeoid
   return filter ? props.entries.filter(e => e.geoid === filter) : props.entries
@@ -478,8 +454,8 @@ const geographiesTableReport = computed((): TableReport => ({
   }),
 }))
 
-// Union of every column key observed across all entries, so the column list
-// is stable even when some entries miss some keys.
+// Union across all entries so the column list stays stable when individual
+// entries miss keys.
 const allRawColumnKeys = computed((): string[] => {
   const keys = new Set<string>()
   for (const entry of visibleEntries.value) {
@@ -548,8 +524,6 @@ const tableCoverage = computed(() => {
   })
 })
 
-// Apportionment summary tab: one row per CENSUS_COLUMN with the rolled-up
-// apportioned value and the source ACS tables.
 const apportionmentTableReport = computed((): TableReport => ({
   columns: [
     { key: 'column', label: 'Demographic column', sortable: true },
@@ -568,7 +542,6 @@ const apportionmentTableReport = computed((): TableReport => ({
   }),
 }))
 
-// Inspector state.
 const inspectorColumnId = ref<string>(CENSUS_COLUMNS[0]?.id ?? '')
 const inspectorGeoid = ref<string>('')
 
@@ -598,9 +571,7 @@ const inspectorSingle = computed(() => {
   }
 })
 
-// Multi-geography apportioned inspector (buffer mode). Builds a per-geo
-// breakdown table showing raw value × intersection % for each contributing
-// geography, plus the rolled-up apportioned result.
+// Multi-geography apportioned inspector (buffer mode).
 const inspectorApportioned = computed(() => {
   if (inspectorMode.value !== 'apportioned') {
     return null

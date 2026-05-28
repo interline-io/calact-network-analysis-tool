@@ -100,11 +100,9 @@ export interface MarkerFeature {
   element?: HTMLElement // Optional HTML element for custom marker
 }
 
-// Expand a bbox by `meters` in all four directions. Used when the scenario
-// stop_buffer radius may include census geographies that lie outside the
-// query bbox — we widen the Pass A fetch so the apportionment math has the
-// right ACS rows to draw from. Arithmetic only (per CLAUDE.md geom rules):
-// degrees-per-meter is approximate, biased toward over-padding.
+// Widens Pass A's fetch bbox so census geographies just outside the user's
+// query area but inside a stop_buffer are still loaded for apportionment.
+// Arithmetic-only per CLAUDE.md geom rules; biased toward over-padding.
 export function padBboxMeters (bbox: Bbox | undefined, meters: number): Bbox | undefined {
   if (!bbox || !bbox.valid || meters <= 0) {
     return bbox

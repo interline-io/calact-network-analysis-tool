@@ -162,12 +162,8 @@ interface StopGeoAggregateCsv {
   stops_count: number
   agencies_count: number
   visit_count_total?: number
-  // Fraction of the row's geometry covered by the union of stop statistical
-  // radii (#315 Pass F). Populated only when aggregationBufferGeographies is
-  // provided AND the aggregation layer is hierarchical.
+  // Set only when the aggregation layer is hierarchical AND buffer data is provided.
   pct_buffer_coverage?: number | null
-  // Derived demographic columns merged in when censusValues or
-  // aggregationBufferGeographies are provided. Keyed by CensusColumnDef.id.
   [key: string]: string | number | null | undefined
 }
 
@@ -177,29 +173,11 @@ export type Stop = StopGql & StopDerived
 // Stop csv
 ///////////////////////////
 
-/**
- * Build the aggregation table (one row per census geography in the chosen
- * layer).
- *
- * Demographic columns come from one of two sources, picked by the
- * `useBuffer` gate below:
- *
- *   - **Pass A (bbox-clipped)**: when `aggregationBufferGeographies` is empty
- *     OR the layer is not hierarchical (anything outside
- *     `HIERARCHICAL_TIGER_LAYERS`: place, cbsa, csa, uac20,
- *     fta-uac20-nonurban). Reads `censusGeographies` and runs the row's full
- *     ACS values through `deriveCensusRow`.
- *
- *   - **Pass F (stop-buffer union, #315)**: when buffer geographies are
- *     provided AND the layer is hierarchical (state, county, tract). Rolls
- *     the union-of-stop-buffers geography list up to this row by FIPS
- *     prefix and runs it through `apportionBuffer`. Adds the
- *     `pct_buffer_coverage` column.
- *
- * The non-hierarchical fallback exists because place / cbsa / csa GEOIDs
- * aren't strict prefixes of tract GEOIDs, so we can't roll up by string
- * match alone — that needs geometric containment we don't have yet.
- */
+// Demographic columns come from one of two sources, picked by `useBuffer`:
+//   - Pass F (#315): when buffer geographies are provided AND the layer is in
+//     HIERARCHICAL_TIGER_LAYERS. FIPS-prefix rollup + apportionBuffer().
+//   - Pass A (bbox-clipped) otherwise — non-hierarchical layers can't roll
+//     up by string match (needs server-side geometric containment, #370).
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
@@ -273,9 +251,6 @@ export function stopGeoAggregateCsv (
       visit_count_total: a.visits_count || 0,
     }
     if (useBuffer) {
-      // Pass F-driven apportionment: roll the union-of-stop-buffers
-      // geography list up to this row by FIPS prefix, then apportion.
-      // Replaces the bbox-clipped Pass A semantics for this row.
       const matched = geographiesForAggregationRow(a.geoid, bufferGeographies!)
       const result = apportionBuffer(matched)
       Object.assign(row, result.values)

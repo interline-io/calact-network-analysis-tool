@@ -2,36 +2,26 @@ import type { CensusValues } from './census-columns'
 import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
 import type { CensusGeographyData } from './census-intersection'
 
-// TIGER layers whose GEOIDs are strict prefixes of tract GEOIDs. Pass F's
-// geography list can roll up cleanly into these layers by FIPS prefix;
-// place, cbsa, csa, uac20, fta-uac20-nonurban need geometric containment we
-// don't have yet.
+// FIPS-prefix-rollup-safe layers. Place/cbsa/csa/uac/fta-uac20-nonurban need
+// server-side geometric containment (see #370).
 export const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract'])
 
-// Unified shape for "one census geography with its intersection against some
-// shape (the scenario's query area, or a single entity's stop buffer)." Both
-// the scenario pipeline's `CensusGeographyData` map and the buffer fetch's
-// `BufferGeographyIntersection[]` are structurally compatible — pass either
-// into `<cal-census-details>` and consumers of `apportionBuffer`.
+// Shared shape for `CensusGeographyData` (scenario pipeline) and
+// `BufferGeographyIntersection` (per-entity buffer fetch) — both pass
+// directly into `apportionBuffer` and `<cal-census-details>`.
 export interface CensusGeographyEntry {
   geoid: string
   name?: string
   layer?: string
   geometryArea: number
   intersectionArea: number
-  // Optional convenience: when present, callers can read it directly instead
-  // of recomputing `intersectionArea / geometryArea`.
   intersectionRatio?: number
   values: CensusValues
-  // Populated only by the buffer fetch when `includeGeometry: true`. The
-  // map tab renders these; non-buffer callers omit them.
+  // Buffer-fetch only, gated by `includeGeometry: true`.
   geometry?: GeoJSON.MultiPolygon
   intersectionGeometry?: GeoJSON.Geometry
 }
 
-// Adapter for the scenario pipeline's `Map<geoid, CensusGeographyData>` shape.
-// `nameFor` is an optional GEOID → name lookup (usually built from
-// `stops.census_geographies`); omit when the parent has no name source.
 export function censusGeographyMapToEntries (
   m: Map<string, CensusGeographyData> | undefined,
   nameFor?: (geoid: string) => string | undefined,

@@ -33,8 +33,7 @@ const config = useRuntimeConfig()
 const mapContainer = ref<HTMLDivElement>()
 const map = ref<maplibre.Map | null>(null)
 
-// Raw ACS total-population column. Repeated literal rather than imported —
-// the constant lives privately in census-columns.ts.
+// Inlined: the constant lives privately in census-columns.ts.
 const POPULATION_KEY = 'b01003_001'
 
 function buildFeatureCollections () {
@@ -105,9 +104,8 @@ function computeBounds (features: GeoJSON.Feature[]): maplibre.LngLatBoundsLike 
 function createSourcesAndLayers (m: maplibre.Map) {
   m.addSource('base', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   m.addSource('intersections', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  // Transparent fill on the full geography is the click target — covers both
-  // the visible intersection and the surrounding area, so a single handler
-  // serves both.
+  // Transparent fill on the full geography is the click target so one handler
+  // covers both the intersection and the surrounding area.
   m.addLayer({
     id: 'base-fill',
     type: 'fill',
@@ -150,9 +148,8 @@ function createSourcesAndLayers (m: maplibre.Map) {
   })
 }
 
-// Guarded against being called before sources exist. Following the pattern in
-// www-transit-land's map-viewer: don't gate on `isStyleLoaded()` (flaky),
-// gate on `getSource()` (definitive).
+// Gate on `getSource()` (definitive) rather than `isStyleLoaded()` (flaky) —
+// pattern lifted from www-transit-land's map-viewer.
 function updateFeatures () {
   if (!map.value) {
     return
@@ -197,8 +194,7 @@ function initMap () {
   newMap.on('load', () => {
     createSourcesAndLayers(newMap)
     updateFeatures()
-    // Container may have been 0×0 during construction (parent tab toggled
-    // visible right before mount); resize once styled.
+    // Parent tab may have been hidden at construction (container 0×0); resize once styled.
     newMap.resize()
   })
 }
