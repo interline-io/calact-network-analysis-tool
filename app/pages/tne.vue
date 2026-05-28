@@ -117,7 +117,7 @@
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
-            @open-buffer-details="bufferDetails.open"
+            @open-buffer-details="openBufferDetails"
           />
         </div>
 
@@ -214,21 +214,21 @@
       </cat-modal>
 
       <cat-modal
-        v-model="bufferDetails.show.value"
+        v-model="showBufferDetails"
         title="Stop Statistical Radius — Derivation"
         full-screen
       >
         <cal-census-details
-          v-if="bufferDetails.payload.value"
-          :key="bufferDetails.payload.value.entityId"
-          :entries="bufferDetails.entries.value"
-          :header-props="bufferDetails.headerProps.value"
-          :apportionment-summary="bufferDetails.apportionment.value"
-          :filename-prefix="bufferDetails.filenamePrefix.value"
+          v-if="bufferDetailsPayload"
+          :key="bufferDetailsPayload.entityId"
+          :entries="bufferEntries"
+          :header-props="bufferHeaderProps"
+          :apportionment-summary="bufferApportionment"
+          :filename-prefix="bufferFilenamePrefix"
           show-map
-          :map-loading="bufferDetails.geometryLoading.value"
-          :map-error="bufferDetails.geometryError.value"
-          @load-geometry="bufferDetails.loadGeometry"
+          :map-loading="bufferGeometryLoading"
+          :map-error="bufferGeometryError"
+          @load-geometry="loadBufferGeometry"
         />
       </cat-modal>
     </template>
@@ -933,7 +933,18 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
 })
 
-const bufferDetails = useBufferDetails()
+const {
+  show: showBufferDetails,
+  payload: bufferDetailsPayload,
+  open: openBufferDetails,
+  entries: bufferEntries,
+  headerProps: bufferHeaderProps,
+  apportionment: bufferApportionment,
+  filenamePrefix: bufferFilenamePrefix,
+  geometryLoading: bufferGeometryLoading,
+  geometryError: bufferGeometryError,
+  loadGeometry: loadBufferGeometry,
+} = useBufferDetails()
 
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {

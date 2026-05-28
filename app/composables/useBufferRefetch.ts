@@ -2,7 +2,7 @@
 // result into the existing ScenarioDataReceiver so non-buffer state (stops,
 // routes, departures, …) stays untouched.
 
-import { shallowRef, watch, onScopeDispose, type Ref } from 'vue'
+import { shallowRef, watch, onScopeDispose, type Ref, type ShallowRef } from 'vue'
 import { useScenarioInputs } from './useScenarioInputs'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
 import {
@@ -23,10 +23,16 @@ interface UseBufferRefetchDeps {
   error: Ref<any>
 }
 
+export interface UseBufferRefetchReturn {
+  // Shared with the main fetch path so refetched buffer state lands in the
+  // same accumulator. Parent assigns into this after each main scenario fetch.
+  scenarioReceiver: ShallowRef<ScenarioDataReceiver | undefined>
+}
+
 // Without debounce a slider drag fires one request per step.
 const DEBOUNCE_MS = 500
 
-export function useBufferRefetch (deps: UseBufferRefetchDeps) {
+export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchReturn {
   // Shared with the main fetch path so refetched buffer state lands in the
   // same accumulator.
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()

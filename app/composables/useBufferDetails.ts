@@ -1,7 +1,7 @@
 // Buffer details modal state (#315): payload, open/close, derived props for
 // `<cal-census-details>` in buffer mode, and the lazy Map-tab geometry fetch.
 
-import { computed, ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref, type WritableComputedRef } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
 import type { BufferDetailsPayload } from '~/components/cal/report.vue'
 import {
@@ -11,8 +11,9 @@ import {
 } from '~~/src/core'
 import {
   BUFFER_QUERY_BY_KIND,
-  parseGeographyRow,
+  parseBufferEntityResult,
   type BufferEntityKind,
+  type BufferQueryResponse,
 } from '~~/src/tl'
 
 const BUFFER_KIND_LABELS: Record<BufferDetailsPayload['kind'], string> = {
@@ -27,7 +28,33 @@ const DETAILS_KIND_TO_BUFFER_KIND: Record<BufferDetailsPayload['kind'], BufferEn
   agency: 'agencies',
 }
 
-export function useBufferDetails () {
+export interface BufferDetailsHeader {
+  kindLabel: string
+  id: number | string
+  name: string
+  radius?: number
+  layer?: string
+}
+
+export interface BufferApportionmentSummary {
+  values: Record<string, number | null>
+  pctCoverage: number
+}
+
+export interface UseBufferDetailsReturn {
+  payload: Ref<BufferDetailsPayload | undefined>
+  show: WritableComputedRef<boolean>
+  open: (next: BufferDetailsPayload) => void
+  entries: ComputedRef<CensusGeographyEntry[]>
+  headerProps: ComputedRef<BufferDetailsHeader | undefined>
+  apportionment: ComputedRef<BufferApportionmentSummary | undefined>
+  filenamePrefix: ComputedRef<string>
+  geometryLoading: Ref<boolean>
+  geometryError: Ref<string | null>
+  loadGeometry: () => Promise<void>
+}
+
+export function useBufferDetails (): UseBufferDetailsReturn {
   const payload = ref<BufferDetailsPayload | undefined>(undefined)
 
   // Populated lazily on first Map-tab activation via `loadGeometry`.
@@ -91,7 +118,7 @@ export function useBufferDetails () {
     geometryError.value = null
     try {
       const bufferKind = DETAILS_KIND_TO_BUFFER_KIND[p.kind]
-      const result = await resolveClient().query({
+      const result = await resolveClient().query<BufferQueryResponse>({
         query: BUFFER_QUERY_BY_KIND[bufferKind],
         variables: {
           ids: [p.entityId],
@@ -105,16 +132,7 @@ export function useBufferDetails () {
         fetchPolicy: 'no-cache',
       })
       if (isStale()) { return }
-      const ent = (result.data as Record<string, { id: number, census_geographies?: any[] }[]>)
-        ?.[bufferKind]?.[0]
-      const parsed: CensusGeographyEntry[] = []
-      for (const g of ent?.census_geographies || []) {
-        const row = parseGeographyRow(g, p.tableDatasetName)
-        if (row) {
-          parsed.push(row)
-        }
-      }
-      geometryEntries.value = parsed
+      geometryEntries.value = parseBufferEntityResult(result.data, bufferKind, p.tableDatasetName)
     } catch (err: any) {
       if (isStale()) { return }
       geometryError.value = err?.message || String(err)

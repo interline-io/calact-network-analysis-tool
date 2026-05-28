@@ -31,12 +31,12 @@ export interface FetchBufferConfig {
 
 export type EntityBufferResult = [id: number, geographies: BufferGeographyIntersection[]]
 
-interface BufferEntityResponse {
+export interface BufferEntityResponse {
   id: number
   census_geographies: BufferGeographyResponse[]
 }
 
-interface BufferGeographyResponse {
+export interface BufferGeographyResponse {
   geoid: string
   layer_name: string
   geometry_area: number | null
@@ -44,6 +44,26 @@ interface BufferGeographyResponse {
   geometry?: GeoJSON.MultiPolygon
   intersection_geometry?: GeoJSON.Geometry
   values: { dataset_name: string, values: Record<string, number> }[]
+}
+
+// Shape of the top-level Apollo result for any one of the three buffer queries.
+export type BufferQueryResponse = Partial<Record<BufferEntityKind, BufferEntityResponse[]>>
+
+// Parse a raw buffer-query response into `BufferGeographyIntersection[]` for a
+// single entity (`ids: [id]` case). Used by callers that bypass
+// `fetchEntityBufferGeographies` because they hold an Apollo client.
+export function parseBufferEntityResult (
+  data: BufferQueryResponse | null | undefined,
+  kind: BufferEntityKind,
+  tableDataset: string,
+): BufferGeographyIntersection[] {
+  const ent = data?.[kind]?.[0]
+  const out: BufferGeographyIntersection[] = []
+  for (const g of ent?.census_geographies ?? []) {
+    const row = parseGeographyRow(g, tableDataset)
+    if (row) { out.push(row) }
+  }
+  return out
 }
 
 // Three queries instead of one templated — `gql` strings stay readable as
