@@ -39,14 +39,33 @@
           v-for="option of censusGeographyLayerOptions"
           :key="option.value"
           :value="option.value"
+          :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
         >
-          {{ option.label }}
+          {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
         </option>
       </cat-select>
       <cat-tooltip text="The selected geography level determines how stop data is grouped. Enable 'Show Agg. Areas' in Map Display to visualize these areas on the map.">
         <cat-icon icon="information" />
       </cat-tooltip>
     </div>
+
+    <!-- Buffer apportionment is only rolled up for state/county/tract — for
+         place/cbsa/csa/uac20 we'd need server-side geographic containment
+         that doesn't exist yet. Surface this honestly rather than silently
+         showing un-apportioned values. -->
+    <cat-msg
+      v-if="activeReportTab === 'stops-aggregated' && stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer)"
+      variant="warning"
+      title="Buffer apportionment not available for this layer"
+      class="mb-4"
+    >
+      <p>
+        Stop statistical radius apportionment is only supported when aggregating
+        by State, County, or Census Tract. Demographic columns below show the
+        full geography's values (no buffer apportionment). Switch to a supported
+        layer above, or set the stop statistical radius to 0 to acknowledge.
+      </p>
+    </cat-msg>
 
     <cal-datagrid
       :table-report="activeTableReport"

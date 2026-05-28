@@ -251,8 +251,9 @@
                 v-for="option of censusGeographyLayerOptions"
                 :key="option.value"
                 :value="option.value"
+                :disabled="!HIERARCHICAL_TIGER_LAYERS.has(option.value)"
               >
-                {{ option.label }}
+                {{ option.label }}{{ HIERARCHICAL_TIGER_LAYERS.has(option.value) ? '' : ' (not supported)' }}
               </option>
             </cat-select>
           </cat-field>
@@ -544,8 +545,9 @@
                 v-for="option of censusGeographyLayerOptions"
                 :key="option.value"
                 :value="option.value"
+                :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
               >
-                {{ option.label }}
+                {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
               </option>
             </cat-select>
           </cat-field>
@@ -654,6 +656,7 @@ import {
   PANEL_PADDING,
   FILTER_MAIN_WIDTH,
   FILTER_SUB_WIDTH,
+  HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
