@@ -249,9 +249,12 @@ const currentRows = computed(() => {
 // row renders longest in that column. Rendered hidden at the top of tbody
 // so the browser's table auto-layout sees the worst-case width for every
 // column and never reflows as pagination/sort change the visible 20 rows.
+// Driven by the full dataset (not the search-filtered subset) so widths
+// stay truly stable across filter changes — Vue's computed cache means
+// this only re-runs when `tableReport.data` itself changes.
 const layoutShimRow = computed((): Record<string, any> | null => {
   const cols = tableReport.value?.columns ?? []
-  const data = filteredData.value
+  const data = tableReport.value?.data ?? []
   if (cols.length === 0 || data.length === 0) {
     return null
   }
@@ -296,6 +299,9 @@ const rangeEnd = computed(() => {
     padding: 0.5rem 0.75rem;
     white-space: nowrap;
     vertical-align: middle;
+    // Floor so short-header + short-data columns (e.g. "ID" / "1") stay
+    // readable instead of collapsing to a few pixels wide.
+    min-width: 4rem;
   }
 
   th {
