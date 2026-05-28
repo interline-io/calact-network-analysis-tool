@@ -118,7 +118,7 @@ export type Route = RouteGql & RouteDerived
 // Route csv
 ////////////////////
 
-export function routeToRouteCsv (route: Route, bufferTracts?: BufferGeographyIntersection[]): RouteCsv {
+export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeographyIntersection[]): RouteCsv {
   const row: RouteCsv = {
     id: route.id,
     marked: route.marked,
@@ -151,7 +151,7 @@ export function routeToRouteCsv (route: Route, bufferTracts?: BufferGeographyInt
     continuous_drop_off: route.continuous_drop_off,
     continuous_pickup: route.continuous_pickup,
   }
-  return bufferTracts?.length
-    ? { ...row, ...apportionBuffer(bufferTracts).values }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
     : row
 }

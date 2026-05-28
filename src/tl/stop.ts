@@ -163,11 +163,11 @@ interface StopGeoAggregateCsv {
   agencies_count: number
   visit_count_total?: number
   // Fraction of the row's geometry covered by the union of stop statistical
-  // radii (#315 Pass F). Populated only when aggregationBufferTracts is
+  // radii (#315 Pass F). Populated only when aggregationBufferGeographies is
   // provided AND the aggregation layer is hierarchical.
   pct_buffer_coverage?: number | null
   // Derived demographic columns merged in when censusValues or
-  // aggregationBufferTracts are provided. Keyed by CensusColumnDef.id.
+  // aggregationBufferGeographies are provided. Keyed by CensusColumnDef.id.
   [key: string]: string | number | null | undefined
 }
 
@@ -177,14 +177,37 @@ export type Stop = StopGql & StopDerived
 // Stop csv
 ///////////////////////////
 
+/**
+ * Build the aggregation table (one row per census geography in the chosen
+ * layer).
+ *
+ * Demographic columns come from one of two sources, picked by the
+ * `useBuffer` gate below:
+ *
+ *   - **Pass A (bbox-clipped)**: when `aggregationBufferGeographies` is empty
+ *     OR the layer is not hierarchical (anything outside
+ *     `HIERARCHICAL_TIGER_LAYERS`: place, cbsa, csa, uac20,
+ *     fta-uac20-nonurban). Reads `censusGeographies` and runs the row's full
+ *     ACS values through `deriveCensusRow`.
+ *
+ *   - **Pass F (stop-buffer union, #315)**: when buffer geographies are
+ *     provided AND the layer is hierarchical (state, county, tract). Rolls
+ *     the union-of-stop-buffers geography list up to this row by FIPS
+ *     prefix and runs it through `apportionBuffer`. Adds the
+ *     `pct_buffer_coverage` column.
+ *
+ * The non-hierarchical fallback exists because place / cbsa / csa GEOIDs
+ * aren't strict prefixes of tract GEOIDs, so we can't roll up by string
+ * match alone — that needs geometric containment we don't have yet.
+ */
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
   censusGeographies?: Map<string, CensusGeographyData>,
-  options?: { onlyWithStops?: boolean, aggregationBufferTracts?: BufferGeographyIntersection[] },
+  options?: { onlyWithStops?: boolean, aggregationBufferGeographies?: BufferGeographyIntersection[] },
 ): StopGeoAggregateCsv[] {
-  const bufferTracts = options?.aggregationBufferTracts
-  const useBuffer = !!(bufferTracts && bufferTracts.length > 0
+  const bufferGeographies = options?.aggregationBufferGeographies
+  const useBuffer = !!(bufferGeographies && bufferGeographies.length > 0
     && HIERARCHICAL_TIGER_LAYERS.has(aggregationKey))
   const stopAgg = new Map<string, {
     geoid: string
@@ -253,7 +276,7 @@ export function stopGeoAggregateCsv (
       // Pass F-driven apportionment: roll the union-of-stop-buffers
       // geography list up to this row by FIPS prefix, then apportion.
       // Replaces the bbox-clipped Pass A semantics for this row.
-      const matched = geographiesForAggregationRow(a.geoid, bufferTracts!)
+      const matched = geographiesForAggregationRow(a.geoid, bufferGeographies!)
       const result = apportionBuffer(matched)
       Object.assign(row, result.values)
       row.pct_buffer_coverage = result.pctCoverage
@@ -268,7 +291,7 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop, bufferTracts?: BufferGeographyIntersection[]): StopCsv {
+export function stopToStopCsv (stop: Stop, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
@@ -309,7 +332,7 @@ export function stopToStopCsv (stop: Stop, bufferTracts?: BufferGeographyInterse
     visit_count_saturday_total: stop.visits?.saturday?.visit_count,
     visit_count_sunday_total: stop.visits?.sunday?.visit_count,
   }
-  return bufferTracts?.length
-    ? { ...row, ...apportionBuffer(bufferTracts).values }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
     : row
 }

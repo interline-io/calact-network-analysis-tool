@@ -254,21 +254,21 @@ function handleOpenBufferDetails (row: { id?: number }) {
     if (!stop) { return }
     emit('openBufferDetails', {
       kind, entityId: stop.id, entityLabel: stopLabel(stop), radius,
-      tracts: filterResult.stopBufferTracts?.get(stop.id) ?? [],
+      tracts: filterResult.stopBufferGeographies?.get(stop.id) ?? [],
     })
   } else if (kind === 'route') {
     const route = filterResult.routes?.find(r => r.id === row.id)
     if (!route) { return }
     emit('openBufferDetails', {
       kind, entityId: route.id, entityLabel: routeLabel(route), radius,
-      tracts: filterResult.routeBufferTracts?.get(route.id) ?? [],
+      tracts: filterResult.routeBufferGeographies?.get(route.id) ?? [],
     })
   } else if (kind === 'agency') {
     const agency = filterResult.agencies?.find(a => a.id === row.id)
     if (!agency) { return }
     emit('openBufferDetails', {
       kind, entityId: agency.id, entityLabel: agencyLabel(agency), radius,
-      tracts: filterResult.agencyBufferTracts?.get(agency.id) ?? [],
+      tracts: filterResult.agencyBufferGeographies?.get(agency.id) ?? [],
     })
   }
 }
@@ -452,7 +452,7 @@ function buildCensusColumns (apportioned: boolean): TableColumn[] {
 const bufferAggregationActive = computed(() => {
   return stopBufferRadius.value > 0
     && HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer.value)
-    && (props.scenarioFilterResult?.aggregationBufferTracts?.length ?? 0) > 0
+    && (props.scenarioFilterResult?.aggregationBufferGeographies?.length ?? 0) > 0
 })
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
@@ -576,8 +576,8 @@ const geoReportData = computed((): TableReport => {
       props.scenarioFilterResult?.censusGeographies,
       {
         onlyWithStops: onlyWithStops.value,
-        aggregationBufferTracts: bufferAggregationActive.value
-          ? props.scenarioFilterResult?.aggregationBufferTracts
+        aggregationBufferGeographies: bufferAggregationActive.value
+          ? props.scenarioFilterResult?.aggregationBufferGeographies
           : undefined,
       },
     ),
@@ -586,31 +586,31 @@ const geoReportData = computed((): TableReport => {
 })
 
 const routesReportData = computed((): TableReport => {
-  const routeBufferTracts = props.scenarioFilterResult?.routeBufferTracts
+  const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
   return {
     data: (props.scenarioFilterResult?.routes || [])
       .filter(s => s.marked)
-      .map(r => routeToRouteCsv(r, routeBufferTracts?.get(r.id))),
+      .map(r => routeToRouteCsv(r, routeBufferGeographies?.get(r.id))),
     columns: routeColumns.value
   }
 })
 
 const stopsReportData = computed((): TableReport => {
-  const stopBufferTracts = props.scenarioFilterResult?.stopBufferTracts
+  const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
   return {
     data: (props.scenarioFilterResult?.stops || [])
       .filter(s => s.marked)
-      .map(s => stopToStopCsv(s, stopBufferTracts?.get(s.id))),
+      .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id))),
     columns: stopColumns.value
   }
 })
 
 const agenciesReportData = computed((): TableReport => {
-  const agencyBufferTracts = props.scenarioFilterResult?.agencyBufferTracts
+  const agencyBufferGeographies = props.scenarioFilterResult?.agencyBufferGeographies
   return {
     data: (props.scenarioFilterResult?.agencies || [])
       .filter(s => s.marked)
-      .map(a => agencyToAgencyCsv(a, agencyBufferTracts?.get(a.id))),
+      .map(a => agencyToAgencyCsv(a, agencyBufferGeographies?.get(a.id))),
     columns: agencyColumns.value
   }
 })

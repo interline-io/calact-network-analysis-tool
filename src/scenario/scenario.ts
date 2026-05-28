@@ -31,6 +31,7 @@ import type { FlexAreaFeature,
   FlexLocationQueryResponse,
   FlexStopTimesQueryResponse,
   BufferGeographyIntersection,
+  BufferEntityKind,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
@@ -167,23 +168,23 @@ export interface ScenarioData {
    * union of tracts the stop's buffer touches; consumers apportion via
    * `apportionBuffer()` from `src/core/census-buffer.ts`.
    */
-  stopBufferTracts?: Map<number, BufferGeographyIntersection[]>
+  stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   /**
    * Per-route buffer tract intersections (Pass D). Server unions the buffer
    * over every stop the route touches (full stop set, not bbox-clipped).
    */
-  routeBufferTracts?: Map<number, BufferGeographyIntersection[]>
+  routeBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   /**
    * Per-agency buffer tract intersections (Pass E). Same union semantics
    * as routes, but rolled up to the agency's full stop set.
    */
-  agencyBufferTracts?: Map<number, BufferGeographyIntersection[]>
+  agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   /**
    * Single-payload aggregation buffer (Pass F): the union of every stop's
    * buffer in the scenario, intersected with tracts. Drives the
    * aggregation-table apportioned values + the `pct_buffer_coverage` column.
    */
-  aggregationBufferTracts?: BufferGeographyIntersection[]
+  aggregationBufferGeographies?: BufferGeographyIntersection[]
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -227,7 +228,7 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-tracts' | 'route-buffer-tracts' | 'agency-buffer-tracts' | 'aggregation-buffer-tracts' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -248,10 +249,10 @@ export interface ScenarioProgress {
     // single accumulated map.
     tripIdStrings?: [number, string][]
     censusGeographies?: [string, CensusGeographyData][]
-    stopBufferTracts?: [number, BufferGeographyIntersection[]][]
-    routeBufferTracts?: [number, BufferGeographyIntersection[]][]
-    agencyBufferTracts?: [number, BufferGeographyIntersection[]][]
-    aggregationBufferTracts?: BufferGeographyIntersection[]
+    stopBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    routeBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    agencyBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    aggregationBufferGeographies?: BufferGeographyIntersection[]
   }
   extraData?: any
   config?: any
@@ -543,9 +544,12 @@ export class ScenarioFetcher {
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
-  // IDs accumulated during stops/routes fetch for the #315 buffer passes.
+  // IDs accumulated during the main fetches for the #315 buffer passes.
+  // bufferRouteIds is populated alongside fetchedRouteIds; we keep a separate
+  // set so all three passes (C/D/E) read from symmetrically-named state.
   // Agencies are discovered inside route data, not fetched explicitly.
   private bufferStopIds: Set<number> = new Set()
+  private bufferRouteIds: Set<number> = new Set()
   private bufferAgencyIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
   // Drained on the next updateProgress() so non-fatal stage warnings ride the
@@ -815,21 +819,28 @@ export class ScenarioFetcher {
       layer: STOP_BUFFER_DEFAULT_LAYER,
       radius,
     }
-    const stopIds = [...this.bufferStopIds]
-    for (const chunk of chunkArray(stopIds, this.stopTimeBatchSize)) {
-      const results = await fetchEntityBufferGeographies('stops', { ...baseConfig, ids: chunk })
-      this.updateProgress('stop-buffer-tracts', true, { stopBufferTracts: results })
-    }
-    for (const chunk of chunkArray([...this.fetchedRouteIds], BUFFER_ENTITY_BATCH_SIZE)) {
-      const results = await fetchEntityBufferGeographies('routes', { ...baseConfig, ids: chunk })
-      this.updateProgress('route-buffer-tracts', true, { routeBufferTracts: results })
-    }
-    for (const chunk of chunkArray([...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE)) {
-      const results = await fetchEntityBufferGeographies('agencies', { ...baseConfig, ids: chunk })
-      this.updateProgress('agency-buffer-tracts', true, { agencyBufferTracts: results })
-    }
 
-    // Pass F — single top-level union over every stop's buffer.
+    // Passes C, D, E share the same chunked-fetch + progress-emit shape;
+    // only the entity kind, the id source, the batch size, and the wire
+    // stage / field differ.
+    await this.runEntityBufferPass(
+      'stops', [...this.bufferStopIds], this.stopTimeBatchSize,
+      'stop-buffer-geographies', 'stopBufferGeographies', baseConfig,
+    )
+    await this.runEntityBufferPass(
+      'routes', [...this.bufferRouteIds], BUFFER_ENTITY_BATCH_SIZE,
+      'route-buffer-geographies', 'routeBufferGeographies', baseConfig,
+    )
+    await this.runEntityBufferPass(
+      'agencies', [...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE,
+      'agency-buffer-geographies', 'agencyBufferGeographies', baseConfig,
+    )
+
+    // Pass F is structurally different: one top-level union query over
+    // every stop's buffer, returning a flat array of intersected
+    // geographies. Routed through `fetchCensusIntersection` (the same
+    // helper Pass A uses) with `stop_buffer: {stop_ids, radius}`.
+    const stopIds = [...this.bufferStopIds]
     if (stopIds.length > 0) {
       const features = await fetchCensusIntersection({
         client: this.client,
@@ -840,7 +851,7 @@ export class ScenarioFetcher {
         stopIds,
         stopBufferRadius: radius,
       })
-      const tracts: BufferGeographyIntersection[] = features
+      const geographies: BufferGeographyIntersection[] = features
         .filter(f => (f.properties.geometry_area ?? 0) > 0)
         .map(f => ({
           geoid: f.properties.geoid,
@@ -849,8 +860,22 @@ export class ScenarioFetcher {
           intersectionArea: f.properties.intersection_area,
           values: f.properties.values,
         }))
-      console.log(`[AggregationBuffer] union over ${stopIds.length} stops → ${tracts.length} tracts`)
-      this.updateProgress('aggregation-buffer-tracts', true, { aggregationBufferTracts: tracts })
+      console.log(`[AggregationBuffer] union over ${stopIds.length} stops → ${geographies.length} geographies`)
+      this.updateProgress('aggregation-buffer-geographies', true, { aggregationBufferGeographies: geographies })
+    }
+  }
+
+  private async runEntityBufferPass (
+    kind: BufferEntityKind,
+    ids: number[],
+    batchSize: number,
+    stage: ScenarioProgress['currentStage'],
+    partialKey: 'stopBufferGeographies' | 'routeBufferGeographies' | 'agencyBufferGeographies',
+    baseConfig: Omit<Parameters<typeof fetchEntityBufferGeographies>[1], 'ids'>,
+  ): Promise<void> {
+    for (const chunk of chunkArray(ids, batchSize)) {
+      const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
+      this.updateProgress(stage, true, { [partialKey]: results })
     }
   }
 
@@ -1079,10 +1104,10 @@ export class ScenarioFetcher {
       this.updateProgress('routes', true, { routes: routeBatch })
     }
 
-    // Accumulate agency IDs for the #315 buffer passes; routes are already
-    // collected via `fetchedRouteIds`.
+    // Accumulate route + agency IDs for the #315 buffer passes (D, E).
     if ((this.config.stopBufferRadius ?? 0) > 0) {
       for (const r of routeData) {
+        this.bufferRouteIds.add(r.id)
         const aid = r.agency?.id
         if (aid != null) {
           this.bufferAgencyIds.add(aid)
@@ -1192,10 +1217,10 @@ export class ScenarioDataReceiver {
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
-      stopBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
-      routeBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
-      agencyBufferTracts: new Map<number, BufferGeographyIntersection[]>(),
-      aggregationBufferTracts: [],
+      stopBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      routeBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      agencyBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      aggregationBufferGeographies: [],
     }
   }
 
@@ -1247,23 +1272,23 @@ export class ScenarioDataReceiver {
           this.accumulatedData.censusGeographies.set(geoid, data)
         }
       }
-      if (p.stopBufferTracts && this.accumulatedData.stopBufferTracts) {
-        for (const [stopId, tracts] of p.stopBufferTracts) {
-          this.accumulatedData.stopBufferTracts.set(stopId, tracts)
+      if (p.stopBufferGeographies && this.accumulatedData.stopBufferGeographies) {
+        for (const [stopId, tracts] of p.stopBufferGeographies) {
+          this.accumulatedData.stopBufferGeographies.set(stopId, tracts)
         }
       }
-      if (p.routeBufferTracts && this.accumulatedData.routeBufferTracts) {
-        for (const [routeId, tracts] of p.routeBufferTracts) {
-          this.accumulatedData.routeBufferTracts.set(routeId, tracts)
+      if (p.routeBufferGeographies && this.accumulatedData.routeBufferGeographies) {
+        for (const [routeId, tracts] of p.routeBufferGeographies) {
+          this.accumulatedData.routeBufferGeographies.set(routeId, tracts)
         }
       }
-      if (p.agencyBufferTracts && this.accumulatedData.agencyBufferTracts) {
-        for (const [agencyId, tracts] of p.agencyBufferTracts) {
-          this.accumulatedData.agencyBufferTracts.set(agencyId, tracts)
+      if (p.agencyBufferGeographies && this.accumulatedData.agencyBufferGeographies) {
+        for (const [agencyId, tracts] of p.agencyBufferGeographies) {
+          this.accumulatedData.agencyBufferGeographies.set(agencyId, tracts)
         }
       }
-      if (p.aggregationBufferTracts && this.accumulatedData.aggregationBufferTracts) {
-        this.accumulatedData.aggregationBufferTracts.push(...p.aggregationBufferTracts)
+      if (p.aggregationBufferGeographies && this.accumulatedData.aggregationBufferGeographies) {
+        this.accumulatedData.aggregationBufferGeographies.push(...p.aggregationBufferGeographies)
       }
     }
 

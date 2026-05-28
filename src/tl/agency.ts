@@ -38,7 +38,7 @@ export type AgencyCsv = AgencyGtfs & {
 
 export type Agency = AgencyGql & AgencyDerived
 
-export function agencyToAgencyCsv (agency: Agency, bufferTracts?: BufferGeographyIntersection[]): AgencyCsv {
+export function agencyToAgencyCsv (agency: Agency, bufferGeographies?: BufferGeographyIntersection[]): AgencyCsv {
   const row: AgencyCsv = {
     marked: agency.marked,
     routes_count: agency.routes_count,
@@ -54,7 +54,7 @@ export function agencyToAgencyCsv (agency: Agency, bufferTracts?: BufferGeograph
     agency_phone: agency.agency_phone,
     agency_timezone: agency.agency_timezone,
   }
-  return bufferTracts?.length
-    ? { ...row, ...apportionBuffer(bufferTracts).values }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
     : row
 }

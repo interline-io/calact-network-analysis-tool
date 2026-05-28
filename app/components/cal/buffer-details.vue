@@ -248,32 +248,22 @@ const summaryTableReport = computed((): TableReport => ({
   }),
 }))
 
-const inspectorSelected = computed(() => {
-  const col = CENSUS_COLUMNS.find(c => c.id === inspectorColumnId.value)
-  if (!col) {
-    return null
-  }
-  const isMedian = NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)
-  const deriveSource = col.derive.toString()
-  if (isMedian) {
-    return { column: col, isMedian, deriveSource, tableReport: null, apportionedValue: null }
-  }
-  const sourceKeys = detectCensusColumnSourceKeys(col)
-  const rows = props.tracts.map((t) => {
-    const fraction = t.geometryArea > 0 ? t.intersectionArea / t.geometryArea : 0
-    const row: Record<string, string | number | null> = {
-      geoid: t.geoid,
-      fraction,
-    }
+function buildInspectorRows (sourceKeys: string[], geographies: BufferGeographyIntersection[]): Record<string, string | number | null>[] {
+  return geographies.map((g) => {
+    const fraction = g.geometryArea > 0 ? g.intersectionArea / g.geometryArea : 0
+    const row: Record<string, string | number | null> = { geoid: g.geoid, fraction }
     for (const k of sourceKeys) {
-      const raw = t.values[k]
+      const raw = g.values[k]
       const rawNum = typeof raw === 'number' ? raw : null
       row[`raw_${k}`] = rawNum
       row[`contrib_${k}`] = rawNum != null ? rawNum * fraction : null
     }
     return row
   })
-  const columns = [
+}
+
+function buildInspectorColumns (sourceKeys: string[]): TableReport['columns'] {
+  return [
     { key: 'geoid', label: 'GEOID', sortable: true },
     { key: 'fraction', label: 'Intersection %', sortable: true, format: 'percent' as const },
     ...sourceKeys.flatMap(k => [
@@ -281,13 +271,25 @@ const inspectorSelected = computed(() => {
       { key: `contrib_${k}`, label: `${k} × intersection %`, sortable: true, format: 'integer' as const },
     ]),
   ]
-  return {
-    column: col,
-    isMedian,
-    deriveSource,
-    tableReport: { columns, data: rows } as TableReport,
-    apportionedValue: apportioned.value.values[col.id] ?? null,
+}
+
+const inspectorSelected = computed(() => {
+  const col = CENSUS_COLUMNS.find(c => c.id === inspectorColumnId.value)
+  if (!col) {
+    return null
   }
+  const isMedian = NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)
+  const deriveSource = col.derive.toString()
+  const apportionedValue = apportioned.value.values[col.id] ?? null
+  if (isMedian) {
+    return { column: col, isMedian, deriveSource, tableReport: null, apportionedValue }
+  }
+  const sourceKeys = detectCensusColumnSourceKeys(col)
+  const tableReport: TableReport = {
+    columns: buildInspectorColumns(sourceKeys),
+    data: buildInspectorRows(sourceKeys, props.tracts),
+  }
+  return { column: col, isMedian, deriveSource, tableReport, apportionedValue }
 })
 </script>
 

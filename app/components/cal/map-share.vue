@@ -40,24 +40,24 @@ const windowUrl = computed(() => {
 })
 
 const routeCsvData = computed(() => {
-  const routeBufferTracts = props.scenarioFilterResult?.routeBufferTracts
+  const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
   return props.scenarioFilterResult?.routes
     .filter(s => s.marked)
-    .map(r => routeToRouteCsv(r, routeBufferTracts?.get(r.id)))
+    .map(r => routeToRouteCsv(r, routeBufferGeographies?.get(r.id)))
 })
 
 const stopCsvData = computed(() => {
-  const stopBufferTracts = props.scenarioFilterResult?.stopBufferTracts
+  const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
   return props.scenarioFilterResult?.stops
     .filter(s => s.marked)
-    .map(s => stopToStopCsv(s, stopBufferTracts?.get(s.id)))
+    .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id)))
 })
 
 const agencyCsvData = computed(() => {
-  const agencyBufferTracts = props.scenarioFilterResult?.agencyBufferTracts
+  const agencyBufferGeographies = props.scenarioFilterResult?.agencyBufferGeographies
   return props.scenarioFilterResult?.agencies
     .filter(s => s.marked)
-    .map(a => agencyToAgencyCsv(a, agencyBufferTracts?.get(a.id)))
+    .map(a => agencyToAgencyCsv(a, agencyBufferGeographies?.get(a.id)))
 })
 
 function copyUrlToClipboard () {
