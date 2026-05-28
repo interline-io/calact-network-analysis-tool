@@ -13,6 +13,7 @@ export const SCENARIO_DEFAULTS = {
   routeHourCompatMode: true,
   stopLimit: 100,
   stopBufferRadius: 0,
+  stopBufferLayer: 'tract',
 } as const
 
 export interface CannedBbox {
@@ -251,6 +252,12 @@ export const FILTER_MAIN_WIDTH = 300
 export const FILTER_SUB_WIDTH = 400
 export const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING
 export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING
+
+// #315 default: 402 m ≈ 1/4 mile (Tom). 0 disables the feature.
+export const STOP_BUFFER_DEFAULT_RADIUS = 402
+
+// Tract until transitland-server loads block-group (per #315 spec).
+export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },

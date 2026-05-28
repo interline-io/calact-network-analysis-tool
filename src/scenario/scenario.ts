@@ -19,6 +19,7 @@ import {
   fetchCensusIntersection,
   REQUIRED_ACS_TABLES,
   type CensusGeographyData,
+  padBboxMeters,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -29,6 +30,7 @@ import type { FlexAreaFeature,
   StopTime,
   FlexLocationQueryResponse,
   FlexStopTimesQueryResponse,
+  BufferGeographyIntersection,
 } from '~~/src/tl'
 import {
   StopDepartureCache,
@@ -45,7 +47,9 @@ import {
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
 } from '~~/src/tl'
+import { STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
 import { geographyLayerQuery } from '~~/src/tl/census'
+import { runBufferPasses, type BufferFetchConfig } from './buffer-passes'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
@@ -90,6 +94,10 @@ export interface ScenarioConfig {
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
   excludedFeeds?: string[]
+  // 0 disables the per-entity buffer passes (#315 C/D/E/F).
+  stopBufferRadius?: number
+  // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
+  stopBufferLayer?: string
 }
 
 export interface ScenarioFilter {
@@ -143,6 +151,14 @@ export interface ScenarioData {
   tripIdStrings?: Map<number, string>
   // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
+  // Populated when `stopBufferRadius > 0`. Keyed by Stop.id.
+  stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
+  // Pass D — server unions the buffer over the route's full stop set, not bbox-clipped.
+  routeBufferGeographies?: Map<number, BufferGeographyIntersection[]>
+  // Pass E — same union semantics as routes, rolled up to the agency's full stop set.
+  agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
+  // Pass F — union over every stop's buffer. Drives aggregation-table apportionment.
+  aggregationBufferGeographies?: BufferGeographyIntersection[]
 }
 
 export function getSelectedDateRange (config: ScenarioConfig): Date[] {
@@ -186,26 +202,30 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
-  // Partial data available during progress
+  // Each pass sets only the fields it produces.
   partialData?: {
-    stops: StopGql[]
-    routes: RouteGql[]
-    feedVersions: FeedVersion[]
-    flexAreas: FlexAreaFeature[]
-    stopDepartures: StopDepartureTuple[]
+    stops?: StopGql[]
+    routes?: RouteGql[]
+    feedVersions?: FeedVersion[]
+    flexAreas?: FlexAreaFeature[]
+    stopDepartures?: StopDepartureTuple[]
     flexDepartures?: FlexDepartureTuple[]
     // Per-batch slice of new numeric-tripId → GTFS-trip_id pairs. Only the
     // newly-seen pairs are shipped per batch; the receiver merges into a
     // single accumulated map.
     tripIdStrings?: [number, string][]
     censusGeographies?: [string, CensusGeographyData][]
+    stopBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    routeBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    agencyBufferGeographies?: [number, BufferGeographyIntersection[]][]
+    aggregationBufferGeographies?: BufferGeographyIntersection[]
   }
   extraData?: any
   config?: any
@@ -422,6 +442,34 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   writer.close()
 }
 
+// Powers /api/buffer-geographies — the SPA's snappy radius/layer refetch path.
+export async function streamBufferGeographies (
+  controller: ReadableStreamDefaultController,
+  config: BufferFetchConfig,
+  client: GraphQLClient,
+): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new ScenarioStreamSender(writer)
+
+  sender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting buffer refetch',
+  })
+
+  try {
+    await runBufferPasses(config, client, p => sender.onProgress(p))
+  } catch (err) {
+    sender.onError(err)
+    writer.close()
+    return
+  }
+
+  sender.onComplete()
+  writer.close()
+}
+
 /**
  * Run the scenario fetcher, streaming results and accumulating data.
  * This is a convenience wrapper that composes streamScenario with accumulation.
@@ -497,6 +545,10 @@ export class ScenarioFetcher {
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
+  // Accumulated for the #315 buffer passes; consumed by fetchBufferData().
+  private bufferStopIds: Set<number> = new Set()
+  private bufferRouteIds: Set<number> = new Set()
+  private bufferAgencyIds: Set<number> = new Set()
   private feedVersions: FeedVersion[] = []
   // Drained on the next updateProgress() so non-fatal stage warnings ride the
   // existing progress channel without a new transport.
@@ -591,6 +643,9 @@ export class ScenarioFetcher {
       logMemory('after-routes')
       await this.stopDepartureQueue.wait()
       logMemory('after-departures')
+      // Serial batched (no measured need for concurrency at current entity counts).
+      await this.fetchBufferData()
+      logMemory('after-buffer-passes')
     } else {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
@@ -661,13 +716,7 @@ export class ScenarioFetcher {
 
     if (flexAreas.length > 0) {
       console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feed.onestop_id}`)
-      this.updateProgress('flex-areas', true, {
-        stops: [],
-        routes: [],
-        feedVersions: [],
-        stopDepartures: [],
-        flexAreas
-      })
+      this.updateProgress('flex-areas', true, { flexAreas })
     }
 
     // Fetch slim multi-date stop_times to populate the flex departure cache.
@@ -698,19 +747,13 @@ export class ScenarioFetcher {
         }
       }
       if (flexDepartures.length > 0) {
-        this.updateProgress('flex-areas', true, {
-          stops: [],
-          routes: [],
-          feedVersions: [],
-          stopDepartures: [],
-          flexAreas: [],
-          flexDepartures,
-        })
+        this.updateProgress('flex-areas', true, { flexDepartures })
       }
     }
   }
 
-  // Skipped when the caller didn't set an ACS dataset or aggregation layer.
+  // Skipped without `tableDatasetName` + `aggregateLayer`. Bbox is padded by
+  // the radius so edge-crossing buffers can apportion against the right tracts.
   private async fetchCensusValues (): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
@@ -722,14 +765,18 @@ export class ScenarioFetcher {
       return
     }
     this.updateProgress('census-values', true)
-    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer}`)
+    const radius = this.config.stopBufferRadius && this.config.stopBufferRadius > 0
+      ? this.config.stopBufferRadius
+      : 0
+    const fetchBbox = radius > 0 ? padBboxMeters(this.resolvedBbox, radius) : this.resolvedBbox
+    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer} (radius padding=${radius}m)`)
     const features = await fetchCensusIntersection({
       client: this.client,
       geoDatasetName,
       geoDatasetLayer: aggregateLayer,
       tableDatasetName,
       tableNames: REQUIRED_ACS_TABLES,
-      bbox: this.resolvedBbox,
+      bbox: fetchBbox,
       within: this.resolvedWithin,
     })
     const entries: [string, CensusGeographyData][] = features.map(f => [
@@ -741,17 +788,35 @@ export class ScenarioFetcher {
         intersectionRatio: f.properties.intersection_ratio,
         geometryArea: f.properties.geometry_area,
         intersectionArea: f.properties.intersection_area,
+        layer: aggregateLayer,
       },
     ])
     console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
-    this.updateProgress('census-values', true, {
-      stops: [],
-      routes: [],
-      feedVersions: [],
-      stopDepartures: [],
-      flexAreas: [],
-      censusGeographies: entries,
-    })
+    this.updateProgress('census-values', true, { censusGeographies: entries })
+  }
+
+  // Delegates to `runBufferPasses` so the same logic runs standalone via
+  // /api/buffer-geographies on radius/layer changes.
+  private async fetchBufferData (): Promise<void> {
+    const { tableDatasetName, geoDatasetName } = this.config
+    const radius = this.config.stopBufferRadius ?? 0
+    if (radius <= 0 || !tableDatasetName) {
+      return
+    }
+    await runBufferPasses(
+      {
+        radius,
+        layer: this.config.stopBufferLayer || STOP_BUFFER_DEFAULT_LAYER,
+        geoDatasetName,
+        tableDatasetName,
+        stopIds: [...this.bufferStopIds],
+        routeIds: [...this.bufferRouteIds],
+        agencyIds: [...this.bufferAgencyIds],
+        stopChunkSize: this.stopTimeBatchSize,
+      },
+      this.client,
+      progress => this.callbacks.onProgress?.(progress),
+    )
   }
 
   // Fetch active feed versions in the specified area
@@ -844,7 +909,7 @@ export class ScenarioFetcher {
     }
     const feedVersions = await this.resolveFeedVersionsForScenario(allFeeds)
 
-    this.updateProgress('feed-versions', true, { stops: [], routes: [], feedVersions, stopDepartures: [], flexAreas: [] })
+    this.updateProgress('feed-versions', true, { feedVersions })
 
     return feedVersions
   }
@@ -912,7 +977,7 @@ export class ScenarioFetcher {
 
     // Send progress updates in batches using the generic helper function
     for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
-      this.updateProgress('stops', true, { stops: stopBatch, routes: [], feedVersions: [], stopDepartures: [], flexAreas: [] })
+      this.updateProgress('stops', true, { stops: stopBatch })
     }
 
     // Extract route IDs and fetch routes
@@ -944,6 +1009,12 @@ export class ScenarioFetcher {
       }
     }
 
+    if ((this.config.stopBufferRadius ?? 0) > 0) {
+      for (const id of stopIds) {
+        this.bufferStopIds.add(id)
+      }
+    }
+
     // Continue fetching more stops only if we got a full batch
     // If we got fewer than the limit, we've reached the end
     const lastStopId = stopIds[stopIds.length - 1]
@@ -969,7 +1040,17 @@ export class ScenarioFetcher {
 
     // Send progress updates in batches using the generic helper function
     for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
-      this.updateProgress('routes', true, { stops: [], routes: routeBatch, feedVersions: [], stopDepartures: [], flexAreas: [] })
+      this.updateProgress('routes', true, { routes: routeBatch })
+    }
+
+    if ((this.config.stopBufferRadius ?? 0) > 0) {
+      for (const r of routeData) {
+        this.bufferRouteIds.add(r.id)
+        const aid = r.agency?.id
+        if (aid != null) {
+          this.bufferAgencyIds.add(aid)
+        }
+      }
     }
 
     console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
@@ -1030,11 +1111,7 @@ export class ScenarioFetcher {
     let sentTripIdStrings = false
     for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
       this.updateProgress('schedules', true, {
-        stops: [],
-        routes: [],
-        feedVersions: [],
         stopDepartures: stopDepartureBatch,
-        flexAreas: [],
         tripIdStrings: sentTripIdStrings ? undefined : tripIdStringPairs,
       })
       sentTripIdStrings = true
@@ -1052,6 +1129,18 @@ export class ScenarioFetcher {
       partialData: newData,
       warnings,
     })
+  }
+}
+
+function mergeIntoMap<K, V> (
+  partial: [K, V][] | undefined,
+  accumulator: Map<K, V> | undefined,
+): void {
+  if (!partial || !accumulator) {
+    return
+  }
+  for (const [k, v] of partial) {
+    accumulator.set(k, v)
   }
 }
 
@@ -1078,6 +1167,10 @@ export class ScenarioDataReceiver {
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
+      stopBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      routeBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      agencyBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
+      aggregationBufferGeographies: [],
     }
   }
 
@@ -1085,60 +1178,50 @@ export class ScenarioDataReceiver {
    * Handle a progress event from ScenarioFetcher
    */
   onProgress (progress: ScenarioProgress): void {
-    // console.log('ScenarioDataReceiver onProgress', progress)
-    // If progress contains partial data, accumulate it
-    if (progress.partialData) {
-      // Append new stops
-      this.accumulatedData.stops.push(...progress.partialData.stops)
-
-      // Append new routes
-      this.accumulatedData.routes.push(...progress.partialData.routes)
-
-      // Append new feed versions
-      this.accumulatedData.feedVersions.push(...progress.partialData.feedVersions)
-
-      // Append new stop departure events directly to cache (no intermediate StopTime)
-      for (const event of progress.partialData.stopDepartures) {
-        this.accumulatedData.stopDepartureCache.addFromWire(
-          StopDepartureTuple.stopId(event),
-          StopDepartureTuple.departureDate(event),
-          StopDepartureTuple.departureTime(event),
-          StopDepartureTuple.tripId(event),
-          StopDepartureTuple.tripDirectionId(event),
-          StopDepartureTuple.tripRouteId(event),
-        )
+    const p = progress.partialData
+    if (p) {
+      if (p.stops) {
+        this.accumulatedData.stops.push(...p.stops)
       }
-
-      // Merge the numeric→string trip_id sidecar, if this batch carried one.
-      if (progress.partialData.tripIdStrings && this.accumulatedData.tripIdStrings) {
-        for (const [numericId, stringId] of progress.partialData.tripIdStrings) {
-          this.accumulatedData.tripIdStrings.set(numericId, stringId)
+      if (p.routes) {
+        this.accumulatedData.routes.push(...p.routes)
+      }
+      if (p.feedVersions) {
+        this.accumulatedData.feedVersions.push(...p.feedVersions)
+      }
+      if (p.stopDepartures) {
+        for (const event of p.stopDepartures) {
+          this.accumulatedData.stopDepartureCache.addFromWire(
+            StopDepartureTuple.stopId(event),
+            StopDepartureTuple.departureDate(event),
+            StopDepartureTuple.departureTime(event),
+            StopDepartureTuple.tripId(event),
+            StopDepartureTuple.tripDirectionId(event),
+            StopDepartureTuple.tripRouteId(event),
+          )
         }
       }
-
-      // Append new flex areas
-      if (progress.partialData.flexAreas) {
-        this.accumulatedData.flexAreas.push(...progress.partialData.flexAreas)
+      mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
+      if (p.flexAreas) {
+        this.accumulatedData.flexAreas.push(...p.flexAreas)
       }
-
-      // Add flex departure cache entries
-      if (progress.partialData.flexDepartures) {
-        for (const tuple of progress.partialData.flexDepartures) {
+      if (p.flexDepartures) {
+        for (const tuple of p.flexDepartures) {
           this.accumulatedData.flexDepartureCache.add(
             FlexDepartureTuple.locationId(tuple),
             FlexDepartureTuple.departureDate(tuple),
           )
         }
       }
-
-      if (progress.partialData.censusGeographies && this.accumulatedData.censusGeographies) {
-        for (const [geoid, data] of progress.partialData.censusGeographies) {
-          this.accumulatedData.censusGeographies.set(geoid, data)
-        }
+      mergeIntoMap(p.censusGeographies, this.accumulatedData.censusGeographies)
+      mergeIntoMap(p.stopBufferGeographies, this.accumulatedData.stopBufferGeographies)
+      mergeIntoMap(p.routeBufferGeographies, this.accumulatedData.routeBufferGeographies)
+      mergeIntoMap(p.agencyBufferGeographies, this.accumulatedData.agencyBufferGeographies)
+      if (p.aggregationBufferGeographies && this.accumulatedData.aggregationBufferGeographies) {
+        this.accumulatedData.aggregationBufferGeographies.push(...p.aggregationBufferGeographies)
       }
     }
 
-    // Forward progress to callback
     this.callbacks.onProgress?.(progress)
   }
 
@@ -1154,6 +1237,16 @@ export class ScenarioDataReceiver {
    */
   onError (error: any): void {
     this.callbacks.onError?.(error)
+  }
+
+  // Reset before a radius/layer refetch so stale ids don't linger in the maps.
+  clearBufferGeographies (): void {
+    this.accumulatedData.stopBufferGeographies?.clear()
+    this.accumulatedData.routeBufferGeographies?.clear()
+    this.accumulatedData.agencyBufferGeographies?.clear()
+    if (this.accumulatedData.aggregationBufferGeographies) {
+      this.accumulatedData.aggregationBufferGeographies.length = 0
+    }
   }
 
   /**

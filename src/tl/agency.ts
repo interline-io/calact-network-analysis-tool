@@ -1,3 +1,6 @@
+import { apportionBuffer } from '~~/src/core'
+import type { BufferGeographyIntersection } from './stop-buffer'
+
 //////////
 // Agencies
 //////////
@@ -35,8 +38,8 @@ export type AgencyCsv = AgencyGtfs & {
 
 export type Agency = AgencyGql & AgencyDerived
 
-export function agencyToAgencyCsv (agency: Agency): AgencyCsv {
-  return {
+export function agencyToAgencyCsv (agency: Agency, bufferGeographies?: BufferGeographyIntersection[]): AgencyCsv {
+  const row: AgencyCsv = {
     marked: agency.marked,
     routes_count: agency.routes_count,
     routes_modes: agency.routes_modes,
@@ -51,4 +54,7 @@ export function agencyToAgencyCsv (agency: Agency): AgencyCsv {
     agency_phone: agency.agency_phone,
     agency_timezone: agency.agency_timezone,
   }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
+    : row
 }

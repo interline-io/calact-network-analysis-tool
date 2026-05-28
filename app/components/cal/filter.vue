@@ -208,6 +208,57 @@
           </cat-field>
 
           <p class="menu-label">
+            <cat-tooltip text="Apportions census data to the area within this radius of each stop. Used in the Stops, Routes, Agencies, and Aggregation tables. Set to 0 to disable.">
+              Stop statistical radius
+              <cat-icon icon="information" />
+            </cat-tooltip>
+          </p>
+          <cat-field>
+            <div class="level">
+              <div class="level-item">
+                <cat-slider
+                  v-model="stopBufferRadius"
+                  :min="0"
+                  :max="1600"
+                />
+              </div>
+              <div class="level-right">
+                <div class="ml-4 level-item">
+                  <div class="cal-input-width-100">
+                    <cat-input
+                      v-model="stopBufferRadius"
+                      type="number"
+                      min="0"
+                    />
+                  </div>
+                  <div class="ml-2">
+                    m
+                  </div>
+                </div>
+              </div>
+            </div>
+          </cat-field>
+
+          <cat-field v-if="stopBufferRadius > 0">
+            <template #label>
+              <cat-tooltip text="Census layer used for buffer intersections. Tract is the default; finer layers (block group) give more precise apportionment when loaded on the backend. Switching layers triggers a buffer-only refetch — the scenario stays loaded.">
+                Buffer layer
+                <cat-icon icon="information" />
+              </cat-tooltip>
+            </template>
+            <cat-select v-model="stopBufferLayer">
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+                :disabled="!HIERARCHICAL_TIGER_LAYERS.has(option.value)"
+              >
+                {{ option.label }}{{ HIERARCHICAL_TIGER_LAYERS.has(option.value) ? '' : ' (not supported)' }}
+              </option>
+            </cat-select>
+          </cat-field>
+
+          <p class="menu-label">
             Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
             </cat-tooltip>
@@ -494,8 +545,9 @@
                 v-for="option of censusGeographyLayerOptions"
                 :key="option.value"
                 :value="option.value"
+                :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
               >
-                {{ option.label }}
+                {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
               </option>
             </cat-select>
           </cat-field>
@@ -604,6 +656,7 @@ import {
   PANEL_PADDING,
   FILTER_MAIN_WIDTH,
   FILTER_SUB_WIDTH,
+  HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -647,6 +700,8 @@ const {
   endDate,
   geomSource,
   fixedRouteEnabled,
+  stopBufferRadius,
+  stopBufferLayer,
 } = useScenarioInputs()
 const {
   startTime,

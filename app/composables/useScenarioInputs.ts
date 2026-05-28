@@ -8,6 +8,8 @@ import {
   parseBbox,
   parseDate,
   SCENARIO_DEFAULTS,
+  STOP_BUFFER_DEFAULT_LAYER,
+  STOP_BUFFER_DEFAULT_RADIUS,
   type Bbox,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
@@ -26,6 +28,9 @@ interface ScenarioInputs {
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
+  // #315 — 0 disables the feature.
+  stopBufferRadius: WritableComputedRef<number>
+  stopBufferLayer: WritableComputedRef<string>
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -100,6 +105,28 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ fvids: v || undefined }) }
   })
 
+  // Omit URL param when at default to keep shared links short.
+  const stopBufferRadius = computed<number>({
+    get: () => {
+      const raw = route.query.stopBufferRadius?.toString()
+      if (raw == null || raw === '') {
+        return STOP_BUFFER_DEFAULT_RADIUS
+      }
+      const n = Number.parseFloat(raw)
+      return Number.isFinite(n) && n >= 0 ? n : STOP_BUFFER_DEFAULT_RADIUS
+    },
+    set: (v) => {
+      setQuery({ stopBufferRadius: v === STOP_BUFFER_DEFAULT_RADIUS ? undefined : String(v) })
+    }
+  })
+
+  const stopBufferLayer = computed<string>({
+    get: () => route.query.stopBufferLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER,
+    set: (v) => {
+      setQuery({ stopBufferLayer: v === STOP_BUFFER_DEFAULT_LAYER ? undefined : v })
+    }
+  })
+
   return {
     bbox,
     cannedBbox,
@@ -113,5 +140,7 @@ export function useScenarioInputs (): ScenarioInputs {
     includeFlexAreas,
     fixedRouteEnabled,
     fvids,
+    stopBufferRadius,
+    stopBufferLayer,
   }
 }

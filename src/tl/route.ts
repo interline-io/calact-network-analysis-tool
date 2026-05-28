@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
-import { formatGtfsTimeFull } from '../core'
+import { formatGtfsTimeFull, apportionBuffer } from '../core'
+import type { BufferGeographyIntersection } from './stop-buffer'
 
 //////////
 // Routes
@@ -117,8 +118,8 @@ export type Route = RouteGql & RouteDerived
 // Route csv
 ////////////////////
 
-export function routeToRouteCsv (route: Route): RouteCsv {
-  return {
+export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeographyIntersection[]): RouteCsv {
+  const row: RouteCsv = {
     id: route.id,
     marked: route.marked,
     average_frequency: route.average_frequency ? Math.round(route.average_frequency) : undefined,
@@ -150,4 +151,7 @@ export function routeToRouteCsv (route: Route): RouteCsv {
     continuous_drop_off: route.continuous_drop_off,
     continuous_pickup: route.continuous_pickup,
   }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
+    : row
 }

@@ -117,6 +117,7 @@
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
+            @open-buffer-details="openBufferDetails"
           />
         </div>
 
@@ -204,11 +205,30 @@
       >
         <cal-census-details
           v-if="scenarioFilterResult"
-          :scenario-filter-result="scenarioFilterResult"
+          :entries="censusDetailsEntries"
           :layer-label="aggregateLayerLabel"
           :highlighted-geoid="highlightedCensusGeoid ?? undefined"
           @select-geography="onSelectGeographyFromDetails"
           @clear-filter="highlightedCensusGeoid = null"
+        />
+      </cat-modal>
+
+      <cat-modal
+        v-model="showBufferDetails"
+        title="Stop Statistical Radius — Derivation"
+        full-screen
+      >
+        <cal-census-details
+          v-if="bufferDetailsPayload"
+          :key="bufferDetailsPayload.entityId"
+          :entries="bufferEntries"
+          :header-props="bufferHeaderProps"
+          :apportionment-summary="bufferApportionment"
+          :filename-prefix="bufferFilenamePrefix"
+          show-map
+          :map-loading="bufferGeometryLoading"
+          :map-error="bufferGeometryError"
+          @load-geometry="loadBufferGeometry"
         />
       </cat-modal>
     </template>
@@ -216,9 +236,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
+import { useBufferDetails } from '~/composables/useBufferDetails'
 import {
   getFlexAreaType,
   getFlexAdvanceNotice,
@@ -227,6 +248,14 @@ import {
   geographyBboxQuery,
   stopGeoAggregateCsv,
   parseFvids,
+} from '~~/src/tl'
+import type {
+  FlexAdvanceNotice,
+  FlexAreaType,
+  FlexAreaFeature,
+  CensusDataset,
+  CensusGeography,
+  Route,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -247,13 +276,14 @@ import {
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
+  censusGeographyMapToEntries,
+  type CensusGeographyEntry,
   type FilterTag,
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
-import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
@@ -278,6 +308,8 @@ const {
   includeFixedRoute,
   includeFlexAreas,
   fvids,
+  stopBufferRadius,
+  stopBufferLayer,
 } = useScenarioInputs()
 const {
   startTime,
@@ -884,6 +916,36 @@ watch(showCensusDetails, (open) => {
   if (!open) { highlightedCensusGeoid.value = null }
 })
 
+// Names come from stops.census_geographies — the only source today.
+const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
+  const result = scenarioFilterResult.value
+  if (!result?.censusGeographies) {
+    return []
+  }
+  const nameMap = new Map<string, string>()
+  for (const stop of result.stops || []) {
+    for (const g of stop.census_geographies || []) {
+      if (g.name && !nameMap.has(g.geoid)) {
+        nameMap.set(g.geoid, g.name)
+      }
+    }
+  }
+  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+})
+
+const {
+  show: showBufferDetails,
+  payload: bufferDetailsPayload,
+  open: openBufferDetails,
+  entries: bufferEntries,
+  headerProps: bufferHeaderProps,
+  apportionment: bufferApportionment,
+  filenamePrefix: bufferFilenamePrefix,
+  geometryLoading: bufferGeometryLoading,
+  geometryError: bufferGeometryError,
+  loadGeometry: loadBufferGeometry,
+} = useBufferDetails()
+
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
@@ -920,6 +982,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
+  stopBufferRadius: stopBufferRadius.value,
+  stopBufferLayer: stopBufferLayer.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1018,6 +1082,14 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
+const { scenarioReceiver } = useBufferRefetch({
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+})
+
 const loadExampleData = async (exampleName: string) => {
   console.log('loading example data:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
@@ -1039,7 +1111,7 @@ const fetchScenario = async (loadExample: string) => {
     onProgress: (progress: ScenarioProgress) => {
       // Update progress for modal
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
 
       if (progress.warnings && progress.warnings.length > 0) {
         for (const msg of progress.warnings) {
@@ -1049,9 +1121,9 @@ const fetchScenario = async (loadExample: string) => {
 
       // Apply filters to partial data and emit (without schedule-dependent features)
       // Skip if no route/stop/flex data in this progress update
-      const hasRoutes = (progress.partialData?.routes.length || 0) > 0
-      const hasStops = (progress.partialData?.stops.length || 0) > 0
-      const hasFlexAreas = (progress.partialData?.flexAreas.length || 0) > 0
+      const hasRoutes = (progress.partialData?.routes?.length || 0) > 0
+      const hasStops = (progress.partialData?.stops?.length || 0) > 0
+      const hasFlexAreas = (progress.partialData?.flexAreas?.length || 0) > 0
       if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }
@@ -1066,6 +1138,7 @@ const fetchScenario = async (loadExample: string) => {
       error.value = err
     }
   })
+  scenarioReceiver.value = receiver
 
   let response: Response
 
@@ -1216,6 +1289,8 @@ async function resetFilters () {
     flexAdvanceNotice: undefined,
     flexAreaTypesSelected: undefined,
     flexColorBy: undefined,
+    stopBufferRadius: undefined,
+    stopBufferLayer: undefined,
   })
 }
 

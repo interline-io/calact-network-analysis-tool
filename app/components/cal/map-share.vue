@@ -40,15 +40,24 @@ const windowUrl = computed(() => {
 })
 
 const routeCsvData = computed(() => {
-  return props.scenarioFilterResult?.routes.filter(s => (s.marked)).map(routeToRouteCsv)
+  const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
+  return props.scenarioFilterResult?.routes
+    .filter(s => s.marked)
+    .map(r => routeToRouteCsv(r, routeBufferGeographies?.get(r.id)))
 })
 
 const stopCsvData = computed(() => {
-  return props.scenarioFilterResult?.stops.filter(s => s.marked).map(stopToStopCsv)
+  const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
+  return props.scenarioFilterResult?.stops
+    .filter(s => s.marked)
+    .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id)))
 })
 
 const agencyCsvData = computed(() => {
-  return props.scenarioFilterResult?.agencies.filter(s => s.marked).map(agencyToAgencyCsv)
+  const agencyBufferGeographies = props.scenarioFilterResult?.agencyBufferGeographies
+  return props.scenarioFilterResult?.agencies
+    .filter(s => s.marked)
+    .map(a => agencyToAgencyCsv(a, agencyBufferGeographies?.get(a.id)))
 })
 
 function copyUrlToClipboard () {

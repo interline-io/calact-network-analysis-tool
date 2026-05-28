@@ -320,7 +320,7 @@ const fetchScenario = async () => {
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures.length || 0
+      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
       scenarioData.value = receiver.getCurrentData()
     },
     onComplete: () => {

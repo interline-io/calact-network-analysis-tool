@@ -39,14 +39,33 @@
           v-for="option of censusGeographyLayerOptions"
           :key="option.value"
           :value="option.value"
+          :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
         >
-          {{ option.label }}
+          {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
         </option>
       </cat-select>
       <cat-tooltip text="The selected geography level determines how stop data is grouped. Enable 'Show Agg. Areas' in Map Display to visualize these areas on the map.">
         <cat-icon icon="information" />
       </cat-tooltip>
     </div>
+
+    <!-- Buffer apportionment is only rolled up for state/county/tract — for
+         place/cbsa/csa/uac20 we'd need server-side geographic containment
+         that doesn't exist yet. Surface this honestly rather than silently
+         showing un-apportioned values. -->
+    <cat-msg
+      v-if="activeReportTab === 'stops-aggregated' && stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer)"
+      variant="warning"
+      title="Buffer apportionment not available for this layer"
+      class="mb-4"
+    >
+      <p>
+        Stop statistical radius apportionment is only supported when aggregating
+        by State, County, or Census Tract. Demographic columns below show the
+        full geography's values (no buffer apportionment). Switch to a supported
+        layer above, or set the stop statistical radius to 0 to acknowledge.
+      </p>
+    </cat-msg>
 
     <cal-datagrid
       :table-report="activeTableReport"
@@ -157,6 +176,24 @@
           {{ formatGtfsTime(value) }}
         </button>
       </template>
+      <template
+        v-for="col of CENSUS_COLUMNS"
+        :key="col.id"
+        #[`column-${col.id}`]="{ value, row }"
+      >
+        <button
+          v-if="drillableBufferTab && value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          :title="`View per-geography derivation for this ${drillableBufferTab}`"
+          @click="handleOpenBufferDetails(row)"
+        >
+          {{ formatCensusValue(toFiniteNumber(value), col.format) }}
+        </button>
+        <span v-else>
+          {{ formatCensusValue(toFiniteNumber(value), col.format) }}
+        </span>
+      </template>
     </cal-datagrid>
     <div class="cal-report-spacer" />
   </div>
@@ -164,9 +201,11 @@
 
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, CENSUS_COLUMNS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+
+export type BufferDetailsKind = 'stop' | 'route' | 'agency'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -177,18 +216,95 @@ const props = defineProps<{
 }>()
 
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
-const { startDate, endDate, fixedRouteEnabled } = useScenarioInputs()
+const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 
+export interface BufferDetailsPayload {
+  kind: BufferDetailsKind
+  entityId: number
+  entityLabel: string
+  entries: CensusGeographyEntry[]
+  radius: number
+  layer: string
+  geoDatasetName: string
+  tableDatasetName: string
+}
+
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
+  openBufferDetails: [payload: BufferDetailsPayload]
 }>()
 
 function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
   const route = props.scenarioFilterResult?.routes.find(r => r.id === routeId)
   if (route) {
     emit('openTimetable', { route, initialTab })
+  }
+}
+
+const drillableBufferTab = computed<BufferDetailsKind | null>(() => {
+  if (stopBufferRadius.value <= 0) {
+    return null
+  }
+  switch (activeReportTab.value) {
+    case 'stops': return 'stop'
+    case 'routes': return 'route'
+    case 'agencies': return 'agency'
+    default: return null
+  }
+})
+
+function stopLabel (s: Stop): string {
+  return `${s.stop_name || '(unnamed)'} (${s.stop_id})`
+}
+
+function routeLabel (r: Route): string {
+  const agency = r.agency?.agency_name
+  const name = r.route_short_name || r.route_long_name || r.route_id
+  return agency ? `${agency} — ${name}` : name
+}
+
+function agencyLabel (a: Agency): string {
+  return `${a.agency_name} (${a.agency_id})`
+}
+
+function handleOpenBufferDetails (row: { id?: number }) {
+  const kind = drillableBufferTab.value
+  const filterResult = props.scenarioFilterResult
+  if (!kind || !filterResult || row.id == null) {
+    return
+  }
+  const common = {
+    radius: stopBufferRadius.value,
+    layer: stopBufferLayer.value,
+    geoDatasetName: geoDatasetName.value,
+    tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName!,
+  }
+  if (kind === 'stop') {
+    const stop = filterResult.stops?.find(s => s.id === row.id)
+    if (!stop) { return }
+    emit('openBufferDetails', {
+      kind, entityId: stop.id, entityLabel: stopLabel(stop),
+      entries: filterResult.stopBufferGeographies?.get(stop.id) ?? [],
+      ...common,
+    })
+  } else if (kind === 'route') {
+    const route = filterResult.routes?.find(r => r.id === row.id)
+    if (!route) { return }
+    emit('openBufferDetails', {
+      kind, entityId: route.id, entityLabel: routeLabel(route),
+      entries: filterResult.routeBufferGeographies?.get(route.id) ?? [],
+      ...common,
+    })
+  } else if (kind === 'agency') {
+    const agency = filterResult.agencies?.find(a => a.id === row.id)
+    if (!agency) { return }
+    emit('openBufferDetails', {
+      kind, entityId: agency.id, entityLabel: agencyLabel(agency),
+      entries: filterResult.agencyBufferGeographies?.get(agency.id) ?? [],
+      ...common,
+    })
   }
 }
 
@@ -254,7 +370,7 @@ watch(dataDisplayMode, (mode) => {
 const routeColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const timeScope = allDay ? 'across all service days' : 'across all service days and times'
-  return [
+  const cols: TableColumn[] = [
     { key: 'route_id', label: 'Route ID', sortable: true },
     { key: 'route_name', label: 'Route Name', sortable: true },
     { key: 'route_mode', label: 'Mode', sortable: true },
@@ -317,12 +433,16 @@ const routeColumns = computed((): TableColumn[] => {
       tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
   ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
 })
 
 const stopColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
-  return [
+  const cols: TableColumn[] = [
     { key: 'stop_id', label: 'Stop ID', sortable: true },
     { key: 'stop_name', label: 'Stop Name', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
@@ -345,19 +465,35 @@ const stopColumns = computed((): TableColumn[] => {
       tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
 })
 
-const censusColumns: TableColumn[] = CENSUS_COLUMNS.map(c => ({
-  key: c.id,
-  label: c.label,
-  sortable: true,
-  format: c.format,
-}))
+function buildCensusColumns (apportioned: boolean): TableColumn[] {
+  const tooltip = apportioned
+    ? 'Apportioned to the area within the stop statistical radius. Median values are not apportioned and render as "—".'
+    : undefined
+  return CENSUS_COLUMNS.map(c => ({
+    key: c.id,
+    label: c.label,
+    sortable: true,
+    format: c.format,
+    tooltip,
+  }))
+}
+
+const bufferAggregationActive = computed(() => {
+  return stopBufferRadius.value > 0
+    && HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer.value)
+    && (props.scenarioFilterResult?.aggregationBufferGeographies?.length ?? 0) > 0
+})
 
 const stopGeoAggregateColumns = computed((): TableColumn[] => {
   const allDay = isAllDayMode.value
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
-  return [
+  const cols: TableColumn[] = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
@@ -379,16 +515,32 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
       sortable: true,
       tooltip: `The sum of all visits at stops within this area by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
-    ...censusColumns,
+    ...buildCensusColumns(bufferAggregationActive.value),
   ]
+  if (bufferAggregationActive.value) {
+    cols.push({
+      key: 'pct_buffer_coverage',
+      label: '% Area within Stop Radius',
+      sortable: true,
+      format: 'percent',
+      tooltip: 'Percentage of this area covered by the union of stop statistical radii. Demographic columns are apportioned to that covered portion.',
+    })
+  }
+  return cols
 })
-const agencyColumns: TableColumn[] = [
-  { key: 'agency_id', label: 'Agency ID', sortable: true },
-  { key: 'agency_name', label: 'Agency Name', sortable: true },
-  { key: 'routes_count', label: 'Number of Routes', sortable: true },
-  { key: 'routes_modes', label: 'Modes', sortable: true },
-  { key: 'stops_count', label: 'Number of Stops', sortable: true },
-]
+const agencyColumns = computed((): TableColumn[] => {
+  const cols: TableColumn[] = [
+    { key: 'agency_id', label: 'Agency ID', sortable: true },
+    { key: 'agency_name', label: 'Agency Name', sortable: true },
+    { key: 'routes_count', label: 'Number of Routes', sortable: true },
+    { key: 'routes_modes', label: 'Modes', sortable: true },
+    { key: 'stops_count', label: 'Number of Stops', sortable: true },
+  ]
+  if (stopBufferRadius.value > 0) {
+    cols.push(...buildCensusColumns(true))
+  }
+  return cols
+})
 
 const flexAreaColumns: TableColumn[] = [
   { key: 'location_name', label: 'Location Name', sortable: true },
@@ -457,30 +609,44 @@ const geoReportData = computed((): TableReport => {
       (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
       aggregateLayer.value,
       props.scenarioFilterResult?.censusGeographies,
-      { onlyWithStops: onlyWithStops.value },
+      {
+        onlyWithStops: onlyWithStops.value,
+        aggregationBufferGeographies: bufferAggregationActive.value
+          ? props.scenarioFilterResult?.aggregationBufferGeographies
+          : undefined,
+      },
     ),
     columns: stopGeoAggregateColumns.value
   }
 })
 
 const routesReportData = computed((): TableReport => {
+  const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
   return {
-    data: (props.scenarioFilterResult?.routes || []).filter(s => (s.marked)).map(routeToRouteCsv),
+    data: (props.scenarioFilterResult?.routes || [])
+      .filter(s => s.marked)
+      .map(r => routeToRouteCsv(r, routeBufferGeographies?.get(r.id))),
     columns: routeColumns.value
   }
 })
 
 const stopsReportData = computed((): TableReport => {
+  const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
   return {
-    data: (props.scenarioFilterResult?.stops || []).filter(s => s.marked).map(stopToStopCsv),
+    data: (props.scenarioFilterResult?.stops || [])
+      .filter(s => s.marked)
+      .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id))),
     columns: stopColumns.value
   }
 })
 
 const agenciesReportData = computed((): TableReport => {
+  const agencyBufferGeographies = props.scenarioFilterResult?.agencyBufferGeographies
   return {
-    data: (props.scenarioFilterResult?.agencies || []).filter(s => s.marked).map(agencyToAgencyCsv),
-    columns: agencyColumns
+    data: (props.scenarioFilterResult?.agencies || [])
+      .filter(s => s.marked)
+      .map(a => agencyToAgencyCsv(a, agencyBufferGeographies?.get(a.id))),
+    columns: agencyColumns.value
   }
 })
 

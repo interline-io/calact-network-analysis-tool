@@ -1,5 +1,13 @@
 import { gql } from 'graphql-tag'
-import { routeTypeNames, type CensusGeographyData, deriveCensusRow } from '~~/src/core'
+import {
+  routeTypeNames,
+  type CensusGeographyData,
+  deriveCensusRow,
+  apportionBuffer,
+  geographiesForAggregationRow,
+  HIERARCHICAL_TIGER_LAYERS,
+} from '~~/src/core'
+import type { BufferGeographyIntersection } from './stop-buffer'
 
 //////////
 // Stops
@@ -154,8 +162,8 @@ interface StopGeoAggregateCsv {
   stops_count: number
   agencies_count: number
   visit_count_total?: number
-  // Derived demographic columns merged in when censusValues is provided.
-  // Keyed by CensusColumnDef.id (e.g. total_population, pct_people_of_color).
+  // Set only when the aggregation layer is hierarchical AND buffer data is provided.
+  pct_buffer_coverage?: number | null
   [key: string]: string | number | null | undefined
 }
 
@@ -165,12 +173,20 @@ export type Stop = StopGql & StopDerived
 // Stop csv
 ///////////////////////////
 
+// Demographic columns come from one of two sources, picked by `useBuffer`:
+//   - Pass F (#315): when buffer geographies are provided AND the layer is in
+//     HIERARCHICAL_TIGER_LAYERS. FIPS-prefix rollup + apportionBuffer().
+//   - Pass A (bbox-clipped) otherwise — non-hierarchical layers can't roll
+//     up by string match (needs server-side geometric containment, #370).
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
   censusGeographies?: Map<string, CensusGeographyData>,
-  options?: { onlyWithStops?: boolean },
+  options?: { onlyWithStops?: boolean, aggregationBufferGeographies?: BufferGeographyIntersection[] },
 ): StopGeoAggregateCsv[] {
+  const bufferGeographies = options?.aggregationBufferGeographies
+  const useBuffer = !!(bufferGeographies && bufferGeographies.length > 0
+    && HIERARCHICAL_TIGER_LAYERS.has(aggregationKey))
   const stopAgg = new Map<string, {
     geoid: string
     layer_name: string
@@ -234,7 +250,12 @@ export function stopGeoAggregateCsv (
       agencies_count: a.agencies_count.size,
       visit_count_total: a.visits_count || 0,
     }
-    if (censusGeographies) {
+    if (useBuffer) {
+      const matched = geographiesForAggregationRow(a.geoid, bufferGeographies!)
+      const result = apportionBuffer(matched)
+      Object.assign(row, result.values)
+      row.pct_buffer_coverage = result.pctCoverage
+    } else if (censusGeographies) {
       const geo = censusGeographies.get(a.geoid)
       if (geo) {
         Object.assign(row, deriveCensusRow(geo.values))
@@ -245,7 +266,7 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop): StopCsv {
+export function stopToStopCsv (stop: Stop, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
@@ -257,7 +278,7 @@ export function stopToStopCsv (stop: Stop): StopCsv {
       modes.add(mode)
     }
   }
-  return {
+  const row: StopCsv = {
     // GTFS properties
     id: stop.id,
     stop_lon: stop.geometry.coordinates[0] || undefined,
@@ -286,4 +307,7 @@ export function stopToStopCsv (stop: Stop): StopCsv {
     visit_count_saturday_total: stop.visits?.saturday?.visit_count,
     visit_count_sunday_total: stop.visits?.sunday?.visit_count,
   }
+  return bufferGeographies?.length
+    ? { ...row, ...apportionBuffer(bufferGeographies).values }
+    : row
 }
