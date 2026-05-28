@@ -239,6 +239,24 @@
             </div>
           </cat-field>
 
+          <cat-field v-if="stopBufferRadius > 0">
+            <template #label>
+              <cat-tooltip text="Census layer used for buffer intersections. Tract is the default; finer layers (block group) give more precise apportionment when loaded on the backend. Switching layers triggers a buffer-only refetch — the scenario stays loaded.">
+                Buffer layer
+                <cat-icon icon="information" />
+              </cat-tooltip>
+            </template>
+            <cat-select v-model="stopBufferLayer">
+              <option
+                v-for="option of censusGeographyLayerOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </cat-select>
+          </cat-field>
+
           <p class="menu-label">
             Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
@@ -680,6 +698,7 @@ const {
   geomSource,
   fixedRouteEnabled,
   stopBufferRadius,
+  stopBufferLayer,
 } = useScenarioInputs()
 const {
   startTime,

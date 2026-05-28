@@ -233,7 +233,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watch } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
 import {
@@ -272,7 +272,7 @@ import {
 import { useToastNotification, useRouter } from '#imports'
 import type { BufferDetailsPayload } from '~/components/cal/report.vue'
 import type { FlexAdvanceNotice, FlexAreaType, FlexAreaFeature, CensusDataset, CensusGeography, Route } from '~~/src/tl'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress, type BufferFetchConfig } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -297,6 +297,7 @@ const {
   includeFlexAreas,
   fvids,
   stopBufferRadius,
+  stopBufferLayer,
 } = useScenarioInputs()
 const {
   startTime,
@@ -952,6 +953,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
   // Per-stop demographic buffer (issue #315). 0 = feature off.
   stopBufferRadius: stopBufferRadius.value,
+  stopBufferLayer: stopBufferLayer.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1050,6 +1052,15 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
+// Held across calls so the buffer-only refetch (#315) can merge new
+// geographies into the same accumulator the main scenario fetch populated.
+const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
+// AbortController for the in-flight buffer refetch. New radius/layer
+// changes abort the previous request before issuing a new one.
+let bufferRefetchAbort: AbortController | undefined
+// Debounce timer for slider drags.
+let bufferRefetchTimer: ReturnType<typeof setTimeout> | undefined
+
 const loadExampleData = async (exampleName: string) => {
   console.log('loading example data:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }
@@ -1098,6 +1109,7 @@ const fetchScenario = async (loadExample: string) => {
       error.value = err
     }
   })
+  scenarioReceiver.value = receiver
 
   let response: Response
 
@@ -1128,6 +1140,91 @@ const fetchScenario = async (loadExample: string) => {
     error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
   }
 }
+
+// Re-run only the buffer passes (#315 C/D/E/F) when the user changes radius
+// or layer. Reuses the existing accumulator so other scenario state (stops,
+// routes, departures, etc.) is preserved.
+async function refetchBufferGeographies (): Promise<void> {
+  const receiver = scenarioReceiver.value
+  const data = scenarioData.value
+  if (!receiver || !data) {
+    return
+  }
+  bufferRefetchAbort?.abort()
+  const abort = new AbortController()
+  bufferRefetchAbort = abort
+
+  receiver.clearBufferGeographies()
+  scenarioData.value = receiver.getCurrentData()
+
+  showLoadingModal.value = true
+  loadingProgress.value = {
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Recomputing buffer demographics...',
+  }
+
+  const agencyIds = [...new Set(
+    data.routes.map(r => r.agency?.id).filter((id): id is number => id != null),
+  )]
+  const body: BufferFetchConfig = {
+    radius: stopBufferRadius.value,
+    layer: stopBufferLayer.value,
+    geoDatasetName: geoDatasetName.value,
+    tableDatasetName: scenarioConfig.value.tableDatasetName ?? SCENARIO_DEFAULTS.tableDatasetName,
+    stopIds: data.stops.map(s => s.id),
+    routeIds: data.routes.map(r => r.id),
+    agencyIds,
+  }
+
+  try {
+    const response = await fetch('/api/buffer-geographies', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: abort.signal,
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} from /api/buffer-geographies`)
+    }
+    if (!response.body) {
+      throw new Error('No response body from /api/buffer-geographies')
+    }
+    const streamer = new ScenarioStreamReceiver()
+    const { success } = await streamer.processStream(response.body, receiver)
+    if (!success) {
+      throw new Error('Buffer refetch stream ended unexpectedly')
+    }
+    scenarioData.value = receiver.getCurrentData()
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return
+    }
+    error.value = err
+  } finally {
+    if (bufferRefetchAbort === abort) {
+      bufferRefetchAbort = undefined
+      showLoadingModal.value = false
+      loadingProgress.value = undefined
+    }
+  }
+}
+
+// Debounce radius/layer commits so a slider drag doesn't fire a request per
+// step. Only triggers when a scenario has already been loaded — initial
+// query reads the live values via `scenarioConfig` directly.
+watch([stopBufferRadius, stopBufferLayer], () => {
+  if (!scenarioReceiver.value || !scenarioData.value) {
+    return
+  }
+  if (bufferRefetchTimer) {
+    clearTimeout(bufferRefetchTimer)
+  }
+  bufferRefetchTimer = setTimeout(() => {
+    bufferRefetchTimer = undefined
+    refetchBufferGeographies()
+  }, 500)
+})
 
 // Apply filters and emit results when data or filters change
 watch(() => [
@@ -1249,6 +1346,7 @@ async function resetFilters () {
     flexAreaTypesSelected: undefined,
     flexColorBy: undefined,
     stopBufferRadius: undefined,
+    stopBufferLayer: undefined,
   })
 }
 

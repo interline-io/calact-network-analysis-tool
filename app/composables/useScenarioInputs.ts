@@ -8,6 +8,7 @@ import {
   parseBbox,
   parseDate,
   SCENARIO_DEFAULTS,
+  STOP_BUFFER_DEFAULT_LAYER,
   STOP_BUFFER_DEFAULT_RADIUS,
   type Bbox,
 } from '~~/src/core'
@@ -29,6 +30,8 @@ interface ScenarioInputs {
   fvids: WritableComputedRef<string>
   // Stop statistical radius in meters (issue #315). 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
+  // Census layer used for buffer ↔ geography intersections (#315).
+  stopBufferLayer: WritableComputedRef<string>
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -120,6 +123,13 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  const stopBufferLayer = computed<string>({
+    get: () => route.query.stopBufferLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER,
+    set: (v) => {
+      setQuery({ stopBufferLayer: v === STOP_BUFFER_DEFAULT_LAYER ? undefined : v })
+    }
+  })
+
   return {
     bbox,
     cannedBbox,
@@ -134,5 +144,6 @@ export function useScenarioInputs (): ScenarioInputs {
     fixedRouteEnabled,
     fvids,
     stopBufferRadius,
+    stopBufferLayer,
   }
 }

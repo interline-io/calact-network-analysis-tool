@@ -63,12 +63,89 @@ const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
 const BUFFER_ENTITY_BATCH_SIZE = 50
 
 // Wire-stage + partialData key for each buffer entity kind. Centralized so
-// `runEntityBufferPass` only needs the kind to know what to emit.
+// the per-kind buffer-fetch loop only needs the kind to know what to emit.
 const BUFFER_PASS_BY_KIND = {
   stops: { stage: 'stop-buffer-geographies', partialKey: 'stopBufferGeographies' },
   routes: { stage: 'route-buffer-geographies', partialKey: 'routeBufferGeographies' },
   agencies: { stage: 'agency-buffer-geographies', partialKey: 'agencyBufferGeographies' },
 } as const
+
+// Inputs for the buffer-only fetch (#315 Passes C/D/E/F). Used both inline
+// during the main scenario pipeline and standalone via the buffer-refetch
+// endpoint when the user changes radius or layer.
+export interface BufferFetchConfig {
+  radius: number
+  layer: string
+  geoDatasetName: string
+  tableDatasetName: string
+  stopIds: number[]
+  routeIds: number[]
+  agencyIds: number[]
+  // Default 100 — matches ScenarioFetcher's stopTimeBatchSize.
+  stopChunkSize?: number
+  // Default 50 — matches BUFFER_ENTITY_BATCH_SIZE.
+  entityChunkSize?: number
+}
+
+// Shared implementation for Passes C / D / E / F. Pure with respect to its
+// inputs; emits ScenarioProgress events through `emit`. Callers wrap this
+// with a sender (stream) or accumulator (in-process).
+export async function runBufferPasses (
+  config: BufferFetchConfig,
+  client: GraphQLClient,
+  emit: (progress: ScenarioProgress) => void,
+): Promise<void> {
+  const stopChunkSize = config.stopChunkSize ?? 100
+  const entityChunkSize = config.entityChunkSize ?? BUFFER_ENTITY_BATCH_SIZE
+  const baseConfig = {
+    client,
+    geoDataset: config.geoDatasetName,
+    tableDataset: config.tableDatasetName,
+    tableNames: REQUIRED_ACS_TABLES,
+    layer: config.layer,
+    radius: config.radius,
+  }
+  const passes: Array<{ kind: BufferEntityKind, ids: number[], batchSize: number }> = [
+    { kind: 'stops', ids: config.stopIds, batchSize: stopChunkSize },
+    { kind: 'routes', ids: config.routeIds, batchSize: entityChunkSize },
+    { kind: 'agencies', ids: config.agencyIds, batchSize: entityChunkSize },
+  ]
+  for (const { kind, ids, batchSize } of passes) {
+    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
+    for (const chunk of chunkArray(ids, batchSize)) {
+      const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
+      emit({ isLoading: true, currentStage: stage, partialData: { [partialKey]: results } })
+    }
+  }
+
+  // Pass F — single union query through fetchCensusIntersection.
+  if (config.stopIds.length > 0) {
+    const features = await fetchCensusIntersection({
+      client,
+      geoDatasetName: config.geoDatasetName,
+      geoDatasetLayer: config.layer,
+      tableDatasetName: config.tableDatasetName,
+      tableNames: REQUIRED_ACS_TABLES,
+      stopIds: config.stopIds,
+      stopBufferRadius: config.radius,
+    })
+    const geographies: BufferGeographyIntersection[] = features
+      .filter(f => (f.properties.geometry_area ?? 0) > 0)
+      .map(f => ({
+        geoid: f.properties.geoid,
+        layer: f.properties.layer_name || config.layer,
+        geometryArea: f.properties.geometry_area,
+        intersectionArea: f.properties.intersection_area,
+        values: f.properties.values,
+      }))
+    console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
+    emit({
+      isLoading: true,
+      currentStage: 'aggregation-buffer-geographies',
+      partialData: { aggregationBufferGeographies: geographies },
+    })
+  }
+}
 
 /**
  * Maximum number of flex locations to fetch per feed version.
@@ -116,6 +193,14 @@ export interface ScenarioConfig {
    * disables — Pass A retains today's bbox-only semantics.
    */
   stopBufferRadius?: number
+  /**
+   * Census layer at which buffer ↔ census intersections are computed
+   * (#315). Defaults to `STOP_BUFFER_DEFAULT_LAYER` ('tract'). Switching
+   * this changes the resolution of apportioned values. Pass F's
+   * aggregation-table roll-up only applies when the layer is in
+   * `HIERARCHICAL_TIGER_LAYERS`.
+   */
+  stopBufferLayer?: string
 }
 
 export interface ScenarioFilter {
@@ -477,6 +562,38 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   writer.close()
 }
 
+// Standalone streaming entry point for the buffer-only refetch (#315).
+// Mirrors streamScenario but runs only Passes C/D/E/F against caller-supplied
+// entity IDs. Powers /api/buffer-geographies, which the SPA hits when the
+// user changes the stop statistical radius or census layer without re-running
+// the full scenario.
+export async function streamBufferGeographies (
+  controller: ReadableStreamDefaultController,
+  config: BufferFetchConfig,
+  client: GraphQLClient,
+): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new ScenarioStreamSender(writer)
+
+  sender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Starting buffer refetch',
+  })
+
+  try {
+    await runBufferPasses(config, client, p => sender.onProgress(p))
+  } catch (err) {
+    sender.onError(err)
+    writer.close()
+    return
+  }
+
+  sender.onComplete()
+  writer.close()
+}
+
 /**
  * Run the scenario fetcher, streaming results and accumulating data.
  * This is a convenience wrapper that composes streamScenario with accumulation.
@@ -813,68 +930,29 @@ export class ScenarioFetcher {
   }
 
   // Passes C / D / E / F (#315). Serial; each chunk streams partial progress.
+  // Thin wrapper that builds a BufferFetchConfig from the fetcher's internal
+  // state and delegates to the shared `runBufferPasses` so the same logic
+  // can run standalone via /api/buffer-geographies.
   private async fetchBufferData (): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
     if (radius <= 0 || !tableDatasetName) {
       return
     }
-    const baseConfig = {
-      client: this.client,
-      geoDataset: geoDatasetName,
-      tableDataset: tableDatasetName,
-      tableNames: REQUIRED_ACS_TABLES,
-      layer: STOP_BUFFER_DEFAULT_LAYER,
-      radius,
-    }
-
-    // Passes C, D, E share the same chunked-fetch + progress-emit shape;
-    // only the entity kind, the id source, and the batch size differ.
-    // Stage + partialData key are looked up from BUFFER_PASS_BY_KIND.
-    await this.runEntityBufferPass('stops', [...this.bufferStopIds], this.stopTimeBatchSize, baseConfig)
-    await this.runEntityBufferPass('routes', [...this.bufferRouteIds], BUFFER_ENTITY_BATCH_SIZE, baseConfig)
-    await this.runEntityBufferPass('agencies', [...this.bufferAgencyIds], BUFFER_ENTITY_BATCH_SIZE, baseConfig)
-
-    // Pass F is structurally different: one top-level union query over
-    // every stop's buffer, returning a flat array of intersected
-    // geographies. Routed through `fetchCensusIntersection` (the same
-    // helper Pass A uses) with `stop_buffer: {stop_ids, radius}`.
-    const stopIds = [...this.bufferStopIds]
-    if (stopIds.length > 0) {
-      const features = await fetchCensusIntersection({
-        client: this.client,
+    await runBufferPasses(
+      {
+        radius,
+        layer: this.config.stopBufferLayer || STOP_BUFFER_DEFAULT_LAYER,
         geoDatasetName,
-        geoDatasetLayer: STOP_BUFFER_DEFAULT_LAYER,
         tableDatasetName,
-        tableNames: REQUIRED_ACS_TABLES,
-        stopIds,
-        stopBufferRadius: radius,
-      })
-      const geographies: BufferGeographyIntersection[] = features
-        .filter(f => (f.properties.geometry_area ?? 0) > 0)
-        .map(f => ({
-          geoid: f.properties.geoid,
-          layer: f.properties.layer_name || STOP_BUFFER_DEFAULT_LAYER,
-          geometryArea: f.properties.geometry_area,
-          intersectionArea: f.properties.intersection_area,
-          values: f.properties.values,
-        }))
-      console.log(`[AggregationBuffer] union over ${stopIds.length} stops → ${geographies.length} geographies`)
-      this.updateProgress('aggregation-buffer-geographies', true, { aggregationBufferGeographies: geographies })
-    }
-  }
-
-  private async runEntityBufferPass (
-    kind: BufferEntityKind,
-    ids: number[],
-    batchSize: number,
-    baseConfig: Omit<Parameters<typeof fetchEntityBufferGeographies>[1], 'ids'>,
-  ): Promise<void> {
-    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
-    for (const chunk of chunkArray(ids, batchSize)) {
-      const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
-      this.updateProgress(stage, true, { [partialKey]: results })
-    }
+        stopIds: [...this.bufferStopIds],
+        routeIds: [...this.bufferRouteIds],
+        agencyIds: [...this.bufferAgencyIds],
+        stopChunkSize: this.stopTimeBatchSize,
+      },
+      this.client,
+      progress => this.callbacks.onProgress?.(progress),
+    )
   }
 
   // Fetch active feed versions in the specified area
@@ -1297,6 +1375,21 @@ export class ScenarioDataReceiver {
    */
   onError (error: any): void {
     this.callbacks.onError?.(error)
+  }
+
+  /**
+   * Clear all buffer-geography state before a refetch so stale entries from
+   * a previous radius/layer don't linger. The aggregation list uses
+   * push-append on each progress event; the per-entity Maps would otherwise
+   * retain ids that aren't in the new fetch.
+   */
+  clearBufferGeographies (): void {
+    this.accumulatedData.stopBufferGeographies?.clear()
+    this.accumulatedData.routeBufferGeographies?.clear()
+    this.accumulatedData.agencyBufferGeographies?.clear()
+    if (this.accumulatedData.aggregationBufferGeographies) {
+      this.accumulatedData.aggregationBufferGeographies.length = 0
+    }
   }
 
   /**

@@ -13,6 +13,7 @@ export const SCENARIO_DEFAULTS = {
   routeHourCompatMode: true,
   stopLimit: 100,
   stopBufferRadius: 0,
+  stopBufferLayer: 'tract',
 } as const
 
 export interface CannedBbox {
