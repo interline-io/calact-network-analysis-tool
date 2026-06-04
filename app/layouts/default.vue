@@ -1,5 +1,6 @@
 <template>
   <div class="outer">
+    <a href="#main" class="cal-skip-link">Skip to main content</a>
     <div class="sidebar">
       <main-header>
         <template #menu-items>
@@ -7,7 +8,7 @@
         </template>
       </main-header>
     </div>
-    <div class="main">
+    <main id="main" class="main" tabindex="-1">
       <slot name="main">
         <div class="container is-fluid">
           <cal-login-gate role="tl_calact_nat">
@@ -25,7 +26,7 @@
           </slot>
         </div>
       </slot>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -65,5 +66,29 @@ const slots = useSlots()
 }
 .cal-full {
   margin:0px;
+}
+
+.cal-skip-link {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 100000;
+  padding: 0.75rem 1rem;
+  background: var(--bulma-primary);
+  color: var(--bulma-primary-invert);
+  font-weight: bold;
+  text-decoration: none;
+
+  &:focus {
+    top: 0;
+    outline: 2px solid var(--bulma-link-focus-border);
+    outline-offset: 2px;
+  }
+}
+
+// Only suppress the focus ring for programmatic focus (e.g. after the
+// skip-link jump). Keyboard users still see a visible indicator.
+.main:focus:not(:focus-visible) {
+  outline: none;
 }
 </style>
