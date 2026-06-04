@@ -45,14 +45,6 @@ $duration: 1000ms;
     overflow: visible !important; /* so datetime picker isn't hidden */
 }
 
-.tooltip-trigger {
-    border: none;
-}
-.cat-tooltip::after {
-    text-transform: none; // Prevent inheriting text-transform from parent elements (e.g., menu-label)
-    font-weight: normal; // Reset font weight that might be inherited
-}
-
 // Ensure modal is always on top
 .cat-modal {
   z-index: 99999 !important;
