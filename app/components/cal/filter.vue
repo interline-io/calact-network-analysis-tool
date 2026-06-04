@@ -33,9 +33,9 @@
               class="cal-filter-tab-button"
               :class="{ 'is-active': activeTab === item.tab, 'is-disabled': isMenuItemDisabled(item) }"
               :aria-selected="activeTab === item.tab"
-              :aria-controls="`cal-filter-panel-${item.tab}`"
+              :aria-controls="activeTab === item.tab ? `cal-filter-panel-${item.tab}` : undefined"
               :aria-disabled="isMenuItemDisabled(item) || undefined"
-              :tabindex="activeTab === item.tab ? 0 : -1"
+              :tabindex="isTabTabbable(item, idx) ? 0 : -1"
               @click="!isMenuItemDisabled(item) && setTab(item.tab)"
               @keydown="(e: KeyboardEvent) => onTabKeydown(e, idx)"
             >
@@ -822,6 +822,20 @@ const isAllDayMode = computed({
 
 const tabRefs = ref<HTMLButtonElement[]>([])
 
+// A tab is tabbable when it's the active one, or — when no tab is active —
+// when it's the first enabled tab. Keeps the tablist reachable via Tab even
+// before any panel is open. Per the WAI-ARIA tabs pattern.
+function isTabTabbable (item: typeof menuItems[number], idx: number): boolean {
+  if (activeTab.value) {
+    return activeTab.value === item.tab
+  }
+  if (isMenuItemDisabled(item)) {
+    return false
+  }
+  const firstEnabledIdx = menuItems.findIndex(m => !isMenuItemDisabled(m))
+  return idx === firstEnabledIdx
+}
+
 function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = ''
@@ -829,6 +843,19 @@ function setTab (v: string) {
   }
   activeTab.value = v
 }
+
+// When the sub-panel closes (e.g. via the Close button inside it) the element
+// holding focus is removed, dumping focus onto <body>. Restore focus to the
+// previously-active tab button so keyboard users don't lose their place.
+watch(activeTab, async (newVal, oldVal) => {
+  if (oldVal && !newVal) {
+    await nextTick()
+    const idx = menuItems.findIndex(m => m.tab === oldVal)
+    if (idx >= 0) {
+      tabRefs.value[idx]?.focus()
+    }
+  }
+})
 
 // Move focus to a tab at the given index, skipping disabled tabs.
 function focusTabAt (startIdx: number, direction: 1 | -1) {
