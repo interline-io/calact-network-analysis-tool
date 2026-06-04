@@ -28,8 +28,8 @@
             :class="[itemHelper('filter'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
             :aria-label="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
-            :disabled="!scenarioFilterResult"
-            @click="setTab({ tab: 'filter', sub: '' })"
+            :aria-disabled="!scenarioFilterResult || undefined"
+            @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
           >
             <cat-icon
               icon="filter"
@@ -46,8 +46,8 @@
             :class="[itemHelper('map'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
             :aria-label="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
-            :disabled="!scenarioFilterResult"
-            @click="setTab({ tab: 'map', sub: '' })"
+            :aria-disabled="!scenarioFilterResult || undefined"
+            @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
           >
             <cat-icon
               icon="map"
@@ -64,8 +64,8 @@
             :class="[itemHelper('report'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
             :aria-label="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
-            :disabled="!scenarioFilterResult"
-            @click="setTab({ tab: 'report', sub: '' })"
+            :aria-disabled="!scenarioFilterResult || undefined"
+            @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
           >
             <cat-icon
               icon="file-chart"

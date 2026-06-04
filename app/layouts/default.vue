@@ -86,7 +86,9 @@ const slots = useSlots()
   }
 }
 
-.main:focus {
+// Only suppress the focus ring for programmatic focus (e.g. after the
+// skip-link jump). Keyboard users still see a visible indicator.
+.main:focus:not(:focus-visible) {
   outline: none;
 }
 </style>

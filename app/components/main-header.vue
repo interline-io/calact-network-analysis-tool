@@ -49,6 +49,7 @@
                 title="Help"
                 aria-label="Help"
                 target="_blank"
+                rel="noopener noreferrer"
               >
                 <cat-icon icon="help" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
@@ -160,6 +161,16 @@ function itemHelper (p: string): string {
     &:focus-visible {
       outline: 2px solid var(--bulma-primary);
       outline-offset: -2px;
+    }
+
+    // aria-disabled keeps the button in the tab order so screen readers can
+    // discover its disabled state, but it shouldn't show hover/click affordances.
+    &[aria-disabled="true"] {
+      cursor: not-allowed;
+      opacity: 0.5;
+      &:hover {
+        background: none;
+      }
     }
   }
 
