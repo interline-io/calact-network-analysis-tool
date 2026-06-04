@@ -5,21 +5,31 @@
     <template #menu-items>
       <ul class="menu-list">
         <li>
-          <a :class="itemHelper('query')" title="Query" role="button" @click="setTab({ tab: 'query', sub: '' })">
+          <button
+            type="button"
+            class="cal-icon-button"
+            :class="itemHelper('query')"
+            title="Query"
+            aria-label="Query"
+            @click="setTab({ tab: 'query', sub: '' })"
+          >
             <cat-icon
               icon="magnify"
               class="is-fullwidth"
               size="large"
               variant="white"
             />
-          </a>
+          </button>
         </li>
         <li>
-          <a
+          <button
+            type="button"
+            class="cal-icon-button"
             :class="[itemHelper('filter'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
-            role="button"
-            @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
+            :aria-label="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
+            :disabled="!scenarioFilterResult"
+            @click="setTab({ tab: 'filter', sub: '' })"
           >
             <cat-icon
               icon="filter"
@@ -27,14 +37,17 @@
               size="large"
               :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
-          </a>
+          </button>
         </li>
         <li>
-          <a
+          <button
+            type="button"
+            class="cal-icon-button"
             :class="[itemHelper('map'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
-            role="button"
-            @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
+            :aria-label="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
+            :disabled="!scenarioFilterResult"
+            @click="setTab({ tab: 'map', sub: '' })"
           >
             <cat-icon
               icon="map"
@@ -42,14 +55,17 @@
               size="large"
               :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
-          </a>
+          </button>
         </li>
         <li>
-          <a
+          <button
+            type="button"
+            class="cal-icon-button"
             :class="[itemHelper('report'), { 'is-disabled': !scenarioFilterResult }]"
             :title="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
-            role="button"
-            @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
+            :aria-label="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
+            :disabled="!scenarioFilterResult"
+            @click="setTab({ tab: 'report', sub: '' })"
           >
             <cat-icon
               icon="file-chart"
@@ -57,17 +73,24 @@
               size="large"
               :variant="scenarioFilterResult ? 'white' : 'dark'"
             />
-          </a>
+          </button>
         </li>
         <li>
-          <a :class="itemHelper('analysis')" title="Analysis" role="button" @click="setTab({ tab: 'analysis', sub: '' })">
+          <button
+            type="button"
+            class="cal-icon-button"
+            :class="itemHelper('analysis')"
+            title="Analysis"
+            aria-label="Analysis"
+            @click="setTab({ tab: 'analysis', sub: '' })"
+          >
             <cat-icon
               icon="chart-scatter-plot"
               class="is-fullwidth"
               size="large"
               variant="white"
             />
-          </a>
+          </button>
         </li>
       </ul>
     </template>

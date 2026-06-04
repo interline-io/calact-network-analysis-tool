@@ -1,39 +1,53 @@
 <template>
   <div class="cal-sidebar sidebar is-active">
     <div class="sidebar-content is-left is-fullheight is-mini">
-      <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" role="button">
+      <nuxt-link :to="{ name: 'index' }" class="ca-main-item" title="Home" aria-label="Home">
         <cat-icon icon="home" size="large" class="is-fullwidth" variant="white" />
       </nuxt-link>
-      <aside class="menu">
+      <nav class="menu" aria-label="Main">
         <slot name="menu-items" />
         <div class="bottom-group">
           <ul class="menu-list">
             <li>
-              <a role="button" :title="debugMenu ? 'Turn off debug' : 'Turn on debug'" @click="debugMenuToggle()">
+              <button
+                type="button"
+                class="cal-icon-button"
+                :title="debugMenu ? 'Turn off debug' : 'Turn on debug'"
+                :aria-label="debugMenu ? 'Turn off debug' : 'Turn on debug'"
+                :aria-pressed="debugMenu"
+                @click="debugMenuToggle()"
+              >
                 <cat-icon
                   size="large"
                   icon="application-cog"
                   :variant="debugMenu ? 'warning' : 'white'"
                 />
-              </a>
+              </button>
             </li>
 
             <li>
-              <a role="button" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDarkMode()">
+              <button
+                type="button"
+                class="cal-icon-button"
+                :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+                :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+                :aria-pressed="isDark"
+                @click="toggleDarkMode()"
+              >
                 <cat-icon
                   class="icon-group"
                   size="large"
                   :icon="isDark ? 'weather-night' : 'weather-sunny'"
                   variant="white"
                 />
-              </a>
+              </button>
             </li>
             <li>
               <nuxt-link
                 :to="{ name: 'help' }"
                 :class="itemHelper('/help')"
                 title="Help"
-                role="button"
+                aria-label="Help"
                 target="_blank"
               >
                 <cat-icon icon="help" size="large" class="is-fullwidth" variant="white" />
@@ -45,14 +59,14 @@
                 :to="{ name: 'admin-profile' }"
                 :class="itemHelper('/admin/profile')"
                 title="My user profile"
-                role="button"
+                aria-label="My user profile"
               >
                 <cat-icon icon="account" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
           </ul>
         </div>
-      </aside>
+      </nav>
     </div>
   </div>
 </template>
@@ -95,7 +109,8 @@ function itemHelper (p: string): string {
   flex-direction: column;
 
   --bulma-duration: 1ms;
-      a:hover:not(.is-active) {
+      a:hover:not(.is-active),
+      .cal-icon-button:hover:not(.is-active) {
         background:#ccc;
       }
 
@@ -121,7 +136,8 @@ function itemHelper (p: string): string {
     text-align: center;
   }
 
-  a {
+  a,
+  .cal-icon-button {
     background: none;
     color: var(--bulma-text-on-theme);
     display: flex;
@@ -131,6 +147,19 @@ function itemHelper (p: string): string {
     }
     &:hover {
       background:var(--bulma-primary);
+    }
+  }
+
+  .cal-icon-button {
+    width: 100%;
+    border: none;
+    padding: 0.5em 0.25em;
+    cursor: pointer;
+    font: inherit;
+
+    &:focus-visible {
+      outline: 2px solid var(--bulma-primary);
+      outline-offset: -2px;
     }
   }
 
