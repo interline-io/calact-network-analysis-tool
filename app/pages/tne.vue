@@ -120,6 +120,7 @@
             @open-timetable="openRouteTimetable"
             @open-buffer-details="openBufferDetails"
             @load-demographics="loadDemographics"
+            @need-census-values="ensureCensusValues"
           />
         </div>
 
@@ -989,6 +990,10 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   stopBufferRadius: stopBufferRadius.value,
   stopBufferLayer: stopBufferLayer.value,
   includeStopBufferDemographics: includeStopBufferDemographics.value,
+  // Census values ride the main fetch only when demographics do (the
+  // aggregation table needs them for row seeding); otherwise they load on
+  // demand via /api/census-values the first time a user action needs them.
+  includeCensusValues: includeStopBufferDemographics.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1087,13 +1092,39 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
-const { scenarioReceiver, demographicsRequested, loadNow: loadDemographics } = useBufferRefetch({
+const {
+  scenarioReceiver,
+  demographicsRequested,
+  loadNow: loadDemographics,
+  ensureCensusValues,
+  ensureFlexAreas,
+  resetLayerState,
+} = useScenarioRefetch({
   scenarioData,
   scenarioConfig,
   loadingProgress,
   showLoadingModal,
   error,
 })
+
+// Census values auto-load the first time a user action needs them: enabling
+// the Show Agg. Areas choropleth here, opening the Stops (Aggregated) report
+// tab (cal-report emits need-census-values), or changing the aggregate layer
+// (watched inside useScenarioRefetch). `immediate` covers shared links that
+// arrive with the toggle already on.
+watch(showAggAreas, (on) => {
+  if (on && scenarioData.value) {
+    ensureCensusValues()
+  }
+}, { immediate: true })
+
+// Flex areas auto-load the first time the Flex Services display toggle is
+// enabled (when they didn't ride along with the scenario fetch).
+watch(flexServicesEnabled, (on) => {
+  if (on && scenarioData.value) {
+    ensureFlexAreas()
+  }
+}, { immediate: true })
 
 const loadExampleData = async (exampleName: string) => {
   console.log('loading example data:', exampleName)
@@ -1147,6 +1178,9 @@ const fetchScenario = async (loadExample: string) => {
   // Demographics ride along with this fetch only when opted in; otherwise the
   // user loads them later via the "Load stop buffer demographics" buttons.
   demographicsRequested.value = config.includeStopBufferDemographics === true
+  // Clear stale layer bookkeeping from any previous scenario (the receiver is
+  // fresh, so this seeds empty); re-seeded from real data after the stream.
+  resetLayerState()
 
   let response: Response
 
@@ -1176,12 +1210,27 @@ const fetchScenario = async (loadExample: string) => {
   if (!success) {
     error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
   }
+
+  // Seed loaded-layer bookkeeping from whatever the stream delivered —
+  // covers inline loads, examples, and pre-feature captures uniformly.
+  resetLayerState()
+  // Displays already enabled (e.g. a shared link) need their layers now.
+  if (showAggAreas.value) {
+    ensureCensusValues()
+  }
+  if (flexServicesEnabled.value) {
+    ensureFlexAreas()
+  }
 }
 
-// Apply filters and emit results when data or filters change
+// Apply filters and emit results when data or filters change.
+// aggregateLayer is a dep because the filter selects that layer's map from
+// the per-layer census cache — a cached-layer switch must re-run the filter
+// even though scenarioData itself didn't change.
 watch(() => [
   scenarioData.value,
   scenarioFilter.value,
+  aggregateLayer.value,
 ], () => {
   if (!scenarioData.value) {
     return

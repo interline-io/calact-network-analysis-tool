@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
-import { ScenarioFetcher } from './scenario'
+import { ScenarioFetcher, ScenarioDataReceiver } from './scenario'
+import { applyScenarioResultFilter } from './scenario-filter'
 import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import type { FeedGql, FlexLocationGql } from '~~/src/tl'
 
@@ -245,6 +246,104 @@ describe('ScenarioFetcher', () => {
       await fetcher.fetch()
 
       expect(bufferStages(progressCb)).toHaveLength(0)
+    })
+  })
+
+  describe('deferred census values', () => {
+    // Census values only need a resolved bbox + datasets; one feed keeps the
+    // choreography minimal. Catch-all empty responses satisfy the census
+    // intersection query (it tolerates empty data).
+    function makeCensusClient (): MockGraphQLClient {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValue({ data: {} })
+      return client
+    }
+
+    const censusConfig: ScenarioConfig = {
+      ...config,
+      tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+      aggregateLayer: 'tract',
+      includeFixedRoute: false,
+      includeFlexAreas: false,
+    }
+
+    function censusStages (progressCb: Mock): string[] {
+      return progressCb.mock.calls
+        .map(([p]) => p.currentStage)
+        .filter((s: string) => s === 'census-values')
+    }
+
+    it('runs the census-values pass when includeCensusValues is undefined (CLI parity)', async () => {
+      const progressCb = vi.fn()
+      const fetcher = new ScenarioFetcher(censusConfig, makeCensusClient(), { onProgress: progressCb })
+      await fetcher.fetch()
+
+      expect(censusStages(progressCb).length).toBeGreaterThan(0)
+    })
+
+    it('skips the census-values pass when includeCensusValues is false', async () => {
+      const progressCb = vi.fn()
+      const fetcher = new ScenarioFetcher(
+        { ...censusConfig, includeCensusValues: false },
+        makeCensusClient(),
+        { onProgress: progressCb },
+      )
+      await fetcher.fetch()
+
+      expect(censusStages(progressCb)).toHaveLength(0)
+    })
+  })
+
+  describe('per-layer census cache (ScenarioDataReceiver)', () => {
+    function geo (layer: string | undefined, name: string) {
+      return {
+        id: 1,
+        name,
+        values: {},
+        intersectionRatio: 1,
+        geometryArea: 100,
+        intersectionArea: 100,
+        layer,
+      }
+    }
+
+    it('routes entries to their layer map and keeps layers independent', () => {
+      const receiver = new ScenarioDataReceiver()
+      receiver.onProgress({
+        isLoading: true,
+        currentStage: 'census-values',
+        partialData: { censusGeographies: [['41051001', geo('tract', 'Tract 1')]] },
+      })
+      receiver.onProgress({
+        isLoading: true,
+        currentStage: 'census-values',
+        partialData: { censusGeographies: [['41051', geo('county', 'Multnomah')]] },
+      })
+
+      const byLayer = receiver.getCurrentData().censusGeographiesByLayer!
+      expect([...byLayer.keys()].sort()).toEqual(['county', 'tract'])
+      expect(byLayer.get('tract')!.get('41051001')!.name).toBe('Tract 1')
+      expect(byLayer.get('county')!.get('41051')!.name).toBe('Multnomah')
+      // The second layer's stream didn't disturb the first.
+      expect(byLayer.get('tract')!.size).toBe(1)
+    })
+
+    it('selects the current aggregate layer into the filter result', () => {
+      const receiver = new ScenarioDataReceiver()
+      receiver.onProgress({
+        isLoading: true,
+        currentStage: 'census-values',
+        partialData: { censusGeographies: [['41051001', geo('tract', 'Tract 1')]] },
+      })
+      const data = receiver.getCurrentData()
+
+      const tractResult = applyScenarioResultFilter(data, { ...config, aggregateLayer: 'tract' }, {})
+      expect(tractResult.censusGeographies?.get('41051001')?.name).toBe('Tract 1')
+
+      const countyResult = applyScenarioResultFilter(data, { ...config, aggregateLayer: 'county' }, {})
+      expect(countyResult.censusGeographies).toBeUndefined()
     })
   })
 
