@@ -39,12 +39,12 @@
  */
 
 import { format } from 'date-fns'
-import {
-  getSelectedDateRange,
-  type ScenarioConfig,
-  type ScenarioData,
-  type ScenarioFilter,
+import type {
+  ScenarioConfig,
+  ScenarioData,
+  ScenarioFilter,
 } from './scenario'
+import { getSelectedDateRange } from './flex-areas-pass'
 import {
   routeHeadways,
   hasServiceOnWeekday,
@@ -507,8 +507,9 @@ export interface ScenarioFilterResult {
   flexAreas: FlexAreaFeature[]
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
   tripIdStrings?: Map<number, string>
-  // Passed through from ScenarioData for the aggregation table demographic
-  // columns (#302). Keyed by census geography geoid.
+  // Current aggregate layer's census values, selected from ScenarioData's
+  // per-layer cache. Keyed by census geography geoid. Used by the aggregation
+  // table demographic columns (#302) and choropleth.
   censusGeographies?: Map<string, CensusGeographyData>
   // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
   // ran with `stopBufferRadius > 0`.
@@ -680,7 +681,10 @@ export function applyScenarioResultFilter (
     stopDepartureCache: sdCache,
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
-    censusGeographies: data.censusGeographies,
+    // Select the current aggregate layer's map from the per-layer cache.
+    censusGeographies: config.aggregateLayer
+      ? data.censusGeographiesByLayer?.get(config.aggregateLayer)
+      : undefined,
     stopBufferGeographies: data.stopBufferGeographies,
     routeBufferGeographies: data.routeBufferGeographies,
     agencyBufferGeographies: data.agencyBufferGeographies,

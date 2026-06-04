@@ -130,6 +130,10 @@ const progressPercentage = computed(() => {
     total += props.progress.bufferProgress.total
     completed += props.progress.bufferProgress.completed
   }
+  // Census/flex-only sessions emit no numeric progress fields.
+  if (total === 0) {
+    return 0
+  }
   return Math.round((completed / total) * 100)
 })
 

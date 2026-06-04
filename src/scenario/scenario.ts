@@ -1,6 +1,4 @@
 import { format } from 'date-fns'
-import bbox from '@turf/bbox'
-import area from '@turf/area'
 import {
   type WeekdayMode,
   type RouteType,
@@ -16,10 +14,7 @@ import {
   chunkArray,
   logMemory,
   parseHMS,
-  fetchCensusIntersection,
-  REQUIRED_ACS_TABLES,
   type CensusGeographyData,
-  padBboxMeters,
 } from '~~/src/core'
 import type { FlexAreaFeature,
   FeedGql,
@@ -28,8 +23,6 @@ import type { FlexAreaFeature,
   StopDeparture,
   StopGql,
   StopTime,
-  FlexLocationQueryResponse,
-  FlexStopTimesQueryResponse,
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import {
@@ -43,25 +36,16 @@ import {
   stopDepartureQuery,
   stopTimeQuery,
   stopQuery,
-  flexLocationQuery,
-  flexStopTimesQuery,
-  transformLocationsToFlexAreas,
 } from '~~/src/tl'
 import { STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
-import { geographyLayerQuery } from '~~/src/tl/census'
 import { runBufferPasses, type BufferFetchConfig } from './buffer-passes'
+import { runCensusValuesPass, resolveScenarioArea, type CensusValuesFetchConfig } from './census-values-pass'
+import { runFlexAreasPass, getSelectedDateRange, FlexDepartureTuple } from './flex-areas-pass'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_ROUTES = 10
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
-
-/**
- * Maximum number of flex locations to fetch per feed version.
- * This limit is enforced server-side by transitland-server.
- * If a feed version has more locations than this, some will be silently skipped.
- */
-const MAX_FLEX_LOCATIONS_PER_FEED_VERSION = 100_000
 
 /**
  * Configuration for scenario fetching
@@ -102,6 +86,10 @@ export interface ScenarioConfig {
   // stopBufferRadius > 0; the SPA fetches them later via /api/buffer-geographies.
   // Undefined (CLI/WSDOT callers) is treated as enabled.
   includeStopBufferDemographics?: boolean
+  // When false, the initial scenario load skips the census-values pass; the
+  // SPA fetches per-layer values on demand via /api/census-values. Undefined
+  // (CLI/WSDOT callers) is treated as enabled.
+  includeCensusValues?: boolean
 }
 
 export interface ScenarioFilter {
@@ -153,8 +141,11 @@ export interface ScenarioData {
    * so existing non-streaming constructions of ScenarioData keep compiling.
    */
   tripIdStrings?: Map<number, string>
-  // Populated when `tableDatasetName` + `aggregateLayer` are both set.
-  censusGeographies?: Map<string, CensusGeographyData>
+  // Per-layer census cache, keyed by census layer ('tract', 'county', ...)
+  // then geoid. Each layer is fetched at most once per scenario — inline when
+  // `includeCensusValues` isn't false, or on demand via /api/census-values.
+  // The scenario filter selects the current aggregate layer's map.
+  censusGeographiesByLayer?: Map<string, Map<string, CensusGeographyData>>
   // Populated when `stopBufferRadius > 0`. Keyed by Stop.id.
   stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   // Pass D — server unions the buffer over the route's full stop set, not bbox-clipped.
@@ -163,18 +154,6 @@ export interface ScenarioData {
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   // Pass F — union over every stop's buffer. Drives aggregation-table apportionment.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
-}
-
-export function getSelectedDateRange (config: ScenarioConfig): Date[] {
-  const sd = new Date((config.startDate || new Date()).valueOf())
-  const ed = new Date((config.endDate || new Date()).valueOf())
-  const dates = []
-  while (sd <= ed) {
-    dates.push(new Date(sd.valueOf()))
-    sd.setDate(sd.getDate() + 1)
-  }
-  // console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
-  return dates
 }
 
 /**
@@ -276,18 +255,6 @@ export const StopDepartureTuple = {
   tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
 }
 
-// Wire format for flex departure cache: [locationId, date]
-export type FlexDepartureTuple = readonly [
-  location_id: number,
-  departure_date: string,
-]
-
-export const FlexDepartureTuple = {
-  create: (location_id: number, departure_date: string): FlexDepartureTuple => [location_id, departure_date],
-  locationId: (tuple: FlexDepartureTuple) => tuple[0],
-  departureDate: (tuple: FlexDepartureTuple) => tuple[1],
-}
-
 // ============================================================================
 // SCENARIO MAIN CLASS
 // ============================================================================
@@ -368,57 +335,6 @@ export class StopDepartureQueryVars {
  * Variables for the slim multi-date flex stop_times query.
  * Mirrors StopDepartureQueryVars but uses fvSha1/limit instead of stop ids.
  */
-export class FlexStopTimesQueryVars {
-  fvSha1: string = ''
-  limit: number = 0
-  monday: string = ''
-  tuesday: string = ''
-  wednesday: string = ''
-  thursday: string = ''
-  friday: string = ''
-  saturday: string = ''
-  sunday: string = ''
-  include_monday: boolean = false
-  include_tuesday: boolean = false
-  include_wednesday: boolean = false
-  include_thursday: boolean = false
-  include_friday: boolean = false
-  include_saturday: boolean = false
-  include_sunday: boolean = false
-
-  get (dow: string): string {
-    switch (dow) {
-      case 'monday': return this.monday
-      case 'tuesday': return this.tuesday
-      case 'wednesday': return this.wednesday
-      case 'thursday': return this.thursday
-      case 'friday': return this.friday
-      case 'saturday': return this.saturday
-      case 'sunday': return this.sunday
-    }
-    return ''
-  }
-
-  setDay (d: Date) {
-    const dateFmt = 'yyyy-MM-dd'
-    switch (d.getDay()) {
-      case 0: this.sunday = format(d, dateFmt); this.include_sunday = true; break
-      case 1: this.monday = format(d, dateFmt); this.include_monday = true; break
-      case 2: this.tuesday = format(d, dateFmt); this.include_tuesday = true; break
-      case 3: this.wednesday = format(d, dateFmt); this.include_wednesday = true; break
-      case 4: this.thursday = format(d, dateFmt); this.include_thursday = true; break
-      case 5: this.friday = format(d, dateFmt); this.include_friday = true; break
-      case 6: this.saturday = format(d, dateFmt); this.include_saturday = true; break
-    }
-  }
-
-  hasAnyDay (): boolean {
-    return this.include_monday || this.include_tuesday || this.include_wednesday
-      || this.include_thursday || this.include_friday || this.include_saturday
-      || this.include_sunday
-  }
-}
-
 /**
  * Stream scenario data to a controller. This is the core streaming primitive.
  * Does not accumulate data - just streams NDJSON to the controller.
@@ -468,6 +384,97 @@ export async function streamBufferGeographies (
 
   try {
     await runBufferPasses(config, client, p => sender.onProgress(p))
+  } catch (err) {
+    sender.onError(err)
+    writer.close()
+    return
+  }
+
+  sender.onComplete()
+  writer.close()
+}
+
+// Request body for /api/flex-areas: feed versions from a prior scenario load
+// plus the scenario date range (ISO strings on the wire, parsed by the endpoint).
+export interface FlexAreasRequestBody {
+  feedVersions: FeedVersion[]
+  startDate?: Date
+  endDate?: Date
+}
+
+// Powers /api/flex-areas — the SPA's deferred flex-areas load.
+export async function streamFlexAreas (
+  controller: ReadableStreamDefaultController,
+  body: FlexAreasRequestBody,
+  client: GraphQLClient,
+): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new ScenarioStreamSender(writer)
+
+  sender.onProgress({
+    isLoading: true,
+    currentStage: 'flex-areas',
+    currentStageMessage: 'Loading flex service areas...',
+  })
+
+  try {
+    await runFlexAreasPass(
+      {
+        feedVersions: body.feedVersions,
+        startDate: body.startDate,
+        endDate: body.endDate,
+      },
+      client,
+      p => sender.onProgress(p),
+      // Per-feed-version errors ride the stream like the inline pipeline's
+      // onError channel; remaining feed versions continue.
+      err => sender.onError(err),
+    )
+  } catch (err) {
+    sender.onError(err)
+    writer.close()
+    return
+  }
+
+  sender.onComplete()
+  writer.close()
+}
+
+// Request body for /api/census-values: the pass config minus resolved area,
+// plus the raw inputs (`bbox`/`geographyIds`) needed to resolve it server-side.
+export interface CensusValuesRequestBody extends Omit<CensusValuesFetchConfig, 'bbox' | 'within'> {
+  bbox?: Bbox
+  geographyIds?: number[]
+}
+
+// Powers /api/census-values — the SPA's deferred per-layer census load.
+export async function streamCensusValues (
+  controller: ReadableStreamDefaultController,
+  body: CensusValuesRequestBody,
+  client: GraphQLClient,
+): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new ScenarioStreamSender(writer)
+
+  sender.onProgress({
+    isLoading: true,
+    currentStage: 'census-values',
+    currentStageMessage: 'Loading census data...',
+  })
+
+  try {
+    const resolved = await resolveScenarioArea(client, {
+      bbox: body.bbox,
+      geographyIds: body.geographyIds,
+      geoDatasetName: body.geoDatasetName,
+    })
+    await runCensusValuesPass(
+      { ...body, bbox: resolved.bbox, within: resolved.within },
+      client,
+      p => sender.onProgress(p),
+    )
   } catch (err) {
     sender.onError(err)
     writer.close()
@@ -558,7 +565,6 @@ export class ScenarioFetcher {
   private stopFetchQueue: TaskQueue<StopFetchTask>
   private routeFetchQueue: TaskQueue<RouteFetchTask>
   private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
-  private flexFetchQueue: TaskQueue<FeedVersion>
 
   // Internal result bookkeeping
   private fetchedRouteIds: Set<number> = new Set()
@@ -605,13 +611,6 @@ export class ScenarioFetcher {
       this.maxConcurrentRequests,
       task => this.fetchStopDepartures(task), {
         onProgress: () => { this.updateProgress('schedules', true) },
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
-
-    this.flexFetchQueue = new TaskQueue<FeedVersion>(
-      this.maxConcurrentRequests,
-      task => this.fetchFlexArea(task), {
         onError: error => this.callbacks.onError?.(error)
       }
     )
@@ -686,133 +685,49 @@ export class ScenarioFetcher {
     console.log(`🎉 Scenario complete`)
   }
 
-  /**
-   * Fetch flex service areas (GTFS-Flex / DRT) via GraphQL
-   *
-   * Queries locations for each feed version, filters out those without
-   * active service on the selected date, and transforms to FlexAreaFeature format.
-   */
+  // Delegates to `runFlexAreasPass` so the same logic runs standalone via
+  // /api/flex-areas for deferred on-demand loads.
   private async fetchFlexAreas (): Promise<void> {
-    if (this.feedVersions.length === 0) {
-      console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
-      return
-    }
-
-    this.updateProgress('flex-areas', true)
-    console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
-
-    for (const fv of this.feedVersions) {
-      this.flexFetchQueue.enqueueOne(fv)
-    }
-    await this.flexFetchQueue.run()
-
-    console.log(`[FlexAreas] Complete`)
+    await runFlexAreasPass(
+      {
+        feedVersions: this.feedVersions,
+        startDate: this.config.startDate,
+        endDate: this.config.endDate,
+        maxConcurrentRequests: this.maxConcurrentRequests,
+      },
+      this.client,
+      p => this.updateProgress(p.currentStage, p.isLoading, p.partialData),
+      error => this.callbacks.onError?.(error),
+    )
   }
 
-  // Fetch flex areas for a single feed version
-  private async fetchFlexArea (fv: FeedVersion): Promise<void> {
-    const queryDate = this.config.startDate
-      ? format(this.config.startDate, 'yyyy-MM-dd')
-      : format(new Date(), 'yyyy-MM-dd')
-
-    const variables = {
-      fvSha1: fv.sha1,
-      limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
-      serviceDate: queryDate,
-    }
-
-    const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
-
-    const feedVersionData = response.data?.feed_versions?.[0]
-    if (!feedVersionData) {
-      return
-    }
-
-    const locations = feedVersionData.locations || []
-    const flexAreas = transformLocationsToFlexAreas(locations)
-
-    if (flexAreas.length > 0) {
-      console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feed.onestop_id}`)
-      this.updateProgress('flex-areas', true, { flexAreas })
-    }
-
-    // Fetch slim multi-date stop_times to populate the flex departure cache.
-    // Chunk the date range into 7-day windows (one query per week) so every
-    // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
-    if (flexAreas.length > 0) {
-      const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
-      const dates = getSelectedDateRange(this.config)
-      const weekSize = 7
-      const flexDepartures: FlexDepartureTuple[] = []
-      for (let i = 0; i < dates.length; i += weekSize) {
-        const w = new FlexStopTimesQueryVars()
-        w.fvSha1 = fv.sha1
-        w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
-        for (const d of dates.slice(i, i + weekSize)) {
-          w.setDay(d)
-        }
-        if (!w.hasAnyDay()) { continue }
-        const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
-        for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
-          for (const dowName of dowNames) {
-            const date = w.get(dowName)
-            if (!date) { continue }
-            if ((location[dowName]?.length ?? 0) > 0) {
-              flexDepartures.push(FlexDepartureTuple.create(location.id, date))
-            }
-          }
-        }
-      }
-      if (flexDepartures.length > 0) {
-        this.updateProgress('flex-areas', true, { flexDepartures })
-      }
-    }
-  }
-
-  // Skipped without `tableDatasetName` + `aggregateLayer`. Bbox is padded by
-  // the radius so edge-crossing buffers can apportion against the right tracts.
+  // Delegates to `runCensusValuesPass` so the same logic runs standalone via
+  // /api/census-values for deferred per-layer loads. Skipped when deferred
+  // (`includeCensusValues: false`) or without `tableDatasetName` + `aggregateLayer`.
   private async fetchCensusValues (): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
+    if (this.config.includeCensusValues === false) {
+      console.log('[CensusValues] Skipping (deferred — includeCensusValues is false)')
+      return
+    }
     if (!tableDatasetName || !aggregateLayer) {
       console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
       return
     }
-    if (!this.resolvedBbox) {
-      console.warn('[CensusValues] No resolved bbox — skipping')
-      return
-    }
-    this.updateProgress('census-values', true)
-    // Padding stays tied to radius alone (not bufferPassesEnabled): a deferred
-    // buffer load still needs the margin geographies for aggregation rollup,
-    // and the padding is cheap relative to the buffer passes themselves.
-    const radius = this.config.stopBufferRadius && this.config.stopBufferRadius > 0
-      ? this.config.stopBufferRadius
-      : 0
-    const fetchBbox = radius > 0 ? padBboxMeters(this.resolvedBbox, radius) : this.resolvedBbox
-    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer} (radius padding=${radius}m)`)
-    const features = await fetchCensusIntersection({
-      client: this.client,
-      geoDatasetName,
-      geoDatasetLayer: aggregateLayer,
-      tableDatasetName,
-      tableNames: REQUIRED_ACS_TABLES,
-      bbox: fetchBbox,
-      within: this.resolvedWithin,
-    })
-    const entries: [string, CensusGeographyData][] = features.map(f => [
-      f.properties.geoid,
+    await runCensusValuesPass(
       {
-        id: f.properties.geography_id,
-        name: f.properties.name,
-        values: f.properties.values,
-        intersectionRatio: f.properties.intersection_ratio,
-        geometryArea: f.properties.geometry_area,
-        intersectionArea: f.properties.intersection_area,
+        geoDatasetName,
+        tableDatasetName,
         layer: aggregateLayer,
+        // Padding stays tied to radius alone (not bufferPassesEnabled): a
+        // deferred buffer load still needs the margin geographies.
+        stopBufferRadius: this.config.stopBufferRadius,
+        bbox: this.resolvedBbox,
+        within: this.resolvedWithin,
       },
-    ])
-    console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
-    this.updateProgress('census-values', true, { censusGeographies: entries })
+      this.client,
+      p => this.updateProgress(p.currentStage, p.isLoading, p.partialData),
+    )
   }
 
   // Delegates to `runBufferPasses` so the same logic runs standalone via
@@ -841,71 +756,19 @@ export class ScenarioFetcher {
 
   // Fetch active feed versions in the specified area
   private async fetchFeedVersions (): Promise<FeedVersion[]> {
-    let searchBbox = this.config.bbox
-    // If using one or more administrative boundaries, compute a bbox around them
-    if (this.config.geographyIds && this.config.geographyIds.length > 0) {
-      // First get the geometry for the administrative boundaries
-      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }[] }[] }>(
-        geographyLayerQuery,
-        {
-          geography_ids: this.config.geographyIds,
-          include_geographies: true,
-          dataset_name: this.config.geoDatasetName
-        }
-      )
-
-      // Combine all geometries into a FeatureCollection
-      const features = geogResponse.data?.census_datasets?.[0]?.geographies?.map(g => ({
-        type: 'Feature' as const,
-        geometry: g.geometry,
-        properties: {}
-      })) || []
-
-      if (features.length > 0) {
-        const fc = {
-          type: 'FeatureCollection' as const,
-          features
-        }
-
-        // Calculate bbox that contains all administrative boundaries
-        const [minX, minY, maxX, maxY] = bbox(fc)
-        searchBbox = {
-          sw: { lon: minX, lat: minY },
-          ne: { lon: maxX, lat: maxY },
-          valid: true
-        }
-
-        // Backend `within` is typed as Polygon, so for a MultiPolygon pick
-        // the largest part as a stand-in until #347 lands.
-        const firstGeom: GeoJSON.Geometry = features[0]!.geometry
-        if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
-          let bestCoords = firstGeom.coordinates[0]!
-          let bestArea = area({ type: 'Polygon', coordinates: bestCoords })
-          for (let i = 1; i < firstGeom.coordinates.length; i++) {
-            const coords = firstGeom.coordinates[i]!
-            const a = area({ type: 'Polygon', coordinates: coords })
-            if (a > bestArea) {
-              bestCoords = coords
-              bestArea = a
-            }
-          }
-          this.resolvedWithin = { type: 'Polygon', coordinates: bestCoords }
-          if (firstGeom.coordinates.length > 1) {
-            console.warn(`[Scenario] Admin boundary is a MultiPolygon with ${firstGeom.coordinates.length} parts; using the largest part for census intersection (#347).`)
-          }
-        } else if (firstGeom.type === 'Polygon') {
-          this.resolvedWithin = firstGeom
-        }
-      } else {
-        console.warn('No features found in census datasets response')
-      }
-    }
-
-    this.resolvedBbox = searchBbox
+    // Resolve the query area (explicit bbox, or computed around the selected
+    // admin boundaries). Shared with the standalone census-values endpoint.
+    const resolved = await resolveScenarioArea(this.client, {
+      bbox: this.config.bbox,
+      geographyIds: this.config.geographyIds,
+      geoDatasetName: this.config.geoDatasetName,
+    })
+    this.resolvedBbox = resolved.bbox
+    this.resolvedWithin = resolved.within
 
     // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
     // Paginate to ensure we get all feeds (API default limit is 100)
-    const bboxForQuery = convertBbox(searchBbox)
+    const bboxForQuery = convertBbox(resolved.bbox)
     const allFeeds: FeedGql[] = []
     let after = 0
     while (true) {
@@ -1186,7 +1049,7 @@ export class ScenarioDataReceiver {
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
-      censusGeographies: new Map<string, CensusGeographyData>(),
+      censusGeographiesByLayer: new Map<string, Map<string, CensusGeographyData>>(),
       stopBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
       routeBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
       agencyBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
@@ -1233,7 +1096,22 @@ export class ScenarioDataReceiver {
           )
         }
       }
-      mergeIntoMap(p.censusGeographies, this.accumulatedData.censusGeographies)
+      // Census entries route to their layer's own map (each entry carries
+      // `.layer` on the wire), so per-layer fetches never disturb each other.
+      if (p.censusGeographies) {
+        const byLayer = this.accumulatedData.censusGeographiesByLayer
+        if (byLayer) {
+          for (const [geoid, geo] of p.censusGeographies) {
+            const layer = geo.layer ?? ''
+            let layerMap = byLayer.get(layer)
+            if (!layerMap) {
+              layerMap = new Map<string, CensusGeographyData>()
+              byLayer.set(layer, layerMap)
+            }
+            layerMap.set(geoid, geo)
+          }
+        }
+      }
       mergeIntoMap(p.stopBufferGeographies, this.accumulatedData.stopBufferGeographies)
       mergeIntoMap(p.routeBufferGeographies, this.accumulatedData.routeBufferGeographies)
       mergeIntoMap(p.agencyBufferGeographies, this.accumulatedData.agencyBufferGeographies)

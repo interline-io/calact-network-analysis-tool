@@ -44,8 +44,12 @@ useAnalysisResults
 | `startDate` / `endDate` | schedules (per-day date matrix), flex-areas (active service date) |
 | `aggregateLayer` + `tableDatasetName` + `geoDatasetName` | census-values (skipped if either is unset) |
 | `includeFixedRoute` (default true) | gates stops + routes + schedules |
-| `includeFlexAreas` (default true) | gates flex-areas |
+| `includeFlexAreas` (default true) | gates flex-areas (the SPA defaults this off and defers — see "Scenario layers") |
+| `includeStopBufferDemographics` (default true) | gates the #315 buffer passes (SPA defers by default) |
+| `includeCensusValues` (default true) | gates census-values (SPA defers by default) |
 | `stopLimit`, `departureMode` | tuning knobs for stop pagination + departure query shape |
+
+All three `include*` layer flags use `!== false` semantics: `undefined` (CLI/WSDOT callers) counts as enabled, so only the SPA's explicit `false` defers a layer.
 
 ## ScenarioFetcher orchestration
 
@@ -92,13 +96,43 @@ The receiver maintains:
 - `flexDepartureCache: FlexDepartureCache` — same shape for flex.
 - `flexAreas: FlexAreaFeature[]`.
 - `tripIdStrings: Map<number, string>` (sidecar).
-- `censusGeographies: Map<string, CensusGeographyData>` keyed by GEOID.
+- `censusGeographiesByLayer: Map<layer, Map<geoid, CensusGeographyData>>` — per-layer census cache; each streamed entry carries `.layer` so the receiver routes it to its layer's own map. `applyScenarioResultFilter` selects the current `aggregateLayer`'s map into `ScenarioFilterResult.censusGeographies`, so UI consumers see a flat per-geoid map.
 
 Memory tracking via `logMemory(stage)` calls bookend each pass (`fetchMain-start`, `after-feed-versions`, `after-stops`, `after-routes`, `after-departures`, `after-flex-and-census`, `fetchMain-complete`).
 
 ## Progress UI
 
 The browser maps each `currentStage` to a status line in `cal-scenario-loading.vue`. Stage transitions drive the progress text; `feedVersionProgress` and `stopDepartureProgress` counters drive any percentage indicators.
+
+## Scenario layers (deferred / on-demand loading)
+
+The pipeline has a tightly-coupled **core** and loosely-coupled **layers**:
+
+```
+fetchFeedVersions ──→ resolvedBbox/within, feed-version list
+   ├─→ stops ──→ routes ──→ agencies          ┐
+   │      └─→ departures/schedules            ┤ CORE — always /api/scenario
+   ├─→ flex areas        (needs FV list)      ┐
+   ├─→ census values     (needs area+layer)   ┤ LAYERS — deferrable
+   └─→ buffer demographics (needs entity ids) ┘
+```
+
+The core trio is sequentially dependent and almost always needed together, so it stays combined in `/api/scenario`. Each layer follows the same pattern:
+
+1. **A pure pass function** (`runBufferPasses`, `runCensusValuesPass`, `runFlexAreasPass`) shared by the inline pipeline and a standalone endpoint — same emit shape, same wire format.
+2. **A standalone NDJSON endpoint** (`/api/buffer-geographies`, `/api/census-values`, `/api/flex-areas`) taking only the small client-known inputs the layer needs (entity ids / bbox+geographyIds+layer / feed versions+dates).
+3. **A config flag** (`includeStopBufferDemographics` / `includeCensusValues` / `includeFlexAreas`) with `!== false` semantics so CLI/WSDOT (which never set them) keep inline behavior.
+4. **Client-side `ensureX()` state** in `app/composables/useScenarioRefetch.ts`: idempotent, in-flight-deduped loads streaming into the *same* `ScenarioDataReceiver` as the main fetch (layers touch disjoint accumulator fields, so concurrent streams are safe).
+
+What triggers each layer in the SPA:
+
+| Layer | Loaded inline when | Deferred trigger |
+|---|---|---|
+| Buffer demographics | "Include Stop Buffer Demographics" checked | "Load stop buffer demographics" buttons (Filters, Report); radius/layer changes auto-refetch after the first load |
+| Census values | demographics checkbox checked (aggregation seeding needs them) | Stops (Aggregated) tab opened, Show Agg. Areas enabled, aggregate-layer changed, or buffer `loadNow()` |
+| Flex areas | "Include Flex Service Areas" checked | Flex Services display toggle first enabled |
+
+Caching: loaded layer data persists in the receiver for the life of the scenario — display toggles only gate rendering. Census values cache **per aggregate layer**, so layer switches A → B → A refetch nothing. Only buffer radius/layer changes (values genuinely change) and a new query run refetch.
 
 ## Where to plug in a new pass
 

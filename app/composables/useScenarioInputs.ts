@@ -92,9 +92,12 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ includeFixedRoute: v ? undefined : 'false' }) }
   })
 
+  // Default off (inverted polarity vs includeFixedRoute): flex display is off
+  // by default, so flex data usually loads on demand via /api/flex-areas the
+  // first time the Flex Services toggle is enabled. Checked = load with scenario.
   const includeFlexAreas = computed<boolean | undefined>({
-    get: () => route.query.includeFlexAreas?.toString() !== 'false',
-    set: (v) => { setQuery({ includeFlexAreas: v ? undefined : 'false' }) }
+    get: () => route.query.includeFlexAreas?.toString() === 'true',
+    set: (v) => { setQuery({ includeFlexAreas: v ? 'true' : undefined }) }
   })
 
   // Display toggle that filters fixed-route features out of the map; on by default.

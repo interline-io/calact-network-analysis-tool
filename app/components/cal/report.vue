@@ -244,6 +244,8 @@ const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
   openBufferDetails: [payload: BufferDetailsPayload]
   loadDemographics: []
+  // Census values load on demand; the aggregated tab is one of the triggers.
+  needCensusValues: []
 }>()
 
 function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
@@ -371,6 +373,15 @@ const modeMap: Record<ReportTab, DataDisplayMode> = {
 watch(activeReportTab, (tab) => {
   dataDisplayMode.value = modeMap[tab]
 })
+
+// The aggregated tab needs census values (row seeding + demographic columns);
+// they load on demand when deferred. `immediate` covers mounting directly
+// onto the aggregated tab.
+watch(activeReportTab, (tab) => {
+  if (tab === 'stops-aggregated') {
+    emit('needCensusValues')
+  }
+}, { immediate: true })
 
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {

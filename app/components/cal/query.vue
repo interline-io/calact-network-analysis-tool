@@ -181,7 +181,10 @@
               <cat-checkbox
                 v-model="includeFlexAreas"
               >
-                Include Flex Service Areas
+                <cat-tooltip text="Loads GTFS-Flex demand-responsive service areas with the scenario. Leave off to load the scenario faster — flex areas load on demand when the Flex Services display toggle is first enabled.">
+                  Include Flex Service Areas
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
               </cat-checkbox>
             </div>
             <div class="is-flex mt-2">
