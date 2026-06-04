@@ -32,7 +32,7 @@
 
     <!-- Results Display -->
     <div class="columns is-multiline">
-      <div class="column" :class="columnSizeClass">
+      <div class="column is-one-quarter">
         <cat-msg variant="info" title="Stops">
           <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
@@ -45,7 +45,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column" :class="columnSizeClass">
+      <div class="column is-one-quarter">
         <cat-msg variant="info" title="Routes">
           <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
@@ -58,7 +58,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column" :class="columnSizeClass">
+      <div class="column is-one-quarter">
         <cat-msg variant="info" title="Departures">
           <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
           <div class="more-label">
@@ -66,7 +66,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column" :class="columnSizeClass">
+      <div class="column is-one-quarter">
         <cat-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
@@ -79,14 +79,18 @@
           </div>
         </cat-msg>
       </div>
-      <div v-if="demographicsActive" class="column" :class="columnSizeClass">
+      <!-- Full-width row below the four stage columns: the buffer passes run
+           after the other stages, and a fifth column crowds the layout. -->
+      <div v-if="demographicsActive" class="column is-full">
         <cat-msg variant="info" title="Demographics">
-          <div v-for="pass of demographicsPasses" :key="pass.stage" class="demographics-pass">
-            <cat-icon
-              size="small"
-              :icon="pass.status === 'done' ? 'check-circle' : pass.status === 'in-progress' ? 'loading' : 'circle-outline'"
-            />
-            {{ pass.label }}<span v-if="pass.count > 0"> ({{ pass.count.toLocaleString() }})</span>
+          <div class="demographics-passes">
+            <div v-for="pass of demographicsPasses" :key="pass.stage" class="demographics-pass">
+              <cat-icon
+                size="small"
+                :icon="pass.status === 'done' ? 'check-circle' : pass.status === 'in-progress' ? 'loading' : 'circle-outline'"
+              />
+              {{ pass.label }}<span v-if="pass.count > 0">&nbsp;({{ pass.count.toLocaleString() }})</span>
+            </div>
           </div>
         </cat-msg>
       </div>
@@ -127,11 +131,6 @@ const progressPercentage = computed(() => {
     completed += props.progress.bufferProgress.completed
   }
   return Math.round((completed / total) * 100)
-})
-
-// Five columns when the Demographics column shows, four otherwise.
-const columnSizeClass = computed(() => {
-  return props.demographicsActive ? 'is-one-fifth' : 'is-one-quarter'
 })
 
 // Buffer-pass order matches runBufferPasses (C/D/E/F).
@@ -240,10 +239,15 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   margin-top: 0.5rem;
 }
 
+.demographics-passes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 2rem;
+}
+
 .demographics-pass {
   font-size: 0.85rem;
   color: #6c757d;
-  margin-bottom: 0.2rem;
   display: flex;
   align-items: center;
   gap: 0.3rem;
