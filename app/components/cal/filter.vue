@@ -258,6 +258,11 @@
             </cat-select>
           </cat-field>
 
+          <cal-buffer-demographics-notice
+            v-if="props.scenarioFilterResult && stopBufferRadius > 0 && !bufferDataActive"
+            @load="emit('loadDemographics')"
+          />
+
           <p class="menu-label">
             Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
@@ -545,9 +550,9 @@
                 v-for="option of censusGeographyLayerOptions"
                 :key="option.value"
                 :value="option.value"
-                :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
+                :disabled="bufferDataActive && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
               >
-                {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
+                {{ option.label }}{{ bufferDataActive && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
               </option>
             </cat-select>
           </cat-field>
@@ -742,6 +747,12 @@ const markedRouteCount = computed(() => (props.scenarioFilterResult?.routes ?? [
 const totalStopCount = computed(() => props.scenarioFilterResult?.stops.length ?? 0)
 const markedStopCount = computed(() => (props.scenarioFilterResult?.stops ?? []).reduce((n, s) => n + (s.marked ? 1 : 0), 0))
 
+// Buffer demographics are present (#315). With deferred loading, radius > 0
+// no longer implies data — gate buffer UI on this instead.
+const bufferDataActive = computed(() =>
+  stopBufferRadius.value > 0
+  && (props.scenarioFilterResult?.stopBufferGeographies?.size ?? 0) > 0)
+
 const panelMainWidthPx = `${FILTER_MAIN_WIDTH}px`
 const panelSubWidthPx = `${FILTER_SUB_WIDTH}px`
 const panelPaddingPx = `${PANEL_PADDING}px`
@@ -749,6 +760,7 @@ const panelPaddingPx = `${PANEL_PADDING}px`
 const emit = defineEmits([
   'resetFilters',
   'showQuery',
+  'loadDemographics',
 ])
 const activeTab = defineModel<string>('activeTab')
 

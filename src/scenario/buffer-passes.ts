@@ -61,11 +61,25 @@ export async function runBufferPasses (
     { kind: 'routes', ids: config.routeIds, batchSize: entityChunkSize },
     { kind: 'agencies', ids: config.agencyIds, batchSize: entityChunkSize },
   ]
+  // Total chunk count is known up front, so the consumer can render a real
+  // progress bar. +1 for the single Pass F aggregation request.
+  const bufferProgressTotal = passes.reduce(
+    (n, p) => n + Math.ceil(p.ids.length / p.batchSize),
+    config.stopIds.length > 0 ? 1 : 0,
+  )
+  let bufferProgressCompleted = 0
+  const bufferProgress = () => ({ total: bufferProgressTotal, completed: bufferProgressCompleted })
   for (const { kind, ids, batchSize } of passes) {
     const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
     for (const chunk of chunkArray(ids, batchSize)) {
       const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
-      emit({ isLoading: true, currentStage: stage, partialData: { [partialKey]: results } })
+      bufferProgressCompleted += 1
+      emit({
+        isLoading: true,
+        currentStage: stage,
+        bufferProgress: bufferProgress(),
+        partialData: { [partialKey]: results },
+      })
     }
   }
 
@@ -90,9 +104,11 @@ export async function runBufferPasses (
         values: f.properties.values,
       }))
     console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
+    bufferProgressCompleted += 1
     emit({
       isLoading: true,
       currentStage: 'aggregation-buffer-geographies',
+      bufferProgress: bufferProgress(),
       partialData: { aggregationBufferGeographies: geographies },
     })
   }

@@ -189,6 +189,65 @@ describe('ScenarioFetcher', () => {
     })
   })
 
+  describe('deferred buffer demographics (#315)', () => {
+    // One feed → one stop with no routes, so the only buffer ids accumulated
+    // are the stop's. Catch-all empty responses satisfy the departure and
+    // buffer queries (both tolerate empty data).
+    function makeBufferClient (): MockGraphQLClient {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce({ data: { stops: [
+          {
+            id: 1,
+            stop_id: 'stop_1',
+            stop_name: 'Test Stop',
+            location_type: 0,
+            geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
+            census_geographies: [],
+            route_stops: []
+          }
+        ] } })
+        .mockResolvedValue({ data: {} })
+      return client
+    }
+
+    const bufferConfig: ScenarioConfig = {
+      ...config,
+      tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+      includeFlexAreas: false,
+      stopBufferRadius: 400,
+      stopBufferLayer: 'tract',
+    }
+
+    function bufferStages (progressCb: Mock): string[] {
+      return progressCb.mock.calls
+        .map(([p]) => p.currentStage)
+        .filter((s: string) => s.includes('buffer-geographies'))
+    }
+
+    it('runs buffer passes when includeStopBufferDemographics is undefined (CLI parity)', async () => {
+      const progressCb = vi.fn()
+      const fetcher = new ScenarioFetcher(bufferConfig, makeBufferClient(), { onProgress: progressCb })
+      await fetcher.fetch()
+
+      expect(bufferStages(progressCb)).toContain('stop-buffer-geographies')
+      expect(bufferStages(progressCb)).toContain('aggregation-buffer-geographies')
+    })
+
+    it('skips buffer passes when includeStopBufferDemographics is false', async () => {
+      const progressCb = vi.fn()
+      const fetcher = new ScenarioFetcher(
+        { ...bufferConfig, includeStopBufferDemographics: false },
+        makeBufferClient(),
+        { onProgress: progressCb },
+      )
+      await fetcher.fetch()
+
+      expect(bufferStages(progressCb)).toHaveLength(0)
+    })
+  })
+
   it('should call progress callback during fetch', async () => {
     // Mock first call returns one stop, second call returns empty to end recursion
     mockClient.mockQuery

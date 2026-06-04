@@ -32,7 +32,7 @@
 
     <!-- Results Display -->
     <div class="columns is-multiline">
-      <div class="column is-one-quarter">
+      <div class="column" :class="columnSizeClass">
         <cat-msg variant="info" title="Stops">
           <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
@@ -45,7 +45,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div class="column" :class="columnSizeClass">
         <cat-msg variant="info" title="Routes">
           <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
@@ -58,7 +58,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div class="column" :class="columnSizeClass">
         <cat-msg variant="info" title="Departures">
           <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
           <div class="more-label">
@@ -66,7 +66,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div class="column" :class="columnSizeClass">
         <cat-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
@@ -76,6 +76,17 @@
             <div v-if="scenarioData?.flexAreas.length > 5" class="more-label">
               ... and {{ scenarioData.flexAreas.length - 5 }} more
             </div>
+          </div>
+        </cat-msg>
+      </div>
+      <div v-if="demographicsActive" class="column" :class="columnSizeClass">
+        <cat-msg variant="info" title="Demographics">
+          <div v-for="pass of demographicsPasses" :key="pass.stage" class="demographics-pass">
+            <cat-icon
+              size="small"
+              :icon="pass.status === 'done' ? 'check-circle' : pass.status === 'in-progress' ? 'loading' : 'circle-outline'"
+            />
+            {{ pass.label }}<span v-if="pass.count > 0"> ({{ pass.count.toLocaleString() }})</span>
           </div>
         </cat-msg>
       </div>
@@ -92,12 +103,15 @@ const props = withDefaults(defineProps<{
   error?: Error | string
   scenarioData?: ScenarioData
   stopDepartureCount?: number
+  // Whether buffer demographics load this run (#315) — shows the
+  // Demographics column and folds buffer chunks into the progress bar.
+  demographicsActive?: boolean
 }>(), {})
 
 // Computed values
 const progressPercentage = computed(() => {
   if (!props.progress) { return 0 }
-  // Add feed version progress + stop departure progress
+  // Add feed version progress + stop departure progress + buffer progress
   let total = 0
   let completed = 0
   if (props.progress.feedVersionProgress) {
@@ -108,7 +122,53 @@ const progressPercentage = computed(() => {
     total += props.progress.stopDepartureProgress.total
     completed += props.progress.stopDepartureProgress.completed
   }
+  if (props.progress.bufferProgress) {
+    total += props.progress.bufferProgress.total
+    completed += props.progress.bufferProgress.completed
+  }
   return Math.round((completed / total) * 100)
+})
+
+// Five columns when the Demographics column shows, four otherwise.
+const columnSizeClass = computed(() => {
+  return props.demographicsActive ? 'is-one-fifth' : 'is-one-quarter'
+})
+
+// Buffer-pass order matches runBufferPasses (C/D/E/F).
+const BUFFER_STAGE_ORDER = [
+  'stop-buffer-geographies',
+  'route-buffer-geographies',
+  'agency-buffer-geographies',
+  'aggregation-buffer-geographies',
+] as const
+
+type PassStatus = 'pending' | 'in-progress' | 'done'
+
+// Per-pass status rows for the Demographics column. A pass counts as done
+// once a later pass is active/complete or the whole run finished — counts
+// alone aren't enough because a pass can legitimately return no rows.
+const demographicsPasses = computed((): { label: string, stage: string, count: number, status: PassStatus }[] => {
+  const stage = props.progress?.currentStage
+  const stageIndex = BUFFER_STAGE_ORDER.indexOf(stage as typeof BUFFER_STAGE_ORDER[number])
+  // Not 'ready': the buffer-only refetch initializes progress at 'ready'
+  // before any stream events arrive — passes are pending then, not done.
+  const runDone = stage === 'complete'
+  const counts = [
+    props.scenarioData?.stopBufferGeographies?.size ?? 0,
+    props.scenarioData?.routeBufferGeographies?.size ?? 0,
+    props.scenarioData?.agencyBufferGeographies?.size ?? 0,
+    props.scenarioData?.aggregationBufferGeographies?.length ?? 0,
+  ]
+  const labels = ['Stops', 'Routes', 'Agencies', 'Aggregation']
+  return BUFFER_STAGE_ORDER.map((passStage, i) => {
+    let status: PassStatus = 'pending'
+    if (runDone || (stageIndex >= 0 && i < stageIndex) || ((counts[i] ?? 0) > 0 && stageIndex !== i)) {
+      status = 'done'
+    } else if (stageIndex === i) {
+      status = 'in-progress'
+    }
+    return { label: labels[i] ?? '', stage: passStage, count: counts[i] ?? 0, status }
+  })
 })
 
 // Total number of stops loaded
@@ -178,6 +238,16 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
 
 .stop-list, .route-list, .flex-list {
   margin-top: 0.5rem;
+}
+
+.demographics-pass {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 
 .stop-item, .route-item, .flex-item {
