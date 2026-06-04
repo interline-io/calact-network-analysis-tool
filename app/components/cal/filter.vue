@@ -3,8 +3,8 @@
     <div class="cal-filter-main">
       <cal-title title="Filters" />
 
-      <aside class="menu">
-        <p class="menu-label">
+      <nav class="menu" aria-label="Filters">
+        <p id="cal-filter-menu-label" class="menu-label">
           Filters
         </p>
         <cat-button
@@ -14,14 +14,30 @@
         >
           Clear all
         </cat-button>
-        <ul class="menu-list">
+        <ul
+          class="menu-list"
+          role="tablist"
+          aria-orientation="vertical"
+          aria-labelledby="cal-filter-menu-label"
+        >
           <li
-            v-for="item of menuItems"
+            v-for="(item, idx) of menuItems"
             :key="item.tab"
+            role="presentation"
           >
-            <a
+            <button
+              :id="`cal-filter-tab-${item.tab}`"
+              ref="tabRefs"
+              type="button"
+              role="tab"
+              class="cal-filter-tab-button"
               :class="{ 'is-active': activeTab === item.tab, 'is-disabled': isMenuItemDisabled(item) }"
+              :aria-selected="activeTab === item.tab"
+              :aria-controls="`cal-filter-panel-${item.tab}`"
+              :aria-disabled="isMenuItemDisabled(item) || undefined"
+              :tabindex="activeTab === item.tab ? 0 : -1"
               @click="!isMenuItemDisabled(item) && setTab(item.tab)"
+              @keydown="(e: KeyboardEvent) => onTabKeydown(e, idx)"
             >
               <cat-icon
                 :icon="item.icon"
@@ -33,10 +49,10 @@
                 icon="chevron-right"
                 size="small"
               />
-            </a>
+            </button>
           </li>
         </ul>
-      </aside>
+      </nav>
 
       <div class="cal-filter-summary">
         <p>
@@ -80,12 +96,14 @@
       </div>
 
       <!-- TIMEFRAMES -->
-      <div v-if="activeTab === 'timeframes'">
-        <aside class="cal-filter-days menu block">
-          <p class="menu-label">
-            Days of the week
-          </p>
-
+      <div
+        v-if="activeTab === 'timeframes'"
+        id="cal-filter-panel-timeframes"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-timeframes"
+        tabindex="0"
+      >
+        <cat-fieldset label="Days of the week" class="cal-filter-days block">
           <section class="cal-day-of-week-mode menu-list">
             <cat-field>
               <cat-radio
@@ -108,10 +126,10 @@
             v-model="selectedWeekdays"
             :options="dowValues.map(d => ({ value: d, label: titleCase(d), disabled: !dowAvailable.has(d) }))"
           />
-        </aside>
+        </cat-fieldset>
 
-        <aside class="cal-filter-times menu block">
-          <p class="menu-label">
+        <cat-fieldset class="cal-filter-times block">
+          <template #label>
             Time of Day
             <cat-tooltip
               text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
@@ -119,7 +137,7 @@
             >
               <i class="mdi mdi-information-outline" />
             </cat-tooltip>
-          </p>
+          </template>
 
           <cat-field class="cal-time-of-day-mode">
             <cat-checkbox
@@ -134,6 +152,7 @@
 
           <cat-field>
             <cal-timepicker
+              ref="startTimeRef"
               v-model="startTime"
               size="small"
               icon="clock"
@@ -153,11 +172,17 @@
               :disabled="isAllDayMode"
             />
           </cat-field>
-        </aside>
+        </cat-fieldset>
       </div>
 
       <!-- FIXED-ROUTE SERVICES -->
-      <div v-if="activeTab === 'transit-layers'">
+      <div
+        v-if="activeTab === 'transit-layers'"
+        id="cal-filter-panel-transit-layers"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-transit-layers"
+        tabindex="0"
+      >
         <aside class="cal-service-levels menu">
           <p class="menu-label">
             Frequency
@@ -297,27 +322,32 @@
               />
             </div>
           </cat-field>
-          <p class="menu-label">
-            Color by:
-          </p>
-          <ul>
-            <li
-              v-for="dataDisplayModeOption of dataDisplayModes"
-              :key="dataDisplayModeOption"
-            >
-              <cat-radio
-                v-model="dataDisplayMode"
-                :native-value="dataDisplayModeOption"
+          <cat-fieldset label="Color by">
+            <ul>
+              <li
+                v-for="dataDisplayModeOption of dataDisplayModes"
+                :key="dataDisplayModeOption"
               >
-                {{ dataDisplayModeOption }}
-              </cat-radio>
-            </li>
-          </ul>
+                <cat-radio
+                  v-model="dataDisplayMode"
+                  :native-value="dataDisplayModeOption"
+                >
+                  {{ dataDisplayModeOption }}
+                </cat-radio>
+              </li>
+            </ul>
+          </cat-fieldset>
         </aside>
       </div>
 
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
-      <div v-if="activeTab === 'flex-services'">
+      <div
+        v-if="activeTab === 'flex-services'"
+        id="cal-filter-panel-flex-services"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-flex-services"
+        tabindex="0"
+      >
         <aside class="menu">
           <cat-notification
             variant="warning"
@@ -344,35 +374,36 @@
               :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
             />
 
-            <p class="menu-label">
-              Color by:
-            </p>
-            <ul>
-              <li
-                v-for="colorMode of flexColorByModes"
-                :key="colorMode"
-              >
-                <cat-radio
-                  v-model="flexColorBy"
-                  :native-value="colorMode"
-                  :disabled="!flexServicesEnabled"
+            <cat-fieldset label="Color by" :disabled="!flexServicesEnabled">
+              <ul>
+                <li
+                  v-for="colorMode of flexColorByModes"
+                  :key="colorMode"
                 >
-                  {{ colorMode }}
-                </cat-radio>
-              </li>
-            </ul>
+                  <cat-radio
+                    v-model="flexColorBy"
+                    :native-value="colorMode"
+                    :disabled="!flexServicesEnabled"
+                  >
+                    {{ colorMode }}
+                  </cat-radio>
+                </li>
+              </ul>
+            </cat-fieldset>
           </div>
         </aside>
       </div>
 
       <!-- MODES & AGENCIES -->
-      <div v-if="activeTab === 'agencies'">
+      <div
+        v-if="activeTab === 'agencies'"
+        id="cal-filter-panel-agencies"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-agencies"
+        tabindex="0"
+      >
         <aside class="menu">
-          <p class="menu-label">
-            Service Types
-          </p>
-
-          <div class="service-type-checkboxes mb-4">
+          <cat-fieldset label="Service Types" class="service-type-checkboxes mb-4">
             <cat-field>
               <cat-checkbox
                 v-model="fixedRouteEnabled"
@@ -393,30 +424,24 @@
                 </span>
               </cat-checkbox>
             </cat-field>
-          </div>
+          </cat-fieldset>
 
-          <template v-if="fixedRouteEnabled">
-            <p class="menu-label">
-              Fixed-Route Modes
-            </p>
-
-            <div class="mode-checkboxes mb-4">
-              <cat-field
-                v-for="mode in fixedRouteModeOptions"
-                :key="mode.value"
+          <cat-fieldset v-if="fixedRouteEnabled" label="Fixed-Route Modes" class="mode-checkboxes mb-4">
+            <cat-field
+              v-for="mode in fixedRouteModeOptions"
+              :key="mode.value"
+            >
+              <cat-checkbox
+                v-model="localSelectedRouteTypes"
+                :native-value="mode.value"
               >
-                <cat-checkbox
-                  v-model="localSelectedRouteTypes"
-                  :native-value="mode.value"
-                >
-                  <span class="mode-label">
-                    <cat-icon :icon="mode.icon" size="small" />
-                    {{ mode.label }}
-                  </span>
-                </cat-checkbox>
-              </cat-field>
-            </div>
-          </template>
+                <span class="mode-label">
+                  <cat-icon :icon="mode.icon" size="small" />
+                  {{ mode.label }}
+                </span>
+              </cat-checkbox>
+            </cat-field>
+          </cat-fieldset>
 
           <p class="menu-label">
             Agencies
@@ -498,32 +523,40 @@
       </div>
 
       <!-- DATA DISPLAY -->
-      <div v-if="activeTab === 'data-display'">
+      <div
+        v-if="activeTab === 'data-display'"
+        id="cal-filter-panel-data-display"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-data-display"
+        tabindex="0"
+      >
         <aside class="menu">
-          <p class="menu-label">
-            Base map <cat-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
-              <i class="mdi mdi-information-outline" />
-            </cat-tooltip>
-          </p>
-          <ul>
-            <li
-              v-for="baseMapStyle of baseMapStyles"
-              :key="baseMapStyle.name"
-            >
-              <cat-radio
-                v-model="baseMap"
-                :native-value="baseMapStyle.name"
-                :disabled="!baseMapStyle.available"
+          <cat-fieldset>
+            <template #label>
+              Base map <cat-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
+                <i class="mdi mdi-information-outline" />
+              </cat-tooltip>
+            </template>
+            <ul>
+              <li
+                v-for="baseMapStyle of baseMapStyles"
+                :key="baseMapStyle.name"
               >
-                <span class="cal-radio-with-icon">
-                  <cat-icon
-                    :icon="baseMapStyle.icon"
-                    size="small"
-                  /> {{ baseMapStyle.name }}
-                </span>
-              </cat-radio>
-            </li>
-          </ul>
+                <cat-radio
+                  v-model="baseMap"
+                  :native-value="baseMapStyle.name"
+                  :disabled="!baseMapStyle.available"
+                >
+                  <span class="cal-radio-with-icon">
+                    <cat-icon
+                      :icon="baseMapStyle.icon"
+                      size="small"
+                    /> {{ baseMapStyle.name }}
+                  </span>
+                </cat-radio>
+              </li>
+            </ul>
+          </cat-fieldset>
           <p class="menu-label">
             Aggregation
           </p>
@@ -605,29 +638,34 @@
       </div>
 
       <!-- SETTINGS -->
-      <div v-if="activeTab === 'settings'">
+      <div
+        v-if="activeTab === 'settings'"
+        id="cal-filter-panel-settings"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-settings"
+        tabindex="0"
+      >
         <aside class="menu">
-          <p class="menu-label">
-            Units of measurement
-          </p>
-          <ul>
-            <li>
-              <cat-radio
-                v-model="unitSystem"
-                native-value="us"
-              >
-                🇺🇸 USA
-              </cat-radio>
-            </li>
-            <li>
-              <cat-radio
-                v-model="unitSystem"
-                native-value="eu"
-              >
-                🇪🇺 Metric
-              </cat-radio>
-            </li>
-          </ul>
+          <cat-fieldset label="Units of measurement">
+            <ul>
+              <li>
+                <cat-radio
+                  v-model="unitSystem"
+                  native-value="us"
+                >
+                  🇺🇸 USA
+                </cat-radio>
+              </li>
+              <li>
+                <cat-radio
+                  v-model="unitSystem"
+                  native-value="eu"
+                >
+                  🇪🇺 Metric
+                </cat-radio>
+              </li>
+            </ul>
+          </cat-fieldset>
         </aside>
       </div>
     </div>
@@ -782,6 +820,8 @@ const isAllDayMode = computed({
 ///////////////////
 // Tab
 
+const tabRefs = ref<HTMLButtonElement[]>([])
+
 function setTab (v: string) {
   if (activeTab.value === v) {
     activeTab.value = ''
@@ -789,6 +829,57 @@ function setTab (v: string) {
   }
   activeTab.value = v
 }
+
+// Move focus to a tab at the given index, skipping disabled tabs.
+function focusTabAt (startIdx: number, direction: 1 | -1) {
+  const n = menuItems.length
+  for (let step = 1; step <= n; step++) {
+    const idx = ((startIdx + step * direction) % n + n) % n
+    const item = menuItems[idx]
+    if (item && !isMenuItemDisabled(item)) {
+      tabRefs.value[idx]?.focus()
+      setTab(item.tab)
+      return
+    }
+  }
+}
+
+function onTabKeydown (e: KeyboardEvent, idx: number) {
+  switch (e.key) {
+    case 'ArrowDown':
+    case 'ArrowRight':
+      e.preventDefault()
+      focusTabAt(idx, 1)
+      break
+    case 'ArrowUp':
+    case 'ArrowLeft':
+      e.preventDefault()
+      focusTabAt(idx, -1)
+      break
+    case 'Home':
+      e.preventDefault()
+      focusTabAt(-1, 1)
+      break
+    case 'End':
+      e.preventDefault()
+      focusTabAt(menuItems.length, -1)
+      break
+  }
+}
+
+///////////////////
+// Time of Day focus management (#361)
+
+const startTimeRef = ref<{ focus: () => void } | null>(null)
+
+// When the user disables "All Day", move focus to the newly enabled start time
+// picker so keyboard users can begin editing without hunting for it.
+watch(isAllDayMode, async (allDay, prevAllDay) => {
+  if (prevAllDay && !allDay) {
+    await nextTick()
+    startTimeRef.value?.focus()
+  }
+})
 
 function titleCase (s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -1030,17 +1121,42 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
 }
 
 .menu-list {
-  a.is-active {
+  a.is-active,
+  .cal-filter-tab-button.is-active {
     color: var(--bulma-text-main-ter);
     background: var(--bulma-scheme-main-ter);
   }
-  a.is-disabled {
+  a.is-disabled,
+  .cal-filter-tab-button.is-disabled {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
   }
   .right-chev {
     float: right;
+  }
+}
+
+// Inherit menu-list anchor look so the tablist buttons match the previous design.
+.cal-filter-tab-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5em 0.75em;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+
+  &:hover:not(.is-active):not(.is-disabled) {
+    background: var(--bulma-background);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+    outline-offset: -2px;
   }
 }
 
