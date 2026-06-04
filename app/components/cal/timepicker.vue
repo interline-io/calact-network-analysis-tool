@@ -80,6 +80,10 @@ function handleInput (event: Event) {
   emit('update:modelValue', date)
 }
 
+defineExpose({
+  focus: () => inputRef.value?.focus()
+})
+
 const controlClasses = computed(() => {
   const classes: string[] = []
   if (props.icon) {
