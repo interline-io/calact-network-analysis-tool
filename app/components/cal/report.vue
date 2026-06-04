@@ -39,9 +39,9 @@
           v-for="option of censusGeographyLayerOptions"
           :key="option.value"
           :value="option.value"
-          :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
+          :disabled="bufferDataActive && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
         >
-          {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
+          {{ option.label }}{{ bufferDataActive && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
         </option>
       </cat-select>
       <cat-tooltip text="The selected geography level determines how stop data is grouped. Enable 'Show Agg. Areas' in Map Display to visualize these areas on the map.">
@@ -54,7 +54,7 @@
          that doesn't exist yet. Surface this honestly rather than silently
          showing un-apportioned values. -->
     <cat-msg
-      v-if="activeReportTab === 'stops-aggregated' && stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer)"
+      v-if="activeReportTab === 'stops-aggregated' && bufferDataActive && !HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer)"
       variant="warning"
       title="Buffer apportionment not available for this layer"
       class="mb-4"
@@ -66,6 +66,15 @@
         layer above, or set the stop statistical radius to 0 to acknowledge.
       </p>
     </cat-msg>
+
+    <!-- Deferred-load prompt (#315): demographics weren't loaded with the
+         scenario, so the census columns these tabs would show are absent. -->
+    <cal-buffer-demographics-notice
+      v-if="bufferNoticeVisible"
+      compact
+      class="mb-4"
+      @load="emit('loadDemographics')"
+    />
 
     <cal-datagrid
       :table-report="activeTableReport"
@@ -234,6 +243,7 @@ export interface BufferDetailsPayload {
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
   openBufferDetails: [payload: BufferDetailsPayload]
+  loadDemographics: []
 }>()
 
 function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
@@ -243,8 +253,22 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
   }
 }
 
+// Buffer demographics are present (#315). With deferred loading, radius > 0
+// no longer implies data — gate buffer UI on this instead.
+const bufferDataActive = computed(() =>
+  stopBufferRadius.value > 0
+  && (props.scenarioFilterResult?.stopBufferGeographies?.size ?? 0) > 0)
+
+// Deferred-load prompt: shown on the tabs that would display census columns
+// when demographics are configured (radius > 0) but not loaded.
+const bufferNoticeVisible = computed(() =>
+  props.scenarioFilterResult != null
+  && stopBufferRadius.value > 0
+  && !bufferDataActive.value
+  && ['stops', 'routes', 'agencies', 'stops-aggregated'].includes(activeReportTab.value))
+
 const drillableBufferTab = computed<BufferDetailsKind | null>(() => {
-  if (stopBufferRadius.value <= 0) {
+  if (!bufferDataActive.value) {
     return null
   }
   switch (activeReportTab.value) {
@@ -433,7 +457,7 @@ const routeColumns = computed((): TableColumn[] => {
       tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
   ]
-  if (stopBufferRadius.value > 0) {
+  if (bufferDataActive.value) {
     cols.push(...buildCensusColumns(true))
   }
   return cols
@@ -465,7 +489,7 @@ const stopColumns = computed((): TableColumn[] => {
       tooltip: `The sum of all visits at the stop by any route ${acrossDays} included within the current filters. Not currently filtered by the route or agency filters.`,
     },
   ]
-  if (stopBufferRadius.value > 0) {
+  if (bufferDataActive.value) {
     cols.push(...buildCensusColumns(true))
   }
   return cols
@@ -485,7 +509,7 @@ function buildCensusColumns (apportioned: boolean): TableColumn[] {
 }
 
 const bufferAggregationActive = computed(() => {
-  return stopBufferRadius.value > 0
+  return bufferDataActive.value
     && HIERARCHICAL_TIGER_LAYERS.has(aggregateLayer.value)
     && (props.scenarioFilterResult?.aggregationBufferGeographies?.length ?? 0) > 0
 })
@@ -536,7 +560,7 @@ const agencyColumns = computed((): TableColumn[] => {
     { key: 'routes_modes', label: 'Modes', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
   ]
-  if (stopBufferRadius.value > 0) {
+  if (bufferDataActive.value) {
     cols.push(...buildCensusColumns(true))
   }
   return cols

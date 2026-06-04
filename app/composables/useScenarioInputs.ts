@@ -31,6 +31,9 @@ interface ScenarioInputs {
   // #315 — 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
   stopBufferLayer: WritableComputedRef<string>
+  // Whether the initial scenario load includes the buffer-demographics passes.
+  // Default off — demographics are loaded on demand while browsing.
+  includeStopBufferDemographics: WritableComputedRef<boolean>
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -127,6 +130,15 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  // Default off (note the inverted polarity vs includeFixedRoute/includeFlexAreas):
+  // the URL param is only present when demographics load with the scenario.
+  const includeStopBufferDemographics = computed<boolean>({
+    get: () => route.query.includeStopBufferDemographics?.toString() === 'true',
+    set: (v) => {
+      setQuery({ includeStopBufferDemographics: v ? 'true' : undefined })
+    }
+  })
+
   return {
     bbox,
     cannedBbox,
@@ -142,5 +154,6 @@ export function useScenarioInputs (): ScenarioInputs {
     fvids,
     stopBufferRadius,
     stopBufferLayer,
+    includeStopBufferDemographics,
   }
 }

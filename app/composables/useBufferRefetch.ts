@@ -27,6 +27,13 @@ export interface UseBufferRefetchReturn {
   // Shared with the main fetch path so refetched buffer state lands in the
   // same accumulator. Parent assigns into this after each main scenario fetch.
   scenarioReceiver: ShallowRef<ScenarioDataReceiver | undefined>
+  // Whether buffer demographics were requested this session — true when the
+  // scenario loaded with `includeStopBufferDemographics`, or after loadNow().
+  // Gates the radius/layer auto-refetch watcher and the loading modal's
+  // Demographics column. Parent resets it after each main scenario fetch.
+  demographicsRequested: ShallowRef<boolean>
+  // Explicit deferred load for the "Load stop buffer demographics" buttons.
+  loadNow: () => Promise<void>
 }
 
 // Without debounce a slider drag fires one request per step.
@@ -36,6 +43,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
   // Shared with the main fetch path so refetched buffer state lands in the
   // same accumulator.
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
+  const demographicsRequested = shallowRef(false)
 
   // Aborted on the next radius/layer change before issuing the new request.
   let abort: AbortController | undefined
@@ -50,6 +58,15 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
       return
     }
     abort?.abort()
+
+    // Radius 0 means "feature off" — clear loaded demographics rather than
+    // POSTing radius 0 (which /api/buffer-geographies rejects).
+    if (stopBufferRadius.value <= 0) {
+      receiver.clearBufferGeographies()
+      deps.scenarioData.value = receiver.getCurrentData()
+      return
+    }
+
     const localAbort = new AbortController()
     abort = localAbort
 
@@ -109,10 +126,24 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
     }
   }
 
+  // Deferred load for the "Load stop buffer demographics" buttons. Once
+  // called, the radius/layer watcher takes over for subsequent changes.
+  async function loadNow (): Promise<void> {
+    if (stopBufferRadius.value <= 0) {
+      return
+    }
+    demographicsRequested.value = true
+    await refetch()
+  }
+
   // Initial query reads radius/layer via `scenarioConfig` directly; this
-  // watch only kicks in once a scenario is loaded.
+  // watch only kicks in once a scenario is loaded — and only after the user
+  // has requested demographics (with the scenario or via loadNow()).
   watch([stopBufferRadius, stopBufferLayer], () => {
     if (!scenarioReceiver.value || !deps.scenarioData.value) {
+      return
+    }
+    if (!demographicsRequested.value) {
       return
     }
     if (timer) {
@@ -129,5 +160,5 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
     abort?.abort()
   })
 
-  return { scenarioReceiver }
+  return { scenarioReceiver, demographicsRequested, loadNow }
 }

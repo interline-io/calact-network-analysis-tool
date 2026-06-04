@@ -184,6 +184,16 @@
                 Include Flex Service Areas
               </cat-checkbox>
             </div>
+            <div class="is-flex mt-2">
+              <cat-checkbox
+                v-model="includeStopBufferDemographics"
+              >
+                <cat-tooltip text="Apportions ACS census demographics to the area within the stop statistical radius of each stop, route, and agency. This can be a slow query — leave off to load the scenario faster, then load demographics on demand from the Filters tab or Report tab.">
+                  Include Stop Buffer Demographics
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </cat-checkbox>
+            </div>
           </cat-field>
 
           <!-- Census Geography Dataset -->
@@ -315,6 +325,7 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  includeStopBufferDemographics,
   fvids,
 } = useScenarioInputs()
 

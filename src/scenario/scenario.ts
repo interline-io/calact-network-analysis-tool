@@ -98,6 +98,10 @@ export interface ScenarioConfig {
   stopBufferRadius?: number
   // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
   stopBufferLayer?: string
+  // When false, the initial scenario load skips the buffer passes even if
+  // stopBufferRadius > 0; the SPA fetches them later via /api/buffer-geographies.
+  // Undefined (CLI/WSDOT callers) is treated as enabled.
+  includeStopBufferDemographics?: boolean
 }
 
 export interface ScenarioFilter {
@@ -206,6 +210,10 @@ export interface ScenarioProgress {
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
+  // Buffer-pass chunk progress (#315). Total is known up front:
+  // ceil(stops/stopChunkSize) + ceil(routes/entityChunkSize) +
+  // ceil(agencies/entityChunkSize) + 1 (aggregation, when any stops).
+  bufferProgress?: { total: number, completed: number }
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
@@ -537,6 +545,15 @@ export class ScenarioFetcher {
     return this.stopDepartureQueue.getProgress()
   }
 
+  // Whether this run executes the #315 buffer passes (C/D/E/F). Radius 0
+  // disables the feature outright; `includeStopBufferDemographics: false`
+  // defers them to a later /api/buffer-geographies fetch. Undefined (CLI)
+  // counts as enabled.
+  private get bufferPassesEnabled (): boolean {
+    return (this.config.stopBufferRadius ?? 0) > 0
+      && this.config.includeStopBufferDemographics !== false
+  }
+
   // Task queues
   private stopFetchQueue: TaskQueue<StopFetchTask>
   private routeFetchQueue: TaskQueue<RouteFetchTask>
@@ -765,6 +782,9 @@ export class ScenarioFetcher {
       return
     }
     this.updateProgress('census-values', true)
+    // Padding stays tied to radius alone (not bufferPassesEnabled): a deferred
+    // buffer load still needs the margin geographies for aggregation rollup,
+    // and the padding is cheap relative to the buffer passes themselves.
     const radius = this.config.stopBufferRadius && this.config.stopBufferRadius > 0
       ? this.config.stopBufferRadius
       : 0
@@ -800,7 +820,7 @@ export class ScenarioFetcher {
   private async fetchBufferData (): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
-    if (radius <= 0 || !tableDatasetName) {
+    if (!this.bufferPassesEnabled || !tableDatasetName) {
       return
     }
     await runBufferPasses(
@@ -1009,7 +1029,7 @@ export class ScenarioFetcher {
       }
     }
 
-    if ((this.config.stopBufferRadius ?? 0) > 0) {
+    if (this.bufferPassesEnabled) {
       for (const id of stopIds) {
         this.bufferStopIds.add(id)
       }
@@ -1043,7 +1063,7 @@ export class ScenarioFetcher {
       this.updateProgress('routes', true, { routes: routeBatch })
     }
 
-    if ((this.config.stopBufferRadius ?? 0) > 0) {
+    if (this.bufferPassesEnabled) {
       for (const r of routeData) {
         this.bufferRouteIds.add(r.id)
         const aid = r.agency?.id

@@ -129,6 +129,7 @@
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @show-query="activeTab = { tab: 'query', sub: '' }"
+            @load-demographics="loadDemographics"
           />
         </div>
 
@@ -141,6 +142,7 @@
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
             @open-buffer-details="openBufferDetails"
+            @load-demographics="loadDemographics"
           />
         </div>
 
@@ -201,6 +203,7 @@
           :error="error"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
+          :demographics-active="demographicsRequested"
         />
       </cat-modal>
 
@@ -333,6 +336,7 @@ const {
   fvids,
   stopBufferRadius,
   stopBufferLayer,
+  includeStopBufferDemographics,
 } = useScenarioInputs()
 const {
   startTime,
@@ -1007,6 +1011,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
   stopBufferRadius: stopBufferRadius.value,
   stopBufferLayer: stopBufferLayer.value,
+  includeStopBufferDemographics: includeStopBufferDemographics.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1105,7 +1110,7 @@ const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
 const showLoadingModal = ref(false)
 
-const { scenarioReceiver } = useBufferRefetch({
+const { scenarioReceiver, demographicsRequested, loadNow: loadDemographics } = useBufferRefetch({
   scenarioData,
   scenarioConfig,
   loadingProgress,
@@ -1162,6 +1167,9 @@ const fetchScenario = async (loadExample: string) => {
     }
   })
   scenarioReceiver.value = receiver
+  // Demographics ride along with this fetch only when opted in; otherwise the
+  // user loads them later via the "Load stop buffer demographics" buttons.
+  demographicsRequested.value = config.includeStopBufferDemographics === true
 
   let response: Response
 

@@ -80,6 +80,13 @@ describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integratio
     expect(aggEvent).toBeDefined()
     const aggTracts = aggEvent!.partialData!.aggregationBufferGeographies!
     expect(aggTracts.length).toBeGreaterThan(0)
+
+    // Every event carries chunk progress; the final event completes it.
+    for (const e of events) {
+      expect(e.bufferProgress).toBeDefined()
+    }
+    const last = events[events.length - 1]!
+    expect(last.bufferProgress!.completed).toBe(last.bufferProgress!.total)
   })
 
   it('aggregation total ≤ sum of per-stop tracts (union dedupes overlaps)', async () => {
