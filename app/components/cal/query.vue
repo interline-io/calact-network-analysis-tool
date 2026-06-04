@@ -41,6 +41,7 @@
           </template>
           <cat-datepicker
             v-if="!selectSingleDay"
+            ref="endDateRef"
             v-model="endDate"
             :min-date="minAllowedDate"
             :max-date="maxAllowedDate"
@@ -389,14 +390,19 @@ const {
   }
 )
 
+const endDateRef = ref<{ focus: () => void } | null>(null)
+
 // When toggling single-day mode, sync endDate to the URL query params.
 // In single-day mode, endDate matches startDate. When switching to range mode,
 // we create a copy so Vue detects a change and persists the value to the URL.
-watch(selectSingleDay, (newVal) => {
+// When the end-date picker appears, move focus into it for keyboard users (#361).
+watch(selectSingleDay, async (newVal) => {
   if (newVal) {
     endDate.value = startDate.value
   } else {
     endDate.value = new Date(endDate.value)
+    await nextTick()
+    endDateRef.value?.focus()
   }
 })
 

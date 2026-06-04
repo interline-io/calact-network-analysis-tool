@@ -69,6 +69,7 @@
 
     <cal-datagrid
       :table-report="activeTableReport"
+      :caption="`${activeReportTabLabel} — ${reportHeading}`"
     >
       <!-- Custom rendering for URLs column (flex areas) -->
       <template #column-urls="{ row }">
@@ -330,6 +331,16 @@ const reportHeading = computed(() => {
 type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'
 
 const activeReportTab = ref<ReportTab>('routes')
+
+const reportTabLabels: Record<ReportTab, string> = {
+  'routes': 'Routes',
+  'stops': 'Stops (Individual)',
+  'stops-aggregated': 'Stops (Aggregated)',
+  'agencies': 'Agencies',
+  'flex': 'Flex Areas',
+}
+
+const activeReportTabLabel = computed(() => reportTabLabels[activeReportTab.value])
 
 const hasAggregateLayer = computed(() => {
   return aggregateLayer.value !== '' && aggregateLayer.value !== 'none'
