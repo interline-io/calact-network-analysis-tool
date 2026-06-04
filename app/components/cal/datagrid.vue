@@ -22,6 +22,9 @@
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+        <caption v-if="props.caption" class="is-sr-only">
+          {{ props.caption }}
+        </caption>
         <thead>
           <tr>
             <th
@@ -149,6 +152,10 @@ const props = defineProps<{
   filename?: string
   // Horizontally scrollable, with the first column pinned.
   freezeFirstColumn?: boolean
+  // Accessible table caption. Rendered as a visually-hidden <caption> so screen
+  // readers announce the table's purpose; sighted users still see surrounding
+  // heading/tab UI for context.
+  caption?: string
 }>()
 
 const searchQuery = ref('')
