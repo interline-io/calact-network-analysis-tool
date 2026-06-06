@@ -28,16 +28,19 @@
       :selected-fv-id="explicitPicks.get(feed.onestop_id) ?? null"
       :excluded="excludedFeeds.has(feed.onestop_id)"
       :pending-jobs="pendingJobs"
+      :range-editable="rangeEditable"
       @import="onImport"
       @unimport="onUnimport"
       @select="(fvId) => onSelect(feed, fvId)"
       @exclude="(v) => onExclude(feed, v)"
+      @update:analysis-range="emit('update:analysisRange', $event)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { refDebounced } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
 import { addDays, differenceInDays, subDays } from 'date-fns'
 import CalFeedVersionList from '~/components/cal/feed-version-list.vue'
@@ -72,25 +75,38 @@ const props = withDefaults(defineProps<{
   analysisEnd: Date
   selectable?: boolean
   modelValue?: string
+  // Modal context: rows render a draggable analysis window.
+  rangeEditable?: boolean
 }>(), {
   selectable: false,
   modelValue: '',
+  rangeEditable: false,
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   // Lets the parent drive bulk actions ("Exclude all") without re-fetching.
   (e: 'update:feedOnestopIds', value: string[]): void
+  // Bubbled from the timelines' window drag; the modal
+  // owns the staged dates, the picker just relays.
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 const bboxValid = computed(() => !!props.bbox?.valid)
 
+// The analysis window (overlay) tracks props live so dragging feels glued to
+// the pointer, but everything derived from it that would reshuffle the page —
+// the timeline scale (domain), the feed sort order, the GraphQL query — runs
+// off a debounced copy so rows don't rescale or resort mid-drag.
+const analysisStartDebounced = refDebounced(computed(() => props.analysisStart), 300)
+const analysisEndDebounced = refDebounced(computed(() => props.analysisEnd), 300)
+
 const bufferDays = computed(() => Math.max(
   MIN_BUFFER_DAYS,
-  differenceInDays(props.analysisEnd, props.analysisStart)
+  differenceInDays(analysisEndDebounced.value, analysisStartDebounced.value)
 ))
-const domainStart = computed(() => subDays(props.analysisStart, bufferDays.value))
-const domainEnd = computed(() => addDays(props.analysisEnd, bufferDays.value))
+const domainStart = computed(() => subDays(analysisStartDebounced.value, bufferDays.value))
+const domainEnd = computed(() => addDays(analysisEndDebounced.value, bufferDays.value))
 
 const parsed = computed(() => parseFvids(props.modelValue))
 const explicitPicks = computed<Map<string, number>>(() => parsed.value.picks)
@@ -126,13 +142,26 @@ function onExclude (feed: FeedWithVersions, value: boolean) {
   emitParsed(picks, excluded)
 }
 
+// The GraphQL fetch window is padded well beyond the visible domain and only
+// re-expands when the domain escapes it, so date edits (drag, pickers)
+// rarely trigger a refetch.
+const FETCH_PAD_DAYS = 90
+const fetchStart = ref<Date>(subDays(domainStart.value, FETCH_PAD_DAYS))
+const fetchEnd = ref<Date>(addDays(domainEnd.value, FETCH_PAD_DAYS))
+watch([domainStart, domainEnd], ([ds, de]) => {
+  if (ds.valueOf() < fetchStart.value.valueOf() || de.valueOf() > fetchEnd.value.valueOf()) {
+    fetchStart.value = subDays(ds, FETCH_PAD_DAYS)
+    fetchEnd.value = addDays(de, FETCH_PAD_DAYS)
+  }
+})
+
 const queryVars = computed(() => {
   if (!bboxValid.value) { return null }
   // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
   return {
     bbox: convertBbox(props.bbox),
-    serviceLevelStart: fmtDate(domainEnd.value),
-    serviceLevelEnd: fmtDate(domainStart.value),
+    serviceLevelStart: fmtDate(fetchEnd.value),
+    serviceLevelEnd: fmtDate(fetchStart.value),
   }
 })
 
@@ -158,8 +187,9 @@ watch(feeds, (fs) => {
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const startIso = fmtDate(domainStart.value)
   const endIso = fmtDate(domainEnd.value)
-  const sortStart = fmtDate(props.analysisStart)
-  const sortEnd = fmtDate(props.analysisEnd)
+  // Debounced so the list doesn't resort under an in-flight window drag.
+  const sortStart = fmtDate(analysisStartDebounced.value)
+  const sortEnd = fmtDate(analysisEndDebounced.value)
 
   const decorated: { feed: FeedWithVersions, sortKey: number, demoted: boolean }[] = []
   for (const f of feeds.value) {

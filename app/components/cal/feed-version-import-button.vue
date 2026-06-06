@@ -1,24 +1,29 @@
 <template>
   <div class="cal-fv-import-button">
+    <!-- Status is read-only — a plain dot + label (same visual language as
+         the row's "active" dot) so it can't be mistaken for a control. The
+         action is a regular bordered button. -->
     <cat-tooltip v-if="errorTooltip" :text="errorTooltip">
-      <cat-button
-        class="cal-fv-import-button-cta"
-        variant="danger"
-        :disabled="!canAct"
-        @click="onClick"
-      >
-        {{ buttonLabel }}
-      </cat-button>
+      <span class="cal-fv-import-status">
+        <span class="cal-fv-import-status-dot" :style="{ background: statusColor }" />
+        {{ statusLabel }}
+      </span>
     </cat-tooltip>
+    <span v-else class="cal-fv-import-status">
+      <cat-icon v-if="isWatching" icon="clock" size="small" />
+      <span v-else class="cal-fv-import-status-dot" :style="{ background: statusColor }" />
+      {{ statusLabel }}
+    </span>
+
     <cat-button
-      v-else
-      class="cal-fv-import-button-cta"
-      :disabled="!canAct"
-      :icon-left="isWatching ? 'clock' : undefined"
-      @click="onClick"
+      v-if="actionLabel"
+      size="small"
+      class="cal-fv-import-action"
+      @click="onAction"
     >
-      {{ buttonLabel }}
+      {{ actionLabel }}
     </cat-button>
+
     <a
       v-if="statusUrl"
       :href="statusUrl"
@@ -54,26 +59,46 @@ const emit = defineEmits<{
   (e: 'unimport', fvId: number): void
 }>()
 
-const ACTION_LABELS: Record<FeedVersionImportStatus, string> = {
+const STATUS_LABELS: Record<FeedVersionImportStatus, string> = {
   imported: 'Imported',
   in_progress: 'In progress…',
-  error: 'Retry',
-  not_imported: 'Import',
+  error: 'Error',
+  not_imported: 'Not imported',
+}
+
+// Bulma-ish palette: success green, info blue, danger red, neutral grey.
+const STATUS_COLORS: Record<FeedVersionImportStatus, string> = {
+  imported: '#48c78e',
+  in_progress: '#1d6fb8',
+  error: '#f14668',
+  not_imported: '#b5b5b5',
 }
 
 const status = computed(() => effectiveImportStatus(props.fv, props.pendingJob))
 const canImport = computed(() => status.value === 'not_imported' || status.value === 'error')
 // Active FVs are protected — unimporting one would orphan the feed's pointer.
 const canUnimport = computed(() => status.value === 'imported' && !props.isActive)
-const canAct = computed(() => canImport.value || canUnimport.value)
 
 const isWatching = computed(() => {
   const p = props.pendingJob
   return !!p && !JOB_TERMINAL_STATES.has(p.state)
 })
-const watchLabel = computed(() => capitalize(props.pendingJob?.state || ''))
 
-const buttonLabel = computed(() => isWatching.value ? watchLabel.value : ACTION_LABELS[status.value])
+// While a job submitted this session is live, the tag tracks the job state
+// (Queued / Running) instead of the generic "In progress…".
+const statusLabel = computed(() => {
+  if (isWatching.value) { return capitalize(props.pendingJob?.state || '') }
+  return STATUS_LABELS[status.value]
+})
+const statusColor = computed(() => STATUS_COLORS[status.value])
+
+const actionLabel = computed(() => {
+  if (isWatching.value) { return '' }
+  if (status.value === 'error') { return 'Retry' }
+  if (canImport.value) { return 'Import' }
+  if (canUnimport.value) { return 'Unimport' }
+  return ''
+})
 
 const statusUrl = computed(() => {
   // Empty jobId is the optimistic-submit placeholder window; suppress the
@@ -98,7 +123,7 @@ const errorTooltip = computed(() => {
     : msg
 })
 
-function onClick () {
+function onAction () {
   if (canImport.value) {
     emit('import', props.fv.id)
   } else if (canUnimport.value) {
@@ -114,8 +139,23 @@ function onClick () {
   gap: 6px;
   width: 100%;
 }
-.cal-fv-import-button-cta {
-  flex: 1 1 auto;
+.cal-fv-import-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #555;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.cal-fv-import-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.cal-fv-import-action {
+  flex: 0 0 auto;
 }
 .cal-fv-import-button-link {
   flex: 0 0 auto;

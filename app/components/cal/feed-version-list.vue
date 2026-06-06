@@ -53,9 +53,11 @@
       :excluded="excluded"
       :radio-group="feed.onestop_id"
       :pending-job="pendingJobs?.[fv.id] ?? null"
+      :range-editable="rangeEditable"
       @import="emit('import', $event)"
       @unimport="emit('unimport', $event)"
       @select="emit('select', $event)"
+      @update:analysis-range="emit('update:analysisRange', $event)"
     />
   </cat-card>
 </template>
@@ -77,6 +79,8 @@ const props = defineProps<{
   excluded?: boolean
   // Keyed by feed-version id; owner (picker) drives the map.
   pendingJobs?: Record<number, FeedVersionPendingJob>
+  // Modal context: rows render a draggable analysis window.
+  rangeEditable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -84,6 +88,7 @@ const emit = defineEmits<{
   (e: 'unimport', fvId: number): void
   (e: 'select', fvId: number): void
   (e: 'exclude', value: boolean): void
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 const activeFvId = computed(() => props.feed.feed_state?.feed_version?.id ?? null)

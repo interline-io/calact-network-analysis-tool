@@ -14,6 +14,19 @@ import {
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
+// Default analysis window: next Monday through the following Sunday. Shared
+// by the URL-backed getters below and the "Dates & feed versions" modal's
+// Reset action so both agree on what "default" means.
+// endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
+// normalizeDate strips the time component so the date serializes consistently across timezones.
+export function defaultStartDate (): Date {
+  return normalizeDate(nextMonday(endOfYesterday()))!
+}
+
+export function defaultEndDate (start: Date): Date {
+  return addDays(start, 6)
+}
+
 interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>
   cannedBbox: WritableComputedRef<string>
@@ -31,6 +44,10 @@ interface ScenarioInputs {
   // #315 — 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
   stopBufferLayer: WritableComputedRef<string>
+  // Atomic commit of the "Dates & feed versions" modal's staged state —
+  // setQuery is only race-safe within a single call, so the three params
+  // must land in one navigation.
+  applyDatesAndFvids: (v: { startDate: Date, endDate: Date, fvids: string }) => void
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -53,14 +70,12 @@ export function useScenarioInputs (): ScenarioInputs {
   })
 
   const startDate = computed<Date>({
-    // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
-    // normalizeDate strips the time component so the date serializes consistently across timezones.
-    get: () => parseDate(route.query.startDate?.toString()) || normalizeDate(nextMonday(endOfYesterday()))!,
+    get: () => parseDate(route.query.startDate?.toString()) || defaultStartDate(),
     set: (v) => { setQuery({ startDate: asDateString(v) }) }
   })
 
   const endDate = computed<Date>({
-    get: () => parseDate(route.query.endDate?.toString()) || addDays(startDate.value, 6),
+    get: () => parseDate(route.query.endDate?.toString()) || defaultEndDate(startDate.value),
     set: (v) => { setQuery({ endDate: asDateString(v) }) }
   })
 
@@ -127,6 +142,14 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  function applyDatesAndFvids (v: { startDate: Date, endDate: Date, fvids: string }) {
+    setQuery({
+      startDate: asDateString(v.startDate),
+      endDate: asDateString(v.endDate),
+      fvids: v.fvids || undefined,
+    })
+  }
+
   return {
     bbox,
     cannedBbox,
@@ -142,5 +165,6 @@ export function useScenarioInputs (): ScenarioInputs {
     fvids,
     stopBufferRadius,
     stopBufferLayer,
+    applyDatesAndFvids,
   }
 }

@@ -130,6 +130,28 @@ export function getLocalDateNoTime (): Date {
   return normalizeDate(new Date()) as Date
 }
 
+// The "Dates & feed versions" modal allows a much wider analysis window than
+// the Query panel's inline date pickers, for use with imported historical
+// feed versions (#223). Shared between the modal's pickers and the Query
+// panel's validation so a range set in the modal is never rejected outside it.
+// Generously past the oldest archived feed versions (2016 as of mid-2026,
+// with older archive imports expected) — an over-wide bound is harmless since
+// the timeline makes empty periods obvious.
+export const WIDE_DATE_YEARS_BACK = 15
+export const WIDE_DATE_YEARS_FORWARD = 2
+
+export function wideMinAllowedDate (): Date {
+  const d = getLocalDateNoTime()
+  d.setFullYear(d.getFullYear() - WIDE_DATE_YEARS_BACK)
+  return d
+}
+
+export function wideMaxAllowedDate (): Date {
+  const d = getLocalDateNoTime()
+  d.setFullYear(d.getFullYear() + WIDE_DATE_YEARS_FORWARD)
+  return d
+}
+
 /**
  * Get current date in UTC timezone with time set to midnight.
  * @returns Date object representing today at 00:00:00 UTC

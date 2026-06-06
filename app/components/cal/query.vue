@@ -25,8 +25,8 @@
           </template>
           <cat-datepicker
             v-model="startDate"
-            :min-date="minAllowedDate"
-            :max-date="maxAllowedDate"
+            :min-date="pickerMinDate"
+            :max-date="pickerMaxDate"
             :years-range="datePickerYearsRange"
             :variant="isStartDateInRange ? undefined : 'danger'"
             readonly
@@ -39,26 +39,64 @@
               <cat-icon size="small" icon="information" />
             </cat-tooltip>
           </template>
-          <cat-datepicker
-            v-if="!selectSingleDay"
-            ref="endDateRef"
-            v-model="endDate"
-            :min-date="minAllowedDate"
-            :max-date="maxAllowedDate"
-            :years-range="datePickerYearsRange"
-            :variant="isEndDateInRange && isEndDateValid ? undefined : 'danger'"
-            readonly
-          />
-          <cat-button @click="toggleSelectSingleDay()">
-            {{ selectSingleDay ? 'Set an end date' : 'Remove end date' }}
+          <div v-if="!selectSingleDay" class="cal-query-end-date">
+            <cat-datepicker
+              ref="endDateRef"
+              v-model="endDate"
+              :min-date="pickerMinDate"
+              :max-date="pickerMaxDate"
+              :years-range="datePickerYearsRange"
+              :variant="isEndDateInRange && isEndDateValid ? undefined : 'danger'"
+              readonly
+            />
+            <!-- TODO: catenary >0.3.0 declares aria-label/title as cat-button
+                 props; on the next bump, replace this v-bind workaround with
+                 plain attributes. -->
+            <cat-button
+              icon="close"
+              v-bind="{ 'aria-label': 'Remove end date', 'title': 'Remove end date (query a single day)' }"
+              @click="toggleSelectSingleDay()"
+            />
+          </div>
+          <cat-button v-else ref="setEndDateRef" @click="toggleSelectSingleDay()">
+            Set an end date
           </cat-button>
           <p v-if="!isEndDateValid" class="help is-danger">
             End date must be on or after the start date.
           </p>
         </cat-field>
         <p v-if="!isStartDateInRange || !isEndDateInRange" class="help is-danger">
-          Dates must be within the last 90 days or next year.
+          Dates must be within the last {{ WIDE_DATE_YEARS_BACK }} years or next {{ WIDE_DATE_YEARS_FORWARD }} years.
         </p>
+        <p v-else-if="datesOutsidePickerRange" class="help">
+          Dates are outside the default range (last 90 days to next year) —
+          results depend on feed versions imported from the Feed Archive.
+        </p>
+
+        <div class="cal-query-archive">
+          <p class="help">
+            Querying past dates? Pin exact feed versions from the Feed Archive.
+          </p>
+          <div class="cal-query-archive-actions">
+            <cat-button variant="ghost" class="cal-query-archive-link" @click="showFvPicker = true">
+              Open Feed Archive…
+              <span v-if="fvOverrideCount > 0" class="cal-query-fv-badge">{{ fvOverrideCount }}</span>
+            </cat-button>
+            <cat-button
+              v-if="fvOverrideCount > 0"
+              variant="ghost"
+              class="cal-query-archive-link"
+              @click="fvids = ''"
+            >
+              Clear overrides
+            </cat-button>
+          </div>
+          <cal-feed-version-override-summary
+            v-if="fvOverrideCount > 0"
+            :fvids="fvids"
+            class="mt-2"
+          />
+        </div>
       </cat-msg>
 
       <cat-msg title="Geographic Bounds">
@@ -213,25 +251,6 @@
               </option>
             </cat-select>
           </cat-field>
-
-          <!-- Feed Versions Section -->
-          <cat-field>
-            <template #label>
-              <cat-tooltip text="By default the analysis uses each feed's currently-active feed version. Override that here to pin specific versions or exclude individual feeds.">
-                Feed versions
-                <cat-icon icon="information" />
-              </cat-tooltip>
-            </template>
-            <div class="cal-query-fv-actions">
-              <cat-button @click="showFvPicker = true">
-                Pick feed versions
-                <span v-if="fvOverrideCount > 0" class="cal-query-fv-badge">{{ fvOverrideCount }}</span>
-              </cat-button>
-              <cat-button v-if="fvOverrideCount > 0" variant="light" @click="fvids = ''">
-                Clear
-              </cat-button>
-            </div>
-          </cat-field>
         </div>
       </cat-msg>
 
@@ -262,22 +281,34 @@
 
     <cal-feed-version-picker-modal
       v-model:open="showFvPicker"
-      v-model="fvids"
+      :start-date="startDate"
+      :end-date="endDate"
+      :fvids="fvids"
       :bbox="bbox"
-      :analysis-start="startDate"
-      :analysis-end="endDate"
+      @apply="onModalApply"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Point } from '~~/src/core'
-import { cannedBboxes, geomSources, normalizeDate, PANEL_PADDING, QUERY_PANEL_WIDTH } from '~~/src/core'
+import {
+  cannedBboxes,
+  geomSources,
+  normalizeDate,
+  PANEL_PADDING,
+  QUERY_PANEL_WIDTH,
+  WIDE_DATE_YEARS_BACK,
+  WIDE_DATE_YEARS_FORWARD,
+  wideMaxAllowedDate,
+  wideMinAllowedDate,
+} from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFvids } from '~~/src/tl'
 import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
+import CalFeedVersionOverrideSummary from '~/components/cal/feed-version-override-summary.vue'
 
 const emit = defineEmits([
   'fitToGeographies',
@@ -317,6 +348,7 @@ const {
   includeFixedRoute,
   includeFlexAreas,
   fvids,
+  applyDatesAndFvids,
 } = useScenarioInputs()
 
 const showFvPicker = ref(false)
@@ -330,15 +362,17 @@ const geomSearch = ref('')
 const selectSingleDay = ref(true)
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
-// Transitland API results are currently based on only active feed versions,
-// so we want to constrain possible query dates.
-// In future, user-controlled import of historical feeds will be a fuller solution,
-// see https://github.com/interline-io/calact-network-analysis-tool/issues/223
+// The inline pickers steer users to recent dates, where active feed versions
+// have coverage. Validation accepts the much wider window the "Dates & feed
+// versions" modal can set (#223) — picking/importing historical feed versions
+// is what makes older dates meaningful.
 const today = new Date()
-const minAllowedDate = new Date(today)
-minAllowedDate.setDate(today.getDate() - 90)
-const maxAllowedDate = new Date(today)
-maxAllowedDate.setFullYear(today.getFullYear() + 1)
+const pickerMinDate = new Date(today)
+pickerMinDate.setDate(today.getDate() - 90)
+const pickerMaxDate = new Date(today)
+pickerMaxDate.setFullYear(today.getFullYear() + 1)
+const validMinDate = wideMinAllowedDate()
+const validMaxDate = wideMaxAllowedDate()
 // yearsRange is relative offsets [before, after] from current year for the year dropdown
 const datePickerYearsRange: [number, number] = [-1, 1]
 
@@ -347,11 +381,24 @@ function isDateInRange (d: Date | undefined): boolean {
   if (!date) {
     return true
   }
-  return date >= minAllowedDate && date <= maxAllowedDate
+  return date >= validMinDate && date <= validMaxDate
+}
+
+function isDateInPickerRange (d: Date | undefined): boolean {
+  const date = normalizeDate(d)
+  if (!date) {
+    return true
+  }
+  return date >= pickerMinDate && date <= pickerMaxDate
 }
 
 const isStartDateInRange = computed(() => isDateInRange(startDate.value))
 const isEndDateInRange = computed(() => isDateInRange(endDate.value))
+
+// Informational only — flags a (valid) window beyond what the inline pickers
+// offer, i.e. one set via the "Dates & feed versions" modal.
+const datesOutsidePickerRange = computed(() =>
+  !isDateInPickerRange(startDate.value) || !isDateInPickerRange(endDate.value))
 
 const isEndDateValid = computed(() => {
   if (selectSingleDay.value) {
@@ -391,20 +438,47 @@ const {
 )
 
 const endDateRef = ref<{ focus: () => void } | null>(null)
+const setEndDateRef = ref<ComponentPublicInstance | null>(null)
 
 // When toggling single-day mode, sync endDate to the URL query params.
 // In single-day mode, endDate matches startDate. When switching to range mode,
 // we create a copy so Vue detects a change and persists the value to the URL.
 // When the end-date picker appears, move focus into it for keyboard users (#361).
+// Suppressed during a modal Apply — the modal commits its own (already
+// consistent) dates in a single batched URL write.
+let suppressSingleDayWatch = false
 watch(selectSingleDay, async (newVal) => {
+  if (suppressSingleDayWatch) {
+    return
+  }
   if (newVal) {
     endDate.value = startDate.value
+    // The icon button that was clicked unmounts with the picker; move focus
+    // to the "Set an end date" button so keyboard focus isn't dropped.
+    await nextTick()
+    const el = setEndDateRef.value?.$el as HTMLElement | undefined
+    el?.focus?.()
   } else {
     endDate.value = new Date(endDate.value)
     await nextTick()
     endDateRef.value?.focus()
   }
 })
+
+// The "Dates & feed versions" modal stages dates + fvids and commits them
+// here atomically — one setQuery navigation so the params can't race.
+function onModalApply (payload: { startDate: Date, endDate: Date, fvids: string, singleDay: boolean }) {
+  if (selectSingleDay.value !== payload.singleDay) {
+    suppressSingleDayWatch = true
+    selectSingleDay.value = payload.singleDay
+    void nextTick(() => { suppressSingleDayWatch = false })
+  }
+  applyDatesAndFvids({
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    fvids: payload.fvids,
+  })
+}
 
 watch(geomSearchVars, () => {
   if ((geomSearch.value || '').length >= 2 && geomLayer.value) {
@@ -531,11 +605,30 @@ const validQueryParams = computed(() => {
     }
   }
 
-  .cal-query-fv-actions {
+  .cal-query-end-date {
     display: flex;
-    gap: 8px;
     align-items: center;
-    margin-top: 8px;
+    gap: 4px;
+  }
+
+  .cal-query-archive {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--bulma-border-weak, #ededed);
+  }
+
+  .cal-query-archive-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  // Ghost buttons carry default button padding; trim so the link text
+  // aligns with the help copy above it.
+  .cal-query-archive-link :deep(.button) {
+    padding-left: 0;
+    padding-right: 0;
+    height: auto;
   }
   .cal-query-fv-badge {
     display: inline-flex;

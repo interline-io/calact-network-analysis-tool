@@ -1,14 +1,48 @@
 <template>
   <div
+    ref="rootEl"
     class="cal-fv-timeline"
     role="img"
     :aria-label="`Service intensity from ${domainStartIso} to ${domainEndIso}`"
   >
     <div
-      v-if="analysisRect"
+      v-if="displayRect"
       class="cal-fv-timeline-window"
-      :style="{ left: analysisRect.left, width: analysisRect.width }"
-    />
+      :class="{ 'is-editable': editable, 'is-dragging': dragMode !== null }"
+      :style="{ left: displayRect.left, width: displayRect.width }"
+      :tabindex="editable ? 0 : undefined"
+      :role="editable ? 'slider' : undefined"
+      :aria-label="editable ? 'Analysis window — drag to move, drag edges to resize, arrow keys to nudge (Shift+arrow resizes), or use the date pickers above' : undefined"
+      :aria-valuemin="editable ? domainStartOrd : undefined"
+      :aria-valuemax="editable ? domainEndOrd : undefined"
+      :aria-valuenow="editable ? analysisStartOrd ?? undefined : undefined"
+      :aria-valuetext="editable ? `${analysisStartIso} to ${analysisEndIso}` : undefined"
+      @keydown="onWindowKeydown"
+    >
+      <template v-if="editable">
+        <div
+          class="cal-fv-timeline-window-handle is-left"
+          @pointerdown="onPointerDown($event, 'resize-left')"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerUp"
+        />
+        <div
+          class="cal-fv-timeline-window-move"
+          @pointerdown="onPointerDown($event, 'move')"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerUp"
+        />
+        <div
+          class="cal-fv-timeline-window-handle is-right"
+          @pointerdown="onPointerDown($event, 'resize-right')"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerUp"
+        />
+      </template>
+    </div>
 
     <!-- Coverage stripe keeps the FV range visible even when service_levels is empty. -->
     <div
@@ -31,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   isoToOrdinal,
   maxServiceSecondsPerDay,
@@ -55,6 +89,13 @@ const props = defineProps<{
   latestCalendarDate?: string | null
   feedInfoStartDate?: string | null
   feedInfoEndDate?: string | null
+  // When true (picker modal context), the analysis window becomes a
+  // drag-to-move / drag-edges-to-resize control that emits date updates.
+  editable?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 // asDateString handles both Date and 'YYYY-MM-DD' string inputs without
@@ -160,16 +201,146 @@ function ordToPct (ord: number): number {
   return (ord - domainStartOrd.value) / domainDays.value
 }
 
-const analysisRect = computed(() => {
-  const sIso = toIso(props.analysisStart ?? null)
-  const eIso = toIso(props.analysisEnd ?? null)
-  if (!sIso || !eIso) { return null }
-  const p1 = ordToPct(isoToOrdinal(sIso))
-  const p2 = ordToPct(isoToOrdinal(eIso) + 1)
+const analysisStartIso = computed(() => toIso(props.analysisStart ?? null))
+const analysisEndIso = computed(() => toIso(props.analysisEnd ?? null))
+const analysisStartOrd = computed<number | null>(() =>
+  analysisStartIso.value ? isoToOrdinal(analysisStartIso.value) : null)
+const analysisEndOrd = computed<number | null>(() =>
+  analysisEndIso.value ? isoToOrdinal(analysisEndIso.value) : null)
+
+function rectForOrds (startOrd: number, endOrd: number) {
+  const p1 = ordToPct(startOrd)
+  const p2 = ordToPct(endOrd + 1)
   if (p2 <= 0 || p1 >= 1) { return null }
   const left = Math.max(0, p1)
   const right = Math.min(1, p2)
   return { left: pct(left), width: pct(Math.max(0.001, right - left)) }
+}
+
+const analysisRect = computed(() => {
+  if (analysisStartOrd.value == null || analysisEndOrd.value == null) { return null }
+  return rectForOrds(analysisStartOrd.value, analysisEndOrd.value)
+})
+
+// --- Drag-to-edit analysis window (editable mode) ---
+
+type DragMode = 'move' | 'resize-left' | 'resize-right'
+
+const rootEl = ref<HTMLElement | null>(null)
+const dragMode = ref<DragMode | null>(null)
+// Window ordinals while a drag is in flight — rendering from these keeps the
+// overlay glued to the pointer instead of waiting for the staged props to
+// round-trip through the parent.
+const dragStartOrd = ref<number | null>(null)
+const dragEndOrd = ref<number | null>(null)
+let dragAnchorOrd = 0
+let dragInitStartOrd = 0
+let dragInitEndOrd = 0
+let rafId: number | null = null
+
+const displayRect = computed(() => {
+  if (dragMode.value !== null && dragStartOrd.value != null && dragEndOrd.value != null) {
+    return rectForOrds(dragStartOrd.value, dragEndOrd.value)
+  }
+  return analysisRect.value
+})
+
+function clampOrd (ord: number): number {
+  return Math.min(domainEndOrd.value, Math.max(domainStartOrd.value, ord))
+}
+
+// Day under the pointer, clamped to the visible domain.
+function ordAtPointer (clientX: number): number {
+  const rect = rootEl.value?.getBoundingClientRect()
+  if (!rect || rect.width <= 0) { return domainStartOrd.value }
+  const frac = (clientX - rect.left) / rect.width
+  return clampOrd(domainStartOrd.value + Math.floor(frac * domainDays.value))
+}
+
+function onPointerDown (e: PointerEvent, mode: DragMode) {
+  if (!props.editable || analysisStartOrd.value == null || analysisEndOrd.value == null) { return }
+  e.preventDefault();
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  dragMode.value = mode
+  dragAnchorOrd = ordAtPointer(e.clientX)
+  dragInitStartOrd = analysisStartOrd.value
+  dragInitEndOrd = analysisEndOrd.value
+  dragStartOrd.value = dragInitStartOrd
+  dragEndOrd.value = dragInitEndOrd
+}
+
+function onPointerMove (e: PointerEvent) {
+  if (dragMode.value === null) { return }
+  const ord = ordAtPointer(e.clientX)
+  if (dragMode.value === 'resize-left') {
+    dragStartOrd.value = Math.min(ord, dragEndOrd.value ?? ord)
+  } else if (dragMode.value === 'resize-right') {
+    dragEndOrd.value = Math.max(ord, dragStartOrd.value ?? ord)
+  } else {
+    // Shift the whole window, preserving width, clamped inside the domain.
+    const width = dragInitEndOrd - dragInitStartOrd
+    let start = dragInitStartOrd + (ord - dragAnchorOrd)
+    start = Math.max(domainStartOrd.value, Math.min(domainEndOrd.value - width, start))
+    dragStartOrd.value = start
+    dragEndOrd.value = start + width
+  }
+  scheduleEmit()
+}
+
+function onPointerUp (e: PointerEvent) {
+  if (dragMode.value === null) { return }
+  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+  if (rafId != null) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
+  emitDragRange()
+  dragMode.value = null
+  dragStartOrd.value = null
+  dragEndOrd.value = null
+}
+
+// rAF-throttled so a fast drag emits at most once per frame.
+function scheduleEmit () {
+  if (rafId != null) { return }
+  rafId = requestAnimationFrame(() => {
+    rafId = null
+    emitDragRange()
+  })
+}
+
+function emitDragRange () {
+  if (dragStartOrd.value == null || dragEndOrd.value == null) { return }
+  emit('update:analysisRange', {
+    start: ordinalToIso(dragStartOrd.value),
+    end: ordinalToIso(dragEndOrd.value),
+  })
+}
+
+// Arrow keys move the window one day; Shift+arrow resizes the end edge. The
+// modal's header date pickers remain the primary accessible path.
+function onWindowKeydown (e: KeyboardEvent) {
+  if (!props.editable || analysisStartOrd.value == null || analysisEndOrd.value == null) { return }
+  const delta = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+  if (delta === 0) { return }
+  e.preventDefault()
+  const start = analysisStartOrd.value
+  const end = analysisEndOrd.value
+  if (e.shiftKey) {
+    const newEnd = Math.min(domainEndOrd.value, Math.max(start, end + delta))
+    emit('update:analysisRange', { start: ordinalToIso(start), end: ordinalToIso(newEnd) })
+  } else {
+    const width = end - start
+    const newStart = Math.max(domainStartOrd.value, Math.min(domainEndOrd.value - width, start + delta))
+    emit('update:analysisRange', { start: ordinalToIso(newStart), end: ordinalToIso(newStart + width) })
+  }
+}
+
+onBeforeUnmount(() => {
+  if (rafId != null) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
 })
 
 const coverageRect = computed(() => {
@@ -219,6 +390,32 @@ function isOutsideFeedInfo (ord: number): boolean {
   /* Above the cells so the outline frames them rather than being painted over. */
   z-index: 5;
   pointer-events: none;
+}
+.cal-fv-timeline-window.is-editable {
+  pointer-events: auto;
+  display: flex;
+}
+.cal-fv-timeline-window.is-editable:focus-visible {
+  outline: 2px solid #1d6fb8;
+  outline-offset: 1px;
+}
+.cal-fv-timeline-window.is-dragging {
+  background: rgba(216, 180, 64, 0.12);
+}
+.cal-fv-timeline-window-handle {
+  flex: 0 0 6px;
+  cursor: ew-resize;
+  /* Prevent touch scrolling from hijacking the drag. */
+  touch-action: none;
+}
+.cal-fv-timeline-window-move {
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.is-dragging .cal-fv-timeline-window-move {
+  cursor: grabbing;
 }
 .cal-fv-timeline-coverage {
   position: absolute;

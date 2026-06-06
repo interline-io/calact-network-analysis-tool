@@ -34,6 +34,8 @@
       :latest-calendar-date="fv.latest_calendar_date"
       :feed-info-start-date="fv.service_window?.feed_start_date"
       :feed-info-end-date="fv.service_window?.feed_end_date"
+      :editable="rangeEditable"
+      @update:analysis-range="emit('update:analysisRange', $event)"
     />
     <div class="cal-fv-row-action">
       <cal-feed-version-import-button
@@ -76,12 +78,15 @@ const props = defineProps<{
   // Overrides the GraphQL-derived status so the UI tracks the live job state
   // without a refetch.
   pendingJob?: FeedVersionPendingJob | null
+  // Modal context: enables the timeline window drag.
+  rangeEditable?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'import', fvId: number): void
   (e: 'unimport', fvId: number): void
   (e: 'select', fvId: number): void
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 const fetchedAtShort = computed(() => fmtDate(props.fv.fetched_at) || props.fv.fetched_at)
@@ -143,7 +148,8 @@ const tooltip = computed(() => {
 }
 .cal-fv-row-action {
   flex: 0 0 auto;
-  width: 140px;
+  /* Status tag + action button + job-status link, side by side. */
+  width: 220px;
   display: flex;
   justify-content: flex-start;
 }

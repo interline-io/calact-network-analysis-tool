@@ -53,17 +53,38 @@ export const DEPRIORITIZED_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
 
 // Batched lookup for the picker overrides — fetches the explicit feed
 // version ids the user picked so the scenario fetcher knows their sha1s.
+// Also carries display fields (fetched_at, calendar range, names) so the
+// Query panel's override summary can describe each pick without a second
+// query; the scenario-side consumer just ignores the extras.
 export const feedVersionsByIdsQuery = gql`
 query ($ids: [Int!]) {
   feed_versions(ids: $ids) {
     id
     sha1
+    fetched_at
+    name
+    earliest_calendar_date
+    latest_calendar_date
     feed {
       id
       onestop_id
+      name
     }
   }
 }`
+
+// Response row of feedVersionsByIdsQuery with the display fields included.
+export interface FeedVersionSummaryRow extends FeedVersion {
+  fetched_at: string
+  name: string | null
+  earliest_calendar_date: string
+  latest_calendar_date: string
+  feed: {
+    id: number
+    onestop_id: string
+    name: string | null
+  }
+}
 
 // --- Feed version browser (used by the picker on the Query tab) ---
 
@@ -252,7 +273,6 @@ export function ordinalToIso (ord: number): string {
   const d = String(dt.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
-
 // --- fvids URL param ---
 //
 // The /tne Query tab's picker modal persists explicit feed version picks
