@@ -361,7 +361,12 @@ const fvOverrideCount = computed(() => {
 const { aggregateLayer } = useScenarioDisplay()
 const debugMenu = useDebugMenu()
 const geomSearch = ref('')
-const selectSingleDay = ref(true)
+// Single-day mode is an explicit opt-in: derived from the committed dates on
+// load (a shared single-day link shows single-day mode), defaulting to the
+// full week otherwise. Downstream analysis — day-of-week filters, WSDOT
+// weekday/weekend levels, stop visit summaries — assumes a 7-day window, so
+// the default range stays start + 6 days.
+const selectSingleDay = ref(asDateString(startDate.value) === asDateString(endDate.value))
 const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 // The inline pickers steer users to recent dates, where active feed versions
