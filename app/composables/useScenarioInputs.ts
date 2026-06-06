@@ -1,10 +1,10 @@
-import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed, type WritableComputedRef } from 'vue'
 import {
   asDateString,
   bboxString,
   cannedBboxes,
-  normalizeDate,
+  defaultEndDate,
+  defaultStartDate,
   parseBbox,
   parseDate,
   SCENARIO_DEFAULTS,
@@ -13,19 +13,6 @@ import {
   type Bbox,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
-
-// Default analysis window: next Monday through the following Sunday. Shared
-// by the URL-backed getters below and the "Dates & feed versions" modal's
-// Reset action so both agree on what "default" means.
-// endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
-// normalizeDate strips the time component so the date serializes consistently across timezones.
-export function defaultStartDate (): Date {
-  return normalizeDate(nextMonday(endOfYesterday()))!
-}
-
-export function defaultEndDate (start: Date): Date {
-  return addDays(start, 6)
-}
 
 interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>

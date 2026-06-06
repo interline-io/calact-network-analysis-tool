@@ -104,6 +104,8 @@ import CalFeedVersionPicker from '~/components/cal/feed-version-picker.vue'
 import { parseFvids, serializeFvids } from '~~/src/tl'
 import {
   asDateString,
+  defaultEndDate,
+  defaultStartDate,
   fmtDate,
   normalizeDate,
   parseDate,
@@ -114,7 +116,6 @@ import {
   wideMinAllowedDate,
   type Bbox,
 } from '~~/src/core'
-import { defaultEndDate, defaultStartDate } from '~/composables/useScenarioInputs'
 
 const props = withDefaults(defineProps<{
   open: boolean

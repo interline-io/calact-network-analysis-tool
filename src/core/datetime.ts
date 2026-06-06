@@ -1,4 +1,4 @@
-import { isValid, parse, format, set } from 'date-fns'
+import { addDays, endOfYesterday, isValid, nextMonday, parse, format, set } from 'date-fns'
 
 const dateFmt = 'yyyy-MM-dd'
 const timeFmt = 'HH:mm:ss'
@@ -150,6 +150,19 @@ export function wideMaxAllowedDate (): Date {
   const d = getLocalDateNoTime()
   d.setFullYear(d.getFullYear() + WIDE_DATE_YEARS_FORWARD)
   return d
+}
+
+// Default analysis window: next Monday through the following Sunday. Shared
+// by the URL-backed scenario-input getters and the Feed Archive modal's
+// Reset action so both agree on what "default" means.
+// endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
+// normalizeDate strips the time component so the date serializes consistently across timezones.
+export function defaultStartDate (): Date {
+  return normalizeDate(nextMonday(endOfYesterday()))!
+}
+
+export function defaultEndDate (start: Date): Date {
+  return addDays(start, 6)
 }
 
 /**

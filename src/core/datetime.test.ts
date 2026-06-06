@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import {
   normalizeDate,
   normalizeTime,
@@ -10,13 +10,20 @@ import {
   asTime,
   asDateString,
   asTimeString,
+  defaultEndDate,
+  defaultStartDate,
   getLocalDateNoTime,
   getUTCDateNoTime,
   parseHMS,
   dateToSeconds,
   formatGtfsTime,
   formatGtfsTimeFull,
-  formatDuration
+  formatDuration,
+  validEndDate,
+  WIDE_DATE_YEARS_BACK,
+  WIDE_DATE_YEARS_FORWARD,
+  wideMaxAllowedDate,
+  wideMinAllowedDate
 } from './datetime'
 
 describe('normalizeDate', () => {
@@ -584,5 +591,76 @@ describe('roundtrip consistency', () => {
 
   it('asTimeString roundtrips a time string', () => {
     expect(asTimeString('08:00:00')).toBe('08:00:00')
+  })
+})
+
+describe('defaultStartDate', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns the next Monday with no time component', () => {
+    vi.useFakeTimers()
+    // 2024-07-17 was a Wednesday; next Monday is 2024-07-22.
+    vi.setSystemTime(new Date(2024, 6, 17, 15, 30))
+    const d = defaultStartDate()
+    expect(d.getDay()).toBe(1)
+    expect(asDateString(d)).toBe('2024-07-22')
+    expect(d.getHours()).toBe(0)
+  })
+
+  it('returns today when today is a Monday', () => {
+    vi.useFakeTimers()
+    // 2024-07-15 was a Monday.
+    vi.setSystemTime(new Date(2024, 6, 15, 9, 0))
+    expect(asDateString(defaultStartDate())).toBe('2024-07-15')
+  })
+})
+
+describe('defaultEndDate', () => {
+  it('returns six days after the start (a one-week window)', () => {
+    const start = new Date(2024, 6, 15)
+    expect(asDateString(defaultEndDate(start))).toBe('2024-07-21')
+  })
+})
+
+describe('validEndDate', () => {
+  const start = new Date(2024, 6, 15)
+
+  it('is always valid in single-day mode', () => {
+    expect(validEndDate(start, new Date(2024, 6, 1), true)).toBe(true)
+    expect(validEndDate(start, undefined, true)).toBe(true)
+  })
+
+  it('accepts an end on or after the start', () => {
+    expect(validEndDate(start, new Date(2024, 6, 15), false)).toBe(true)
+    expect(validEndDate(start, new Date(2024, 6, 22), false)).toBe(true)
+  })
+
+  it('rejects an end before the start', () => {
+    expect(validEndDate(start, new Date(2024, 6, 14), false)).toBe(false)
+  })
+
+  it('compares date portions only', () => {
+    // Same calendar day, later wall-clock time on the start.
+    expect(validEndDate(new Date(2024, 6, 15, 23, 59), new Date(2024, 6, 15, 0, 0), false)).toBe(true)
+  })
+
+  it('rejects missing dates outside single-day mode', () => {
+    expect(validEndDate(undefined, new Date(2024, 6, 15), false)).toBe(false)
+    expect(validEndDate(start, undefined, false)).toBe(false)
+  })
+})
+
+describe('wide date bounds', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('span WIDE_DATE_YEARS_BACK/FORWARD around today', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 5, 6, 12, 0))
+    expect(asDateString(wideMinAllowedDate())).toBe(`${2026 - WIDE_DATE_YEARS_BACK}-06-06`)
+    expect(asDateString(wideMaxAllowedDate())).toBe(`${2026 + WIDE_DATE_YEARS_FORWARD}-06-06`)
   })
 })
