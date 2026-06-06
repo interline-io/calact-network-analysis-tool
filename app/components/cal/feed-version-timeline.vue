@@ -259,8 +259,9 @@ function ordAtPointer (clientX: number): number {
 
 function onPointerDown (e: PointerEvent, mode: DragMode) {
   if (!props.editable || analysisStartOrd.value == null || analysisEndOrd.value == null) { return }
-  e.preventDefault();
-  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  e.preventDefault()
+  const target = e.currentTarget as HTMLElement
+  target.setPointerCapture(e.pointerId)
   dragMode.value = mode
   dragAnchorOrd = ordAtPointer(e.clientX)
   dragInitStartOrd = analysisStartOrd.value
@@ -289,7 +290,8 @@ function onPointerMove (e: PointerEvent) {
 
 function onPointerUp (e: PointerEvent) {
   if (dragMode.value === null) { return }
-  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+  const target = e.currentTarget as HTMLElement
+  target.releasePointerCapture(e.pointerId)
   if (rafId != null) {
     cancelAnimationFrame(rafId)
     rafId = null

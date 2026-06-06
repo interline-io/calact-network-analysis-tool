@@ -296,6 +296,7 @@ import { useToggle } from '@vueuse/core'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Point } from '~~/src/core'
 import {
+  asDateString,
   cannedBboxes,
   geomSources,
   normalizeDate,
@@ -452,6 +453,15 @@ watch(selectSingleDay, async (newVal) => {
     endDate.value = new Date(endDate.value)
     await nextTick()
     endDateRef.value?.focus()
+  }
+})
+
+// In single-day mode the end-date picker is hidden, so a start-date change
+// must carry endDate along — otherwise the URL keeps a stale endDate that no
+// longer matches the selected single day.
+watch(startDate, (v) => {
+  if (selectSingleDay.value && asDateString(endDate.value) !== asDateString(v)) {
+    endDate.value = v
   }
 })
 
