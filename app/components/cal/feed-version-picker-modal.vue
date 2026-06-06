@@ -107,6 +107,7 @@ import {
   fmtDate,
   normalizeDate,
   parseDate,
+  validEndDate,
   WIDE_DATE_YEARS_BACK,
   WIDE_DATE_YEARS_FORWARD,
   wideMaxAllowedDate,
@@ -171,13 +172,7 @@ watch(() => props.open, (open) => {
 const stagedEndEffective = computed<Date>(() =>
   stagedSingleDay.value ? stagedStart.value : stagedEnd.value)
 
-const stagedEndValid = computed(() => {
-  if (stagedSingleDay.value) { return true }
-  const start = normalizeDate(stagedStart.value)
-  const end = normalizeDate(stagedEnd.value)
-  if (!start || !end) { return false }
-  return end >= start
-})
+const stagedEndValid = computed(() => validEndDate(stagedStart.value, stagedEnd.value, stagedSingleDay.value))
 
 const windowLabel = computed(() => {
   const s = fmtDate(stagedStart.value, 'MMM d, yyyy')

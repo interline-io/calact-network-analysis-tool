@@ -366,6 +366,15 @@ export function serializeFvids (parsed: ParsedFvids): string {
 
 export type FeedVersionImportStatus = 'not_imported' | 'in_progress' | 'imported' | 'error'
 
+// Human-readable labels, shared by the import status badge and row tooltips
+// so the wording can't drift between them.
+export const FEED_VERSION_IMPORT_STATUS_LABELS: Record<FeedVersionImportStatus, string> = {
+  imported: 'Imported',
+  in_progress: 'In progress',
+  error: 'Import error',
+  not_imported: 'Not imported',
+}
+
 // Transient state for a feed-version-import/unimport job submitted in the
 // current session — picker watches and propagates this down to the row so
 // the UI tracks progress without a graphql refetch. `state` is the

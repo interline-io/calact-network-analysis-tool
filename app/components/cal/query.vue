@@ -301,6 +301,7 @@ import {
   normalizeDate,
   PANEL_PADDING,
   QUERY_PANEL_WIDTH,
+  validEndDate,
   WIDE_DATE_YEARS_BACK,
   WIDE_DATE_YEARS_FORWARD,
   wideMaxAllowedDate,
@@ -400,18 +401,7 @@ const isEndDateInRange = computed(() => isDateInRange(endDate.value))
 const datesOutsidePickerRange = computed(() =>
   !isDateInPickerRange(startDate.value) || !isDateInPickerRange(endDate.value))
 
-const isEndDateValid = computed(() => {
-  if (selectSingleDay.value) {
-    return true
-  }
-  // Both dates should already be normalized, but compare date portions to be safe
-  const start = normalizeDate(startDate.value)
-  const end = normalizeDate(endDate.value)
-  if (!start || !end) {
-    return false
-  }
-  return end >= start
-})
+const isEndDateValid = computed(() => validEndDate(startDate.value, endDate.value, selectSingleDay.value))
 
 const geomSearchVars = computed(() => {
   return {

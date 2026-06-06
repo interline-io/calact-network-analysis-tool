@@ -41,6 +41,7 @@
 import { computed } from 'vue'
 import {
   effectiveImportStatus,
+  FEED_VERSION_IMPORT_STATUS_LABELS,
   JOB_TERMINAL_STATES,
   type FeedVersionDetail,
   type FeedVersionImportStatus,
@@ -58,13 +59,6 @@ const emit = defineEmits<{
   (e: 'import', fvId: number): void
   (e: 'unimport', fvId: number): void
 }>()
-
-const STATUS_LABELS: Record<FeedVersionImportStatus, string> = {
-  imported: 'Imported',
-  in_progress: 'In progress…',
-  error: 'Error',
-  not_imported: 'Not imported',
-}
 
 // Bulma-ish palette: success green, info blue, danger red, neutral grey.
 const STATUS_COLORS: Record<FeedVersionImportStatus, string> = {
@@ -88,7 +82,7 @@ const isWatching = computed(() => {
 // (Queued / Running) instead of the generic "In progress…".
 const statusLabel = computed(() => {
   if (isWatching.value) { return capitalize(props.pendingJob?.state || '') }
-  return STATUS_LABELS[status.value]
+  return FEED_VERSION_IMPORT_STATUS_LABELS[status.value]
 })
 const statusColor = computed(() => STATUS_COLORS[status.value])
 

@@ -55,8 +55,8 @@ import CalFeedVersionTimeline from '~/components/cal/feed-version-timeline.vue'
 import CalFeedVersionImportButton from '~/components/cal/feed-version-import-button.vue'
 import {
   effectiveImportStatus,
+  FEED_VERSION_IMPORT_STATUS_LABELS,
   type FeedVersionDetail,
-  type FeedVersionImportStatus,
   type FeedVersionPendingJob,
 } from '~~/src/tl'
 import { fmtDate } from '~~/src/core'
@@ -91,13 +91,6 @@ const emit = defineEmits<{
 
 const fetchedAtShort = computed(() => fmtDate(props.fv.fetched_at) || props.fv.fetched_at)
 
-const STATUS_TOOLTIP_LABELS: Record<FeedVersionImportStatus, string> = {
-  imported: 'Imported',
-  in_progress: 'In progress',
-  error: 'Import error',
-  not_imported: 'Not imported',
-}
-
 const status = computed(() => effectiveImportStatus(props.fv, props.pendingJob))
 
 const tooltip = computed(() => {
@@ -105,7 +98,7 @@ const tooltip = computed(() => {
     `Fetched: ${fetchedAtShort.value}`,
     `SHA1: ${props.fv.sha1}`,
     `Range: ${props.fv.earliest_calendar_date} – ${props.fv.latest_calendar_date}`,
-    `Status: ${STATUS_TOOLTIP_LABELS[status.value]}`,
+    `Status: ${FEED_VERSION_IMPORT_STATUS_LABELS[status.value]}`,
   ]
   if (props.isActive) { lines.push('Active feed version') }
   const errLog = props.fv.feed_version_gtfs_import?.exception_log

@@ -153,6 +153,24 @@ export function wideMaxAllowedDate (): Date {
 }
 
 /**
+ * Whether an end date is valid for a date range: on or after the start date,
+ * comparing date portions only. In single-day mode there is no separate end
+ * date to validate. Shared by the Query panel and the Feed Archive modal so
+ * the invariant can't drift.
+ */
+export function validEndDate (start: Date | undefined, end: Date | undefined, singleDay: boolean): boolean {
+  if (singleDay) {
+    return true
+  }
+  const s = normalizeDate(start)
+  const e = normalizeDate(end)
+  if (!s || !e) {
+    return false
+  }
+  return e >= s
+}
+
+/**
  * Get current date in UTC timezone with time set to midnight.
  * @returns Date object representing today at 00:00:00 UTC
  */
