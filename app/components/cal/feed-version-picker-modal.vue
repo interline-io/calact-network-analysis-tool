@@ -110,7 +110,6 @@ import {
   normalizeDate,
   parseDate,
   validEndDate,
-  WIDE_DATE_YEARS_BACK,
   WIDE_DATE_YEARS_FORWARD,
   wideMaxAllowedDate,
   wideMinAllowedDate,
@@ -147,10 +146,15 @@ const modelOpen = computed<boolean>({
 })
 
 // Much wider than the Query panel's inline pickers — historical dates are
-// the whole point of picking/importing older feed versions.
+// the whole point of picking/importing older feed versions. yearsRange is
+// relative year offsets for the picker's year dropdown; it must reach back
+// to the Feed Archive floor year.
 const wideMinDate = wideMinAllowedDate()
 const wideMaxDate = wideMaxAllowedDate()
-const wideYearsRange: [number, number] = [-WIDE_DATE_YEARS_BACK, WIDE_DATE_YEARS_FORWARD]
+const wideYearsRange: [number, number] = [
+  wideMinDate.getFullYear() - new Date().getFullYear(),
+  WIDE_DATE_YEARS_FORWARD,
+]
 
 // Staged so Cancel discards in-modal edits. Reset on each open below.
 const stagedStart = ref<Date>(props.startDate)

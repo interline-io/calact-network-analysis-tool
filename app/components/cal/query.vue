@@ -66,7 +66,8 @@
           </p>
         </cat-field>
         <p v-if="!isStartDateInRange || !isEndDateInRange" class="help is-danger">
-          Dates must be within the last {{ WIDE_DATE_YEARS_BACK }} years or next {{ WIDE_DATE_YEARS_FORWARD }} years.
+          Dates must be between {{ fmtDate(validMinDate, 'MMM d, yyyy') }} (the
+          start of the Feed Archive) and {{ fmtDate(validMaxDate, 'MMM d, yyyy') }}.
         </p>
         <p v-else-if="datesOutsidePickerRange" class="help">
           Dates are outside the default range (last 90 days to next year) —
@@ -298,13 +299,12 @@ import type { Point } from '~~/src/core'
 import {
   asDateString,
   cannedBboxes,
+  fmtDate,
   geomSources,
   normalizeDate,
   PANEL_PADDING,
   QUERY_PANEL_WIDTH,
   validEndDate,
-  WIDE_DATE_YEARS_BACK,
-  WIDE_DATE_YEARS_FORWARD,
   wideMaxAllowedDate,
   wideMinAllowedDate,
 } from '~~/src/core'

@@ -20,7 +20,7 @@ import {
   formatGtfsTimeFull,
   formatDuration,
   validEndDate,
-  WIDE_DATE_YEARS_BACK,
+  FEED_ARCHIVE_MIN_DATE,
   WIDE_DATE_YEARS_FORWARD,
   wideMaxAllowedDate,
   wideMinAllowedDate
@@ -657,10 +657,13 @@ describe('wide date bounds', () => {
     vi.useRealTimers()
   })
 
-  it('span WIDE_DATE_YEARS_BACK/FORWARD around today', () => {
+  it('floor is the fixed Feed Archive start date', () => {
+    expect(asDateString(wideMinAllowedDate())).toBe(FEED_ARCHIVE_MIN_DATE)
+  })
+
+  it('ceiling is WIDE_DATE_YEARS_FORWARD years from today', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 5, 6, 12, 0))
-    expect(asDateString(wideMinAllowedDate())).toBe(`${2026 - WIDE_DATE_YEARS_BACK}-06-06`)
     expect(asDateString(wideMaxAllowedDate())).toBe(`${2026 + WIDE_DATE_YEARS_FORWARD}-06-06`)
   })
 })
