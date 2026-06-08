@@ -49,6 +49,8 @@ import {
   feedsForImportQuery,
   feedVersionHasServiceInRange,
   feedVersionServiceSecondsInRange,
+  isoToOrdinal,
+  ordinalToIso,
   parseFvids,
   serializeFvids,
   HIDDEN_FEED_ONESTOP_IDS,
@@ -142,26 +144,26 @@ function onExclude (feed: FeedWithVersions, value: boolean) {
   emitParsed(picks, excluded)
 }
 
-// The GraphQL fetch window is padded well beyond the visible domain and only
-// re-expands when the domain escapes it, so date edits (drag, pickers)
-// rarely trigger a refetch.
-const FETCH_PAD_DAYS = 90
-const fetchStart = ref<Date>(subDays(domainStart.value, FETCH_PAD_DAYS))
-const fetchEnd = ref<Date>(addDays(domainEnd.value, FETCH_PAD_DAYS))
-watch([domainStart, domainEnd], ([ds, de]) => {
-  if (ds.valueOf() < fetchStart.value.valueOf() || de.valueOf() > fetchEnd.value.valueOf()) {
-    fetchStart.value = subDays(ds, FETCH_PAD_DAYS)
-    fetchEnd.value = addDays(de, FETCH_PAD_DAYS)
-  }
-})
+// The GraphQL fetch window snaps the visible domain out to a coarse grid: small
+// date edits within the same cell keep identical query vars (so Apollo doesn't
+// refetch), while the window stays proportional to the current domain — a
+// far-and-back excursion can't permanently bloat it the way a grow-only window
+// would.
+const FETCH_GRID_DAYS = 90
+function snapOrdinal (iso: string, dir: -1 | 1): string {
+  const cell = Math.floor(isoToOrdinal(iso) / FETCH_GRID_DAYS)
+  return ordinalToIso((dir < 0 ? cell : cell + 1) * FETCH_GRID_DAYS)
+}
+const fetchStartIso = computed(() => snapOrdinal(fmtDate(domainStart.value), -1))
+const fetchEndIso = computed(() => snapOrdinal(fmtDate(domainEnd.value), 1))
 
 const queryVars = computed(() => {
   if (!bboxValid.value) { return null }
   // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
   return {
     bbox: convertBbox(props.bbox),
-    serviceLevelStart: fmtDate(fetchEnd.value),
-    serviceLevelEnd: fmtDate(fetchStart.value),
+    serviceLevelStart: fetchEndIso.value,
+    serviceLevelEnd: fetchStartIso.value,
   }
 })
 

@@ -76,7 +76,9 @@ const pickItems = computed<PickItem[]>(() => {
       detail: row
         ? {
             fetched: fmtDate(row.fetched_at, 'MMM d, yyyy') || row.fetched_at,
-            coverage: `${row.earliest_calendar_date} – ${row.latest_calendar_date}`,
+            coverage: row.earliest_calendar_date && row.latest_calendar_date
+              ? `${row.earliest_calendar_date} – ${row.latest_calendar_date}`
+              : 'no calendar dates',
             sha1Short: (row.sha1 || '').slice(0, 7),
           }
         : null,

@@ -74,11 +74,13 @@ query ($ids: [Int!]) {
 }`
 
 // Response row of feedVersionsByIdsQuery with the display fields included.
+// Calendar dates are nullable — a feed version with no calendar entries (e.g.
+// a flex-only or empty feed) returns null for both.
 export interface FeedVersionSummaryRow extends FeedVersion {
   fetched_at: string
   name: string | null
-  earliest_calendar_date: string
-  latest_calendar_date: string
+  earliest_calendar_date: string | null
+  latest_calendar_date: string | null
   feed: {
     id: number
     onestop_id: string

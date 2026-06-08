@@ -32,39 +32,23 @@
             readonly
           />
         </cat-field>
-        <cat-field>
+        <cal-end-date-field
+          v-model:end="endDate"
+          v-model:single-day="selectSingleDay"
+          :min-date="pickerMinDate"
+          :max-date="pickerMaxDate"
+          :years-range="datePickerYearsRange"
+          :invalid="!(isEndDateInRange && isEndDateValid)"
+          :before-start="!isEndDateValid"
+          single-day-title="Remove end date (query a single day)"
+        >
           <template #label>
             <cat-tooltip text="By default, the end date is one week after the start date.">
               End date
               <cat-icon size="small" icon="information" />
             </cat-tooltip>
           </template>
-          <div v-if="!selectSingleDay" class="cal-query-end-date">
-            <cat-datepicker
-              ref="endDateRef"
-              v-model="endDate"
-              :min-date="pickerMinDate"
-              :max-date="pickerMaxDate"
-              :years-range="datePickerYearsRange"
-              :variant="isEndDateInRange && isEndDateValid ? undefined : 'danger'"
-              readonly
-            />
-            <!-- TODO: catenary >0.3.0 declares aria-label/title as cat-button
-                 props; on the next bump, replace this v-bind workaround with
-                 plain attributes. -->
-            <cat-button
-              icon="close"
-              v-bind="{ 'aria-label': 'Remove end date', 'title': 'Remove end date (query a single day)' }"
-              @click="toggleSelectSingleDay()"
-            />
-          </div>
-          <cat-button v-else ref="setEndDateRef" @click="toggleSelectSingleDay()">
-            Set an end date
-          </cat-button>
-          <p v-if="!isEndDateValid" class="help is-danger">
-            End date must be on or after the start date.
-          </p>
-        </cat-field>
+        </cal-end-date-field>
         <p v-if="!isStartDateInRange || !isEndDateInRange" class="help is-danger">
           Dates must be between {{ fmtDate(validMinDate, 'MMM d, yyyy') }} (the
           start of the Feed Archive) and {{ fmtDate(validMaxDate, 'MMM d, yyyy') }}.
@@ -292,8 +276,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
-import { useToggle } from '@vueuse/core'
+import { computed, nextTick, ref } from 'vue'
 import { useLazyQuery } from '@vue/apollo-composable'
 import type { Point } from '~~/src/core'
 import {
@@ -311,6 +294,7 @@ import {
 import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFvids } from '~~/src/tl'
 import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
 import CalFeedVersionOverrideSummary from '~/components/cal/feed-version-override-summary.vue'
+import CalEndDateField from '~/components/cal/end-date-field.vue'
 
 const emit = defineEmits([
   'fitToGeographies',
@@ -367,7 +351,6 @@ const geomSearch = ref('')
 // weekday/weekend levels, stop visit summaries — assumes a 7-day window, so
 // the default range stays start + 6 days.
 const selectSingleDay = ref(asDateString(startDate.value) === asDateString(endDate.value))
-const toggleSelectSingleDay = useToggle(selectSingleDay)
 
 // The inline pickers steer users to recent dates, where active feed versions
 // have coverage. Validation accepts the much wider window the "Dates & feed
@@ -433,31 +416,21 @@ const {
   }
 )
 
-const endDateRef = ref<{ focus: () => void } | null>(null)
-const setEndDateRef = ref<ComponentPublicInstance | null>(null)
-
 // When toggling single-day mode, sync endDate to the URL query params.
 // In single-day mode, endDate matches startDate. When switching to range mode,
 // we create a copy so Vue detects a change and persists the value to the URL.
-// When the end-date picker appears, move focus into it for keyboard users (#361).
+// (Keyboard focus across the toggle is handled inside cal-end-date-field, #361.)
 // Suppressed during a modal Apply — the modal commits its own (already
 // consistent) dates in a single batched URL write.
 let suppressSingleDayWatch = false
-watch(selectSingleDay, async (newVal) => {
+watch(selectSingleDay, (newVal) => {
   if (suppressSingleDayWatch) {
     return
   }
   if (newVal) {
     endDate.value = startDate.value
-    // The icon button that was clicked unmounts with the picker; move focus
-    // to the "Set an end date" button so keyboard focus isn't dropped.
-    await nextTick()
-    const el = setEndDateRef.value?.$el as HTMLElement | undefined
-    el?.focus?.()
   } else {
     endDate.value = new Date(endDate.value)
-    await nextTick()
-    endDateRef.value?.focus()
   }
 })
 
@@ -608,12 +581,6 @@ const validQueryParams = computed(() => {
     :deep(.control) {
       flex-grow: 1;
     }
-  }
-
-  .cal-query-end-date {
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .cal-query-archive {

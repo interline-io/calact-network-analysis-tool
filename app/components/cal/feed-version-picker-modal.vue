@@ -20,35 +20,16 @@
           readonly
         />
       </cat-field>
-      <cat-field>
-        <template #label>
-          End date
-        </template>
-        <div v-if="!stagedSingleDay" class="cal-fv-modal-end-date">
-          <cat-datepicker
-            v-model="stagedEnd"
-            :min-date="wideMinDate"
-            :max-date="wideMaxDate"
-            :years-range="wideYearsRange"
-            :variant="stagedEndValid ? undefined : 'danger'"
-            readonly
-          />
-          <!-- TODO: catenary >0.3.0 declares aria-label/title as cat-button
-               props; on the next bump, replace this v-bind workaround with
-               plain attributes. -->
-          <cat-button
-            icon="close"
-            v-bind="{ 'aria-label': 'Remove end date', 'title': 'Remove end date (analyze a single day)' }"
-            @click="toggleStagedSingleDay"
-          />
-        </div>
-        <cat-button v-else @click="toggleStagedSingleDay">
-          Set an end date
-        </cat-button>
-        <p v-if="!stagedEndValid" class="help is-danger">
-          End date must be on or after the start date.
-        </p>
-      </cat-field>
+      <cal-end-date-field
+        v-model:end="stagedEnd"
+        :single-day="stagedSingleDay"
+        :min-date="wideMinDate"
+        :max-date="wideMaxDate"
+        :years-range="wideYearsRange"
+        :invalid="!stagedEndValid"
+        :before-start="!stagedEndValid"
+        @update:single-day="onToggleSingleDay"
+      />
       <div class="cal-fv-modal-dates-summary">
         <p>
           Analysis window:
@@ -90,7 +71,7 @@
         <cat-button variant="light" :disabled="feedOnestopIds.length === 0" @click="onExcludeAll">
           Exclude all
         </cat-button>
-        <cat-button variant="primary" :disabled="!stagedEndValid" @click="onApply">
+        <cat-button variant="primary" :disabled="!stagedEndValid || !stagedDatesInRange" @click="onApply">
           Apply
         </cat-button>
       </div>
@@ -101,6 +82,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import CalFeedVersionPicker from '~/components/cal/feed-version-picker.vue'
+import CalEndDateField from '~/components/cal/end-date-field.vue'
 import { parseFvids, serializeFvids } from '~~/src/tl'
 import {
   asDateString,
@@ -179,27 +161,54 @@ const stagedEndEffective = computed<Date>(() =>
 
 const stagedEndValid = computed(() => validEndDate(stagedStart.value, stagedEnd.value, stagedSingleDay.value))
 
+// Staged dates must stay within the wide allowed range. The header pickers
+// enforce this via min/max, but timeline drags and arrow-key nudges write
+// dates directly (onAnalysisRange) — clamp there and guard Apply so the modal
+// can never commit a window the Query panel would reject.
+function inWideRange (d: Date | undefined): boolean {
+  const n = normalizeDate(d)
+  if (!n) { return false }
+  return n >= wideMinDate && n <= wideMaxDate
+}
+function clampToWide (d: Date): Date {
+  if (d.valueOf() < wideMinDate.valueOf()) { return new Date(wideMinDate) }
+  if (d.valueOf() > wideMaxDate.valueOf()) { return new Date(wideMaxDate) }
+  return d
+}
+const stagedDatesInRange = computed(() =>
+  inWideRange(stagedStart.value) && (stagedSingleDay.value || inWideRange(stagedEnd.value)))
+
 const windowLabel = computed(() => {
   const s = fmtDate(stagedStart.value, 'MMM d, yyyy')
   if (stagedSingleDay.value) { return s }
   return `${s} – ${fmtDate(stagedEndEffective.value, 'MMM d, yyyy')}`
 })
 
-function toggleStagedSingleDay () {
-  stagedSingleDay.value = !stagedSingleDay.value
-  if (!stagedSingleDay.value && normalizeDate(stagedEnd.value)! < normalizeDate(stagedStart.value)!) {
-    stagedEnd.value = defaultEndDate(stagedStart.value)
+// Toggling off single-day always leaves a real multi-day window: bump the end
+// to the default (start + 6) whenever it isn't already after the start, so the
+// user never lands in range mode showing a zero-length end === start window.
+function onToggleSingleDay (single: boolean) {
+  stagedSingleDay.value = single
+  if (!single) {
+    const s = normalizeDate(stagedStart.value)!
+    const e = normalizeDate(stagedEnd.value)
+    if (!e || e <= s) {
+      stagedEnd.value = defaultEndDate(stagedStart.value)
+    }
   }
 }
 
-// Snap actions and timeline window drags land here as ISO date strings.
+// Snap actions and timeline window drags land here as ISO date strings,
+// clamped to the wide allowed range (the drag domain can extend past it).
 function onAnalysisRange (range: { start: string, end: string }) {
   const start = parseDate(range.start)
   const end = parseDate(range.end)
   if (!start || !end) { return }
-  stagedStart.value = start
-  stagedEnd.value = end
-  stagedSingleDay.value = range.start === range.end
+  const clampedStart = clampToWide(start)
+  const clampedEnd = clampToWide(end)
+  stagedStart.value = clampedStart
+  stagedEnd.value = clampedEnd
+  stagedSingleDay.value = asDateString(clampedStart) === asDateString(clampedEnd)
 }
 
 function onFeedList (ids: string[]) {
@@ -251,11 +260,6 @@ function onReset () {
 }
 .cal-fv-modal-dates-summary {
   flex: 1 1 280px;
-}
-.cal-fv-modal-end-date {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 .cal-fv-modal-count {
   margin-right: auto;

@@ -237,6 +237,10 @@ let dragAnchorOrd = 0
 let dragInitStartOrd = 0
 let dragInitEndOrd = 0
 let rafId: number | null = null
+// Cached at pointerdown — the root's geometry can't change mid-drag (pointer
+// captured, static layout), so we avoid a getBoundingClientRect() reflow on
+// every pointermove.
+let dragRect: DOMRect | null = null
 
 const displayRect = computed(() => {
   if (dragMode.value !== null && dragStartOrd.value != null && dragEndOrd.value != null) {
@@ -251,7 +255,7 @@ function clampOrd (ord: number): number {
 
 // Day under the pointer, clamped to the visible domain.
 function ordAtPointer (clientX: number): number {
-  const rect = rootEl.value?.getBoundingClientRect()
+  const rect = dragRect ?? rootEl.value?.getBoundingClientRect()
   if (!rect || rect.width <= 0) { return domainStartOrd.value }
   const frac = (clientX - rect.left) / rect.width
   return clampOrd(domainStartOrd.value + Math.floor(frac * domainDays.value))
@@ -262,6 +266,7 @@ function onPointerDown (e: PointerEvent, mode: DragMode) {
   e.preventDefault()
   const target = e.currentTarget as HTMLElement
   target.setPointerCapture(e.pointerId)
+  dragRect = rootEl.value?.getBoundingClientRect() ?? null
   dragMode.value = mode
   dragAnchorOrd = ordAtPointer(e.clientX)
   dragInitStartOrd = analysisStartOrd.value
@@ -300,6 +305,7 @@ function onPointerUp (e: PointerEvent) {
   dragMode.value = null
   dragStartOrd.value = null
   dragEndOrd.value = null
+  dragRect = null
 }
 
 // rAF-throttled so a fast drag emits at most once per frame.

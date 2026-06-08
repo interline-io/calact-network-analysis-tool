@@ -5,13 +5,13 @@
          action is a regular bordered button. -->
     <cat-tooltip v-if="errorTooltip" :text="errorTooltip">
       <span class="cal-fv-import-status">
-        <span class="cal-fv-import-status-dot" :style="{ background: statusColor }" />
+        <span class="cal-fv-import-status-dot" :class="`is-${status}`" />
         {{ statusLabel }}
       </span>
     </cat-tooltip>
     <span v-else class="cal-fv-import-status">
       <cat-icon v-if="isWatching" icon="clock" size="small" />
-      <span v-else class="cal-fv-import-status-dot" :style="{ background: statusColor }" />
+      <span v-else class="cal-fv-import-status-dot" :class="`is-${status}`" />
       {{ statusLabel }}
     </span>
 
@@ -44,7 +44,6 @@ import {
   FEED_VERSION_IMPORT_STATUS_LABELS,
   JOB_TERMINAL_STATES,
   type FeedVersionDetail,
-  type FeedVersionImportStatus,
   type FeedVersionPendingJob,
 } from '~~/src/tl'
 import { capitalize } from '~~/src/core'
@@ -59,14 +58,6 @@ const emit = defineEmits<{
   (e: 'import', fvId: number): void
   (e: 'unimport', fvId: number): void
 }>()
-
-// Bulma-ish palette: success green, info blue, danger red, neutral grey.
-const STATUS_COLORS: Record<FeedVersionImportStatus, string> = {
-  imported: '#48c78e',
-  in_progress: '#1d6fb8',
-  error: '#f14668',
-  not_imported: '#b5b5b5',
-}
 
 const status = computed(() => effectiveImportStatus(props.fv, props.pendingJob))
 const canImport = computed(() => status.value === 'not_imported' || status.value === 'error')
@@ -84,8 +75,6 @@ const statusLabel = computed(() => {
   if (isWatching.value) { return capitalize(props.pendingJob?.state || '') }
   return FEED_VERSION_IMPORT_STATUS_LABELS[status.value]
 })
-const statusColor = computed(() => STATUS_COLORS[status.value])
-
 const actionLabel = computed(() => {
   if (isWatching.value) { return '' }
   if (status.value === 'error') { return 'Retry' }
@@ -147,6 +136,20 @@ function onAction () {
   height: 8px;
   border-radius: 50%;
   flex: 0 0 auto;
+  background: var(--bulma-grey, #b5b5b5);
+}
+/* Status drives the dot color via Bulma's semantic theme variables. */
+.cal-fv-import-status-dot.is-imported {
+  background: var(--bulma-success, #48c78e);
+}
+.cal-fv-import-status-dot.is-in_progress {
+  background: var(--bulma-info, #1d6fb8);
+}
+.cal-fv-import-status-dot.is-error {
+  background: var(--bulma-danger, #f14668);
+}
+.cal-fv-import-status-dot.is-not_imported {
+  background: var(--bulma-grey, #b5b5b5);
 }
 .cal-fv-import-action {
   flex: 0 0 auto;
