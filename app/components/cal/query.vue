@@ -509,6 +509,7 @@ const validQueryParams = computed(() => {
     flex-direction:column;
     background: var(--bulma-scheme-main);
     height:100%;
+    overflow-y: auto;
     padding-left: v-bind(panelPaddingPx);
     padding-right: v-bind(panelPaddingPx);
     > .cal-body {
