@@ -149,8 +149,70 @@ export interface FeedWithVersions {
   feed_versions: FeedVersionDetail[]
 }
 
-// `covers` is intentionally NOT applied so operators can see FVs that almost
-// cover and import one anyway.
+// A feed version's full picker detail plus its owning feed's onestop_id, so a
+// pinned version fetched by id can be merged back into the right feed row.
+export interface FeedVersionDetailWithFeed extends FeedVersionDetail {
+  feed: { id: number, onestop_id: string }
+}
+
+// Full detail for explicitly-pinned feed versions, fetched by id so the picker
+// can always show the user's current selection even when it falls outside the
+// browsed date window (where feedsForImportQuery's `covers` filter would
+// otherwise drop it). service_levels use the same window/swap as the browse
+// query so the timeline renders consistently.
+export const pinnedFeedVersionsQuery = gql`
+query ($ids: [Int!], $serviceLevelStart: Date, $serviceLevelEnd: Date) {
+  feed_versions(ids: $ids) {
+    id
+    sha1
+    fetched_at
+    name
+    earliest_calendar_date
+    latest_calendar_date
+    feed {
+      id
+      onestop_id
+    }
+    service_window {
+      feed_start_date
+      feed_end_date
+      earliest_calendar_date
+      latest_calendar_date
+      fallback_week
+      default_timezone
+    }
+    service_levels(limit: 1000, where: { start_date: $serviceLevelStart, end_date: $serviceLevelEnd }) {
+      start_date
+      end_date
+      monday
+      tuesday
+      wednesday
+      thursday
+      friday
+      saturday
+      sunday
+    }
+    feed_version_gtfs_import {
+      id
+      in_progress
+      success
+      exception_log
+      entity_count
+      warning_count
+      created_at
+      updated_at
+    }
+  }
+}`
+
+// feed_versions is scoped to versions whose coverage OVERLAPS the analysis
+// window, so changing the query dates surfaces the versions relevant to that
+// period (older versions for historical dates) instead of always the newest 10.
+// Overlap is lenient — a version covering only part of the window still shows,
+// so an operator can import a near-miss — and uses the same start/end swap as
+// the service_levels filter below: covers.start_date = windowEnd and
+// covers.end_date = windowStart selects versions whose coverage begins on or
+// before windowEnd AND ends on or after windowStart.
 //
 // service_levels filter is overlap-via-swap: server treats
 // where.start_date as `row.start_date <= X` and where.end_date as
@@ -158,7 +220,7 @@ export interface FeedWithVersions {
 // windowStart → end_date to get rows overlapping [windowStart, windowEnd].
 // See transitland-lib/server/finders/dbfinder/feed_version.go.
 export const feedsForImportQuery = gql`
-query ($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date) {
+query ($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date, $coversStart: Date, $coversEnd: Date) {
   feeds(limit: 100, where: { bbox: $bbox, spec: [GTFS] }) {
     id
     onestop_id
@@ -170,7 +232,7 @@ query ($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date) {
         agencies { agency_name }
       }
     }
-    feed_versions(limit: 10) {
+    feed_versions(limit: 10, where: { covers: { start_date: $coversStart, end_date: $coversEnd } }) {
       id
       sha1
       fetched_at

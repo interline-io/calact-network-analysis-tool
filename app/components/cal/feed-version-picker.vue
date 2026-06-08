@@ -52,7 +52,9 @@ import {
   isoToOrdinal,
   ordinalToIso,
   parseFvids,
+  pinnedFeedVersionsQuery,
   serializeFvids,
+  type FeedVersionDetailWithFeed,
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   watchJob,
@@ -159,11 +161,17 @@ const fetchEndIso = computed(() => snapOrdinal(fmtDate(domainEnd.value), 1))
 
 const queryVars = computed(() => {
   if (!bboxValid.value) { return null }
-  // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
+  // serviceLevel{Start,End} and covers{Start,End} are both intentionally
+  // swapped (windowEnd → start, windowStart → end) for overlap — see
+  // feedsForImportQuery. service_levels use the padded fetch window (for
+  // timeline context); covers uses the actual analysis window so the FV list
+  // reflects the dates being queried.
   return {
     bbox: convertBbox(props.bbox),
     serviceLevelStart: fetchEndIso.value,
     serviceLevelEnd: fetchStartIso.value,
+    coversStart: fmtDate(analysisEndDebounced.value),
+    coversEnd: fmtDate(analysisStartDebounced.value),
   }
 })
 
@@ -184,6 +192,28 @@ watch(feeds, (fs) => {
   emit('update:feedOnestopIds', ids)
 }, { immediate: true })
 
+// Explicitly-pinned versions are fetched by id so the user's current selection
+// always stays visible — even when it falls outside the browsed window, where
+// the browse query's `covers` filter would otherwise drop it. Keyed by feed
+// onestop_id for merging back into the matching row (one pick per feed).
+const pinnedIds = computed(() => [...explicitPicks.value.values()])
+const { result: pinnedResult } = useQuery<{ feed_versions: FeedVersionDetailWithFeed[] }>(
+  pinnedFeedVersionsQuery,
+  () => ({
+    ids: pinnedIds.value,
+    serviceLevelStart: fetchEndIso.value,
+    serviceLevelEnd: fetchStartIso.value,
+  }),
+  () => ({ enabled: pinnedIds.value.length > 0 })
+)
+const pinnedByOnestop = computed<Map<string, FeedVersionDetailWithFeed>>(() => {
+  const out = new Map<string, FeedVersionDetailWithFeed>()
+  for (const fv of pinnedResult.value?.feed_versions || []) {
+    out.set(fv.feed.onestop_id, fv)
+  }
+  return out
+})
+
 // Sort by busiest FV's in-window service. Active FV is always kept even when
 // it has no in-window service, so operators can see what's currently running.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
@@ -200,6 +230,16 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
     const kept = f.feed_versions.filter(fv =>
       fv.id === activeId || feedVersionHasServiceInRange(fv.service_levels, startIso, endIso)
     )
+    // Always surface the user's pinned selection (at the top), even when it
+    // falls outside the browsed window and the browse query's covers filter
+    // dropped it from this feed's versions.
+    const pinnedId = explicitPicks.value.get(f.onestop_id)
+    if (pinnedId != null && !kept.some(fv => fv.id === pinnedId)) {
+      const pinned = pinnedByOnestop.value.get(f.onestop_id)
+      if (pinned && pinned.id === pinnedId) {
+        kept.unshift(pinned)
+      }
+    }
     if (kept.length === 0) { continue }
     let sortKey = 0
     for (const fv of kept) {
