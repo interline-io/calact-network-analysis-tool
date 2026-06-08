@@ -13,7 +13,7 @@
           </cat-tooltip>
         </template>
         <cat-datepicker
-          v-model="stagedStart"
+          v-model="stagedStartModel"
           :min-date="wideMinDate"
           :max-date="wideMaxDate"
           :years-range="wideYearsRange"
@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { addDays, differenceInDays } from 'date-fns'
 import CalFeedVersionPicker from '~/components/cal/feed-version-picker.vue'
 import CalEndDateField from '~/components/cal/end-date-field.vue'
 import { parseFvids, serializeFvids } from '~~/src/tl'
@@ -177,6 +178,30 @@ function clampToWide (d: Date): Date {
 }
 const stagedDatesInRange = computed(() =>
   inWideRange(stagedStart.value) && (stagedSingleDay.value || inWideRange(stagedEnd.value)))
+
+// Changing the start date *shifts* the window rather than stretching its left
+// edge: the end moves by the same delta so the analysis keeps its length. The
+// wide pickers reach back years, so without this, moving the start to a past
+// year while the end stays put would momentarily create a multi-year range —
+// blowing out the timeline scale and triggering a huge service-level fetch.
+// (Single-day mode has no separate end to carry along.) Use the timeline
+// resize handles or the end picker to change the window's length.
+const stagedStartModel = computed<Date>({
+  get: () => stagedStart.value,
+  set: (v) => {
+    if (!stagedSingleDay.value) {
+      const oldStart = normalizeDate(stagedStart.value)
+      const newStart = normalizeDate(v)
+      if (oldStart && newStart) {
+        const delta = differenceInDays(newStart, oldStart)
+        if (delta !== 0) {
+          stagedEnd.value = clampToWide(addDays(stagedEnd.value, delta))
+        }
+      }
+    }
+    stagedStart.value = v
+  },
+})
 
 const windowLabel = computed(() => {
   const s = fmtDate(stagedStart.value, 'MMM d, yyyy')
