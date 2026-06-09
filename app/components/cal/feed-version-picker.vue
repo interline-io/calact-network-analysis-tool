@@ -28,16 +28,19 @@
       :selected-fv-id="explicitPicks.get(feed.onestop_id) ?? null"
       :excluded="excludedFeeds.has(feed.onestop_id)"
       :pending-jobs="pendingJobs"
+      :range-editable="rangeEditable"
       @import="onImport"
       @unimport="onUnimport"
       @select="(fvId) => onSelect(feed, fvId)"
       @exclude="(v) => onExclude(feed, v)"
+      @update:analysis-range="emit('update:analysisRange', $event)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { refDebounced } from '@vueuse/core'
 import { useQuery } from '@vue/apollo-composable'
 import { addDays, differenceInDays, subDays } from 'date-fns'
 import CalFeedVersionList from '~/components/cal/feed-version-list.vue'
@@ -46,8 +49,12 @@ import {
   feedsForImportQuery,
   feedVersionHasServiceInRange,
   feedVersionServiceSecondsInRange,
+  isoToOrdinal,
+  ordinalToIso,
   parseFvids,
+  pinnedFeedVersionsQuery,
   serializeFvids,
+  type FeedVersionDetailWithFeed,
   HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   watchJob,
@@ -72,25 +79,38 @@ const props = withDefaults(defineProps<{
   analysisEnd: Date
   selectable?: boolean
   modelValue?: string
+  // Modal context: rows render a draggable analysis window.
+  rangeEditable?: boolean
 }>(), {
   selectable: false,
   modelValue: '',
+  rangeEditable: false,
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   // Lets the parent drive bulk actions ("Exclude all") without re-fetching.
   (e: 'update:feedOnestopIds', value: string[]): void
+  // Bubbled from the timelines' window drag; the modal
+  // owns the staged dates, the picker just relays.
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 const bboxValid = computed(() => !!props.bbox?.valid)
 
+// The analysis window (overlay) tracks props live so dragging feels glued to
+// the pointer, but everything derived from it that would reshuffle the page —
+// the timeline scale (domain), the feed sort order, the GraphQL query — runs
+// off a debounced copy so rows don't rescale or resort mid-drag.
+const analysisStartDebounced = refDebounced(computed(() => props.analysisStart), 300)
+const analysisEndDebounced = refDebounced(computed(() => props.analysisEnd), 300)
+
 const bufferDays = computed(() => Math.max(
   MIN_BUFFER_DAYS,
-  differenceInDays(props.analysisEnd, props.analysisStart)
+  differenceInDays(analysisEndDebounced.value, analysisStartDebounced.value)
 ))
-const domainStart = computed(() => subDays(props.analysisStart, bufferDays.value))
-const domainEnd = computed(() => addDays(props.analysisEnd, bufferDays.value))
+const domainStart = computed(() => subDays(analysisStartDebounced.value, bufferDays.value))
+const domainEnd = computed(() => addDays(analysisEndDebounced.value, bufferDays.value))
 
 const parsed = computed(() => parseFvids(props.modelValue))
 const explicitPicks = computed<Map<string, number>>(() => parsed.value.picks)
@@ -126,13 +146,32 @@ function onExclude (feed: FeedWithVersions, value: boolean) {
   emitParsed(picks, excluded)
 }
 
+// The GraphQL fetch window snaps the visible domain out to a coarse grid: small
+// date edits within the same cell keep identical query vars (so Apollo doesn't
+// refetch), while the window stays proportional to the current domain — a
+// far-and-back excursion can't permanently bloat it the way a grow-only window
+// would.
+const FETCH_GRID_DAYS = 90
+function snapOrdinal (iso: string, dir: -1 | 1): string {
+  const cell = Math.floor(isoToOrdinal(iso) / FETCH_GRID_DAYS)
+  return ordinalToIso((dir < 0 ? cell : cell + 1) * FETCH_GRID_DAYS)
+}
+const fetchStartIso = computed(() => snapOrdinal(fmtDate(domainStart.value), -1))
+const fetchEndIso = computed(() => snapOrdinal(fmtDate(domainEnd.value), 1))
+
 const queryVars = computed(() => {
   if (!bboxValid.value) { return null }
-  // serviceLevel{Start,End} are intentionally swapped — see feedsForImportQuery.
+  // serviceLevel{Start,End} and covers{Start,End} are both intentionally
+  // swapped (windowEnd → start, windowStart → end) for overlap — see
+  // feedsForImportQuery. service_levels use the padded fetch window (for
+  // timeline context); covers uses the actual analysis window so the FV list
+  // reflects the dates being queried.
   return {
     bbox: convertBbox(props.bbox),
-    serviceLevelStart: fmtDate(domainEnd.value),
-    serviceLevelEnd: fmtDate(domainStart.value),
+    serviceLevelStart: fetchEndIso.value,
+    serviceLevelEnd: fetchStartIso.value,
+    coversStart: fmtDate(analysisEndDebounced.value),
+    coversEnd: fmtDate(analysisStartDebounced.value),
   }
 })
 
@@ -153,13 +192,36 @@ watch(feeds, (fs) => {
   emit('update:feedOnestopIds', ids)
 }, { immediate: true })
 
+// Explicitly-pinned versions are fetched by id so the user's current selection
+// always stays visible — even when it falls outside the browsed window, where
+// the browse query's `covers` filter would otherwise drop it. Keyed by feed
+// onestop_id for merging back into the matching row (one pick per feed).
+const pinnedIds = computed(() => [...explicitPicks.value.values()])
+const { result: pinnedResult } = useQuery<{ feed_versions: FeedVersionDetailWithFeed[] }>(
+  pinnedFeedVersionsQuery,
+  () => ({
+    ids: pinnedIds.value,
+    serviceLevelStart: fetchEndIso.value,
+    serviceLevelEnd: fetchStartIso.value,
+  }),
+  () => ({ enabled: pinnedIds.value.length > 0 })
+)
+const pinnedByOnestop = computed<Map<string, FeedVersionDetailWithFeed>>(() => {
+  const out = new Map<string, FeedVersionDetailWithFeed>()
+  for (const fv of pinnedResult.value?.feed_versions || []) {
+    out.set(fv.feed.onestop_id, fv)
+  }
+  return out
+})
+
 // Sort by busiest FV's in-window service. Active FV is always kept even when
 // it has no in-window service, so operators can see what's currently running.
 const visibleFeeds = computed<FeedWithVersions[]>(() => {
   const startIso = fmtDate(domainStart.value)
   const endIso = fmtDate(domainEnd.value)
-  const sortStart = fmtDate(props.analysisStart)
-  const sortEnd = fmtDate(props.analysisEnd)
+  // Debounced so the list doesn't resort under an in-flight window drag.
+  const sortStart = fmtDate(analysisStartDebounced.value)
+  const sortEnd = fmtDate(analysisEndDebounced.value)
 
   const decorated: { feed: FeedWithVersions, sortKey: number, demoted: boolean }[] = []
   for (const f of feeds.value) {
@@ -168,6 +230,16 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
     const kept = f.feed_versions.filter(fv =>
       fv.id === activeId || feedVersionHasServiceInRange(fv.service_levels, startIso, endIso)
     )
+    // Always surface the user's pinned selection (at the top), even when it
+    // falls outside the browsed window and the browse query's covers filter
+    // dropped it from this feed's versions.
+    const pinnedId = explicitPicks.value.get(f.onestop_id)
+    if (pinnedId != null && !kept.some(fv => fv.id === pinnedId)) {
+      const pinned = pinnedByOnestop.value.get(f.onestop_id)
+      if (pinned && pinned.id === pinnedId) {
+        kept.unshift(pinned)
+      }
+    }
     if (kept.length === 0) { continue }
     let sortKey = 0
     for (const fv of kept) {

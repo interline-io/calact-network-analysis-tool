@@ -34,6 +34,8 @@
       :latest-calendar-date="fv.latest_calendar_date"
       :feed-info-start-date="fv.service_window?.feed_start_date"
       :feed-info-end-date="fv.service_window?.feed_end_date"
+      :editable="rangeEditable"
+      @update:analysis-range="emit('update:analysisRange', $event)"
     />
     <div class="cal-fv-row-action">
       <cal-feed-version-import-button
@@ -53,8 +55,8 @@ import CalFeedVersionTimeline from '~/components/cal/feed-version-timeline.vue'
 import CalFeedVersionImportButton from '~/components/cal/feed-version-import-button.vue'
 import {
   effectiveImportStatus,
+  FEED_VERSION_IMPORT_STATUS_LABELS,
   type FeedVersionDetail,
-  type FeedVersionImportStatus,
   type FeedVersionPendingJob,
 } from '~~/src/tl'
 import { fmtDate } from '~~/src/core'
@@ -76,22 +78,18 @@ const props = defineProps<{
   // Overrides the GraphQL-derived status so the UI tracks the live job state
   // without a refetch.
   pendingJob?: FeedVersionPendingJob | null
+  // Modal context: enables the timeline window drag.
+  rangeEditable?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'import', fvId: number): void
   (e: 'unimport', fvId: number): void
   (e: 'select', fvId: number): void
+  (e: 'update:analysisRange', value: { start: string, end: string }): void
 }>()
 
 const fetchedAtShort = computed(() => fmtDate(props.fv.fetched_at) || props.fv.fetched_at)
-
-const STATUS_TOOLTIP_LABELS: Record<FeedVersionImportStatus, string> = {
-  imported: 'Imported',
-  in_progress: 'In progress',
-  error: 'Import error',
-  not_imported: 'Not imported',
-}
 
 const status = computed(() => effectiveImportStatus(props.fv, props.pendingJob))
 
@@ -100,7 +98,7 @@ const tooltip = computed(() => {
     `Fetched: ${fetchedAtShort.value}`,
     `SHA1: ${props.fv.sha1}`,
     `Range: ${props.fv.earliest_calendar_date} – ${props.fv.latest_calendar_date}`,
-    `Status: ${STATUS_TOOLTIP_LABELS[status.value]}`,
+    `Status: ${FEED_VERSION_IMPORT_STATUS_LABELS[status.value]}`,
   ]
   if (props.isActive) { lines.push('Active feed version') }
   const errLog = props.fv.feed_version_gtfs_import?.exception_log
@@ -143,7 +141,8 @@ const tooltip = computed(() => {
 }
 .cal-fv-row-action {
   flex: 0 0 auto;
-  width: 140px;
+  /* Status tag + action button + job-status link, side by side. */
+  width: 220px;
   display: flex;
   justify-content: flex-start;
 }

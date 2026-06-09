@@ -1,10 +1,10 @@
-import { addDays, endOfYesterday, nextMonday } from 'date-fns'
 import { computed, type WritableComputedRef } from 'vue'
 import {
   asDateString,
   bboxString,
   cannedBboxes,
-  normalizeDate,
+  defaultEndDate,
+  defaultStartDate,
   parseBbox,
   parseDate,
   SCENARIO_DEFAULTS,
@@ -31,6 +31,10 @@ interface ScenarioInputs {
   // #315 — 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
   stopBufferLayer: WritableComputedRef<string>
+  // Atomic commit of the "Dates & feed versions" modal's staged state —
+  // setQuery is only race-safe within a single call, so the three params
+  // must land in one navigation.
+  applyDatesAndFvids: (v: { startDate: Date, endDate: Date, fvids: string }) => void
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -53,14 +57,12 @@ export function useScenarioInputs (): ScenarioInputs {
   })
 
   const startDate = computed<Date>({
-    // endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
-    // normalizeDate strips the time component so the date serializes consistently across timezones.
-    get: () => parseDate(route.query.startDate?.toString()) || normalizeDate(nextMonday(endOfYesterday()))!,
+    get: () => parseDate(route.query.startDate?.toString()) || defaultStartDate(),
     set: (v) => { setQuery({ startDate: asDateString(v) }) }
   })
 
   const endDate = computed<Date>({
-    get: () => parseDate(route.query.endDate?.toString()) || addDays(startDate.value, 6),
+    get: () => parseDate(route.query.endDate?.toString()) || defaultEndDate(startDate.value),
     set: (v) => { setQuery({ endDate: asDateString(v) }) }
   })
 
@@ -127,6 +129,14 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  function applyDatesAndFvids (v: { startDate: Date, endDate: Date, fvids: string }) {
+    setQuery({
+      startDate: asDateString(v.startDate),
+      endDate: asDateString(v.endDate),
+      fvids: v.fvids || undefined,
+    })
+  }
+
   return {
     bbox,
     cannedBbox,
@@ -142,5 +152,6 @@ export function useScenarioInputs (): ScenarioInputs {
     fvids,
     stopBufferRadius,
     stopBufferLayer,
+    applyDatesAndFvids,
   }
 }

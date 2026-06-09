@@ -1,4 +1,4 @@
-import { isValid, parse, format, set } from 'date-fns'
+import { addDays, endOfYesterday, isValid, nextMonday, parse, format, set } from 'date-fns'
 
 const dateFmt = 'yyyy-MM-dd'
 const timeFmt = 'HH:mm:ss'
@@ -128,6 +128,57 @@ export function asTimeString (val: unknown): string | undefined {
  */
 export function getLocalDateNoTime (): Date {
   return normalizeDate(new Date()) as Date
+}
+
+// The Feed Archive modal allows a much wider analysis window than the Query
+// panel's inline date pickers, for use with imported historical feed versions
+// (#223). Shared between the modal's pickers and the Query panel's validation
+// so a range set in the modal is never rejected outside it.
+//
+// The floor is the start of the Feed Archive's holdings — hardcoded for now;
+// it may move earlier as historical archive imports extend further back.
+export const FEED_ARCHIVE_MIN_DATE = '2016-01-01'
+export const WIDE_DATE_YEARS_FORWARD = 2
+
+export function wideMinAllowedDate (): Date {
+  return parseDate(FEED_ARCHIVE_MIN_DATE)!
+}
+
+export function wideMaxAllowedDate (): Date {
+  const d = getLocalDateNoTime()
+  d.setFullYear(d.getFullYear() + WIDE_DATE_YEARS_FORWARD)
+  return d
+}
+
+// Default analysis window: next Monday through the following Sunday. Shared
+// by the URL-backed scenario-input getters and the Feed Archive modal's
+// Reset action so both agree on what "default" means.
+// endOfYesterday() so that if today is Monday, nextMonday returns today (not next week).
+// normalizeDate strips the time component so the date serializes consistently across timezones.
+export function defaultStartDate (): Date {
+  return normalizeDate(nextMonday(endOfYesterday()))!
+}
+
+export function defaultEndDate (start: Date): Date {
+  return addDays(start, 6)
+}
+
+/**
+ * Whether an end date is valid for a date range: on or after the start date,
+ * comparing date portions only. In single-day mode there is no separate end
+ * date to validate. Shared by the Query panel and the Feed Archive modal so
+ * the invariant can't drift.
+ */
+export function validEndDate (start: Date | undefined, end: Date | undefined, singleDay: boolean): boolean {
+  if (singleDay) {
+    return true
+  }
+  const s = normalizeDate(start)
+  const e = normalizeDate(end)
+  if (!s || !e) {
+    return false
+  }
+  return e >= s
 }
 
 /**
