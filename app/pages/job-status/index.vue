@@ -7,7 +7,7 @@
         </h1>
 
         <div class="cal-jobs-index-actions">
-          <cat-button :disabled="loading" @click="refresh">
+          <cat-button :disabled="loading" icon-left="reload" @click="refresh">
             {{ loading ? 'Refreshing…' : 'Refresh' }}
           </cat-button>
           <span v-if="lastRefreshedAt" class="has-text-grey is-size-7">
@@ -35,7 +35,7 @@
           </template>
           <template #default="{ row }">
             <td>
-              <cat-tag :variant="jobStateVariant(row.state)" :light="row.state !== 'running'">
+              <cat-tag :variant="jobStateVariant(row.state)">
                 {{ capitalize(row.state) }}
               </cat-tag>
             </td>

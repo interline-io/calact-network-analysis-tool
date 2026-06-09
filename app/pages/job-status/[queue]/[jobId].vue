@@ -20,11 +20,11 @@
           </div>
           <div v-if="!notFound" class="cal-job-status-field">
             <span>State:</span>
-            <cat-tag :variant="jobStateVariant(state)" :light="state !== 'running'">
+            <cat-tag :variant="jobStateVariant(state)">
               {{ stateLabel }}
             </cat-tag>
           </div>
-          <div v-if="timing" class="has-text-grey is-size-7">
+          <div v-if="timing" class="cal-job-status-field">
             {{ timing }}
           </div>
         </div>
@@ -53,7 +53,7 @@
         >
           <div class="cal-job-status-advanced-body">
             <div class="cal-job-status-actions">
-              <cat-button :disabled="loading" @click="refreshNow">
+              <cat-button :disabled="loading" icon-left="reload" @click="refreshNow">
                 Refresh now
               </cat-button>
             </div>
