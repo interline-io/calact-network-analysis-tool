@@ -1,8 +1,16 @@
 // Shared subscription helper and types for the tlv2 jobs API. Used by the
-// job-status page, the feed-version picker, and the debug-jobs page so the
+// job-status pages, the feed-version picker, and the debug-jobs page so the
 // proxy URL shape, SSE/poll switch, and wire types live in one place.
 
+import { formatDistance, formatDistanceStrict } from 'date-fns'
+
 export const JOB_TERMINAL_STATES: ReadonlySet<string> = new Set(['succeeded', 'failed', 'cancelled'])
+
+// Queues surfaced in the user-facing jobs list (/job-status). The full set of
+// queues (rt-fetch, gbfs-fetch, ...) is system noise; debug-jobs.vue keeps its
+// own KNOWN_QUEUES for the debug view. When adding a feed-version operation,
+// also update jobHeading() below and queueForKind() in feed-version-picker.vue.
+export const USER_JOB_QUEUES = ['feed-version-import', 'feed-version-unimport'] as const
 
 // Single toggle: true → /watch SSE; false → JobGet polling. Polling is
 // pod-independent (reads postgres) and was the more reliable path during
@@ -24,6 +32,8 @@ export function jobApiPath (queue: string, jobId?: string, action?: 'cancel' | '
 // JobEvent is the per-event payload over SSE /watch. `args` is worker-
 // specific so left as Record<string, unknown>.
 export interface Job {
+  // Present in API responses (JobGet, list, submit); absent on submit payloads.
+  id?: string | number
   kind: string
   args?: Record<string, unknown>
   opts?: {
@@ -41,6 +51,78 @@ export interface JobStatus {
   finished_at?: string
   error?: string
   attempt?: number
+}
+
+// Human-readable title derived from the queue and the job args (when the
+// JobStatus has landed). Pre-fetch we fall back to a queue-only label so
+// headings aren't empty on first paint.
+export function jobHeading (queue: string, status?: JobStatus | null): string {
+  const fvId = status?.job?.args?.feed_version_id
+  if (queue === 'feed-version-import') {
+    return fvId != null ? `Importing feed version ${fvId}` : 'Importing feed version'
+  }
+  if (queue === 'feed-version-unimport') {
+    return fvId != null ? `Unimporting feed version ${fvId}` : 'Unimporting feed version'
+  }
+  return queue ? `Job: ${queue}` : 'Job status'
+}
+
+// Bulma/Catenary tag color for a job state, shared by the jobs index and
+// detail pages so the same state always reads the same color.
+export function jobStateVariant (state: string): 'success' | 'info' | 'danger' | 'warning' | 'light' {
+  switch (state) {
+    case 'succeeded': return 'success'
+    case 'running': return 'info'
+    case 'failed': return 'danger'
+    case 'cancelled': return 'warning'
+    default: return 'light'
+  }
+}
+
+function parseDateMaybe (s: string | null | undefined): Date | null {
+  if (!s) { return null }
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+
+// "Submitted 2s ago" / "Running for 18s" / "Ran for 45s" depending on which
+// timestamps are populated. Callers pass `now` so a ticking ref can drive
+// live updates. Guards against invalid dates and clock skew (server timestamp
+// slightly ahead of client clock) so the display never reads "in 2 seconds".
+export function jobTiming (status: JobStatus | null | undefined, now: Date): string {
+  if (!status) { return '' }
+  const submittedAt = parseDateMaybe(status.submitted_at)
+  const startedAt = parseDateMaybe(status.started_at)
+  const finishedAt = parseDateMaybe(status.finished_at)
+  if (finishedAt) {
+    if (startedAt && finishedAt >= startedAt) {
+      return `Ran for ${formatDistanceStrict(startedAt, finishedAt)}`
+    }
+    return `Finished ${formatDistance(finishedAt, now, { addSuffix: true })}`
+  }
+  if (startedAt) {
+    const safeStart = startedAt <= now ? startedAt : now
+    return `Running for ${formatDistanceStrict(safeStart, now)}`
+  }
+  if (submittedAt) {
+    const safeSubmit = submittedAt <= now ? submittedAt : now
+    return `Submitted ${formatDistanceStrict(safeSubmit, now, { addSuffix: true })}`
+  }
+  return ''
+}
+
+// One-shot list fetch for a queue. Returns [] on 404 (unknown/empty queue),
+// throws on other non-OK responses so callers can surface the error.
+export async function fetchQueueJobs (queue: string, states?: string): Promise<JobStatus[]> {
+  const qs = states ? `?states=${encodeURIComponent(states)}` : ''
+  const res = await fetch(`${jobApiPath(queue)}${qs}`)
+  if (res.status === 404) { return [] }
+  const text = await res.text()
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText} — ${text}`)
+  }
+  const parsed = JSON.parse(text)
+  return Array.isArray(parsed?.jobs) ? parsed.jobs : []
 }
 
 export interface JobEvent {

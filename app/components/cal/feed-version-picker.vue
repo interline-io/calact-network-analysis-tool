@@ -268,6 +268,10 @@ const pendingJobs = ref<Record<number, FeedVersionPendingJob>>({})
 // One handle per fvId — replaced on resubmit, drained on unmount.
 const watchHandles = new Map<number, WatchJobHandle>()
 
+// Session-wide job tracker (localStorage-backed) behind the sidebar badge
+// and the /job-status index page.
+const jobTracker = useJobTracker()
+
 function queueForKind (kind: FeedVersionPendingJobKind): string {
   return kind === 'unimport' ? 'feed-version-unimport' : 'feed-version-import'
 }
@@ -326,6 +330,10 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
       ...pendingJobs.value,
       [fvId]: { jobId: idStr, state: parsed.state || 'queued', kind },
     }
+    // Register with the session job tracker so the sidebar badge and the
+    // /job-status index see this job (including from a new tab). The tracker
+    // runs its own watcher; the per-row watcher below stays for modal UI.
+    jobTracker.registerJob({ queue, jobId: idStr })
     unsubscribeJob(fvId)
     watchHandles.set(fvId, watchJob({
       queue,

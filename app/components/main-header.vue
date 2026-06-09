@@ -57,6 +57,19 @@
 
             <li>
               <nuxt-link
+                to="/job-status"
+                :class="itemHelper('/job-status')"
+                class="cal-jobs-link"
+                title="Jobs"
+                aria-label="Jobs"
+              >
+                <cat-icon icon="clipboard-text-clock" size="large" class="is-fullwidth" variant="white" />
+                <span v-if="activeJobCount > 0" class="cal-jobs-badge" aria-hidden="true">{{ activeJobCount > 9 ? '9+' : activeJobCount }}</span>
+              </nuxt-link>
+            </li>
+
+            <li>
+              <nuxt-link
                 :to="{ name: 'admin-profile' }"
                 :class="itemHelper('/admin/profile')"
                 title="My user profile"
@@ -88,6 +101,11 @@ const toggleDarkMode = useToggle(isDark)
 
 const debugMenu = useDebugMenu()
 const debugMenuToggle = useToggle(debugMenu)
+
+const { activeCount: activeJobCount, ensureWatching } = useJobTracker()
+// Resume watching non-terminal session-started jobs in this tab — covers the
+// new-tab handoff from the Feed Archive modal's job links.
+onMounted(() => { ensureWatching() })
 
 function itemHelper (p: string): string {
   if (route.path.startsWith(p)) {
@@ -125,6 +143,26 @@ function itemHelper (p: string): string {
 
   .bottom-group {
     margin-top: auto;
+  }
+
+  .cal-jobs-link {
+    position: relative;
+  }
+
+  .cal-jobs-badge {
+    position: absolute;
+    top: 4px;
+    right: 16px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--bulma-danger);
+    color: #fff;
+    font-size: 0.65rem;
+    line-height: 16px;
+    text-align: center;
+    pointer-events: none;
   }
 
   img.icon {
