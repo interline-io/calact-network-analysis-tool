@@ -15,12 +15,12 @@
         :variant="invalid ? 'danger' : undefined"
         readonly
       />
-      <!-- TODO: catenary >0.3.0 declares aria-label/title as cat-button
-           props; on the next bump, replace this v-bind workaround with
-           plain attributes. -->
+      <!-- camelCase keys in a v-bind object: matches the ariaLabel/title props
+           (catenary 0.4.0) and avoids vue/attribute-hyphenation rewriting a
+           camelCase attribute back to kebab (which vue-tsc won't map to the prop). -->
       <cat-button
         icon="close"
-        v-bind="{ 'aria-label': 'Remove end date', 'title': singleDayTitle }"
+        v-bind="{ ariaLabel: 'Remove end date', title: singleDayTitle }"
         @click="emit('update:singleDay', true)"
       />
     </div>
