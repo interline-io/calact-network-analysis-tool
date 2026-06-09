@@ -69,6 +69,20 @@ export default defineNuxtConfig({
     },
   },
 
+  hooks: {
+    // @interline-io/tlv2-auth wraps @auth0/auth0-nuxt, and both register a
+    // `useUser` auto-import. Nuxt already keeps tlv2-auth's (our wrapper) and
+    // only warns about the duplicate; drop the auth0-nuxt entry so there's a
+    // single source and the warning goes away. Behavior is unchanged.
+    'imports:extend' (imports) {
+      for (let i = imports.length - 1; i >= 0; i--) {
+        if (imports[i]!.name === 'useUser' && imports[i]!.from.includes('auth0-nuxt')) {
+          imports.splice(i, 1)
+        }
+      }
+    },
+  },
+
   tlv2Auth: {
     loginGate: true,
     requireLogin: true,
