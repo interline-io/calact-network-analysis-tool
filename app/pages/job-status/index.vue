@@ -62,6 +62,10 @@
 </template>
 
 <script setup lang="ts">
+// NOTE: The job-status pages (this index and [queue]/[jobId].vue) plus the
+// src/tl/jobs.ts helpers are largely generic over the tlv2 jobs API. In the
+// future, consider moving them into a new tlv2-apps package so they can be
+// reused across multiple projects.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useHead } from '#imports'
 import { capitalize, fmtDate } from '~~/src/core'
