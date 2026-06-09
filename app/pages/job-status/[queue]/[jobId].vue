@@ -2,6 +2,9 @@
   <NuxtLayout name="default">
     <template #main>
       <div class="container is-fluid" style="padding: 16px 24px; max-width: 1000px;">
+        <nuxt-link to="/job-status" class="cal-job-status-back is-size-7">
+          ← All jobs
+        </nuxt-link>
         <h1 class="title">
           {{ heading }}
         </h1>
@@ -64,12 +67,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHead } from '#imports'
-import { formatDistance, formatDistanceStrict } from 'date-fns'
 import { capitalize } from '~~/src/core'
 import {
   JOB_TERMINAL_STATES,
   JOBS_USE_SSE,
   jobApiPath,
+  jobHeading,
+  jobTiming,
   watchJob,
   type JobStatus,
   type WatchJobHandle,
@@ -96,59 +100,18 @@ const stateLabel = computed(() => {
 })
 
 // Human-readable title derived from the queue and the job args (when the
-// JobStatus has landed). Pre-fetch we fall back to a queue-only label so
-// the heading isn't empty on first paint.
-const heading = computed(() => {
-  const q = queue.value
-  const fvId = status.value?.job?.args?.feed_version_id
-  if (q === 'feed-version-import') {
-    return fvId != null ? `Importing feed version ${fvId}` : 'Importing feed version'
-  }
-  if (q === 'feed-version-unimport') {
-    return fvId != null ? `Unimporting feed version ${fvId}` : 'Unimporting feed version'
-  }
-  return q ? `Job: ${q}` : 'Job status'
-})
+// JobStatus has landed) — shared with the jobs index page.
+const heading = computed(() => jobHeading(queue.value, status.value))
 
 // Browser tab title: state-first so the tab strip shows progress at a glance.
 useHead({
   title: () => `[${stateLabel.value}] ${heading.value}`,
 })
 
-function parseDateMaybe (s: string | null | undefined): Date | null {
-  if (!s) { return null }
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? null : d
-}
-
-// "Submitted 2s ago" / "Running for 18s" / "Ran for 45s" depending on which
-// timestamps are populated. Reads `now` so it ticks once per second while
-// the job is still going. Guards against invalid dates and clock skew
-// (server timestamp slightly ahead of client clock) so the display never
-// reads "in 2 seconds".
-const timing = computed(() => {
-  const s = status.value
-  if (!s) { return '' }
-  const submittedAt = parseDateMaybe(s.submitted_at)
-  const startedAt = parseDateMaybe(s.started_at)
-  const finishedAt = parseDateMaybe(s.finished_at)
-  const nowTime = now.value
-  if (finishedAt) {
-    if (startedAt && finishedAt >= startedAt) {
-      return `Ran for ${formatDistanceStrict(startedAt, finishedAt)}`
-    }
-    return `Finished ${formatDistance(finishedAt, nowTime, { addSuffix: true })}`
-  }
-  if (startedAt) {
-    const safeStart = startedAt <= nowTime ? startedAt : nowTime
-    return `Running for ${formatDistanceStrict(safeStart, nowTime)}`
-  }
-  if (submittedAt) {
-    const safeSubmit = submittedAt <= nowTime ? submittedAt : nowTime
-    return `Submitted ${formatDistanceStrict(safeSubmit, nowTime, { addSuffix: true })}`
-  }
-  return ''
-})
+// "Submitted 2s ago" / "Running for 18s" / "Ran for 45s" — shared with the
+// jobs index page. Reads `now` so it ticks once per second while the job is
+// still going.
+const timing = computed(() => jobTiming(status.value, now.value))
 
 let watchHandle: WatchJobHandle | null = null
 
@@ -263,6 +226,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.cal-job-status-back {
+  display: inline-block;
+  margin-bottom: 8px;
+}
 .cal-job-status-header {
   margin: 16px 0;
   display: flex;
