@@ -66,6 +66,18 @@ export function jobHeading (queue: string, status?: JobStatus | null): string {
   return queue ? `Job: ${queue}` : 'Job status'
 }
 
+// Bulma/Catenary tag color for a job state, shared by the jobs index and
+// detail pages so the same state always reads the same color.
+export function jobStateVariant (state: string): 'success' | 'info' | 'danger' | 'warning' | 'light' {
+  switch (state) {
+    case 'succeeded': return 'success'
+    case 'running': return 'info'
+    case 'failed': return 'danger'
+    case 'cancelled': return 'warning'
+    default: return 'light'
+  }
+}
+
 function parseDateMaybe (s: string | null | undefined): Date | null {
   if (!s) { return null }
   const d = new Date(s)

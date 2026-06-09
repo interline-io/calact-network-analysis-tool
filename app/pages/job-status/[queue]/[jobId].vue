@@ -18,9 +18,11 @@
             <span>Job ID:</span>
             <cat-safelink :text="jobId" />
           </div>
-          <div v-if="!notFound">
-            State:
-            <strong>{{ stateLabel }}</strong>
+          <div v-if="!notFound" class="cal-job-status-field">
+            <span>State:</span>
+            <cat-tag :variant="jobStateVariant(state)" :light="state !== 'running'">
+              {{ stateLabel }}
+            </cat-tag>
           </div>
           <div v-if="timing" class="has-text-grey is-size-7">
             {{ timing }}
@@ -32,6 +34,9 @@
         </cat-notification>
         <cat-notification v-else-if="error" variant="danger">
           {{ error }}
+        </cat-notification>
+        <cat-notification v-if="jobError" variant="danger">
+          {{ jobError }}
         </cat-notification>
 
         <div class="cal-job-status-actions">
@@ -73,6 +78,7 @@ import {
   JOBS_USE_SSE,
   jobApiPath,
   jobHeading,
+  jobStateVariant,
   jobTiming,
   watchJob,
   type JobStatus,
@@ -97,6 +103,14 @@ const terminal = computed(() => JOB_TERMINAL_STATES.has(state.value))
 const stateLabel = computed(() => {
   if (!state.value) { return loading.value ? 'Loading…' : 'Unknown' }
   return capitalize(state.value)
+})
+
+// Worker-reported failure message (distinct from `error`, which is a fetch/
+// transport problem). Surfaced inline so failures don't require opening the
+// Advanced JSON dump.
+const jobError = computed(() => {
+  const msg = status.value?.error?.trim()
+  return msg ? `Job error: ${msg}` : ''
 })
 
 // Human-readable title derived from the queue and the job args (when the

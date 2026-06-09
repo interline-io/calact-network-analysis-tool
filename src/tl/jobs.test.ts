@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { jobHeading, jobTiming, type JobStatus } from './jobs'
+import { jobHeading, jobStateVariant, jobTiming, type JobStatus } from './jobs'
 
 function status (overrides: Partial<JobStatus> = {}): JobStatus {
   return { state: 'running', job: { kind: 'feed-version-import' }, ...overrides }
@@ -69,5 +69,16 @@ describe('jobTiming', () => {
   it('ignores invalid timestamps', () => {
     const s = status({ submitted_at: 'not-a-date' })
     expect(jobTiming(s, now)).toBe('')
+  })
+})
+
+describe('jobStateVariant', () => {
+  it('maps each state to its Bulma color', () => {
+    expect(jobStateVariant('succeeded')).toBe('success')
+    expect(jobStateVariant('running')).toBe('info')
+    expect(jobStateVariant('failed')).toBe('danger')
+    expect(jobStateVariant('cancelled')).toBe('warning')
+    expect(jobStateVariant('queued')).toBe('light')
+    expect(jobStateVariant('')).toBe('light')
   })
 })
