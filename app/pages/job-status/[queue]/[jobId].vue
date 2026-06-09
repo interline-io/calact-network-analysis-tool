@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useIntervalFn } from '@vueuse/core'
 import { useHead } from '#imports'
 import { capitalize } from '~~/src/core'
 import {
@@ -170,6 +171,10 @@ async function fetchStatus () {
   }
 }
 
+// 1s ticker so the `timing` computed updates while we wait. Paused on
+// terminal (no live duration to render); useIntervalFn cleans up on unmount.
+const nowTimer = useIntervalFn(() => { now.value = new Date() }, 1000, { immediate: false })
+
 async function start () {
   await fetchStatus()
   if (terminal.value || error.value || notFound.value) { return }
@@ -183,7 +188,7 @@ async function start () {
       lastPolledAt.value = new Date()
       if (JOB_TERMINAL_STATES.has(s)) {
         fetchStatus()
-        stopNowTicker()
+        nowTimer.pause()
       }
     },
   })
@@ -214,15 +219,6 @@ async function cancel () {
   }
 }
 
-// 1s ticker so the `timing` computed updates while we wait. Stopped on
-// terminal (no live duration to render) and on unmount.
-let nowTimer: ReturnType<typeof setInterval> | null = null
-function stopNowTicker () {
-  if (nowTimer != null) {
-    clearInterval(nowTimer)
-    nowTimer = null
-  }
-}
 // Await start() so the synchronous terminal check below sees the real
 // post-bootstrap state — otherwise a deep-link to an already-terminal job
 // starts the ticker before the fetch resolves and never stops it (watchJob
@@ -230,12 +226,11 @@ function stopNowTicker () {
 onMounted(async () => {
   await start()
   if (status.value && !terminal.value) {
-    nowTimer = setInterval(() => { now.value = new Date() }, 1000)
+    nowTimer.resume()
   }
 })
 onBeforeUnmount(() => {
   unsubscribe()
-  stopNowTicker()
 })
 </script>
 

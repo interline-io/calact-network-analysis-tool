@@ -1,5 +1,5 @@
 import { useStorage } from '@vueuse/core'
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, type ComputedRef, type Ref } from 'vue'
 import { JOB_TERMINAL_STATES, JOBS_USE_SSE, watchJob, type WatchJobHandle } from '~~/src/tl'
 
 // Jobs started from this browser, persisted to localStorage so the badge and
@@ -9,8 +9,6 @@ export interface TrackedJob {
   queue: string
   jobId: string
   state: string
-  kind?: string
-  feedVersionId?: number
   startedAtMs: number
   updatedAtMs: number
 }
@@ -46,16 +44,14 @@ function prune (jobs: TrackedJob[], nowMs: number): TrackedJob[] {
 }
 
 export interface JobTracker {
-  trackedJobs: Ref<TrackedJob[]>
   activeCount: ComputedRef<number>
-  registerJob: (job: { queue: string, jobId: string, kind?: string, feedVersionId?: number }) => void
+  registerJob: (job: { queue: string, jobId: string }) => void
   ensureWatching: () => void
 }
 
 export const useJobTracker = (): JobTracker => {
   if (import.meta.server) {
     return {
-      trackedJobs: ref([]),
       activeCount: computed(() => 0),
       registerJob: () => {},
       ensureWatching: () => {},
@@ -68,12 +64,13 @@ export const useJobTracker = (): JobTracker => {
   const jobs = trackedJobs
 
   // Rewrite one entry, producing a new array so useStorage reserializes and
-  // other tabs receive the storage event.
+  // other tabs receive the storage event. The poller reports the state every
+  // tick, so skip the write (and the cross-tab event) when nothing changed.
   function updateJob (queue: string, jobId: string, state: string) {
+    const entry = jobs.value.find(j => j.queue === queue && j.jobId === jobId)
+    if (!entry || entry.state === state) { return }
     jobs.value = jobs.value.map(j =>
-      j.queue === queue && j.jobId === jobId
-        ? { ...j, state, updatedAtMs: Date.now() }
-        : j)
+      j === entry ? { ...j, state, updatedAtMs: Date.now() } : j)
   }
 
   function startWatching (queue: string, jobId: string) {
@@ -93,14 +90,12 @@ export const useJobTracker = (): JobTracker => {
     watchHandles.set(key, handle)
   }
 
-  function registerJob (job: { queue: string, jobId: string, kind?: string, feedVersionId?: number }) {
+  function registerJob (job: { queue: string, jobId: string }) {
     const nowMs = Date.now()
     const entry: TrackedJob = {
       queue: job.queue,
       jobId: job.jobId,
       state: 'queued',
-      kind: job.kind,
-      feedVersionId: job.feedVersionId,
       startedAtMs: nowMs,
       updatedAtMs: nowMs,
     }
@@ -130,5 +125,5 @@ export const useJobTracker = (): JobTracker => {
     return jobs.value.filter(j => isActive(j, nowMs)).length
   })
 
-  return { trackedJobs: jobs, activeCount, registerJob, ensureWatching }
+  return { activeCount, registerJob, ensureWatching }
 }

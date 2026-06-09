@@ -333,7 +333,7 @@ async function submitJob (fvId: number, kind: FeedVersionPendingJobKind) {
     // Register with the session job tracker so the sidebar badge and the
     // /job-status index see this job (including from a new tab). The tracker
     // runs its own watcher; the per-row watcher below stays for modal UI.
-    jobTracker.registerJob({ queue, jobId: idStr, kind, feedVersionId: fvId })
+    jobTracker.registerJob({ queue, jobId: idStr })
     unsubscribeJob(fvId)
     watchHandles.set(fvId, watchJob({
       queue,

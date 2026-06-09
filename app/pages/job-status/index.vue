@@ -66,7 +66,8 @@
 // src/tl/jobs.ts helpers are largely generic over the tlv2 jobs API. In the
 // future, consider moving them into a new tlv2-apps package so they can be
 // reused across multiple projects.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useIntervalFn } from '@vueuse/core'
 import { useHead } from '#imports'
 import { capitalize, fmtDate } from '~~/src/core'
 import {
@@ -88,7 +89,6 @@ const AUTO_REFRESH_MS = 10000
 
 interface JobRow extends JobStatus {
   queue: string
-  key: string
   detailPath: string
 }
 
@@ -100,15 +100,12 @@ const now = ref(new Date())
 
 const anyActive = computed(() => rows.value.some(r => !JOB_TERMINAL_STATES.has(r.state)))
 
-function toRow (queue: string, status: JobStatus, index: number): JobRow {
+function toRow (queue: string, status: JobStatus): JobRow {
   const jobId = status.job?.id
   const idStr = jobId != null ? String(jobId) : ''
   return {
     ...status,
     queue,
-    // job.id should always be present in list responses; index-fallback keeps
-    // v-for keys unique if it ever isn't.
-    key: idStr ? `${queue}/${idStr}` : `${queue}#${index}`,
     detailPath: idStr ? `/job-status/${encodeURIComponent(queue)}/${encodeURIComponent(idStr)}` : '',
   }
 }
@@ -129,7 +126,7 @@ async function refresh () {
     results.forEach((result, i) => {
       const queue = USER_JOB_QUEUES[i] ?? ''
       if (result.status === 'fulfilled') {
-        merged.push(...result.value.map((s, j) => toRow(queue, s, j)))
+        merged.push(...result.value.map(s => toRow(queue, s)))
       } else {
         const msg = result.reason instanceof Error ? result.reason.message : String(result.reason)
         failures.push(`${queue}: ${msg}`)
@@ -149,35 +146,21 @@ async function refresh () {
 
 // Auto-refresh only while something is still running; the 1s ticker keeps
 // "Running for Ns" live. Both stop when every listed job is terminal.
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-let nowTimer: ReturnType<typeof setInterval> | null = null
+// useIntervalFn cleans both up on unmount.
+const refreshTimer = useIntervalFn(() => { void refresh() }, AUTO_REFRESH_MS, { immediate: false })
+const nowTimer = useIntervalFn(() => { now.value = new Date() }, 1000, { immediate: false })
 
 function syncTimers () {
   if (anyActive.value) {
-    if (refreshTimer == null) {
-      refreshTimer = setInterval(() => { void refresh() }, AUTO_REFRESH_MS)
-    }
-    if (nowTimer == null) {
-      nowTimer = setInterval(() => { now.value = new Date() }, 1000)
-    }
+    refreshTimer.resume()
+    nowTimer.resume()
   } else {
-    stopTimers()
-  }
-}
-
-function stopTimers () {
-  if (refreshTimer != null) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
-  }
-  if (nowTimer != null) {
-    clearInterval(nowTimer)
-    nowTimer = null
+    refreshTimer.pause()
+    nowTimer.pause()
   }
 }
 
 onMounted(() => { void refresh() })
-onBeforeUnmount(() => { stopTimers() })
 </script>
 
 <style scoped>

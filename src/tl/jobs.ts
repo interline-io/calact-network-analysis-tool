@@ -8,7 +8,8 @@ export const JOB_TERMINAL_STATES: ReadonlySet<string> = new Set(['succeeded', 'f
 
 // Queues surfaced in the user-facing jobs list (/job-status). The full set of
 // queues (rt-fetch, gbfs-fetch, ...) is system noise; debug-jobs.vue keeps its
-// own KNOWN_QUEUES for the debug view.
+// own KNOWN_QUEUES for the debug view. When adding a feed-version operation,
+// also update jobHeading() below and queueForKind() in feed-version-picker.vue.
 export const USER_JOB_QUEUES = ['feed-version-import', 'feed-version-unimport'] as const
 
 // Single toggle: true → /watch SSE; false → JobGet polling. Polling is
