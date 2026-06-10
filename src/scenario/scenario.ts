@@ -86,10 +86,23 @@ export interface ScenarioConfig {
    */
   includeFixedRoute?: boolean
   /**
+   * Whether to fetch stop departures (schedule data). Departures dominate
+   * scenario loading time and size; disabling them allows quickly browsing
+   * stops, routes, flex, and census data. Only meaningful when
+   * includeFixedRoute is enabled. Defaults to true.
+   */
+  includeDepartures?: boolean
+  /**
    * Whether to fetch flex service areas
    * Defaults to true
    */
   includeFlexAreas?: boolean
+  /**
+   * Whether to fetch census demographics: ACS values for the aggregation
+   * layer (census-values stage) and the stop-buffer demographic passes.
+   * Defaults to true.
+   */
+  includeCensus?: boolean
   // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
@@ -624,6 +637,8 @@ export class ScenarioFetcher {
     // Fetch fixed-route transit data if enabled (default: true)
     const includeFixedRoute = this.config.includeFixedRoute !== false
     console.log(`[Scenario] includeFixedRoute = ${includeFixedRoute}`)
+    console.log(`[Scenario] includeDepartures = ${this.config.includeDepartures !== false}`)
+    console.log(`[Scenario] includeCensus = ${this.config.includeCensus !== false}`)
     if (includeFixedRoute) {
       for (const fv of this.feedVersions) {
         this.stopFetchQueue.enqueueOne({
@@ -755,6 +770,10 @@ export class ScenarioFetcher {
   // Skipped without `tableDatasetName` + `aggregateLayer`. Bbox is padded by
   // the radius so edge-crossing buffers can apportion against the right tracts.
   private async fetchCensusValues (): Promise<void> {
+    if (this.config.includeCensus === false) {
+      console.log('[CensusValues] Skipping (includeCensus = false)')
+      return
+    }
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
       console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
@@ -800,7 +819,7 @@ export class ScenarioFetcher {
   private async fetchBufferData (): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
-    if (radius <= 0 || !tableDatasetName) {
+    if (this.config.includeCensus === false || radius <= 0 || !tableDatasetName) {
       return
     }
     await runBufferPasses(
@@ -995,17 +1014,19 @@ export class ScenarioFetcher {
 
     // Enqueue stop departure fetching
     const stopIds = stopData.map(s => s.id)
-    const dates = getSelectedDateRange(this.config)
-    const weekSize = 7
-    // Build all tasks first
-    for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
-      for (let i = 0; i < dates.length; i += weekSize) {
-        const w = new StopDepartureQueryVars()
-        w.ids = stopIds.slice(sid, sid + this.stopTimeBatchSize)
-        for (const d of dates.slice(i, i + weekSize)) {
-          w.setDay(d)
+    if (this.config.includeDepartures !== false) {
+      const dates = getSelectedDateRange(this.config)
+      const weekSize = 7
+      // Build all tasks first
+      for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
+        for (let i = 0; i < dates.length; i += weekSize) {
+          const w = new StopDepartureQueryVars()
+          w.ids = stopIds.slice(sid, sid + this.stopTimeBatchSize)
+          for (const d of dates.slice(i, i + weekSize)) {
+            w.setDay(d)
+          }
+          this.stopDepartureQueue.enqueueOne(w)
         }
-        this.stopDepartureQueue.enqueueOne(w)
       }
     }
 

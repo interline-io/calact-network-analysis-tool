@@ -330,6 +330,8 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  includeDepartures,
+  includeCensus,
   fvids,
   stopBufferRadius,
   stopBufferLayer,
@@ -1002,6 +1004,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
+  includeDepartures: includeDepartures.value,
+  includeCensus: includeCensus.value,
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,

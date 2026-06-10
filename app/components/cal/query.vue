@@ -195,19 +195,37 @@
         <div class="container is-max-tablet">
           <!-- Data to Load Section -->
           <cat-field label="Data to Load">
-            <div class="is-flex">
-              <cat-checkbox
-                v-model="includeFixedRoute"
-                class="mr-5"
-              >
-                Include Fixed-Route Transit
-              </cat-checkbox>
-              <cat-checkbox
-                v-model="includeFlexAreas"
-              >
-                Include Flex Service Areas
-              </cat-checkbox>
-            </div>
+            <ul class="cal-query-data-toggles">
+              <li>
+                <cat-checkbox v-model="includeFixedRoute">
+                  Include Fixed-Route Transit
+                </cat-checkbox>
+              </li>
+              <li class="cal-query-data-toggles-nested">
+                <cat-checkbox
+                  v-model="includeDepartures"
+                  :disabled="!includeFixedRoute"
+                >
+                  Include Departure Schedules
+                </cat-checkbox>
+                <cat-tooltip text="Departure schedules are the largest and slowest part of loading a query. Uncheck to quickly browse stop locations, routes, flex services, and census data; schedule-dependent features such as frequencies and visit counts will be unavailable.">
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </li>
+              <li>
+                <cat-checkbox v-model="includeFlexAreas">
+                  Include Flex Service Areas
+                </cat-checkbox>
+              </li>
+              <li>
+                <cat-checkbox v-model="includeCensus">
+                  Include Census Demographics
+                </cat-checkbox>
+                <cat-tooltip text="Census (ACS) demographic values for aggregation areas and stop statistical radius buffers. Uncheck to skip loading demographics; demographic columns and area details will be unavailable.">
+                  <cat-icon size="small" icon="information" />
+                </cat-tooltip>
+              </li>
+            </ul>
           </cat-field>
 
           <!-- Census Geography Dataset -->
@@ -333,6 +351,8 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
+  includeDepartures,
+  includeCensus,
   fvids,
   applyDatesAndFvids,
 } = useScenarioInputs()
@@ -582,6 +602,24 @@ const validQueryParams = computed(() => {
     :deep(.control) {
       flex-grow: 1;
     }
+  }
+
+  // One toggle per line — the panel is too narrow for inline checkbox flow.
+  .cal-query-data-toggles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    > li {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+  }
+
+  // Indented under "Include Fixed-Route Transit" — departures are a subset
+  // of fixed-route data (1.625rem = checkbox width + label gap).
+  .cal-query-data-toggles-nested {
+    margin-left: 1.625rem;
   }
 
   .cal-query-archive {

@@ -31,9 +31,10 @@ import type { ScenarioFilterResult } from '~~/src/scenario'
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   censusGeographiesSelected: CensusGeography[]
+  // From map.vue's exportFeatures computed: marked features from the layers
+  // currently displayed (fixed-route and/or flex), with CSV columns merged in.
+  exportFeatures?: Feature[]
 }>()
-
-const exportFeatures = ref<Feature[]>([])
 
 const windowUrl = computed(() => {
   return window.location.href

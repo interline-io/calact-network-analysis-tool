@@ -49,6 +49,10 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
     if (!receiver || !data) {
       return
     }
+    // Census demographics were excluded at query time; don't fetch them post-hoc.
+    if (deps.scenarioConfig.value.includeCensus === false) {
+      return
+    }
     abort?.abort()
     const localAbort = new AbortController()
     abort = localAbort

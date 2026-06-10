@@ -10,6 +10,7 @@
       <cal-map-share
         :scenario-filter-result="scenarioFilterResult"
         :census-geographies-selected="censusGeographiesSelected"
+        :export-features="exportFeatures"
       />
     </div>
 
@@ -822,7 +823,9 @@ const displayFeatures = computed((): Feature[] => {
   return forDisplay
 })
 
-// Features for export include only the "marked" features and the csv column data.
+// Features for export: the marked features from the layers currently
+// displayed on the map (fixedRouteEnabled / flexServicesEnabled), with the
+// csv column data merged in.
 const exportFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
@@ -831,50 +834,62 @@ const exportFeatures = computed((): Feature[] => {
   const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
   const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
 
-  // Gather routes
-  for (const rp of props.scenarioFilterResult?.routes || []) {
-    if (!rp.marked) {
-      continue
+  if (fixedRouteEnabled.value !== false) {
+    // Gather routes
+    for (const rp of props.scenarioFilterResult?.routes || []) {
+      if (!rp.marked) {
+        continue
+      }
+
+      const style = styleRules.find(rule => rule.match(rp))
+      const feature = {
+        type: 'Feature',
+        id: rp.id.toString(),
+        geometry: rp.geometry,
+        properties: {
+          'id': rp.id,
+          'stroke': style?.color || bgColor,
+          'stroke-width': rp.marked ? 3 : 0.75,
+          'stroke-opacity': rp.marked ? 1 : bgOpacity,
+          'agency_name': rp.agency?.agency_name,
+          'agency_id': rp.agency?.agency_id
+        }
+      }
+      Object.assign(feature.properties, routeToRouteCsv(rp, routeBufferGeographies?.get(rp.id)))
+      forExport.push(feature)
     }
 
-    const style = styleRules.find(rule => rule.match(rp))
-    const feature = {
-      type: 'Feature',
-      id: rp.id.toString(),
-      geometry: rp.geometry,
-      properties: {
-        'id': rp.id,
-        'stroke': style?.color || bgColor,
-        'stroke-width': rp.marked ? 3 : 0.75,
-        'stroke-opacity': rp.marked ? 1 : bgOpacity,
-        'agency_name': rp.agency?.agency_name,
-        'agency_id': rp.agency?.agency_id
+    // Gather stops
+    for (const sp of props.scenarioFilterResult?.stops || []) {
+      if (!sp.marked) {
+        continue
       }
+
+      const style = styleRules.find(rule => rule.match(sp))
+      const feature = {
+        type: 'Feature',
+        id: sp.id.toString(),
+        geometry: sp.geometry,
+        properties: {
+          'id': sp.id,
+          'marker-radius': sp.marked ? 8 : 4,
+          'marker-color': style?.color || bgColor,
+          'marker-opacity': sp.marked ? 1 : bgOpacity
+        }
+      }
+      Object.assign(feature.properties, stopToStopCsv(sp, stopBufferGeographies?.get(sp.id)))
+      forExport.push(feature)
     }
-    Object.assign(feature.properties, routeToRouteCsv(rp, routeBufferGeographies?.get(rp.id)))
-    forExport.push(feature)
   }
 
-  // Gather stops
-  for (const sp of props.scenarioFilterResult?.stops || []) {
-    if (!sp.marked) {
-      continue
-    }
-
-    const style = styleRules.find(rule => rule.match(sp))
-    const feature = {
-      type: 'Feature',
-      id: sp.id.toString(),
-      geometry: sp.geometry,
-      properties: {
-        'id': sp.id,
-        'marker-radius': sp.marked ? 8 : 4,
-        'marker-color': style?.color || bgColor,
-        'marker-opacity': sp.marked ? 1 : bgOpacity
+  // Flex areas: marked only — flexDisplayFeatures includes unmarked (dashed)
+  // areas when hideUnmarked is off. buildFlexAreaProperties carries the csv fields.
+  if (flexServicesEnabled.value) {
+    for (const f of props.flexDisplayFeatures || []) {
+      if (f.properties?.marked) {
+        forExport.push(f)
       }
     }
-    Object.assign(feature.properties, stopToStopCsv(sp, stopBufferGeographies?.get(sp.id)))
-    forExport.push(feature)
   }
 
   return forExport
