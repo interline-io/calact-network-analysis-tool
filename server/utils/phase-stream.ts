@@ -8,6 +8,7 @@ import { setHeader, sendStream } from 'h3'
 import { BasicGraphQLClient, apiFetch, requestStream, type GraphQLClient } from '~~/src/core'
 import { ScenarioStreamSender, type ScenarioProgress } from '~~/src/scenario'
 import { resolveAccessToken } from './auth'
+import { compressStream } from './compress'
 
 export async function streamPhaseResponse (
   event: H3Event,
@@ -46,5 +47,5 @@ export async function streamPhaseResponse (
     }
   })
 
-  return sendStream(event, stream)
+  return sendStream(event, compressStream(event, stream))
 }

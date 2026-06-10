@@ -308,6 +308,30 @@ describe('ScenarioFetcher', () => {
     })
   })
 
+  it('emits a phase plan and per-phase completion ticks', async () => {
+    const client = new MockGraphQLClient()
+    client.mockQuery
+      .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+      .mockResolvedValueOnce(stopsResponse)
+      .mockResolvedValue({ data: { stops: [] } }) // departure queries
+
+    const progressCb = vi.fn()
+    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, { onProgress: progressCb })
+    await fetcher.fetch()
+
+    const events = progressCb.mock.calls.map(([p]) => p)
+    const planEvent = events.find(p => p.phasePlan)
+    expect(planEvent?.phasePlan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
+    // Every planned phase reports a completed progress slice
+    for (const phase of planEvent!.phasePlan!) {
+      const done = events.some(p =>
+        p.phaseProgress?.phase === phase
+        && p.phaseProgress.total > 0
+        && p.phaseProgress.completed >= p.phaseProgress.total)
+      expect(done, `phase ${phase} should reach completion`).toBe(true)
+    }
+  })
+
   it('should call progress callback during fetch', async () => {
     // Mock first call returns one stop, second call returns empty to end recursion
     mockClient.mockQuery

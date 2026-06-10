@@ -22,7 +22,7 @@ import {
   type FlexLocationQueryResponse,
   type FlexStopTimesQueryResponse,
 } from '~~/src/tl'
-import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
+import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
 /**
  * Maximum number of flex locations to fetch per feed version.
@@ -118,6 +118,7 @@ export async function runFlexPhase (
 ): Promise<void> {
   if (config.feedVersions.length === 0) {
     console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
+    emit({ isLoading: true, currentStage: 'flex-areas', phaseProgress: phaseDone('flex-areas') })
     return
   }
 
@@ -128,6 +129,14 @@ export async function runFlexPhase (
     PHASE_MAX_CONCURRENT_REQUESTS,
     fv => fetchFlexArea(fv),
     {
+      onProgress: () => {
+        const p = queue.getProgress()
+        emit({
+          isLoading: true,
+          currentStage: 'flex-areas',
+          phaseProgress: { phase: 'flex-areas', completed: p.completed, total: p.total },
+        })
+      },
       onError: error => opts.onError?.(error),
     }
   )
@@ -196,6 +205,7 @@ export async function runFlexPhase (
     queue.enqueueOne(fv)
   }
   await queue.run()
+  emit({ isLoading: true, currentStage: 'flex-areas', phaseProgress: phaseDone('flex-areas') })
 
   console.log(`[FlexAreas] Complete`)
 }

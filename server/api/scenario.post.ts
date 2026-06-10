@@ -8,6 +8,7 @@ import type { ScenarioConfig } from '~~/src/scenario'
 import { streamScenario } from '~~/src/scenario'
 import { BasicGraphQLClient, apiFetch, logMemory } from '~~/src/core'
 import { resolveAccessToken } from '~~/server/utils/auth'
+import { compressStream } from '~~/server/utils/compress'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')
@@ -44,5 +45,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return sendStream(event, stream)
+  return sendStream(event, compressStream(event, stream))
 })

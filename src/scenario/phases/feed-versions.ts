@@ -14,7 +14,7 @@ import {
   type FeedVersion,
 } from '~~/src/tl'
 import { geographyLayerQuery } from '~~/src/tl/census'
-import type { PhaseEmit } from './common'
+import { phaseDone, type PhaseEmit } from './common'
 
 const FEED_VERSION_PAGE_SIZE = 100
 
@@ -194,6 +194,7 @@ export async function runFeedVersionsPhase (
     currentStage: 'feed-versions',
     partialData: { feedVersions },
     warnings: warnings.length > 0 ? warnings : undefined,
+    phaseProgress: phaseDone('feed-versions'),
   })
 
   return { feedVersions, resolved }

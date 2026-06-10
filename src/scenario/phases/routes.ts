@@ -3,7 +3,7 @@
 
 import { chunkArray, TaskQueue, type GraphQLClient } from '~~/src/core'
 import { routeQuery, type RouteGql } from '~~/src/tl'
-import { PHASE_MAX_CONCURRENT_REQUESTS, type PhaseEmit, type PhaseOpts } from './common'
+import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
 // Emission batch size for streamed routes.
@@ -39,10 +39,12 @@ export async function runRoutesPhase (
   )
 
   function progressEvent (): ScenarioProgress {
+    const p = queue.getProgress()
     return {
       isLoading: true,
       currentStage: 'routes',
-      feedVersionProgress: queue.getProgress(),
+      feedVersionProgress: p,
+      phaseProgress: { phase: 'routes', completed: p.completed, total: p.total },
     }
   }
 
@@ -72,6 +74,7 @@ export async function runRoutesPhase (
     queue.enqueueOne(chunk)
   }
   await queue.run()
+  emit({ ...progressEvent(), phaseProgress: phaseDone('routes') })
 
   return { agencyIds: [...agencyIds] }
 }

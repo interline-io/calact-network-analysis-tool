@@ -201,6 +201,8 @@
           :error="error"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
+          :phase-plan="scenarioPhasePlan"
+          :phase-fractions="scenarioPhaseFractions"
         />
       </cat-modal>
 
@@ -307,7 +309,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type ScenarioPhaseName, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -1107,6 +1109,10 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
+// Weighted progress-bar state, accumulated inside the receiver callback so
+// no events are missed (template-level watchers only sample the latest).
+const scenarioPhasePlan = ref<ScenarioPhaseName[] | undefined>()
+const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
 const showLoadingModal = ref(false)
 
 const { scenarioReceiver } = useBufferRefetch({
@@ -1115,6 +1121,8 @@ const { scenarioReceiver } = useBufferRefetch({
   loadingProgress,
   showLoadingModal,
   error,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
 })
 
 const loadExampleData = async (exampleName: string) => {
@@ -1132,6 +1140,8 @@ const fetchScenario = async (loadExample: string) => {
   }
   loadingProgress.value = undefined
   stopDepartureCount.value = 0
+  scenarioPhasePlan.value = undefined
+  scenarioPhaseFractions.value = {}
 
   // Create receiver to accumulate scenario data
   const receiver = new ScenarioDataReceiver({
@@ -1139,6 +1149,20 @@ const fetchScenario = async (loadExample: string) => {
       // Update progress for modal
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+
+      // Weighted progress bar: plan announcement + per-phase fractions
+      // (clamped max-so-far; stop pagination grows its denominator mid-phase)
+      if (progress.phasePlan) {
+        scenarioPhasePlan.value = progress.phasePlan
+        scenarioPhaseFractions.value = {}
+      }
+      const pp = progress.phaseProgress
+      if (pp) {
+        const fraction = pp.total > 0 ? Math.min(pp.completed / pp.total, 1) : 0
+        if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
+          scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
+        }
+      }
 
       if (progress.warnings && progress.warnings.length > 0) {
         for (const msg of progress.warnings) {

@@ -14,6 +14,7 @@ import {
   type BufferGeographyIntersection,
 } from '~~/src/tl'
 import type { ScenarioProgress } from './scenario'
+import { phaseDone } from './phases/common'
 
 // Smaller than the stop batch because each route/agency expands to its full
 // stop set server-side, multiplying per-request cost.
@@ -61,11 +62,28 @@ export async function runBufferPasses (
     { kind: 'routes', ids: config.routeIds, batchSize: entityChunkSize },
     { kind: 'agencies', ids: config.agencyIds, batchSize: entityChunkSize },
   ]
+
+  // All four passes report as one 'buffers' progress slice; chunk counts are
+  // known upfront (+1 for the aggregation union when it will run).
+  const totalChunks = passes.reduce((acc, p) => acc + Math.ceil(p.ids.length / p.batchSize), 0)
+    + (config.stopIds.length > 0 ? 1 : 0)
+  let completedChunks = 0
+  if (totalChunks === 0) {
+    emit({ isLoading: true, currentStage: 'stop-buffer-geographies', phaseProgress: phaseDone('buffers') })
+    return
+  }
+
   for (const { kind, ids, batchSize } of passes) {
     const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
     for (const chunk of chunkArray(ids, batchSize)) {
       const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
-      emit({ isLoading: true, currentStage: stage, partialData: { [partialKey]: results } })
+      completedChunks += 1
+      emit({
+        isLoading: true,
+        currentStage: stage,
+        partialData: { [partialKey]: results },
+        phaseProgress: { phase: 'buffers', completed: completedChunks, total: totalChunks },
+      })
     }
   }
 
@@ -90,10 +108,12 @@ export async function runBufferPasses (
         values: f.properties.values,
       }))
     console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
+    completedChunks += 1
     emit({
       isLoading: true,
       currentStage: 'aggregation-buffer-geographies',
       partialData: { aggregationBufferGeographies: geographies },
+      phaseProgress: { phase: 'buffers', completed: completedChunks, total: totalChunks },
     })
   }
 }

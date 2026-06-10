@@ -32,6 +32,7 @@ import {
   FlexDepartureTuple,
   type FeedVersionRef,
   type ResolvedGeographyContext,
+  type ScenarioPhaseName,
 } from './phases'
 
 /**
@@ -148,6 +149,12 @@ export interface ScenarioProgress {
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
+  // The enabled phases for this run, in pipeline order. Emitted once at the
+  // start of a fetch; drives the weighted overall progress bar.
+  phasePlan?: ScenarioPhaseName[]
+  // The emitting phase's own task counters. Consumers keep the latest
+  // fraction per phase and compute overall progress across the plan.
+  phaseProgress?: { phase: ScenarioPhaseName, completed: number, total: number }
   // Each pass sets only the fields it produces.
   partialData?: {
     stops?: StopGql[]
@@ -340,11 +347,44 @@ export class ScenarioFetcher {
     })
   }
 
+  // The enabled phases for this run, in pipeline order. Mirrors the gating
+  // in fetchMain/fetchCensusValues/fetchBufferData.
+  private phasePlan (): ScenarioPhaseName[] {
+    const includeFixedRoute = this.config.includeFixedRoute !== false
+    const includeCensus = this.config.includeCensus !== false
+    const plan: ScenarioPhaseName[] = ['feed-versions']
+    if (includeFixedRoute) {
+      plan.push('stops', 'routes')
+      if (this.config.includeDepartures !== false) {
+        plan.push('departures')
+      }
+      if (includeCensus && (this.config.stopBufferRadius ?? 0) > 0 && this.config.tableDatasetName) {
+        plan.push('buffers')
+      }
+    }
+    if (this.config.includeFlexAreas !== false) {
+      plan.push('flex-areas')
+    }
+    if (includeCensus && this.config.tableDatasetName && this.config.aggregateLayer) {
+      plan.push('census-values')
+    }
+    return plan
+  }
+
   // Start the scenario fetching process
   private async fetchMain () {
     logMemory('fetchMain-start')
     const emit = (progress: ScenarioProgress) => this.emitProgress(progress)
     const onError = (error: any) => this.callbacks.onError?.(error)
+
+    // Announce the plan before any work so the progress bar can apportion
+    // its slices across exactly the phases this run will execute.
+    this.emitProgress({
+      isLoading: true,
+      currentStage: 'ready',
+      currentStageMessage: 'Planning scenario phases',
+      phasePlan: this.phasePlan(),
+    })
 
     // FIRST STAGE: resolve the geography and active feed versions in the area
     const { feedVersions, resolved } = await runFeedVersionsPhase({

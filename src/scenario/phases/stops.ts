@@ -4,7 +4,7 @@
 
 import { convertBbox, chunkArray, TaskQueue, type Bbox, type GraphQLClient } from '~~/src/core'
 import { stopQuery, type StopGql } from '~~/src/tl'
-import { PHASE_MAX_CONCURRENT_REQUESTS, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
+import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
 // Emission batch size for streamed stops.
@@ -50,10 +50,12 @@ export async function runStopsPhase (
   )
 
   function progressEvent (): ScenarioProgress {
+    const p = queue.getProgress()
     return {
       isLoading: true,
       currentStage: 'stops',
-      feedVersionProgress: queue.getProgress(),
+      feedVersionProgress: p,
+      phaseProgress: { phase: 'stops', completed: p.completed, total: p.total },
     }
   }
 
@@ -114,6 +116,7 @@ export async function runStopsPhase (
     })
   }
   await queue.run()
+  emit({ ...progressEvent(), phaseProgress: phaseDone('stops') })
 
   return { stopIds, routeIds: [...routeIds] }
 }

@@ -11,6 +11,7 @@ import {
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioDataReceiver,
+  type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
 
@@ -21,6 +22,10 @@ interface UseBufferRefetchDeps {
   loadingProgress: Ref<ScenarioProgress | undefined>
   showLoadingModal: Ref<boolean>
   error: Ref<any>
+  // Weighted progress-bar state shared with the loading modal; the refetch
+  // installs a single-phase plan so the bar tracks the buffer passes.
+  phasePlan: Ref<ScenarioPhaseName[] | undefined>
+  phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
 }
 
 export interface UseBufferRefetchReturn {
@@ -66,6 +71,10 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
       currentStage: 'ready',
       currentStageMessage: 'Recomputing buffer demographics...',
     }
+    // The refetch streams through the same receiver as the main fetch, so
+    // its 'buffers' phaseProgress events drive the bar under this plan.
+    deps.phasePlan.value = ['buffers']
+    deps.phaseFractions.value = {}
 
     const agencyIds = [...new Set(
       data.routes.map(r => r.agency?.id).filter((id): id is number => id != null),

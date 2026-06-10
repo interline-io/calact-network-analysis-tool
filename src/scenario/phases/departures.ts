@@ -6,7 +6,7 @@
 import { format } from 'date-fns'
 import { chunkArray, parseHMS, TaskQueue, type GraphQLClient } from '~~/src/core'
 import { stopDepartureQuery, stopTimeQuery, type StopDeparture, type StopTime } from '~~/src/tl'
-import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, type PhaseEmit, type PhaseOpts } from './common'
+import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
 // Effectively "no batching" — departures for a fetch stream as one batch.
@@ -151,10 +151,12 @@ export async function runDeparturesPhase (
   )
 
   function progressEvent (): ScenarioProgress {
+    const p = queue.getProgress()
     return {
       isLoading: true,
       currentStage: 'schedules',
-      stopDepartureProgress: queue.getProgress(),
+      stopDepartureProgress: p,
+      phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
     }
   }
 
@@ -236,4 +238,5 @@ export async function runDeparturesPhase (
     }
   }
   await queue.run()
+  emit({ ...progressEvent(), phaseProgress: phaseDone('departures') })
 }
