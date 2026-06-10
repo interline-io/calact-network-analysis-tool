@@ -30,6 +30,7 @@ import {
   runCensusValuesPhase,
   StopDepartureTuple,
   FlexDepartureTuple,
+  SCENARIO_PHASE_ORDER,
   type FeedVersionRef,
   type ResolvedGeographyContext,
   type ScenarioPhaseName,
@@ -83,6 +84,30 @@ export interface ScenarioConfig {
   stopBufferRadius?: number
   // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
   stopBufferLayer?: string
+}
+
+// Single source of truth for which phases a config enables. Drives both the
+// emitted phase plan and fetchMain's execution gating, so the two cannot
+// drift: a phase runs if and only if it is in the plan.
+const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
+  'feed-versions': () => true,
+  'stops': config => config.includeFixedRoute !== false,
+  'routes': config => config.includeFixedRoute !== false,
+  'departures': config => config.includeFixedRoute !== false
+    && config.includeDepartures !== false,
+  'buffers': config => config.includeFixedRoute !== false
+    && config.includeCensus !== false
+    && (config.stopBufferRadius ?? 0) > 0
+    && !!config.tableDatasetName,
+  'flex-areas': config => config.includeFlexAreas !== false,
+  'census-values': config => config.includeCensus !== false
+    && !!config.tableDatasetName
+    && !!config.aggregateLayer,
+}
+
+// The enabled phases for a scenario config, in pipeline order.
+export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {
+  return SCENARIO_PHASE_ORDER.filter(phase => PHASE_ENABLED[phase](config))
 }
 
 export interface ScenarioFilter {
@@ -347,30 +372,6 @@ export class ScenarioFetcher {
     })
   }
 
-  // The enabled phases for this run, in pipeline order. Mirrors the gating
-  // in fetchMain/fetchCensusValues/fetchBufferData.
-  private phasePlan (): ScenarioPhaseName[] {
-    const includeFixedRoute = this.config.includeFixedRoute !== false
-    const includeCensus = this.config.includeCensus !== false
-    const plan: ScenarioPhaseName[] = ['feed-versions']
-    if (includeFixedRoute) {
-      plan.push('stops', 'routes')
-      if (this.config.includeDepartures !== false) {
-        plan.push('departures')
-      }
-      if (includeCensus && (this.config.stopBufferRadius ?? 0) > 0 && this.config.tableDatasetName) {
-        plan.push('buffers')
-      }
-    }
-    if (this.config.includeFlexAreas !== false) {
-      plan.push('flex-areas')
-    }
-    if (includeCensus && this.config.tableDatasetName && this.config.aggregateLayer) {
-      plan.push('census-values')
-    }
-    return plan
-  }
-
   // Start the scenario fetching process
   private async fetchMain () {
     logMemory('fetchMain-start')
@@ -378,12 +379,16 @@ export class ScenarioFetcher {
     const onError = (error: any) => this.callbacks.onError?.(error)
 
     // Announce the plan before any work so the progress bar can apportion
-    // its slices across exactly the phases this run will execute.
+    // its slices across exactly the phases this run will execute. The same
+    // plan gates execution below.
+    const plan = scenarioPhasePlan(this.config)
+    const enabled = new Set(plan)
+    console.log(`[Scenario] phase plan: ${plan.join(', ')}`)
     this.emitProgress({
       isLoading: true,
       currentStage: 'ready',
       currentStageMessage: 'Planning scenario phases',
-      phasePlan: this.phasePlan(),
+      phasePlan: plan,
     })
 
     // FIRST STAGE: resolve the geography and active feed versions in the area
@@ -400,12 +405,7 @@ export class ScenarioFetcher {
       feedVersionSha1: fv.sha1,
     }))
 
-    // Fetch fixed-route transit data if enabled (default: true)
-    const includeFixedRoute = this.config.includeFixedRoute !== false
-    console.log(`[Scenario] includeFixedRoute = ${includeFixedRoute}`)
-    console.log(`[Scenario] includeDepartures = ${this.config.includeDepartures !== false}`)
-    console.log(`[Scenario] includeCensus = ${this.config.includeCensus !== false}`)
-    if (includeFixedRoute) {
+    if (enabled.has('stops')) {
       const { stopIds, routeIds } = await runStopsPhase({
         feedVersions: fvRefs,
         bbox: this.config.bbox,
@@ -417,7 +417,7 @@ export class ScenarioFetcher {
 
       // Departures fan out concurrently with routes, recovering the queue
       // overlap the pre-phase pipeline had.
-      const departuresPromise = this.config.includeDepartures !== false
+      const departuresPromise = enabled.has('departures')
         ? runDeparturesPhase({
             stopIds,
             startDate: this.config.startDate,
@@ -431,28 +431,23 @@ export class ScenarioFetcher {
       logMemory('after-departures')
 
       // Serial batched (no measured need for concurrency at current entity counts).
-      await this.fetchBufferData(stopIds, routeIds, agencyIds)
+      if (enabled.has('buffers')) {
+        await this.fetchBufferData(stopIds, routeIds, agencyIds)
+      }
       logMemory('after-buffer-passes')
-    } else {
-      console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
     // Flex areas and census values both only depend on feed versions / the
     // resolved bbox (set during feed-versions) so they can run concurrently.
-    const includeFlexAreas = this.config.includeFlexAreas !== false
-    console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
-    if (!includeFlexAreas) {
-      console.log('[Scenario] Skipping flex areas (not enabled)')
-    }
     await Promise.all([
-      includeFlexAreas
+      enabled.has('flex-areas')
         ? runFlexPhase({
             feedVersions: fvRefs,
             startDate: this.config.startDate,
             endDate: this.config.endDate,
           }, this.client, emit, { onError })
         : Promise.resolve(),
-      this.fetchCensusValues(resolved),
+      enabled.has('census-values') ? this.fetchCensusValues(resolved) : Promise.resolve(),
     ])
     logMemory('after-flex-and-census')
 
@@ -462,16 +457,14 @@ export class ScenarioFetcher {
     console.log(`🎉 Scenario complete`)
   }
 
-  // Gating + config projection around the census-values phase; the inline
-  // path passes the already-resolved geography so the phase doesn't re-query.
+  // Config projection around the census-values phase; the inline path passes
+  // the already-resolved geography so the phase doesn't re-query. Gating is
+  // the plan's job (PHASE_ENABLED) — this guard exists for type narrowing
+  // and would only fire on a plan/config inconsistency bug.
   private async fetchCensusValues (resolved: ResolvedGeographyContext): Promise<void> {
-    if (this.config.includeCensus === false) {
-      console.log('[CensusValues] Skipping (includeCensus = false)')
-      return
-    }
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
-      console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
+      console.warn('[CensusValues] Planned but tableDatasetName/aggregateLayer missing — skipping')
       return
     }
     await runCensusValuesPhase({
@@ -485,11 +478,14 @@ export class ScenarioFetcher {
   }
 
   // Delegates to `runBufferPasses` so the same logic runs standalone via
-  // /api/buffer-geographies on radius/layer changes.
+  // /api/buffer-geographies on radius/layer changes. Gating is the plan's
+  // job (PHASE_ENABLED) — this guard exists for type narrowing and would
+  // only fire on a plan/config inconsistency bug.
   private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[]): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
-    if (this.config.includeCensus === false || radius <= 0 || !tableDatasetName) {
+    if (radius <= 0 || !tableDatasetName) {
+      console.warn('[BufferData] Planned but stopBufferRadius/tableDatasetName missing — skipping')
       return
     }
     await runBufferPasses(

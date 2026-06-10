@@ -22,6 +22,11 @@ export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 // four buffer passes as a single slice.
 export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'flex-areas' | 'census-values'
 
+// Pipeline ordering for phase plans and progress display.
+export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
+  'feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values',
+]
+
 // Relative progress-bar weight per phase; the consumer normalizes over the
 // run's enabled plan. Rough cost ratios — tune from stage timings as data
 // accumulates. Equal weighting is the special case of all-1s.

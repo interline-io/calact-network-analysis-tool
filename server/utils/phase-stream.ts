@@ -5,26 +5,24 @@
 
 import type { H3Event } from 'h3'
 import { setHeader, sendStream } from 'h3'
-import { BasicGraphQLClient, apiFetch, requestStream, type GraphQLClient } from '~~/src/core'
+import { requestStream, type GraphQLClient } from '~~/src/core'
 import { ScenarioStreamSender, type ScenarioProgress } from '~~/src/scenario'
-import { resolveAccessToken } from './auth'
+import { buildServerGraphQLClient } from './graphql-client'
 import { compressStream } from './compress'
+
+export function setNdjsonStreamHeaders (event: H3Event): void {
+  setHeader(event, 'content-type', 'application/x-ndjson')
+  setHeader(event, 'cache-control', 'no-cache')
+  setHeader(event, 'connection', 'keep-alive')
+}
 
 export async function streamPhaseResponse (
   event: H3Event,
   startMessage: string,
   run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void, onError: (error: any) => void) => Promise<unknown>,
 ) {
-  setHeader(event, 'content-type', 'application/x-ndjson')
-  setHeader(event, 'cache-control', 'no-cache')
-  setHeader(event, 'connection', 'keep-alive')
-
-  const token = await resolveAccessToken(event)
-  const runtimeConfig = useRuntimeConfig(event)
-  const client = new BasicGraphQLClient(
-    runtimeConfig.tlv2.proxyBase.default + '/query',
-    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
-  )
+  setNdjsonStreamHeaders(event)
+  const client = await buildServerGraphQLClient(event)
 
   const stream = new ReadableStream({
     async start (controller) {
