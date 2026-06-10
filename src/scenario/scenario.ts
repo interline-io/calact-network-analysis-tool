@@ -86,6 +86,13 @@ export interface ScenarioConfig {
    */
   includeFixedRoute?: boolean
   /**
+   * Whether to fetch stop departures (schedule data). Departures dominate
+   * scenario loading time and size; disabling them allows quickly browsing
+   * stops, routes, flex, and census data. Only meaningful when
+   * includeFixedRoute is enabled. Defaults to true.
+   */
+  includeDepartures?: boolean
+  /**
    * Whether to fetch flex service areas
    * Defaults to true
    */
@@ -624,6 +631,7 @@ export class ScenarioFetcher {
     // Fetch fixed-route transit data if enabled (default: true)
     const includeFixedRoute = this.config.includeFixedRoute !== false
     console.log(`[Scenario] includeFixedRoute = ${includeFixedRoute}`)
+    console.log(`[Scenario] includeDepartures = ${this.config.includeDepartures !== false}`)
     if (includeFixedRoute) {
       for (const fv of this.feedVersions) {
         this.stopFetchQueue.enqueueOne({
@@ -995,17 +1003,19 @@ export class ScenarioFetcher {
 
     // Enqueue stop departure fetching
     const stopIds = stopData.map(s => s.id)
-    const dates = getSelectedDateRange(this.config)
-    const weekSize = 7
-    // Build all tasks first
-    for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
-      for (let i = 0; i < dates.length; i += weekSize) {
-        const w = new StopDepartureQueryVars()
-        w.ids = stopIds.slice(sid, sid + this.stopTimeBatchSize)
-        for (const d of dates.slice(i, i + weekSize)) {
-          w.setDay(d)
+    if (this.config.includeDepartures !== false) {
+      const dates = getSelectedDateRange(this.config)
+      const weekSize = 7
+      // Build all tasks first
+      for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
+        for (let i = 0; i < dates.length; i += weekSize) {
+          const w = new StopDepartureQueryVars()
+          w.ids = stopIds.slice(sid, sid + this.stopTimeBatchSize)
+          for (const d of dates.slice(i, i + weekSize)) {
+            w.setDay(d)
+          }
+          this.stopDepartureQueue.enqueueOne(w)
         }
-        this.stopDepartureQueue.enqueueOne(w)
       }
     }
 

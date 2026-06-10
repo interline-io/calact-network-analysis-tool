@@ -189,6 +189,55 @@ describe('ScenarioFetcher', () => {
     })
   })
 
+  describe('includeDepartures', () => {
+    const stopsResponse = {
+      data: {
+        stops: [{
+          id: 1,
+          stop_id: 'stop_1',
+          stop_name: 'Test Stop',
+          location_type: 0,
+          geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
+          census_geographies: [],
+          route_stops: []
+        }]
+      }
+    }
+
+    // Departure queries are the only ones with day-of-week include flags.
+    function departureCalls (client: MockGraphQLClient) {
+      return client.mockQuery.mock.calls.filter(([, vars]) => vars && 'include_monday' in vars)
+    }
+
+    it('fetches departures by default', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce(stopsResponse)
+        .mockResolvedValue({ data: { stops: [] } }) // departure queries
+
+      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client)
+      await fetcher.fetch()
+
+      // The 8-day range chunks into two 7-day departure windows
+      expect(departureCalls(client)).toHaveLength(2)
+    })
+
+    it('skips departure queries when includeDepartures is false', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce(stopsResponse)
+
+      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, includeDepartures: false }, client)
+      await fetcher.fetch()
+
+      expect(departureCalls(client)).toHaveLength(0)
+      // Only the feed version and stop queries were issued
+      expect(client.mockQuery).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('should call progress callback during fetch', async () => {
     // Mock first call returns one stop, second call returns empty to end recursion
     mockClient.mockQuery
