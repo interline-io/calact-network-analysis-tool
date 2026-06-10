@@ -88,7 +88,9 @@ export interface ScenarioConfig {
 
 // Single source of truth for which phases a config enables. Drives both the
 // emitted phase plan and fetchMain's execution gating, so the two cannot
-// drift: a phase runs if and only if it is in the plan.
+// drift: a phase runs if and only if it is in the plan. Routes, departures,
+// and buffers execute inside the stops block (they consume its ids), so
+// their predicates must imply the stops predicate.
 const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
   'feed-versions': () => true,
   'stops': config => config.includeFixedRoute !== false,
@@ -425,7 +427,9 @@ export class ScenarioFetcher {
             departureMode: this.config.departureMode,
           }, this.client, emit, { onError })
         : Promise.resolve()
-      const { agencyIds } = await runRoutesPhase({ routeIds }, this.client, emit, { onError })
+      const { agencyIds } = enabled.has('routes')
+        ? await runRoutesPhase({ routeIds }, this.client, emit, { onError })
+        : { agencyIds: [] }
       logMemory('after-routes')
       await departuresPromise
       logMemory('after-departures')
