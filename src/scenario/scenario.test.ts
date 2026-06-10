@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
-import { ScenarioFetcher } from './scenario'
+import { ScenarioFetcher, scenarioPhasePlan } from './scenario'
 import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import type { FeedGql, FlexLocationGql } from '~~/src/tl'
 
@@ -306,6 +306,76 @@ describe('ScenarioFetcher', () => {
 
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
     })
+  })
+
+  describe('scenarioPhasePlan', () => {
+    // The plan is also the execution gate (PHASE_ENABLED), so these
+    // permutations pin which phases run for a given config.
+    const fullConfig: ScenarioConfig = {
+      ...config,
+      tableDatasetName: 'acsdt5y2021',
+      aggregateLayer: 'tract',
+      stopBufferRadius: 400,
+    }
+
+    it('includes every phase for a fully-enabled config', () => {
+      expect(scenarioPhasePlan(fullConfig)).toEqual(
+        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
+    })
+
+    it('drops only departures when includeDepartures is false', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, includeDepartures: false })).toEqual(
+        ['feed-versions', 'stops', 'routes', 'buffers', 'flex-areas', 'census-values'])
+    })
+
+    it('drops all fixed-route phases when includeFixedRoute is false', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, includeFixedRoute: false })).toEqual(
+        ['feed-versions', 'flex-areas', 'census-values'])
+    })
+
+    it('drops buffers and census-values when includeCensus is false', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, includeCensus: false })).toEqual(
+        ['feed-versions', 'stops', 'routes', 'departures', 'flex-areas'])
+    })
+
+    it('drops buffers but keeps census-values when radius is 0', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, stopBufferRadius: 0 })).toEqual(
+        ['feed-versions', 'stops', 'routes', 'departures', 'flex-areas', 'census-values'])
+    })
+
+    it('drops census-values but keeps buffers without an aggregateLayer', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, aggregateLayer: undefined })).toEqual(
+        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas'])
+    })
+
+    it('drops flex when includeFlexAreas is false', () => {
+      expect(scenarioPhasePlan({ ...fullConfig, includeFlexAreas: false })).toEqual(
+        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'census-values'])
+    })
+  })
+
+  it('emits a phase plan and per-phase completion ticks', async () => {
+    const client = new MockGraphQLClient()
+    client.mockQuery
+      .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+      .mockResolvedValueOnce(stopsResponse)
+      .mockResolvedValue({ data: { stops: [] } }) // departure queries
+
+    const progressCb = vi.fn()
+    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, { onProgress: progressCb })
+    await fetcher.fetch()
+
+    const events = progressCb.mock.calls.map(([p]) => p)
+    const planEvent = events.find(p => p.phasePlan)
+    expect(planEvent?.phasePlan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
+    // Every planned phase reports a completed progress slice
+    for (const phase of planEvent!.phasePlan!) {
+      const done = events.some(p =>
+        p.phaseProgress?.phase === phase
+        && p.phaseProgress.total > 0
+        && p.phaseProgress.completed >= p.phaseProgress.total)
+      expect(done, `phase ${phase} should reach completion`).toBe(true)
+    }
   })
 
   it('should call progress callback during fetch', async () => {

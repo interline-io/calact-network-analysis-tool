@@ -201,6 +201,8 @@
           :error="error"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
+          :phase-plan="scenarioPhasePlan"
+          :phase-fractions="scenarioPhaseFractions"
         />
       </cat-modal>
 
@@ -307,7 +309,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type ScenarioPhaseName, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
 const { buildFlexAreaProperties } = useFlexAreaFormatting()
@@ -429,7 +431,11 @@ const runQuery = async () => {
 
 // Scenario data ref - defined early so flex computed properties can reference it
 // This is populated when fetchScenario runs
-const scenarioData = ref<ScenarioData>()
+// shallowRef + markRaw: scenario data is huge and updated only by whole-shell
+// replacement (getCurrentData returns a fresh object per batch), so deep
+// proxying would add tracking overhead on every stop/route/departure read
+// without enabling anything.
+const scenarioData = shallowRef<ScenarioData>()
 
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
@@ -1026,7 +1032,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 
 // Internal state for streaming scenario data
 // Note: scenarioData is defined earlier in the file (before useFlexAreas)
-const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
+const scenarioFilterResult = shallowRef<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
@@ -1107,6 +1113,10 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
 // Loading progress tracking for modal
 const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
+// Weighted progress-bar state, accumulated inside the receiver callback so
+// no events are missed (template-level watchers only sample the latest).
+const scenarioPhasePlan = ref<ScenarioPhaseName[] | undefined>()
+const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
 const showLoadingModal = ref(false)
 
 const { scenarioReceiver } = useBufferRefetch({
@@ -1115,6 +1125,8 @@ const { scenarioReceiver } = useBufferRefetch({
   loadingProgress,
   showLoadingModal,
   error,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
 })
 
 const loadExampleData = async (exampleName: string) => {
@@ -1132,6 +1144,8 @@ const fetchScenario = async (loadExample: string) => {
   }
   loadingProgress.value = undefined
   stopDepartureCount.value = 0
+  scenarioPhasePlan.value = undefined
+  scenarioPhaseFractions.value = {}
 
   // Create receiver to accumulate scenario data
   const receiver = new ScenarioDataReceiver({
@@ -1139,6 +1153,20 @@ const fetchScenario = async (loadExample: string) => {
       // Update progress for modal
       loadingProgress.value = progress
       stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+
+      // Weighted progress bar: plan announcement + per-phase fractions
+      // (clamped max-so-far; stop pagination grows its denominator mid-phase)
+      if (progress.phasePlan) {
+        scenarioPhasePlan.value = progress.phasePlan
+        scenarioPhaseFractions.value = {}
+      }
+      const pp = progress.phaseProgress
+      if (pp) {
+        const fraction = pp.total > 0 ? Math.min(pp.completed / pp.total, 1) : 0
+        if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
+          scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
+        }
+      }
 
       if (progress.warnings && progress.warnings.length > 0) {
         for (const msg of progress.warnings) {
@@ -1154,12 +1182,12 @@ const fetchScenario = async (loadExample: string) => {
       if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }
-      scenarioData.value = receiver.getCurrentData()
+      scenarioData.value = markRaw(receiver.getCurrentData())
     },
     onComplete: () => {
       // Get final accumulated data and apply filters
       loadingProgress.value = undefined
-      scenarioData.value = receiver.getCurrentData()
+      scenarioData.value = markRaw(receiver.getCurrentData())
     },
     onError: (err: any) => {
       error.value = err
@@ -1205,7 +1233,7 @@ watch(() => [
   if (!scenarioData.value) {
     return
   }
-  scenarioFilterResult.value = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
+  scenarioFilterResult.value = markRaw(applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value))
 })
 
 /////////////////

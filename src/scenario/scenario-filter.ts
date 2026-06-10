@@ -39,12 +39,12 @@
  */
 
 import { format } from 'date-fns'
-import {
-  getSelectedDateRange,
-  type ScenarioConfig,
-  type ScenarioData,
-  type ScenarioFilter,
+import type {
+  ScenarioConfig,
+  ScenarioData,
+  ScenarioFilter,
 } from './scenario'
+import { getSelectedDateRange } from './phases'
 import {
   routeHeadways,
   hasServiceOnWeekday,

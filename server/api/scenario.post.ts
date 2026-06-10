@@ -6,8 +6,10 @@
 import { createError } from 'h3'
 import type { ScenarioConfig } from '~~/src/scenario'
 import { streamScenario } from '~~/src/scenario'
-import { BasicGraphQLClient, apiFetch, logMemory } from '~~/src/core'
-import { resolveAccessToken } from '~~/server/utils/auth'
+import { logMemory } from '~~/src/core'
+import { setNdjsonStreamHeaders } from '~~/server/utils/phase-stream'
+import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { compressStream } from '~~/server/utils/compress'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')
@@ -23,17 +25,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Set streaming headers
-  setHeader(event, 'content-type', 'application/x-ndjson')
-  setHeader(event, 'cache-control', 'no-cache')
-  setHeader(event, 'connection', 'keep-alive')
-
-  const token = await resolveAccessToken(event)
-  const runtimeConfig = useRuntimeConfig(event)
-  const client = new BasicGraphQLClient(
-    runtimeConfig.tlv2.proxyBase.default + '/query',
-    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
-  )
+  setNdjsonStreamHeaders(event)
+  const client = await buildServerGraphQLClient(event)
 
   logMemory('before-stream')
 
@@ -44,5 +37,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return sendStream(event, stream)
+  return sendStream(event, compressStream(event, stream))
 })

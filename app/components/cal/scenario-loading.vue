@@ -84,20 +84,39 @@
 </template>
 
 <script lang="ts" setup>
-import type { ScenarioProgress, ScenarioData } from '~~/src/scenario'
+import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
 
-// Props
+// Props. Phase plan/fractions are accumulated by the parent inside the
+// stream receiver callback — every event is seen there. (A `watch` on the
+// latest-event prop samples: multiple NDJSON lines decoded from one network
+// chunk collapse into a single watcher invocation, dropping events like the
+// phase plan announcement.)
 const props = withDefaults(defineProps<{
   progress?: ScenarioProgress
   error?: Error | string
   scenarioData?: ScenarioData
   stopDepartureCount?: number
+  phasePlan?: ScenarioPhaseName[]
+  phaseFractions?: Partial<Record<ScenarioPhaseName, number>>
 }>(), {})
 
 // Computed values
 const progressPercentage = computed(() => {
+  // Phase-weighted progress when the stream announced a plan
+  const plan = props.phasePlan
+  if (plan && plan.length > 0) {
+    let weightTotal = 0
+    let weighted = 0
+    for (const phase of plan) {
+      const weight = SCENARIO_PHASE_WEIGHTS[phase] ?? 1
+      weightTotal += weight
+      weighted += weight * (props.phaseFractions?.[phase] ?? 0)
+    }
+    return weightTotal > 0 ? Math.round((weighted / weightTotal) * 100) : 0
+  }
+  // Legacy fallback: streams without a phase plan (old saved examples,
+  // WSDOT analyses)
   if (!props.progress) { return 0 }
-  // Add feed version progress + stop departure progress
   let total = 0
   let completed = 0
   if (props.progress.feedVersionProgress) {
@@ -108,7 +127,7 @@ const progressPercentage = computed(() => {
     total += props.progress.stopDepartureProgress.total
     completed += props.progress.stopDepartureProgress.completed
   }
-  return Math.round((completed / total) * 100)
+  return total > 0 ? Math.round((completed / total) * 100) : 0
 })
 
 // Total number of stops loaded

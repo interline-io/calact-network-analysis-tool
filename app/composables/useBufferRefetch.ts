@@ -2,7 +2,7 @@
 // result into the existing ScenarioDataReceiver so non-buffer state (stops,
 // routes, departures, …) stays untouched.
 
-import { shallowRef, watch, onScopeDispose, type Ref, type ShallowRef } from 'vue'
+import { markRaw, shallowRef, watch, onScopeDispose, type Ref, type ShallowRef } from 'vue'
 import { useScenarioInputs } from './useScenarioInputs'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
 import {
@@ -11,6 +11,7 @@ import {
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioDataReceiver,
+  type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
 
@@ -21,6 +22,10 @@ interface UseBufferRefetchDeps {
   loadingProgress: Ref<ScenarioProgress | undefined>
   showLoadingModal: Ref<boolean>
   error: Ref<any>
+  // Weighted progress-bar state shared with the loading modal; the refetch
+  // installs a single-phase plan so the bar tracks the buffer passes.
+  phasePlan: Ref<ScenarioPhaseName[] | undefined>
+  phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
 }
 
 export interface UseBufferRefetchReturn {
@@ -58,7 +63,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
     abort = localAbort
 
     receiver.clearBufferGeographies()
-    deps.scenarioData.value = receiver.getCurrentData()
+    deps.scenarioData.value = markRaw(receiver.getCurrentData())
 
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
@@ -66,6 +71,10 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
       currentStage: 'ready',
       currentStageMessage: 'Recomputing buffer demographics...',
     }
+    // The refetch streams through the same receiver as the main fetch, so
+    // its 'buffers' phaseProgress events drive the bar under this plan.
+    deps.phasePlan.value = ['buffers']
+    deps.phaseFractions.value = {}
 
     const agencyIds = [...new Set(
       data.routes.map(r => r.agency?.id).filter((id): id is number => id != null),
@@ -98,7 +107,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
       if (!success) {
         throw new Error('Buffer refetch stream ended unexpectedly')
       }
-      deps.scenarioData.value = receiver.getCurrentData()
+      deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         return
