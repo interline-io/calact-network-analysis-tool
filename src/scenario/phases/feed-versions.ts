@@ -157,6 +157,12 @@ export async function runFeedVersionsPhase (
 ): Promise<{ feedVersions: FeedVersion[], resolved: ResolvedGeographyContext }> {
   const resolved = await resolveGeographyContext(config, client)
 
+  // Fail fast rather than paginate the world: with no bbox the feeds query
+  // is unbounded and would return every feed in the system.
+  if (!resolved.bbox) {
+    throw new Error('[FeedVersions] No search area — bbox missing and geographyIds resolved to no geometries')
+  }
+
   // Use the bbox (either user-specified or computed around admin boundaries)
   // to query feed versions. Paginate to ensure we get all feeds (API default
   // limit is 100).

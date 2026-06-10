@@ -7,7 +7,9 @@ import type { H3Event } from 'h3'
 import { getRequestHeader, setHeader } from 'h3'
 
 export function compressStream (event: H3Event, stream: ReadableStream): ReadableStream {
-  const acceptEncoding = getRequestHeader(event, 'accept-encoding') || ''
+  const acceptEncoding = (getRequestHeader(event, 'accept-encoding') || '').toLowerCase()
+  // Encoding is negotiated per request, so caches must key on it.
+  setHeader(event, 'vary', 'accept-encoding')
   if (!acceptEncoding.includes('gzip')) {
     return stream
   }
