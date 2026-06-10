@@ -26,6 +26,7 @@ interface ScenarioInputs {
   includeFixedRoute: WritableComputedRef<boolean | undefined>
   includeFlexAreas: WritableComputedRef<boolean | undefined>
   includeDepartures: WritableComputedRef<boolean | undefined>
+  includeCensus: WritableComputedRef<boolean | undefined>
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
@@ -103,6 +104,12 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ includeDepartures: v ? undefined : 'false' }) }
   })
 
+  // Census demographics: aggregation-layer ACS values + stop-buffer passes.
+  const includeCensus = computed<boolean | undefined>({
+    get: () => route.query.includeCensus?.toString() !== 'false',
+    set: (v) => { setQuery({ includeCensus: v ? undefined : 'false' }) }
+  })
+
   // Display toggle that filters fixed-route features out of the map; on by default.
   const fixedRouteEnabled = computed<boolean | undefined>({
     get: () => route.query.fixedRouteEnabled?.toString() !== 'false',
@@ -156,6 +163,7 @@ export function useScenarioInputs (): ScenarioInputs {
     includeFixedRoute,
     includeFlexAreas,
     includeDepartures,
+    includeCensus,
     fixedRouteEnabled,
     fvids,
     stopBufferRadius,

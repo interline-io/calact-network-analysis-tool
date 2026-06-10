@@ -48,6 +48,20 @@ describe('ScenarioFetcher', () => {
     }
   }
 
+  const stopsResponse = {
+    data: {
+      stops: [{
+        id: 1,
+        stop_id: 'stop_1',
+        stop_name: 'Test Stop',
+        location_type: 0,
+        geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
+        census_geographies: [],
+        route_stops: []
+      }]
+    }
+  }
+
   it('should handle GraphQL errors', async () => {
     const mockError = new Error('GraphQL Error')
     mockClient.mockQuery.mockRejectedValue(mockError)
@@ -190,20 +204,6 @@ describe('ScenarioFetcher', () => {
   })
 
   describe('includeDepartures', () => {
-    const stopsResponse = {
-      data: {
-        stops: [{
-          id: 1,
-          stop_id: 'stop_1',
-          stop_name: 'Test Stop',
-          location_type: 0,
-          geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-          census_geographies: [],
-          route_stops: []
-        }]
-      }
-    }
-
     // Departure queries are the only ones with day-of-week include flags.
     function departureCalls (client: MockGraphQLClient) {
       return client.mockQuery.mock.calls.filter(([, vars]) => vars && 'include_monday' in vars)
@@ -234,6 +234,76 @@ describe('ScenarioFetcher', () => {
 
       expect(departureCalls(client)).toHaveLength(0)
       // Only the feed version and stop queries were issued
+      expect(client.mockQuery).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('includeCensus', () => {
+    // tableDatasetName + aggregateLayer enable the census-values stage.
+    const censusConfig: ScenarioConfig = {
+      ...config,
+      includeFixedRoute: false,
+      includeFlexAreas: false,
+      tableDatasetName: 'acsdt5y2021',
+      aggregateLayer: 'tract',
+    }
+
+    // stopBufferRadius + tableDatasetName (no aggregateLayer) enable only
+    // the buffer passes.
+    const bufferConfig: ScenarioConfig = {
+      ...config,
+      includeDepartures: false,
+      includeFlexAreas: false,
+      tableDatasetName: 'acsdt5y2021',
+      stopBufferRadius: 400,
+    }
+
+    it('fetches census values by default', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValue({ data: {} })
+
+      const fetcher = new ScenarioFetcher(censusConfig, client)
+      await fetcher.fetch()
+
+      expect(client.mockQuery).toHaveBeenCalledTimes(2)
+      expect(client.mockQuery.mock.calls[1][1]).toMatchObject({ tableNames: expect.any(Array) })
+    })
+
+    it('skips census values when includeCensus is false', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery.mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+
+      const fetcher = new ScenarioFetcher({ ...censusConfig, includeCensus: false }, client)
+      await fetcher.fetch()
+
+      expect(client.mockQuery).toHaveBeenCalledTimes(1)
+    })
+
+    it('runs buffer passes by default', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce(stopsResponse)
+        .mockResolvedValue({ data: {} })
+
+      const fetcher = new ScenarioFetcher(bufferConfig, client)
+      await fetcher.fetch()
+
+      // feeds + stops + per-stop buffer chunk + aggregation union
+      expect(client.mockQuery).toHaveBeenCalledTimes(4)
+    })
+
+    it('skips buffer passes when includeCensus is false', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce(stopsResponse)
+
+      const fetcher = new ScenarioFetcher({ ...bufferConfig, includeCensus: false }, client)
+      await fetcher.fetch()
+
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
     })
   })
