@@ -11,7 +11,12 @@ import { buildServerGraphQLClient } from './graphql-client'
 import { compressStream } from './compress'
 
 export function setNdjsonStreamHeaders (event: H3Event): void {
-  setHeader(event, 'content-type', 'application/x-ndjson')
+  // The body is NDJSON, but typed as application/json: Cloudflare's edge
+  // compresses only content types on its default list, which includes
+  // application/json but not application/x-ndjson — and on workers
+  // deployments the edge is the only thing allowed to compress (see
+  // compress.ts). Our stream consumers never sniff the content type.
+  setHeader(event, 'content-type', 'application/json; charset=utf-8')
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
 }
