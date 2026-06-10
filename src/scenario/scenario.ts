@@ -1,6 +1,3 @@
-import { format } from 'date-fns'
-import bbox from '@turf/bbox'
-import area from '@turf/area'
 import {
   type WeekdayMode,
   type RouteType,
@@ -11,57 +8,31 @@ import {
   GenericStreamSender,
   multiplexStream,
   requestStream,
-  TaskQueue,
-  convertBbox,
-  chunkArray,
   logMemory,
-  parseHMS,
-  fetchCensusIntersection,
-  REQUIRED_ACS_TABLES,
   type CensusGeographyData,
-  padBboxMeters,
+  STOP_BUFFER_DEFAULT_LAYER,
 } from '~~/src/core'
-import type { FlexAreaFeature,
-  FeedGql,
+import type {
+  FlexAreaFeature,
   FeedVersion,
   RouteGql,
-  StopDeparture,
   StopGql,
-  StopTime,
-  FlexLocationQueryResponse,
-  FlexStopTimesQueryResponse,
   BufferGeographyIntersection,
 } from '~~/src/tl'
-import {
-  StopDepartureCache,
-  FlexDepartureCache,
-  feedVersionQuery,
-  feedVersionsByIdsQuery,
-  HIDDEN_FEED_ONESTOP_IDS,
-  applyFeedVersionOverrides,
-  routeQuery,
-  stopDepartureQuery,
-  stopTimeQuery,
-  stopQuery,
-  flexLocationQuery,
-  flexStopTimesQuery,
-  transformLocationsToFlexAreas,
-} from '~~/src/tl'
-import { STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
-import { geographyLayerQuery } from '~~/src/tl/census'
+import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runBufferPasses, type BufferFetchConfig } from './buffer-passes'
-
-// Constants for progress updates
-const PROGRESS_LIMIT_STOPS = 1000
-const PROGRESS_LIMIT_ROUTES = 10
-const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
-
-/**
- * Maximum number of flex locations to fetch per feed version.
- * This limit is enforced server-side by transitland-server.
- * If a feed version has more locations than this, some will be silently skipped.
- */
-const MAX_FLEX_LOCATIONS_PER_FEED_VERSION = 100_000
+import {
+  runFeedVersionsPhase,
+  runStopsPhase,
+  runRoutesPhase,
+  runDeparturesPhase,
+  runFlexPhase,
+  runCensusValuesPhase,
+  StopDepartureTuple,
+  FlexDepartureTuple,
+  type FeedVersionRef,
+  type ResolvedGeographyContext,
+} from './phases'
 
 /**
  * Configuration for scenario fetching
@@ -124,23 +95,6 @@ export interface ScenarioFilter {
   frequencyOver?: number
 }
 
-// =============================================================================
-// Flex service (GTFS-Flex / DRT) GraphQL integration
-// See: https://github.com/interline-io/transitland-lib/pull/527
-// =============================================================================
-//
-// Flex areas are fetched via GraphQL in fetchFlexAreas():
-// - Queries Location type for each feed version
-// - Filters by date via StopTimeFilter.date on Location.stop_times
-// - Transforms Location -> FlexAreaFeature in BFF before streaming
-// - Frontend applies user filters (advance notice, area type, color mode)
-//
-// GraphQL types used:
-// - Location: flex service areas (polygons from locations.geojson)
-// - FlexStopTime: stop times with pickup/dropoff types and booking rules
-// - BookingRule: booking_type (0=real-time, 1=same-day, 2=prior-day)
-//
-
 /**
  * Scenario results
  */
@@ -152,7 +106,6 @@ export interface ScenarioData {
   flexDepartureCache: FlexDepartureCache
   /**
    * Flex service areas (GTFS-Flex / DRT)
-   * Currently loaded from static GeoJSON, will come from GraphQL API later
    */
   flexAreas: FlexAreaFeature[]
   /**
@@ -172,33 +125,6 @@ export interface ScenarioData {
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   // Pass F — union over every stop's buffer. Drives aggregation-table apportionment.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
-}
-
-export function getSelectedDateRange (config: ScenarioConfig): Date[] {
-  const sd = new Date((config.startDate || new Date()).valueOf())
-  const ed = new Date((config.endDate || new Date()).valueOf())
-  const dates = []
-  while (sd <= ed) {
-    dates.push(new Date(sd.valueOf()))
-    sd.setDate(sd.getDate() + 1)
-  }
-  // console.log(`Selected date range: ${sd.toISOString()} to ${ed.toISOString()}: dates ${dates.map(d => d.toISOString()).join(', ')}`)
-  return dates
-}
-
-/**
- * Task definitions for the scenario fetcher
- */
-interface StopFetchTask {
-  after: number
-  feedOnestopId: string
-  feedVersionSha1: string
-}
-
-interface RouteFetchTask {
-  feedOnestopId: string
-  feedVersionSha1: string
-  ids: number[]
 }
 
 /**
@@ -242,186 +168,6 @@ export interface ScenarioProgress {
   }
   extraData?: any
   config?: any
-}
-
-// Define the tuple type with named fields
-// Optimized wire format: departure_time as seconds, no string trip_id
-export type StopDepartureTuple = readonly [
-  stop_id: number,
-  departure_date: string,
-  departure_time: number, // seconds since midnight
-  trip_id: number,
-  trip_direction_id: number,
-  trip_route_id: number
-]
-
-// Helper functions for working with the tuple
-export const StopDepartureTuple = {
-  create: (
-    stop_id: number,
-    departure_date: string,
-    departure_time: number,
-    trip_id: number,
-    trip_direction_id: number,
-    trip_route_id: number,
-  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
-  fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
-    stopId,
-    departureDate,
-    parseHMS(stopDeparture.departure_time),
-    stopDeparture.trip.id,
-    stopDeparture.trip.direction_id,
-    stopDeparture.trip.route.id,
-  ),
-  stopId: (tuple: StopDepartureTuple) => tuple[0],
-  departureDate: (tuple: StopDepartureTuple) => tuple[1],
-  departureTime: (tuple: StopDepartureTuple) => tuple[2],
-  tripId: (tuple: StopDepartureTuple) => tuple[3],
-  tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
-  tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
-}
-
-// Wire format for flex departure cache: [locationId, date]
-export type FlexDepartureTuple = readonly [
-  location_id: number,
-  departure_date: string,
-]
-
-export const FlexDepartureTuple = {
-  create: (location_id: number, departure_date: string): FlexDepartureTuple => [location_id, departure_date],
-  locationId: (tuple: FlexDepartureTuple) => tuple[0],
-  departureDate: (tuple: FlexDepartureTuple) => tuple[1],
-}
-
-// ============================================================================
-// SCENARIO MAIN CLASS
-// ============================================================================
-
-export class StopDepartureQueryVars {
-  ids: number[] = []
-  monday: string = ''
-  tuesday: string = ''
-  wednesday: string = ''
-  thursday: string = ''
-  friday: string = ''
-  saturday: string = ''
-  sunday: string = ''
-  include_monday: boolean = false
-  include_tuesday: boolean = false
-  include_wednesday: boolean = false
-  include_thursday: boolean = false
-  include_friday: boolean = false
-  include_saturday: boolean = false
-  include_sunday: boolean = false
-
-  get (dow: string): string {
-    switch (dow) {
-      case 'monday':
-        return this.monday
-      case 'tuesday':
-        return this.tuesday
-      case 'wednesday':
-        return this.wednesday
-      case 'thursday':
-        return this.thursday
-      case 'friday':
-        return this.friday
-      case 'saturday':
-        return this.saturday
-      case 'sunday':
-        return this.sunday
-    }
-    return ''
-  }
-
-  setDay (d: Date) {
-    const dateFmt = 'yyyy-MM-dd'
-    switch (d.getDay()) {
-      case 0:
-        this.sunday = format(d, dateFmt)
-        this.include_sunday = true
-        break
-      case 1:
-        this.monday = format(d, dateFmt)
-        this.include_monday = true
-        break
-      case 2:
-        this.tuesday = format(d, dateFmt)
-        this.include_tuesday = true
-        break
-      case 3:
-        this.wednesday = format(d, dateFmt)
-        this.include_wednesday = true
-        break
-      case 4:
-        this.thursday = format(d, dateFmt)
-        this.include_thursday = true
-        break
-      case 5:
-        this.friday = format(d, dateFmt)
-        this.include_friday = true
-        break
-      case 6:
-        this.saturday = format(d, dateFmt)
-        this.include_saturday = true
-        break
-    }
-  }
-}
-
-/**
- * Variables for the slim multi-date flex stop_times query.
- * Mirrors StopDepartureQueryVars but uses fvSha1/limit instead of stop ids.
- */
-export class FlexStopTimesQueryVars {
-  fvSha1: string = ''
-  limit: number = 0
-  monday: string = ''
-  tuesday: string = ''
-  wednesday: string = ''
-  thursday: string = ''
-  friday: string = ''
-  saturday: string = ''
-  sunday: string = ''
-  include_monday: boolean = false
-  include_tuesday: boolean = false
-  include_wednesday: boolean = false
-  include_thursday: boolean = false
-  include_friday: boolean = false
-  include_saturday: boolean = false
-  include_sunday: boolean = false
-
-  get (dow: string): string {
-    switch (dow) {
-      case 'monday': return this.monday
-      case 'tuesday': return this.tuesday
-      case 'wednesday': return this.wednesday
-      case 'thursday': return this.thursday
-      case 'friday': return this.friday
-      case 'saturday': return this.saturday
-      case 'sunday': return this.sunday
-    }
-    return ''
-  }
-
-  setDay (d: Date) {
-    const dateFmt = 'yyyy-MM-dd'
-    switch (d.getDay()) {
-      case 0: this.sunday = format(d, dateFmt); this.include_sunday = true; break
-      case 1: this.monday = format(d, dateFmt); this.include_monday = true; break
-      case 2: this.tuesday = format(d, dateFmt); this.include_tuesday = true; break
-      case 3: this.wednesday = format(d, dateFmt); this.include_wednesday = true; break
-      case 4: this.thursday = format(d, dateFmt); this.include_thursday = true; break
-      case 5: this.friday = format(d, dateFmt); this.include_friday = true; break
-      case 6: this.saturday = format(d, dateFmt); this.include_saturday = true; break
-    }
-  }
-
-  hasAnyDay (): boolean {
-    return this.include_monday || this.include_tuesday || this.include_wednesday
-      || this.include_thursday || this.include_friday || this.include_saturday
-      || this.include_sunday
-  }
 }
 
 /**
@@ -525,52 +271,32 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   return data
 }
 
+// ============================================================================
+// SCENARIO FETCHER - Composition of the pipeline phases
+// ============================================================================
+
+/**
+ * Composes the scenario pipeline out of the standalone phases in ./phases:
+ *
+ *   feed-versions ─┬─ stops ─┬─ departures ──┐
+ *                  │         └─ routes ──────┴─ buffer passes
+ *                  ├─ flex
+ *                  └─ census-values
+ *
+ * Each phase is also exposed as its own server endpoint (server/api/scenario/*)
+ * so clients can run, skip, shard, or retry them independently.
+ */
 export class ScenarioFetcher {
   private config: ScenarioConfig
   private callbacks: ScenarioCallbacks
   private client: GraphQLClient
 
-  // Internal state
-  private stopLimit = 1000
-  private stopTimeBatchSize = 100
-  private maxConcurrentRequests = 8
-  private feedVersionPageSize = 100
-
-  // Dynamic progress getters
-  private get feedVersionProgress (): { total: number, completed: number } {
-    const stopProgress = this.stopFetchQueue.getProgress()
-    const routeProgress = this.routeFetchQueue.getProgress()
-    return {
-      total: stopProgress.total + routeProgress.total,
-      completed: stopProgress.completed + routeProgress.completed
-    }
-  }
-
-  private get stopDepartureProgress (): { total: number, completed: number } {
-    return this.stopDepartureQueue.getProgress()
-  }
-
-  // Task queues
-  private stopFetchQueue: TaskQueue<StopFetchTask>
-  private routeFetchQueue: TaskQueue<RouteFetchTask>
-  private stopDepartureQueue: TaskQueue<StopDepartureQueryVars>
-  private flexFetchQueue: TaskQueue<FeedVersion>
-
-  // Internal result bookkeeping
-  private fetchedRouteIds: Set<number> = new Set()
-  // Accumulated for the #315 buffer passes; consumed by fetchBufferData().
-  private bufferStopIds: Set<number> = new Set()
-  private bufferRouteIds: Set<number> = new Set()
-  private bufferAgencyIds: Set<number> = new Set()
-  private feedVersions: FeedVersion[] = []
-  // Drained on the next updateProgress() so non-fatal stage warnings ride the
-  // existing progress channel without a new transport.
-  private pendingWarnings: string[] = []
-  // Set by fetchFeedVersions(), read by fetchCensusValues().
-  private resolvedBbox?: Bbox
-  // First admin polygon, used as `within` for census intersection so the
-  // server clips against the real polygon. Multi-boundary support is #347.
-  private resolvedWithin?: GeoJSON.Polygon
+  // Latest per-phase queue counters, summed into the legacy progress fields
+  // so every emitted event carries pipeline-wide numbers (the loading modal
+  // computes its percentage from these).
+  private stopsProgress = { total: 0, completed: 0 }
+  private routesProgress = { total: 0, completed: 0 }
+  private departuresProgress = { total: 0, completed: 0 }
 
   constructor (
     config: ScenarioConfig,
@@ -580,37 +306,6 @@ export class ScenarioFetcher {
     this.config = config
     this.callbacks = callbacks
     this.client = client
-    this.stopLimit = config.stopLimit ?? 1000
-
-    // Initialize task queues
-    this.stopFetchQueue = new TaskQueue<StopFetchTask>(
-      this.maxConcurrentRequests,
-      task => this.fetchStops(task), {
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
-
-    this.routeFetchQueue = new TaskQueue<RouteFetchTask>(
-      this.maxConcurrentRequests,
-      task => this.fetchRoutes(task), {
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
-
-    this.stopDepartureQueue = new TaskQueue<StopDepartureQueryVars>(
-      this.maxConcurrentRequests,
-      task => this.fetchStopDepartures(task), {
-        onProgress: () => { this.updateProgress('schedules', true) },
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
-
-    this.flexFetchQueue = new TaskQueue<FeedVersion>(
-      this.maxConcurrentRequests,
-      task => this.fetchFlexArea(task), {
-        onError: error => this.callbacks.onError?.(error)
-      }
-    )
   }
 
   async fetch () {
@@ -622,17 +317,48 @@ export class ScenarioFetcher {
     }
   }
 
+  // Phase emissions carry only their own queue counters; route them into the
+  // right slot and re-emit with the summed pipeline totals attached.
+  private emitProgress (progress: ScenarioProgress): void {
+    if (progress.feedVersionProgress) {
+      if (progress.currentStage === 'stops') {
+        this.stopsProgress = progress.feedVersionProgress
+      } else if (progress.currentStage === 'routes') {
+        this.routesProgress = progress.feedVersionProgress
+      }
+    }
+    if (progress.stopDepartureProgress) {
+      this.departuresProgress = progress.stopDepartureProgress
+    }
+    this.callbacks.onProgress?.({
+      ...progress,
+      feedVersionProgress: {
+        total: this.stopsProgress.total + this.routesProgress.total,
+        completed: this.stopsProgress.completed + this.routesProgress.completed,
+      },
+      stopDepartureProgress: { ...this.departuresProgress },
+    })
+  }
+
   // Start the scenario fetching process
   private async fetchMain () {
     logMemory('fetchMain-start')
+    const emit = (progress: ScenarioProgress) => this.emitProgress(progress)
+    const onError = (error: any) => this.callbacks.onError?.(error)
 
-    // FIRST STAGE: Fetch active feed versions in the area
-    this.feedVersions = await this.fetchFeedVersions()
-    console.log(`Found ${this.feedVersions.length} feed versions`)
-    for (const fv of this.feedVersions) {
-      console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
-    }
+    // FIRST STAGE: resolve the geography and active feed versions in the area
+    const { feedVersions, resolved } = await runFeedVersionsPhase({
+      bbox: this.config.bbox,
+      geographyIds: this.config.geographyIds,
+      geoDatasetName: this.config.geoDatasetName,
+      feedVersionOverrides: this.config.feedVersionOverrides,
+      excludedFeeds: this.config.excludedFeeds,
+    }, this.client, emit)
     logMemory('after-feed-versions')
+    const fvRefs: FeedVersionRef[] = feedVersions.map(fv => ({
+      feedOnestopId: fv.feed.onestop_id,
+      feedVersionSha1: fv.sha1,
+    }))
 
     // Fetch fixed-route transit data if enabled (default: true)
     const includeFixedRoute = this.config.includeFixedRoute !== false
@@ -640,136 +366,65 @@ export class ScenarioFetcher {
     console.log(`[Scenario] includeDepartures = ${this.config.includeDepartures !== false}`)
     console.log(`[Scenario] includeCensus = ${this.config.includeCensus !== false}`)
     if (includeFixedRoute) {
-      for (const fv of this.feedVersions) {
-        this.stopFetchQueue.enqueueOne({
-          after: 0,
-          feedOnestopId: fv.feed.onestop_id,
-          feedVersionSha1: fv.sha1
-        })
-      }
-
-      // Wait for all stop fetching to complete
-      this.stopFetchQueue.run()
-      this.routeFetchQueue.run()
-      this.stopDepartureQueue.run()
-      await this.stopFetchQueue.wait()
+      const { stopIds, routeIds } = await runStopsPhase({
+        feedVersions: fvRefs,
+        bbox: this.config.bbox,
+        geographyIds: this.config.geographyIds,
+        geoDatasetName: this.config.geoDatasetName,
+        stopLimit: this.config.stopLimit,
+      }, this.client, emit, { onError })
       logMemory('after-stops')
-      await this.routeFetchQueue.wait()
+
+      // Departures fan out concurrently with routes, recovering the queue
+      // overlap the pre-phase pipeline had.
+      const departuresPromise = this.config.includeDepartures !== false
+        ? runDeparturesPhase({
+            stopIds,
+            startDate: this.config.startDate,
+            endDate: this.config.endDate,
+            departureMode: this.config.departureMode,
+          }, this.client, emit, { onError })
+        : Promise.resolve()
+      const { agencyIds } = await runRoutesPhase({ routeIds }, this.client, emit, { onError })
       logMemory('after-routes')
-      await this.stopDepartureQueue.wait()
+      await departuresPromise
       logMemory('after-departures')
+
       // Serial batched (no measured need for concurrency at current entity counts).
-      await this.fetchBufferData()
+      await this.fetchBufferData(stopIds, routeIds, agencyIds)
       logMemory('after-buffer-passes')
     } else {
       console.log('[Scenario] Skipping fixed-route data (not enabled)')
     }
 
-    // Flex areas and census values both only depend on the resolved bbox
-    // (set during feed-versions) so they can run concurrently.
+    // Flex areas and census values both only depend on feed versions / the
+    // resolved bbox (set during feed-versions) so they can run concurrently.
     const includeFlexAreas = this.config.includeFlexAreas !== false
     console.log(`[Scenario] includeFlexAreas = ${includeFlexAreas}`)
     if (!includeFlexAreas) {
       console.log('[Scenario] Skipping flex areas (not enabled)')
     }
     await Promise.all([
-      includeFlexAreas ? this.fetchFlexAreas() : Promise.resolve(),
-      this.fetchCensusValues(),
+      includeFlexAreas
+        ? runFlexPhase({
+            feedVersions: fvRefs,
+            startDate: this.config.startDate,
+            endDate: this.config.endDate,
+          }, this.client, emit, { onError })
+        : Promise.resolve(),
+      this.fetchCensusValues(resolved),
     ])
     logMemory('after-flex-and-census')
 
     // Done - send completion progress event (client will handle onComplete)
-    this.updateProgress('complete', false)
+    this.emitProgress({ isLoading: false, currentStage: 'complete' })
     logMemory('fetchMain-complete')
     console.log(`🎉 Scenario complete`)
   }
 
-  /**
-   * Fetch flex service areas (GTFS-Flex / DRT) via GraphQL
-   *
-   * Queries locations for each feed version, filters out those without
-   * active service on the selected date, and transforms to FlexAreaFeature format.
-   */
-  private async fetchFlexAreas (): Promise<void> {
-    if (this.feedVersions.length === 0) {
-      console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
-      return
-    }
-
-    this.updateProgress('flex-areas', true)
-    console.log(`[FlexAreas] Fetching flex areas from ${this.feedVersions.length} feed versions`)
-
-    for (const fv of this.feedVersions) {
-      this.flexFetchQueue.enqueueOne(fv)
-    }
-    await this.flexFetchQueue.run()
-
-    console.log(`[FlexAreas] Complete`)
-  }
-
-  // Fetch flex areas for a single feed version
-  private async fetchFlexArea (fv: FeedVersion): Promise<void> {
-    const queryDate = this.config.startDate
-      ? format(this.config.startDate, 'yyyy-MM-dd')
-      : format(new Date(), 'yyyy-MM-dd')
-
-    const variables = {
-      fvSha1: fv.sha1,
-      limit: MAX_FLEX_LOCATIONS_PER_FEED_VERSION,
-      serviceDate: queryDate,
-    }
-
-    const response = await this.client.query<FlexLocationQueryResponse>(flexLocationQuery, variables)
-
-    const feedVersionData = response.data?.feed_versions?.[0]
-    if (!feedVersionData) {
-      return
-    }
-
-    const locations = feedVersionData.locations || []
-    const flexAreas = transformLocationsToFlexAreas(locations)
-
-    if (flexAreas.length > 0) {
-      console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feed.onestop_id}`)
-      this.updateProgress('flex-areas', true, { flexAreas })
-    }
-
-    // Fetch slim multi-date stop_times to populate the flex departure cache.
-    // Chunk the date range into 7-day windows (one query per week) so every
-    // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
-    if (flexAreas.length > 0) {
-      const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
-      const dates = getSelectedDateRange(this.config)
-      const weekSize = 7
-      const flexDepartures: FlexDepartureTuple[] = []
-      for (let i = 0; i < dates.length; i += weekSize) {
-        const w = new FlexStopTimesQueryVars()
-        w.fvSha1 = fv.sha1
-        w.limit = MAX_FLEX_LOCATIONS_PER_FEED_VERSION
-        for (const d of dates.slice(i, i + weekSize)) {
-          w.setDay(d)
-        }
-        if (!w.hasAnyDay()) { continue }
-        const stopTimesResponse = await this.client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
-        for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
-          for (const dowName of dowNames) {
-            const date = w.get(dowName)
-            if (!date) { continue }
-            if ((location[dowName]?.length ?? 0) > 0) {
-              flexDepartures.push(FlexDepartureTuple.create(location.id, date))
-            }
-          }
-        }
-      }
-      if (flexDepartures.length > 0) {
-        this.updateProgress('flex-areas', true, { flexDepartures })
-      }
-    }
-  }
-
-  // Skipped without `tableDatasetName` + `aggregateLayer`. Bbox is padded by
-  // the radius so edge-crossing buffers can apportion against the right tracts.
-  private async fetchCensusValues (): Promise<void> {
+  // Gating + config projection around the census-values phase; the inline
+  // path passes the already-resolved geography so the phase doesn't re-query.
+  private async fetchCensusValues (resolved: ResolvedGeographyContext): Promise<void> {
     if (this.config.includeCensus === false) {
       console.log('[CensusValues] Skipping (includeCensus = false)')
       return
@@ -779,44 +434,19 @@ export class ScenarioFetcher {
       console.log('[CensusValues] Skipping (tableDatasetName or aggregateLayer not set)')
       return
     }
-    if (!this.resolvedBbox) {
-      console.warn('[CensusValues] No resolved bbox — skipping')
-      return
-    }
-    this.updateProgress('census-values', true)
-    const radius = this.config.stopBufferRadius && this.config.stopBufferRadius > 0
-      ? this.config.stopBufferRadius
-      : 0
-    const fetchBbox = radius > 0 ? padBboxMeters(this.resolvedBbox, radius) : this.resolvedBbox
-    console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${aggregateLayer} (radius padding=${radius}m)`)
-    const features = await fetchCensusIntersection({
-      client: this.client,
+    await runCensusValuesPhase({
+      bbox: resolved.bbox,
+      within: resolved.within,
       geoDatasetName,
-      geoDatasetLayer: aggregateLayer,
       tableDatasetName,
-      tableNames: REQUIRED_ACS_TABLES,
-      bbox: fetchBbox,
-      within: this.resolvedWithin,
-    })
-    const entries: [string, CensusGeographyData][] = features.map(f => [
-      f.properties.geoid,
-      {
-        id: f.properties.geography_id,
-        name: f.properties.name,
-        values: f.properties.values,
-        intersectionRatio: f.properties.intersection_ratio,
-        geometryArea: f.properties.geometry_area,
-        intersectionArea: f.properties.intersection_area,
-        layer: aggregateLayer,
-      },
-    ])
-    console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
-    this.updateProgress('census-values', true, { censusGeographies: entries })
+      aggregateLayer,
+      stopBufferRadius: this.config.stopBufferRadius,
+    }, this.client, p => this.emitProgress(p))
   }
 
   // Delegates to `runBufferPasses` so the same logic runs standalone via
   // /api/buffer-geographies on radius/layer changes.
-  private async fetchBufferData (): Promise<void> {
+  private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[]): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
     if (this.config.includeCensus === false || radius <= 0 || !tableDatasetName) {
@@ -828,328 +458,13 @@ export class ScenarioFetcher {
         layer: this.config.stopBufferLayer || STOP_BUFFER_DEFAULT_LAYER,
         geoDatasetName,
         tableDatasetName,
-        stopIds: [...this.bufferStopIds],
-        routeIds: [...this.bufferRouteIds],
-        agencyIds: [...this.bufferAgencyIds],
-        stopChunkSize: this.stopTimeBatchSize,
+        stopIds,
+        routeIds,
+        agencyIds,
       },
       this.client,
-      progress => this.callbacks.onProgress?.(progress),
+      progress => this.emitProgress(progress),
     )
-  }
-
-  // Fetch active feed versions in the specified area
-  private async fetchFeedVersions (): Promise<FeedVersion[]> {
-    let searchBbox = this.config.bbox
-    // If using one or more administrative boundaries, compute a bbox around them
-    if (this.config.geographyIds && this.config.geographyIds.length > 0) {
-      // First get the geometry for the administrative boundaries
-      const geogResponse = await this.client.query<{ census_datasets: { geographies: { geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon }[] }[] }>(
-        geographyLayerQuery,
-        {
-          geography_ids: this.config.geographyIds,
-          include_geographies: true,
-          dataset_name: this.config.geoDatasetName
-        }
-      )
-
-      // Combine all geometries into a FeatureCollection
-      const features = geogResponse.data?.census_datasets?.[0]?.geographies?.map(g => ({
-        type: 'Feature' as const,
-        geometry: g.geometry,
-        properties: {}
-      })) || []
-
-      if (features.length > 0) {
-        const fc = {
-          type: 'FeatureCollection' as const,
-          features
-        }
-
-        // Calculate bbox that contains all administrative boundaries
-        const [minX, minY, maxX, maxY] = bbox(fc)
-        searchBbox = {
-          sw: { lon: minX, lat: minY },
-          ne: { lon: maxX, lat: maxY },
-          valid: true
-        }
-
-        // Backend `within` is typed as Polygon, so for a MultiPolygon pick
-        // the largest part as a stand-in until #347 lands.
-        const firstGeom: GeoJSON.Geometry = features[0]!.geometry
-        if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
-          let bestCoords = firstGeom.coordinates[0]!
-          let bestArea = area({ type: 'Polygon', coordinates: bestCoords })
-          for (let i = 1; i < firstGeom.coordinates.length; i++) {
-            const coords = firstGeom.coordinates[i]!
-            const a = area({ type: 'Polygon', coordinates: coords })
-            if (a > bestArea) {
-              bestCoords = coords
-              bestArea = a
-            }
-          }
-          this.resolvedWithin = { type: 'Polygon', coordinates: bestCoords }
-          if (firstGeom.coordinates.length > 1) {
-            console.warn(`[Scenario] Admin boundary is a MultiPolygon with ${firstGeom.coordinates.length} parts; using the largest part for census intersection (#347).`)
-          }
-        } else if (firstGeom.type === 'Polygon') {
-          this.resolvedWithin = firstGeom
-        }
-      } else {
-        console.warn('No features found in census datasets response')
-      }
-    }
-
-    this.resolvedBbox = searchBbox
-
-    // Use the bbox (either user-specified or computed around admin boundaries) to query feed versions
-    // Paginate to ensure we get all feeds (API default limit is 100)
-    const bboxForQuery = convertBbox(searchBbox)
-    const allFeeds: FeedGql[] = []
-    let after = 0
-    while (true) {
-      const variables = { where: { bbox: bboxForQuery }, limit: this.feedVersionPageSize, after }
-      const response = await this.client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
-      const page = response.data?.feeds || []
-      // Drop feeds with known-broken bbox metadata so they don't poison
-      // every other bbox query with their over-broad coverage claim.
-      for (const f of page) {
-        if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
-        allFeeds.push(f)
-      }
-      if (page.length < this.feedVersionPageSize) {
-        break
-      }
-      const nextAfter = parseInt(page[page.length - 1]!.id, 10)
-      if (!Number.isInteger(nextAfter)) {
-        throw new Error(`[FeedVersions] Invalid pagination cursor: id="${page[page.length - 1]!.id}" did not parse as an integer`)
-      }
-      after = nextAfter
-    }
-    const feedVersions = await this.resolveFeedVersionsForScenario(allFeeds)
-
-    this.updateProgress('feed-versions', true, { feedVersions })
-
-    return feedVersions
-  }
-
-  // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
-  // (pure projection, tested separately).
-  private async resolveFeedVersionsForScenario (allFeeds: FeedGql[]): Promise<FeedVersion[]> {
-    const overrides = new Map<string, number>(
-      this.config.feedVersionOverrides ? Object.entries(this.config.feedVersionOverrides) : []
-    )
-    const excluded = new Set<string>(this.config.excludedFeeds || [])
-
-    const overrideById = new Map<number, FeedVersion>()
-    if (overrides.size > 0) {
-      const needed: number[] = []
-      for (const f of allFeeds) {
-        if (excluded.has(f.onestop_id)) { continue }
-        const id = overrides.get(f.onestop_id)
-        if (id != null) { needed.push(id) }
-      }
-      if (needed.length > 0) {
-        const resp = await this.client.query<{ feed_versions: FeedVersion[] }>(
-          feedVersionsByIdsQuery,
-          { ids: needed }
-        )
-        for (const fv of resp.data?.feed_versions || []) {
-          // fv.id arrives as a string from GraphQL — coerce for Map key parity.
-          const idNum = typeof fv.id === 'string' ? parseInt(fv.id, 10) : fv.id
-          if (Number.isFinite(idNum)) { overrideById.set(idNum, fv) }
-        }
-      }
-    }
-
-    const { feedVersions, missing } = applyFeedVersionOverrides(allFeeds, overrides, excluded, overrideById)
-    if (missing.length > 0) {
-      const msg = `Could not resolve ${missing.length} pinned feed version(s): ${missing.map(m => `${m.onestop_id}:${m.fv_id}`).join(', ')}`
-      console.warn(`[Scenario] ${msg}`)
-      this.pendingWarnings.push(msg)
-    }
-    return feedVersions
-  }
-
-  // Fetch stops from GraphQL API
-  private async fetchStops (task: StopFetchTask): Promise<void> {
-    // If we have geography IDs, use them and no bbox
-    // If we don't, use the bbox from the config
-    const geoIds = this.config.geographyIds || []
-    const b = geoIds.length > 0 ? null : convertBbox(this.config.bbox)
-    const variables = {
-      after: task.after,
-      limit: this.stopLimit,
-      dataset_name: this.config.geoDatasetName,
-      where: {
-        location_type: 0,
-        feed_version_sha1: task.feedVersionSha1,
-        location: {
-          bbox: geoIds.length > 0 ? null : b,
-          geography_ids: geoIds.length > 0 ? geoIds : null,
-        }
-      }
-    }
-    const response = await this.client.query<{ stops: StopGql[] }>(stopQuery, variables)
-    const stopData: StopGql[] = response.data?.stops || []
-    console.log(`Fetched ${stopData.length} stops from ${task.feedOnestopId}:${task.feedVersionSha1}`)
-
-    // Send progress updates in batches using the generic helper function
-    for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
-      this.updateProgress('stops', true, { stops: stopBatch })
-    }
-
-    // Extract route IDs and fetch routes
-    const routeIds: Set<number> = new Set()
-    for (const stop of stopData) {
-      for (const rs of stop.route_stops || []) {
-        if (this.fetchedRouteIds.has(rs.route?.id)) {
-          continue
-        }
-        routeIds.add(rs.route?.id)
-        this.fetchedRouteIds.add(rs.route?.id) // add pre-emptively...
-      }
-    }
-    this.routeFetchQueue.enqueueOne({ feedOnestopId: task.feedOnestopId, feedVersionSha1: task.feedVersionSha1, ids: [...routeIds] })
-
-    // Enqueue stop departure fetching
-    const stopIds = stopData.map(s => s.id)
-    if (this.config.includeDepartures !== false) {
-      const dates = getSelectedDateRange(this.config)
-      const weekSize = 7
-      // Build all tasks first
-      for (let sid = 0; sid < stopIds.length; sid += this.stopTimeBatchSize) {
-        for (let i = 0; i < dates.length; i += weekSize) {
-          const w = new StopDepartureQueryVars()
-          w.ids = stopIds.slice(sid, sid + this.stopTimeBatchSize)
-          for (const d of dates.slice(i, i + weekSize)) {
-            w.setDay(d)
-          }
-          this.stopDepartureQueue.enqueueOne(w)
-        }
-      }
-    }
-
-    if ((this.config.stopBufferRadius ?? 0) > 0) {
-      for (const id of stopIds) {
-        this.bufferStopIds.add(id)
-      }
-    }
-
-    // Continue fetching more stops only if we got a full batch
-    // If we got fewer than the limit, we've reached the end
-    const lastStopId = stopIds[stopIds.length - 1]
-    if (stopData.length >= this.stopLimit && stopIds.length > 0 && lastStopId !== undefined) {
-      this.stopFetchQueue.enqueueOne({
-        after: lastStopId,
-        feedOnestopId: task.feedOnestopId,
-        feedVersionSha1: task.feedVersionSha1
-      })
-    }
-  }
-
-  // Fetch routes from GraphQL API
-  private async fetchRoutes (task: RouteFetchTask): Promise<void> {
-    if (task.ids.length === 0) {
-      return
-    }
-    const response = await this.client.query<{ routes: RouteGql[] }>(routeQuery, { ids: task.ids })
-    const routeData = response.data?.routes || []
-    for (const route of routeData) {
-      this.fetchedRouteIds.add(route.id)
-    }
-
-    // Send progress updates in batches using the generic helper function
-    for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
-      this.updateProgress('routes', true, { routes: routeBatch })
-    }
-
-    if ((this.config.stopBufferRadius ?? 0) > 0) {
-      for (const r of routeData) {
-        this.bufferRouteIds.add(r.id)
-        const aid = r.agency?.id
-        if (aid != null) {
-          this.bufferAgencyIds.add(aid)
-        }
-      }
-    }
-
-    console.log(`Fetched ${routeData.length} routes from ${task.feedOnestopId}:${task.feedVersionSha1}`)
-  }
-
-  // Fetch stop departures from GraphQL API
-  private async fetchStopDepartures (task: StopDepartureQueryVars): Promise<void> {
-    if (task.ids.length === 0) {
-      return
-    }
-    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const fetchDates = dowDateStringLower.filter(s => task.get(s)).map(s => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
-    console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
-    const q = this.config.departureMode === 'departures' ? stopDepartureQuery : stopTimeQuery
-    const response = await this.client.query<{ stops: StopDeparture[] }>(q, task)
-    // Map into simpler format for wire format
-    const stopDepartures: StopDepartureTuple[] = []
-    const tripIdStrings = new Map<number, string>()
-    for (const stop of response.data?.stops || []) {
-      for (const dow of dowDateStringLower) {
-        const dowDate = task.get(dow)
-        if (!dowDate) {
-          continue
-        }
-        const stopTimes = (() => {
-          switch (dow) {
-            case 'monday':
-              return stop.monday || []
-            case 'tuesday':
-              return stop.tuesday || []
-            case 'wednesday':
-              return stop.wednesday || []
-            case 'thursday':
-              return stop.thursday || []
-            case 'friday':
-              return stop.friday || []
-            case 'saturday':
-              return stop.saturday || []
-            case 'sunday':
-              return stop.sunday || []
-            default:
-              return []
-          }
-        })()
-        for (const st of stopTimes) {
-          stopDepartures.push(StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
-          if (st.trip.trip_id && !tripIdStrings.has(st.trip.id)) {
-            tripIdStrings.set(st.trip.id, st.trip.trip_id)
-          }
-        }
-      }
-    }
-
-    // Send progress updates in batches using the generic helper function.
-    // The tripIdStrings sidecar rides on the first batch; subsequent batches
-    // in the same fetch would only duplicate the same entries, so we clear it.
-    const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
-    let sentTripIdStrings = false
-    for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
-      this.updateProgress('schedules', true, {
-        stopDepartures: stopDepartureBatch,
-        tripIdStrings: sentTripIdStrings ? undefined : tripIdStringPairs,
-      })
-      sentTripIdStrings = true
-    }
-  }
-
-  private async updateProgress (stage: ScenarioProgress['currentStage'], loading: boolean, newData?: ScenarioProgress['partialData']) {
-    const warnings = this.pendingWarnings.length > 0 ? this.pendingWarnings : undefined
-    if (warnings) { this.pendingWarnings = [] }
-    this.callbacks.onProgress?.({
-      isLoading: loading,
-      stopDepartureProgress: this.stopDepartureProgress,
-      feedVersionProgress: this.feedVersionProgress,
-      currentStage: stage,
-      partialData: newData,
-      warnings,
-    })
   }
 }
 
@@ -1302,7 +617,3 @@ export class ScenarioStreamSender extends GenericStreamSender<ScenarioProgress> 
  * Streaming client processes readable streams and uses ScenarioDataReceiver
  */
 export class ScenarioStreamReceiver extends GenericStreamReceiver<ScenarioProgress, ScenarioData> {}
-
-//////////////////////
-// Moved from core
-//////////////////////
