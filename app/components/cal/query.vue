@@ -14,7 +14,16 @@
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
     </cat-msg>
 
-    <div class="cal-body" :class="{ 'is-locked': props.scenarioLoaded }">
+    <!-- A named form makes the query controls a landmark screen reader
+         users can jump to. All buttons inside are type=button and the
+         widgets consume their own Enter keys, so there is no implicit
+         submission; submit.prevent guards the residual cases. -->
+    <form
+      class="cal-body"
+      :class="{ 'is-locked': props.scenarioLoaded }"
+      aria-label="Transit network query parameters"
+      @submit.prevent
+    >
       <cat-msg title="Date range">
         <cat-field>
           <template #label>
@@ -291,7 +300,7 @@
       >
         {{ queryBlockedReason }}
       </p>
-    </div>
+    </form>
 
     <cal-feed-version-picker-modal
       v-model:open="showFvPicker"
