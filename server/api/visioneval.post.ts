@@ -1,6 +1,6 @@
 import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
-import { BasicGraphQLClient, apiFetch } from '~~/src/core'
-import { resolveAccessToken } from '~~/server/utils/auth'
+import { setStreamHeaders } from '~~/server/utils/phase-stream'
+import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -22,17 +22,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Set streaming headers
-  setHeader(event, 'content-type', 'application/x-ndjson')
-  setHeader(event, 'cache-control', 'no-cache')
-  setHeader(event, 'connection', 'keep-alive')
-
-  const token = await resolveAccessToken(event)
-  const runtimeConfig = useRuntimeConfig(event)
-  const client = new BasicGraphQLClient(
-    runtimeConfig.tlv2.proxyBase.default + '/query',
-    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
-  )
+  setStreamHeaders(event)
+  const client = await buildServerGraphQLClient(event)
 
   // Create a readable stream for the response
   const stream = new ReadableStream({
