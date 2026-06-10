@@ -1,7 +1,6 @@
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
-import { setNdjsonStreamHeaders } from '~~/server/utils/phase-stream'
+import { setStreamHeaders } from '~~/server/utils/phase-stream'
 import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
-import { compressStream } from '~~/server/utils/compress'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -16,7 +15,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setNdjsonStreamHeaders(event)
+  setStreamHeaders(event)
   const client = await buildServerGraphQLClient(event)
 
   // Create a readable stream for the response
@@ -26,5 +25,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return sendStream(event, compressStream(event, stream))
+  return sendStream(event, stream)
 })

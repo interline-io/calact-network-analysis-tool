@@ -8,14 +8,13 @@ import { setHeader, sendStream } from 'h3'
 import { requestStream, type GraphQLClient } from '~~/src/core'
 import { ScenarioStreamSender, type ScenarioProgress } from '~~/src/scenario'
 import { buildServerGraphQLClient } from './graphql-client'
-import { compressStream } from './compress'
 
-export function setNdjsonStreamHeaders (event: H3Event): void {
-  // The body is NDJSON, but typed as application/json: Cloudflare's edge
-  // compresses only content types on its default list, which includes
-  // application/json but not application/x-ndjson — and on workers
-  // deployments the edge is the only thing allowed to compress (see
-  // compress.ts). Our stream consumers never sniff the content type.
+// Headers for the NDJSON progress streams. The body is NDJSON, but typed as
+// application/json: compression is the edge's job (the Cloudflare workers
+// runtime strips origin Content-Encoding), and the edge only compresses
+// content types on its default list — which includes application/json but
+// not application/x-ndjson. Our stream consumers never sniff the type.
+export function setStreamHeaders (event: H3Event): void {
   setHeader(event, 'content-type', 'application/json; charset=utf-8')
   setHeader(event, 'cache-control', 'no-cache')
   setHeader(event, 'connection', 'keep-alive')
@@ -26,7 +25,7 @@ export async function streamPhaseResponse (
   startMessage: string,
   run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void, onError: (error: any) => void) => Promise<unknown>,
 ) {
-  setNdjsonStreamHeaders(event)
+  setStreamHeaders(event)
   const client = await buildServerGraphQLClient(event)
 
   const stream = new ReadableStream({
@@ -50,5 +49,5 @@ export async function streamPhaseResponse (
     }
   })
 
-  return sendStream(event, compressStream(event, stream))
+  return sendStream(event, stream)
 }

@@ -4,9 +4,8 @@ import { createError } from 'h3'
 import type { BufferFetchConfig } from '~~/src/scenario'
 import { streamBufferGeographies } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setNdjsonStreamHeaders } from '~~/server/utils/phase-stream'
+import { setStreamHeaders } from '~~/server/utils/phase-stream'
 import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
-import { compressStream } from '~~/server/utils/compress'
 
 export default defineEventHandler(async (event) => {
   logMemory('buffer-request-start')
@@ -27,7 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'at least one of stopIds/routeIds/agencyIds must be non-empty' })
   }
 
-  setNdjsonStreamHeaders(event)
+  setStreamHeaders(event)
   const client = await buildServerGraphQLClient(event)
 
   const stream = new ReadableStream({
@@ -37,5 +36,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return sendStream(event, compressStream(event, stream))
+  return sendStream(event, stream)
 })

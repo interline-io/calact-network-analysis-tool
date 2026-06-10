@@ -7,9 +7,8 @@ import { createError } from 'h3'
 import type { ScenarioConfig } from '~~/src/scenario'
 import { streamScenario } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setNdjsonStreamHeaders } from '~~/server/utils/phase-stream'
+import { setStreamHeaders } from '~~/server/utils/phase-stream'
 import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
-import { compressStream } from '~~/server/utils/compress'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')
@@ -25,7 +24,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setNdjsonStreamHeaders(event)
+  setStreamHeaders(event)
   const client = await buildServerGraphQLClient(event)
 
   logMemory('before-stream')
@@ -37,5 +36,5 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  return sendStream(event, compressStream(event, stream))
+  return sendStream(event, stream)
 })
