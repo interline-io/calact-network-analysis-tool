@@ -144,15 +144,18 @@
             Results limited to {{ props.viewportGeographiesLimit ?? 1000 }} boundaries. Zoom in to see all boundaries in the viewport.
           </p>
 
-          <cat-field>
-            <template #label>
-              Selected administrative boundaries
-              <span v-if="geographyIds.length > 0" class="ml-2">
-                <a role="button" class="is-size-7" @click="emit('fitToGeographies')">Show on map</a>
-                <span class="mx-1">|</span>
-                <a role="button" class="is-size-7" @click="emit('clearGeographies')">Clear all</a>
-              </span>
-            </template>
+          <cat-field label="Selected administrative boundaries">
+            <!-- Real buttons outside the label element: the previous href-less
+                 anchors inside the label slot were keyboard-unreachable and
+                 their text polluted the taginput's accessible name. -->
+            <div v-if="geographyIds.length > 0" class="cal-boundary-actions">
+              <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
+                Show on map
+              </cat-button>
+              <cat-button variant="ghost" size="small" @click="emit('clearGeographies')">
+                Clear all
+              </cat-button>
+            </div>
             <cat-taginput
               v-model="geographyIds"
               v-model:input="geomSearch"
@@ -625,6 +628,13 @@ const validQueryParams = computed(() => {
 </script>
 
 <style scoped lang="scss">
+  .cal-boundary-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
   .cal-query {
     max-width: v-bind(panelWidthPx);
     display:flex;
