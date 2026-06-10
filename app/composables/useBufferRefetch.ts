@@ -2,7 +2,7 @@
 // result into the existing ScenarioDataReceiver so non-buffer state (stops,
 // routes, departures, …) stays untouched.
 
-import { shallowRef, watch, onScopeDispose, type Ref, type ShallowRef } from 'vue'
+import { markRaw, shallowRef, watch, onScopeDispose, type Ref, type ShallowRef } from 'vue'
 import { useScenarioInputs } from './useScenarioInputs'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
 import {
@@ -63,7 +63,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
     abort = localAbort
 
     receiver.clearBufferGeographies()
-    deps.scenarioData.value = receiver.getCurrentData()
+    deps.scenarioData.value = markRaw(receiver.getCurrentData())
 
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
@@ -107,7 +107,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): UseBufferRefetchR
       if (!success) {
         throw new Error('Buffer refetch stream ended unexpectedly')
       }
-      deps.scenarioData.value = receiver.getCurrentData()
+      deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         return

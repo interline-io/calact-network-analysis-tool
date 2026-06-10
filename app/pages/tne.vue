@@ -431,7 +431,11 @@ const runQuery = async () => {
 
 // Scenario data ref - defined early so flex computed properties can reference it
 // This is populated when fetchScenario runs
-const scenarioData = ref<ScenarioData>()
+// shallowRef + markRaw: scenario data is huge and updated only by whole-shell
+// replacement (getCurrentData returns a fresh object per batch), so deep
+// proxying would add tracking overhead on every stop/route/departure read
+// without enabling anything.
+const scenarioData = shallowRef<ScenarioData>()
 
 // Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
 // Raw data comes from scenario stream via scenarioData.flexAreas
@@ -1028,7 +1032,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
 
 // Internal state for streaming scenario data
 // Note: scenarioData is defined earlier in the file (before useFlexAreas)
-const scenarioFilterResult = ref<ScenarioFilterResult | undefined>(undefined)
+const scenarioFilterResult = shallowRef<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
@@ -1178,12 +1182,12 @@ const fetchScenario = async (loadExample: string) => {
       if (!hasRoutes && !hasStops && !hasFlexAreas) {
         return
       }
-      scenarioData.value = receiver.getCurrentData()
+      scenarioData.value = markRaw(receiver.getCurrentData())
     },
     onComplete: () => {
       // Get final accumulated data and apply filters
       loadingProgress.value = undefined
-      scenarioData.value = receiver.getCurrentData()
+      scenarioData.value = markRaw(receiver.getCurrentData())
     },
     onError: (err: any) => {
       error.value = err
@@ -1229,7 +1233,7 @@ watch(() => [
   if (!scenarioData.value) {
     return
   }
-  scenarioFilterResult.value = applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value)
+  scenarioFilterResult.value = markRaw(applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value))
 })
 
 /////////////////
