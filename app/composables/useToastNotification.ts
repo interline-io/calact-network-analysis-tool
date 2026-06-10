@@ -54,6 +54,12 @@ export const useToastNotification = () => {
       transition: all 0.3s ease;
     `
     toast.textContent = message
+    if (variant === 'danger') {
+      // Errors must interrupt: role=alert announces reliably on insertion.
+      // The polite container may re-announce it in some screen readers; an
+      // extra announcement is preferable to a missed error.
+      toast.setAttribute('role', 'alert')
+    }
     container.appendChild(toast)
 
     requestAnimationFrame(() => {
