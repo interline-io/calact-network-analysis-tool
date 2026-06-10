@@ -15,8 +15,8 @@ importers:
         specifier: 3.13.4
         version: 3.13.4(graphql@16.10.0)
       '@interline-io/catenary':
-        specifier: 0.4.0
-        version: 0.4.0(@mdi/font@7.4.47)(bulma@1.0.4)(vue-router@4.6.4(vue@3.5.22(typescript@5.9.3)))(vue@3.5.22(typescript@5.9.3))
+        specifier: 0.5.0
+        version: 0.5.0(@mdi/font@7.4.47)(bulma@1.0.4)(vue-router@4.6.4(vue@3.5.22(typescript@5.9.3)))(vue@3.5.22(typescript@5.9.3))
       '@interline-io/tlv2-auth':
         specifier: 0.1.0-sha.ad5c03e
         version: 0.1.0-sha.ad5c03e(h3@1.15.8)(nuxt@4.2.0(@parcel/watcher@2.5.6)(@types/node@25.5.0)(@vue/compiler-sfc@3.5.30)(cac@6.7.14)(db0@0.3.4)(eslint@9.39.1(jiti@2.6.1))(ioredis@5.10.0)(magicast@0.3.5)(optionator@0.9.4)(rollup@4.59.0)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(typescript@5.9.3)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.93.3)(sass@1.93.3)(terser@5.46.1)(tsx@4.20.3)(yaml@2.8.2))(vue-tsc@3.1.1(typescript@5.9.3))(yaml@2.8.2))(vue@3.5.22(typescript@5.9.3))
@@ -735,8 +735,8 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@interline-io/catenary@0.4.0':
-    resolution: {integrity: sha512-mIvvqgQKAFrAPFvVk9huVmnCCtR05OW5PU82FEN9VO0cR1qxS66JnOtNeZpHAzYn4jA1OOYZT8VP8zmOlSoB4g==, tarball: https://npm.pkg.github.com/download/@interline-io/catenary/0.4.0/6d1eb95f9338b518eef058ab60114851f25c3927}
+  '@interline-io/catenary@0.5.0':
+    resolution: {integrity: sha512-6GBICpGs5VjRTGi1lME2Vo/Y2R60DQUWGvUk1OLmzbX5z3+PLY8FC5weT3GCXafQ5Li2YsbHzNSpu9kntX8n+g==, tarball: https://npm.pkg.github.com/download/@interline-io/catenary/0.5.0/dd8a0c8f2add352a2d06cd4f490adf294eeea8d5}
     peerDependencies:
       '@mdi/font': ^7.4.0
       bulma: ^1.0.0
@@ -5699,7 +5699,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@interline-io/catenary@0.4.0(@mdi/font@7.4.47)(bulma@1.0.4)(vue-router@4.6.4(vue@3.5.22(typescript@5.9.3)))(vue@3.5.22(typescript@5.9.3))':
+  '@interline-io/catenary@0.5.0(@mdi/font@7.4.47)(bulma@1.0.4)(vue-router@4.6.4(vue@3.5.22(typescript@5.9.3)))(vue@3.5.22(typescript@5.9.3))':
     dependencies:
       '@mdi/font': 7.4.47
       bulma: 1.0.4

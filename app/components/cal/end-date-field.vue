@@ -13,7 +13,6 @@
         :max-date="maxDate"
         :years-range="yearsRange"
         :variant="invalid ? 'danger' : undefined"
-        readonly
       />
       <!-- camelCase keys in a v-bind object: matches the ariaLabel/title props
            (catenary 0.4.0) and avoids vue/attribute-hyphenation rewriting a
