@@ -58,3 +58,32 @@ test.describe('Browse query results', () => {
     await expect(page.getByText('Display')).toBeVisible({ timeout: 5000 })
   })
 })
+
+// The disabled run buttons must expose why they are disabled (#390): a visible
+// reason below them, wired to both buttons via aria-describedby. This exercises
+// only client-side state (no query run, no boundary data needed).
+test.describe('Run query disabled-state explanation', () => {
+  test('explains the blocker and clears it once resolved', async ({ page }) => {
+    await page.goto('/tne?bbox=-122.69075,45.51358,-122.66809,45.53306')
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByText('Transit Network Explorer')).toBeVisible({ timeout: 15000 })
+
+    const runButton = page.getByRole('button', { name: 'Run Browse Query' })
+    const reason = page.locator('#cal-query-blocked-reason')
+
+    // A valid bbox makes the query runnable: no reason shown.
+    await expect(runButton).toBeEnabled()
+    await expect(reason).toHaveText('')
+
+    // Administrative boundaries with nothing selected blocks the query.
+    await page.getByLabel(/Select geography by/).selectOption('adminBoundary')
+    await expect(runButton).toBeDisabled()
+    await expect(reason).toContainText('select at least one administrative boundary')
+    await expect(runButton).toHaveAttribute('aria-describedby', 'cal-query-blocked-reason')
+
+    // Switching back to the bounding box clears the blocker.
+    await page.getByLabel(/Select geography by/).selectOption('bbox')
+    await expect(runButton).toBeEnabled()
+    await expect(reason).toHaveText('')
+  })
+})

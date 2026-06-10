@@ -14,7 +14,16 @@
       <p>Start by specifying your desired date range and geographic bounds. To explore stops, routes, and frequencies on the map and in tabular view click <em>Run Browse Query</em>. Or for more specialized analysis, click <em>Run Advanced Analysis</em>.</p>
     </cat-msg>
 
-    <div class="cal-body" :class="{ 'is-locked': props.scenarioLoaded }">
+    <!-- A named form makes the query controls a landmark screen reader
+         users can jump to. All buttons inside are type=button and the
+         widgets consume their own Enter keys, so there is no implicit
+         submission; submit.prevent guards the residual cases. -->
+    <form
+      class="cal-body"
+      :class="{ 'is-locked': props.scenarioLoaded }"
+      aria-label="Transit network query parameters"
+      @submit.prevent
+    >
       <cat-msg title="Date range">
         <cat-field>
           <template #label>
@@ -29,7 +38,6 @@
             :max-date="pickerMaxDate"
             :years-range="datePickerYearsRange"
             :variant="isStartDateInRange ? undefined : 'danger'"
-            readonly
           />
         </cat-field>
         <cal-end-date-field
@@ -136,15 +144,18 @@
             Results limited to {{ props.viewportGeographiesLimit ?? 1000 }} boundaries. Zoom in to see all boundaries in the viewport.
           </p>
 
-          <cat-field>
-            <template #label>
-              Selected administrative boundaries
-              <span v-if="geographyIds.length > 0" class="ml-2">
-                <a role="button" class="is-size-7" @click="emit('fitToGeographies')">Show on map</a>
-                <span class="mx-1">|</span>
-                <a role="button" class="is-size-7" @click="emit('clearGeographies')">Clear all</a>
-              </span>
-            </template>
+          <cat-field label="Selected administrative boundaries">
+            <!-- Real buttons outside the label element: the previous href-less
+                 anchors inside the label slot were keyboard-unreachable and
+                 their text polluted the taginput's accessible name. -->
+            <div v-if="geographyIds.length > 0" class="cal-boundary-actions">
+              <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
+                Show on map
+              </cat-button>
+              <cat-button variant="ghost" size="small" @click="emit('clearGeographies')">
+                Clear all
+              </cat-button>
+            </div>
             <cat-taginput
               v-model="geographyIds"
               v-model:input="geomSearch"
@@ -273,14 +284,26 @@
       </cat-msg>
 
       <div class="field has-addons cal-query-actions">
-        <cat-button variant="primary" :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('explore')">
+        <cat-button variant="primary" :disabled="!validQueryParams" v-bind="runButtonA11y" class="is-fullwidth is-large" @click="emit('explore')">
           Run Browse Query
         </cat-button>
-        <cat-button variant="primary" outlined :disabled="!validQueryParams" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
+        <cat-button variant="primary" outlined :disabled="!validQueryParams" v-bind="runButtonA11y" class="is-fullwidth is-large" @click="emit('switchToAnalysisTab')">
           Run Advanced Analysis
         </cat-button>
       </div>
-    </div>
+      <!-- Explains why the run buttons are disabled (#390: a screen reader
+           user could not tell). Referenced by both buttons via
+           aria-describedby, and always rendered so the polite live region
+           reliably announces when the blocker appears or clears. -->
+      <p
+        id="cal-query-blocked-reason"
+        class="help cal-query-blocked-reason"
+        :class="{ 'is-danger': queryBlockedReason }"
+        aria-live="polite"
+      >
+        {{ queryBlockedReason }}
+      </p>
+    </form>
 
     <cal-feed-version-picker-modal
       v-model:open="showFvPicker"
@@ -550,6 +573,36 @@ const selectedGeographyTagOptions = computed((): { value: number, label: string 
   return results
 })
 
+// Spread as a v-bind object typed as a plain record: strictTemplates rejects
+// undeclared attributes written directly on a component, but aria-describedby
+// is a legitimate fallthrough attr that cat-button forwards to its native
+// button element.
+const runButtonA11y: Record<string, string> = { 'aria-describedby': 'cal-query-blocked-reason' }
+
+// Human-readable reason the run buttons are disabled, shown below them and
+// referenced via aria-describedby (#390). Empty when the query is runnable.
+const queryBlockedReason = computed(() => {
+  if (validQueryParams.value) {
+    return ''
+  }
+  if (!startDate.value) {
+    return 'Cannot run query yet: select a start date.'
+  }
+  if (!isStartDateInRange.value || !isEndDateInRange.value) {
+    return 'Cannot run query: dates are outside the Feed Archive range.'
+  }
+  if (!isEndDateValid.value) {
+    return 'Cannot run query: the end date is before the start date.'
+  }
+  if (geomSource.value === 'adminBoundary' && (geographyIds.value?.length ?? 0) === 0) {
+    return 'Cannot run query: select at least one administrative boundary.'
+  }
+  if (!bbox?.value?.valid) {
+    return 'Cannot run query: set the geographic bounds first.'
+  }
+  return 'Cannot run query: required parameters are missing.'
+})
+
 const validQueryParams = computed(() => {
   const hasValidDate = startDate.value
   const hasValidBounds = bbox?.value?.valid
@@ -575,6 +628,13 @@ const validQueryParams = computed(() => {
 </script>
 
 <style scoped lang="scss">
+  .cal-boundary-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+
   .cal-query {
     max-width: v-bind(panelWidthPx);
     display:flex;

@@ -10,11 +10,15 @@ export const useToastNotification = () => {
     }
   }
 
-  const showToast = (message: string, variant: ToastVariant = 'primary', duration: number = 3000) => {
+  // The container is a persistent polite live region: screen readers only
+  // announce additions to a live region that already exists, so it is created
+  // once (ideally before the first toast) and never removed.
+  const ensureContainer = (): HTMLElement => {
     let container = document.getElementById('toast-container')
     if (!container) {
       container = document.createElement('div')
       container.id = 'toast-container'
+      container.setAttribute('aria-live', 'polite')
       // z-index must exceed `.cat-modal { z-index: 99999 !important }` in
       // app/assets/main.scss so toasts surface above an open modal.
       container.style.cssText = `
@@ -32,6 +36,12 @@ export const useToastNotification = () => {
       `
       document.body.appendChild(container)
     }
+    return container
+  }
+  ensureContainer()
+
+  const showToast = (message: string, variant: ToastVariant = 'primary', duration: number = 3000) => {
+    const container = ensureContainer()
 
     const toast = document.createElement('div')
     toast.className = `notification toast is-${variant}`
@@ -44,6 +54,12 @@ export const useToastNotification = () => {
       transition: all 0.3s ease;
     `
     toast.textContent = message
+    if (variant === 'danger') {
+      // Errors must interrupt: role=alert announces reliably on insertion.
+      // The polite container may re-announce it in some screen readers; an
+      // extra announcement is preferable to a missed error.
+      toast.setAttribute('role', 'alert')
+    }
     container.appendChild(toast)
 
     requestAnimationFrame(() => {
@@ -55,10 +71,10 @@ export const useToastNotification = () => {
       toast.style.opacity = '0'
       toast.style.transform = 'translateY(-20px)'
       setTimeout(() => {
+        // The container deliberately stays in the DOM: removing an empty live
+        // region and recreating it with the next toast makes screen readers
+        // miss the announcement.
         toast.remove()
-        if (container && container.children.length === 0) {
-          container.remove()
-        }
       }, 300)
     }, duration)
   }

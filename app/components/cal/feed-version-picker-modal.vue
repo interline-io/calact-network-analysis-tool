@@ -17,7 +17,6 @@
           :min-date="wideMinDate"
           :max-date="wideMaxDate"
           :years-range="wideYearsRange"
-          readonly
         />
       </cat-field>
       <cal-end-date-field

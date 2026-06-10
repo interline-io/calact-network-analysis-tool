@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@aitodotai/json-stringify-pretty-compact": "1.3.0",
-    "@interline-io/catenary": "0.4.0",
+    "@interline-io/catenary": "0.6.0",
     "@mdi/font": "7.4.47",
     "@interline-io/tlv2-auth": "0.1.0-sha.ad5c03e",
     "@apollo/client": "3.13.4",
