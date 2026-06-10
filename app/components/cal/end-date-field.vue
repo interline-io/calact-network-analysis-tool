@@ -5,24 +5,28 @@
         End date
       </slot>
     </template>
-    <div v-if="!singleDay" class="cal-end-date-field-range">
-      <cat-datepicker
-        ref="endPickerRef"
-        v-model="endModel"
-        :min-date="minDate"
-        :max-date="maxDate"
-        :years-range="yearsRange"
-        :variant="invalid ? 'danger' : undefined"
-      />
-      <!-- camelCase keys in a v-bind object: matches the ariaLabel/title props
-           (catenary 0.4.0) and avoids vue/attribute-hyphenation rewriting a
-           camelCase attribute back to kebab (which vue-tsc won't map to the prop). -->
-      <cat-button
-        icon="close"
-        v-bind="{ ariaLabel: 'Remove end date', title: singleDayTitle }"
-        @click="emit('update:singleDay', true)"
-      />
-    </div>
+    <cat-datepicker
+      v-if="!singleDay"
+      ref="endPickerRef"
+      v-model="endModel"
+      :min-date="minDate"
+      :max-date="maxDate"
+      :years-range="yearsRange"
+      :variant="invalid ? 'danger' : undefined"
+    >
+      <!-- The remove button joins the picker's addon group (catenary 0.6.0)
+           instead of floating beside it. camelCase keys in the v-bind object:
+           matches the ariaLabel/title props and avoids vue/attribute-hyphenation
+           rewriting a camelCase attribute back to kebab (which vue-tsc won't
+           map to the prop). -->
+      <template #addon>
+        <cat-button
+          icon="close"
+          v-bind="{ ariaLabel: 'Remove end date', title: singleDayTitle }"
+          @click="emit('update:singleDay', true)"
+        />
+      </template>
+    </cat-datepicker>
     <cat-button v-else ref="setEndButtonRef" @click="emit('update:singleDay', false)">
       Set an end date
     </cat-button>
@@ -86,11 +90,3 @@ watch(() => props.singleDay, async (single) => {
   }
 })
 </script>
-
-<style scoped>
-.cal-end-date-field-range {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-</style>
