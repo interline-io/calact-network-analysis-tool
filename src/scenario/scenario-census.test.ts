@@ -30,8 +30,8 @@ const TABLE_DATASET = 'acsdt5y2021'
 const BBOX: Bbox = parseBbox('-122.69075,45.51358,-122.66809,45.53306')
 
 // Known geographies in the bbox with total population (b01003_001) pinned to the
-// committed census-data .dat. Block group 1500000US410510051012 nests under tract
-// 1400000US41051005101.
+// rebuild-census.sh test DB (acsdt5y2021). Block group 1500000US410510051012 nests
+// under tract 1400000US41051005101.
 const CASES = [
   { layer: 'tract', geoid: '1400000US41051005101', name: 'Census Tract 51.01', pop: 3353 },
   { layer: 'bg', geoid: '1500000US410510051012', name: 'Block Group 2', pop: 1843 },
@@ -165,7 +165,7 @@ describe('scenario census pipeline (hermetic)', () => {
 //
 // The raw b01003_001 total population is bbox-clip-invariant (the server returns the
 // full-geography ACS value and reports clipping separately), so the pinned values are
-// deterministic against the committed dump.
+// deterministic against the rebuild-census.sh test DB.
 describe.skipIf(process.env.TEST_CENSUS !== 'true')('scenario census pipeline (integration)', () => {
   const client = new BasicGraphQLClient(
     (process.env.TRANSITLAND_API_BASE || '') + '/query',

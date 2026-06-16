@@ -9,8 +9,8 @@ set -ex -o pipefail
 : "${TL_DATABASE_URL:=postgres://localhost/calact_tlserver}"
 export TL_DATABASE_URL
 
-pg_restore --clean --if-exists --no-owner -d "$TL_DATABASE_URL" calact_tlserver.dump || true
-pg_restore --clean --if-exists --no-owner -d "$TL_DATABASE_URL" calact_tlserver-census.dump || true
+pg_restore --clean --if-exists --no-owner -d "$TL_DATABASE_URL" calact_tlserver.dump
+pg_restore --clean --if-exists --no-owner -d "$TL_DATABASE_URL" calact_tlserver-census.dump
 
 # Run server
 TL_LOG=trace transitland server --max-radius=100_000_000  --loader-stop-time-batch-size=1000 --long-query=0
