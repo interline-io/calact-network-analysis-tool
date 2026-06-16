@@ -183,7 +183,7 @@ describe('stopGeoAggregateCsv', () => {
       route_stops: [makeRouteStop({ routeInternalId: 10, agencyId: 1 })],
       census_geographies: [
         { id: 1, geoid: '100', layer_name: 'tract', name: 'Tract 100' },
-        { id: 2, geoid: '100-1', layer_name: 'blockgroup', name: 'BG 100-1' },
+        { id: 2, geoid: '100-1', layer_name: 'bg', name: 'BG 100-1' },
       ] as unknown as Stop['census_geographies'],
       visits: makeVisitSummary({ total: counts(5, 1) }),
     })
@@ -193,10 +193,10 @@ describe('stopGeoAggregateCsv', () => {
     expect(byTract[0]?.geoid).toBe('100')
     expect(byTract[0]?.layer_name).toBe('tract')
 
-    const byBg = stopGeoAggregateCsv([stop], 'blockgroup')
+    const byBg = stopGeoAggregateCsv([stop], 'bg')
     expect(byBg).toHaveLength(1)
     expect(byBg[0]?.geoid).toBe('100-1')
-    expect(byBg[0]?.layer_name).toBe('blockgroup')
+    expect(byBg[0]?.layer_name).toBe('bg')
 
     // Unknown layer: no match
     expect(stopGeoAggregateCsv([stop], 'county')).toHaveLength(0)

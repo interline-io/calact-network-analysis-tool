@@ -256,13 +256,15 @@ export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANE
 // #315 default: 402 m ≈ 1/4 mile (Tom). 0 disables the feature.
 export const STOP_BUFFER_DEFAULT_RADIUS = 402
 
-// Tract until transitland-server loads block-group (per #315 spec).
+// Tract is the default buffer layer (per #315 spec). Block group ('bg') is also
+// available wherever it's loaded; tract is kept as the default for stability.
 export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
   'county': { singular: 'County', plural: 'counties' },
   'tract': { singular: 'Census Tract', plural: 'census tracts' },
+  'bg': { singular: 'Block Group', plural: 'block groups' },
   'place': { singular: 'City/Place', plural: 'cities/places' },
   'cbsa': { singular: 'Metropolitan Area', plural: 'metropolitan areas' },
   'csa': { singular: 'Combined Statistical Area', plural: 'combined statistical areas' },

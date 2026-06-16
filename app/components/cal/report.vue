@@ -49,7 +49,7 @@
       </cat-tooltip>
     </div>
 
-    <!-- Buffer apportionment is only rolled up for state/county/tract — for
+    <!-- Buffer apportionment is only rolled up for state/county/tract/bg — for
          place/cbsa/csa/uac20 we'd need server-side geographic containment
          that doesn't exist yet. Surface this honestly rather than silently
          showing un-apportioned values. -->
@@ -61,7 +61,7 @@
     >
       <p>
         Stop statistical radius apportionment is only supported when aggregating
-        by State, County, or Census Tract. Demographic columns below show the
+        by State, County, Census Tract, or Block Group. Demographic columns below show the
         full geography's values (no buffer apportionment). Switch to a supported
         layer above, or set the stop statistical radius to 0 to acknowledge.
       </p>
