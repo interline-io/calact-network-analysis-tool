@@ -21,10 +21,12 @@ SKIP_FETCH=${SKIP_FETCH:-false}
 # field titles/order coming from the dataset's Table Shells file.
 ACS_TABLES=(b01001 b01003 b02001 b08301 b19013 b23024 b25002 b25003 b25044 c17002)
 
-# TIGER layers to load. bg omitted: the tool doesn't use block-group geometry (and the
-# table-based SF doesn't publish bg values for every table we need). uac20 omitted: the
-# loader pins it to the 2020 urban areas (TIGER2023) and the tool doesn't use it.
-TIGER_LAYERS=(state county place cbsa csa tract)
+# TIGER layers to load. bg (block group) is included so it can be selected alongside
+# tract for aggregation and buffer apportionment; the ACS .dat files already carry
+# whatever block-group values each table publishes (some tables only go down to tract,
+# which the UI renders as insufficient data). uac20 omitted: the loader pins it to the
+# 2020 urban areas (TIGER2023) and the tool doesn't use it.
+TIGER_LAYERS=(state county place cbsa csa tract bg)
 
 # refdata-load --fetch downloads missing files into the input dir and skips ones already
 # present; SKIP_FETCH=true loads straight from that cache without touching the network.

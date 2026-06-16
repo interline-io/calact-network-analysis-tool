@@ -2,9 +2,11 @@ import type { CensusValues } from './census-columns'
 import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
 import type { CensusGeographyData } from './census-intersection'
 
-// FIPS-prefix-rollup-safe layers. Place/cbsa/csa/uac/fta-uac20-nonurban need
-// server-side geometric containment (see #370).
-export const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract'])
+// FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
+// its parent's (block group nests in tract, tract in county, county in state), so
+// geoidFips prefix-matching rolls them up safely. Place/cbsa/csa/uac/fta-uac20-nonurban
+// don't nest by FIPS and need server-side geometric containment (see #370).
+export const HIERARCHICAL_TIGER_LAYERS = new Set(['state', 'county', 'tract', 'bg'])
 
 // Shared shape for `CensusGeographyData` (scenario pipeline) and
 // `BufferGeographyIntersection` (per-entity buffer fetch) — both pass

@@ -176,4 +176,28 @@ describe('geographiesForAggregationRow', () => {
   it('no match returns empty', () => {
     expect(geographiesForAggregationRow('0500000US99999', tracts)).toEqual([])
   })
+
+  it('rolls a block group up under its tract, county, and state', () => {
+    // A block-group geoid is its tract geoid (11 FIPS digits) plus one digit, so it
+    // prefix-nests under tract -> county -> state exactly like a tract does. This pins
+    // the bg membership added to HIERARCHICAL_TIGER_LAYERS.
+    const bgs = [
+      geography({ geoid: '1500000US410510101001', layer: 'bg' }), // tract 41051010100
+      geography({ geoid: '1500000US410510101002', layer: 'bg' }), // tract 41051010100
+      geography({ geoid: '1500000US410670301001', layer: 'bg' }), // Washington County
+    ]
+    expect(geographiesForAggregationRow('1400000US41051010100', bgs).map(g => g.geoid)).toEqual([
+      '1500000US410510101001',
+      '1500000US410510101002',
+    ])
+    expect(geographiesForAggregationRow('0500000US41051', bgs).map(g => g.geoid)).toEqual([
+      '1500000US410510101001',
+      '1500000US410510101002',
+    ])
+    expect(geographiesForAggregationRow('0400000US41', bgs).map(g => g.geoid)).toEqual([
+      '1500000US410510101001',
+      '1500000US410510101002',
+      '1500000US410670301001',
+    ])
+  })
 })

@@ -13,7 +13,7 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--end-time <time>', 'End time (HH:MM)', '22:00')
     .option('--output <format>', 'Output format (json|csv|summary)', 'summary')
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
-    .option('--aggregate-layer <layer>', 'Census geography layer for aggregation (e.g., tract, blockgroup)', 'tract')
+    .option('--aggregate-layer <layer>', 'Census geography layer for aggregation (e.g., tract, bg)', 'tract')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
     .option('--no-schedule', 'Disable schedule fetching')
 }
