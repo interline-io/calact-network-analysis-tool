@@ -2,11 +2,9 @@
 set -ex -o pipefail
 rm -rf data tmp || true; mkdir -p data tmp
 
-# Migrate
-export PGDATABASE="calact_tlserver"
-export PGHOST="localhost"
-export TL_DATABASE_URL="postgres://localhost/calact_tlserver"
-dropdb --if-exists calact_tlserver; createdb calact_tlserver
+# Migrate. The target DB is created externally; everything here connects via
+# $TL_DATABASE_URL (defaulting to a local calact_tlserver).
+: "${TL_DATABASE_URL:=postgres://localhost/calact_tlserver}"; export TL_DATABASE_URL
 transitland dbmigrate up
 transitland dbmigrate-natural-earth
 
@@ -18,11 +16,12 @@ find ./data -name "*.zip" | parallel --lb transitland fetch --allow-local-fetch 
 transitland import --activate --storage="tmp" --activate --workers=8
 
 # Set feeds to public
-psql -c "update feed_states set public = true"
+psql "$TL_DATABASE_URL" -c "update feed_states set public = true"
 
-# Load US Census ACS + TIGER data (for the #302 aggregation demographic
-# columns). Idempotent; see rebuild-census.sh for details.
-./rebuild-census.sh
-
-# Dump
-pg_dump -Fc -f calact_tlserver.dump calact_tlserver
+# Dump the base (GTFS/etc.) tables by allowlist. -T 'tl_census_*' still excludes the
+# census/NTD tables and their sequences (which the 'tl_*' pattern would otherwise match),
+# keeping the base and census dumps disjoint. Census/NTD: run ./rebuild-census.sh.
+pg_dump -Fc -f calact_tlserver.dump \
+  -t 'gtfs_*' -t 'tl_*' -t 'feed_*' -t 'ne_*' -t 'schema_migrations' -t 'current_*' \
+  -T 'tl_census_*' \
+  "$TL_DATABASE_URL"
