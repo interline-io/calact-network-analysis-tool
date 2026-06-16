@@ -1,74 +1,59 @@
 #!/bin/bash
-# Loads ACS + TIGER data into calact_tlserver for the test snapshot.
-# Filtered to WA/OR/CA. Assumes `tlv2` is on PATH.
+# Loads ACS + TIGER reference data into the calact test database via the tlv2 refdata
+# loader, then filters to WA/OR/CA for the test snapshot.
+#
+# Requires `tlv2` on PATH (from interline-io/tlv2: `cd cmd/tlv2 && go install .`) and
+# TL_DATABASE_URL pointing at the target DB — it WILL be truncated and rewritten. The
+# DB must already have the tl_census_* schema (`tlv2 dbmigrate up`).
 #
 # Env:
-#   CENSUS_YEAR  — vintage (default 2021)
-#   SKIP_FETCH   — "true" to reuse existing ./census-data instead of wget
+#   CENSUS_YEAR  — ACS/TIGER vintage (default 2021); any year resolves on demand
+#   SKIP_FETCH   — "true" to load from previously fetched files instead of downloading
 set -ex -o pipefail
 
+: "${TL_DATABASE_URL:?set TL_DATABASE_URL to the target database (it will be truncated)}"
 CENSUS_YEAR=${CENSUS_YEAR:-2021}
 SKIP_FETCH=${SKIP_FETCH:-false}
 
-# bg omitted: table-based SF doesn't publish block-group values for every
-# table we need. uac20 omitted: not published in TIGER before 2023.
-CENSUS_LAYERS="state county place cbsa csa tract"
-
-# ACS tables consumed by src/core/census-columns.ts. Keep in sync with
-# `REQUIRED_ACS_TABLES` (derived from the per-column `requiredTables`).
+# ACS detail tables consumed by src/core/census-columns.ts. Keep in sync with
+# REQUIRED_ACS_TABLES (derived from the per-column requiredTables). The loader's table
+# set is open: --table names any detail table id, synthesized from one template, with
+# field titles/order coming from the dataset's Table Shells file.
 ACS_TABLES=(b01001 b01003 b02001 b08301 b19013 b23024 b25002 b25003 b25044 c17002)
 
-CENSUS_BASE="ftp://ftp.census.gov/programs-surveys/acs/summary_file/${CENSUS_YEAR}/table-based-SF"
-TIGER_BASE="ftp://ftp.census.gov/geo/tiger/TIGER${CENSUS_YEAR}"
+# TIGER layers to load. bg omitted: the tool doesn't use block-group geometry (and the
+# table-based SF doesn't publish bg values for every table we need). uac20 omitted: the
+# loader pins it to the 2020 urban areas (TIGER2023) and the tool doesn't use it.
+TIGER_LAYERS=(state county place cbsa csa tract)
 
-mkdir -p census-data
-cd census-data
+# refdata-load --fetch downloads missing files into the input dir and skips ones already
+# present; SKIP_FETCH=true loads straight from that cache without touching the network.
+# Files are kept under census-data/<dataset> so they persist between runs.
+FETCH=(--fetch)
+[ "$SKIP_FETCH" = "true" ] && FETCH=()
 
-# -------- 1. Fetch --------
-if [ "$SKIP_FETCH" != "true" ]; then
-  wget -cr "${CENSUS_BASE}/documentation/Geos${CENSUS_YEAR}5YR.txt"
-  wget -cr "${CENSUS_BASE}/documentation/ACS${CENSUS_YEAR}1YR_Table_Shells.txt"
-  # Exact filename (no `*`) skips race/ethnicity sub-tables we don't use.
-  for tbl in "${ACS_TABLES[@]}"; do
-    wget -cr -A "acsdt5y${CENSUS_YEAR}-${tbl}.dat" "${CENSUS_BASE}/data/5YRData/"
-  done
-  for layer in $CENSUS_LAYERS; do
-    wget -cr "${TIGER_BASE}/$(echo "$layer" | tr a-z A-Z)/"
-  done
-else
-  echo "SKIP_FETCH=true — using existing files under census-data/"
-fi
+# -------- 1. Reset --------
+psql "$TL_DATABASE_URL" -c "TRUNCATE TABLE tl_census_datasets RESTART IDENTITY CASCADE;"
 
-# -------- 2. Reset --------
-psql -c "TRUNCATE TABLE tl_census_datasets RESTART IDENTITY CASCADE;"
+# -------- 2. Load ACS values --------
+ACS_ARGS=()
+for tbl in "${ACS_TABLES[@]}"; do ACS_ARGS+=(--table "$tbl"); done
+tlv2 refdata-load \
+  --dataset "acsdt5y${CENSUS_YEAR}" \
+  --input-dir "census-data/acsdt5y${CENSUS_YEAR}" \
+  "${FETCH[@]}" "${ACS_ARGS[@]}"
 
-# -------- 3. Load ACS values --------
-# Single invocation across all layers — per-layer invocations are
-# incompatible with --truncate-source (it would wipe the prior layer).
-TABLE_ARGS=()
-for tbl in "${ACS_TABLES[@]}"; do
-  TABLE_ARGS+=(--table="$(echo "$tbl" | tr a-z A-Z)")
-done
-tlv2 geodata-us-census-acs-table-load \
-  --truncate-source \
-  --dataset-name="acsdt5y${CENSUS_YEAR}" \
-  "${TABLE_ARGS[@]}" \
-  "ftp.census.gov/programs-surveys/acs/summary_file/${CENSUS_YEAR}/table-based-SF/documentation/ACS${CENSUS_YEAR}1YR_Table_Shells.txt" \
-  "ftp.census.gov/programs-surveys/acs/summary_file/${CENSUS_YEAR}/table-based-SF/data"
+# -------- 3. Load TIGER geometries --------
+TIGER_ARGS=()
+for layer in "${TIGER_LAYERS[@]}"; do TIGER_ARGS+=(--table "$layer"); done
+tlv2 refdata-load \
+  --dataset "tiger${CENSUS_YEAR}" \
+  --input-dir "census-data/tiger${CENSUS_YEAR}" \
+  "${FETCH[@]}" "${TIGER_ARGS[@]}"
 
-# -------- 4. Load TIGER geometries --------
-for layer in $CENSUS_LAYERS; do
-  layerup=$(echo "$layer" | tr a-z A-Z)
-  tlv2 geodata-us-census-tiger-load \
-    --dataset-name="tiger${CENSUS_YEAR}" \
-    --layer-name "$layer" \
-    --layer-level "$layer" \
-    --layer-desc "Layer: ${layer}" \
-    --dir "./ftp.census.gov/geo/tiger/TIGER${CENSUS_YEAR}/${layerup}/"
-done
-
-# -------- 5. Filter to WA (53), OR (41), CA (06) --------
-psql -c "delete from tl_census_values    where geoid !~ '.*US(06|41|53).*';"
-psql -c "delete from tl_census_geographies where geoid !~ '.*US(06|41|53).*';"
+# -------- 4. Filter to WA (53), OR (41), CA (06) --------
+# ACS/TIGER geoids carry the state FIPS as US<ff>; keep only these three states.
+psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_values      WHERE geoid !~ '.*US(06|41|53).*';"
+psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_geographies WHERE geoid !~ '.*US(06|41|53).*';"
 
 echo "Census data loaded into $TL_DATABASE_URL"

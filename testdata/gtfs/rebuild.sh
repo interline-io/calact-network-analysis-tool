@@ -8,7 +8,7 @@ export PGHOST="localhost"
 export TL_DATABASE_URL="postgres://localhost/calact_tlserver"
 dropdb --if-exists calact_tlserver; createdb calact_tlserver
 transitland dbmigrate up
-transitland dbmigrate natural-earth
+transitland dbmigrate-natural-earth
 
 # Fetch
 cat fvs.txt | parallel --colsep ' ' 'curl -H "apikey:$TRANSITLAND_API_KEY" -SLo data/{1}.zip https://api.transit.land/api/v2/rest/feed_versions/{2}/download'
