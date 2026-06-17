@@ -136,10 +136,17 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  // Defaults to the aggregation layer (set on the Query page) when not explicitly
+  // chosen, so the Filter selector's buffer layer starts out matching it. The setter
+  // elides against that same effective default so picking the default keeps tracking
+  // aggregateLayer rather than pinning a stale value into the URL.
   const stopBufferLayer = computed<string>({
-    get: () => route.query.stopBufferLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER,
+    get: () => route.query.stopBufferLayer?.toString()
+      || route.query.aggregateLayer?.toString()
+      || STOP_BUFFER_DEFAULT_LAYER,
     set: (v) => {
-      setQuery({ stopBufferLayer: v === STOP_BUFFER_DEFAULT_LAYER ? undefined : v })
+      const fallback = route.query.aggregateLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER
+      setQuery({ stopBufferLayer: v === fallback ? undefined : v })
     }
   })
 
