@@ -57,6 +57,33 @@
             </div>
           </div>
         </template>
+
+        <!-- Stop cluster popup (#330) -->
+        <template v-else-if="feature.featureType === 'cluster'">
+          <div class="popup-feature-type">
+            🔗 Stop Cluster
+          </div>
+          <div class="popup-details">
+            <div><strong>Agencies:</strong> {{ feature.data.agency_names?.join(', ') }}</div>
+          </div>
+          <div class="cal-cluster-members">
+            <div
+              v-for="(member, i) in feature.data.cluster_members"
+              :key="i"
+              class="cal-cluster-member"
+            >
+              <div>
+                <strong>{{ member.stop_name }}</strong>
+                <span v-if="member.stop_id" class="cal-cluster-member-id"> ({{ member.stop_id }})</span>
+              </div>
+              <div><strong>Agency:</strong> {{ member.agency_names.join(', ') }}</div>
+              <div><strong>Routes:</strong> {{ member.route_names.join(', ') }}</div>
+              <div v-if="member.next_departure">
+                <strong>Next departure:</strong> {{ member.next_departure }}
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Navigation bar for multiple features -->
@@ -83,13 +110,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { ClusterMemberInfo } from '~~/src/core'
 
 /**
  * Structured popup feature data for Vue component rendering
  * This avoids HTML string interpolation and XSS concerns
  */
 export interface PopupFeatureData {
-  featureType: 'stop' | 'route' | 'flex'
+  featureType: 'stop' | 'route' | 'flex' | 'cluster'
   featureId: string | number
   sourceLayer: string
   data: {
@@ -112,6 +140,10 @@ export interface PopupFeatureData {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
+    // Stop cluster fields (#330)
+    cluster_id?: string
+    agency_names?: string[]
+    cluster_members?: ClusterMemberInfo[]
   }
 }
 
@@ -218,5 +250,25 @@ const hasMultiple = computed(() => props.total > 1)
 
 .popup-details div {
   font-size: 13px;
+}
+
+.cal-cluster-members {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal-cluster-member {
+  font-size: 13px;
+  padding: 6px 8px;
+  border-left: 3px solid #d6336c;
+  background: #faf3f6;
+  border-radius: 3px;
+}
+
+.cal-cluster-member-id {
+  color: #666;
+  font-weight: normal;
 }
 </style>

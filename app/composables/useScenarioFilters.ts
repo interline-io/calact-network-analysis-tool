@@ -2,6 +2,7 @@ import { computed, type WritableComputedRef } from 'vue'
 import {
   asTimeString,
   parseTime,
+  STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
   type RouteType,
   type Weekday,
   type WeekdayMode,
@@ -26,6 +27,9 @@ interface ScenarioFilters {
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
   flexColorBy: WritableComputedRef<string | undefined>
+  // #330 — max transfer time (minutes) for the client-side temporal cluster
+  // prune. Effective default 15; 0 means proximity-only (no temporal filter).
+  clusterMaxTransferMinutes: WritableComputedRef<number>
   // Updates startTime + endTime in a single navigation so neither overwrites the other.
   setTimeRange: (start: Date | undefined, end: Date | undefined) => void
 }
@@ -128,6 +132,22 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
+  // #330 — minutes. Default (elided) is STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES;
+  // 0 disables the temporal prune (clusters by proximity only).
+  const clusterMaxTransferMinutes = computed<number>({
+    get: () => {
+      const raw = route.query.clusterMaxTransferMinutes?.toString()
+      if (raw == null || raw === '') {
+        return STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
+      }
+      const n = Number.parseInt(raw)
+      return Number.isFinite(n) && n >= 0 ? n : STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
+    },
+    set: (v) => {
+      setQuery({ clusterMaxTransferMinutes: v === STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES ? undefined : String(v) })
+    }
+  })
+
   function setTimeRange (start: Date | undefined, end: Date | undefined) {
     setQuery({ startTime: asTimeString(start), endTime: asTimeString(end) })
   }
@@ -150,6 +170,7 @@ export function useScenarioFilters (): ScenarioFilters {
     flexAdvanceNotice,
     flexAreaTypesSelected,
     flexColorBy,
+    clusterMaxTransferMinutes,
     setTimeRange,
   }
 }

@@ -26,7 +26,10 @@ Rules from the issue:
 - Stop clusters become **another aggregation section** in the Reports tab.
 
 Clarifications from issue comments (tsherlockcraig / NomeQ):
-- Use a **numeric text input in meters** for the distance, not a slider.
+- Use a **numeric input in meters** for the distance (issue thread leaned text-only;
+  repo owner later asked for a **slider + number-input combo like the stop-buffer-radius
+  control** — implemented: `cat-slider` 0–800 m, step 25, greyed when clustering is off,
+  with the number input as the text-entry alternative).
 - Include a **"Max transfer time"** temporal filter. Semantics: *each stop in a
   cluster must have a stop time within X minutes of at least one other stop in the
   cluster.* This supports the "near-miss" user story (relax criteria → clusters appear).
@@ -322,11 +325,11 @@ Each stage is independently `pnpm check`-clean (lint + typecheck) and reviewable
 
 ## 8. Progress checklist
 
-- [ ] Stage 1 — Core module (`deriveStopClusters`, `applyClusterTransferTime`), constants, unit tests
-- [ ] Stage 2 — `nearby_stops` query, `stop-clusters` phase, wire/receiver, `/api/stop-clusters` + `useClusterRefetch`
-- [ ] Stage 3 — URL state, filter UI control, temporal prune in `applyScenarioResultFilter`
-- [ ] Stage 4 — Map cluster source/circle/markers, grey-out, `'cluster'` popup arm, legend entry
-- [ ] Stage 5 — Reports "Stop Clusters" aggregation tab + CSV row builder
-- [ ] Stage 6 — Force departures when transfer-time set, exports, full test + `pnpm check`
+- [x] Stage 1 — Core module (`deriveStopClusters`, `applyClusterTransferTime`), constants, unit tests — `src/scenario/stop-clusters.ts` (+ `.test.ts`, 12 tests), constants in `src/core/constants.ts`, exported via `src/scenario/index.ts`
+- [x] Stage 2 (server) — `nearby_stops` query (`src/tl/stop-cluster.ts`), `runStopClustersPhase` + `fetchStopClusterInputs` (`src/scenario/stop-clusters.ts`), phase registered in `phases/common.ts`, wired through `ScenarioConfig`/`PHASE_ENABLED`/`ScenarioData`/`ScenarioProgress`/`ScenarioFetcher`/`ScenarioDataReceiver`, `streamStopClusters` + `server/api/stop-clusters.post.ts`. `useClusterRefetch` composable moved to Stage 3 (needs the URL state).
+- [x] Stage 3 — URL state (`clusterDistance` in `useScenarioInputs`, `clusterMaxTransferMinutes` in `useScenarioFilters`), "Stop Clustering" control in `filter.vue` Fixed-Route panel, temporal prune (`deriveFilteredStopClusters`) in `applyScenarioResultFilter`, threaded through `tne.vue` config/filter, `useClusterRefetch` composable + wired. Design: single `clusterDistance` (0=off) drives the fetch; enable checkbox derives from it; distance change → `/api/stop-clusters` refetch; transfer-time change → instant client re-prune.
+- [x] Stage 4 — Map: `clusters` marker layer + `clusterCircle` radius layer (native circle paint, meters→px via exponential(2) zoom interp) in `map-viewer-ts.vue`; `clusterFeatures`/`clusterCircleFeatures`/`selectedClusterId` + grey-out of non-members + `buildClusterPopup` in `map.vue`; `'cluster'` arm in `geom.ts` (`ClusterMemberInfo`) + `map-popup.vue`; "Stop clusters" legend section + `hasClusterData`; `STOP_CLUSTER_COLOR` constant. Click a marker → select + popup; empty click → collapse. NOTE: marker is a solid distinct-color dot (not the wireframe's multicolor pie) and the radius ring is solid (not dashed) — both deferred as cosmetic refinements to keep within the geometry rule.
+- [x] Stage 5 — Reports "Stop Clusters" aggregation tab (`report.vue`: `ReportTab`/labels/`modeMap`/watches, gated `cat-tab-item`, `stopClusterColumns`, `stopClusterReportData`, switch case) + `stopClusterCsv` row builder in `src/scenario/stop-clusters.ts` (+ unit test). CSV export is automatic via `cal-datagrid`.
+- [x] Stage 6 — Force `includeDepartures` when clustering + transfer time are active (`tne.vue`). Full suite (342 tests) + `pnpm check` green. Deferred (noted): multicolor pie marker, dashed ring, cluster GeoJSON export, arrival times in popup, manual member removal (future sprint per issue).
 
 Verification each stage: `pnpm check` (lint --fix + typecheck) and `pnpm test` must pass.

@@ -54,6 +54,11 @@ import {
   type RouteDepartures,
 } from './route-headway'
 import {
+  applyClusterTransferTime,
+  type StopCluster,
+  type StopClusterMeta,
+} from './stop-clusters'
+import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
@@ -520,6 +525,9 @@ export interface ScenarioFilterResult {
   // Pass F (#315): one-shot union over every stop's buffer at the chosen
   // radius. Drives the aggregation-table apportioned values.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
+  // #330: cross-agency transfer-hub clusters, after the client-side max-transfer
+  // -time prune. Populated only when the scenario ran with clustering enabled.
+  stopClusters?: StopCluster[]
 }
 
 export function applyScenarioResultFilter (
@@ -671,6 +679,17 @@ export function applyScenarioResultFilter (
     }
   })
 
+  // #330 — apply the max-transfer-time prune to the server's proximity clusters.
+  // Pure time arithmetic over the already-loaded departure cache, so it re-runs
+  // here (no refetch) whenever the user changes the transfer-time input.
+  const stopClusters = deriveFilteredStopClusters(
+    data.stopClusters,
+    filter.clusterMaxTransferMinutes,
+    stopFeatures,
+    sdCache,
+    selectedDateRangeValue,
+  )
+
   ///////////
   const result: ScenarioFilterResult = {
     routes: routeFeatures,
@@ -685,6 +704,58 @@ export function applyScenarioResultFilter (
     routeBufferGeographies: data.routeBufferGeographies,
     agencyBufferGeographies: data.agencyBufferGeographies,
     aggregationBufferGeographies: data.aggregationBufferGeographies,
+    stopClusters,
   }
   return result
+}
+
+// Build the per-member departure-time and agency/route lookups the temporal
+// prune needs, then apply it. Only member stops are indexed, so the cost scales
+// with cluster membership, not the full stop set.
+function deriveFilteredStopClusters (
+  proximityClusters: StopCluster[] | undefined,
+  maxTransferMinutes: number | undefined,
+  stopFeatures: Stop[],
+  sdCache: StopDepartureCache,
+  selectedDateRange: Date[],
+): StopCluster[] {
+  const clusters = proximityClusters || []
+  if (clusters.length === 0) {
+    return []
+  }
+  const memberIds = new Set<number>()
+  for (const cluster of clusters) {
+    for (const id of cluster.memberStopIds) {
+      memberIds.add(id)
+    }
+  }
+  const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
+  const dateStrings = selectedDateRange.map(d => format(d, 'yyyy-MM-dd'))
+  const departureSecondsByStop = new Map<number, number[]>()
+  const stopMeta = new Map<number, StopClusterMeta>()
+  for (const id of memberIds) {
+    const stop = stopById.get(id)
+    if (!stop) {
+      continue
+    }
+    const times: number[] = []
+    for (const ds of dateStrings) {
+      for (const st of sdCache.get(id, ds)) {
+        times.push(st.departureTime)
+      }
+    }
+    departureSecondsByStop.set(id, times)
+    const agencyIds = new Set<number>()
+    const routeIds = new Set<number>()
+    for (const rs of stop.route_stops || []) {
+      if (rs.route?.id != null) {
+        routeIds.add(rs.route.id)
+      }
+      if (rs.route?.agency?.id != null) {
+        agencyIds.add(rs.route.agency.id)
+      }
+    }
+    stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
+  }
+  return applyClusterTransferTime(clusters, maxTransferMinutes, departureSecondsByStop, stopMeta)
 }

@@ -35,6 +35,9 @@ const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { defaul
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
+// #330 — stop cluster markers + the selected cluster's radius circle.
+const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
+const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
@@ -111,12 +114,22 @@ watch(() => flexFeatures.value, (v) => {
   }
 })
 
+watch(() => clusterFeatures.value, (v) => {
+  updateClusterFeatures(v)
+})
+
+watch(() => clusterCircleFeatures.value, (v) => {
+  updateClusterCircle(v)
+})
+
 // When exiting a skip stage (e.g., schedules -> complete), render all features
 watch(() => props.loadingStage, (newStage, oldStage) => {
   if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
     // Exited a skip stage - render the features
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
+    updateClusterFeatures(clusterFeatures.value)
+    updateClusterCircle(clusterCircleFeatures.value)
   }
 })
 
@@ -221,6 +234,8 @@ function initMap () {
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
+    updateClusterFeatures(clusterFeatures.value)
+    updateClusterCircle(clusterCircleFeatures.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
     map?.on('zoom', mapZoom)
@@ -421,6 +436,15 @@ function createSources () {
   })
   // Highlight source for selected features
   map?.addSource('highlight', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  // #330 — stop cluster markers and the selected cluster's radius circle.
+  map?.addSource('clusters', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('clusterCircle', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -669,6 +693,50 @@ function createLayers () {
       'circle-stroke-width': 3,
     }
   })
+
+  // #330 — selected cluster radius circle. Native circle paint sizes a true
+  // metric radius via exponential(2) zoom interpolation of a per-feature
+  // pixels-at-zoom-0 value (radius_px_z0 * 2^zoom). Drawn below 'points' so the
+  // member stop dots stay on top and clickable. Color in sync with
+  // STOP_CLUSTER_COLOR (src/core/constants.ts).
+  map?.addLayer({
+    id: 'cluster-circle',
+    type: 'circle',
+    source: 'clusterCircle',
+    paint: {
+      'circle-radius': [
+        'interpolate', ['exponential', 2], ['zoom'],
+        0, ['get', 'radius_px_z0'],
+        24, ['*', ['get', 'radius_px_z0'], 16777216],
+      ],
+      'circle-color': '#d6336c',
+      'circle-opacity': 0.12,
+      'circle-stroke-color': '#d6336c',
+      'circle-stroke-width': 2,
+      'circle-stroke-opacity': 0.9,
+    }
+  }, 'points')
+
+  // #330 — one marker per cluster (rendered on top). Color comes from the
+  // feature's marker-color property (STOP_CLUSTER_COLOR).
+  map?.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'clusters',
+    paint: {
+      'circle-color': ['coalesce', ['get', 'marker-color'], '#d6336c'],
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        8, 5,
+        12, 7,
+        14, 9,
+        16, 11,
+      ],
+      'circle-opacity': 0.95,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    }
+  })
 }
 
 function updateChoroplethFeatures (features: Feature[]) {
@@ -759,6 +827,29 @@ function updateFlexFeatures (features: Feature[]) {
     return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon'
   })
   flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
+}
+
+// #330 — update the cluster marker + radius-circle sources.
+function updateClusterFeatures (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('clusters') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  source.setData({ type: 'FeatureCollection', features: features as any })
+}
+
+function updateClusterCircle (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('clusterCircle') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  source.setData({ type: 'FeatureCollection', features: features as any })
 }
 
 function fitFeatures (features: Feature[]) {
@@ -1027,7 +1118,9 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
+  // 'clusters' first so a cluster marker click is recognized even when it sits
+  // over a stop dot (#330).
+  const layersToQuery = ['clusters', 'points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) { return }

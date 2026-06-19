@@ -337,6 +337,7 @@ const {
   fvids,
   stopBufferRadius,
   stopBufferLayer,
+  clusterDistance,
 } = useScenarioInputs()
 const {
   startTime,
@@ -351,6 +352,7 @@ const {
   flexAdvanceNotice,
   flexAreaTypesSelected,
   flexColorBy,
+  clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
 definePageMeta({
@@ -1010,13 +1012,19 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
-  includeDepartures: includeDepartures.value,
+  // #330 — the cluster max-transfer-time prune needs departures; force them on
+  // when clustering is active with a transfer time, else it silently drops
+  // every cluster. Proximity-only clustering (transfer time 0) doesn't need them.
+  includeDepartures: (clusterDistance.value > 0 && clusterMaxTransferMinutes.value > 0)
+    ? true
+    : includeDepartures.value,
   includeCensus: includeCensus.value,
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
   stopBufferRadius: stopBufferRadius.value,
   stopBufferLayer: stopBufferLayer.value,
+  stopClusterDistance: clusterDistance.value,
 }))
 
 const scenarioFilter = computed((): ScenarioFilter => ({
@@ -1028,6 +1036,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
+  clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
 // Internal state for streaming scenario data
@@ -1120,6 +1129,18 @@ const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({
 const showLoadingModal = ref(false)
 
 const { scenarioReceiver } = useBufferRefetch({
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+})
+
+// #330 — recompute clusters when the distance changes, reusing the same receiver.
+useClusterRefetch({
+  scenarioReceiver,
   scenarioData,
   scenarioConfig,
   loadingProgress,

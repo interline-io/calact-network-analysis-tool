@@ -19,12 +19,13 @@ export interface PhaseOpts {
 export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 
 // Phase identities for the progress plan and weights. 'buffers' covers all
-// four buffer passes as a single slice.
-export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'flex-areas' | 'census-values'
+// four buffer passes as a single slice. 'stop-clusters' is the #330 transfer-hub
+// pass (a separate stop query with nearby_stops neighbors).
+export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'flex-areas' | 'census-values'
 
 // Pipeline ordering for phase plans and progress display.
 export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
-  'feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values',
+  'feed-versions', 'stops', 'routes', 'departures', 'buffers', 'stop-clusters', 'flex-areas', 'census-values',
 ]
 
 // Relative progress-bar weight per phase; the consumer normalizes over the
@@ -36,6 +37,7 @@ export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
   'routes': 1,
   'departures': 10,
   'buffers': 3,
+  'stop-clusters': 2,
   'flex-areas': 1,
   'census-values': 1,
 }

@@ -284,6 +284,66 @@
           </cat-field>
 
           <p class="menu-label">
+            <cat-tooltip text="Finds clusters of nearby stops served by different agencies — potential transfer hubs. Max distance is the largest gap (meters) between stops in a cluster; max transfer time requires each stop to have a departure within that many minutes of another stop in the cluster. Changing the distance triggers a cluster-only refetch — the scenario stays loaded.">
+              Stop Clustering
+              <cat-icon icon="information" />
+            </cat-tooltip>
+          </p>
+          <cat-field>
+            <cat-checkbox
+              v-model="clusterEnabled"
+              label="Cluster nearby stops across agencies"
+            />
+          </cat-field>
+          <p class="cal-cluster-sublabel">
+            Max distance
+          </p>
+          <cat-field>
+            <div class="level">
+              <div class="level-item">
+                <cat-slider
+                  v-model="clusterDistance"
+                  :min="0"
+                  :max="800"
+                  :step="25"
+                  :disabled="!clusterEnabled"
+                />
+              </div>
+              <div class="level-right">
+                <div class="ml-4 level-item">
+                  <div class="cal-input-width-100">
+                    <cat-input
+                      v-model="clusterDistance"
+                      type="number"
+                      min="0"
+                      :disabled="!clusterEnabled"
+                    />
+                  </div>
+                  <div class="ml-2">
+                    m
+                  </div>
+                </div>
+              </div>
+            </div>
+          </cat-field>
+          <p class="cal-cluster-sublabel">
+            Max transfer time
+          </p>
+          <cat-field grouped>
+            <div class="cal-input-width-80">
+              <cat-input
+                v-model="clusterMaxTransferMinutes"
+                type="number"
+                min="0"
+                :disabled="!clusterEnabled"
+              />
+            </div>
+            <div>
+              minutes
+            </div>
+          </cat-field>
+
+          <p class="menu-label">
             Fares <cat-tooltip text="Fare filtering is planned for future implementation">
               <i class="mdi mdi-information-outline" />
             </cat-tooltip>
@@ -695,6 +755,7 @@ import {
   FILTER_MAIN_WIDTH,
   FILTER_SUB_WIDTH,
   HIERARCHICAL_TIGER_LAYERS,
+  STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -740,6 +801,7 @@ const {
   fixedRouteEnabled,
   stopBufferRadius,
   stopBufferLayer,
+  clusterDistance,
 } = useScenarioInputs()
 const {
   startTime,
@@ -759,6 +821,7 @@ const {
   flexAdvanceNotice,
   flexAreaTypesSelected,
   flexColorBy,
+  clusterMaxTransferMinutes,
   setTimeRange,
 } = useScenarioFilters()
 
@@ -803,6 +866,12 @@ const frequencyUnderEnabled = computed({
 const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
   set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
+})
+// #330 — clustering enable derives from the distance (0 = disabled). Checking
+// seeds the default distance; unchecking clears it (which disables the phase).
+const clusterEnabled = computed({
+  get: () => clusterDistance.value > 0,
+  set: (checked: boolean) => { clusterDistance.value = checked ? STOP_CLUSTER_DEFAULT_DISTANCE : 0 }
 })
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
@@ -1145,6 +1214,12 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   .cal-input-width-100 {
     max-width: 100px;
   }
+}
+
+// #330 — sub-label for the Max distance / transfer controls under Stop Clustering.
+.cal-cluster-sublabel {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
 }
 
 .menu-list {

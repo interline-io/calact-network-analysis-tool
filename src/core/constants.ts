@@ -260,6 +260,16 @@ export const STOP_BUFFER_DEFAULT_RADIUS = 402
 // available wherever it's loaded; tract is kept as the default for stability.
 export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
+// Stop clustering (#330) defaults, applied when the user enables clustering.
+// Distance is meters (the PostGIS nearby_stops radius); transfer time is minutes.
+export const STOP_CLUSTER_DEFAULT_DISTANCE = 200
+export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 15
+
+// Accent color for cluster markers and the selected-cluster radius circle (#330).
+// Kept distinct from the agency/mode palette. The legend.vue / map-popup.vue
+// swatch CSS hardcodes this same value — keep them in sync.
+export const STOP_CLUSTER_COLOR = '#d6336c'
+
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },
   'county': { singular: 'County', plural: 'counties' },

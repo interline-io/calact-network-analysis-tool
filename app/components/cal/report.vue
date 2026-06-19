@@ -26,6 +26,7 @@
         <cat-tab-item v-if="fixedRouteEnabled" value="routes" label="Routes" />
         <cat-tab-item v-if="fixedRouteEnabled" value="stops" label="Stops (Individual)" />
         <cat-tab-item v-if="fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
+        <cat-tab-item v-if="fixedRouteEnabled && hasClusterData" value="stop-clusters" label="Stop Clusters" />
         <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" value="flex" label="Flex Areas" />
       </cat-tabs>
@@ -203,7 +204,7 @@
 <script setup lang="ts">
 import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
-import type { ScenarioFilterResult } from '~~/src/scenario'
+import { stopClusterCsv, type ScenarioFilterResult } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
 
 export type BufferDetailsKind = 'stop' | 'route' | 'agency'
@@ -328,7 +329,7 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
-type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'agencies' | 'flex'
+type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex'
 
 const activeReportTab = ref<ReportTab>('routes')
 
@@ -336,6 +337,7 @@ const reportTabLabels: Record<ReportTab, string> = {
   'routes': 'Routes',
   'stops': 'Stops (Individual)',
   'stops-aggregated': 'Stops (Aggregated)',
+  'stop-clusters': 'Stop Clusters',
   'agencies': 'Agencies',
   'flex': 'Flex Areas',
 }
@@ -346,11 +348,15 @@ const hasAggregateLayer = computed(() => {
   return aggregateLayer.value !== '' && aggregateLayer.value !== 'none'
 })
 
+// #330 — the Stop Clusters tab only appears when the scenario produced clusters.
+const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?.length ?? 0) > 0)
+
 // Sync dataDisplayMode when user switches tabs
 const modeMap: Record<ReportTab, DataDisplayMode> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
   'stops-aggregated': 'Stop visits',
+  'stop-clusters': 'Stop visits',
   'agencies': 'Agency',
   'flex': 'Service area',
 }
@@ -365,11 +371,17 @@ watch(hasAggregateLayer, (has) => {
   }
 })
 
+watch(hasClusterData, (has) => {
+  if (!has && activeReportTab.value === 'stop-clusters') {
+    activeReportTab.value = 'stops'
+  }
+})
+
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
   if (mode === 'Transit mode' || mode === 'Route frequency') {
     activeReportTab.value = 'routes'
-  } else if (mode === 'Stop visits' && activeReportTab.value !== 'stops-aggregated') {
+  } else if (mode === 'Stop visits' && activeReportTab.value !== 'stops-aggregated' && activeReportTab.value !== 'stop-clusters') {
     activeReportTab.value = 'stops'
   } else if (mode === 'Agency') {
     activeReportTab.value = 'agencies'
@@ -539,6 +551,26 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
   }
   return cols
 })
+// #330 — one row per cross-agency transfer-hub cluster.
+const stopClusterColumns: TableColumn[] = [
+  { key: 'cluster', label: 'Cluster', sortable: true },
+  {
+    key: 'agencies_count',
+    label: 'Agencies',
+    sortable: true,
+    tooltip: 'Number of distinct agencies meeting at this cluster.',
+  },
+  { key: 'agencies', label: 'Agency Names', sortable: true },
+  {
+    key: 'stops_count',
+    label: 'Stops',
+    sortable: true,
+    tooltip: 'Number of member stops in the cluster (one per agency).',
+  },
+  { key: 'routes_count', label: 'Routes', sortable: true },
+  { key: 'routes_modes', label: 'Modes', sortable: true },
+  { key: 'member_stops', label: 'Member Stops', sortable: false },
+]
 const agencyColumns = computed((): TableColumn[] => {
   const cols: TableColumn[] = [
     { key: 'agency_id', label: 'Agency ID', sortable: true },
@@ -668,6 +700,17 @@ const flexReportData = computed((): TableReport => {
   }
 })
 
+const stopClusterReportData = computed((): TableReport => {
+  const stopById = new Map<number, Stop>()
+  for (const s of props.scenarioFilterResult?.stops || []) {
+    stopById.set(s.id, s)
+  }
+  return {
+    data: stopClusterCsv(props.scenarioFilterResult?.stopClusters || [], stopById),
+    columns: stopClusterColumns,
+  }
+})
+
 const activeTableReport = computed((): TableReport => {
   switch (activeReportTab.value) {
     case 'routes':
@@ -676,6 +719,8 @@ const activeTableReport = computed((): TableReport => {
       return stopsReportData.value
     case 'stops-aggregated':
       return geoReportData.value
+    case 'stop-clusters':
+      return stopClusterReportData.value
     case 'agencies':
       return agenciesReportData.value
     case 'flex':

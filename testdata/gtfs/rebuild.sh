@@ -22,6 +22,5 @@ psql "$TL_DATABASE_URL" -c "update feed_states set public = true"
 # census/NTD tables and their sequences (which the 'tl_*' pattern would otherwise match),
 # keeping the base and census dumps disjoint. Census/NTD: run ./rebuild-census.sh.
 pg_dump -Fc -f calact_tlserver.dump \
-  -t 'gtfs_*' -t 'tl_*' -t 'feed_*' -t 'ne_*' -t 'schema_migrations' -t 'current_*' \
   -T 'tl_census_*' \
   "$TL_DATABASE_URL"

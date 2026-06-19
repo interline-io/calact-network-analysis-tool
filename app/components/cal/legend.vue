@@ -81,6 +81,21 @@
           </div>
         </div>
 
+        <!-- Stop Clusters (#330) -->
+        <div v-if="props.hasClusterData" class="cal-map-legend-section">
+          <div class="legend-heading">
+            Stop clusters:
+          </div>
+          <div>
+            <div class="legend-item legend-cluster-marker" />
+            <div>Transfer hub (click to inspect)</div>
+          </div>
+          <div>
+            <div class="legend-item legend-cluster-ring" />
+            <div>Selected cluster radius</div>
+          </div>
+        </div>
+
         <!-- Flex Services Color Style -->
         <div v-if="props.hasFlexData" class="legend-heading">
           Flex Service Areas:
@@ -180,6 +195,8 @@ const props = defineProps<{
   // Choropleth aggregation
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
+  // Stop clusters (#330)
+  hasClusterData?: boolean
 }>()
 
 defineEmits<{
@@ -189,7 +206,7 @@ defineEmits<{
 const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification
@@ -273,6 +290,21 @@ function bucketLabel (i: number): string {
 
 .legend-large-circle {
   background-color: #000f;
+  border-radius: 50%;
+}
+
+// Swatch colors must stay in sync with `STOP_CLUSTER_COLOR` in
+// src/core/constants.ts (used for the matching map cluster marker + circle).
+.legend-cluster-marker {
+  background-color: #d6336c;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px #d6336c;
+}
+
+.legend-cluster-ring {
+  background-color: rgba(214, 51, 108, 0.12);
+  border: 2px dashed #d6336c;
   border-radius: 50%;
 }
 

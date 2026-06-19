@@ -33,6 +33,9 @@ interface ScenarioInputs {
   // #315 — 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
   stopBufferLayer: WritableComputedRef<string>
+  // #330 stop clustering — distance in meters; 0 disables the feature (drives
+  // the stop-clusters fetch phase). The enable checkbox derives from this.
+  clusterDistance: WritableComputedRef<number>
   // Atomic commit of the "Dates & feed versions" modal's staged state —
   // setQuery is only race-safe within a single call, so the three params
   // must land in one navigation.
@@ -150,6 +153,21 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
+  // #330 — meters. 0 (default/elided) disables clustering. Mirrors stopBufferRadius.
+  const clusterDistance = computed<number>({
+    get: () => {
+      const raw = route.query.clusterDistance?.toString()
+      if (raw == null || raw === '') {
+        return 0
+      }
+      const n = Number.parseFloat(raw)
+      return Number.isFinite(n) && n >= 0 ? n : 0
+    },
+    set: (v) => {
+      setQuery({ clusterDistance: v > 0 ? String(v) : undefined })
+    }
+  })
+
   function applyDatesAndFvids (v: { startDate: Date, endDate: Date, fvids: string }) {
     setQuery({
       startDate: asDateString(v.startDate),
@@ -175,6 +193,7 @@ export function useScenarioInputs (): ScenarioInputs {
     fvids,
     stopBufferRadius,
     stopBufferLayer,
+    clusterDistance,
     applyDatesAndFvids,
   }
 }
