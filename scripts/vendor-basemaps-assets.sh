@@ -19,7 +19,7 @@ set -euo pipefail
 # Pinned protomaps/basemaps-assets commit. Bump when refreshing the assets.
 ASSETS_SHA="028c18f713baecad011301ff7a69acc39bcc2ae7"
 # Basemap flavor used by the app's MapLibre styles.
-FLAVOR="grayscale"
+FLAVOR="white"
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="$REPO_ROOT/public/basemaps-assets"

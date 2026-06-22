@@ -24,5 +24,5 @@ in the script and run:
 pnpm vendor:basemaps
 ```
 
-The script auto-detects which fontstacks the `grayscale` flavor needs, then
-copies those fonts (plus `OFL.txt`) and the grayscale sprite into this directory.
+The script auto-detects which fontstacks the `white` flavor needs, then
+copies those fonts (plus `OFL.txt`) and the white sprite into this directory.

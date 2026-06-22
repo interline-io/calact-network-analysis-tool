@@ -175,14 +175,14 @@ onBeforeUnmount(() => {
 
 // Protomaps basemap label layers (street/place labels), rendered above transit overlays.
 function protomapsLabelLayers () {
-  return protomapsLayers('protomaps-base', namedFlavor('grayscale'), { lang: 'en', labelsOnly: true })
+  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
 }
 
 // Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
 // direct "no labels" generator, so derive it as the full set minus the labels-only set.
 function protomapsBaseLayers () {
   const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
-  return protomapsLayers('protomaps-base', namedFlavor('grayscale'), { lang: 'en' })
+  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
     .filter(l => !labelIds.has(l.id))
 }
 
@@ -197,7 +197,7 @@ function initMap () {
     center: center.value,
     style: {
       glyphs: '/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-      sprite: '/basemaps-assets/sprites/v4/grayscale',
+      sprite: '/basemaps-assets/sprites/v4/white',
       version: 8,
       sources: {
         'protomaps-base': {
