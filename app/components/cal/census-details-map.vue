@@ -186,8 +186,8 @@ function initMap () {
     zoom: 12,
     center: [-122.4, 45.5],
     style: {
-      glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-      sprite: 'https://protomaps.github.io/basemaps-assets/sprites/v4/grayscale',
+      glyphs: '/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+      sprite: '/basemaps-assets/sprites/v4/grayscale',
       version: 8,
       sources: {
         'protomaps-base': {

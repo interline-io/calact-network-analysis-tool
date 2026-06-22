@@ -13,6 +13,7 @@
     "generate": "nuxt generate",
     "lint": "eslint .",
     "start": "nuxt start",
+    "vendor:basemaps": "bash scripts/vendor-basemaps-assets.sh",
     "test:watch": "vitest --watch",
     "test": "vitest run --coverage",
     "test:browser": "playwright test"
