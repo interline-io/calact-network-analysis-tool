@@ -5,7 +5,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
-import { noLabels, labels } from 'protomaps-themes-base'
+import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
@@ -173,6 +173,19 @@ onBeforeUnmount(() => {
   map = undefined
 })
 
+// Protomaps basemap label layers (street/place labels), rendered above transit overlays.
+function protomapsLabelLayers () {
+  return protomapsLayers('protomaps-base', namedFlavor('grayscale'), { lang: 'en', labelsOnly: true })
+}
+
+// Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
+// direct "no labels" generator, so derive it as the full set minus the labels-only set.
+function protomapsBaseLayers () {
+  const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
+  return protomapsLayers('protomaps-base', namedFlavor('grayscale'), { lang: 'en' })
+    .filter(l => !labelIds.has(l.id))
+}
+
 function initMap () {
   if (map) {
     return
@@ -183,17 +196,18 @@ function initMap () {
     zoom: zoom.value,
     center: center.value,
     style: {
-      glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
+      glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+      sprite: 'https://protomaps.github.io/basemaps-assets/sprites/v4/grayscale',
       version: 8,
       sources: {
         'protomaps-base': {
           type: 'vector',
-          tiles: [`https://api.protomaps.com/tiles/v2/{z}/{x}/{y}.pbf?key=${config.public.tlv2.protomapsApikey}`],
-          maxzoom: 14,
+          tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.public.tlv2.protomapsApikey}`],
+          maxzoom: 15,
           attribution: '<a href="https://www.transit.land/terms">Transitland</a> | <a href="https://protomaps.com">Protomaps</a> | &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }
       },
-      layers: noLabels('protomaps-base', 'grayscale')
+      layers: protomapsBaseLayers()
     }
   }
   map = new maplibre.Map(opts)
@@ -427,7 +441,7 @@ function createSources () {
 }
 
 function createLayers () {
-  for (const labelLayer of labels('protomaps-base', 'grayscale')) {
+  for (const labelLayer of protomapsLabelLayers()) {
     map?.addLayer(labelLayer)
   }
 
