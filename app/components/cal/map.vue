@@ -72,7 +72,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
 import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
-import { colors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
+import { colors, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import type { ScenarioFilterResult, StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -424,19 +424,6 @@ watch(stopClusters, () => {
   }
 })
 
-// Stable per-agency colors for the cluster "beach ball" wedges — an ordinal
-// (Tableau10) scale over every agency present in the clusters, so an agency
-// keeps the same color across all markers.
-const clusterAgencyColorScale = computed(() => {
-  const ids = new Set<number>()
-  for (const c of stopClusters.value) {
-    for (const a of c.agencyIds) {
-      ids.add(a)
-    }
-  }
-  return createCategoryColorScale([...ids].sort((a, b) => a - b).map(String))
-})
-
 // Cluster centroid = mean of its member stop coordinates (arithmetic, not a
 // PostGIS geometry op). Anchors the beach-ball marker, the connector-line hub,
 // and the click target. Only members present in the loaded stop set count.
@@ -491,8 +478,10 @@ const clusterFeatures = computed((): Feature[] => {
 
 // One multi-colored "beach ball" marker per cluster (a wedge per agency),
 // rendered as a DOM overlay at the centroid in place of the old solid-red dot.
+// Wedge colors come from the shared agencyColorScale, so they match the dots
+// in dataDisplayMode === 'Agency'.
 const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
-  const scale = clusterAgencyColorScale.value
+  const scale = agencyColorScale.value
   const out: { id: string, point: Point, colors: string[] }[] = []
   for (const c of stopClusters.value) {
     const centroid = clusterCentroids.value.get(c.id)
@@ -573,7 +562,8 @@ const clusterLineFeatures = computed((): Feature[] => {
 // Calculate top agencies in result set
 // (we will order them by the most to least stops)
 interface AgencyData {
-  id: string
+  id: string // GTFS agency_id — used to match stops/routes
+  numericId: number // Transitland numeric agency id — used for color keying + clusters
   name: string
   stops: Set<string>
 }
@@ -587,8 +577,9 @@ const agencyData = computed((): AgencyData[] => {
     for (const rstop of route_stops) {
       // const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
+      const anumeric = rstop.route.agency?.id
       const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) {
+      if (!aid || !aname || anumeric == null) {
         continue // no valid agency listed for this stop?
       }
 
@@ -596,6 +587,7 @@ const agencyData = computed((): AgencyData[] => {
       if (!adata) { // first time seeing this agency
         adata = {
           id: aid,
+          numericId: anumeric,
           name: aname,
           stops: new Set()
         }
@@ -608,6 +600,14 @@ const agencyData = computed((): AgencyData[] => {
   return [...data.values()]
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
 })
+
+// Single source of truth for per-agency colors, shared by the Agency-mode map
+// styling (getAgencyMatchers) and the cluster beach-ball wedges. Domain is the
+// agencies in stop-count order, so each gets categoricalColors[rank]; the same
+// agency therefore renders the same color as a stop dot and as a beach-ball
+// wedge. Keyed by the numeric agency id (what clusters carry).
+const agencyColorScale = computed(() =>
+  createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
 
 // Depending on the data display, set up matcher rules to choose a styling.
 // Matchers should run in the order that they are added to the rules array.
@@ -710,15 +710,17 @@ const styleData = computed((): Matcher[] => {
     }
   }
 
-  // Generate a set of AGENCY MATCHERS
+  // Generate a set of AGENCY MATCHERS. Agencies use the wider 10-color
+  // categorical palette (via agencyColorScale) rather than the 6-color route
+  // palette, and the same scale colors the cluster beach-ball wedges.
   function getAgencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
     const agencies = agencyData.value || []
-    for (let i = 0; i < Math.min(agencies.length, maxColor); i++) {
+    const scale = agencyColorScale.value
+    for (let i = 0; i < Math.min(agencies.length, categoricalColors.length); i++) {
       const agency = agencies[i]
-      const color = colors[i]
-      if (agency && color) {
-        rules.push({ label: agency.name ?? '', color: color, match: getAgencyMatcher(agency.id ?? '') })
+      if (agency) {
+        rules.push({ label: agency.name ?? '', color: scale(String(agency.numericId)), match: getAgencyMatcher(agency.id ?? '') })
       }
     }
     return rules
@@ -760,12 +762,15 @@ const styleData = computed((): Matcher[] => {
     return rules
   }
 
-  // Reserve an extra color for "other", if needed
+  // Reserve an extra color for "other", if needed. Agency mode draws from the
+  // wider categorical palette, so its "Other" bucket only kicks in past that.
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
+  let otherThreshold = maxColor
   if (dataDisplayMode.value === 'Agency') {
     rules.push(...getAgencyMatchers())
+    otherThreshold = categoricalColors.length
   } else if (dataDisplayMode.value === 'Transit mode') {
     rules.push(...getModeMatchers())
   } else if (dataDisplayMode.value === 'Route frequency') {
@@ -777,7 +782,7 @@ const styleData = computed((): Matcher[] => {
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
-  if (rules.length >= maxColor || rules.length === 0) {
+  if (rules.length >= otherThreshold || rules.length === 0) {
     rules.push({ label: 'Other', color: '#000', match: _ => true })
   }
 
