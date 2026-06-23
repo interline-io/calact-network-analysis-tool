@@ -217,6 +217,8 @@
           :route="timetableRoute"
           :scenario-filter-result="scenarioFilterResult"
           :selected-date-range="selectedDateRange"
+          :selected-weekdays="selectedWeekdays"
+          :selected-weekday-mode="selectedWeekdayMode"
           :start-time="startTime"
           :end-time="endTime"
           :initial-tab="timetableInitialTab"
