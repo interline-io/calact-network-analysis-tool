@@ -688,6 +688,9 @@ export function applyScenarioResultFilter (
     stopFeatures,
     sdCache,
     selectedDateRangeValue,
+    resolveEffectiveWeekdays(selectedDaysValue, selectedWeekdayModeValue),
+    startTimeValue,
+    endTimeValue,
   )
 
   ///////////
@@ -711,17 +714,29 @@ export function applyScenarioResultFilter (
 
 // Build the per-member departure-time and agency/route lookups the temporal
 // prune needs, then apply it. Only member stops are indexed, so the cost scales
-// with cluster membership, not the full stop set.
+// with cluster membership, not the full stop set. Departures are gathered with
+// the SAME weekday + time-of-day window the rest of the filter uses (mirroring
+// stopVisits), so a cluster is only kept on service the user can actually see.
 function deriveFilteredStopClusters (
   proximityClusters: StopCluster[] | undefined,
   maxTransferMinutes: number | undefined,
   stopFeatures: Stop[],
   sdCache: StopDepartureCache,
   selectedDateRange: Date[],
+  effectiveWeekdays: Weekday[] | undefined,
+  startTimeValue: string,
+  endTimeValue: string,
 ): StopCluster[] {
   const clusters = proximityClusters || []
   if (clusters.length === 0) {
     return []
+  }
+  // The temporal prune needs departures. When the scenario was loaded without
+  // them (includeDepartures off, or clustering toggled on mid-session before a
+  // full requery), the cache is empty — keep the proximity clusters rather than
+  // silently dropping every one (#330).
+  if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.cache.size === 0) {
+    return clusters
   }
   const memberIds = new Set<number>()
   for (const cluster of clusters) {
@@ -730,7 +745,8 @@ function deriveFilteredStopClusters (
     }
   }
   const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
-  const dateStrings = selectedDateRange.map(d => format(d, 'yyyy-MM-dd'))
+  const startSeconds = parseHMS(startTimeValue)
+  const endSeconds = parseHMS(endTimeValue)
   const departureSecondsByStop = new Map<number, number[]>()
   const stopMeta = new Map<number, StopClusterMeta>()
   for (const id of memberIds) {
@@ -739,9 +755,15 @@ function deriveFilteredStopClusters (
       continue
     }
     const times: number[] = []
-    for (const ds of dateStrings) {
-      for (const st of sdCache.get(id, ds)) {
-        times.push(st.departureTime)
+    for (const date of selectedDateRange) {
+      const dow = dowDateString[date.getDay()]
+      if (effectiveWeekdays != null && (!dow || !effectiveWeekdays.includes(dow))) {
+        continue
+      }
+      for (const st of sdCache.get(id, format(date, 'yyyy-MM-dd'))) {
+        if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
+          times.push(st.departureTime)
+        }
       }
     }
     departureSecondsByStop.set(id, times)

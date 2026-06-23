@@ -49,15 +49,19 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
     const localAbort = new AbortController()
     abort = localAbort
 
-    // Drop stale clusters immediately so the map/report don't show old hubs.
-    receiver.clearStopClusters()
-    deps.scenarioData.value = markRaw(receiver.getCurrentData())
-
-    // Disabling clustering (distance 0) just clears — no server call.
+    // Disabling clustering (distance 0) clears immediately — no server call.
     if (!(clusterDistance.value > 0)) {
+      receiver.clearStopClusters()
+      deps.scenarioData.value = markRaw(receiver.getCurrentData())
       return
     }
 
+    // Note: don't clear the existing clusters here. Clearing would make
+    // stopClusters momentarily empty, which bounces the user off the "Stop
+    // Clusters" report tab (report.vue watches hasClusterData) on every retune.
+    // processStream replaces the cluster set wholesale when the new run streams
+    // in; we only clear on error (below) so a failed recompute doesn't strand
+    // stale hubs on the map.
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
       isLoading: true,
@@ -100,9 +104,19 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
       }
       deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
+      // Superseded by a newer refetch (whose abort() fired this controller) or
+      // the scope was disposed. The abort surfaces as a fetch AbortError if it
+      // lands before the response resolves, but as a failed stream drain ('stream
+      // ended unexpectedly') if it lands mid-stream — so key off the signal, not
+      // the error name. A stale run must not touch shared state, else it clears
+      // the newer run's clusters and bounces the user off the Stop Clusters tab.
+      if (localAbort.signal.aborted) {
         return
       }
+      // Genuine failure: drop the now-stale clusters so the map/report don't
+      // keep showing hubs computed at the previous distance.
+      receiver.clearStopClusters()
+      deps.scenarioData.value = markRaw(receiver.getCurrentData())
       deps.error.value = err
     } finally {
       if (abort === localAbort) {
