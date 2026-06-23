@@ -78,8 +78,10 @@ export function routeHeadways (
       const formattedDate = format(d, 'yyyy-MM-dd')
       const rep = pickRepresentativeStop(routeIndex, route.id, dir, formattedDate)
 
-      // Filter by time window (departureTime is already in seconds) and sort.
-      const stSecs = rep.departures
+      // Collapse repeat visits by the same trip (loop terminals) to one
+      // departure per trip before measuring headways (issue #368), then filter
+      // by time window (departureTime is already in seconds) and sort.
+      const stSecs = oneDeparturePerTrip(rep.departures)
         .map(st => st.departureTime)
         .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
@@ -116,6 +118,26 @@ export function pickRepresentativeStop (
     }
   }
   return { stopId, departures }
+}
+
+/**
+ * Reduce a stop's departures to one per trip: the trip's earliest departure at
+ * that stop. A loop route whose representative stop is the start-and-end
+ * terminal lists each trip twice (outbound start plus inbound return); counting
+ * both inflates the departure list and injects spurious short gaps into the
+ * headway calculation (issue #368). Keeping each trip's earliest visit yields
+ * its actual scheduled departure, so consecutive-departure gaps reflect the true
+ * headway. A no-op for normal routes, where each trip visits a stop once.
+ */
+export function oneDeparturePerTrip (departures: StopTimeCacheItem[]): StopTimeCacheItem[] {
+  const earliestByTrip = new Map<number, StopTimeCacheItem>()
+  for (const st of departures) {
+    const cur = earliestByTrip.get(st.tripId)
+    if (cur === undefined || st.departureTime < cur.departureTime) {
+      earliestByTrip.set(st.tripId, st)
+    }
+  }
+  return [...earliestByTrip.values()]
 }
 
 /**

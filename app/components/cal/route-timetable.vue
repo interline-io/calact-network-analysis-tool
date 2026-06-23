@@ -240,6 +240,16 @@
       </p>
 
       <div v-else>
+        <cat-msg
+          v-if="repeatRepStopVisits > 0"
+          variant="warning"
+          title="Repeat visits excluded"
+          class="mb-4"
+        >
+          <p>
+            {{ repeatRepStopVisits }} departures at the representative stop are repeat visits by the same trip, which happens when the stop is both the first and last stop of a loop. Only each trip's first departure is counted toward frequency, so the loop turnaround is not mistaken for a short headway (issue #368).
+          </p>
+        </cat-msg>
         <cat-msg variant="info" title="Summary" class="mb-4">
           <p class="mb-2">
             Frequency is calculated from gaps between consecutive departures at the representative stop, using only the dominant direction. Only service dates matching the selected weekdays contribute to the statistics; out-of-scope dates are still listed below but flagged and excluded. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are considered noise and excluded (shown struck through below).
@@ -543,6 +553,7 @@ import {
   computeHeadwaysPerDay,
   calculateRouteTripStats,
   scopeDatesToWeekdays,
+  oneDeparturePerTrip,
   summarizeGaps,
   WEEKDAY_BY_GETDAY,
   MIN_HEADWAY_SECONDS,
@@ -760,7 +771,7 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
     if (rep.stopId === undefined) {
       continue
     }
-    const inWindow = rep.departures
+    const inWindow = oneDeparturePerTrip(rep.departures)
       .filter(st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value)
       .sort((a, b) => a.departureTime - b.departureTime)
     // Shared helper returns one Headway<T> per consecutive pair; entry `i` is
@@ -782,6 +793,24 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
     }
   }
   return out
+})
+
+// Count representative-stop departures that are repeat visits by the same trip
+// (e.g. a loop terminal that is both first and last stop). These are excluded
+// from the frequency calc by oneDeparturePerTrip; surfaced as a note so the
+// dedup is visible rather than silent (issue #368).
+const repeatRepStopVisits = computed(() => {
+  let removed = 0
+  const dir = dominantDirection.value
+  for (const d of scopedDateRange.value) {
+    const dateStr = format(d, 'yyyy-MM-dd')
+    const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
+    const inWindow = rep.departures.filter(
+      st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value,
+    )
+    removed += inWindow.length - oneDeparturePerTrip(inWindow).length
+  }
+  return removed
 })
 
 interface FrequencyDateGroup {
