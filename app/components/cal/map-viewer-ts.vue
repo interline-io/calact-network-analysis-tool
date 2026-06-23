@@ -5,7 +5,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import maplibre from 'maplibre-gl'
-import { noLabels, labels } from 'protomaps-themes-base'
+import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
@@ -186,27 +186,54 @@ onBeforeUnmount(() => {
   map = undefined
 })
 
+// Protomaps basemap label layers (street/place labels), rendered above transit overlays.
+// The vendored font directories use hyphenated, space-free names (see
+// scripts/vendor-basemaps-assets.sh) so they serve reliably from static hosts —
+// spaces in the path can fall through to the SPA fallback — so rewrite the
+// text-font names to match the directories the glyphs URL requests.
+function protomapsLabelLayers () {
+  const labelLayers = protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
+  return JSON.parse(
+    JSON.stringify(labelLayers)
+      .replaceAll('Noto Sans Regular', 'Noto-Sans-Regular')
+      .replaceAll('Noto Sans Medium', 'Noto-Sans-Medium')
+      .replaceAll('Noto Sans Italic', 'Noto-Sans-Italic'),
+  ) as typeof labelLayers
+}
+
+// Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
+// direct "no labels" generator, so derive it as the full set minus the labels-only set.
+function protomapsBaseLayers () {
+  const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
+  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
+    .filter(l => !labelIds.has(l.id))
+}
+
 function initMap () {
   if (map) {
     return
   }
+  // MapLibre requires an absolute sprite URL, so anchor the self-hosted assets
+  // to the app's own origin (also used for glyphs, for consistency).
+  const assetOrigin = window.location.origin
   const opts: maplibre.MapOptions = {
     interactive: true,
     container: 'mapelem',
     zoom: zoom.value,
     center: center.value,
     style: {
-      glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
+      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
+      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
       version: 8,
       sources: {
         'protomaps-base': {
           type: 'vector',
-          tiles: [`https://api.protomaps.com/tiles/v2/{z}/{x}/{y}.pbf?key=${config.public.tlv2.protomapsApikey}`],
-          maxzoom: 14,
+          tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.public.tlv2.protomapsApikey}`],
+          maxzoom: 15,
           attribution: '<a href="https://www.transit.land/terms">Transitland</a> | <a href="https://protomaps.com">Protomaps</a> | &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }
       },
-      layers: noLabels('protomaps-base', 'grayscale')
+      layers: protomapsBaseLayers()
     }
   }
   map = new maplibre.Map(opts)
@@ -451,7 +478,7 @@ function createSources () {
 }
 
 function createLayers () {
-  for (const labelLayer of labels('protomaps-base', 'grayscale')) {
+  for (const labelLayer of protomapsLabelLayers()) {
     map?.addLayer(labelLayer)
   }
 
