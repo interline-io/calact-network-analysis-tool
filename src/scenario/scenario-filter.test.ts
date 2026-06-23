@@ -8,6 +8,7 @@ import type { FlexAreaFeature } from '../tl/flex'
 import type { RouteGql } from '../tl/route'
 import type { StopGql } from '../tl/stop'
 import type { StopTime } from '../tl/departure'
+import type { Weekday } from '../core'
 
 // Minimal ScenarioConfig covering a Mon–Fri week (2024-01-15 Mon to 2024-01-19 Fri)
 const baseConfig: ScenarioConfig = {
@@ -283,5 +284,121 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
     expect(route.average_trips_per_hour).toBeUndefined()
     expect(route.earliest_trip_start).toBeUndefined()
     expect(route.latest_trip_end).toBeUndefined()
+  })
+})
+
+describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => {
+  // Full week: 2024-01-15 Mon … 2024-01-21 Sun (so the range mixes weekday and
+  // weekend service days).
+  const weekConfig: ScenarioConfig = {
+    ...baseConfig,
+    endDate: new Date('2024-01-21T00:00:00'),
+  }
+  const ROUTE_ID = 300
+  const STOP_ID = 400
+  const WEEKDAY_DATES = ['2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19']
+  const WEEKEND_DATES = ['2024-01-20', '2024-01-21']
+  // 30-min headways on weekdays, 60-min headways on weekends.
+  const WEEKDAY_TIMES = ['07:00:00', '07:30:00', '08:00:00', '08:30:00', '09:00:00']
+  const WEEKEND_TIMES = ['07:00:00', '08:00:00', '09:00:00']
+  const WEEKDAYS: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+  const WEEKEND: Weekday[] = ['saturday', 'sunday']
+
+  function makeRouteGql (): RouteGql {
+    return {
+      id: ROUTE_ID,
+      route_id: `route-${ROUTE_ID}`,
+      route_short_name: `R${ROUTE_ID}`,
+      route_long_name: `Route ${ROUTE_ID}`,
+      route_type: 3,
+      geometry: { type: 'MultiLineString', coordinates: [] },
+      agency: { id: 1, agency_id: 'agency-1', agency_name: 'Test Agency' },
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+      __typename: 'Route',
+    }
+  }
+
+  function makeStopGql (): StopGql {
+    return {
+      id: STOP_ID,
+      geometry: { type: 'Point', coordinates: [-122.68, 45.52] },
+      location_type: 0,
+      stop_id: `stop-${STOP_ID}`,
+      stop_name: `Stop ${STOP_ID}`,
+      census_geographies: [] as unknown as StopGql['census_geographies'],
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+      route_stops: [{
+        route: {
+          id: ROUTE_ID,
+          route_id: `route-${ROUTE_ID}`,
+          route_type: 3,
+          route_short_name: `R${ROUTE_ID}`,
+          route_long_name: `Route ${ROUTE_ID}`,
+          agency: { id: 1, agency_id: 'agency-1', agency_name: 'Test Agency' },
+        },
+      }],
+      __typename: 'Stop',
+    }
+  }
+
+  function buildData (): ScenarioData {
+    const cache = new StopDepartureCache()
+    let tripId = 5000
+    const addTrips = (date: string, times: string[]) => {
+      for (const t of times) {
+        const st: StopTime = {
+          departure_time: t,
+          trip: { id: tripId++, direction_id: 0, trip_id: `trip-${tripId}`, route: { id: ROUTE_ID } },
+        }
+        cache.add(STOP_ID, date, [st])
+      }
+    }
+    for (const d of WEEKDAY_DATES) { addTrips(d, WEEKDAY_TIMES) }
+    for (const d of WEEKEND_DATES) { addTrips(d, WEEKEND_TIMES) }
+    return {
+      stops: [makeStopGql()],
+      routes: [makeRouteGql()],
+      feedVersions: [],
+      stopDepartureCache: cache,
+      flexDepartureCache: new FlexDepartureCache(),
+      flexAreas: [],
+    }
+  }
+
+  it('reports weekday frequency (30 min) when weekdays are selected', () => {
+    const result = applyScenarioResultFilter(buildData(), weekConfig, { selectedWeekdays: WEEKDAYS, selectedWeekdayMode: 'Any' })
+    const route = result.routes[0]!
+    expect(route.average_frequency).toBe(30 * 60)
+    expect(route.fastest_frequency).toBe(30 * 60)
+    expect(route.slowest_frequency).toBe(30 * 60)
+  })
+
+  it('reports weekend frequency (60 min) when weekend days are selected', () => {
+    const result = applyScenarioResultFilter(buildData(), weekConfig, { selectedWeekdays: WEEKEND, selectedWeekdayMode: 'Any' })
+    const route = result.routes[0]!
+    expect(route.average_frequency).toBe(60 * 60)
+    expect(route.fastest_frequency).toBe(60 * 60)
+    expect(route.slowest_frequency).toBe(60 * 60)
+  })
+
+  it('weekday and weekend selections produce different frequency (issue #222)', () => {
+    const weekday = applyScenarioResultFilter(buildData(), weekConfig, { selectedWeekdays: WEEKDAYS, selectedWeekdayMode: 'Any' }).routes[0]!
+    const weekend = applyScenarioResultFilter(buildData(), weekConfig, { selectedWeekdays: WEEKEND, selectedWeekdayMode: 'Any' }).routes[0]!
+    expect(weekday.average_frequency).not.toBe(weekend.average_frequency)
+  })
+
+  it('pools all service days when no weekday subset is selected (unchanged all-days behavior)', () => {
+    const result = applyScenarioResultFilter(buildData(), weekConfig, {})
+    const route = result.routes[0]!
+    // Fastest gap comes from weekdays (30 min), slowest from weekends (60 min).
+    expect(route.fastest_frequency).toBe(30 * 60)
+    expect(route.slowest_frequency).toBe(60 * 60)
+  })
+
+  it('scopes the average-trips denominator to the selected weekdays', () => {
+    // 5 trips/day × 5 weekdays = 25 trips over 5 selected days.
+    const result = applyScenarioResultFilter(buildData(), weekConfig, { selectedWeekdays: WEEKDAYS, selectedWeekdayMode: 'Any' })
+    const route = result.routes[0]!
+    expect(route.average_trips_per_day).toBeCloseTo(25 / 5, 5)
   })
 })

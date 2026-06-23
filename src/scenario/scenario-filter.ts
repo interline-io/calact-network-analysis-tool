@@ -107,11 +107,25 @@ function routeSetDerived (
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
 ) {
+  // Scope the date range to the selected weekdays so frequency and trip stats
+  // reflect the current weekday selection (issue #222). Without this, the stats
+  // pool every service day in the span and are invariant to weekday vs weekend.
+  // resolveEffectiveWeekdays returns undefined when no weekday subset applies,
+  // leaving the full range unscoped (all-days behavior unchanged). stopVisits
+  // already scopes by weekday the same way.
+  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
+  const scopedDateRange = effectiveWeekdays
+    ? selectedDateRange.filter((d) => {
+        const dow = dowDateString[d.getDay()]
+        return dow != null && effectiveWeekdays.includes(dow)
+      })
+    : selectedDateRange
+
   // Build per-direction per-date in-window departures. Empty when no
   // routeIndex is available (both arrays are empty).
   const deps = routeHeadways(
     route,
-    selectedDateRange,
+    scopedDateRange,
     selectedStartTime,
     selectedEndTime,
     routeIndex,
@@ -131,7 +145,7 @@ function routeSetDerived (
     }
     const tripStats = calculateRouteTripStats(
       route,
-      selectedDateRange,
+      scopedDateRange,
       selectedStartTime,
       selectedEndTime,
       routeIndex,
@@ -146,11 +160,14 @@ function routeSetDerived (
     }
   }
 
-  // Mark after setting frequency values
+  // Mark after setting frequency values. Pass the scoped range so deps (built
+  // from the same range) and hasServiceOnWeekday stay positionally aligned;
+  // marking is unchanged because hasServiceOnWeekday only inspects dates whose
+  // weekday already matches a target.
   route.marked = routeMarked(
     route,
     deps,
-    selectedDateRange,
+    scopedDateRange,
     selectedWeekdays,
     selectedWeekdayMode,
     selectedRouteTypes,
