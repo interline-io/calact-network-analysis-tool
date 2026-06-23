@@ -61,8 +61,12 @@ git -C "$TMP" checkout -q FETCH_HEAD
 echo "==> Refreshing $DEST"
 rm -rf "$DEST/fonts" "$DEST/sprites"
 mkdir -p "$DEST/fonts" "$DEST/sprites/v4"
+# Copy each fontstack into a hyphenated, space-free directory name. Spaces in
+# the served path (e.g. "Noto%20Sans%20Regular") can fail to resolve on static
+# hosts and fall through to the SPA fallback; the components rewrite the
+# text-font names to match these directories.
 for f in "${FONTSTACKS[@]}"; do
-  cp -R "$TMP/fonts/$f" "$DEST/fonts/$f"
+  cp -R "$TMP/fonts/$f" "$DEST/fonts/${f// /-}"
 done
 cp "$TMP/fonts/OFL.txt" "$DEST/fonts/OFL.txt"
 cp "$TMP/sprites/v4/$FLAVOR.json" "$TMP/sprites/v4/$FLAVOR.png" \

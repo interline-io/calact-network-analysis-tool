@@ -174,8 +174,18 @@ onBeforeUnmount(() => {
 })
 
 // Protomaps basemap label layers (street/place labels), rendered above transit overlays.
+// The vendored font directories use hyphenated, space-free names (see
+// scripts/vendor-basemaps-assets.sh) so they serve reliably from static hosts —
+// spaces in the path can fall through to the SPA fallback — so rewrite the
+// text-font names to match the directories the glyphs URL requests.
 function protomapsLabelLayers () {
-  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
+  const labelLayers = protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
+  return JSON.parse(
+    JSON.stringify(labelLayers)
+      .replaceAll('Noto Sans Regular', 'Noto-Sans-Regular')
+      .replaceAll('Noto Sans Medium', 'Noto-Sans-Medium')
+      .replaceAll('Noto Sans Italic', 'Noto-Sans-Italic'),
+  ) as typeof labelLayers
 }
 
 // Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
@@ -190,14 +200,17 @@ function initMap () {
   if (map) {
     return
   }
+  // MapLibre requires an absolute sprite URL, so anchor the self-hosted assets
+  // to the app's own origin (also used for glyphs, for consistency).
+  const assetOrigin = window.location.origin
   const opts: maplibre.MapOptions = {
     interactive: true,
     container: 'mapelem',
     zoom: zoom.value,
     center: center.value,
     style: {
-      glyphs: '/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-      sprite: '/basemaps-assets/sprites/v4/white',
+      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
+      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
       version: 8,
       sources: {
         'protomaps-base': {

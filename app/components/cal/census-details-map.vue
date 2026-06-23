@@ -180,14 +180,17 @@ function initMap () {
   if (map.value || !mapContainer.value) {
     return
   }
+  // MapLibre requires an absolute sprite URL, so anchor the self-hosted assets
+  // to the app's own origin (also used for glyphs, for consistency).
+  const assetOrigin = window.location.origin
   const newMap = new maplibre.Map({
     container: mapContainer.value,
     interactive: true,
     zoom: 12,
     center: [-122.4, 45.5],
     style: {
-      glyphs: '/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-      sprite: '/basemaps-assets/sprites/v4/white',
+      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
+      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
       version: 8,
       sources: {
         'protomaps-base': {
