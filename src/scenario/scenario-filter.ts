@@ -735,7 +735,7 @@ function deriveFilteredStopClusters (
   // them (includeDepartures off, or clustering toggled on mid-session before a
   // full requery), the cache is empty — keep the proximity clusters rather than
   // silently dropping every one (#330).
-  if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.cache.size === 0) {
+  if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.isEmpty()) {
     return clusters
   }
   const memberIds = new Set<number>()
@@ -747,6 +747,14 @@ function deriveFilteredStopClusters (
   const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
   const startSeconds = parseHMS(startTimeValue)
   const endSeconds = parseHMS(endTimeValue)
+  // The weekday filter and date formatting are the same for every member, so
+  // resolve the eligible date keys once instead of per (member x date).
+  const eligibleDateKeys = selectedDateRange
+    .filter((date) => {
+      const dow = dowDateString[date.getDay()]
+      return effectiveWeekdays == null || (!!dow && effectiveWeekdays.includes(dow))
+    })
+    .map(date => format(date, 'yyyy-MM-dd'))
   const departureSecondsByStop = new Map<number, number[]>()
   const stopMeta = new Map<number, StopClusterMeta>()
   for (const id of memberIds) {
@@ -755,12 +763,8 @@ function deriveFilteredStopClusters (
       continue
     }
     const times: number[] = []
-    for (const date of selectedDateRange) {
-      const dow = dowDateString[date.getDay()]
-      if (effectiveWeekdays != null && (!dow || !effectiveWeekdays.includes(dow))) {
-        continue
-      }
-      for (const st of sdCache.get(id, format(date, 'yyyy-MM-dd'))) {
+    for (const dateKey of eligibleDateKeys) {
+      for (const st of sdCache.get(id, dateKey)) {
         if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
           times.push(st.departureTime)
         }
