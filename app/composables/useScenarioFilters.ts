@@ -140,7 +140,7 @@ export function useScenarioFilters (): ScenarioFilters {
       if (raw == null || raw === '') {
         return STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
       }
-      const n = Number.parseInt(raw)
+      const n = Number.parseFloat(raw)
       return Number.isFinite(n) && n >= 0 ? n : STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
     },
     set: (v) => {

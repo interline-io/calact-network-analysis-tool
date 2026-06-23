@@ -8,7 +8,7 @@ import maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
-import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
+import { STOP_AGG_ELEMENT_IDS, STOP_CLUSTER_COLOR, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -724,8 +724,7 @@ function createLayers () {
   // #330 — selected cluster radius circle. Native circle paint sizes a true
   // metric radius via exponential(2) zoom interpolation of a per-feature
   // pixels-at-zoom-0 value (radius_px_z0 * 2^zoom). Drawn below 'points' so the
-  // member stop dots stay on top and clickable. Color in sync with
-  // STOP_CLUSTER_COLOR (src/core/constants.ts).
+  // member stop dots stay on top and clickable.
   map?.addLayer({
     id: 'cluster-circle',
     type: 'circle',
@@ -736,22 +735,22 @@ function createLayers () {
         0, ['get', 'radius_px_z0'],
         24, ['*', ['get', 'radius_px_z0'], 16777216],
       ],
-      'circle-color': '#d6336c',
+      'circle-color': STOP_CLUSTER_COLOR,
       'circle-opacity': 0.12,
-      'circle-stroke-color': '#d6336c',
+      'circle-stroke-color': STOP_CLUSTER_COLOR,
       'circle-stroke-width': 2,
       'circle-stroke-opacity': 0.9,
     }
   }, 'points')
 
   // #330 — one marker per cluster (rendered on top). Color comes from the
-  // feature's marker-color property (STOP_CLUSTER_COLOR).
+  // feature's marker-color property (set to STOP_CLUSTER_COLOR in map.vue).
   map?.addLayer({
     id: 'clusters',
     type: 'circle',
     source: 'clusters',
     paint: {
-      'circle-color': ['coalesce', ['get', 'marker-color'], '#d6336c'],
+      'circle-color': ['coalesce', ['get', 'marker-color'], STOP_CLUSTER_COLOR],
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
         8, 5,

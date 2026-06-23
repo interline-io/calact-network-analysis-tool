@@ -110,6 +110,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { STOP_CLUSTER_COLOR } from '~~/src/core'
 import type { ClusterMemberInfo } from '~~/src/core'
 
 /**
@@ -262,7 +263,9 @@ const hasMultiple = computed(() => props.total > 1)
 .cal-cluster-member {
   font-size: 13px;
   padding: 6px 8px;
-  border-left: 3px solid #d6336c;
+  // Accent bound from STOP_CLUSTER_COLOR (matches the map marker); the pale fill
+  // is an independent decorative tint.
+  border-left: 3px solid v-bind(STOP_CLUSTER_COLOR);
   background: #faf3f6;
   border-radius: 3px;
 }

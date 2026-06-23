@@ -329,10 +329,10 @@ export function applyClusterTransferTime (
 // SERVER-SIDE PHASE — fetch proximity edges (PostGIS) and derive clusters
 // ============================================================================
 
-// Cap on neighbors returned per stop by nearby_stops. Cluster distances are
-// small (hundreds of meters) so the in-radius neighbor count is modest; this is
-// a safety bound against pathologically dense areas.
-const NEARBY_STOPS_LIMIT = 100
+// Cap on neighbors returned per stop by nearby_stops. The radius is the real
+// constraint on cluster membership; this is just a high safety bound so a
+// pathologically dense area can't return an unbounded neighbor list per stop.
+const NEARBY_STOPS_LIMIT = 1000
 
 // Config for the clustering phase / standalone refetch. JSON-serializable so it
 // crosses the BFF boundary (mirrors BufferFetchConfig).

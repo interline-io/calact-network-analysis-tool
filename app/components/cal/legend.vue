@@ -174,6 +174,7 @@
 import {
   densityUnitLabel,
   formatCensusBucketLabel,
+  STOP_CLUSTER_COLOR,
   type ChoroplethClassification,
 } from '~~/src/core'
 
@@ -293,18 +294,19 @@ function bucketLabel (i: number): string {
   border-radius: 50%;
 }
 
-// Swatch colors must stay in sync with `STOP_CLUSTER_COLOR` in
-// src/core/constants.ts (used for the matching map cluster marker + circle).
+// Swatch colors are bound from STOP_CLUSTER_COLOR (the same JS constant the map
+// cluster marker/circle use) via v-bind, so they can't drift out of sync.
 .legend-cluster-marker {
-  background-color: #d6336c;
+  background-color: v-bind(STOP_CLUSTER_COLOR);
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 0 0 1.5px #d6336c;
+  box-shadow: 0 0 0 1.5px v-bind(STOP_CLUSTER_COLOR);
 }
 
 .legend-cluster-ring {
-  background-color: rgba(214, 51, 108, 0.12);
-  border: 2px dashed #d6336c;
+  // Matches the map circle's 12%-opacity fill (circle-opacity: 0.12).
+  background-color: color-mix(in srgb, v-bind(STOP_CLUSTER_COLOR) 12%, transparent);
+  border: 2px dashed v-bind(STOP_CLUSTER_COLOR);
   border-radius: 50%;
 }
 

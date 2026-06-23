@@ -266,8 +266,9 @@ export const STOP_CLUSTER_DEFAULT_DISTANCE = 200
 export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 15
 
 // Accent color for cluster markers and the selected-cluster radius circle (#330).
-// Kept distinct from the agency/mode palette. The legend.vue / map-popup.vue
-// swatch CSS hardcodes this same value — keep them in sync.
+// Kept distinct from the agency/mode palette. Single source of truth: the map
+// layers (map-viewer-ts.vue) read it directly, and the legend.vue / map-popup.vue
+// swatches bind it into CSS via v-bind(STOP_CLUSTER_COLOR) — no manual sync.
 export const STOP_CLUSTER_COLOR = '#d6336c'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
