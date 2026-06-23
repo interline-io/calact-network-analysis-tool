@@ -7,6 +7,7 @@ import {
   computeHeadwaysPerDay,
   pickDominantDirection,
   scopeDatesToWeekdays,
+  summarizeGaps,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
 } from './route-headway'
@@ -792,5 +793,42 @@ describe('scopeDatesToWeekdays', () => {
   it('returns an empty array when no selected weekday appears in the range', () => {
     const monOnly = [new Date('2024-01-15T00:00:00')] // Monday
     expect(scopeDatesToWeekdays(monOnly, ['sunday'])).toEqual([])
+  })
+})
+
+describe('summarizeGaps', () => {
+  it('returns undefined for an empty input', () => {
+    expect(summarizeGaps([])).toBeUndefined()
+  })
+
+  it('treats a single gap as min = median = max = avg', () => {
+    expect(summarizeGaps([42])).toEqual({ min: 42, median: 42, max: 42, avg: 42, count: 1 })
+  })
+
+  it('uses the middle element as the median for odd-length input', () => {
+    // sorted: 10, 20, 30 → median 20, avg 20
+    expect(summarizeGaps([10, 20, 30])).toEqual({ min: 10, median: 20, max: 30, avg: 20, count: 3 })
+  })
+
+  it('averages the two middle elements as the median for even-length input', () => {
+    // sorted: 10, 20, 30, 40 → median (20 + 30) / 2 = 25, avg 25
+    expect(summarizeGaps([10, 20, 30, 40])).toEqual({ min: 10, median: 25, max: 40, avg: 25, count: 4 })
+  })
+
+  it('sorts unsorted input before computing min/median/max', () => {
+    // sorted: 10, 10, 30, 40 → median (10 + 30) / 2 = 20, avg 90 / 4 = 22.5
+    expect(summarizeGaps([40, 10, 30, 10])).toEqual({ min: 10, median: 20, max: 40, avg: 22.5, count: 4 })
+  })
+
+  it('produces a non-integer average when the gaps do not divide evenly', () => {
+    const summary = summarizeGaps([10, 11, 13])
+    expect(summary!.avg).toBeCloseTo(34 / 3, 10)
+    expect(summary!.median).toBe(11)
+  })
+
+  it('does not mutate the caller-supplied array', () => {
+    const gaps = [40, 10, 30, 10]
+    summarizeGaps(gaps)
+    expect(gaps).toEqual([40, 10, 30, 10])
   })
 })

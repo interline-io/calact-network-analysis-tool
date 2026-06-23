@@ -244,6 +244,9 @@
           <p class="mb-2">
             Frequency is calculated from gaps between consecutive departures at the representative stop, using only the dominant direction. Only service dates matching the selected weekdays contribute to the statistics; out-of-scope dates are still listed below but flagged and excluded. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are considered noise and excluded (shown struck through below).
           </p>
+          <p v-if="!gapStats" class="has-text-grey">
+            No in-scope departure gaps contribute to the frequency statistics for the current weekday selection. Service dates are listed below.
+          </p>
           <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
             <div>
               <dt>Min (fastest):</dt>
@@ -290,7 +293,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="r in dowFrequencyRollup" :key="r.dow">
+                <tr v-for="r in dowFrequencyRollup" :key="r.weekday">
                   <td>{{ r.label }}</td>
                   <td>{{ r.count }}</td>
                   <td>{{ formatGtfsTimeFull(r.min) }}</td>
@@ -316,7 +319,7 @@
           </details>
         </cat-msg>
 
-        <cat-msg variant="info" title="Departures by hour" class="mb-4">
+        <cat-msg v-if="chartDepartures.length > 0" variant="info" title="Departures by hour" class="mb-4">
           <cal-hourly-departures-chart
             :departures="chartDepartures"
             :start-hour="chartStartHour"
@@ -531,7 +534,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { buildRouteTimetable, resolveEffectiveWeekdays } from '~~/src/scenario'
-import { formatGtfsTimeFull } from '~~/src/core'
+import { formatGtfsTimeFull, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -540,6 +543,8 @@ import {
   computeHeadwaysPerDay,
   calculateRouteTripStats,
   scopeDatesToWeekdays,
+  summarizeGaps,
+  WEEKDAY_BY_GETDAY,
   MIN_HEADWAY_SECONDS,
 } from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
@@ -639,16 +644,20 @@ function isDateInScope (dateStr: string): boolean {
   return scopedDateStrings.value.has(dateStr)
 }
 
-const WEEKDAY_ORDER: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-const WEEKDAY_SHORT: Record<Weekday, string> = {
-  monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+// Labels derived from the canonical `dowValues` keys (e.g. 'monday') rather than
+// hand-maintained tables: 'Monday' for the rollup, 'Mon' for the scope tag.
+function weekdayLabel (d: Weekday): string {
+  return d.charAt(0).toUpperCase() + d.slice(1)
+}
+function weekdayShort (d: Weekday): string {
+  return d.charAt(0).toUpperCase() + d.slice(1, 3)
 }
 const weekdayScopeLabel = computed(() => {
   const ew = effectiveWeekdays.value
   if (ew == null || ew.length === 7) {
     return 'All days'
   }
-  return WEEKDAY_ORDER.filter(d => ew.includes(d)).map(d => WEEKDAY_SHORT[d]).join(', ')
+  return dowValues.filter(d => ew.includes(d)).map(weekdayShort).join(', ')
 })
 
 // Build timetable data across ALL service days, unrolled into per-direction
@@ -794,42 +803,41 @@ const frequencyDateGroups = computed<FrequencyDateGroup[]>(() => {
   return groups
 })
 
+// Single source of truth for the rows that feed every summary statistic: only
+// in-scope service days. Out-of-scope days are still listed per-date (and tagged
+// excluded) but never contribute to the numbers, so the stats match the report
+// (issue #222). All stat computeds and the hourly chart derive from this.
+const inScopeFrequencyRows = computed(() => frequencyRows.value.filter(r => r.inScope))
+
 // The exact array fed to calculateHeadwayStats: non-noise gaps from in-scope
-// service days only, sorted ascending. Out-of-scope days are still listed but
-// excluded here so these numbers match the report (issue #222).
+// service days only, sorted ascending.
 const contributingGaps = computed<number[]>(() => {
-  const gaps = frequencyRows.value
-    .filter(r => r.inScope && r.gapToNext !== undefined && !r.gapIsNoise)
+  const gaps = inScopeFrequencyRows.value
+    .filter(r => r.gapToNext !== undefined && !r.gapIsNoise)
     .map(r => r.gapToNext!)
   gaps.sort((a, b) => a - b)
   return gaps
 })
 
 const gapStats = computed(() => {
-  const gaps = contributingGaps.value
-  if (gaps.length === 0) {
+  const summary = summarizeGaps(contributingGaps.value)
+  if (!summary) {
     return undefined
   }
-  const min = gaps[0]!
-  const max = gaps[gaps.length - 1]!
-  const mid = Math.floor(gaps.length / 2)
-  const median = gaps.length % 2 === 1
-    ? gaps[mid]!
-    : (gaps[mid - 1]! + gaps[mid]!) / 2
-  // Indices to bold in the sorted gap list: the two middle entries for even
-  // length, or the single middle entry for odd.
-  const medianIndices = gaps.length % 2 === 1
+  // Indices to bold in the (already-sorted) contributingGaps list: the two
+  // middle entries for even length, or the single middle entry for odd.
+  const mid = Math.floor(summary.count / 2)
+  const medianIndices = summary.count % 2 === 1
     ? new Set([mid])
     : new Set([mid - 1, mid])
-  const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length
-  return { min, max, median, medianIndices, avg, count: gaps.length }
+  return { ...summary, medianIndices }
 })
 
 // Hourly chart reflects the same in-scope departures that feed the stats.
-const chartDepartures = computed(() => frequencyRows.value.filter(r => r.inScope))
+const chartDepartures = inScopeFrequencyRows
 
 interface DowFrequencyRow {
-  dow: number
+  weekday: Weekday
   label: string
   count: number
   min: number
@@ -840,35 +848,30 @@ interface DowFrequencyRow {
 
 // Per-day-of-week breakdown of the contributing (in-scope, non-noise) gaps, so
 // weekday vs weekend frequency differences are visible at a glance (issue #222).
-const DOW_ROLLUP_ORDER = [1, 2, 3, 4, 5, 6, 0]
-const DOW_ROLLUP_LABELS: Record<number, string> = {
-  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday',
-}
+// Ordering reuses the canonical Monday-first `dowValues`; the date→weekday and
+// stat math reuse the shared route-headway helpers.
 const dowFrequencyRollup = computed<DowFrequencyRow[]>(() => {
-  const byDow = new Map<number, number[]>()
-  for (const row of frequencyRows.value) {
-    if (!row.inScope || row.gapToNext === undefined || row.gapIsNoise) {
+  const byWeekday = new Map<Weekday, number[]>()
+  for (const row of inScopeFrequencyRows.value) {
+    if (row.gapToNext === undefined || row.gapIsNoise) {
       continue
     }
     const [y, m, d] = row.serviceDate.split('-').map(Number)
-    const dow = new Date(y!, m! - 1, d!).getDay()
-    const arr = byDow.get(dow) ?? []
-    arr.push(row.gapToNext)
-    byDow.set(dow, arr)
-  }
-  const out: DowFrequencyRow[] = []
-  for (const dow of DOW_ROLLUP_ORDER) {
-    const gaps = byDow.get(dow)
-    if (!gaps || gaps.length === 0) {
+    const weekday = WEEKDAY_BY_GETDAY[new Date(y!, m! - 1, d!).getDay()]
+    if (weekday == null) {
       continue
     }
-    gaps.sort((a, b) => a - b)
-    const min = gaps[0]!
-    const max = gaps[gaps.length - 1]!
-    const mid = Math.floor(gaps.length / 2)
-    const median = gaps.length % 2 === 1 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2
-    const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length
-    out.push({ dow, label: DOW_ROLLUP_LABELS[dow]!, count: gaps.length, min, median, max, avg })
+    const arr = byWeekday.get(weekday) ?? []
+    arr.push(row.gapToNext)
+    byWeekday.set(weekday, arr)
+  }
+  const out: DowFrequencyRow[] = []
+  for (const weekday of dowValues) {
+    const summary = summarizeGaps(byWeekday.get(weekday) ?? [])
+    if (!summary) {
+      continue
+    }
+    out.push({ weekday, label: weekdayLabel(weekday), ...summary })
   }
   return out
 })

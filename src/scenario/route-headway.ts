@@ -14,9 +14,11 @@ import type {
   RouteDepartureIndex,
 } from '../tl'
 
-// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Kept local
-// because `dowValues` in src/core/constants.ts starts at monday, not sunday.
-const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
+// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Exported so
+// debug views (Route Timetable) can map a date to its weekday with the same
+// convention used here; `dowValues` in src/core/constants.ts starts at monday,
+// not sunday, so it can't be indexed by getDay() directly.
+export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
   'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
 ] as const
 
@@ -337,6 +339,33 @@ export function pickDominantDirection (deps: RouteDepartures): 0 | 1 {
 }
 
 /**
+ * Summary statistics over a set of headway gaps (seconds). Callers collect the
+ * contributing gaps; this performs the min/median/max/average math shared by
+ * `calculateHeadwayStats` and the Route Timetable debug views (overall and
+ * per-weekday) so the implementations can never disagree on how a
+ * representative frequency is derived. Returns undefined for an empty input.
+ */
+export interface GapSummary {
+  min: number
+  median: number
+  max: number
+  avg: number
+  count: number
+}
+
+export function summarizeGaps (gaps: readonly number[]): GapSummary | undefined {
+  if (gaps.length === 0) {
+    return undefined
+  }
+  const sorted = [...gaps].sort((a, b) => a - b)
+  const count = sorted.length
+  const mid = Math.floor(count / 2)
+  const median = count % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  const avg = sorted.reduce((a, b) => a + b, 0) / count
+  return { min: sorted[0]!, median, max: sorted[count - 1]!, avg, count }
+}
+
+/**
  * Calculate headway statistics from per-day departure arrays.
  * Headways are computed within each day and then aggregated, so an interval
  * is never measured between trips on different service days.
@@ -358,13 +387,13 @@ export function calculateHeadwayStats (departuresByDay: number[][]): {
       contributing.push(h.gap)
     }
   }
-  if (contributing.length === 0) {
+  const summary = summarizeGaps(contributing)
+  if (!summary) {
     return undefined
   }
-  contributing.sort((a, b) => a - b)
   return {
-    average: contributing.reduce((a, b) => a + b) / contributing.length,
-    fastest: contributing[0]!,
-    slowest: contributing[contributing.length - 1]!,
+    average: summary.avg,
+    fastest: summary.min,
+    slowest: summary.max,
   }
 }
