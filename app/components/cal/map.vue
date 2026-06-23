@@ -45,6 +45,8 @@
       :flex-features="flexFeatures"
       :cluster-features="clusterFeatures"
       :cluster-circle-features="clusterCircleFeatures"
+      :cluster-line-features="clusterLineFeatures"
+      :cluster-markers="clusterMarkers"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
@@ -70,7 +72,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
 import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
-import { colors, routeTypeNames, flexColors, STOP_CLUSTER_COLOR } from '~~/src/core'
+import { colors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import type { ScenarioFilterResult, StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
@@ -422,22 +424,85 @@ watch(stopClusters, () => {
   }
 })
 
-// One marker per cluster, at its anchor stop.
+// Stable per-agency colors for the cluster "beach ball" wedges — an ordinal
+// (Tableau10) scale over every agency present in the clusters, so an agency
+// keeps the same color across all markers.
+const clusterAgencyColorScale = computed(() => {
+  const ids = new Set<number>()
+  for (const c of stopClusters.value) {
+    for (const a of c.agencyIds) {
+      ids.add(a)
+    }
+  }
+  return createCategoryColorScale([...ids].sort((a, b) => a - b).map(String))
+})
+
+// Cluster centroid = mean of its member stop coordinates (arithmetic, not a
+// PostGIS geometry op). Anchors the beach-ball marker, the connector-line hub,
+// and the click target. Only members present in the loaded stop set count.
+const clusterCentroids = computed(() => {
+  const m = new Map<string, [number, number]>()
+  for (const c of stopClusters.value) {
+    let lon = 0
+    let lat = 0
+    let n = 0
+    for (const id of c.memberStopIds) {
+      const stop = stopFeatureLookup.value.get(id.toString())
+      if (!stop) {
+        continue
+      }
+      const lonCoord = stop.geometry.coordinates[0]
+      const latCoord = stop.geometry.coordinates[1]
+      if (lonCoord == null || latCoord == null) {
+        continue
+      }
+      lon += lonCoord
+      lat += latCoord
+      n += 1
+    }
+    if (n > 0) {
+      m.set(c.id, [lon / n, lat / n])
+    }
+  }
+  return m
+})
+
+// Invisible click target, one per cluster at its centroid. The visible marker
+// is the DOM "beach ball" (clusterMarkers below); this transparent circle layer
+// keeps the existing queryRenderedFeatures click/select/popup flow working.
 const clusterFeatures = computed((): Feature[] => {
   const out: Feature[] = []
   for (const c of stopClusters.value) {
-    const anchor = stopFeatureLookup.value.get(c.anchorStopId.toString())
-    if (!anchor) {
+    const centroid = clusterCentroids.value.get(c.id)
+    if (!centroid) {
       continue
     }
     out.push({
       type: 'Feature',
       id: c.id,
-      geometry: anchor.geometry,
+      geometry: { type: 'Point', coordinates: centroid },
       properties: {
-        'cluster_id': c.id,
-        'marker-color': STOP_CLUSTER_COLOR,
+        cluster_id: c.id,
       },
+    })
+  }
+  return out
+})
+
+// One multi-colored "beach ball" marker per cluster (a wedge per agency),
+// rendered as a DOM overlay at the centroid in place of the old solid-red dot.
+const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
+  const scale = clusterAgencyColorScale.value
+  const out: { id: string, point: Point, colors: string[] }[] = []
+  for (const c of stopClusters.value) {
+    const centroid = clusterCentroids.value.get(c.id)
+    if (!centroid) {
+      continue
+    }
+    out.push({
+      id: c.id,
+      point: { lon: centroid[0], lat: centroid[1] },
+      colors: c.agencyIds.map(a => scale(String(a))),
     })
   }
   return out
@@ -468,6 +533,41 @@ const clusterCircleFeatures = computed((): Feature[] => {
       radius_px_z0: radiusPxZ0,
     },
   }]
+})
+
+// Connector lines fanning out from the cluster centroid (where the beach-ball
+// marker sits) to each member stop, drawn only while the cluster is selected.
+// Pure rendering — straight segments between known points, not a geometry op.
+// Hubbing at the centroid keeps the spokes aligned with the marker and sidesteps
+// the fact that the anchor isn't guaranteed to be one of the member stops.
+const clusterLineFeatures = computed((): Feature[] => {
+  const c = selectedCluster.value
+  if (!c) {
+    return []
+  }
+  const centroid = clusterCentroids.value.get(c.id)
+  if (!centroid) {
+    return []
+  }
+  const out: Feature[] = []
+  for (const memberId of c.memberStopIds) {
+    const member = stopFeatureLookup.value.get(memberId.toString())
+    if (!member) {
+      continue
+    }
+    out.push({
+      type: 'Feature',
+      id: `cluster-line:${c.id}:${memberId}`,
+      geometry: {
+        type: 'LineString',
+        coordinates: [centroid, member.geometry.coordinates],
+      },
+      properties: {
+        cluster_id: c.id,
+      },
+    })
+  }
+  return out
 })
 
 // Calculate top agencies in result set
@@ -871,7 +971,8 @@ const displayFeatures = computed((): Feature[] => {
     forDisplay.push(feature)
   }
 
-  // When a cluster is selected, focus it: non-member stops are greyed out.
+  // When a cluster is expanded, focus it: show ONLY its member stops and hide
+  // every other stop. With no cluster selected, all stops show normally.
   const memberSet = selectedMemberSet.value
   const clusterActive = memberSet.size > 0
 
@@ -880,8 +981,10 @@ const displayFeatures = computed((): Feature[] => {
     if (hideUnmarked.value && !sp.marked) {
       continue
     }
+    if (clusterActive && !memberSet.has(sp.id)) {
+      continue
+    }
 
-    const inFocus = !clusterActive || memberSet.has(sp.id)
     const style = styleRules.find(rule => rule.match(sp))
     const feature = {
       type: 'Feature',
@@ -890,8 +993,8 @@ const displayFeatures = computed((): Feature[] => {
       properties: {
         'id': sp.id,
         'marker-radius': sp.marked ? 8 : 3,
-        'marker-color': inFocus ? (style?.color || bgColor) : bgColor,
-        'marker-opacity': inFocus ? (sp.marked ? 1 : bgOpacity) : bgOpacity,
+        'marker-color': style?.color || bgColor,
+        'marker-opacity': sp.marked ? 1 : bgOpacity,
         'marked': sp.marked
       }
     }
