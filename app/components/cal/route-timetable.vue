@@ -23,6 +23,18 @@
             <span class="tag is-light">{{ props.route.route_id }}</span>
           </div>
         </div>
+        <div class="control">
+          <div class="tags has-addons">
+            <span class="tag is-info">days</span>
+            <span class="tag is-light">{{ weekdayScopeLabel }}</span>
+          </div>
+        </div>
+        <div class="control">
+          <div class="tags has-addons">
+            <span class="tag is-info">time</span>
+            <span class="tag is-light">{{ timeWindowLabel }}</span>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -162,9 +174,10 @@
             :id="`trips-dir${section.directionId}-${group.serviceDate}`"
             :key="group.serviceDate"
           >
-            <tr class="cal-route-timetable-date-separator">
+            <tr :class="['cal-route-timetable-date-separator', { 'cal-route-timetable-row-excluded': !group.inScope }]">
               <td colspan="4">
                 {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} trips)
+                <span v-if="!group.inScope" class="tag is-warning is-light ml-2">excluded (not in selected weekdays)</span>
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -174,7 +187,7 @@
               v-for="(row, ri) in group.rows"
               :key="row.tripId"
               :class="{
-                'cal-route-timetable-row-muted': !row.inWindow,
+                'cal-route-timetable-row-muted': !row.inWindow || !group.inScope,
                 'cal-route-timetable-row-striped': ri % 2 === 1,
               }"
             >
@@ -229,7 +242,7 @@
       <div v-else>
         <cat-msg variant="info" title="Summary" class="mb-4">
           <p class="mb-2">
-            Frequency is calculated from gaps between consecutive departures at the representative stop, using only the dominant direction. All selected service dates are included, subject to any time-of-day or day-of-week filters. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are considered noise and excluded (shown struck through below).
+            Frequency is calculated from gaps between consecutive departures at the representative stop, using only the dominant direction. Only service dates matching the selected weekdays contribute to the statistics; out-of-scope dates are still listed below but flagged and excluded. Gaps under {{ MIN_HEADWAY_SECONDS }} seconds are considered noise and excluded (shown struck through below).
           </p>
           <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
             <div>
@@ -261,6 +274,33 @@
               </dd>
             </div>
           </dl>
+          <div v-if="dowFrequencyRollup.length > 1" class="mt-3">
+            <p class="has-text-weight-semibold mb-1">
+              By day of week
+            </p>
+            <table class="table is-narrow cal-route-timetable-dow-table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>n</th>
+                  <th>Fastest</th>
+                  <th>Median</th>
+                  <th>Slowest</th>
+                  <th>Average</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in dowFrequencyRollup" :key="r.dow">
+                  <td>{{ r.label }}</td>
+                  <td>{{ r.count }}</td>
+                  <td>{{ formatGtfsTimeFull(r.min) }}</td>
+                  <td>{{ formatGtfsTimeFull(r.median) }}</td>
+                  <td>{{ formatGtfsTimeFull(r.max) }}</td>
+                  <td>{{ formatGtfsTimeFull(r.avg) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <details v-if="gapStats" class="mt-2 is-size-7">
             <summary>Sorted contributing gaps (seconds) — min, median, max in bold</summary>
             <div class="cal-route-timetable-gap-list mt-1">
@@ -278,7 +318,7 @@
 
         <cat-msg variant="info" title="Departures by hour" class="mb-4">
           <cal-hourly-departures-chart
-            :departures="frequencyRows"
+            :departures="chartDepartures"
             :start-hour="chartStartHour"
             :end-hour="chartEndHour"
           />
@@ -342,9 +382,10 @@
             :id="`freq-${group.serviceDate}`"
             :key="group.serviceDate"
           >
-            <tr class="cal-route-timetable-date-separator">
+            <tr :class="['cal-route-timetable-date-separator', { 'cal-route-timetable-row-excluded': !group.inScope }]">
               <td colspan="6">
                 {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} departures)
+                <span v-if="!group.inScope" class="tag is-warning is-light ml-2">excluded (not in selected weekdays)</span>
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -353,7 +394,10 @@
             <tr
               v-for="(row, i) in group.rows"
               :key="i"
-              :class="{ 'cal-route-timetable-row-striped': i % 2 === 1 }"
+              :class="{
+                'cal-route-timetable-row-muted': !group.inScope,
+                'cal-route-timetable-row-striped': i % 2 === 1,
+              }"
             >
               <td class="cal-route-timetable-trip-id">
                 {{ tripIdLabel(row.tripId) }}
@@ -444,9 +488,10 @@
             :id="`stops-${group.serviceDate}`"
             :key="group.serviceDate"
           >
-            <tr class="cal-route-timetable-date-separator">
+            <tr :class="['cal-route-timetable-date-separator', { 'cal-route-timetable-row-excluded': !group.inScope }]">
               <td colspan="4">
                 {{ formatServiceDate(group.serviceDate) }} ({{ group.rows.length }} stops)
+                <span v-if="!group.inScope" class="tag is-warning is-light ml-2">excluded (not in selected weekdays)</span>
                 <button type="button" class="cal-route-timetable-top-btn" @click="scrollToTop">
                   top
                 </button>
@@ -455,7 +500,10 @@
             <tr
               v-for="(row, i) in group.rows"
               :key="`${row.stopId}-${row.directionId}`"
-              :class="{ 'cal-route-timetable-row-striped': i % 2 === 1 }"
+              :class="{
+                'cal-route-timetable-row-muted': !group.inScope,
+                'cal-route-timetable-row-striped': i % 2 === 1,
+              }"
             >
               <td>{{ stopIdStr(row.stopId) }}</td>
               <td>{{ stopName(row.stopId) }}</td>
@@ -482,14 +530,16 @@ import { computed, ref } from 'vue'
 import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { buildRouteTimetable } from '~~/src/scenario'
+import { buildRouteTimetable, resolveEffectiveWeekdays } from '~~/src/scenario'
 import { formatGtfsTimeFull } from '~~/src/core'
+import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
   pickDominantDirection,
   routeHeadways,
   computeHeadwaysPerDay,
   calculateRouteTripStats,
+  scopeDatesToWeekdays,
   MIN_HEADWAY_SECONDS,
 } from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
@@ -512,6 +562,9 @@ interface TimetableRowWithDate {
 interface DateGroup {
   serviceDate: string
   rows: TimetableRowWithDate[]
+  // False when this date's weekday is excluded by the current weekday selection.
+  // Such dates are still listed but do not feed the summary stats (issue #222).
+  inScope: boolean
 }
 
 interface UnrolledSection {
@@ -527,12 +580,15 @@ interface FrequencyRow {
   departureTime: number
   gapToNext?: number
   gapIsNoise: boolean
+  inScope: boolean
 }
 
 const props = defineProps<{
   route: Route
   scenarioFilterResult: ScenarioFilterResult
   selectedDateRange: Date[]
+  selectedWeekdays?: Weekday[]
+  selectedWeekdayMode?: WeekdayMode
   startTime?: Date
   endTime?: Date
   initialTab?: Tab
@@ -565,6 +621,36 @@ const endTimeStr = computed(() =>
   props.endTime ? format(props.endTime, 'HH:mm:ss') : undefined,
 )
 
+// Scope the report-matching computations (frequency + trip stats) to the
+// selected weekdays, exactly as scenario-filter does, so the debug numbers can
+// never drift from the report. The per-date listings below still show every
+// service day and tag out-of-scope dates via isDateInScope so the user can see
+// what was excluded (issue #222).
+const effectiveWeekdays = computed(() =>
+  resolveEffectiveWeekdays(props.selectedWeekdays, props.selectedWeekdayMode),
+)
+const scopedDateRange = computed(() =>
+  scopeDatesToWeekdays(props.selectedDateRange, effectiveWeekdays.value),
+)
+const scopedDateStrings = computed(() =>
+  new Set(scopedDateRange.value.map(d => format(d, 'yyyy-MM-dd'))),
+)
+function isDateInScope (dateStr: string): boolean {
+  return scopedDateStrings.value.has(dateStr)
+}
+
+const WEEKDAY_ORDER: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const WEEKDAY_SHORT: Record<Weekday, string> = {
+  monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+}
+const weekdayScopeLabel = computed(() => {
+  const ew = effectiveWeekdays.value
+  if (ew == null || ew.length === 7) {
+    return 'All days'
+  }
+  return WEEKDAY_ORDER.filter(d => ew.includes(d)).map(d => WEEKDAY_SHORT[d]).join(', ')
+})
+
 // Build timetable data across ALL service days, unrolled into per-direction
 // flat arrays with a serviceDate + representativeStopId tagged on each row.
 const unrolledSections = computed<UnrolledSection[]>(() => {
@@ -590,7 +676,7 @@ const unrolledSections = computed<UnrolledSection[]>(() => {
         representativeStopId: dir.representativeStopId,
         inWindow: row.inWindow,
       }))
-      groups.push({ serviceDate: dateStr, rows })
+      groups.push({ serviceDate: dateStr, rows, inScope: isDateInScope(dateStr) })
     }
   }
   const out: UnrolledSection[] = []
@@ -609,7 +695,7 @@ const unrolledSections = computed<UnrolledSection[]>(() => {
 const routeDeps = computed(() =>
   routeHeadways(
     props.route,
-    props.selectedDateRange,
+    scopedDateRange.value,
     startTimeStr.value,
     endTimeStr.value,
     routeIndex.value,
@@ -623,7 +709,7 @@ const dominantDirection = computed(() => pickDominantDirection(routeDeps.value))
 const tripStats = computed(() =>
   calculateRouteTripStats(
     props.route,
-    props.selectedDateRange,
+    scopedDateRange.value,
     startTimeStr.value,
     endTimeStr.value,
     routeIndex.value,
@@ -631,6 +717,12 @@ const tripStats = computed(() =>
 )
 
 const isAllDayMode = computed(() => props.startTime == null && props.endTime == null)
+
+const timeWindowLabel = computed(() =>
+  isAllDayMode.value
+    ? 'All day'
+    : `${startTimeStr.value ?? '00:00:00'} to ${endTimeStr.value ?? '24:00:00'}`,
+)
 
 // Show long name only when it adds information beyond the short name.
 const showLongName = computed(() => {
@@ -654,6 +746,7 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
   const dir = dominantDirection.value
   for (const d of props.selectedDateRange) {
     const dateStr = format(d, 'yyyy-MM-dd')
+    const dateInScope = isDateInScope(dateStr)
     const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
     if (rep.stopId === undefined) {
       continue
@@ -675,6 +768,7 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
         departureTime: st.departureTime,
         gapToNext: h?.gap,
         gapIsNoise: h?.isNoise ?? false,
+        inScope: dateInScope,
       })
     }
   }
@@ -684,6 +778,7 @@ const frequencyRows = computed<FrequencyRow[]>(() => {
 interface FrequencyDateGroup {
   serviceDate: string
   rows: FrequencyRow[]
+  inScope: boolean
 }
 
 const frequencyDateGroups = computed<FrequencyDateGroup[]>(() => {
@@ -691,7 +786,7 @@ const frequencyDateGroups = computed<FrequencyDateGroup[]>(() => {
   let current: FrequencyDateGroup | undefined
   for (const row of frequencyRows.value) {
     if (!current || current.serviceDate !== row.serviceDate) {
-      current = { serviceDate: row.serviceDate, rows: [] }
+      current = { serviceDate: row.serviceDate, rows: [], inScope: row.inScope }
       groups.push(current)
     }
     current.rows.push(row)
@@ -699,10 +794,12 @@ const frequencyDateGroups = computed<FrequencyDateGroup[]>(() => {
   return groups
 })
 
-// The exact array fed to calculateHeadwayStats: non-noise gaps, sorted ascending.
+// The exact array fed to calculateHeadwayStats: non-noise gaps from in-scope
+// service days only, sorted ascending. Out-of-scope days are still listed but
+// excluded here so these numbers match the report (issue #222).
 const contributingGaps = computed<number[]>(() => {
   const gaps = frequencyRows.value
-    .filter(r => r.gapToNext !== undefined && !r.gapIsNoise)
+    .filter(r => r.inScope && r.gapToNext !== undefined && !r.gapIsNoise)
     .map(r => r.gapToNext!)
   gaps.sort((a, b) => a - b)
   return gaps
@@ -726,6 +823,54 @@ const gapStats = computed(() => {
     : new Set([mid - 1, mid])
   const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length
   return { min, max, median, medianIndices, avg, count: gaps.length }
+})
+
+// Hourly chart reflects the same in-scope departures that feed the stats.
+const chartDepartures = computed(() => frequencyRows.value.filter(r => r.inScope))
+
+interface DowFrequencyRow {
+  dow: number
+  label: string
+  count: number
+  min: number
+  median: number
+  max: number
+  avg: number
+}
+
+// Per-day-of-week breakdown of the contributing (in-scope, non-noise) gaps, so
+// weekday vs weekend frequency differences are visible at a glance (issue #222).
+const DOW_ROLLUP_ORDER = [1, 2, 3, 4, 5, 6, 0]
+const DOW_ROLLUP_LABELS: Record<number, string> = {
+  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday',
+}
+const dowFrequencyRollup = computed<DowFrequencyRow[]>(() => {
+  const byDow = new Map<number, number[]>()
+  for (const row of frequencyRows.value) {
+    if (!row.inScope || row.gapToNext === undefined || row.gapIsNoise) {
+      continue
+    }
+    const [y, m, d] = row.serviceDate.split('-').map(Number)
+    const dow = new Date(y!, m! - 1, d!).getDay()
+    const arr = byDow.get(dow) ?? []
+    arr.push(row.gapToNext)
+    byDow.set(dow, arr)
+  }
+  const out: DowFrequencyRow[] = []
+  for (const dow of DOW_ROLLUP_ORDER) {
+    const gaps = byDow.get(dow)
+    if (!gaps || gaps.length === 0) {
+      continue
+    }
+    gaps.sort((a, b) => a - b)
+    const min = gaps[0]!
+    const max = gaps[gaps.length - 1]!
+    const mid = Math.floor(gaps.length / 2)
+    const median = gaps.length % 2 === 1 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2
+    const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length
+    out.push({ dow, label: DOW_ROLLUP_LABELS[dow]!, count: gaps.length, min, median, max, avg })
+  }
+  return out
 })
 
 // Stop lookup: build once per scenarioFilterResult change.
@@ -771,6 +916,7 @@ interface StopDetailRow {
 interface StopDetailDateGroup {
   serviceDate: string
   rows: StopDetailRow[]
+  inScope: boolean
 }
 
 const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
@@ -797,7 +943,7 @@ const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
         const nameB = stopName(b.stopId)
         return nameA.localeCompare(nameB) || a.directionId - b.directionId || b.departureCount - a.departureCount
       })
-      groups.push({ serviceDate: dateStr, rows })
+      groups.push({ serviceDate: dateStr, rows, inScope: isDateInScope(dateStr) })
     }
   }
   return groups
@@ -807,6 +953,7 @@ const stopDetailsCsvData = computed(() => {
   return stopDetailDateGroups.value.flatMap(group =>
     group.rows.map(row => ({
       service_date: group.serviceDate,
+      in_scope: group.inScope,
       direction_id: row.directionId,
       stop_id: stopIdStr(row.stopId),
       stop_name: stopName(row.stopId),
@@ -829,6 +976,7 @@ const tripsCsvData = computed(() => {
       for (const row of group.rows) {
         rows.push({
           service_date: row.serviceDate,
+          in_scope: group.inScope,
           direction_id: row.directionId,
           trip_id: tripIdLabel(row.tripId),
           in_window: row.inWindow,
@@ -851,6 +999,7 @@ const tripsCsvData = computed(() => {
 const frequencyCsvData = computed(() => {
   return frequencyRows.value.map(row => ({
     service_date: row.serviceDate,
+    in_scope: row.inScope,
     direction_id: row.directionId,
     trip_id: tripIdLabel(row.tripId),
     stop_id: stopIdStr(row.stopId),
@@ -878,6 +1027,14 @@ const frequencyCsvData = computed(() => {
 }
 .cal-route-timetable-row-muted {
   opacity: 0.5;
+}
+.cal-route-timetable-row-excluded > td {
+  font-style: italic;
+  color: var(--bulma-grey, #7a7a7a);
+}
+.cal-route-timetable-dow-table {
+  font-variant-numeric: tabular-nums;
+  width: auto;
 }
 .cal-route-timetable-direction-nav {
   h4 {

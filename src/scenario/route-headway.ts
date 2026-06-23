@@ -139,6 +139,23 @@ export function hasServiceOnWeekday (
 }
 
 /**
+ * Filter a date range to the dates whose weekday is in `effectiveWeekdays`.
+ * When `effectiveWeekdays` is undefined (no weekday subset selected), the range
+ * is returned unchanged. Shared by scenario-filter (route frequency and trip
+ * stats) and the Route Timetable debug modal so the two cannot diverge on which
+ * service days feed the numbers (issue #222).
+ */
+export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday[]): Date[] {
+  if (effectiveWeekdays == null) {
+    return dates
+  }
+  return dates.filter((d) => {
+    const dow = WEEKDAY_BY_GETDAY[d.getDay()]
+    return dow != null && effectiveWeekdays.includes(dow)
+  })
+}
+
+/**
  * Statistics about trips on a route across the selected date range.
  */
 export interface RouteTripStats {

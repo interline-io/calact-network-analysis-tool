@@ -51,6 +51,7 @@ import {
   calculateHeadwayStats,
   calculateRouteTripStats,
   pickDominantDirection,
+  scopeDatesToWeekdays,
   type RouteDepartures,
 } from './route-headway'
 import {
@@ -83,7 +84,7 @@ import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
 // which normally means "no filter applied." For 'All' mode we override this:
 // undefined + 'All' means the user wants every day to be required, so we
 // expand it back to the explicit 7-day array to keep filtering active.
-function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): Weekday[] | undefined {
+export function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): Weekday[] | undefined {
   if (selectedWeekdays == null && selectedWeekdayMode === 'All') {
     return [...dowValues] as Weekday[]
   }
@@ -111,15 +112,13 @@ function routeSetDerived (
   // reflect the current weekday selection (issue #222). Without this, the stats
   // pool every service day in the span and are invariant to weekday vs weekend.
   // resolveEffectiveWeekdays returns undefined when no weekday subset applies,
-  // leaving the full range unscoped (all-days behavior unchanged). stopVisits
-  // already scopes by weekday the same way.
-  const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  const scopedDateRange = effectiveWeekdays
-    ? selectedDateRange.filter((d) => {
-        const dow = dowDateString[d.getDay()]
-        return dow != null && effectiveWeekdays.includes(dow)
-      })
-    : selectedDateRange
+  // leaving the full range unscoped (all-days behavior unchanged). The Route
+  // Timetable debug modal applies the same scopeDatesToWeekdays helper so it
+  // cannot drift from these numbers.
+  const scopedDateRange = scopeDatesToWeekdays(
+    selectedDateRange,
+    resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode),
+  )
 
   // Build per-direction per-date in-window departures. Empty when no
   // routeIndex is available (both arrays are empty).

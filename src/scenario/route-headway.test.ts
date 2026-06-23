@@ -6,12 +6,14 @@ import {
   calculateRouteTripStats,
   computeHeadwaysPerDay,
   pickDominantDirection,
+  scopeDatesToWeekdays,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
 } from './route-headway'
 import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
+import type { Weekday } from '../core'
 
 interface TripStop {
   stopId: number
@@ -764,5 +766,31 @@ describe('pickDominantDirection', () => {
   it('aggregates counts across all dates, not per-date', () => {
     // dir 0: 1 + 1 = 2; dir 1: 3 + 0 = 3 → dir 1 wins.
     expect(pickDominantDirection(make([[1], [1]], [[1, 2, 3], []]))).toBe(1)
+  })
+})
+
+describe('scopeDatesToWeekdays', () => {
+  // 2024-01-15 Mon(15) Tue(16) Wed(17) Thu(18) Fri(19) Sat(20) Sun(21). Local
+  // midnights, so getDate() and getDay() agree (no toISOString TZ shift).
+  const week = [
+    '2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19', '2024-01-20', '2024-01-21',
+  ].map(s => new Date(`${s}T00:00:00`))
+
+  it('returns the range unchanged when effectiveWeekdays is undefined', () => {
+    expect(scopeDatesToWeekdays(week, undefined)).toBe(week)
+  })
+
+  it('keeps only the dates whose weekday is selected', () => {
+    const weekdays: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    expect(scopeDatesToWeekdays(week, weekdays).map(d => d.getDate())).toEqual([15, 16, 17, 18, 19])
+  })
+
+  it('keeps only the weekend dates when weekend days are selected', () => {
+    expect(scopeDatesToWeekdays(week, ['saturday', 'sunday']).map(d => d.getDate())).toEqual([20, 21])
+  })
+
+  it('returns an empty array when no selected weekday appears in the range', () => {
+    const monOnly = [new Date('2024-01-15T00:00:00')] // Monday
+    expect(scopeDatesToWeekdays(monOnly, ['sunday'])).toEqual([])
   })
 })
