@@ -247,7 +247,7 @@
           class="mb-4"
         >
           <p>
-            {{ repeatRepStopVisits }} departures at the representative stop are repeat visits by the same trip, which happens when the stop is both the first and last stop of a loop. Only each trip's first departure is counted toward frequency, so the loop turnaround is not mistaken for a short headway (issue #368).
+            {{ repeatRepStopVisits }} departures at the representative stop are repeat visits by the same trip, which happens when the stop is both the first and last stop of a loop. Only each trip's first departure is counted toward frequency, so the loop turnaround is not mistaken for a short headway.
           </p>
         </cat-msg>
         <cat-msg variant="info" title="Summary" class="mb-4">
