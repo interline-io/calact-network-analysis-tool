@@ -513,19 +513,19 @@ export interface ScenarioFilterResult {
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
   tripIdStrings?: Map<number, string>
   // Passed through from ScenarioData for the aggregation table demographic
-  // columns (#302). Keyed by census geography geoid.
+  // columns. Keyed by census geography geoid.
   censusGeographies?: Map<string, CensusGeographyData>
-  // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
+  // Pass C: per-stop buffer tracts. Populated only when the scenario
   // ran with `stopBufferRadius > 0`.
   stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass D (#315): per-route buffer tracts.
+  // Pass D: per-route buffer tracts.
   routeBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass E (#315): per-agency buffer tracts.
+  // Pass E: per-agency buffer tracts.
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass F (#315): one-shot union over every stop's buffer at the chosen
+  // Pass F: one-shot union over every stop's buffer at the chosen
   // radius. Drives the aggregation-table apportioned values.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
-  // #330: cross-agency transfer-hub clusters, after the client-side max-transfer
+  // cross-agency transfer-hub clusters, after the client-side max-transfer
   // -time prune. Populated only when the scenario ran with clustering enabled.
   stopClusters?: StopCluster[]
 }
@@ -679,7 +679,7 @@ export function applyScenarioResultFilter (
     }
   })
 
-  // #330 — apply the max-transfer-time prune to the server's proximity clusters.
+  // apply the max-transfer-time prune to the server's proximity clusters.
   // Pure time arithmetic over the already-loaded departure cache, so it re-runs
   // here (no refetch) whenever the user changes the transfer-time input.
   const stopClusters = deriveFilteredStopClusters(
@@ -734,7 +734,7 @@ function deriveFilteredStopClusters (
   // The temporal prune needs departures. When the scenario was loaded without
   // them (includeDepartures off, or clustering toggled on mid-session before a
   // full requery), the cache is empty — keep the proximity clusters rather than
-  // silently dropping every one (#330).
+  // silently dropping every one.
   if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.isEmpty()) {
     return clusters
   }

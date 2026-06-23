@@ -35,7 +35,7 @@ const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { defaul
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
-// #330 — stop cluster markers + the selected cluster's radius circle.
+// stop cluster markers + the selected cluster's radius circle.
 const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
 const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
@@ -466,7 +466,7 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
-  // #330 — stop cluster markers and the selected cluster's radius circle.
+  // stop cluster markers and the selected cluster's radius circle.
   map?.addSource('clusters', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
@@ -721,7 +721,7 @@ function createLayers () {
     }
   })
 
-  // #330 — selected cluster radius circle. Native circle paint sizes a true
+  // selected cluster radius circle. Native circle paint sizes a true
   // metric radius via exponential(2) zoom interpolation of a per-feature
   // pixels-at-zoom-0 value (radius_px_z0 * 2^zoom). Drawn below 'points' so the
   // member stop dots stay on top and clickable.
@@ -743,7 +743,7 @@ function createLayers () {
     }
   }, 'points')
 
-  // #330 — one marker per cluster (rendered on top). Color comes from the
+  // one marker per cluster (rendered on top). Color comes from the
   // feature's marker-color property (set to STOP_CLUSTER_COLOR in map.vue).
   map?.addLayer({
     id: 'clusters',
@@ -855,7 +855,7 @@ function updateFlexFeatures (features: Feature[]) {
   flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
 }
 
-// #330 — update the cluster marker + radius-circle sources.
+// update the cluster marker + radius-circle sources.
 function updateClusterFeatures (features: Feature[]) {
   if (!map) {
     return
@@ -1145,7 +1145,7 @@ function drawMarkers (markers: MarkerFeature[]) {
 
 function mapClick (e: maplibre.MapMouseEvent) {
   // 'clusters' first so a cluster marker click is recognized even when it sits
-  // over a stop dot (#330).
+  // over a stop dot.
   const layersToQuery = ['clusters', 'points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 

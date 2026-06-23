@@ -30,10 +30,10 @@ interface ScenarioInputs {
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
-  // #315 — 0 disables the feature.
+  // 0 disables the feature.
   stopBufferRadius: WritableComputedRef<number>
   stopBufferLayer: WritableComputedRef<string>
-  // #330 stop clustering — distance in meters; 0 disables the feature (drives
+  // Stop clustering — distance in meters; 0 disables the feature (drives
   // the stop-clusters fetch phase). The enable checkbox derives from this.
   clusterDistance: WritableComputedRef<number>
   // Atomic commit of the "Dates & feed versions" modal's staged state —
@@ -153,7 +153,7 @@ export function useScenarioInputs (): ScenarioInputs {
     }
   })
 
-  // #330 — meters. 0 (default/elided) disables clustering. Mirrors stopBufferRadius.
+  // meters. 0 (default/elided) disables clustering. Mirrors stopBufferRadius.
   const clusterDistance = computed<number>({
     get: () => {
       const raw = route.query.clusterDistance?.toString()

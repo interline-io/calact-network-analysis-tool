@@ -1,4 +1,4 @@
-// Debounced buffer-only refetch (#315) on radius/layer change. Streams the
+// Debounced buffer-only refetch on radius/layer change. Streams the
 // result into the existing ScenarioDataReceiver so non-buffer state (stops,
 // routes, departures, …) stays untouched.
 //
@@ -10,13 +10,13 @@ import { shallowRef, type Ref, type ShallowRef } from 'vue'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch } from './useStreamingRefetch'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
-import {
-  type BufferFetchConfig,
-  type ScenarioConfig,
-  type ScenarioData,
-  type ScenarioDataReceiver,
-  type ScenarioPhaseName,
-  type ScenarioProgress,
+import type {
+  BufferFetchConfig,
+  ScenarioConfig,
+  ScenarioData,
+  ScenarioDataReceiver,
+  ScenarioPhaseName,
+  ScenarioProgress,
 } from '~~/src/scenario'
 
 interface UseBufferRefetchDeps {

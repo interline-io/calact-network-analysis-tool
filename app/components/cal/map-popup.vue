@@ -58,7 +58,7 @@
           </div>
         </template>
 
-        <!-- Stop cluster popup (#330) -->
+        <!-- Stop cluster popup -->
         <template v-else-if="feature.featureType === 'cluster'">
           <div class="popup-feature-type">
             🔗 Stop Cluster
@@ -141,7 +141,7 @@ export interface PopupFeatureData {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
-    // Stop cluster fields (#330)
+    // Stop cluster fields
     cluster_id?: string
     agency_names?: string[]
     cluster_members?: ClusterMemberInfo[]

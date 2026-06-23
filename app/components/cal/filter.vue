@@ -866,7 +866,7 @@ const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
   set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
 })
-// #330 — clustering enable derives from the distance (0 = disabled). Checking
+// clustering enable derives from the distance (0 = disabled). Checking
 // seeds the default distance; unchecking clears it (which disables the phase).
 const clusterEnabled = computed({
   get: () => clusterDistance.value > 0,
@@ -963,7 +963,7 @@ function onTabKeydown (e: KeyboardEvent, idx: number) {
 }
 
 ///////////////////
-// Time of Day focus management (#361)
+// Time of Day focus management
 
 const startTimeRef = ref<{ focus: () => void } | null>(null)
 
@@ -1215,7 +1215,7 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   }
 }
 
-// #330 — sub-label for the Max distance / transfer controls under Stop Clustering.
+// sub-label for the Max distance / transfer controls under Stop Clustering.
 .cal-cluster-sublabel {
   font-weight: 600;
   margin-bottom: 0.25rem;

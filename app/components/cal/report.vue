@@ -348,7 +348,7 @@ const hasAggregateLayer = computed(() => {
   return aggregateLayer.value !== '' && aggregateLayer.value !== 'none'
 })
 
-// #330 — the Stop Clusters tab only appears when the scenario produced clusters.
+// the Stop Clusters tab only appears when the scenario produced clusters.
 const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?.length ?? 0) > 0)
 
 // Sync dataDisplayMode when user switches tabs
@@ -551,7 +551,7 @@ const stopGeoAggregateColumns = computed((): TableColumn[] => {
   }
   return cols
 })
-// #330 — one row per cross-agency transfer-hub cluster.
+// one row per cross-agency transfer-hub cluster.
 const stopClusterColumns: TableColumn[] = [
   { key: 'cluster', label: 'Cluster', sortable: true },
   {

@@ -1,5 +1,5 @@
 // Powers stop-cluster distance changes in the SPA without re-running the full
-// scenario (#330). Recomputes only the clusters at the new distance.
+// scenario. Recomputes only the clusters at the new distance.
 
 import { createError } from 'h3'
 import type { StopClusterFetchConfig } from '~~/src/scenario'

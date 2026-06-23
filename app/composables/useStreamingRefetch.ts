@@ -1,5 +1,5 @@
 // Shared engine for the incremental "recompute one slice without re-running the
-// whole scenario" composables (stop buffers #315, stop clusters #330). It owns
+// whole scenario" composables (stop buffers, stop clusters). It owns
 // the parts that are identical across them — debounce, AbortController lifecycle,
 // the fetch + NDJSON stream into the existing ScenarioDataReceiver, and the
 // loading-modal/progress wiring — and leaves each feature to supply only what

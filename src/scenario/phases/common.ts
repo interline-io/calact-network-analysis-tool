@@ -19,7 +19,7 @@ export interface PhaseOpts {
 export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 
 // Phase identities for the progress plan and weights. 'buffers' covers all
-// four buffer passes as a single slice. 'stop-clusters' is the #330 transfer-hub
+// four buffer passes as a single slice. 'stop-clusters' is the transfer-hub
 // pass (a separate stop query with nearby_stops neighbors).
 export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'flex-areas' | 'census-values'
 

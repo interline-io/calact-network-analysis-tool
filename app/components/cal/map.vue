@@ -400,7 +400,7 @@ const stopFeatureLookup = computed(() => {
   return lookup
 })
 
-// #330 — Stop clusters. selectedClusterId drives the radius circle + grey-out.
+// Stop clusters. selectedClusterId drives the radius circle + grey-out.
 const stopClusters = computed((): StopCluster[] => props.scenarioFilterResult?.stopClusters || [])
 const hasClusterData = computed(() => stopClusters.value.length > 0)
 const clusterById = computed(() => {
@@ -1052,7 +1052,7 @@ const popupFeatures = ref<PopupFeature[]>([])
 function mapClickFeatures (pt: any, features: Feature[]) {
   const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
   const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
-  // #330 — track whether this click landed on a cluster marker.
+  // track whether this click landed on a cluster marker.
   let clickedClusterId: string | null = null
 
   console.log(`[MapClick] ${features.length} raw features at point`)
@@ -1063,7 +1063,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const ft = feature.geometry.type
     const fp = feature.properties
 
-    // #330 — cluster markers are Points carrying a cluster_id property. Detect
+    // cluster markers are Points carrying a cluster_id property. Detect
     // them by property (queryRenderedFeatures always preserves properties).
     if (ft === 'Point' && fp.cluster_id) {
       const clusterId = fp.cluster_id.toString()
@@ -1160,7 +1160,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     }
   }
 
-  // #330 — clicking a cluster selects it; clicking truly empty map clears the
+  // clicking a cluster selects it; clicking truly empty map clears the
   // selection (collapse). Clicking stops/routes/flex leaves the selection so
   // the user can inspect member stops without losing the circle.
   if (clickedClusterId) {
@@ -1177,7 +1177,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   popupFeatures.value = a
 }
 
-// #330 — build the "Stop Cluster" popup, connecting each member stop to its
+// build the "Stop Cluster" popup, connecting each member stop to its
 // agency and routes. Member detail is derived client-side from the already-
 // loaded stop data (route_stops), not shipped on the lean cluster wire format.
 function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {

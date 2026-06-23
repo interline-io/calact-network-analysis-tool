@@ -81,7 +81,7 @@
           </div>
         </div>
 
-        <!-- Stop Clusters (#330) -->
+        <!-- Stop Clusters -->
         <div v-if="props.hasClusterData" class="cal-map-legend-section">
           <div class="legend-heading">
             Stop clusters:
@@ -196,7 +196,7 @@ const props = defineProps<{
   // Choropleth aggregation
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
-  // Stop clusters (#330)
+  // Stop clusters
   hasClusterData?: boolean
 }>()
 

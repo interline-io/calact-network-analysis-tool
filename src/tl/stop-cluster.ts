@@ -1,6 +1,6 @@
 import { gql } from 'graphql-tag'
 
-// Stop clustering (#330): the only server-side step is the proximity test.
+// Stop clustering: the only server-side step is the proximity test.
 // `nearby_stops(radius)` resolves to a PostGIS ST_DWithin search, so "which
 // stops are within X meters of which" is answered by the backend — the client
 // never does geometry. Each scenario stop is returned with its agencies/routes

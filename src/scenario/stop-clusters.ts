@@ -1,5 +1,5 @@
 /**
- * Stop Clustering for Key Transit Hubs (issue #330)
+ * Stop Clustering for Key Transit Hubs
  *
  * Identifies clusters of nearby stops that could act as cross-agency transfer
  * hubs. The design (see docs/stop-clustering-plan.md) splits the work across

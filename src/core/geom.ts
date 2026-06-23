@@ -50,8 +50,8 @@ export function bboxString (bbox: Bbox): string {
   ].map(s => (s.toFixed(5))).join(',')
 }
 
-// One member stop of a clicked cluster, connecting agency → route(s) → stop
-// (#330). `next_departure` is the next departure on/after the popup time, if any.
+// One member stop of a clicked cluster, connecting agency → route(s) → stop.
+// `next_departure` is the next departure on/after the popup time, if any.
 export interface ClusterMemberInfo {
   stop_id?: string
   stop_name?: string
@@ -86,7 +86,7 @@ export interface PopupFeature {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
-    // Stop cluster fields (#330)
+    // Stop cluster fields
     cluster_id?: string
     agency_names?: string[]
     cluster_members?: ClusterMemberInfo[]

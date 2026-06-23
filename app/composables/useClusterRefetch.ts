@@ -1,4 +1,4 @@
-// Debounced stop-cluster refetch (#330) on cluster-distance change. Recomputes
+// Debounced stop-cluster refetch on cluster-distance change. Recomputes
 // only the proximity clusters (server-side, PostGIS) and streams them into the
 // existing ScenarioDataReceiver so the rest of the scenario stays untouched.
 // The max-transfer-time prune is applied client-side and needs no refetch.

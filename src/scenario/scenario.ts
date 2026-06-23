@@ -81,11 +81,11 @@ export interface ScenarioConfig {
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
   excludedFeeds?: string[]
-  // 0 disables the per-entity buffer passes (#315 C/D/E/F).
+  // 0 disables the per-entity buffer passes (C/D/E/F).
   stopBufferRadius?: number
   // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
   stopBufferLayer?: string
-  // #330 stop clustering. > 0 (meters) enables the stop-clusters phase; 0/unset
+  // Stop clustering. > 0 (meters) enables the stop-clusters phase; 0/unset
   // disables it. The max-transfer-time filter is applied client-side and is not
   // part of the fetch config.
   stopClusterDistance?: number
@@ -128,7 +128,7 @@ export interface ScenarioFilter {
   selectedAgencies?: string[]
   frequencyUnder?: number
   frequencyOver?: number
-  // #330 — max transfer time (minutes) for the client-side temporal cluster
+  // max transfer time (minutes) for the client-side temporal cluster
   // prune. 0/undefined leaves the proximity clusters unfiltered.
   clusterMaxTransferMinutes?: number
 }
@@ -163,7 +163,7 @@ export interface ScenarioData {
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
   // Pass F — union over every stop's buffer. Drives aggregation-table apportionment.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
-  // #330 — cross-agency transfer-hub clusters (proximity + assignment). The
+  // cross-agency transfer-hub clusters (proximity + assignment). The
   // max-transfer-time filter is applied later, client-side, in scenario-filter.
   stopClusters?: StopCluster[]
 }
@@ -212,7 +212,7 @@ export interface ScenarioProgress {
     routeBufferGeographies?: [number, BufferGeographyIntersection[]][]
     agencyBufferGeographies?: [number, BufferGeographyIntersection[]][]
     aggregationBufferGeographies?: BufferGeographyIntersection[]
-    // #330 — the full set of derived clusters (recomputed each time, not merged).
+    // the full set of derived clusters (recomputed each time, not merged).
     stopClusters?: StopCluster[]
   }
   extraData?: any
@@ -278,8 +278,8 @@ export async function streamBufferGeographies (
   writer.close()
 }
 
-// Powers /api/stop-clusters — the SPA's snappy cluster-distance refetch path
-// (#330). Recomputes only the clusters when the user changes the distance.
+// Powers /api/stop-clusters — the SPA's snappy cluster-distance refetch path.
+// Recomputes only the clusters when the user changes the distance.
 export async function streamStopClusters (
   controller: ReadableStreamDefaultController,
   config: StopClusterFetchConfig,
@@ -559,7 +559,7 @@ export class ScenarioFetcher {
   }
 
   // Delegates to `runStopClustersPhase` so the same logic runs standalone via
-  // /api/stop-clusters on distance changes (#330). Gating is the plan's job
+  // /api/stop-clusters on distance changes. Gating is the plan's job
   // (PHASE_ENABLED) — this guard only fires on a plan/config inconsistency bug.
   private async fetchStopClusters (fvRefs: FeedVersionRef[]): Promise<void> {
     const distance = this.config.stopClusterDistance ?? 0
@@ -706,7 +706,7 @@ export class ScenarioDataReceiver {
   }
 
   // Reset before a cluster-distance refetch so stale clusters don't linger if
-  // the new run errors before emitting (#330).
+  // the new run errors before emitting.
   clearStopClusters (): void {
     this.accumulatedData.stopClusters = []
   }
