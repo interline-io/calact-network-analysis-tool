@@ -118,7 +118,7 @@
           {{ formatDuration(value) }}
         </button>
         <cat-tooltip
-          v-if="frequencyCaveatText(row)"
+          v-if="row.frequency_irregular || row.frequency_directions_differ"
           :text="frequencyCaveatText(row)"
           class="cal-report-frequency-caveat"
         >

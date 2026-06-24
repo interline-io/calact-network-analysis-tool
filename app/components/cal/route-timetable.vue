@@ -258,15 +258,15 @@
           <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
             <div>
               <dt>Fastest gap:</dt>
-              <dd>{{ formatGtfsTimeFull(gapStats.min) }}</dd>
+              <dd>{{ formatDuration(gapStats.min) }}</dd>
             </div>
             <div>
               <dt>Median gap:</dt>
-              <dd>{{ formatGtfsTimeFull(gapStats.median) }}</dd>
+              <dd>{{ formatDuration(gapStats.median) }}</dd>
             </div>
             <div>
               <dt>Slowest gap:</dt>
-              <dd>{{ formatGtfsTimeFull(gapStats.max) }}</dd>
+              <dd>{{ formatDuration(gapStats.max) }}</dd>
             </div>
           </dl>
         </cat-msg>
@@ -283,11 +283,11 @@
           <dl class="cal-route-timetable-gap-stats">
             <div>
               <dt>Direction 0 average:</dt>
-              <dd>{{ frequencyCaveats.comparison.dir0Average != null ? formatGtfsTimeFull(frequencyCaveats.comparison.dir0Average) : '—' }}</dd>
+              <dd>{{ frequencyCaveats.comparison.dir0Average != null ? formatDuration(frequencyCaveats.comparison.dir0Average) : '—' }}</dd>
             </div>
             <div>
               <dt>Direction 1 average:</dt>
-              <dd>{{ frequencyCaveats.comparison.dir1Average != null ? formatGtfsTimeFull(frequencyCaveats.comparison.dir1Average) : '—' }}</dd>
+              <dd>{{ frequencyCaveats.comparison.dir1Average != null ? formatDuration(frequencyCaveats.comparison.dir1Average) : '—' }}</dd>
             </div>
           </dl>
         </cat-msg>
@@ -313,28 +313,28 @@
             <div>
               <dt>Min (fastest):</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.min) }}
+                {{ formatDuration(gapStats.min) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.min }})</span>
               </dd>
             </div>
             <div>
               <dt>Median:</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.median) }}
+                {{ formatDuration(gapStats.median) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.median }})</span>
               </dd>
             </div>
             <div>
               <dt>Max (slowest):</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.max) }}
+                {{ formatDuration(gapStats.max) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.max }})</span>
               </dd>
             </div>
             <div>
               <dt>Average:</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.avg) }}
+                {{ formatDuration(gapStats.avg) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.avg.toFixed(1) }}) — n = {{ gapStats.count }}</span>
               </dd>
             </div>
@@ -358,10 +358,10 @@
                 <tr v-for="r in dowFrequencyRollup" :key="r.weekday">
                   <td>{{ r.label }}</td>
                   <td>{{ r.count }}</td>
-                  <td>{{ formatGtfsTimeFull(r.min) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.median) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.max) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.avg) }}</td>
+                  <td>{{ formatDuration(r.min) }}</td>
+                  <td>{{ formatDuration(r.median) }}</td>
+                  <td>{{ formatDuration(r.max) }}</td>
+                  <td>{{ formatDuration(r.avg) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -475,10 +475,10 @@
               <td>
                 <span v-if="row.gapToNext == null">—</span>
                 <span v-else-if="row.gapIsNoise" class="cal-route-timetable-noise-gap">
-                  {{ formatGtfsTimeFull(row.gapToNext) }}
+                  {{ formatDuration(row.gapToNext) }}
                 </span>
                 <span v-else class="cal-route-timetable-gtfs-time">
-                  {{ formatGtfsTimeFull(row.gapToNext) }}
+                  {{ formatDuration(row.gapToNext) }}
                 </span>
               </td>
               <td class="cal-route-timetable-trip-id">
@@ -602,7 +602,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { buildRouteTimetable, resolveEffectiveWeekdays } from '~~/src/scenario'
-import { formatGtfsTimeFull, dowValues } from '~~/src/core'
+import { formatGtfsTimeFull, formatDuration, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -1136,7 +1136,7 @@ const frequencyCsvData = computed(() => {
     stop_name: stopName(row.stopId),
     departure: formatGtfsTimeFull(row.departureTime),
     departure_seconds: row.departureTime,
-    gap_to_next: row.gapToNext != null ? formatGtfsTimeFull(row.gapToNext) : '',
+    gap_to_next: row.gapToNext != null ? formatDuration(row.gapToNext) : '',
     gap_to_next_seconds: row.gapToNext ?? '',
     gap_is_noise: row.gapIsNoise,
   }))
