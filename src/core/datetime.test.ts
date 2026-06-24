@@ -544,22 +544,26 @@ describe('formatGtfsTimeFull', () => {
 })
 
 describe('formatDuration', () => {
-  it('renders durations under an hour as MM:SS', () => {
-    expect(formatDuration(0)).toBe('00:00')
-    expect(formatDuration(45)).toBe('00:45')
-    expect(formatDuration(15 * 60)).toBe('15:00')
-    expect(formatDuration(59 * 60 + 59)).toBe('59:59')
+  it('renders durations under an hour with m/s units, dropping zero parts', () => {
+    expect(formatDuration(0)).toBe('0s')
+    expect(formatDuration(45)).toBe('45s')
+    expect(formatDuration(15 * 60)).toBe('15m')
+    expect(formatDuration(9 * 60 + 30)).toBe('9m 30s')
+    expect(formatDuration(59 * 60 + 59)).toBe('59m 59s')
   })
 
-  it('renders durations ≥ 1 hour as HH:MM:SS', () => {
-    expect(formatDuration(3600)).toBe('01:00:00')
-    expect(formatDuration(2 * 3600 + 30 * 60)).toBe('02:30:00')
-    expect(formatDuration(10 * 3600 + 5 * 60 + 7)).toBe('10:05:07')
+  it('renders durations ≥ 1 hour with h/m/s units, dropping zero parts', () => {
+    expect(formatDuration(3600)).toBe('1h')
+    expect(formatDuration(2 * 3600 + 30 * 60)).toBe('2h 30m')
+    expect(formatDuration(2 * 3600 + 45 * 60)).toBe('2h 45m')
+    expect(formatDuration(10 * 3600 + 5 * 60 + 7)).toBe('10h 5m 7s')
+    // A zero minutes component between non-zero h and s is dropped.
+    expect(formatDuration(3600 + 49)).toBe('1h 49s')
   })
 
   it('rounds fractional seconds to the nearest integer', () => {
-    expect(formatDuration(59.4)).toBe('00:59')
-    expect(formatDuration(59.6)).toBe('01:00')
+    expect(formatDuration(59.4)).toBe('59s')
+    expect(formatDuration(59.6)).toBe('1m')
   })
 
   it('returns empty string for invalid input', () => {
