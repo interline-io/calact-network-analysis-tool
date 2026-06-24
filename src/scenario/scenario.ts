@@ -574,6 +574,7 @@ export class ScenarioDataReceiver {
             StopDepartureTuple.tripId(event),
             StopDepartureTuple.tripDirectionId(event),
             StopDepartureTuple.tripRouteId(event),
+            StopDepartureTuple.pickupType(event),
           )
         }
       }

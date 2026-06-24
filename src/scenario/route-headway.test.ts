@@ -7,11 +7,13 @@ import {
   computeHeadwaysPerDay,
   pickDominantDirection,
   scopeDatesToWeekdays,
+  oneDeparturePerTrip,
+  distinctTripCount,
   summarizeGaps,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
 } from './route-headway'
-import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
+import { StopDepartureCache, RouteDepartureIndex, StopTimeCacheItem } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
 import type { Weekday } from '../core'
@@ -830,5 +832,103 @@ describe('summarizeGaps', () => {
     const gaps = [40, 10, 30, 10]
     summarizeGaps(gaps)
     expect(gaps).toEqual([40, 10, 30, 10])
+  })
+})
+
+describe('oneDeparturePerTrip', () => {
+  const item = (departure: string, tripId: number, pickupType: number | null = null) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100, pickupType)
+
+  it('keeps each trip earliest departure and drops repeat visits', () => {
+    // Trip 1 visits twice (loop start 08:00 + return 09:50); trips 2 and 3 once.
+    const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
+    const result = oneDeparturePerTrip(deps).map(d => d.departureTime).sort((a, b) => a - b)
+    expect(result).toEqual([hms('08:00:00'), hms('10:00:00'), hms('12:00:00')])
+  })
+
+  it('prefers a boardable visit over an earlier drop-off-only visit', () => {
+    // Trip arrives drop-off-only (pickup_type 1) at 08:00, then boards at 08:10.
+    // Earliest alone would pick 08:00; pickup_type picks the boardable 08:10.
+    const deps = [item('08:00:00', 1, 1), item('08:10:00', 1, 0)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:10:00')])
+  })
+
+  it('excludes a loop return (pickup_type 1) in favor of the boardable start', () => {
+    const deps = [item('08:00:00', 1, 0), item('09:50:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
+  })
+
+  it('falls back to the earliest visit when a trip has only drop-off visits', () => {
+    const deps = [item('09:50:00', 1, 1), item('08:00:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
+  })
+
+  it('is a no-op when every trip visits the stop once', () => {
+    const deps = [item('08:00:00', 1), item('09:00:00', 2)]
+    expect(oneDeparturePerTrip(deps)).toHaveLength(2)
+  })
+
+  it('returns an empty array for empty input', () => {
+    expect(oneDeparturePerTrip([])).toEqual([])
+  })
+})
+
+describe('distinctTripCount', () => {
+  const item = (departure: string, tripId: number) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100)
+
+  it('counts distinct trips, matching oneDeparturePerTrip length', () => {
+    // Trip 1 visits twice (loop terminal), trips 2 and 3 once: 3 distinct trips.
+    const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
+    expect(distinctTripCount(deps)).toBe(3)
+    expect(distinctTripCount(deps)).toBe(oneDeparturePerTrip(deps).length)
+  })
+
+  it('returns 0 for empty input', () => {
+    expect(distinctTripCount([])).toBe(0)
+  })
+})
+
+describe('routeHeadways — loop representative-stop dedup (#368)', () => {
+  // A loop whose representative stop (stop 1) is the terminal: every trip starts
+  // there (~08:00) and returns ~1h50m later. Without dedup, the sorted terminal
+  // departures interleave start/return and the gap between one trip's return and
+  // the next trip's start becomes a spurious ~10-minute "headway".
+  function buildLoopIndex (): RouteDepartureIndex {
+    const dateStr = '2024-01-15'
+    const sdCache = new StopDepartureCache()
+    const trips: Array<[string, string, string]> = [
+      // [start at terminal, mid stop, return to terminal]
+      ['08:00:00', '08:30:00', '09:50:00'],
+      ['10:00:00', '10:30:00', '11:50:00'],
+      ['12:00:00', '12:30:00', '13:50:00'],
+    ]
+    trips.forEach(([start, mid, ret], i) => {
+      addTripToCache(sdCache, dateStr, makeTrip(100, String(2000 + i), 0, [
+        { stopId: 1, departure: start }, // loop terminal (first visit)
+        { stopId: 2, departure: mid },
+        { stopId: 1, departure: ret }, // loop terminal (return visit)
+      ]))
+    })
+    return RouteDepartureIndex.fromCache(sdCache)
+  }
+
+  it('counts one departure per trip at the loop terminal, yielding the true headway', () => {
+    const route = makeRoute(100)
+    const date = makeLocalDate('2024-01-15')
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', buildLoopIndex())
+    // Stop 1 is the rep stop (6 raw departures), deduped to each trip's start.
+    expect(result.dir0[0]).toEqual([hms('08:00:00'), hms('10:00:00'), hms('12:00:00')])
+  })
+
+  it('reports the true ~2h headway, not the spurious loop-turnaround gap', () => {
+    const route = makeRoute(100)
+    const date = makeLocalDate('2024-01-15')
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', buildLoopIndex())
+    const stats = calculateHeadwayStats(result.dir0)
+    // Two 2-hour gaps; the ~10-minute turnaround gaps are gone.
+    expect(stats?.fastest).toBe(hms('02:00:00'))
+    expect(stats?.slowest).toBe(hms('02:00:00'))
+    expect(stats?.average).toBe(hms('02:00:00'))
   })
 })

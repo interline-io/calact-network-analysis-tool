@@ -23,7 +23,8 @@ export type StopDepartureTuple = readonly [
   departure_time: number, // seconds since midnight
   trip_id: number,
   trip_direction_id: number,
-  trip_route_id: number
+  trip_route_id: number,
+  pickup_type: number | null // GTFS pickup_type; null when the feed omits it
 ]
 
 // Helper functions for working with the tuple
@@ -35,7 +36,8 @@ export const StopDepartureTuple = {
     trip_id: number,
     trip_direction_id: number,
     trip_route_id: number,
-  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id],
+    pickup_type: number | null,
+  ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id, pickup_type],
   fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
     stopId,
     departureDate,
@@ -43,6 +45,7 @@ export const StopDepartureTuple = {
     stopDeparture.trip.id,
     stopDeparture.trip.direction_id,
     stopDeparture.trip.route.id,
+    stopDeparture.pickup_type ?? null,
   ),
   stopId: (tuple: StopDepartureTuple) => tuple[0],
   departureDate: (tuple: StopDepartureTuple) => tuple[1],
@@ -50,6 +53,7 @@ export const StopDepartureTuple = {
   tripId: (tuple: StopDepartureTuple) => tuple[3],
   tripDirectionId: (tuple: StopDepartureTuple) => tuple[4],
   tripRouteId: (tuple: StopDepartureTuple) => tuple[5],
+  pickupType: (tuple: StopDepartureTuple) => tuple[6],
 }
 
 export class StopDepartureQueryVars {
