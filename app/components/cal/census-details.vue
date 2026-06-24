@@ -327,12 +327,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { TableColumn, TableReport } from './datagrid.vue'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   REQUIRED_ACS_TABLES,
   type CensusGeographyEntry,
+  type TableColumn,
+  type TableReport,
   deriveApportionedRow,
   deriveCensusRow,
   detectCensusColumnSourceKeys,

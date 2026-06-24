@@ -135,7 +135,7 @@
 
 <script lang="ts" setup>
 import { VISIONEVAL_MODE_NAMES, type VisionEvalReport } from '~~/src/analysis/visioneval'
-import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
+import type { TableColumn, TableReport } from '~~/src/core'
 
 // Define models for props
 const report = defineModel<VisionEvalReport>('report', { required: true })

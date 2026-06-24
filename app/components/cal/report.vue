@@ -202,10 +202,9 @@
 </template>
 
 <script setup lang="ts">
-import type { TableReport, TableColumn } from './datagrid.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
 import { stopClusterCsv, type ScenarioFilterResult } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag } from '~~/src/core'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableColumn, type TableReport } from '~~/src/core'
 
 export type BufferDetailsKind = 'stop' | 'route' | 'agency'
 

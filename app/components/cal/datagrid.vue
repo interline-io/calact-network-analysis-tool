@@ -115,26 +115,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import type { CensusFormat } from '~~/src/core'
-</script>
-
 <script setup lang="ts">
-import { formatCensusValue, toFiniteNumber } from '~~/src/core'
-
-export interface TableColumn {
-  key: string
-  label: string
-  sortable: boolean
-  tooltip?: string
-  // When set, the default cell renderer routes the value through formatCensusValue.
-  format?: CensusFormat
-}
-
-export interface TableReport {
-  columns: TableColumn[]
-  data: Record<string, any>[]
-}
+import { formatCensusValue, toFiniteNumber, type TableColumn, type TableReport } from '~~/src/core'
 
 const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
