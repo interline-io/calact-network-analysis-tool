@@ -205,8 +205,7 @@
 
 <script lang="ts" setup>
 import type { WSDOTStopsRoutesReport } from '~~/src/analysis/wsdot-stops-routes'
-import type { Feature } from '~~/src/core'
-import type { TableColumn, TableReport } from '~/components/cal/datagrid.vue'
+import type { Feature, TableColumn, TableReport } from '~~/src/core'
 
 // Define models for props
 const report = defineModel<WSDOTStopsRoutesReport>('report', { required: true })
