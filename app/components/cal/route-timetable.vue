@@ -560,11 +560,13 @@ import {
   calculateRouteTripStats,
   scopeDatesToWeekdays,
   oneDeparturePerTrip,
+  distinctTripCount,
   summarizeGaps,
   WEEKDAY_BY_GETDAY,
   MIN_HEADWAY_SECONDS,
 } from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
+import type { StopTimeCacheItem } from '~~/src/tl/departure-cache'
 
 type Tab = 'frequency' | 'trips' | 'stops'
 
@@ -761,6 +763,48 @@ const hasAnyRows = computed(() => unrolledSections.value.length > 0)
 
 const activeTab = ref<Tab>(props.initialTab ?? 'trips')
 
+// Per-date frequency source: the dominant-direction representative stop and its
+// in-window departures, deduped to one boarding departure per trip (issue #368).
+// Both the Frequency view rows and the repeat-visit warning derive from this so
+// they share one dedup-then-filter pass and can never disagree.
+interface FrequencyDateData {
+  serviceDate: string
+  inScope: boolean
+  repStopId: number
+  // One boarding departure per trip, in the time window, sorted ascending —
+  // the exact departures that feed average/fastest/slowest frequency.
+  inWindow: StopTimeCacheItem[]
+  // All representative-stop departures in the same window, before dedup. The
+  // difference (rawInWindowCount - inWindow.length) is the repeat-visit count.
+  rawInWindowCount: number
+}
+
+const frequencyByDate = computed<FrequencyDateData[]>(() => {
+  const out: FrequencyDateData[] = []
+  const dir = dominantDirection.value
+  for (const d of props.selectedDateRange) {
+    const dateStr = format(d, 'yyyy-MM-dd')
+    const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
+    if (rep.stopId === undefined) {
+      continue
+    }
+    const inWindow = oneDeparturePerTrip(rep.departures)
+      .filter(st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value)
+      .sort((a, b) => a.departureTime - b.departureTime)
+    const rawInWindowCount = rep.departures.filter(
+      st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value,
+    ).length
+    out.push({
+      serviceDate: dateStr,
+      inScope: isDateInScope(dateStr),
+      repStopId: rep.stopId,
+      inWindow,
+      rawInWindowCount,
+    })
+  }
+  return out
+})
+
 // Frequency Calculation view: every dominant-direction representative-stop
 // departure across all selected service days, in the time-of-day window.
 // These are the exact numbers that feed average/fastest/slowest frequency.
@@ -770,54 +814,39 @@ const activeTab = ref<Tab>(props.initialTab ?? 'trips')
 const frequencyRows = computed<FrequencyRow[]>(() => {
   const out: FrequencyRow[] = []
   const dir = dominantDirection.value
-  for (const d of props.selectedDateRange) {
-    const dateStr = format(d, 'yyyy-MM-dd')
-    const dateInScope = isDateInScope(dateStr)
-    const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
-    if (rep.stopId === undefined) {
-      continue
-    }
-    const inWindow = oneDeparturePerTrip(rep.departures)
-      .filter(st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value)
-      .sort((a, b) => a.departureTime - b.departureTime)
+  for (const day of frequencyByDate.value) {
     // Shared helper returns one Headway<T> per consecutive pair; entry `i` is
     // the pair (inWindow[i], inWindow[i + 1]). Length is inWindow.length - 1.
-    const headways = computeHeadwaysPerDay([inWindow], st => st.departureTime)
-    for (let i = 0; i < inWindow.length; i++) {
-      const st = inWindow[i]!
+    const headways = computeHeadwaysPerDay([day.inWindow], st => st.departureTime)
+    for (let i = 0; i < day.inWindow.length; i++) {
+      const st = day.inWindow[i]!
       const h = headways[i]
       out.push({
-        serviceDate: dateStr,
+        serviceDate: day.serviceDate,
         tripId: st.tripId,
         directionId: dir,
-        stopId: rep.stopId,
+        stopId: day.repStopId,
         departureTime: st.departureTime,
         gapToNext: h?.gap,
         gapIsNoise: h?.isNoise ?? false,
-        inScope: dateInScope,
+        inScope: day.inScope,
       })
     }
   }
   return out
 })
 
-// Count representative-stop departures that are repeat visits by the same trip
-// (e.g. a loop terminal that is both first and last stop). These are excluded
-// from the frequency calc by oneDeparturePerTrip; surfaced as a note so the
-// dedup is visible rather than silent (issue #368).
-const repeatRepStopVisits = computed(() => {
-  let removed = 0
-  const dir = dominantDirection.value
-  for (const d of scopedDateRange.value) {
-    const dateStr = format(d, 'yyyy-MM-dd')
-    const rep = pickRepresentativeStop(routeIndex.value, props.route.id, dir, dateStr)
-    const inWindow = rep.departures.filter(
-      st => st.departureTime >= startTimeSec.value && st.departureTime <= endTimeSec.value,
-    )
-    removed += inWindow.length - oneDeparturePerTrip(inWindow).length
-  }
-  return removed
-})
+// Count representative-stop departures excluded as repeat visits by the same
+// trip (e.g. a loop terminal that is both first and last stop). Derived from
+// the same dedup-then-filter pass as frequencyRows so the warning count can
+// never disagree with the table (issue #368). Out-of-scope dates do not feed
+// the statistics, so their repeats are not counted.
+const repeatRepStopVisits = computed(() =>
+  frequencyByDate.value.reduce(
+    (sum, day) => sum + (day.inScope ? day.rawInWindowCount - day.inWindow.length : 0),
+    0,
+  ),
+)
 
 interface FrequencyDateGroup {
   serviceDate: string
@@ -974,7 +1003,7 @@ const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
           stopId: sid,
           directionId: dir,
           departureCount: deps.length,
-          tripCount: oneDeparturePerTrip(deps).length,
+          tripCount: distinctTripCount(deps),
           isRepresentativeStop: sid === rep.stopId && dir === dominant,
         })
       }

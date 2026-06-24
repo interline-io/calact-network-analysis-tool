@@ -8,6 +8,7 @@ import {
   pickDominantDirection,
   scopeDatesToWeekdays,
   oneDeparturePerTrip,
+  distinctTripCount,
   summarizeGaps,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
@@ -869,6 +870,22 @@ describe('oneDeparturePerTrip', () => {
 
   it('returns an empty array for empty input', () => {
     expect(oneDeparturePerTrip([])).toEqual([])
+  })
+})
+
+describe('distinctTripCount', () => {
+  const item = (departure: string, tripId: number) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100)
+
+  it('counts distinct trips, matching oneDeparturePerTrip length', () => {
+    // Trip 1 visits twice (loop terminal), trips 2 and 3 once: 3 distinct trips.
+    const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
+    expect(distinctTripCount(deps)).toBe(3)
+    expect(distinctTripCount(deps)).toBe(oneDeparturePerTrip(deps).length)
+  })
+
+  it('returns 0 for empty input', () => {
+    expect(distinctTripCount([])).toBe(0)
   })
 })
 

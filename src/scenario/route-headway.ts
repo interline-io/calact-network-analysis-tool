@@ -99,6 +99,12 @@ export function routeHeadways (
  * stop — the in-bbox stop with the most departures — and return both its stopId
  * and its stop_times. Returns stopId = undefined when the bucket is empty.
  *
+ * The returned `departures` are RAW: a loop terminal lists each trip twice
+ * (outbound start plus inbound return). Headway/frequency consumers must
+ * collapse them with `oneDeparturePerTrip` first (otherwise the loop turnaround
+ * looks like a short headway — issue #368); callers that genuinely want the
+ * raw per-visit count (e.g. Stop Details) use them as-is.
+ *
  * Tie-breaking: when two stops have the same departure count, the lower
  * numeric stop ID wins. Deterministic regardless of Map insertion order.
  */
@@ -158,6 +164,22 @@ export function oneDeparturePerTrip (departures: StopTimeCacheItem[]): StopTimeC
     chosenByTrip.set(st.tripId, cur === undefined ? st : preferDeparture(cur, st))
   }
   return [...chosenByTrip.values()]
+}
+
+/**
+ * Count the distinct trips among a stop's departures. Equivalent to
+ * `oneDeparturePerTrip(departures).length` but without building the deduped
+ * array or running the boardability tie-break — used where only the count is
+ * needed (e.g. flagging stops some trip visits more than once). When this is
+ * less than the raw departure count, a trip serves the stop more than once
+ * (e.g. a loop revisiting a point).
+ */
+export function distinctTripCount (departures: StopTimeCacheItem[]): number {
+  const trips = new Set<number>()
+  for (const st of departures) {
+    trips.add(st.tripId)
+  }
+  return trips.size
 }
 
 /**
