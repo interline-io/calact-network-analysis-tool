@@ -58,11 +58,11 @@
       </div>
       <div v-if="totals.medianHeadway != null">
         <dt>Median headway:</dt>
-        <dd>{{ formatGtfsTimeFull(totals.medianHeadway) }}</dd>
+        <dd>{{ formatDuration(totals.medianHeadway) }}</dd>
       </div>
       <div v-if="totals.avgHeadway != null">
         <dt>Average headway:</dt>
-        <dd>{{ formatGtfsTimeFull(Math.round(totals.avgHeadway)) }}</dd>
+        <dd>{{ formatDuration(Math.round(totals.avgHeadway)) }}</dd>
       </div>
     </dl>
   </div>
@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { format } from 'date-fns'
-import { formatDuration, formatGtfsTimeFull } from '~~/src/core'
+import { formatDuration } from '~~/src/core'
 
 export interface ChartDeparture {
   serviceDate: string
