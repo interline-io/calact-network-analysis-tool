@@ -253,7 +253,7 @@
           class="mb-4"
         >
           <p class="mb-2">
-            This route's service is not consistent across the day — for example commuter-peak, school, or other time-concentrated service. A single average frequency may not reflect typical wait times.
+            This route's service is not consistent across the day — it has a multi-hour gap with no service (see the slowest gap below), typical of commuter-peak, school, or other time-concentrated service. A single average frequency may not reflect typical wait times.
           </p>
           <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
             <div>

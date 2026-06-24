@@ -149,6 +149,12 @@ export const MIN_HEADWAY_SECONDS = 2 * 60
 // (commuter peaks, school trippers, midday gaps, etc.), so a single average
 // frequency is not representative.
 export const IRREGULAR_HEADWAY_RATIO = 3
+// ...and the longest gap must also be a real multi-hour service break, not just
+// a stretched gap on an otherwise-frequent route. Without this floor, a
+// frequent all-day route with one larger early/late gap (e.g. a 13-min route
+// with a 31-min late-night gap) trips the ratio test even though it runs
+// consistently all day.
+export const IRREGULAR_MIN_LARGEST_GAP_SECONDS = 2 * 60 * 60
 // Require at least this many contributing gaps before judging variability, so a
 // route with only one or two departures isn't called "irregular" on noise.
 export const MIN_GAPS_FOR_IRREGULAR = 3

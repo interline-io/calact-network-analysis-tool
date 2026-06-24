@@ -959,11 +959,20 @@ describe('isIrregularHeadway', () => {
     expect(isIrregularHeadway(summary)).toBe(false)
   })
 
-  it('returns true exactly at the 3× boundary (>=)', () => {
-    // median 600, max 1800 = 3 × 600, three gaps.
-    const summary = summarizeGaps([600, 600, 1800])
-    expect(summary?.median).toBe(600)
+  it('returns false when the ratio is high but the gap is under the multi-hour break floor', () => {
+    // A frequent route with one stretched (30-min) gap: ratio 6 but only 1800s,
+    // below the 2-hour service-break floor — not "irregular" (mirrors routes
+    // like Metro 372 / CT 702 in live data).
+    const summary = summarizeGaps([300, 300, 1800])
     expect(summary?.max).toBe(1800)
+    expect(isIrregularHeadway(summary)).toBe(false)
+  })
+
+  it('returns true at the 3× ratio when the gap is also a multi-hour break', () => {
+    // median 2400, max 7200 (2h) = 3 × 2400, and >= the 2-hour floor.
+    const summary = summarizeGaps([2400, 2400, 7200])
+    expect(summary?.median).toBe(2400)
+    expect(summary?.max).toBe(7200)
     expect(isIrregularHeadway(summary)).toBe(true)
   })
 

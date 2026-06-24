@@ -256,7 +256,7 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
 function frequencyCaveatText (row: { frequency_irregular?: boolean, frequency_directions_differ?: boolean }): string {
   const reasons: string[] = []
   if (row.frequency_irregular) {
-    reasons.push('service is not consistent across the day (e.g. commuter, school, or peak-only)')
+    reasons.push('service has a multi-hour gap during the day (e.g. commuter, school, or peak-only)')
   }
   if (row.frequency_directions_differ) {
     reasons.push('the two directions run at materially different frequencies')

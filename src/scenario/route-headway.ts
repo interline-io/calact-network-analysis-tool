@@ -11,6 +11,7 @@ import {
   parseHMS,
   MIN_HEADWAY_SECONDS,
   IRREGULAR_HEADWAY_RATIO,
+  IRREGULAR_MIN_LARGEST_GAP_SECONDS,
   MIN_GAPS_FOR_IRREGULAR,
   FREQUENCY_DIRECTION_DIVERGENCE_RATIO,
   type Weekday,
@@ -517,11 +518,14 @@ export function dominantGapSummary (deps: RouteDepartures): GapSummary | undefin
 }
 
 /**
- * Generic "irregular service" test: the longest contributing gap is at least
- * IRREGULAR_HEADWAY_RATIO times the median gap, given enough gaps to judge.
- * A stable route has max ≈ median (ratio ~1); a route with peaks, school
- * trippers, or midday gaps has one or more large gaps (high ratio). Kept
- * deliberately generic rather than tuned to any single service pattern.
+ * Generic "irregular service" test: the longest contributing gap is both (a) at
+ * least IRREGULAR_HEADWAY_RATIO times the median gap and (b) a real multi-hour
+ * service break (>= IRREGULAR_MIN_LARGEST_GAP_SECONDS), given enough gaps to
+ * judge. A stable route has max ≈ median (low ratio); a commuter/school/
+ * time-concentrated route has a long break in the middle of the day. The
+ * absolute floor keeps a frequent all-day route with one stretched early/late
+ * gap from being flagged. Kept deliberately generic rather than tuned to any
+ * single service pattern.
  */
 export function isIrregularHeadway (summary: GapSummary | undefined): boolean {
   return (
@@ -529,6 +533,7 @@ export function isIrregularHeadway (summary: GapSummary | undefined): boolean {
     && summary.count >= MIN_GAPS_FOR_IRREGULAR
     && summary.median > 0
     && summary.max >= summary.median * IRREGULAR_HEADWAY_RATIO
+    && summary.max >= IRREGULAR_MIN_LARGEST_GAP_SECONDS
   )
 }
 
