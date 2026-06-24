@@ -262,7 +262,7 @@ export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
 // Stop clustering defaults, applied when the user enables clustering.
 // Distance is meters (the PostGIS nearby_stops radius); transfer time is minutes.
-export const STOP_CLUSTER_DEFAULT_DISTANCE = 200
+export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
 export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 15
 
 // Accent color for cluster markers and the selected-cluster radius circle.
