@@ -287,6 +287,82 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
   })
 })
 
+describe('applyScenarioResultFilter — stop cluster transfer-time prune', () => {
+  const STOP_A = 201
+  const STOP_B = 202
+  const ROUTE_A = 101
+  const ROUTE_B = 102
+  const AGENCY_A = 11
+  const AGENCY_B = 22
+
+  function makeClusterStop (stopId: number, routeId: number, agencyId: number): StopGql {
+    return {
+      id: stopId,
+      geometry: { type: 'Point', coordinates: [-122.68, 45.52] },
+      location_type: 0,
+      stop_id: `stop-${stopId}`,
+      stop_name: `Stop ${stopId}`,
+      census_geographies: [] as unknown as StopGql['census_geographies'],
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+      route_stops: [{
+        route: {
+          id: routeId,
+          route_id: `route-${routeId}`,
+          route_type: 3,
+          route_short_name: `R${routeId}`,
+          route_long_name: `Route ${routeId}`,
+          agency: { id: agencyId, agency_id: `agency-${agencyId}`, agency_name: `Agency ${agencyId}` },
+        },
+      }],
+      __typename: 'Stop',
+    }
+  }
+
+  function addDeparture (cache: StopDepartureCache, stopId: number, date: string, time: string, routeId: number, tripId: number) {
+    const st: StopTime = {
+      departure_time: time,
+      trip: { id: tripId, direction_id: 0, trip_id: `trip-${tripId}`, route: { id: routeId } },
+    }
+    cache.add(stopId, date, [st])
+  }
+
+  function buildClusterData (cache: StopDepartureCache): ScenarioData {
+    const data = makeData([])
+    data.stopDepartureCache = cache
+    data.stops = [makeClusterStop(STOP_A, ROUTE_A, AGENCY_A), makeClusterStop(STOP_B, ROUTE_B, AGENCY_B)]
+    data.stopClusters = [{
+      id: 'cluster:201',
+      anchorStopId: STOP_A,
+      memberStopIds: [STOP_A, STOP_B],
+      agencyIds: [AGENCY_A, AGENCY_B],
+      routeIds: [ROUTE_A, ROUTE_B],
+      maxDistanceMeters: 100,
+    }]
+    return data
+  }
+
+  const filter: ScenarioFilter = { clusterMaxTransferMinutes: 15 }
+
+  it('keeps a cluster whose members depart within the window on the same day', () => {
+    const cache = new StopDepartureCache()
+    addDeparture(cache, STOP_A, '2024-01-15', '08:00:00', ROUTE_A, 1) // Monday
+    addDeparture(cache, STOP_B, '2024-01-15', '08:05:00', ROUTE_B, 2) // Monday
+    const result = applyScenarioResultFilter(buildClusterData(cache), baseConfig, filter)
+    expect(result.stopClusters).toHaveLength(1)
+    expect(result.stopClusters?.[0]?.agencyIds).toEqual([AGENCY_A, AGENCY_B])
+  })
+
+  it('prunes a cluster whose members only depart on different days', () => {
+    // A departs 08:00 Monday, B departs 08:00 Tuesday — never the same day, so
+    // neither has a same-day transfer partner and the cluster is dropped.
+    const cache = new StopDepartureCache()
+    addDeparture(cache, STOP_A, '2024-01-15', '08:00:00', ROUTE_A, 1) // Monday
+    addDeparture(cache, STOP_B, '2024-01-16', '08:00:00', ROUTE_B, 2) // Tuesday
+    const result = applyScenarioResultFilter(buildClusterData(cache), baseConfig, filter)
+    expect(result.stopClusters).toHaveLength(0)
+  })
+})
+
 describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => {
   // Full week: 2024-01-15 Mon … 2024-01-21 Sun (so the range mixes weekday and
   // weekend service days).

@@ -8,7 +8,7 @@ import maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
-import { STOP_AGG_ELEMENT_IDS, densityUnitLabel, formatCensusValue } from '~~/src/core'
+import { STOP_AGG_ELEMENT_IDS, STOP_CLUSTER_COLOR, densityUnitLabel, formatCensusValue } from '~~/src/core'
 import CalMapPopup from './map-popup.vue'
 
 //////////////////////
@@ -35,6 +35,13 @@ const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { defaul
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
+// stop cluster markers + the selected cluster's radius circle.
+const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
+const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
+// connector lines from the selected cluster's anchor stop to its member stops.
+const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: [] })
+// multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
+const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
@@ -63,6 +70,7 @@ const skipUpdateStages = new Set(['schedules'])
 
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
+const clusterMarkerLayer = ref<maplibre.Marker[]>([])
 let geoHoverPopup: maplibre.Popup | undefined
 
 // Choropleth hover tooltip — created in initMap, cleaned up in onBeforeUnmount
@@ -111,12 +119,32 @@ watch(() => flexFeatures.value, (v) => {
   }
 })
 
+watch(() => clusterFeatures.value, (v) => {
+  updateClusterFeatures(v)
+})
+
+watch(() => clusterCircleFeatures.value, (v) => {
+  updateClusterCircle(v)
+})
+
+watch(() => clusterLineFeatures.value, (v) => {
+  updateClusterLines(v)
+})
+
+watch(() => clusterMarkers.value, (v) => {
+  drawClusterMarkers(v)
+})
+
 // When exiting a skip stage (e.g., schedules -> complete), render all features
 watch(() => props.loadingStage, (newStage, oldStage) => {
   if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
     // Exited a skip stage - render the features
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
+    updateClusterFeatures(clusterFeatures.value)
+    updateClusterCircle(clusterCircleFeatures.value)
+    updateClusterLines(clusterLineFeatures.value)
+    drawClusterMarkers(clusterMarkers.value)
   }
 })
 
@@ -248,6 +276,10 @@ function initMap () {
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
+    updateClusterFeatures(clusterFeatures.value)
+    updateClusterCircle(clusterCircleFeatures.value)
+    updateClusterLines(clusterLineFeatures.value)
+    drawClusterMarkers(clusterMarkers.value)
     map?.on('mousemove', mapMouseMove)
     map?.on('click', mapClick)
     map?.on('zoom', mapZoom)
@@ -448,6 +480,19 @@ function createSources () {
   })
   // Highlight source for selected features
   map?.addSource('highlight', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  // stop cluster markers and the selected cluster's radius circle.
+  map?.addSource('clusters', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('clusterCircle', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
+  map?.addSource('clusterLines', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
@@ -696,6 +741,54 @@ function createLayers () {
       'circle-stroke-width': 3,
     }
   })
+
+  // selected cluster radius circle. circle-radius interpolates the per-feature
+  // pixels-at-zoom-0 value by exponential(2) so it tracks a true metric radius.
+  // Below 'points' so stop dots stay on top and clickable.
+  map?.addLayer({
+    id: 'cluster-circle',
+    type: 'circle',
+    source: 'clusterCircle',
+    paint: {
+      'circle-radius': [
+        'interpolate', ['exponential', 2], ['zoom'],
+        0, ['get', 'radius_px_z0'],
+        24, ['*', ['get', 'radius_px_z0'], 16777216],
+      ],
+      'circle-color': STOP_CLUSTER_COLOR,
+      'circle-opacity': 0.12,
+      'circle-stroke-color': STOP_CLUSTER_COLOR,
+      'circle-stroke-width': 2,
+      'circle-stroke-opacity': 0.9,
+    }
+  }, 'points')
+
+  // connector lines from the anchor stop to each member. Below 'points' so dots stay clickable.
+  map?.addLayer({
+    id: 'cluster-lines',
+    type: 'line',
+    source: 'clusterLines',
+    layout: {
+      'line-cap': 'round',
+    },
+    paint: {
+      'line-color': STOP_CLUSTER_COLOR,
+      'line-width': 2,
+      'line-opacity': 0.9,
+    }
+  }, 'points')
+
+  // Invisible click target per cluster: the visible "beach ball" is a
+  // pointer-events:none DOM marker, so clicks fall through to this circle.
+  map?.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'clusters',
+    paint: {
+      'circle-radius': 18,
+      'circle-opacity': 0,
+    }
+  })
 }
 
 function updateChoroplethFeatures (features: Feature[]) {
@@ -786,6 +879,40 @@ function updateFlexFeatures (features: Feature[]) {
     return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon'
   })
   flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
+}
+
+// update the cluster marker + radius-circle sources.
+function updateClusterFeatures (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('clusters') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  source.setData({ type: 'FeatureCollection', features: features as any })
+}
+
+function updateClusterCircle (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('clusterCircle') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  source.setData({ type: 'FeatureCollection', features: features as any })
+}
+
+function updateClusterLines (features: Feature[]) {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('clusterLines') as maplibre.GeoJSONSource
+  if (!source) {
+    return
+  }
+  source.setData({ type: 'FeatureCollection', features: features as any })
 }
 
 function fitFeatures (features: Feature[]) {
@@ -1016,6 +1143,46 @@ function showPopupAtIndex (index: number) {
   currentPopup = popup
 }
 
+// Equal-wedge conic gradient for the cluster "beach ball" (one wedge/agency).
+function clusterConicGradient (cols: string[]): string {
+  if (cols.length === 0) {
+    return STOP_CLUSTER_COLOR
+  }
+  if (cols.length === 1) {
+    return cols[0] as string
+  }
+  const step = 360 / cols.length
+  const stops = cols.map((c, i) => `${c} ${i * step}deg ${(i + 1) * step}deg`).join(', ')
+  return `conic-gradient(${stops})`
+}
+
+// Cluster "beach ball" markers as DOM overlays at each anchor stop. pointer-events:
+// none so clicks fall through to the invisible 'clusters' hit circle.
+function drawClusterMarkers (specs: { id: string, point: Point, colors: string[] }[]) {
+  if (!map) {
+    return
+  }
+  for (const m of clusterMarkerLayer.value) {
+    m.remove()
+  }
+  const created: maplibre.Marker[] = []
+  for (const spec of specs) {
+    const el = document.createElement('div')
+    el.style.width = '32px'
+    el.style.height = '32px'
+    el.style.borderRadius = '50%'
+    el.style.border = '2px solid #fff'
+    el.style.boxShadow = '0 0 2px rgba(0, 0, 0, 0.5)'
+    el.style.background = clusterConicGradient(spec.colors)
+    el.style.pointerEvents = 'none'
+    const marker = new maplibre.Marker({ element: el })
+      .setLngLat([spec.point.lon, spec.point.lat])
+      .addTo(map)
+    created.push(marker)
+  }
+  clusterMarkerLayer.value = created
+}
+
 function drawMarkers (markers: MarkerFeature[]) {
   for (const m of markerLayer.value) {
     m.remove()
@@ -1054,7 +1221,9 @@ function drawMarkers (markers: MarkerFeature[]) {
 // Map events
 
 function mapClick (e: maplibre.MapMouseEvent) {
-  const layersToQuery = ['points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
+  // 'clusters' first so a cluster marker click is recognized even when it sits
+  // over a stop dot.
+  const layersToQuery = ['clusters', 'points', 'lines', 'flex-polygons', 'flex-polygons-outline-solid', 'flex-polygons-outline-dashed', 'choropleth-fill']
     .filter(layerId => map?.getLayer(layerId)) // Only query layers that exist
 
   if (layersToQuery.length === 0) { return }

@@ -26,6 +26,9 @@ interface ScenarioFilters {
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
   flexColorBy: WritableComputedRef<string | undefined>
+  // max transfer time (minutes) for the client-side temporal cluster
+  // prune. Effective default 15; 0 means proximity-only (no temporal filter).
+  clusterMaxTransferMinutes: WritableComputedRef<number>
   // Updates startTime + endTime in a single navigation so neither overwrites the other.
   setTimeRange: (start: Date | undefined, end: Date | undefined) => void
 }
@@ -128,6 +131,22 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
+  // minutes; 0 (the default) disables the prune. The filter panel seeds
+  // STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES when the user turns the filter on.
+  const clusterMaxTransferMinutes = computed<number>({
+    get: () => {
+      const raw = route.query.clusterMaxTransferMinutes?.toString()
+      if (raw == null || raw === '') {
+        return 0
+      }
+      const n = Number.parseFloat(raw)
+      return Number.isFinite(n) && n >= 0 ? n : 0
+    },
+    set: (v) => {
+      setQuery({ clusterMaxTransferMinutes: v === 0 ? undefined : String(v) })
+    }
+  })
+
   function setTimeRange (start: Date | undefined, end: Date | undefined) {
     setQuery({ startTime: asTimeString(start), endTime: asTimeString(end) })
   }
@@ -150,6 +169,7 @@ export function useScenarioFilters (): ScenarioFilters {
     flexAdvanceNotice,
     flexAreaTypesSelected,
     flexColorBy,
+    clusterMaxTransferMinutes,
     setTimeRange,
   }
 }

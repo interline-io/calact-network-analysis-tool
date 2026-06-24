@@ -253,12 +253,23 @@ export const FILTER_SUB_WIDTH = 400
 export const FILTER_COLLAPSED_WIDTH = FILTER_MAIN_WIDTH + PANEL_PADDING
 export const FILTER_EXPANDED_WIDTH = FILTER_MAIN_WIDTH + FILTER_SUB_WIDTH + PANEL_PADDING
 
-// #315 default: 402 m ≈ 1/4 mile (Tom). 0 disables the feature.
+// Default: 402 m ≈ 1/4 mile (Tom). 0 disables the feature.
 export const STOP_BUFFER_DEFAULT_RADIUS = 402
 
-// Tract is the default buffer layer (per #315 spec). Block group ('bg') is also
+// Tract is the default buffer layer. Block group ('bg') is also
 // available wherever it's loaded; tract is kept as the default for stability.
 export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
+
+// Seeded when the user enables a stop-clustering control: distance (meters, the
+// PostGIS nearby_stops radius) on enabling clustering, transfer time (minutes) on
+// enabling the optional prune. The prune is off (0) by default — proximity alone.
+export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
+export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
+
+// Accent color for cluster markers and the selected-cluster radius circle, kept
+// distinct from the agency/mode palette. Single source of truth: map layers read
+// it directly; legend.vue / map-popup.vue bind it into CSS via v-bind (no manual sync).
+export const STOP_CLUSTER_COLOR = '#d6336c'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },

@@ -28,6 +28,7 @@
         :has-flex-data="hasFlexData"
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
+        :has-cluster-data="hasClusterData"
         @view-details="emit('viewCensusDetails')"
       />
     </div>
@@ -42,6 +43,10 @@
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
       :flex-features="flexFeatures"
+      :cluster-features="clusterFeatures"
+      :cluster-circle-features="clusterCircleFeatures"
+      :cluster-line-features="clusterLineFeatures"
+      :cluster-markers="clusterMarkers"
       :markers="bboxMarkers"
       :popup-features="popupFeatures"
       :loading-stage="props.loadingStage"
@@ -66,9 +71,9 @@ import { ref, computed, toRaw, shallowRef, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
 import type { Marker } from 'maplibre-gl'
-import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, ChoroplethClassification } from '~~/src/core'
-import { colors, routeTypeNames, flexColors } from '~~/src/core'
-import type { ScenarioFilterResult } from '~~/src/scenario'
+import type { Bbox, Feature, Point, PopupFeature, MarkerFeature, MarkerDragEvent, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
+import { colors, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
+import type { ScenarioFilterResult, StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox]
@@ -397,10 +402,151 @@ const stopFeatureLookup = computed(() => {
   return lookup
 })
 
+// Stop clusters. selectedClusterId drives the radius circle + grey-out.
+const stopClusters = computed((): StopCluster[] => props.scenarioFilterResult?.stopClusters || [])
+const hasClusterData = computed(() => stopClusters.value.length > 0)
+const clusterById = computed(() => {
+  const m = new Map<string, StopCluster>()
+  for (const c of stopClusters.value) {
+    m.set(c.id, c)
+  }
+  return m
+})
+const selectedClusterId = ref<string | null>(null)
+const selectedCluster = computed((): StopCluster | null =>
+  selectedClusterId.value ? clusterById.value.get(selectedClusterId.value) ?? null : null)
+const selectedMemberSet = computed(() => new Set<number>(selectedCluster.value?.memberStopIds || []))
+
+// Clear the selection if a refetch/refilter drops the selected cluster.
+watch(stopClusters, () => {
+  if (selectedClusterId.value && !clusterById.value.has(selectedClusterId.value)) {
+    selectedClusterId.value = null
+  }
+})
+
+// Each cluster's anchor stop coordinates — the point its radius circle centers
+// on. Marker, spokes, and click target all hub here to stay concentric with it.
+const clusterAnchorPoints = computed(() => {
+  const m = new Map<string, [number, number]>()
+  for (const c of stopClusters.value) {
+    const anchor = stopFeatureLookup.value.get(c.anchorStopId.toString())
+    if (!anchor) {
+      continue
+    }
+    const lonCoord = anchor.geometry.coordinates[0]
+    const latCoord = anchor.geometry.coordinates[1]
+    if (lonCoord == null || latCoord == null) {
+      continue
+    }
+    m.set(c.id, [lonCoord, latCoord])
+  }
+  return m
+})
+
+// Invisible click target at each cluster's anchor stop: the visible "beach ball"
+// is a DOM overlay, so this circle is what queryRenderedFeatures clicks land on.
+const clusterFeatures = computed((): Feature[] => {
+  const out: Feature[] = []
+  for (const c of stopClusters.value) {
+    const anchor = clusterAnchorPoints.value.get(c.id)
+    if (!anchor) {
+      continue
+    }
+    out.push({
+      type: 'Feature',
+      id: c.id,
+      geometry: { type: 'Point', coordinates: anchor },
+      properties: {
+        cluster_id: c.id,
+      },
+    })
+  }
+  return out
+})
+
+// One "beach ball" marker per cluster (a wedge per agency), a DOM overlay at the
+// anchor stop. Wedge colors share agencyColorScale, so they match the stop dots
+// in dataDisplayMode === 'Agency'.
+const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
+  const scale = agencyColorScale.value
+  const out: { id: string, point: Point, colors: string[] }[] = []
+  for (const c of stopClusters.value) {
+    const anchor = clusterAnchorPoints.value.get(c.id)
+    if (!anchor) {
+      continue
+    }
+    out.push({
+      id: c.id,
+      point: { lon: anchor[0], lat: anchor[1] },
+      colors: c.agencyIds.map(a => scale(String(a))),
+    })
+  }
+  return out
+})
+
+// Web Mercator m/px at zoom 0 (512px tiles); sizes the radius circle via native
+// circle paint — a rendering primitive, not a client-side geometry op.
+const WEB_MERCATOR_Z0_M_PER_PX = 78271.51696
+const clusterCircleFeatures = computed((): Feature[] => {
+  const c = selectedCluster.value
+  if (!c) {
+    return []
+  }
+  const anchor = clusterAnchorPoints.value.get(c.id)
+  if (!anchor) {
+    return []
+  }
+  const lat = anchor[1]
+  const cosLat = Math.cos((lat * Math.PI) / 180)
+  const radiusPxZ0 = cosLat > 0.001 ? c.maxDistanceMeters / (WEB_MERCATOR_Z0_M_PER_PX * cosLat) : 0
+  return [{
+    type: 'Feature',
+    id: `cluster-circle:${c.id}`,
+    geometry: { type: 'Point', coordinates: anchor },
+    properties: {
+      cluster_id: c.id,
+      radius_px_z0: radiusPxZ0,
+    },
+  }]
+})
+
+// Connector lines from the anchor stop to each member, while the cluster is
+// selected. Straight segments between known points, not a geometry op.
+const clusterLineFeatures = computed((): Feature[] => {
+  const c = selectedCluster.value
+  if (!c) {
+    return []
+  }
+  const anchor = clusterAnchorPoints.value.get(c.id)
+  if (!anchor) {
+    return []
+  }
+  const out: Feature[] = []
+  for (const memberId of c.memberStopIds) {
+    const member = stopFeatureLookup.value.get(memberId.toString())
+    if (!member) {
+      continue
+    }
+    out.push({
+      type: 'Feature',
+      id: `cluster-line:${c.id}:${memberId}`,
+      geometry: {
+        type: 'LineString',
+        coordinates: [anchor, member.geometry.coordinates],
+      },
+      properties: {
+        cluster_id: c.id,
+      },
+    })
+  }
+  return out
+})
+
 // Calculate top agencies in result set
 // (we will order them by the most to least stops)
 interface AgencyData {
-  id: string
+  id: string // GTFS agency_id — used to match stops/routes
+  numericId: number // Transitland numeric agency id — used for color keying + clusters
   name: string
   stops: Set<string>
 }
@@ -414,8 +560,9 @@ const agencyData = computed((): AgencyData[] => {
     for (const rstop of route_stops) {
       // const rid = rstop.route.route_id
       const aid = rstop.route.agency?.agency_id
+      const anumeric = rstop.route.agency?.id
       const aname = rstop.route.agency?.agency_name
-      if (!aid || !aname) {
+      if (!aid || !aname || anumeric == null) {
         continue // no valid agency listed for this stop?
       }
 
@@ -423,6 +570,7 @@ const agencyData = computed((): AgencyData[] => {
       if (!adata) { // first time seeing this agency
         adata = {
           id: aid,
+          numericId: anumeric,
           name: aname,
           stops: new Set()
         }
@@ -435,6 +583,12 @@ const agencyData = computed((): AgencyData[] => {
   return [...data.values()]
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
 })
+
+// Single source of truth for per-agency colors, shared by Agency-mode stop dots
+// (getAgencyMatchers) and the cluster beach-ball wedges so an agency renders the
+// same color in both. Keyed by the numeric agency id clusters carry.
+const agencyColorScale = computed(() =>
+  createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
 
 // Depending on the data display, set up matcher rules to choose a styling.
 // Matchers should run in the order that they are added to the rules array.
@@ -537,15 +691,16 @@ const styleData = computed((): Matcher[] => {
     }
   }
 
-  // Generate a set of AGENCY MATCHERS
+  // Agencies use the wider 10-color categorical palette (agencyColorScale),
+  // not the 6-color route palette.
   function getAgencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
     const agencies = agencyData.value || []
-    for (let i = 0; i < Math.min(agencies.length, maxColor); i++) {
+    const scale = agencyColorScale.value
+    for (let i = 0; i < Math.min(agencies.length, categoricalColors.length); i++) {
       const agency = agencies[i]
-      const color = colors[i]
-      if (agency && color) {
-        rules.push({ label: agency.name ?? '', color: color, match: getAgencyMatcher(agency.id ?? '') })
+      if (agency) {
+        rules.push({ label: agency.name ?? '', color: scale(String(agency.numericId)), match: getAgencyMatcher(agency.id ?? '') })
       }
     }
     return rules
@@ -587,12 +742,15 @@ const styleData = computed((): Matcher[] => {
     return rules
   }
 
-  // Reserve an extra color for "other", if needed
+  // Reserve an extra color for "other", if needed. Agency mode draws from the
+  // wider categorical palette, so its "Other" bucket only kicks in past that.
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
+  let otherThreshold = maxColor
   if (dataDisplayMode.value === 'Agency') {
     rules.push(...getAgencyMatchers())
+    otherThreshold = categoricalColors.length
   } else if (dataDisplayMode.value === 'Transit mode') {
     rules.push(...getModeMatchers())
   } else if (dataDisplayMode.value === 'Route frequency') {
@@ -604,7 +762,7 @@ const styleData = computed((): Matcher[] => {
   }
 
   // If we used all colors (or no colors), add a catchall "other" rule
-  if (rules.length >= maxColor || rules.length === 0) {
+  if (rules.length >= otherThreshold || rules.length === 0) {
     rules.push({ label: 'Other', color: '#000', match: _ => true })
   }
 
@@ -798,9 +956,18 @@ const displayFeatures = computed((): Feature[] => {
     forDisplay.push(feature)
   }
 
+  // A selected cluster focuses the map: show only its member stops.
+  const memberSet = selectedMemberSet.value
+  const clusterActive = memberSet.size > 0
+
   // Gather stops
   for (const sp of props.scenarioFilterResult?.stops || []) {
-    if (hideUnmarked.value && !sp.marked) {
+    if (clusterActive) {
+      // focused on a cluster: show only its members, regardless of marked state
+      if (!memberSet.has(sp.id)) {
+        continue
+      }
+    } else if (hideUnmarked.value && !sp.marked) {
       continue
     }
 
@@ -973,12 +1140,32 @@ const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
   const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
-  const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
+  const seenIds = new Set<string>() // same feature can come from multiple layers
+  let clickedClusterId: string | null = null
 
   console.log(`[MapClick] ${features.length} raw features at point`)
 
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''
+
+    const ft = feature.geometry.type
+    const fp = feature.properties
+
+    // cluster markers are Points with a cluster_id property — properties survive
+    // queryRenderedFeatures even on the invisible hit circle.
+    if (ft === 'Point' && fp.cluster_id) {
+      const clusterId = fp.cluster_id.toString()
+      if (seenIds.has(`cluster:${clusterId}`)) {
+        continue
+      }
+      seenIds.add(`cluster:${clusterId}`)
+      const cluster = clusterById.value.get(clusterId)
+      if (cluster) {
+        clickedClusterId = clusterId
+        entries.push({ popupFeature: buildClusterPopup(cluster, pt), sortKey: [-1, 0] })
+      }
+      continue
+    }
 
     // Only dedupe if we have a valid ID (skip deduplication for empty IDs)
     if (featureId && seenIds.has(featureId)) {
@@ -987,9 +1174,6 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     if (featureId) {
       seenIds.add(featureId)
     }
-
-    const ft = feature.geometry.type
-    const fp = feature.properties
 
     let popupFeature: PopupFeature | undefined = undefined
     let sortKey: [number, number] = [0, 0]
@@ -1064,12 +1248,64 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     }
   }
 
-  // Sort: stops (0) → routes (1) → matched flex by area (2,asc) → unmatched flex by area (3,asc)
+  // clicking a cluster marker selects it; any other click collapses the
+  // selection. Not gated on features.length, so passive overlays under the
+  // pointer (e.g. choropleth fill) can't block the collapse.
+  if (clickedClusterId) {
+    selectedClusterId.value = clickedClusterId
+  } else {
+    selectedClusterId.value = null
+  }
+
+  // Sort: cluster (-1) → stops (0) → routes (1) → matched flex by area (2,asc) → unmatched flex by area (3,asc)
   entries.sort((x, y) => x.sortKey[0] - y.sortKey[0] || x.sortKey[1] - y.sortKey[1])
 
   const a = entries.map(e => e.popupFeature)
   console.log(`[MapClick] ${a.length} unique features after processing`)
   popupFeatures.value = a
+}
+
+// Build the "Stop Cluster" popup. Member agency/route detail is derived client-
+// side from loaded route_stops — it's not on the lean cluster wire format.
+function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
+  const members: ClusterMemberInfo[] = []
+  const allAgencies = new Set<string>()
+  for (const sid of cluster.memberStopIds) {
+    const stop = stopFeatureLookup.value.get(sid.toString())
+    if (!stop) {
+      continue
+    }
+    const agencies = new Set<string>()
+    const routes = new Set<string>()
+    for (const rs of stop.route_stops || []) {
+      const an = rs.route.agency?.agency_name
+      if (an) {
+        agencies.add(an)
+        allAgencies.add(an)
+      }
+      const rn = rs.route.route_short_name || rs.route.route_long_name
+      if (rn) {
+        routes.add(rn)
+      }
+    }
+    members.push({
+      stop_id: stop.stop_id,
+      stop_name: stop.stop_name,
+      agency_names: [...agencies],
+      route_names: [...routes],
+    })
+  }
+  return {
+    point: { lon: pt.lng, lat: pt.lat },
+    featureId: cluster.id,
+    sourceLayer: 'clusters',
+    featureType: 'cluster',
+    data: {
+      cluster_id: cluster.id,
+      agency_names: [...allAgencies],
+      cluster_members: members,
+    },
+  }
 }
 
 function handleOpenTimetable (featureId: string | number) {

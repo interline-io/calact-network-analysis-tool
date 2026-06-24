@@ -50,12 +50,20 @@ export function bboxString (bbox: Bbox): string {
   ].map(s => (s.toFixed(5))).join(',')
 }
 
+// One member stop of a clicked cluster, connecting agency → route(s) → stop.
+export interface ClusterMemberInfo {
+  stop_id?: string
+  stop_name?: string
+  agency_names: string[]
+  route_names: string[]
+}
+
 export interface PopupFeature {
   point: Point
   featureId?: string | number // Feature ID for highlighting
   sourceLayer?: string // Source layer name for highlighting (e.g., 'flexPolygons', 'lines', 'points')
   // Structured data for Vue component rendering (preferred - avoids XSS concerns)
-  featureType?: 'stop' | 'route' | 'flex'
+  featureType?: 'stop' | 'route' | 'flex' | 'cluster'
   data?: {
     // Stop fields
     stop_id?: string
@@ -76,6 +84,10 @@ export interface PopupFeature {
     advance_notice?: string
     phone_number?: string
     marked?: boolean
+    // Stop cluster fields
+    cluster_id?: string
+    agency_names?: string[]
+    cluster_members?: ClusterMemberInfo[]
   }
   // Legacy HTML text (deprecated - use structured data instead)
   text?: string

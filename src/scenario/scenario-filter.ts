@@ -55,6 +55,11 @@ import {
   type RouteDepartures,
 } from './route-headway'
 import {
+  applyClusterTransferTime,
+  type StopCluster,
+  type StopClusterMeta,
+} from './stop-clusters'
+import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
@@ -524,18 +529,21 @@ export interface ScenarioFilterResult {
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
   tripIdStrings?: Map<number, string>
   // Passed through from ScenarioData for the aggregation table demographic
-  // columns (#302). Keyed by census geography geoid.
+  // columns. Keyed by census geography geoid.
   censusGeographies?: Map<string, CensusGeographyData>
-  // Pass C (#315): per-stop buffer tracts. Populated only when the scenario
+  // Pass C: per-stop buffer tracts. Populated only when the scenario
   // ran with `stopBufferRadius > 0`.
   stopBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass D (#315): per-route buffer tracts.
+  // Pass D: per-route buffer tracts.
   routeBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass E (#315): per-agency buffer tracts.
+  // Pass E: per-agency buffer tracts.
   agencyBufferGeographies?: Map<number, BufferGeographyIntersection[]>
-  // Pass F (#315): one-shot union over every stop's buffer at the chosen
+  // Pass F: one-shot union over every stop's buffer at the chosen
   // radius. Drives the aggregation-table apportioned values.
   aggregationBufferGeographies?: BufferGeographyIntersection[]
+  // cross-agency transfer-hub clusters, after the client-side max-transfer
+  // -time prune. Populated only when the scenario ran with clustering enabled.
+  stopClusters?: StopCluster[]
 }
 
 export function applyScenarioResultFilter (
@@ -687,6 +695,20 @@ export function applyScenarioResultFilter (
     }
   })
 
+  // apply the max-transfer-time prune to the server's proximity clusters.
+  // Pure time arithmetic over the already-loaded departure cache, so it re-runs
+  // here (no refetch) whenever the user changes the transfer-time input.
+  const stopClusters = deriveFilteredStopClusters(
+    data.stopClusters,
+    filter.clusterMaxTransferMinutes,
+    stopFeatures,
+    sdCache,
+    selectedDateRangeValue,
+    resolveEffectiveWeekdays(selectedDaysValue, selectedWeekdayModeValue),
+    startTimeValue,
+    endTimeValue,
+  )
+
   ///////////
   const result: ScenarioFilterResult = {
     routes: routeFeatures,
@@ -701,6 +723,83 @@ export function applyScenarioResultFilter (
     routeBufferGeographies: data.routeBufferGeographies,
     agencyBufferGeographies: data.agencyBufferGeographies,
     aggregationBufferGeographies: data.aggregationBufferGeographies,
+    stopClusters,
   }
   return result
+}
+
+// Build the per-member departure-time and agency/route lookups the temporal
+// prune needs, then apply it. Only member stops are indexed, so the cost scales
+// with cluster membership, not the full stop set. Departures are gathered with
+// the SAME weekday + time-of-day window the rest of the filter uses (mirroring
+// stopVisits), so a cluster is only kept on service the user can actually see.
+function deriveFilteredStopClusters (
+  proximityClusters: StopCluster[] | undefined,
+  maxTransferMinutes: number | undefined,
+  stopFeatures: Stop[],
+  sdCache: StopDepartureCache,
+  selectedDateRange: Date[],
+  effectiveWeekdays: Weekday[] | undefined,
+  startTimeValue: string,
+  endTimeValue: string,
+): StopCluster[] {
+  const clusters = proximityClusters || []
+  if (clusters.length === 0) {
+    return []
+  }
+  // The prune needs departures; if the scenario loaded without them the cache is
+  // empty, so keep the proximity clusters rather than silently dropping every one.
+  if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.isEmpty()) {
+    return clusters
+  }
+  const memberIds = new Set<number>()
+  for (const cluster of clusters) {
+    for (const id of cluster.memberStopIds) {
+      memberIds.add(id)
+    }
+  }
+  const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
+  const startSeconds = parseHMS(startTimeValue)
+  const endSeconds = parseHMS(endTimeValue)
+  // Weekday-eligible dates, each with a calendar-day offset. Folding the day into
+  // each departure value (below) keeps the prune from matching departures on
+  // different service days as if they were same-day.
+  const eligibleDates = selectedDateRange
+    .filter((date) => {
+      const dow = dowDateString[date.getDay()]
+      return effectiveWeekdays == null || (!!dow && effectiveWeekdays.includes(dow))
+    })
+    .map(date => ({ dateKey: format(date, 'yyyy-MM-dd'), dayOffset: Math.floor(date.getTime() / 86_400_000) }))
+  const departureSecondsByStop = new Map<number, number[]>()
+  const stopMeta = new Map<number, StopClusterMeta>()
+  for (const id of memberIds) {
+    const stop = stopById.get(id)
+    if (!stop) {
+      continue
+    }
+    // dayBase * 86400 + secs-since-midnight: a same-day departure keeps its
+    // ordering, while different days land >= 86400s apart (always > maxGap).
+    const times: number[] = []
+    for (const { dateKey, dayOffset } of eligibleDates) {
+      const dayBase = dayOffset * 86_400
+      for (const st of sdCache.get(id, dateKey)) {
+        if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
+          times.push(dayBase + st.departureTime)
+        }
+      }
+    }
+    departureSecondsByStop.set(id, times)
+    const agencyIds = new Set<number>()
+    const routeIds = new Set<number>()
+    for (const rs of stop.route_stops || []) {
+      if (rs.route?.id != null) {
+        routeIds.add(rs.route.id)
+      }
+      if (rs.route?.agency?.id != null) {
+        agencyIds.add(rs.route.agency.id)
+      }
+    }
+    stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
+  }
+  return applyClusterTransferTime(clusters, maxTransferMinutes, departureSecondsByStop, stopMeta)
 }

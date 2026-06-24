@@ -81,6 +81,21 @@
           </div>
         </div>
 
+        <!-- Stop Clusters -->
+        <div v-if="props.hasClusterData" class="cal-map-legend-section">
+          <div class="legend-heading">
+            Stop clusters:
+          </div>
+          <div>
+            <div class="legend-item legend-cluster-marker" />
+            <div>Transfer hub (click to inspect)</div>
+          </div>
+          <div>
+            <div class="legend-item legend-cluster-ring" />
+            <div>Selected cluster radius</div>
+          </div>
+        </div>
+
         <!-- Flex Services Color Style -->
         <div v-if="props.hasFlexData" class="legend-heading">
           Flex Service Areas:
@@ -159,6 +174,7 @@
 import {
   densityUnitLabel,
   formatCensusBucketLabel,
+  STOP_CLUSTER_COLOR,
   type ChoroplethClassification,
 } from '~~/src/core'
 
@@ -180,6 +196,8 @@ const props = defineProps<{
   // Choropleth aggregation
   hasChoroplethData?: boolean
   choroplethClassification?: ChoroplethClassification
+  // Stop clusters
+  hasClusterData?: boolean
 }>()
 
 defineEmits<{
@@ -189,7 +207,7 @@ defineEmits<{
 const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification
@@ -273,6 +291,22 @@ function bucketLabel (i: number): string {
 
 .legend-large-circle {
   background-color: #000f;
+  border-radius: 50%;
+}
+
+// A static 3-wedge "beach ball" sample; real markers wedge per agency via the
+// Tableau10 scale, so this is only representative.
+.legend-cluster-marker {
+  background: conic-gradient(#4e79a7 0deg 120deg, #f28e2b 120deg 240deg, #59a14f 240deg 360deg);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px #999;
+}
+
+.legend-cluster-ring {
+  // Matches the map circle's 12%-opacity fill (circle-opacity: 0.12).
+  background-color: color-mix(in srgb, v-bind(STOP_CLUSTER_COLOR) 12%, transparent);
+  border: 2px dashed v-bind(STOP_CLUSTER_COLOR);
   border-radius: 50%;
 }
 
