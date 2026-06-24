@@ -3,7 +3,7 @@
 
 import { computed, ref, type ComputedRef, type Ref, type WritableComputedRef } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
-import type { BufferDetailsPayload } from '~/components/cal/report.vue'
+import type { BufferDetailsPayload } from '~~/src/scenario'
 import {
   apportionBuffer,
   REQUIRED_ACS_TABLES,

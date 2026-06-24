@@ -41,6 +41,13 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 - Results stream back to the client as **NDJSON** (newline-delimited JSON) via `ReadableStream`
 - Frontend renders results on MapLibre GL maps and data grids with filtering, export (CSV/GeoJSON), and reporting
 
+### State ownership & data flow
+- Data fetching lives in the container page (`app/pages/tne.vue`) or composables it calls. The main scenario results stream in from the `/api/scenario` endpoint as NDJSON over `fetch` — the Transitland GraphQL queries run **server-side** in `server/api/` → `src/scenario`, not via client Apollo. Supporting data fetched client-side with Apollo `useQuery` (census layers, choropleth/buffer geometry, viewport geographies) is kept here too. Fetched and derived results flow down to child components as plain props.
+- The main data-flow components (filter, report, map, census panel) — and any composables/helpers they use — must be driveable from plain props, so they render and test without a live scenario stream or a seeded Apollo cache. Composables/helpers that *process props or derive new values from props* are fine anywhere; the constraint is no fetching or direct Apollo-cache access (nothing that can't be passed in as plain data).
+- Exception: the URL-backed `useScenario*` composables (`useScenarioInputs` / `useScenarioFilters` / `useScenarioDisplay`) may be called by any component — they read the route query, which is trivial to provide in a test. (Subject to revisiting.)
+- Exception: self-contained interactive widgets that fetch their own options — the feed-version and census-dataset pickers, and query.vue's geography typeahead — may own their Apollo queries; their data isn't part of the scenario-result graph.
+- Keep `tne.vue` as the composition root so the app's data-flow graph is readable in one place.
+
 ### Directory Structure
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
