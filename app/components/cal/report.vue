@@ -203,10 +203,8 @@
 
 <script setup lang="ts">
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
-import { stopClusterCsv, type ScenarioFilterResult, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
-import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, type CensusGeographyEntry, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
-
-export type BufferDetailsKind = 'stop' | 'route' | 'agency'
+import { stopClusterCsv, type ScenarioFilterResult, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
+import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
 
 const props = defineProps<{
   filterTags: FilterTag[]
@@ -220,17 +218,6 @@ const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScen
 const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
 
 export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
-
-export interface BufferDetailsPayload {
-  kind: BufferDetailsKind
-  entityId: number
-  entityLabel: string
-  entries: CensusGeographyEntry[]
-  radius: number
-  layer: string
-  geoDatasetName: string
-  tableDatasetName: string
-}
 
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
