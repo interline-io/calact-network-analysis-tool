@@ -7,7 +7,15 @@
  */
 
 import { format } from 'date-fns'
-import { parseHMS, MIN_HEADWAY_SECONDS, type Weekday } from '../core'
+import {
+  parseHMS,
+  MIN_HEADWAY_SECONDS,
+  IRREGULAR_HEADWAY_RATIO,
+  IRREGULAR_MIN_LARGEST_GAP_SECONDS,
+  MIN_GAPS_FOR_IRREGULAR,
+  FREQUENCY_DIRECTION_DIVERGENCE_RATIO,
+  type Weekday,
+} from '../core'
 import type {
   Route,
   StopTimeCacheItem,
@@ -459,5 +467,123 @@ export function calculateHeadwayStats (departuresByDay: number[][]): {
     average: summary.avg,
     fastest: summary.min,
     slowest: summary.max,
+  }
+}
+
+/**
+ * Frequency caveats for a route (issue #368). Both flags derive from the same
+ * windowed RouteDepartures that feed the reported average/fastest/slowest, so
+ * they stay consistent with the numbers the tool shows. `gapSummary` and
+ * `comparison` are returned so the debug modal can show the supporting figures
+ * without recomputing.
+ */
+export interface DirectionFrequencyComparison {
+  dir0Average?: number
+  dir1Average?: number
+  dominantDirection: 0 | 1
+  dominantAverage?: number
+  otherAverage?: number
+  ratio?: number // larger / smaller average, when both are defined
+  directionsDifferMaterially: boolean
+}
+
+export interface RouteFrequencyCaveats {
+  // Headways aren't stable across the day — the reported average isn't
+  // representative (commuter/peak, school trippers, midday gaps, etc.).
+  irregular: boolean
+  // The two directions run at materially different frequencies, but the
+  // reported number covers only the dominant direction.
+  directionsDifferMaterially: boolean
+  gapSummary?: GapSummary
+  comparison: DirectionFrequencyComparison
+}
+
+/**
+ * Summarize the dominant direction's contributing (non-noise) headway gaps —
+ * the exact gaps behind average/fastest/slowest, but also exposing median and
+ * count so callers can judge variability. Returns undefined when there are no
+ * qualifying gaps.
+ */
+export function dominantGapSummary (deps: RouteDepartures): GapSummary | undefined {
+  const dominant = pickDominantDirection(deps)
+  const perDay = (dominant === 1 ? deps.dir1 : deps.dir0).map(day => [...day].sort((a, b) => a - b))
+  const headways = computeHeadwaysPerDay(perDay, n => n)
+  const contributing: number[] = []
+  for (const h of headways) {
+    if (!h.isNoise) {
+      contributing.push(h.gap)
+    }
+  }
+  return summarizeGaps(contributing)
+}
+
+/**
+ * Generic "irregular service" test: the longest contributing gap is both (a) at
+ * least IRREGULAR_HEADWAY_RATIO times the median gap and (b) a real multi-hour
+ * service break (>= IRREGULAR_MIN_LARGEST_GAP_SECONDS), given enough gaps to
+ * judge. A stable route has max ≈ median (low ratio); a commuter/school/
+ * time-concentrated route has a long break in the middle of the day. The
+ * absolute floor keeps a frequent all-day route with one stretched early/late
+ * gap from being flagged. Kept deliberately generic rather than tuned to any
+ * single service pattern.
+ */
+export function isIrregularHeadway (summary: GapSummary | undefined): boolean {
+  return (
+    !!summary
+    && summary.count >= MIN_GAPS_FOR_IRREGULAR
+    && summary.median > 0
+    && summary.max >= summary.median * IRREGULAR_HEADWAY_RATIO
+    && summary.max >= IRREGULAR_MIN_LARGEST_GAP_SECONDS
+  )
+}
+
+/**
+ * Compare the two directions' average headways from a windowed RouteDepartures.
+ * Reuses calculateHeadwayStats per direction so each number matches what the
+ * dominant direction would report. `directionsDifferMaterially` is true only
+ * when BOTH directions have a defined average and the larger exceeds the
+ * smaller by more than FREQUENCY_DIRECTION_DIVERGENCE_RATIO — a one-way loop, a
+ * single-trip direction, or a direction with no in-window service is not flagged.
+ */
+export function compareDirectionFrequencies (deps: RouteDepartures): DirectionFrequencyComparison {
+  const dominantDirection = pickDominantDirection(deps)
+  const dir0Average = calculateHeadwayStats(deps.dir0)?.average
+  const dir1Average = calculateHeadwayStats(deps.dir1)?.average
+  const dominantAverage = dominantDirection === 1 ? dir1Average : dir0Average
+  const otherAverage = dominantDirection === 1 ? dir0Average : dir1Average
+
+  let ratio: number | undefined
+  let directionsDifferMaterially = false
+  if (dir0Average != null && dir1Average != null && dir0Average > 0 && dir1Average > 0) {
+    const hi = Math.max(dir0Average, dir1Average)
+    const lo = Math.min(dir0Average, dir1Average)
+    ratio = hi / lo
+    directionsDifferMaterially = ratio > FREQUENCY_DIRECTION_DIVERGENCE_RATIO
+  }
+
+  return {
+    dir0Average,
+    dir1Average,
+    dominantDirection,
+    dominantAverage,
+    otherAverage,
+    ratio,
+    directionsDifferMaterially,
+  }
+}
+
+/**
+ * Build the route's frequency caveats from a windowed RouteDepartures. Pure;
+ * called by scenario-filter (to store booleans on the route) and by the Route
+ * Timetable debug modal (to render the explanation) so the two cannot drift.
+ */
+export function buildRouteFrequencyCaveats (deps: RouteDepartures): RouteFrequencyCaveats {
+  const gapSummary = dominantGapSummary(deps)
+  const comparison = compareDirectionFrequencies(deps)
+  return {
+    irregular: isIrregularHeadway(gapSummary),
+    directionsDifferMaterially: comparison.directionsDifferMaterially,
+    gapSummary,
+    comparison,
   }
 }

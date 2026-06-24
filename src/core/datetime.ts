@@ -246,8 +246,13 @@ export function formatGtfsTimeFull (value: unknown): string {
 }
 
 /**
- * Render a duration in seconds as HH:MM:SS, dropping the leading HH when zero
- * (e.g. 900 → "15:00", 7200 → "02:00:00").
+ * Render a duration in seconds with humanized, self-labeling units
+ * (e.g. 570 → "9m 30s", 9900 → "2h 45m", 3600 → "1h", 45 → "45s"). Zero
+ * components are dropped; a zero-length duration renders as "0s". The unit
+ * suffixes are what keep a sub-hour value (e.g. "9m 30s") from being misread
+ * as hours when it sits beside multi-hour values in a table column — unlike a
+ * clock-style HH:MM:SS, which is reserved for actual times of day
+ * (formatGtfsTimeFull).
  */
 export function formatDuration (value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -257,10 +262,15 @@ export function formatDuration (value: unknown): string {
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
-  const mm = m.toString().padStart(2, '0')
-  const ss = s.toString().padStart(2, '0')
-  if (h === 0) {
-    return `${mm}:${ss}`
+  const parts: string[] = []
+  if (h > 0) {
+    parts.push(`${h}h`)
   }
-  return `${h.toString().padStart(2, '0')}:${mm}:${ss}`
+  if (m > 0) {
+    parts.push(`${m}m`)
+  }
+  if (s > 0) {
+    parts.push(`${s}s`)
+  }
+  return parts.length > 0 ? parts.join(' ') : '0s'
 }

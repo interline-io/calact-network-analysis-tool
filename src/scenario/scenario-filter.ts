@@ -51,6 +51,7 @@ import {
   calculateHeadwayStats,
   calculateRouteTripStats,
   pickDominantDirection,
+  buildRouteFrequencyCaveats,
   scopeDatesToWeekdays,
   type RouteDepartures,
 } from './route-headway'
@@ -162,6 +163,13 @@ function routeSetDerived (
       route.latest_trip_start = tripStats.latestTripStart
       route.latest_trip_end = tripStats.latestTripEnd
     }
+
+    // Frequency caveats (issue #368, Option C). Derived from the same windowed
+    // deps that feed the reported frequency, so the flags stay consistent with
+    // the numbers shown in the report, tooltip, and debug modal.
+    const caveats = buildRouteFrequencyCaveats(deps)
+    route.frequency_irregular = caveats.irregular
+    route.frequency_directions_differ = caveats.directionsDifferMaterially
   }
 
   // Mark after setting frequency values. Pass the scoped range so deps (built
@@ -580,6 +588,8 @@ export function applyScenarioResultFilter (
       earliest_trip_end: undefined,
       latest_trip_start: undefined,
       latest_trip_end: undefined,
+      frequency_irregular: undefined,
+      frequency_directions_differ: undefined,
       __typename: 'Route', // backwards compat
     }
     routeSetDerived(

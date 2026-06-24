@@ -76,6 +76,9 @@ export interface PopupFeature {
     route_long_name?: string
     route_type_name?: string
     agency_name?: string
+    average_frequency?: number
+    frequency_irregular?: boolean
+    frequency_directions_differ?: boolean
     // Flex fields
     location_id?: string
     location_name?: string

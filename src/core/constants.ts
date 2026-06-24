@@ -141,6 +141,27 @@ export type TimeOfDayMode = typeof timeOfDayModes[number]
 // buses, capacity extras) and excluded from average/fastest/slowest frequency.
 export const MIN_HEADWAY_SECONDS = 2 * 60
 
+// Issue #368 frequency-caveat thresholds (kept generic so they catch a class of
+// routes, not one example; tune if they fire too often/rarely in practice).
+//
+// Service is "irregular" when the longest contributing gap is at least this
+// multiple of the median gap — i.e. headways are not stable across the day
+// (commuter peaks, school trippers, midday gaps, etc.), so a single average
+// frequency is not representative.
+export const IRREGULAR_HEADWAY_RATIO = 3
+// ...and the longest gap must also be a real multi-hour service break, not just
+// a stretched gap on an otherwise-frequent route. Without this floor, a
+// frequent all-day route with one larger early/late gap (e.g. a 13-min route
+// with a 31-min late-night gap) trips the ratio test even though it runs
+// consistently all day.
+export const IRREGULAR_MIN_LARGEST_GAP_SECONDS = 2 * 60 * 60
+// Require at least this many contributing gaps before judging variability, so a
+// route with only one or two departures isn't called "irregular" on noise.
+export const MIN_GAPS_FOR_IRREGULAR = 3
+// Directions "differ materially" when their average headways diverge by more
+// than this ratio (1.5 = one direction's average gap is at least 50% longer).
+export const FREQUENCY_DIRECTION_DIVERGENCE_RATIO = 1.5
+
 export const DEFAULT_TIME_WINDOW = {
   start: '06:00:00',
   end: '10:00:00',

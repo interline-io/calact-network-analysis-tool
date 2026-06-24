@@ -950,7 +950,10 @@ const displayFeatures = computed((): Feature[] => {
         'route_long_name': rp.route_long_name,
         'agency_name': rp.agency?.agency_name,
         'agency_id': rp.agency?.agency_id,
-        'marked': rp.marked
+        'marked': rp.marked,
+        'average_frequency': rp.average_frequency ?? null,
+        'frequency_irregular': rp.frequency_irregular ?? false,
+        'frequency_directions_differ': rp.frequency_directions_differ ?? false
       }
     }
     forDisplay.push(feature)
@@ -1209,6 +1212,9 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           route_long_name: fp.route_long_name || '',
           route_type_name: routeTypeNames.get(fp.route_type) || 'Unknown',
           agency_name: fp.agency_name,
+          average_frequency: fp.average_frequency ?? undefined,
+          frequency_irregular: fp.frequency_irregular,
+          frequency_directions_differ: fp.frequency_directions_differ,
         }
       }
       sortKey = [1, 0]

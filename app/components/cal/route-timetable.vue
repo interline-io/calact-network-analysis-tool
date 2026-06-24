@@ -240,6 +240,58 @@
       </p>
 
       <div v-else>
+        <cat-msg variant="info" title="About this frequency" class="mb-4">
+          <p>
+            Route frequency is automatically derived from GTFS feeds and may differ from how agencies classify their own routes.
+          </p>
+        </cat-msg>
+
+        <cat-msg
+          v-if="frequencyCaveats.irregular"
+          variant="warning"
+          title="Irregular service"
+          class="mb-4"
+        >
+          <p class="mb-2">
+            This route's service is not consistent across the day — it has a multi-hour gap with no service (see the slowest gap below), typical of commuter-peak, school, or other time-concentrated service. A single average frequency may not reflect typical wait times.
+          </p>
+          <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
+            <div>
+              <dt>Fastest gap:</dt>
+              <dd>{{ formatDuration(gapStats.min) }}</dd>
+            </div>
+            <div>
+              <dt>Median gap:</dt>
+              <dd>{{ formatDuration(gapStats.median) }}</dd>
+            </div>
+            <div>
+              <dt>Slowest gap:</dt>
+              <dd>{{ formatDuration(gapStats.max) }}</dd>
+            </div>
+          </dl>
+        </cat-msg>
+
+        <cat-msg
+          v-if="frequencyCaveats.directionsDifferMaterially"
+          variant="warning"
+          title="Directions differ"
+          class="mb-4"
+        >
+          <p class="mb-2">
+            The two directions of this route run at materially different frequencies. The reported frequency uses only the dominant direction (Direction {{ frequencyCaveats.comparison.dominantDirection }}).
+          </p>
+          <dl class="cal-route-timetable-gap-stats">
+            <div>
+              <dt>Direction 0 average:</dt>
+              <dd>{{ frequencyCaveats.comparison.dir0Average != null ? formatDuration(frequencyCaveats.comparison.dir0Average) : '—' }}</dd>
+            </div>
+            <div>
+              <dt>Direction 1 average:</dt>
+              <dd>{{ frequencyCaveats.comparison.dir1Average != null ? formatDuration(frequencyCaveats.comparison.dir1Average) : '—' }}</dd>
+            </div>
+          </dl>
+        </cat-msg>
+
         <cat-msg
           v-if="repeatRepStopVisits > 0"
           variant="warning"
@@ -261,28 +313,28 @@
             <div>
               <dt>Min (fastest):</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.min) }}
+                {{ formatDuration(gapStats.min) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.min }})</span>
               </dd>
             </div>
             <div>
               <dt>Median:</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.median) }}
+                {{ formatDuration(gapStats.median) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.median }})</span>
               </dd>
             </div>
             <div>
               <dt>Max (slowest):</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.max) }}
+                {{ formatDuration(gapStats.max) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.max }})</span>
               </dd>
             </div>
             <div>
               <dt>Average:</dt>
               <dd>
-                {{ formatGtfsTimeFull(gapStats.avg) }}
+                {{ formatDuration(gapStats.avg) }}
                 <span class="ml-3 has-text-grey">({{ gapStats.avg.toFixed(1) }}) — n = {{ gapStats.count }}</span>
               </dd>
             </div>
@@ -306,10 +358,10 @@
                 <tr v-for="r in dowFrequencyRollup" :key="r.weekday">
                   <td>{{ r.label }}</td>
                   <td>{{ r.count }}</td>
-                  <td>{{ formatGtfsTimeFull(r.min) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.median) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.max) }}</td>
-                  <td>{{ formatGtfsTimeFull(r.avg) }}</td>
+                  <td>{{ formatDuration(r.min) }}</td>
+                  <td>{{ formatDuration(r.median) }}</td>
+                  <td>{{ formatDuration(r.max) }}</td>
+                  <td>{{ formatDuration(r.avg) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -423,10 +475,10 @@
               <td>
                 <span v-if="row.gapToNext == null">—</span>
                 <span v-else-if="row.gapIsNoise" class="cal-route-timetable-noise-gap">
-                  {{ formatGtfsTimeFull(row.gapToNext) }}
+                  {{ formatDuration(row.gapToNext) }}
                 </span>
                 <span v-else class="cal-route-timetable-gtfs-time">
-                  {{ formatGtfsTimeFull(row.gapToNext) }}
+                  {{ formatDuration(row.gapToNext) }}
                 </span>
               </td>
               <td class="cal-route-timetable-trip-id">
@@ -550,7 +602,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { buildRouteTimetable, resolveEffectiveWeekdays } from '~~/src/scenario'
-import { formatGtfsTimeFull, dowValues } from '~~/src/core'
+import { formatGtfsTimeFull, formatDuration, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -558,6 +610,7 @@ import {
   routeHeadways,
   computeHeadwaysPerDay,
   calculateRouteTripStats,
+  buildRouteFrequencyCaveats,
   scopeDatesToWeekdays,
   oneDeparturePerTrip,
   distinctTripCount,
@@ -731,6 +784,11 @@ const routeDeps = computed(() =>
 )
 
 const dominantDirection = computed(() => pickDominantDirection(routeDeps.value))
+
+// Frequency caveats (issue #368). Re-derived here via the same shared helper
+// scenario-filter uses, so the modal's caveats can't drift from the route's
+// stored flags.
+const frequencyCaveats = computed(() => buildRouteFrequencyCaveats(routeDeps.value))
 
 // Trip-count statistics — calls the same pure function that scenario-filter
 // uses for average_trips_per_day / average_trips_per_hour / earliest-latest.
@@ -1078,7 +1136,7 @@ const frequencyCsvData = computed(() => {
     stop_name: stopName(row.stopId),
     departure: formatGtfsTimeFull(row.departureTime),
     departure_seconds: row.departureTime,
-    gap_to_next: row.gapToNext != null ? formatGtfsTimeFull(row.gapToNext) : '',
+    gap_to_next: row.gapToNext != null ? formatDuration(row.gapToNext) : '',
     gap_to_next_seconds: row.gapToNext ?? '',
     gap_is_noise: row.gapIsNoise,
   }))

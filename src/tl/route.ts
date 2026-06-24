@@ -89,6 +89,9 @@ export interface RouteDerived {
   earliest_trip_end?: number
   latest_trip_start?: number
   latest_trip_end?: number
+  // Issue #368 frequency caveats (set in routeSetDerived).
+  frequency_irregular?: boolean
+  frequency_directions_differ?: boolean
 }
 
 export type RouteCsv = RouteGtfs & {
@@ -110,6 +113,8 @@ export type RouteCsv = RouteGtfs & {
   earliest_trip_end_time?: string
   latest_trip_start_time?: string
   latest_trip_end_time?: string
+  frequency_irregular?: boolean
+  frequency_directions_differ?: boolean
 }
 
 export type Route = RouteGql & RouteDerived
@@ -135,6 +140,8 @@ export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeograp
     earliest_trip_end_time: formatGtfsTimeFull(route.earliest_trip_end) || undefined,
     latest_trip_start_time: formatGtfsTimeFull(route.latest_trip_start) || undefined,
     latest_trip_end_time: formatGtfsTimeFull(route.latest_trip_end) || undefined,
+    frequency_irregular: route.frequency_irregular,
+    frequency_directions_differ: route.frequency_directions_differ,
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,
