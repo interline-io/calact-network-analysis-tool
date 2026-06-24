@@ -1093,6 +1093,18 @@ useClusterRefetch({
   phaseFractions: scenarioPhaseFractions,
 })
 
+// recompute census values when the Aggregate-by layer changes, reusing the same receiver.
+useAggregateRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+})
+
 const loadExampleData = async (exampleName: string) => {
   console.log('loading example data:', exampleName)
   activeTab.value = { tab: 'map', sub: '' }

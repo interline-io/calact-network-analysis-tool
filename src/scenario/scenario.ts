@@ -29,6 +29,7 @@ import {
   runDeparturesPhase,
   runFlexPhase,
   runCensusValuesPhase,
+  type CensusValuesPhaseConfig,
   StopDepartureTuple,
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
@@ -296,6 +297,35 @@ export async function streamStopClusters (
 
   try {
     await runStopClustersPhase(config, client, p => sender.onProgress(p))
+  } catch (err) {
+    sender.onError(err)
+    writer.close()
+    return
+  }
+
+  sender.onComplete()
+  writer.close()
+}
+
+// Powers /api/census-values — the SPA's aggregate-layer refetch path. Recomputes
+// only the census-values map when the user changes the Aggregate-by layer.
+export async function streamCensusValues (
+  controller: ReadableStreamDefaultController,
+  config: CensusValuesPhaseConfig,
+  client: GraphQLClient,
+): Promise<void> {
+  const stream = requestStream(controller)
+  const writer = stream.getWriter()
+  const sender = new ScenarioStreamSender(writer)
+
+  sender.onProgress({
+    isLoading: true,
+    currentStage: 'ready',
+    currentStageMessage: 'Recomputing aggregation demographics',
+  })
+
+  try {
+    await runCensusValuesPhase(config, client, p => sender.onProgress(p))
   } catch (err) {
     sender.onError(err)
     writer.close()
@@ -709,6 +739,12 @@ export class ScenarioDataReceiver {
   // the new run errors before emitting.
   clearStopClusters (): void {
     this.accumulatedData.stopClusters = []
+  }
+
+  // Reset before an aggregate-layer refetch so the previous layer's geographies
+  // don't linger in the map (choropleth ids are read from this map).
+  clearCensusGeographies (): void {
+    this.accumulatedData.censusGeographies?.clear()
   }
 
   /**
