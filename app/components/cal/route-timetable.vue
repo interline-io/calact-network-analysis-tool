@@ -529,6 +529,12 @@
                 >
                   <cat-icon icon="check" size="small" class="has-text-primary ml-1" />
                 </cat-tooltip>
+                <cat-tooltip
+                  v-if="row.departureCount > row.tripCount"
+                  :text="`${row.departureCount} departures here come from ${row.tripCount} trips, so some trips serve this stop more than once (for example a loop revisiting a point). These repeat visits can be useful to riders, but they are excluded from the route frequency calculation, where they would otherwise look like very short headways.`"
+                >
+                  <cat-icon icon="repeat" size="small" class="has-text-grey ml-1" />
+                </cat-tooltip>
               </td>
             </tr>
           </tbody>
@@ -942,6 +948,9 @@ interface StopDetailRow {
   stopId: number
   directionId: number
   departureCount: number
+  // Distinct trips serving the stop. When departureCount exceeds this, some
+  // trips visit the stop more than once (e.g. a loop revisiting a point).
+  tripCount: number
   isRepresentativeStop: boolean
 }
 
@@ -965,6 +974,7 @@ const stopDetailDateGroups = computed<StopDetailDateGroup[]>(() => {
           stopId: sid,
           directionId: dir,
           departureCount: deps.length,
+          tripCount: oneDeparturePerTrip(deps).length,
           isRepresentativeStop: sid === rep.stopId && dir === dominant,
         })
       }
@@ -990,6 +1000,7 @@ const stopDetailsCsvData = computed(() => {
       stop_id: stopIdStr(row.stopId),
       stop_name: stopName(row.stopId),
       departure_count: row.departureCount,
+      trip_count: row.tripCount,
       is_representative_stop: row.isRepresentativeStop,
     })),
   )
