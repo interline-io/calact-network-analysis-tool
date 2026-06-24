@@ -41,6 +41,12 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 - Results stream back to the client as **NDJSON** (newline-delimited JSON) via `ReadableStream`
 - Frontend renders results on MapLibre GL maps and data grids with filtering, export (CSV/GeoJSON), and reporting
 
+### State ownership & data flow
+- GraphQL/Apollo access stays in the container page (`app/pages/tne.vue`) or composables that it calls. Fetched and derived results flow down to child components as plain props.
+- Child components — and any composables/helpers they use — must be driveable from plain data passed in, so they render and test without seeding an Apollo cache. Composables/helpers that *process props or derive new values from props* are fine anywhere; the constraint is no direct Apollo-cache access (or anything that can't be passed in as plain data).
+- Exception: the URL-backed `useScenario*` composables (`useScenarioInputs` / `useScenarioFilters` / `useScenarioDisplay`) may be called by any component — they read the route query, which is trivial to provide in a test. (Subject to revisiting.)
+- Keep `tne.vue` as the composition root so the app's data-flow graph is readable in one place.
+
 ### Directory Structure
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
