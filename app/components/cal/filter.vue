@@ -103,76 +103,7 @@
         aria-labelledby="cal-filter-tab-timeframes"
         tabindex="0"
       >
-        <cat-fieldset label="Days of the week" class="cal-filter-days block">
-          <section class="cal-day-of-week-mode menu-list">
-            <cat-field>
-              <cat-radio
-                v-model="selectedWeekdayMode"
-                name="selectedWeekdayMode"
-                native-value="Any"
-                label="Any of the following days"
-              />
-            </cat-field>
-            <cat-field>
-              <cat-radio
-                v-model="selectedWeekdayMode"
-                name="selectedWeekdayMode"
-                native-value="All"
-                label="All of the following days"
-              />
-            </cat-field>
-          </section>
-          <cat-checkbox-group
-            v-model="selectedWeekdays"
-            :options="dowValues.map(d => ({ value: d, label: titleCase(d), disabled: !dowAvailable.has(d) }))"
-          />
-        </cat-fieldset>
-
-        <cat-fieldset class="cal-filter-times block">
-          <template #label>
-            Time of Day
-            <cat-tooltip
-              text="Fixed-route transit: Filters to show only departures within the selected time window. Flex service areas: Filters to show only areas with service windows that overlap with the selected time range."
-              position="left"
-            >
-              <i class="mdi mdi-information-outline" />
-            </cat-tooltip>
-          </template>
-
-          <cat-field class="cal-time-of-day-mode">
-            <cat-checkbox
-              v-model="isAllDayMode"
-              label="All Day"
-            />
-          </cat-field>
-
-          <p class="menu-label">
-            Starting
-          </p>
-
-          <cat-field>
-            <cal-timepicker
-              ref="startTimeRef"
-              v-model="startTime"
-              size="small"
-              icon="clock"
-              :disabled="isAllDayMode"
-            />
-          </cat-field>
-
-          <p class="menu-label">
-            Ending
-          </p>
-
-          <cat-field>
-            <cal-timepicker
-              v-model="endTime"
-              size="small"
-              icon="clock"
-              :disabled="isAllDayMode"
-            />
-          </cat-field>
-        </cat-fieldset>
+        <cal-filter-timeframes />
       </div>
 
       <!-- FIXED-ROUTE SERVICES -->
@@ -183,241 +114,10 @@
         aria-labelledby="cal-filter-tab-transit-layers"
         tabindex="0"
       >
-        <aside class="cal-service-levels menu">
-          <p class="menu-label">
-            Frequency
-          </p>
-
-          <cat-field grouped>
-            <cat-checkbox
-              v-model="frequencyUnderEnabled"
-              label="Avg. Frequency ≦"
-            />
-            <div class="cal-input-width-80">
-              <cat-input
-                v-model="frequencyUnder"
-                type="number"
-                min="0"
-                :disabled="!frequencyUnderEnabled"
-              />
-            </div>
-            <div>
-              minutes
-            </div>
-          </cat-field>
-
-          <cat-field grouped>
-            <cat-checkbox
-              v-model="frequencyOverEnabled"
-              label="Avg. Frequency >"
-            />
-            <div class="cal-input-width-80">
-              <cat-input
-                v-model="frequencyOver"
-                type="number"
-                min="0"
-                :disabled="!frequencyOverEnabled"
-              />
-            </div>
-            <div>
-              minutes
-            </div>
-          </cat-field>
-
-          <cat-field>
-            <cat-checkbox
-              v-model="calculateFrequencyMode"
-              label="Calculate frequency based on single routes"
-              :disabled="true"
-            />
-          </cat-field>
-
-          <p class="menu-label">
-            <cat-tooltip text="Apportions census data to the area within this radius of each stop. Used in the Stops, Routes, Agencies, and Aggregation tables. Set to 0 to disable.">
-              Stop statistical radius
-              <cat-icon icon="information" />
-            </cat-tooltip>
-          </p>
-          <cat-field>
-            <div class="level">
-              <div class="level-item">
-                <cat-slider
-                  v-model="stopBufferRadius"
-                  :min="0"
-                  :max="1600"
-                />
-              </div>
-              <div class="level-right">
-                <div class="ml-4 level-item">
-                  <div class="cal-input-width-100">
-                    <cat-input
-                      v-model="stopBufferRadius"
-                      type="number"
-                      min="0"
-                    />
-                  </div>
-                  <div class="ml-2">
-                    m
-                  </div>
-                </div>
-              </div>
-            </div>
-          </cat-field>
-
-          <cat-field v-if="stopBufferRadius > 0">
-            <template #label>
-              <cat-tooltip text="Census layer used for buffer intersections. Tract is the default; finer layers (block group) give more precise apportionment when loaded on the backend. Switching layers triggers a buffer-only refetch — the scenario stays loaded.">
-                Buffer layer
-                <cat-icon icon="information" />
-              </cat-tooltip>
-            </template>
-            <cat-select v-model="stopBufferLayer">
-              <option
-                v-for="option of censusGeographyLayerOptions"
-                :key="option.value"
-                :value="option.value"
-                :disabled="!HIERARCHICAL_TIGER_LAYERS.has(option.value)"
-              >
-                {{ option.label }}{{ HIERARCHICAL_TIGER_LAYERS.has(option.value) ? '' : ' (not supported)' }}
-              </option>
-            </cat-select>
-          </cat-field>
-
-          <p class="menu-label">
-            <cat-tooltip text="Finds clusters of nearby stops served by different agencies — potential transfer hubs. Max distance is the largest gap (meters) between stops in a cluster. The optional transfer-time filter further requires each stop to have a departure within that many minutes of another stop in the cluster. Changing the distance triggers a cluster-only refetch — the scenario stays loaded; changing the transfer time re-filters instantly.">
-              Stop Clustering
-              <cat-icon icon="information" />
-            </cat-tooltip>
-          </p>
-          <cat-field>
-            <cat-checkbox
-              v-model="clusterEnabled"
-              label="Cluster nearby stops across agencies"
-            />
-          </cat-field>
-          <p class="cal-cluster-sublabel">
-            Max distance
-          </p>
-          <cat-field>
-            <div class="level">
-              <div class="level-item">
-                <cat-slider
-                  v-model="clusterDistance"
-                  :min="0"
-                  :max="300"
-                  :disabled="!clusterEnabled"
-                />
-              </div>
-              <div class="level-right">
-                <div class="ml-4 level-item">
-                  <div class="cal-input-width-100">
-                    <cat-input
-                      v-model="clusterDistance"
-                      type="number"
-                      min="0"
-                      :disabled="!clusterEnabled"
-                    />
-                  </div>
-                  <div class="ml-2">
-                    m
-                  </div>
-                </div>
-              </div>
-            </div>
-          </cat-field>
-          <cat-field>
-            <cat-checkbox
-              v-model="clusterTransferEnabled"
-              label="Filter by transfer time"
-              :disabled="!clusterEnabled || !departuresLoaded"
-            />
-          </cat-field>
-          <p class="cal-cluster-sublabel">
-            Max transfer time
-          </p>
-          <cat-field>
-            <div class="level">
-              <div class="level-item">
-                <cat-slider
-                  v-model="clusterMaxTransferMinutes"
-                  :min="0"
-                  :max="120"
-                  :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
-                />
-              </div>
-              <div class="level-right">
-                <div class="ml-4 level-item">
-                  <div class="cal-input-width-100">
-                    <cat-input
-                      v-model="clusterMaxTransferMinutes"
-                      type="number"
-                      min="0"
-                      :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
-                    />
-                  </div>
-                  <div class="ml-2">
-                    min
-                  </div>
-                </div>
-              </div>
-            </div>
-          </cat-field>
-
-          <p class="menu-label">
-            Fares <cat-tooltip text="Fare filtering is planned for future implementation">
-              <i class="mdi mdi-information-outline" />
-            </cat-tooltip>
-          </p>
-
-          <cat-field grouped>
-            <cat-checkbox
-              v-model="maxFareEnabled"
-              label="Maximum fare $"
-              :disabled="true"
-            />
-            <div class="cal-input-width-100">
-              <cat-input
-                v-model="maxFare"
-                type="number"
-                min="0"
-                step="0.01"
-                :disabled="true"
-              />
-            </div>
-          </cat-field>
-
-          <cat-field grouped>
-            <cat-checkbox
-              v-model="minFareEnabled"
-              label="Minimum fare $"
-              :disabled="true"
-            />
-            <div class="cal-input-width-100">
-              <cat-input
-                v-model="minFare"
-                type="number"
-                min="0"
-                step="0.01"
-                :disabled="true"
-              />
-            </div>
-          </cat-field>
-          <cat-fieldset label="Color by">
-            <ul>
-              <li
-                v-for="dataDisplayModeOption of dataDisplayModes"
-                :key="dataDisplayModeOption"
-              >
-                <cat-radio
-                  v-model="dataDisplayMode"
-                  :native-value="dataDisplayModeOption"
-                >
-                  {{ dataDisplayModeOption }}
-                </cat-radio>
-              </li>
-            </ul>
-          </cat-fieldset>
-        </aside>
+        <cal-filter-fixed-route
+          :scenario-filter-result="props.scenarioFilterResult"
+          :census-geography-layer-options="props.censusGeographyLayerOptions"
+        />
       </div>
 
       <!-- FLEX SERVICES (DRT/Demand-Responsive Transit) -->
@@ -428,50 +128,7 @@
         aria-labelledby="cal-filter-tab-flex-services"
         tabindex="0"
       >
-        <aside class="menu">
-          <cat-notification
-            variant="warning"
-          >
-            <span>
-              Flex service data may be incomplete. Please contact relevant agencies for additional information.
-            </span>
-          </cat-notification>
-
-          <div :class="{ 'is-disabled': !flexServicesEnabled }">
-            <p class="menu-label">
-              Advance notice
-            </p>
-            <cat-checkbox-group
-              v-model="flexAdvanceNotice"
-              :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
-            />
-
-            <p class="menu-label">
-              Show areas that allow:
-            </p>
-            <cat-checkbox-group
-              v-model="flexAreaTypesSelected"
-              :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
-            />
-
-            <cat-fieldset label="Color by" :disabled="!flexServicesEnabled">
-              <ul>
-                <li
-                  v-for="colorMode of flexColorByModes"
-                  :key="colorMode"
-                >
-                  <cat-radio
-                    v-model="flexColorBy"
-                    :native-value="colorMode"
-                    :disabled="!flexServicesEnabled"
-                  >
-                    {{ colorMode }}
-                  </cat-radio>
-                </li>
-              </ul>
-            </cat-fieldset>
-          </div>
-        </aside>
+        <cal-filter-flex />
       </div>
 
       <!-- MODES & AGENCIES -->
@@ -482,124 +139,7 @@
         aria-labelledby="cal-filter-tab-agencies"
         tabindex="0"
       >
-        <aside class="menu">
-          <cat-fieldset label="Service Types" class="service-type-checkboxes mb-4">
-            <cat-field>
-              <cat-checkbox
-                v-model="fixedRouteEnabled"
-              >
-                <span class="mode-label">
-                  <cat-icon icon="train-car" size="small" />
-                  Fixed-Route
-                </span>
-              </cat-checkbox>
-            </cat-field>
-            <cat-field>
-              <cat-checkbox
-                v-model="flexServicesEnabled"
-              >
-                <span class="mode-label">
-                  <cat-icon icon="van-utility" size="small" />
-                  Flex
-                </span>
-              </cat-checkbox>
-            </cat-field>
-          </cat-fieldset>
-
-          <cat-fieldset v-if="fixedRouteEnabled" label="Fixed-Route Modes" class="mode-checkboxes mb-4">
-            <cat-field
-              v-for="mode in fixedRouteModeOptions"
-              :key="mode.value"
-            >
-              <cat-checkbox
-                v-model="localSelectedRouteTypes"
-                :native-value="mode.value"
-              >
-                <span class="mode-label">
-                  <cat-icon :icon="mode.icon" size="small" />
-                  {{ mode.label }}
-                </span>
-              </cat-checkbox>
-            </cat-field>
-          </cat-fieldset>
-
-          <p class="menu-label">
-            Agencies
-          </p>
-
-          <cat-field>
-            <cat-input
-              v-model="agencySearch"
-              type="search"
-              placeholder="search"
-              icon-right="magnify"
-              icon-right-clickable
-            />
-          </cat-field>
-          <div class="buttons mb-4">
-            <!-- Note: selects ALL agencies in the dataset, not just the filtered list -->
-            <cat-button
-              size="small"
-              :disabled="allAgenciesSelected"
-              @click="selectAllAgencies"
-            >
-              Select All
-            </cat-button>
-            <cat-button
-              size="small"
-              :disabled="noAgenciesSelected"
-              @click="selectNoAgencies"
-            >
-              Select None
-            </cat-button>
-          </div>
-
-          <p
-            v-if="!fixedRouteEnabled || !flexServicesEnabled"
-            class="filter-legend mb-3"
-          >
-            <em>Grayed-out agencies do not match selected service types</em>
-          </p>
-
-          <div class="agency-checkbox-list">
-            <cat-field
-              v-for="agency in agencyFilterOptions"
-              :key="agency.value"
-              :class="{ 'agency-disabled': isAgencyDisabled(agency) }"
-            >
-              <cat-checkbox
-                v-model="localSelectedAgencies"
-                :native-value="agency.value"
-              >
-                <span class="agency-label">
-                  {{ agency.name }}
-                  <cat-tooltip
-                    v-if="agency.hasFixedRoute"
-                    text="Has fixed-route service"
-                    position="right"
-                  >
-                    <cat-icon
-                      icon="train-car"
-                      size="small"
-                      class="agency-icon"
-                    />
-                  </cat-tooltip>
-                  <cat-tooltip
-                    v-if="agency.hasFlex"
-                    text="Has flex service"
-                    position="right"
-                  >
-                    <cat-icon
-                      icon="van-utility"
-                      size="small"
-                      class="agency-icon"
-                    />
-                  </cat-tooltip>
-                </span>
-              </cat-checkbox>
-            </cat-field>
-          </div>
-        </aside>
+        <cal-filter-agencies :agency-filter-items="props.agencyFilterItems" />
       </div>
 
       <!-- DATA DISPLAY -->
@@ -610,111 +150,7 @@
         aria-labelledby="cal-filter-tab-data-display"
         tabindex="0"
       >
-        <aside class="menu">
-          <cat-fieldset>
-            <template #label>
-              Base map <cat-tooltip text="Switch the reference map displayed underneath transit route and stop features. Currently only an OpenStreetMap base map is available. Aerial imagery may be added in the future">
-                <i class="mdi mdi-information-outline" />
-              </cat-tooltip>
-            </template>
-            <ul>
-              <li
-                v-for="baseMapStyle of baseMapStyles"
-                :key="baseMapStyle.name"
-              >
-                <cat-radio
-                  v-model="baseMap"
-                  :native-value="baseMapStyle.name"
-                  :disabled="!baseMapStyle.available"
-                >
-                  <span class="cal-radio-with-icon">
-                    <cat-icon
-                      :icon="baseMapStyle.icon"
-                      size="small"
-                    /> {{ baseMapStyle.name }}
-                  </span>
-                </cat-radio>
-              </li>
-            </ul>
-          </cat-fieldset>
-          <p class="menu-label">
-            Aggregation
-          </p>
-          <ul>
-            <li>
-              <cat-checkbox v-model="showAggAreas">
-                Show Agg. Areas
-              </cat-checkbox>
-            </li>
-          </ul>
-          <cat-field class="mt-2">
-            <template #label>
-              Aggregate by
-            </template>
-            <cat-select
-              v-model="aggregateLayer"
-            >
-              <option
-                v-for="option of censusGeographyLayerOptions"
-                :key="option.value"
-                :value="option.value"
-                :disabled="stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value)"
-              >
-                {{ option.label }}{{ stopBufferRadius > 0 && !HIERARCHICAL_TIGER_LAYERS.has(option.value) ? ' (needs radius = 0)' : '' }}
-              </option>
-            </cat-select>
-          </cat-field>
-          <cat-field class="mt-2">
-            <template #label>
-              Shade map by
-            </template>
-            <cat-select
-              v-model="choroplethElement"
-            >
-              <option
-                v-for="option of CHOROPLETH_ELEMENT_OPTIONS"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </cat-select>
-          </cat-field>
-          <div class="mt-2">
-            <cat-checkbox
-              v-model="shadeByDensity"
-              :disabled="!shadeByDensityEligible"
-            >
-              Shade as density (per km²)
-            </cat-checkbox>
-          </div>
-          <div class="mt-2">
-            <cat-checkbox v-model="onlyWithStops">
-              Only show geographies with stops
-            </cat-checkbox>
-          </div>
-
-          <p class="menu-label">
-            Overlay
-          </p>
-          <ul>
-            <li>
-              <cat-checkbox v-model="showBbox">
-                Show geographic filters
-              </cat-checkbox>
-            </li>
-          </ul>
-          <p class="menu-label">
-            Display Options
-          </p>
-          <ul>
-            <li>
-              <cat-checkbox v-model="showFiltered">
-                Show filtered routes/stops
-              </cat-checkbox>
-            </li>
-          </ul>
-        </aside>
+        <cal-filter-map-display :census-geography-layer-options="props.censusGeographyLayerOptions" />
       </div>
 
       <!-- SETTINGS -->
@@ -725,64 +161,23 @@
         aria-labelledby="cal-filter-tab-settings"
         tabindex="0"
       >
-        <aside class="menu">
-          <cat-fieldset label="Units of measurement">
-            <ul>
-              <li>
-                <cat-radio
-                  v-model="unitSystem"
-                  native-value="us"
-                >
-                  🇺🇸 USA
-                </cat-radio>
-              </li>
-              <li>
-                <cat-radio
-                  v-model="unitSystem"
-                  native-value="eu"
-                >
-                  🇪🇺 Metric
-                </cat-radio>
-              </li>
-            </ul>
-          </cat-fieldset>
-        </aside>
+        <cal-filter-settings />
       </div>
     </div>
   </div>
 </template>
 
-<script lang="ts">
-import { eachDayOfInterval } from 'date-fns'
+<script setup lang="ts">
 import {
-  type Weekday,
-  type RouteType,
   type AgencyFilterItem,
-  dowValues,
-  routeTypeNames,
-  routeTypeIcons,
-  dataDisplayModes,
-  baseMapStyles,
-  flexAdvanceNoticeTypes,
-  flexAreaTypes,
-  flexColorByModes,
   fmtDate,
-  parseTime,
-  DEFAULT_TIME_WINDOW,
-  CHOROPLETH_ELEMENT_OPTIONS,
-  isElementDensityEligible,
   PANEL_PADDING,
   FILTER_MAIN_WIDTH,
   FILTER_SUB_WIDTH,
-  HIERARCHICAL_TIGER_LAYERS,
-  STOP_CLUSTER_DEFAULT_DISTANCE,
-  STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
-</script>
 
-<script setup lang="ts">
 const menuItems = [
   { icon: 'calendar-blank', label: 'Timeframes', tab: 'timeframes' },
   { icon: 'domain', label: 'Modes & Agencies', tab: 'agencies' },
@@ -801,49 +196,15 @@ const props = defineProps<{
   aggregateLayerLabel?: string
 }>()
 
-const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
-
-const {
-  showAggAreas,
-  aggregateLayer,
-  choroplethElement,
-  shadeByDensity,
-  onlyWithStops,
-  dataDisplayMode,
-  hideUnmarked,
-  baseMap,
-  unitSystem,
-  showBbox,
-} = useScenarioDisplay()
 const {
   startDate,
   endDate,
   geomSource,
   fixedRouteEnabled,
-  stopBufferRadius,
-  stopBufferLayer,
-  clusterDistance,
 } = useScenarioInputs()
 const {
-  startTime,
-  endTime,
-  selectedWeekdayMode,
   selectedRouteTypes,
-  selectedWeekdays,
-  selectedAgencies,
-  frequencyUnder,
-  frequencyOver,
-  calculateFrequencyMode,
-  maxFareEnabled,
-  maxFare,
-  minFareEnabled,
-  minFare,
   flexServicesEnabled,
-  flexAdvanceNotice,
-  flexAreaTypesSelected,
-  flexColorBy,
-  clusterMaxTransferMinutes,
-  setTimeRange,
 } = useScenarioFilters()
 
 const geographicBoundaryLabel = computed(() => {
@@ -873,49 +234,6 @@ const emit = defineEmits([
   'showQuery',
 ])
 const activeTab = defineModel<string>('activeTab')
-
-const showFiltered = computed({
-  get: () => !hideUnmarked.value,
-  set: (v: boolean) => { hideUnmarked.value = !v }
-})
-
-// Derived checkbox state: checked when value is defined, unchecked sets to undefined
-const frequencyUnderEnabled = computed({
-  get: () => frequencyUnder.value != null,
-  set: (checked: boolean) => { frequencyUnder.value = checked ? 15 : undefined }
-})
-const frequencyOverEnabled = computed({
-  get: () => frequencyOver.value != null,
-  set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
-})
-// clustering enable derives from distance (0 = off); checking seeds the default.
-const clusterEnabled = computed({
-  get: () => clusterDistance.value > 0,
-  set: (checked: boolean) => { clusterDistance.value = checked ? STOP_CLUSTER_DEFAULT_DISTANCE : 0 }
-})
-// optional prune enable derives from the transfer minutes (0 = off); checking seeds the default.
-const clusterTransferEnabled = computed({
-  get: () => clusterMaxTransferMinutes.value > 0,
-  set: (checked: boolean) => { clusterMaxTransferMinutes.value = checked ? STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES : 0 }
-})
-// The prune needs loaded departures; without them the transfer option has nothing
-// to apply, so it's disabled until a query with departures runs.
-const departuresLoaded = computed(() => {
-  const cache = props.scenarioFilterResult?.stopDepartureCache
-  return cache != null && !cache.isEmpty()
-})
-
-// Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times
-const isAllDayMode = computed({
-  get: () => startTime.value == null && endTime.value == null,
-  set: (checked: boolean) => {
-    if (checked) {
-      setTimeRange(undefined, undefined)
-    } else {
-      setTimeRange(parseTime(DEFAULT_TIME_WINDOW.start), parseTime(DEFAULT_TIME_WINDOW.end))
-    }
-  }
-})
 
 ///////////////////
 // Tab
@@ -994,181 +312,6 @@ function onTabKeydown (e: KeyboardEvent, idx: number) {
   }
 }
 
-///////////////////
-// Time of Day focus management
-
-const startTimeRef = ref<{ focus: () => void } | null>(null)
-
-// When the user disables "All Day", move focus to the newly enabled start time
-// picker so keyboard users can begin editing without hunting for it.
-watch(isAllDayMode, async (allDay, prevAllDay) => {
-  if (prevAllDay && !allDay) {
-    await nextTick()
-    startTimeRef.value?.focus()
-  }
-})
-
-function titleCase (s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-///////////////////
-// Agency selector
-
-const agencySearch = ref('')
-
-const agencyFilterOptions = computed(() => {
-  const items = props.agencyFilterItems || []
-  return items
-    .filter((a) => {
-      const sv = agencySearch.value.toLowerCase()
-      return !sv || a.name.toLowerCase().includes(sv)
-    })
-    .map(a => ({
-      value: a.name,
-      name: a.name,
-      hasFixedRoute: a.hasFixedRoute,
-      hasFlex: a.hasFlex,
-    }))
-})
-
-// All available agency names (for checking if all are selected)
-const allAgencyNames = computed(() => {
-  return (props.agencyFilterItems || []).map(a => a.name)
-})
-
-// Local wrapper around selectedAgencies that handles undefined = "all selected"
-// When undefined, treat as all agencies selected (no filter applied)
-// When all are selected, store as undefined to maintain semantic meaning
-const localSelectedAgencies = computed<string[]>({
-  get () {
-    // If undefined, return all agency names (all are selected)
-    if (selectedAgencies.value === undefined) {
-      return allAgencyNames.value
-    }
-    return selectedAgencies.value
-  },
-  set (newValue: string[]) {
-    // If all agencies are selected, set to undefined (no filter)
-    const allSelected = allAgencyNames.value.length > 0
-      && newValue.length === allAgencyNames.value.length
-      && allAgencyNames.value.every(name => newValue.includes(name))
-
-    if (allSelected) {
-      selectedAgencies.value = undefined
-    } else {
-      selectedAgencies.value = newValue
-    }
-  }
-})
-
-// Check if all agencies are currently selected
-const allAgenciesSelected = computed(() => {
-  return selectedAgencies.value === undefined
-    || (selectedAgencies.value.length === allAgencyNames.value.length
-      && allAgencyNames.value.every(name => selectedAgencies.value!.includes(name)))
-})
-
-// Check if no agencies are currently selected
-const noAgenciesSelected = computed(() => {
-  return selectedAgencies.value !== undefined && selectedAgencies.value.length === 0
-})
-
-function selectAllAgencies () {
-  selectedAgencies.value = undefined // undefined = all selected
-}
-
-function selectNoAgencies () {
-  selectedAgencies.value = []
-}
-
-// Check if an agency should be visually disabled based on service type toggles
-// An agency is disabled if ALL of its service types are turned off
-function isAgencyDisabled (agency: { hasFixedRoute: boolean, hasFlex: boolean }): boolean {
-  // Fixed-route is off if fixedRouteEnabled is false OR if no route types are selected
-  const fixedOff = fixedRouteEnabled.value === false
-    || (selectedRouteTypes.value !== undefined && selectedRouteTypes.value.length === 0)
-  const flexOff = flexServicesEnabled.value === false
-
-  // If both service types are off, all agencies are disabled
-  if (fixedOff && flexOff) {
-    return true
-  }
-
-  // If fixed is off and agency only has fixed-route, it's disabled
-  if (fixedOff && agency.hasFixedRoute && !agency.hasFlex) {
-    return true
-  }
-
-  // If flex is off and agency only has flex, it's disabled
-  if (flexOff && agency.hasFlex && !agency.hasFixedRoute) {
-    return true
-  }
-
-  return false
-}
-
-const dowAvailable = computed((): Set<string> => {
-  // JavaScript day of week starts on Sunday, this is different from dowValues
-  const jsDowValues: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const result = new Set<string>()
-  const range = eachDayOfInterval({ start: startDate.value, end: endDate.value })
-  for (const d of range) {
-    const dow = jsDowValues[d.getDay()]
-    if (dow) {
-      result.add(dow)
-    }
-    if (result.size === 7) { break } // we got them all
-  }
-  return result
-})
-
-// Get all available fixed-route type IDs
-const allFixedRouteTypeIds = computed(() => {
-  return [...routeTypeNames.keys()]
-})
-
-// Fixed-route mode options (without flex)
-const fixedRouteModeOptions = computed(() => {
-  return [...routeTypeNames].map(([routeType, routeTypeDesc]) => ({
-    value: routeType,
-    label: routeTypeDesc,
-    icon: routeTypeIcons.get(routeType) || 'train-car',
-  }))
-})
-
-// Local selected route types for checkbox binding
-const localSelectedRouteTypes = computed<RouteType[]>({
-  get () {
-    // If undefined, all are selected
-    if (selectedRouteTypes.value === undefined) {
-      return allFixedRouteTypeIds.value
-    }
-    // Otherwise return the actual selection
-    return selectedRouteTypes.value
-  },
-  set (newValue: RouteType[]) {
-    if (newValue.length === 0) {
-      // No modes selected - store empty array but don't change fixedRouteEnabled
-      // The user may want to keep Fixed Route enabled while filtering to no specific modes
-      selectedRouteTypes.value = []
-    } else {
-      // Check if all modes are selected (similar to localSelectedAgencies check)
-      const allSelected = allFixedRouteTypeIds.value.length > 0
-        && newValue.length === allFixedRouteTypeIds.value.length
-        && allFixedRouteTypeIds.value.every(id => newValue.includes(id))
-
-      if (allSelected) {
-        // All modes selected - use undefined to represent "all"
-        selectedRouteTypes.value = undefined
-      } else {
-        // Some modes selected
-        selectedRouteTypes.value = newValue
-      }
-    }
-  }
-})
-
 // Check if a menu item should be disabled
 function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, requiresFlex?: boolean }) {
   // Fixed-route tab should be disabled when no fixed-route modes are selected
@@ -1233,26 +376,6 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   height: 100%;
 }
 
-.cal-day-of-week-mode {
-  margin-left: 20px;
-  margin-bottom: 15px;
-}
-
-.cal-service-levels {
-  .cal-input-width-80 {
-    max-width: 80px;
-  }
-  .cal-input-width-100 {
-    max-width: 100px;
-  }
-}
-
-// sub-label for the Max distance / transfer controls under Stop Clustering.
-.cal-cluster-sublabel {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
 .menu-list {
   a.is-active,
   .cal-filter-tab-button.is-active {
@@ -1290,52 +413,6 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   &:focus-visible {
     outline: 2px solid var(--bulma-primary);
     outline-offset: -2px;
-  }
-}
-
-.filter-legend {
-  font-size: 10pt;
-  margin-top: 10px;
-  margin-bottom: 40px;
-}
-
-.is-disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.agency-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.agency-icon {
-  opacity: 0.6;
-}
-
-.agency-disabled {
-  opacity: 0.4;
-
-  .agency-label {
-    text-decoration: line-through;
-    color: var(--bulma-text-weak);
-  }
-}
-
-.service-type-checkboxes {
-  .mode-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-}
-
-.mode-checkboxes {
-  .mode-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
   }
 }
 </style>
