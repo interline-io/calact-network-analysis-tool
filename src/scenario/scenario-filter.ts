@@ -745,14 +745,15 @@ function deriveFilteredStopClusters (
   const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
   const startSeconds = parseHMS(startTimeValue)
   const endSeconds = parseHMS(endTimeValue)
-  // The weekday filter and date formatting are the same for every member, so
-  // resolve the eligible date keys once instead of per (member x date).
-  const eligibleDateKeys = selectedDateRange
+  // Weekday-eligible dates, each with a calendar-day offset. Folding the day into
+  // each departure value (below) keeps the prune from matching departures on
+  // different service days as if they were same-day.
+  const eligibleDates = selectedDateRange
     .filter((date) => {
       const dow = dowDateString[date.getDay()]
       return effectiveWeekdays == null || (!!dow && effectiveWeekdays.includes(dow))
     })
-    .map(date => format(date, 'yyyy-MM-dd'))
+    .map(date => ({ dateKey: format(date, 'yyyy-MM-dd'), dayOffset: Math.floor(date.getTime() / 86_400_000) }))
   const departureSecondsByStop = new Map<number, number[]>()
   const stopMeta = new Map<number, StopClusterMeta>()
   for (const id of memberIds) {
@@ -760,11 +761,14 @@ function deriveFilteredStopClusters (
     if (!stop) {
       continue
     }
+    // dayBase * 86400 + secs-since-midnight: a same-day departure keeps its
+    // ordering, while different days land >= 86400s apart (always > maxGap).
     const times: number[] = []
-    for (const dateKey of eligibleDateKeys) {
+    for (const { dateKey, dayOffset } of eligibleDates) {
+      const dayBase = dayOffset * 86_400
       for (const st of sdCache.get(id, dateKey)) {
         if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
-          times.push(st.departureTime)
+          times.push(dayBase + st.departureTime)
         }
       }
     }

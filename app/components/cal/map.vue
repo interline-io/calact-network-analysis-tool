@@ -962,10 +962,12 @@ const displayFeatures = computed((): Feature[] => {
 
   // Gather stops
   for (const sp of props.scenarioFilterResult?.stops || []) {
-    if (hideUnmarked.value && !sp.marked) {
-      continue
-    }
-    if (clusterActive && !memberSet.has(sp.id)) {
+    if (clusterActive) {
+      // focused on a cluster: show only its members, regardless of marked state
+      if (!memberSet.has(sp.id)) {
+        continue
+      }
+    } else if (hideUnmarked.value && !sp.marked) {
       continue
     }
 
