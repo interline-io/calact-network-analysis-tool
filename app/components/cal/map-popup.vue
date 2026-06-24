@@ -78,9 +78,6 @@
               </div>
               <div><strong>Agency:</strong> {{ member.agency_names.join(', ') }}</div>
               <div><strong>Routes:</strong> {{ member.route_names.join(', ') }}</div>
-              <div v-if="member.next_departure">
-                <strong>Next departure:</strong> {{ member.next_departure }}
-              </div>
             </div>
           </div>
         </template>

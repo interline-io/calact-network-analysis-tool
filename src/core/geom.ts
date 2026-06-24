@@ -51,13 +51,11 @@ export function bboxString (bbox: Bbox): string {
 }
 
 // One member stop of a clicked cluster, connecting agency → route(s) → stop.
-// `next_departure` is the next departure on/after the popup time, if any.
 export interface ClusterMemberInfo {
   stop_id?: string
   stop_name?: string
   agency_names: string[]
   route_names: string[]
-  next_departure?: string
 }
 
 export interface PopupFeature {
