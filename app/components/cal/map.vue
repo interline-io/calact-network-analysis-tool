@@ -424,50 +424,41 @@ watch(stopClusters, () => {
   }
 })
 
-// Cluster centroid = mean of its member stop coordinates (arithmetic, not a
-// PostGIS geometry op). Anchors the beach-ball marker, the connector-line hub,
-// and the click target. Only members present in the loaded stop set count.
-const clusterCentroids = computed(() => {
+// Each cluster's anchor stop coordinates — the stop the ball formed around and
+// the point the selected-cluster radius circle centers on. The beach-ball
+// marker, connector-line hub, and click target all sit here so they stay
+// concentric with the radius (a centroid of members drifts off the circle).
+const clusterAnchorPoints = computed(() => {
   const m = new Map<string, [number, number]>()
   for (const c of stopClusters.value) {
-    let lon = 0
-    let lat = 0
-    let n = 0
-    for (const id of c.memberStopIds) {
-      const stop = stopFeatureLookup.value.get(id.toString())
-      if (!stop) {
-        continue
-      }
-      const lonCoord = stop.geometry.coordinates[0]
-      const latCoord = stop.geometry.coordinates[1]
-      if (lonCoord == null || latCoord == null) {
-        continue
-      }
-      lon += lonCoord
-      lat += latCoord
-      n += 1
+    const anchor = stopFeatureLookup.value.get(c.anchorStopId.toString())
+    if (!anchor) {
+      continue
     }
-    if (n > 0) {
-      m.set(c.id, [lon / n, lat / n])
+    const lonCoord = anchor.geometry.coordinates[0]
+    const latCoord = anchor.geometry.coordinates[1]
+    if (lonCoord == null || latCoord == null) {
+      continue
     }
+    m.set(c.id, [lonCoord, latCoord])
   }
   return m
 })
 
-// Invisible click target, one per cluster at its centroid. The visible marker
+// Invisible click target, one per cluster at its anchor stop. The visible marker
 // is the DOM "beach ball" (clusterMarkers below); this transparent circle layer
 // keeps the existing queryRenderedFeatures click/select/popup flow working.
 const clusterFeatures = computed((): Feature[] => {
   const out: Feature[] = []
   for (const c of stopClusters.value) {
-    const centroid = clusterCentroids.value.get(c.id)
-    if (!centroid) {
+    const anchor = clusterAnchorPoints.value.get(c.id)
+    if (!anchor) {
       continue
     }
     out.push({
       type: 'Feature',
       id: c.id,
-      geometry: { type: 'Point', coordinates: centroid },
+      geometry: { type: 'Point', coordinates: anchor },
       properties: {
         cluster_id: c.id,
       },
@@ -477,20 +468,20 @@ const clusterFeatures = computed((): Feature[] => {
 })
 
 // One multi-colored "beach ball" marker per cluster (a wedge per agency),
-// rendered as a DOM overlay at the centroid in place of the old solid-red dot.
+// rendered as a DOM overlay at the anchor stop in place of the old solid-red dot.
 // Wedge colors come from the shared agencyColorScale, so they match the dots
 // in dataDisplayMode === 'Agency'.
 const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
   const scale = agencyColorScale.value
   const out: { id: string, point: Point, colors: string[] }[] = []
   for (const c of stopClusters.value) {
-    const centroid = clusterCentroids.value.get(c.id)
-    if (!centroid) {
+    const anchor = clusterAnchorPoints.value.get(c.id)
+    if (!anchor) {
       continue
     }
     out.push({
       id: c.id,
-      point: { lon: centroid[0], lat: centroid[1] },
+      point: { lon: anchor[0], lat: anchor[1] },
       colors: c.agencyIds.map(a => scale(String(a))),
     })
   }
@@ -506,17 +497,17 @@ const clusterCircleFeatures = computed((): Feature[] => {
   if (!c) {
     return []
   }
-  const anchor = stopFeatureLookup.value.get(c.anchorStopId.toString())
+  const anchor = clusterAnchorPoints.value.get(c.id)
   if (!anchor) {
     return []
   }
-  const lat = anchor.geometry.coordinates[1] || 0
+  const lat = anchor[1]
   const cosLat = Math.cos((lat * Math.PI) / 180)
   const radiusPxZ0 = cosLat > 0.001 ? c.maxDistanceMeters / (WEB_MERCATOR_Z0_M_PER_PX * cosLat) : 0
   return [{
     type: 'Feature',
     id: `cluster-circle:${c.id}`,
-    geometry: anchor.geometry,
+    geometry: { type: 'Point', coordinates: anchor },
     properties: {
       cluster_id: c.id,
       radius_px_z0: radiusPxZ0,
@@ -524,18 +515,17 @@ const clusterCircleFeatures = computed((): Feature[] => {
   }]
 })
 
-// Connector lines fanning out from the cluster centroid (where the beach-ball
-// marker sits) to each member stop, drawn only while the cluster is selected.
-// Pure rendering — straight segments between known points, not a geometry op.
-// Hubbing at the centroid keeps the spokes aligned with the marker and sidesteps
-// the fact that the anchor isn't guaranteed to be one of the member stops.
+// Connector lines fanning out from the cluster anchor stop (where the beach-ball
+// marker sits and the radius circle centers) to each member stop, drawn only
+// while the cluster is selected. Pure rendering — straight segments between
+// known points, not a geometry op.
 const clusterLineFeatures = computed((): Feature[] => {
   const c = selectedCluster.value
   if (!c) {
     return []
   }
-  const centroid = clusterCentroids.value.get(c.id)
-  if (!centroid) {
+  const anchor = clusterAnchorPoints.value.get(c.id)
+  if (!anchor) {
     return []
   }
   const out: Feature[] = []
@@ -549,7 +539,7 @@ const clusterLineFeatures = computed((): Feature[] => {
       id: `cluster-line:${c.id}:${memberId}`,
       geometry: {
         type: 'LineString',
-        coordinates: [centroid, member.geometry.coordinates],
+        coordinates: [anchor, member.geometry.coordinates],
       },
       properties: {
         cluster_id: c.id,

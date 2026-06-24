@@ -303,8 +303,8 @@
               <div class="level-item">
                 <cat-slider
                   v-model="clusterDistance"
-                  :min="1"
-                  :max="800"
+                  :min="0"
+                  :max="300"
                   :disabled="!clusterEnabled"
                 />
               </div>

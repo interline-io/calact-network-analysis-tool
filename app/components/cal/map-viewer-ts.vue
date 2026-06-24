@@ -38,9 +38,9 @@ const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
 // stop cluster markers + the selected cluster's radius circle.
 const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
 const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
-// connector lines from the selected cluster's centroid to its member stops.
+// connector lines from the selected cluster's anchor stop to its member stops.
 const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: [] })
-// multi-colored "beach ball" markers, one per cluster, drawn at its centroid.
+// multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
 const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: [] })
 const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
 const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
@@ -764,7 +764,7 @@ function createLayers () {
     }
   }, 'points')
 
-  // connector lines from the selected cluster's centroid to each member.
+  // connector lines from the selected cluster's anchor stop to each member.
   // Below 'points' so the stop dots stay on top and clickable.
   map?.addLayer({
     id: 'cluster-lines',
@@ -780,7 +780,7 @@ function createLayers () {
     }
   }, 'points')
 
-  // Invisible click target, one per cluster at its centroid. The visible marker
+  // Invisible click target, one per cluster at its anchor stop. The visible marker
   // is the DOM "beach ball" (drawClusterMarkers, pointer-events:none), so clicks
   // fall through to this transparent circle and the existing select/popup flow
   // (mapClickFeatures keys off the cluster_id property) keeps working.
@@ -1160,7 +1160,7 @@ function clusterConicGradient (cols: string[]): string {
   return `conic-gradient(${stops})`
 }
 
-// Draw the multi-colored cluster markers as DOM overlays at each centroid. They
+// Draw the multi-colored cluster markers as DOM overlays at each anchor stop. They
 // are pointer-events:none so clicks fall through to the invisible 'clusters'
 // hit circle (preserving the existing select/popup flow).
 function drawClusterMarkers (specs: { id: string, point: Point, colors: string[] }[]) {
