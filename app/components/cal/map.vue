@@ -424,10 +424,8 @@ watch(stopClusters, () => {
   }
 })
 
-// Each cluster's anchor stop coordinates — the stop the ball formed around and
-// the point the selected-cluster radius circle centers on. The beach-ball
-// marker, connector-line hub, and click target all sit here so they stay
-// concentric with the radius (a centroid of members drifts off the circle).
+// Each cluster's anchor stop coordinates — the point its radius circle centers
+// on. Marker, spokes, and click target all hub here to stay concentric with it.
 const clusterAnchorPoints = computed(() => {
   const m = new Map<string, [number, number]>()
   for (const c of stopClusters.value) {
@@ -445,9 +443,8 @@ const clusterAnchorPoints = computed(() => {
   return m
 })
 
-// Invisible click target, one per cluster at its anchor stop. The visible marker
-// is the DOM "beach ball" (clusterMarkers below); this transparent circle layer
-// keeps the existing queryRenderedFeatures click/select/popup flow working.
+// Invisible click target at each cluster's anchor stop: the visible "beach ball"
+// is a DOM overlay, so this circle is what queryRenderedFeatures clicks land on.
 const clusterFeatures = computed((): Feature[] => {
   const out: Feature[] = []
   for (const c of stopClusters.value) {
@@ -467,9 +464,8 @@ const clusterFeatures = computed((): Feature[] => {
   return out
 })
 
-// One multi-colored "beach ball" marker per cluster (a wedge per agency),
-// rendered as a DOM overlay at the anchor stop in place of the old solid-red dot.
-// Wedge colors come from the shared agencyColorScale, so they match the dots
+// One "beach ball" marker per cluster (a wedge per agency), a DOM overlay at the
+// anchor stop. Wedge colors share agencyColorScale, so they match the stop dots
 // in dataDisplayMode === 'Agency'.
 const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
   const scale = agencyColorScale.value
@@ -488,9 +484,8 @@ const clusterMarkers = computed((): { id: string, point: Point, colors: string[]
   return out
 })
 
-// Web Mercator ground resolution at zoom 0 with 512px tiles (meters/pixel).
-// Used to size the selected-cluster radius circle via native circle paint — a
-// rendering primitive, not a computed geometry (the radius is a known input).
+// Web Mercator m/px at zoom 0 (512px tiles); sizes the radius circle via native
+// circle paint — a rendering primitive, not a client-side geometry op.
 const WEB_MERCATOR_Z0_M_PER_PX = 78271.51696
 const clusterCircleFeatures = computed((): Feature[] => {
   const c = selectedCluster.value
@@ -515,10 +510,8 @@ const clusterCircleFeatures = computed((): Feature[] => {
   }]
 })
 
-// Connector lines fanning out from the cluster anchor stop (where the beach-ball
-// marker sits and the radius circle centers) to each member stop, drawn only
-// while the cluster is selected. Pure rendering — straight segments between
-// known points, not a geometry op.
+// Connector lines from the anchor stop to each member, while the cluster is
+// selected. Straight segments between known points, not a geometry op.
 const clusterLineFeatures = computed((): Feature[] => {
   const c = selectedCluster.value
   if (!c) {
@@ -591,11 +584,9 @@ const agencyData = computed((): AgencyData[] => {
     .sort((a, b) => b.stops.size - a.stops.size) // # stops descending
 })
 
-// Single source of truth for per-agency colors, shared by the Agency-mode map
-// styling (getAgencyMatchers) and the cluster beach-ball wedges. Domain is the
-// agencies in stop-count order, so each gets categoricalColors[rank]; the same
-// agency therefore renders the same color as a stop dot and as a beach-ball
-// wedge. Keyed by the numeric agency id (what clusters carry).
+// Single source of truth for per-agency colors, shared by Agency-mode stop dots
+// (getAgencyMatchers) and the cluster beach-ball wedges so an agency renders the
+// same color in both. Keyed by the numeric agency id clusters carry.
 const agencyColorScale = computed(() =>
   createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
 
@@ -700,9 +691,8 @@ const styleData = computed((): Matcher[] => {
     }
   }
 
-  // Generate a set of AGENCY MATCHERS. Agencies use the wider 10-color
-  // categorical palette (via agencyColorScale) rather than the 6-color route
-  // palette, and the same scale colors the cluster beach-ball wedges.
+  // Agencies use the wider 10-color categorical palette (agencyColorScale),
+  // not the 6-color route palette.
   function getAgencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
     const agencies = agencyData.value || []
@@ -966,8 +956,7 @@ const displayFeatures = computed((): Feature[] => {
     forDisplay.push(feature)
   }
 
-  // When a cluster is expanded, focus it: show ONLY its member stops and hide
-  // every other stop. With no cluster selected, all stops show normally.
+  // A selected cluster focuses the map: show only its member stops.
   const memberSet = selectedMemberSet.value
   const clusterActive = memberSet.size > 0
 
@@ -1149,8 +1138,7 @@ const popupFeatures = ref<PopupFeature[]>([])
 
 function mapClickFeatures (pt: any, features: Feature[]) {
   const entries: Array<{ popupFeature: PopupFeature, sortKey: [number, number] }> = []
-  const seenIds = new Set<string>() // Deduplicate features by ID (same feature may be returned from multiple layers)
-  // track whether this click landed on a cluster marker.
+  const seenIds = new Set<string>() // same feature can come from multiple layers
   let clickedClusterId: string | null = null
 
   console.log(`[MapClick] ${features.length} raw features at point`)
@@ -1161,8 +1149,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     const ft = feature.geometry.type
     const fp = feature.properties
 
-    // cluster markers are Points carrying a cluster_id property. Detect
-    // them by property (queryRenderedFeatures always preserves properties).
+    // cluster markers are Points with a cluster_id property — properties survive
+    // queryRenderedFeatures even on the invisible hit circle.
     if (ft === 'Point' && fp.cluster_id) {
       const clusterId = fp.cluster_id.toString()
       if (seenIds.has(`cluster:${clusterId}`)) {
@@ -1258,12 +1246,12 @@ function mapClickFeatures (pt: any, features: Feature[]) {
     }
   }
 
-  // clicking a cluster selects it; clicking truly empty map clears the
-  // selection (collapse). Clicking stops/routes/flex leaves the selection so
-  // the user can inspect member stops without losing the circle.
+  // clicking a cluster marker selects it; any other click collapses the
+  // selection. Not gated on features.length, so passive overlays under the
+  // pointer (e.g. choropleth fill) can't block the collapse.
   if (clickedClusterId) {
     selectedClusterId.value = clickedClusterId
-  } else if (features.length === 0) {
+  } else {
     selectedClusterId.value = null
   }
 
@@ -1275,9 +1263,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   popupFeatures.value = a
 }
 
-// build the "Stop Cluster" popup, connecting each member stop to its
-// agency and routes. Member detail is derived client-side from the already-
-// loaded stop data (route_stops), not shipped on the lean cluster wire format.
+// Build the "Stop Cluster" popup. Member agency/route detail is derived client-
+// side from loaded route_stops — it's not on the lean cluster wire format.
 function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
   const members: ClusterMemberInfo[] = []
   const allAgencies = new Set<string>()

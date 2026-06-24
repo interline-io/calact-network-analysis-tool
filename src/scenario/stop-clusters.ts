@@ -72,10 +72,12 @@ export interface StopCluster {
 const MIN_CLUSTER_MEMBERS = 2
 
 /**
- * Choose at most one representative stop per agency within a candidate ball.
- * A stop fills at most one agency slot (so members and covered agencies are
- * distinct), and richer stops are preferred first (more routes, then lowest id)
- * for deterministic, stable results.
+ * Choose representative stops covering the ball's agencies. Stops are processed
+ * richest first (more routes, then lowest id) for deterministic, stable results,
+ * and a stop is kept only if it adds at least one agency not yet covered. A
+ * chosen stop then claims ALL of its agencies, so a later stop is admitted only
+ * when it brings a genuinely new agency — though it may also serve agencies an
+ * earlier member already covered (one multi-agency stop can cover several).
  */
 function selectClusterMembers (
   ballStopIds: number[],
@@ -93,7 +95,9 @@ function selectClusterMembers (
       continue
     }
     chosen.push(stop.id)
-    coveredAgencies.add(newAgency)
+    for (const a of stop.agencyIds) {
+      coveredAgencies.add(a)
+    }
   }
   return chosen
 }

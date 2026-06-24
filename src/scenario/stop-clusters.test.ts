@@ -101,6 +101,31 @@ describe('deriveStopClusters', () => {
     expect(clusters).toHaveLength(1)
     expect(clusters[0]?.agencyIds).toEqual([10, 20, 30])
   })
+
+  it('drops a stop whose only agency is already covered by a multi-agency member', () => {
+    // Stop 1 serves agencies 10 + 20; stop 2 serves only 20 (already covered by
+    // stop 1); stop 3 adds agency 30. Stop 2 brings nothing new, so it is excluded.
+    const clusters = deriveStopClusters([
+      stop(1, [10, 20], [2, 3]),
+      stop(2, [20], [1, 3]),
+      stop(3, [30], [1, 2]),
+    ], DIST)
+    expect(clusters).toHaveLength(1)
+    expect(clusters[0]?.memberStopIds).toEqual([1, 3])
+    expect(clusters[0]?.agencyIds).toEqual([10, 20, 30])
+  })
+
+  it('keeps a stop that shares an agency but also contributes a new one', () => {
+    // Stop 1 serves 10 + 20, stop 2 serves 20 + 30. Stop 2 shares agency 20 but
+    // adds 30, so it is admitted as a member.
+    const clusters = deriveStopClusters([
+      stop(1, [10, 20], [2]),
+      stop(2, [20, 30], [1]),
+    ], DIST)
+    expect(clusters).toHaveLength(1)
+    expect(clusters[0]?.memberStopIds).toEqual([1, 2])
+    expect(clusters[0]?.agencyIds).toEqual([10, 20, 30])
+  })
 })
 
 describe('applyClusterTransferTime', () => {

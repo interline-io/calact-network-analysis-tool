@@ -1,10 +1,7 @@
 // Shared engine for the incremental "recompute one slice without re-running the
-// whole scenario" composables (stop buffers, stop clusters). It owns
-// the parts that are identical across them — debounce, AbortController lifecycle,
-// the fetch + NDJSON stream into the existing ScenarioDataReceiver, and the
-// loading-modal/progress wiring — and leaves each feature to supply only what
-// differs (which inputs to watch, the endpoint, how to build the request body,
-// and how to drop its own slice of accumulated data).
+// whole scenario" composables (stop buffers, stop clusters). Owns the parts they
+// share — debounce, AbortController lifecycle, the NDJSON stream into the existing
+// receiver, loading-modal wiring — and leaves each feature its inputs/endpoint/body.
 
 import { markRaw, watch, onScopeDispose, type Ref, type ShallowRef, type WatchSource } from 'vue'
 import {
@@ -121,11 +118,9 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       }
       deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
-      // Superseded by a newer refetch (whose abort() fired this controller) or
-      // the scope was disposed. The abort surfaces as a fetch AbortError before
-      // the response resolves, but as a failed stream drain mid-stream — so key
-      // off the signal, not the error name. A stale run must not touch shared
-      // state, else it can clobber the newer run's data.
+      // Superseded by a newer refetch (it called abort()) or the scope was disposed.
+      // Mid-stream that surfaces as a failed stream drain, not an AbortError, so key
+      // off the signal — a stale run touching shared state would clobber the new one.
       if (localAbort.signal.aborted) {
         return
       }

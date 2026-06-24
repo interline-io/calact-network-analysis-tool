@@ -85,9 +85,8 @@ export interface ScenarioConfig {
   stopBufferRadius?: number
   // Aggregation-table rollup only fires when this is in `HIERARCHICAL_TIGER_LAYERS`.
   stopBufferLayer?: string
-  // Stop clustering. > 0 (meters) enables the stop-clusters phase; 0/unset
-  // disables it. The max-transfer-time filter is applied client-side and is not
-  // part of the fetch config.
+  // Stop clustering. > 0 (meters) enables the stop-clusters phase; 0/unset disables.
+  // The max-transfer-time filter is client-side, so it's not part of the fetch config.
   stopClusterDistance?: number
 }
 

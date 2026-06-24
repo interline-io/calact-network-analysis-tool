@@ -131,9 +131,8 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
-  // minutes; 0 (the default) disables the temporal prune so clusters form on
-  // proximity alone. The transfer-time filter is opt-in from the filter panel,
-  // which seeds STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES when turned on.
+  // minutes; 0 (the default) disables the prune. The filter panel seeds
+  // STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES when the user turns the filter on.
   const clusterMaxTransferMinutes = computed<number>({
     get: () => {
       const raw = route.query.clusterMaxTransferMinutes?.toString()

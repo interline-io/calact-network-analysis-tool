@@ -731,10 +731,8 @@ function deriveFilteredStopClusters (
   if (clusters.length === 0) {
     return []
   }
-  // The temporal prune needs departures. When the scenario was loaded without
-  // them (includeDepartures off, or clustering toggled on mid-session before a
-  // full requery), the cache is empty — keep the proximity clusters rather than
-  // silently dropping every one.
+  // The prune needs departures; if the scenario loaded without them the cache is
+  // empty, so keep the proximity clusters rather than silently dropping every one.
   if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.isEmpty()) {
     return clusters
   }

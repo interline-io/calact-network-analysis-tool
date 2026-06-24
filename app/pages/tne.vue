@@ -1012,12 +1012,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
-  // the cluster max-transfer-time prune needs departures, so a full query
-  // with clustering + a transfer time forces them on (else the temporal filter
-  // would have no data to apply). This only affects the full-fetch path; when
-  // clustering is toggled on mid-session without departures loaded, the prune
-  // itself no-ops (see deriveFilteredStopClusters) rather than dropping clusters.
-  // Proximity-only clustering (transfer time 0) doesn't need departures.
+  // the transfer-time prune needs departures, so clustering + a transfer time
+  // forces them on; proximity-only clustering (transfer 0) doesn't need them.
   includeDepartures: (clusterDistance.value > 0 && clusterMaxTransferMinutes.value > 0)
     ? true
     : includeDepartures.value,

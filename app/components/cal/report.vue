@@ -565,7 +565,7 @@ const stopClusterColumns: TableColumn[] = [
     key: 'stops_count',
     label: 'Stops',
     sortable: true,
-    tooltip: 'Number of member stops in the cluster (one per agency).',
+    tooltip: 'Number of member stops in the cluster.',
   },
   { key: 'routes_count', label: 'Routes', sortable: true },
   { key: 'routes_modes', label: 'Modes', sortable: true },

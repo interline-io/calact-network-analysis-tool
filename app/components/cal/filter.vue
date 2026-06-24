@@ -888,21 +888,18 @@ const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
   set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
 })
-// clustering enable derives from the distance (0 = disabled). Checking
-// seeds the default distance; unchecking clears it (which disables the phase).
+// clustering enable derives from distance (0 = off); checking seeds the default.
 const clusterEnabled = computed({
   get: () => clusterDistance.value > 0,
   set: (checked: boolean) => { clusterDistance.value = checked ? STOP_CLUSTER_DEFAULT_DISTANCE : 0 }
 })
-// Optional temporal prune; derives from the transfer minutes (0 = off). Checking
-// seeds the default window; unchecking clears it (clusters by proximity only).
+// optional prune enable derives from the transfer minutes (0 = off); checking seeds the default.
 const clusterTransferEnabled = computed({
   get: () => clusterMaxTransferMinutes.value > 0,
   set: (checked: boolean) => { clusterMaxTransferMinutes.value = checked ? STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES : 0 }
 })
-// The transfer-time prune runs on already-loaded departures; without them (e.g.
-// the scenario ran with departures disabled in advanced settings) it has nothing
-// to apply, so the transfer option is disabled until a query with departures runs.
+// The prune needs loaded departures; without them the transfer option has nothing
+// to apply, so it's disabled until a query with departures runs.
 const departuresLoaded = computed(() => {
   const cache = props.scenarioFilterResult?.stopDepartureCache
   return cache != null && !cache.isEmpty()

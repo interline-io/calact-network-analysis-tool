@@ -294,10 +294,8 @@ function bucketLabel (i: number): string {
   border-radius: 50%;
 }
 
-// Swatch colors are bound from STOP_CLUSTER_COLOR (the same JS constant the map
-// cluster marker/circle use) via v-bind, so they can't drift out of sync.
-// Multi-color "beach ball" sample (a wedge per agency); the real markers color
-// wedges per agency via a Tableau10 scale, this is a representative swatch.
+// A static 3-wedge "beach ball" sample; real markers wedge per agency via the
+// Tableau10 scale, so this is only representative.
 .legend-cluster-marker {
   background: conic-gradient(#4e79a7 0deg 120deg, #f28e2b 120deg 240deg, #59a14f 240deg 360deg);
   border: 2px solid #fff;

@@ -742,10 +742,9 @@ function createLayers () {
     }
   })
 
-  // selected cluster radius circle. Native circle paint sizes a true
-  // metric radius via exponential(2) zoom interpolation of a per-feature
-  // pixels-at-zoom-0 value (radius_px_z0 * 2^zoom). Drawn below 'points' so the
-  // member stop dots stay on top and clickable.
+  // selected cluster radius circle. circle-radius interpolates the per-feature
+  // pixels-at-zoom-0 value by exponential(2) so it tracks a true metric radius.
+  // Below 'points' so stop dots stay on top and clickable.
   map?.addLayer({
     id: 'cluster-circle',
     type: 'circle',
@@ -764,8 +763,7 @@ function createLayers () {
     }
   }, 'points')
 
-  // connector lines from the selected cluster's anchor stop to each member.
-  // Below 'points' so the stop dots stay on top and clickable.
+  // connector lines from the anchor stop to each member. Below 'points' so dots stay clickable.
   map?.addLayer({
     id: 'cluster-lines',
     type: 'line',
@@ -780,10 +778,8 @@ function createLayers () {
     }
   }, 'points')
 
-  // Invisible click target, one per cluster at its anchor stop. The visible marker
-  // is the DOM "beach ball" (drawClusterMarkers, pointer-events:none), so clicks
-  // fall through to this transparent circle and the existing select/popup flow
-  // (mapClickFeatures keys off the cluster_id property) keeps working.
+  // Invisible click target per cluster: the visible "beach ball" is a
+  // pointer-events:none DOM marker, so clicks fall through to this circle.
   map?.addLayer({
     id: 'clusters',
     type: 'circle',
@@ -1160,9 +1156,8 @@ function clusterConicGradient (cols: string[]): string {
   return `conic-gradient(${stops})`
 }
 
-// Draw the multi-colored cluster markers as DOM overlays at each anchor stop. They
-// are pointer-events:none so clicks fall through to the invisible 'clusters'
-// hit circle (preserving the existing select/popup flow).
+// Cluster "beach ball" markers as DOM overlays at each anchor stop. pointer-events:
+// none so clicks fall through to the invisible 'clusters' hit circle.
 function drawClusterMarkers (specs: { id: string, point: Point, colors: string[] }[]) {
   if (!map) {
     return

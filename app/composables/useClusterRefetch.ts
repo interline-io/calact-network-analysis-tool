@@ -1,10 +1,7 @@
-// Debounced stop-cluster refetch on cluster-distance change. Recomputes
-// only the proximity clusters (server-side, PostGIS) and streams them into the
-// existing ScenarioDataReceiver so the rest of the scenario stays untouched.
-// The max-transfer-time prune is applied client-side and needs no refetch.
-//
-// The streaming/abort/debounce machinery lives in useStreamingRefetch; this only
-// supplies the cluster-specific bits (what to watch, the body, how to clear).
+// Debounced stop-cluster refetch on cluster-distance change: recomputes only the
+// proximity clusters (server-side) into the existing receiver, leaving the rest of
+// the scenario untouched. The transfer-time prune is client-side and needs no
+// refetch. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
