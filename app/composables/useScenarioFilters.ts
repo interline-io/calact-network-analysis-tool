@@ -2,7 +2,6 @@ import { computed, type WritableComputedRef } from 'vue'
 import {
   asTimeString,
   parseTime,
-  STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
   type RouteType,
   type Weekday,
   type WeekdayMode,
@@ -132,19 +131,20 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
-  // minutes. Default (elided) is STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES;
-  // 0 disables the temporal prune (clusters by proximity only).
+  // minutes; 0 (the default) disables the temporal prune so clusters form on
+  // proximity alone. The transfer-time filter is opt-in from the filter panel,
+  // which seeds STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES when turned on.
   const clusterMaxTransferMinutes = computed<number>({
     get: () => {
       const raw = route.query.clusterMaxTransferMinutes?.toString()
       if (raw == null || raw === '') {
-        return STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
+        return 0
       }
       const n = Number.parseFloat(raw)
-      return Number.isFinite(n) && n >= 0 ? n : STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES
+      return Number.isFinite(n) && n >= 0 ? n : 0
     },
     set: (v) => {
-      setQuery({ clusterMaxTransferMinutes: v === STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES ? undefined : String(v) })
+      setQuery({ clusterMaxTransferMinutes: v === 0 ? undefined : String(v) })
     }
   })
 

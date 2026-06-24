@@ -284,7 +284,7 @@
           </cat-field>
 
           <p class="menu-label">
-            <cat-tooltip text="Finds clusters of nearby stops served by different agencies — potential transfer hubs. Max distance is the largest gap (meters) between stops in a cluster; max transfer time requires each stop to have a departure within that many minutes of another stop in the cluster. Changing the distance triggers a cluster-only refetch — the scenario stays loaded.">
+            <cat-tooltip text="Finds clusters of nearby stops served by different agencies — potential transfer hubs. Max distance is the largest gap (meters) between stops in a cluster. The optional transfer-time filter further requires each stop to have a departure within that many minutes of another stop in the cluster. Changing the distance triggers a cluster-only refetch — the scenario stays loaded; changing the transfer time re-filters instantly.">
               Stop Clustering
               <cat-icon icon="information" />
             </cat-tooltip>
@@ -325,20 +325,41 @@
               </div>
             </div>
           </cat-field>
+          <cat-field>
+            <cat-checkbox
+              v-model="clusterTransferEnabled"
+              label="Filter by transfer time"
+              :disabled="!clusterEnabled || !departuresLoaded"
+            />
+          </cat-field>
           <p class="cal-cluster-sublabel">
             Max transfer time
           </p>
-          <cat-field grouped>
-            <div class="cal-input-width-80">
-              <cat-input
-                v-model="clusterMaxTransferMinutes"
-                type="number"
-                min="0"
-                :disabled="!clusterEnabled"
-              />
-            </div>
-            <div>
-              minutes
+          <cat-field>
+            <div class="level">
+              <div class="level-item">
+                <cat-slider
+                  v-model="clusterMaxTransferMinutes"
+                  :min="0"
+                  :max="120"
+                  :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
+                />
+              </div>
+              <div class="level-right">
+                <div class="ml-4 level-item">
+                  <div class="cal-input-width-100">
+                    <cat-input
+                      v-model="clusterMaxTransferMinutes"
+                      type="number"
+                      min="0"
+                      :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
+                    />
+                  </div>
+                  <div class="ml-2">
+                    min
+                  </div>
+                </div>
+              </div>
             </div>
           </cat-field>
 
@@ -755,6 +776,7 @@ import {
   FILTER_SUB_WIDTH,
   HIERARCHICAL_TIGER_LAYERS,
   STOP_CLUSTER_DEFAULT_DISTANCE,
+  STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import type { CensusGeography } from '~~/src/tl/census'
@@ -871,6 +893,19 @@ const frequencyOverEnabled = computed({
 const clusterEnabled = computed({
   get: () => clusterDistance.value > 0,
   set: (checked: boolean) => { clusterDistance.value = checked ? STOP_CLUSTER_DEFAULT_DISTANCE : 0 }
+})
+// Optional temporal prune; derives from the transfer minutes (0 = off). Checking
+// seeds the default window; unchecking clears it (clusters by proximity only).
+const clusterTransferEnabled = computed({
+  get: () => clusterMaxTransferMinutes.value > 0,
+  set: (checked: boolean) => { clusterMaxTransferMinutes.value = checked ? STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES : 0 }
+})
+// The transfer-time prune runs on already-loaded departures; without them (e.g.
+// the scenario ran with departures disabled in advanced settings) it has nothing
+// to apply, so the transfer option is disabled until a query with departures runs.
+const departuresLoaded = computed(() => {
+  const cache = props.scenarioFilterResult?.stopDepartureCache
+  return cache != null && !cache.isEmpty()
 })
 
 // Derived checkbox state: checked (All Day) when both times are undefined, unchecked sets default times

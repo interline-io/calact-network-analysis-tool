@@ -260,10 +260,12 @@ export const STOP_BUFFER_DEFAULT_RADIUS = 402
 // available wherever it's loaded; tract is kept as the default for stability.
 export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 
-// Stop clustering defaults, applied when the user enables clustering.
-// Distance is meters (the PostGIS nearby_stops radius); transfer time is minutes.
+// Values seeded when the user enables a stop-clustering control: distance
+// (meters, the PostGIS nearby_stops radius) when clustering is turned on, and
+// transfer time (minutes) when the optional transfer-time filter is turned on.
+// The temporal prune is off (0) by default — clusters form on proximity alone.
 export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
-export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 15
+export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
 
 // Accent color for cluster markers and the selected-cluster radius circle.
 // Kept distinct from the agency/mode palette. Single source of truth: the map
