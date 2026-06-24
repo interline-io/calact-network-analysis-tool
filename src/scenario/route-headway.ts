@@ -121,23 +121,43 @@ export function pickRepresentativeStop (
 }
 
 /**
- * Reduce a stop's departures to one per trip: the trip's earliest departure at
+ * Pick the visit that better represents a trip's boarding departure at a stop.
+ * A visit with `pickup_type === 1` ("no pickup available") is drop-off only,
+ * e.g. a loop's return to its terminal, so a boardable visit is always
+ * preferred. Among visits of equal boardability the earlier one wins. When
+ * `pickup_type` is null (the feed omits it) every visit is boardable, so this
+ * reduces to "earliest wins".
+ */
+function preferDeparture (a: StopTimeCacheItem, b: StopTimeCacheItem): StopTimeCacheItem {
+  const aBoardable = a.pickupType !== 1
+  const bBoardable = b.pickupType !== 1
+  if (aBoardable !== bBoardable) {
+    return aBoardable ? a : b
+  }
+  return b.departureTime < a.departureTime ? b : a
+}
+
+/**
+ * Reduce a stop's departures to one per trip: the trip's boarding departure at
  * that stop. A loop route whose representative stop is the start-and-end
  * terminal lists each trip twice (outbound start plus inbound return); counting
  * both inflates the departure list and injects spurious short gaps into the
- * headway calculation (issue #368). Keeping each trip's earliest visit yields
- * its actual scheduled departure, so consecutive-departure gaps reflect the true
- * headway. A no-op for normal routes, where each trip visits a stop once.
+ * headway calculation (issue #368). Keeping one departure per trip yields the
+ * true headway between consecutive trips.
+ *
+ * When `pickup_type` is available the boardable visit is chosen (so a drop-off
+ * return is excluded even if it sorts earlier); otherwise the earliest visit is
+ * used. A trip with only drop-off visits still contributes its earliest one, so
+ * no trip is dropped. A no-op for normal routes, where each trip visits a stop
+ * once.
  */
 export function oneDeparturePerTrip (departures: StopTimeCacheItem[]): StopTimeCacheItem[] {
-  const earliestByTrip = new Map<number, StopTimeCacheItem>()
+  const chosenByTrip = new Map<number, StopTimeCacheItem>()
   for (const st of departures) {
-    const cur = earliestByTrip.get(st.tripId)
-    if (cur === undefined || st.departureTime < cur.departureTime) {
-      earliestByTrip.set(st.tripId, st)
-    }
+    const cur = chosenByTrip.get(st.tripId)
+    chosenByTrip.set(st.tripId, cur === undefined ? st : preferDeparture(cur, st))
   }
-  return [...earliestByTrip.values()]
+  return [...chosenByTrip.values()]
 }
 
 /**

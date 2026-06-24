@@ -835,13 +835,31 @@ describe('summarizeGaps', () => {
 })
 
 describe('oneDeparturePerTrip', () => {
-  const item = (departure: string, tripId: number) => new StopTimeCacheItem(hms(departure), tripId, 0, 100)
+  const item = (departure: string, tripId: number, pickupType: number | null = null) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100, pickupType)
 
   it('keeps each trip earliest departure and drops repeat visits', () => {
     // Trip 1 visits twice (loop start 08:00 + return 09:50); trips 2 and 3 once.
     const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
     const result = oneDeparturePerTrip(deps).map(d => d.departureTime).sort((a, b) => a - b)
     expect(result).toEqual([hms('08:00:00'), hms('10:00:00'), hms('12:00:00')])
+  })
+
+  it('prefers a boardable visit over an earlier drop-off-only visit', () => {
+    // Trip arrives drop-off-only (pickup_type 1) at 08:00, then boards at 08:10.
+    // Earliest alone would pick 08:00; pickup_type picks the boardable 08:10.
+    const deps = [item('08:00:00', 1, 1), item('08:10:00', 1, 0)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:10:00')])
+  })
+
+  it('excludes a loop return (pickup_type 1) in favor of the boardable start', () => {
+    const deps = [item('08:00:00', 1, 0), item('09:50:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
+  })
+
+  it('falls back to the earliest visit when a trip has only drop-off visits', () => {
+    const deps = [item('09:50:00', 1, 1), item('08:00:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
   })
 
   it('is a no-op when every trip visits the stop once', () => {

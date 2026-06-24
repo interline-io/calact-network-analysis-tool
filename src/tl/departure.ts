@@ -7,6 +7,7 @@ import { gql } from 'graphql-tag'
 export const stopDepartureQuery = gql`
 fragment departure on StopTime {
   departure_time
+  pickup_type
   trip {
     id
     direction_id
@@ -63,6 +64,7 @@ query (
 export const stopTimeQuery = gql`
 fragment departure on StopTime {
   departure_time
+  pickup_type
   trip {
     id
     direction_id
@@ -118,6 +120,9 @@ query (
 
 export interface StopTime {
   departure_time: string
+  // GTFS stop_times.pickup_type; null when the feed omits it. 1 = no pickup
+  // available (drop-off only), e.g. a loop's return to its terminal.
+  pickup_type?: number | null
   trip: {
     id: number
     direction_id: number
