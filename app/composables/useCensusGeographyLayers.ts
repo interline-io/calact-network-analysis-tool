@@ -1,8 +1,8 @@
 // Census dataset layers + the geographies selected by the current geographyIds,
-// derived from `geographyLayerQuery`. Provided as a composable so the consuming
-// components (filter, report, query, map, map-share) read it directly instead of
-// having tne.vue thread `censusGeographyLayerOptions` / `censusGeographiesSelected`
-// down through a prop chain.
+// derived from `geographyLayerQuery`. Owned by tne.vue (the container): tne.vue
+// calls this and passes `censusGeographyLayerOptions` / `censusGeographiesSelected`
+// down to child components as plain props, per the "State ownership & data flow"
+// convention in CLAUDE.md (Apollo access stays in the container, not in leaves).
 
 import { computed, type ComputedRef } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
@@ -48,10 +48,6 @@ function formatCensusLayerLabel (_dsName: string, layerName: string): string {
     ?? layerName.replace(/^layer:\s*/i, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-// Every caller passes the same URL-derived variables, so Apollo's cache-first
-// policy dedups the network request across the multiple query observers. (If the
-// observer count ever matters, this could become a singleton backed by a detached
-// effectScope — not warranted today.)
 export function useCensusGeographyLayers (): UseCensusGeographyLayersReturn {
   const { geoDatasetName, geographyIds } = useScenarioInputs()
 
