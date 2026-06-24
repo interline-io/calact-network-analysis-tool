@@ -6,12 +6,17 @@ import {
   calculateRouteTripStats,
   computeHeadwaysPerDay,
   pickDominantDirection,
+  scopeDatesToWeekdays,
+  oneDeparturePerTrip,
+  distinctTripCount,
+  summarizeGaps,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
 } from './route-headway'
-import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
+import { StopDepartureCache, RouteDepartureIndex, StopTimeCacheItem } from '../tl/departure-cache'
 import type { Route } from '../tl/route'
 import type { StopTime } from '../tl/departure'
+import type { Weekday } from '../core'
 
 interface TripStop {
   stopId: number
@@ -764,5 +769,166 @@ describe('pickDominantDirection', () => {
   it('aggregates counts across all dates, not per-date', () => {
     // dir 0: 1 + 1 = 2; dir 1: 3 + 0 = 3 → dir 1 wins.
     expect(pickDominantDirection(make([[1], [1]], [[1, 2, 3], []]))).toBe(1)
+  })
+})
+
+describe('scopeDatesToWeekdays', () => {
+  // 2024-01-15 Mon(15) Tue(16) Wed(17) Thu(18) Fri(19) Sat(20) Sun(21). Local
+  // midnights, so getDate() and getDay() agree (no toISOString TZ shift).
+  const week = [
+    '2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19', '2024-01-20', '2024-01-21',
+  ].map(s => new Date(`${s}T00:00:00`))
+
+  it('returns the range unchanged when effectiveWeekdays is undefined', () => {
+    expect(scopeDatesToWeekdays(week, undefined)).toBe(week)
+  })
+
+  it('keeps only the dates whose weekday is selected', () => {
+    const weekdays: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    expect(scopeDatesToWeekdays(week, weekdays).map(d => d.getDate())).toEqual([15, 16, 17, 18, 19])
+  })
+
+  it('keeps only the weekend dates when weekend days are selected', () => {
+    expect(scopeDatesToWeekdays(week, ['saturday', 'sunday']).map(d => d.getDate())).toEqual([20, 21])
+  })
+
+  it('returns an empty array when no selected weekday appears in the range', () => {
+    const monOnly = [new Date('2024-01-15T00:00:00')] // Monday
+    expect(scopeDatesToWeekdays(monOnly, ['sunday'])).toEqual([])
+  })
+})
+
+describe('summarizeGaps', () => {
+  it('returns undefined for an empty input', () => {
+    expect(summarizeGaps([])).toBeUndefined()
+  })
+
+  it('treats a single gap as min = median = max = avg', () => {
+    expect(summarizeGaps([42])).toEqual({ min: 42, median: 42, max: 42, avg: 42, count: 1 })
+  })
+
+  it('uses the middle element as the median for odd-length input', () => {
+    // sorted: 10, 20, 30 → median 20, avg 20
+    expect(summarizeGaps([10, 20, 30])).toEqual({ min: 10, median: 20, max: 30, avg: 20, count: 3 })
+  })
+
+  it('averages the two middle elements as the median for even-length input', () => {
+    // sorted: 10, 20, 30, 40 → median (20 + 30) / 2 = 25, avg 25
+    expect(summarizeGaps([10, 20, 30, 40])).toEqual({ min: 10, median: 25, max: 40, avg: 25, count: 4 })
+  })
+
+  it('sorts unsorted input before computing min/median/max', () => {
+    // sorted: 10, 10, 30, 40 → median (10 + 30) / 2 = 20, avg 90 / 4 = 22.5
+    expect(summarizeGaps([40, 10, 30, 10])).toEqual({ min: 10, median: 20, max: 40, avg: 22.5, count: 4 })
+  })
+
+  it('produces a non-integer average when the gaps do not divide evenly', () => {
+    const summary = summarizeGaps([10, 11, 13])
+    expect(summary!.avg).toBeCloseTo(34 / 3, 10)
+    expect(summary!.median).toBe(11)
+  })
+
+  it('does not mutate the caller-supplied array', () => {
+    const gaps = [40, 10, 30, 10]
+    summarizeGaps(gaps)
+    expect(gaps).toEqual([40, 10, 30, 10])
+  })
+})
+
+describe('oneDeparturePerTrip', () => {
+  const item = (departure: string, tripId: number, pickupType: number | null = null) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100, pickupType)
+
+  it('keeps each trip earliest departure and drops repeat visits', () => {
+    // Trip 1 visits twice (loop start 08:00 + return 09:50); trips 2 and 3 once.
+    const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
+    const result = oneDeparturePerTrip(deps).map(d => d.departureTime).sort((a, b) => a - b)
+    expect(result).toEqual([hms('08:00:00'), hms('10:00:00'), hms('12:00:00')])
+  })
+
+  it('prefers a boardable visit over an earlier drop-off-only visit', () => {
+    // Trip arrives drop-off-only (pickup_type 1) at 08:00, then boards at 08:10.
+    // Earliest alone would pick 08:00; pickup_type picks the boardable 08:10.
+    const deps = [item('08:00:00', 1, 1), item('08:10:00', 1, 0)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:10:00')])
+  })
+
+  it('excludes a loop return (pickup_type 1) in favor of the boardable start', () => {
+    const deps = [item('08:00:00', 1, 0), item('09:50:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
+  })
+
+  it('falls back to the earliest visit when a trip has only drop-off visits', () => {
+    const deps = [item('09:50:00', 1, 1), item('08:00:00', 1, 1)]
+    expect(oneDeparturePerTrip(deps).map(d => d.departureTime)).toEqual([hms('08:00:00')])
+  })
+
+  it('is a no-op when every trip visits the stop once', () => {
+    const deps = [item('08:00:00', 1), item('09:00:00', 2)]
+    expect(oneDeparturePerTrip(deps)).toHaveLength(2)
+  })
+
+  it('returns an empty array for empty input', () => {
+    expect(oneDeparturePerTrip([])).toEqual([])
+  })
+})
+
+describe('distinctTripCount', () => {
+  const item = (departure: string, tripId: number) =>
+    new StopTimeCacheItem(hms(departure), tripId, 0, 100)
+
+  it('counts distinct trips, matching oneDeparturePerTrip length', () => {
+    // Trip 1 visits twice (loop terminal), trips 2 and 3 once: 3 distinct trips.
+    const deps = [item('08:00:00', 1), item('09:50:00', 1), item('10:00:00', 2), item('12:00:00', 3)]
+    expect(distinctTripCount(deps)).toBe(3)
+    expect(distinctTripCount(deps)).toBe(oneDeparturePerTrip(deps).length)
+  })
+
+  it('returns 0 for empty input', () => {
+    expect(distinctTripCount([])).toBe(0)
+  })
+})
+
+describe('routeHeadways — loop representative-stop dedup (#368)', () => {
+  // A loop whose representative stop (stop 1) is the terminal: every trip starts
+  // there (~08:00) and returns ~1h50m later. Without dedup, the sorted terminal
+  // departures interleave start/return and the gap between one trip's return and
+  // the next trip's start becomes a spurious ~10-minute "headway".
+  function buildLoopIndex (): RouteDepartureIndex {
+    const dateStr = '2024-01-15'
+    const sdCache = new StopDepartureCache()
+    const trips: Array<[string, string, string]> = [
+      // [start at terminal, mid stop, return to terminal]
+      ['08:00:00', '08:30:00', '09:50:00'],
+      ['10:00:00', '10:30:00', '11:50:00'],
+      ['12:00:00', '12:30:00', '13:50:00'],
+    ]
+    trips.forEach(([start, mid, ret], i) => {
+      addTripToCache(sdCache, dateStr, makeTrip(100, String(2000 + i), 0, [
+        { stopId: 1, departure: start }, // loop terminal (first visit)
+        { stopId: 2, departure: mid },
+        { stopId: 1, departure: ret }, // loop terminal (return visit)
+      ]))
+    })
+    return RouteDepartureIndex.fromCache(sdCache)
+  }
+
+  it('counts one departure per trip at the loop terminal, yielding the true headway', () => {
+    const route = makeRoute(100)
+    const date = makeLocalDate('2024-01-15')
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', buildLoopIndex())
+    // Stop 1 is the rep stop (6 raw departures), deduped to each trip's start.
+    expect(result.dir0[0]).toEqual([hms('08:00:00'), hms('10:00:00'), hms('12:00:00')])
+  })
+
+  it('reports the true ~2h headway, not the spurious loop-turnaround gap', () => {
+    const route = makeRoute(100)
+    const date = makeLocalDate('2024-01-15')
+    const result = routeHeadways(route, [date], '00:00:00', '24:00:00', buildLoopIndex())
+    const stats = calculateHeadwayStats(result.dir0)
+    // Two 2-hour gaps; the ~10-minute turnaround gaps are gone.
+    expect(stats?.fastest).toBe(hms('02:00:00'))
+    expect(stats?.slowest).toBe(hms('02:00:00'))
+    expect(stats?.average).toBe(hms('02:00:00'))
   })
 })

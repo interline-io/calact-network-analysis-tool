@@ -8,13 +8,16 @@ import type { StopTime } from './departure'
  * - tripId: internal numeric trip ID (for deduplication)
  * - directionId: 0 or 1
  * - routeId: internal numeric route ID
+ * - pickupType: GTFS pickup_type; null when the feed omits it. 1 = no pickup
+ *   available (drop-off only), e.g. a loop's return to its terminal.
  */
 export class StopTimeCacheItem {
   constructor (
     public readonly departureTime: number,
     public readonly tripId: number,
     public readonly directionId: number,
-    public readonly routeId: number
+    public readonly routeId: number,
+    public readonly pickupType: number | null = null
   ) {}
 
   /**
@@ -25,7 +28,8 @@ export class StopTimeCacheItem {
       parseHMS(st.departure_time),
       st.trip.id,
       st.trip.direction_id,
-      st.trip.route.id
+      st.trip.route.id,
+      st.pickup_type ?? null
     )
   }
 }
@@ -62,10 +66,10 @@ export class StopDepartureCache {
    * Add a single stop time directly from wire format values (no intermediate object).
    * This is more efficient when receiving streaming data.
    */
-  addFromWire (stopId: number, date: string, departureTime: number, tripId: number, directionId: number, routeId: number) {
+  addFromWire (stopId: number, date: string, departureTime: number, tripId: number, directionId: number, routeId: number, pickupType: number | null = null) {
     const a = this.cache.get(stopId) || new Map()
     const b = a.get(date) || []
-    b.push(new StopTimeCacheItem(departureTime, tripId, directionId, routeId))
+    b.push(new StopTimeCacheItem(departureTime, tripId, directionId, routeId, pickupType))
     a.set(date, b)
     this.cache.set(stopId, a)
   }

@@ -14,9 +14,11 @@ import type {
   RouteDepartureIndex,
 } from '../tl'
 
-// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Kept local
-// because `dowValues` in src/core/constants.ts starts at monday, not sunday.
-const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
+// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Exported so
+// debug views (Route Timetable) can map a date to its weekday with the same
+// convention used here; `dowValues` in src/core/constants.ts starts at monday,
+// not sunday, so it can't be indexed by getDay() directly.
+export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
   'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
 ] as const
 
@@ -76,8 +78,10 @@ export function routeHeadways (
       const formattedDate = format(d, 'yyyy-MM-dd')
       const rep = pickRepresentativeStop(routeIndex, route.id, dir, formattedDate)
 
-      // Filter by time window (departureTime is already in seconds) and sort.
-      const stSecs = rep.departures
+      // Collapse repeat visits by the same trip (loop terminals) to one
+      // departure per trip before measuring headways (issue #368), then filter
+      // by time window (departureTime is already in seconds) and sort.
+      const stSecs = oneDeparturePerTrip(rep.departures)
         .map(st => st.departureTime)
         .filter(depTime => depTime >= 0 && depTime >= startTime && depTime <= endTime)
       stSecs.sort((a, b) => a - b)
@@ -94,6 +98,12 @@ export function routeHeadways (
  * For a (route, direction, date) bucket in the index, pick the "representative"
  * stop — the in-bbox stop with the most departures — and return both its stopId
  * and its stop_times. Returns stopId = undefined when the bucket is empty.
+ *
+ * The returned `departures` are RAW: a loop terminal lists each trip twice
+ * (outbound start plus inbound return). Headway/frequency consumers must
+ * collapse them with `oneDeparturePerTrip` first (otherwise the loop turnaround
+ * looks like a short headway — issue #368); callers that genuinely want the
+ * raw per-visit count (e.g. Stop Details) use them as-is.
  *
  * Tie-breaking: when two stops have the same departure count, the lower
  * numeric stop ID wins. Deterministic regardless of Map insertion order.
@@ -117,6 +127,62 @@ export function pickRepresentativeStop (
 }
 
 /**
+ * Pick the visit that better represents a trip's boarding departure at a stop.
+ * A visit with `pickup_type === 1` ("no pickup available") is drop-off only,
+ * e.g. a loop's return to its terminal, so a boardable visit is always
+ * preferred. Among visits of equal boardability the earlier one wins. When
+ * `pickup_type` is null (the feed omits it) every visit is boardable, so this
+ * reduces to "earliest wins".
+ */
+function preferDeparture (a: StopTimeCacheItem, b: StopTimeCacheItem): StopTimeCacheItem {
+  const aBoardable = a.pickupType !== 1
+  const bBoardable = b.pickupType !== 1
+  if (aBoardable !== bBoardable) {
+    return aBoardable ? a : b
+  }
+  return b.departureTime < a.departureTime ? b : a
+}
+
+/**
+ * Reduce a stop's departures to one per trip: the trip's boarding departure at
+ * that stop. A loop route whose representative stop is the start-and-end
+ * terminal lists each trip twice (outbound start plus inbound return); counting
+ * both inflates the departure list and injects spurious short gaps into the
+ * headway calculation (issue #368). Keeping one departure per trip yields the
+ * true headway between consecutive trips.
+ *
+ * When `pickup_type` is available the boardable visit is chosen (so a drop-off
+ * return is excluded even if it sorts earlier); otherwise the earliest visit is
+ * used. A trip with only drop-off visits still contributes its earliest one, so
+ * no trip is dropped. A no-op for normal routes, where each trip visits a stop
+ * once.
+ */
+export function oneDeparturePerTrip (departures: StopTimeCacheItem[]): StopTimeCacheItem[] {
+  const chosenByTrip = new Map<number, StopTimeCacheItem>()
+  for (const st of departures) {
+    const cur = chosenByTrip.get(st.tripId)
+    chosenByTrip.set(st.tripId, cur === undefined ? st : preferDeparture(cur, st))
+  }
+  return [...chosenByTrip.values()]
+}
+
+/**
+ * Count the distinct trips among a stop's departures. Equivalent to
+ * `oneDeparturePerTrip(departures).length` but without building the deduped
+ * array or running the boardability tie-break — used where only the count is
+ * needed (e.g. flagging stops some trip visits more than once). When this is
+ * less than the raw departure count, a trip serves the stop more than once
+ * (e.g. a loop revisiting a point).
+ */
+export function distinctTripCount (departures: StopTimeCacheItem[]): number {
+  const trips = new Set<number>()
+  for (const st of departures) {
+    trips.add(st.tripId)
+  }
+  return trips.size
+}
+
+/**
  * Does this route have any in-window service on the given weekday across the
  * selected date range? True if at least one date in `selectedDateRange` whose
  * day-of-week matches `target` has a non-empty departures array in either
@@ -136,6 +202,23 @@ export function hasServiceOnWeekday (
     }
   }
   return false
+}
+
+/**
+ * Filter a date range to the dates whose weekday is in `effectiveWeekdays`.
+ * When `effectiveWeekdays` is undefined (no weekday subset selected), the range
+ * is returned unchanged. Shared by scenario-filter (route frequency and trip
+ * stats) and the Route Timetable debug modal so the two cannot diverge on which
+ * service days feed the numbers (issue #222).
+ */
+export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday[]): Date[] {
+  if (effectiveWeekdays == null) {
+    return dates
+  }
+  return dates.filter((d) => {
+    const dow = WEEKDAY_BY_GETDAY[d.getDay()]
+    return dow != null && effectiveWeekdays.includes(dow)
+  })
 }
 
 /**
@@ -320,6 +403,33 @@ export function pickDominantDirection (deps: RouteDepartures): 0 | 1 {
 }
 
 /**
+ * Summary statistics over a set of headway gaps (seconds). Callers collect the
+ * contributing gaps; this performs the min/median/max/average math shared by
+ * `calculateHeadwayStats` and the Route Timetable debug views (overall and
+ * per-weekday) so the implementations can never disagree on how a
+ * representative frequency is derived. Returns undefined for an empty input.
+ */
+export interface GapSummary {
+  min: number
+  median: number
+  max: number
+  avg: number
+  count: number
+}
+
+export function summarizeGaps (gaps: readonly number[]): GapSummary | undefined {
+  if (gaps.length === 0) {
+    return undefined
+  }
+  const sorted = [...gaps].sort((a, b) => a - b)
+  const count = sorted.length
+  const mid = Math.floor(count / 2)
+  const median = count % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  const avg = sorted.reduce((a, b) => a + b, 0) / count
+  return { min: sorted[0]!, median, max: sorted[count - 1]!, avg, count }
+}
+
+/**
  * Calculate headway statistics from per-day departure arrays.
  * Headways are computed within each day and then aggregated, so an interval
  * is never measured between trips on different service days.
@@ -341,13 +451,13 @@ export function calculateHeadwayStats (departuresByDay: number[][]): {
       contributing.push(h.gap)
     }
   }
-  if (contributing.length === 0) {
+  const summary = summarizeGaps(contributing)
+  if (!summary) {
     return undefined
   }
-  contributing.sort((a, b) => a - b)
   return {
-    average: contributing.reduce((a, b) => a + b) / contributing.length,
-    fastest: contributing[0]!,
-    slowest: contributing[contributing.length - 1]!,
+    average: summary.avg,
+    fastest: summary.min,
+    slowest: summary.max,
   }
 }
