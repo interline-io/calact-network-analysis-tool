@@ -10,6 +10,10 @@ import {
   oneDeparturePerTrip,
   distinctTripCount,
   summarizeGaps,
+  dominantGapSummary,
+  isIrregularHeadway,
+  compareDirectionFrequencies,
+  buildRouteFrequencyCaveats,
   MIN_HEADWAY_SECONDS,
   type RouteDepartures,
 } from './route-headway'
@@ -930,5 +934,151 @@ describe('routeHeadways — loop representative-stop dedup (#368)', () => {
     expect(stats?.fastest).toBe(hms('02:00:00'))
     expect(stats?.slowest).toBe(hms('02:00:00'))
     expect(stats?.average).toBe(hms('02:00:00'))
+  })
+})
+
+// Issue #368 frequency caveats. These helpers operate on RouteDepartures /
+// GapSummary directly, so the tests build small literals rather than going
+// through the cache/index.
+describe('isIrregularHeadway', () => {
+  it('returns false for stable headways (max ≈ median)', () => {
+    // Four 15-min departures → three 900s gaps; max == median.
+    const summary = summarizeGaps([900, 900, 900])
+    expect(isIrregularHeadway(summary)).toBe(false)
+  })
+
+  it('returns true when the longest gap is >= IRREGULAR_HEADWAY_RATIO × median', () => {
+    // Three short gaps plus one large midday gap.
+    const summary = summarizeGaps([900, 900, 900, 34200])
+    expect(isIrregularHeadway(summary)).toBe(true)
+  })
+
+  it('returns false when there are fewer than MIN_GAPS_FOR_IRREGULAR gaps', () => {
+    // A single very large gap is not enough evidence of irregularity.
+    const summary = summarizeGaps([34200])
+    expect(isIrregularHeadway(summary)).toBe(false)
+  })
+
+  it('returns true exactly at the 3× boundary (>=)', () => {
+    // median 600, max 1800 = 3 × 600, three gaps.
+    const summary = summarizeGaps([600, 600, 1800])
+    expect(summary?.median).toBe(600)
+    expect(summary?.max).toBe(1800)
+    expect(isIrregularHeadway(summary)).toBe(true)
+  })
+
+  it('returns false for undefined (no qualifying gaps)', () => {
+    expect(isIrregularHeadway(undefined)).toBe(false)
+  })
+})
+
+describe('dominantGapSummary', () => {
+  it('summarizes the dominant direction’s non-noise gaps', () => {
+    const deps: RouteDepartures = {
+      // dir0 has more departures → dominant. Gaps: 900, 900.
+      dir0: [[hms('06:00:00'), hms('06:15:00'), hms('06:30:00')]],
+      dir1: [[hms('07:00:00')]],
+    }
+    const summary = dominantGapSummary(deps)
+    expect(summary?.count).toBe(2)
+    expect(summary?.max).toBe(900)
+    expect(summary?.median).toBe(900)
+  })
+
+  it('drops sub-noise gaps before summarizing', () => {
+    const deps: RouteDepartures = {
+      // 60s gap is below MIN_HEADWAY_SECONDS and excluded; 900s gap remains.
+      dir0: [[hms('06:00:00'), hms('06:01:00'), hms('06:16:00')]],
+      dir1: [[]],
+    }
+    const summary = dominantGapSummary(deps)
+    expect(MIN_HEADWAY_SECONDS).toBe(120)
+    expect(summary?.count).toBe(1)
+    expect(summary?.max).toBe(900)
+  })
+
+  it('returns undefined when there are no qualifying gaps', () => {
+    const deps: RouteDepartures = { dir0: [[hms('06:00:00')]], dir1: [[]] }
+    expect(dominantGapSummary(deps)).toBeUndefined()
+  })
+})
+
+describe('compareDirectionFrequencies', () => {
+  it('does not flag symmetric directions', () => {
+    const deps: RouteDepartures = {
+      dir0: [[hms('06:00:00'), hms('06:15:00'), hms('06:30:00')]], // avg 900
+      dir1: [[hms('07:00:00'), hms('07:15:00'), hms('07:30:00')]], // avg 900
+    }
+    const cmp = compareDirectionFrequencies(deps)
+    expect(cmp.directionsDifferMaterially).toBe(false)
+    expect(cmp.ratio).toBe(1)
+  })
+
+  it('flags directions whose averages diverge beyond the ratio', () => {
+    const deps: RouteDepartures = {
+      dir0: [[hms('06:00:00'), hms('06:10:00'), hms('06:20:00')]], // avg 600
+      dir1: [[hms('06:00:00'), hms('06:30:00'), hms('07:00:00')]], // avg 1800
+    }
+    const cmp = compareDirectionFrequencies(deps)
+    expect(cmp.dir0Average).toBe(600)
+    expect(cmp.dir1Average).toBe(1800)
+    expect(cmp.ratio).toBe(3)
+    expect(cmp.directionsDifferMaterially).toBe(true)
+  })
+
+  it('does not flag a one-way route (other direction has no average)', () => {
+    const deps: RouteDepartures = {
+      dir0: [[hms('06:00:00'), hms('06:10:00'), hms('06:20:00')]],
+      dir1: [[]],
+    }
+    const cmp = compareDirectionFrequencies(deps)
+    expect(cmp.dir1Average).toBeUndefined()
+    expect(cmp.directionsDifferMaterially).toBe(false)
+  })
+
+  it('does not flag at exactly the 1.5× boundary (strict >)', () => {
+    const deps: RouteDepartures = {
+      dir0: [[hms('06:00:00'), hms('06:10:00'), hms('06:20:00')]], // avg 600
+      dir1: [[hms('06:00:00'), hms('06:15:00'), hms('06:30:00')]], // avg 900
+    }
+    const cmp = compareDirectionFrequencies(deps)
+    expect(cmp.ratio).toBe(1.5)
+    expect(cmp.directionsDifferMaterially).toBe(false)
+  })
+})
+
+describe('buildRouteFrequencyCaveats', () => {
+  it('flags a commuter-shaped route as irregular', () => {
+    const deps: RouteDepartures = {
+      // Tight AM peak, large midday gap, tight PM peak.
+      dir0: [[
+        hms('06:00:00'), hms('06:15:00'), hms('06:30:00'),
+        hms('16:00:00'), hms('16:15:00'), hms('16:30:00'),
+      ]],
+      dir1: [[hms('06:05:00'), hms('06:20:00')]],
+    }
+    const caveats = buildRouteFrequencyCaveats(deps)
+    expect(caveats.irregular).toBe(true)
+  })
+
+  it('flags a school-tripper shape as irregular', () => {
+    const deps: RouteDepartures = {
+      dir0: [[hms('07:00:00'), hms('07:30:00'), hms('15:00:00'), hms('15:30:00')]],
+      dir1: [[]],
+    }
+    const caveats = buildRouteFrequencyCaveats(deps)
+    expect(caveats.irregular).toBe(true)
+  })
+
+  it('flags neither for a clean, even, symmetric route', () => {
+    const even = (base: number) =>
+      [base, base + 900, base + 1800, base + 2700, base + 3600]
+    const deps: RouteDepartures = {
+      dir0: [even(hms('06:00:00'))],
+      dir1: [even(hms('06:05:00'))],
+    }
+    const caveats = buildRouteFrequencyCaveats(deps)
+    expect(caveats.irregular).toBe(false)
+    expect(caveats.directionsDifferMaterially).toBe(false)
   })
 })

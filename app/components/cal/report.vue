@@ -117,6 +117,13 @@
         >
           {{ formatDuration(value) }}
         </button>
+        <cat-tooltip
+          v-if="frequencyCaveatText(row)"
+          :text="frequencyCaveatText(row)"
+          class="cal-report-frequency-caveat"
+        >
+          <cat-icon icon="alert" size="small" />
+        </cat-tooltip>
       </template>
       <template #column-fastest_frequency="{ value, row }">
         <button
@@ -242,6 +249,22 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
   if (route) {
     emit('openTimetable', { route, initialTab })
   }
+}
+
+// Issue #368: explain the frequency caveat flags in the routes table, where
+// analysts compare the derived frequency against agencies' own classifications.
+function frequencyCaveatText (row: { frequency_irregular?: boolean, frequency_directions_differ?: boolean }): string {
+  const reasons: string[] = []
+  if (row.frequency_irregular) {
+    reasons.push('service is not consistent across the day (e.g. commuter, school, or peak-only)')
+  }
+  if (row.frequency_directions_differ) {
+    reasons.push('the two directions run at materially different frequencies')
+  }
+  if (reasons.length === 0) {
+    return ''
+  }
+  return `This frequency may not be representative: ${reasons.join('; ')}. Open the timetable for details.`
 }
 
 const drillableBufferTab = computed<BufferDetailsKind | null>(() => {
@@ -770,5 +793,11 @@ const activeTableReport = computed((): TableReport => {
     &:hover {
       text-decoration-style: solid;
     }
+  }
+
+  .cal-report-frequency-caveat {
+    margin-left: 4px;
+    color: #946c00;
+    vertical-align: middle;
   }
 </style>

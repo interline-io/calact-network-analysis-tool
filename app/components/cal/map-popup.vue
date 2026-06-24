@@ -28,6 +28,25 @@
           <div><strong>{{ feature.data.route_short_name }} {{ feature.data.route_long_name }}</strong></div>
           <div>Type: {{ feature.data.route_type_name }}</div>
           <div>Agency: {{ feature.data.agency_name }}</div>
+          <div v-if="feature.data.average_frequency != null">
+            Frequency: {{ formatDuration(feature.data.average_frequency) }} (dominant direction)
+          </div>
+          <div
+            v-if="feature.data.frequency_irregular || feature.data.frequency_directions_differ"
+            class="popup-frequency-caveat"
+          >
+            ⚠️
+            <template v-if="feature.data.frequency_irregular && feature.data.frequency_directions_differ">
+              Irregular service; directions differ.
+            </template>
+            <template v-else-if="feature.data.frequency_irregular">
+              Irregular service.
+            </template>
+            <template v-else>
+              Directions differ.
+            </template>
+            See timetable for details.
+          </div>
           <button class="button is-small is-info mt-2" @click="$emit('openTimetable', feature.featureId)">
             View Timetable
           </button>
@@ -107,7 +126,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { STOP_CLUSTER_COLOR } from '~~/src/core'
+import { STOP_CLUSTER_COLOR, formatDuration } from '~~/src/core'
 import type { ClusterMemberInfo } from '~~/src/core'
 
 /**
@@ -130,6 +149,9 @@ export interface PopupFeatureData {
     route_long_name?: string
     route_type_name?: string
     agency_name?: string
+    average_frequency?: number
+    frequency_irregular?: boolean
+    frequency_directions_differ?: boolean
     // Flex fields
     location_id?: string
     location_name?: string
@@ -231,6 +253,12 @@ const hasMultiple = computed(() => props.total > 1)
   font-size: 13px;
   font-weight: 500;
   border-radius: 4px;
+}
+
+.popup-frequency-caveat {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #946c00;
 }
 
 .popup-location-name {

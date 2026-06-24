@@ -240,6 +240,58 @@
       </p>
 
       <div v-else>
+        <cat-msg variant="info" title="About this frequency" class="mb-4">
+          <p>
+            Route frequency is automatically derived from GTFS feeds and may differ from how agencies classify their own routes.
+          </p>
+        </cat-msg>
+
+        <cat-msg
+          v-if="frequencyCaveats.irregular"
+          variant="warning"
+          title="Irregular service"
+          class="mb-4"
+        >
+          <p class="mb-2">
+            This route's service is not consistent across the day — for example commuter-peak, school, or other time-concentrated service. A single average frequency may not reflect typical wait times.
+          </p>
+          <dl v-if="gapStats" class="cal-route-timetable-gap-stats">
+            <div>
+              <dt>Fastest gap:</dt>
+              <dd>{{ formatGtfsTimeFull(gapStats.min) }}</dd>
+            </div>
+            <div>
+              <dt>Median gap:</dt>
+              <dd>{{ formatGtfsTimeFull(gapStats.median) }}</dd>
+            </div>
+            <div>
+              <dt>Slowest gap:</dt>
+              <dd>{{ formatGtfsTimeFull(gapStats.max) }}</dd>
+            </div>
+          </dl>
+        </cat-msg>
+
+        <cat-msg
+          v-if="frequencyCaveats.directionsDifferMaterially"
+          variant="warning"
+          title="Directions differ"
+          class="mb-4"
+        >
+          <p class="mb-2">
+            The two directions of this route run at materially different frequencies. The reported frequency uses only the dominant direction (Direction {{ frequencyCaveats.comparison.dominantDirection }}).
+          </p>
+          <dl class="cal-route-timetable-gap-stats">
+            <div>
+              <dt>Direction 0 average:</dt>
+              <dd>{{ frequencyCaveats.comparison.dir0Average != null ? formatGtfsTimeFull(frequencyCaveats.comparison.dir0Average) : '—' }}</dd>
+            </div>
+            <div>
+              <dt>Direction 1 average:</dt>
+              <dd>{{ frequencyCaveats.comparison.dir1Average != null ? formatGtfsTimeFull(frequencyCaveats.comparison.dir1Average) : '—' }}</dd>
+            </div>
+          </dl>
+        </cat-msg>
+
         <cat-msg
           v-if="repeatRepStopVisits > 0"
           variant="warning"
@@ -558,6 +610,7 @@ import {
   routeHeadways,
   computeHeadwaysPerDay,
   calculateRouteTripStats,
+  buildRouteFrequencyCaveats,
   scopeDatesToWeekdays,
   oneDeparturePerTrip,
   distinctTripCount,
@@ -731,6 +784,11 @@ const routeDeps = computed(() =>
 )
 
 const dominantDirection = computed(() => pickDominantDirection(routeDeps.value))
+
+// Frequency caveats (issue #368). Re-derived here via the same shared helper
+// scenario-filter uses, so the modal's caveats can't drift from the route's
+// stored flags.
+const frequencyCaveats = computed(() => buildRouteFrequencyCaveats(routeDeps.value))
 
 // Trip-count statistics — calls the same pure function that scenario-filter
 // uses for average_trips_per_day / average_trips_per_hour / earliest-latest.
