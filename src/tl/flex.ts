@@ -266,11 +266,15 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
 }
 
 /**
- * Filter selections for {@link flexAreaMatchesFilters}. Each is optional;
+ * Filter selections for {@link flexAreaMatchesFilters}. Each field is optional;
  * `undefined` means "no filter applied" (everything matches that dimension).
- * `advanceNotice`/`areaTypes` accept raw URL values — invalid entries are
- * ignored. `startSeconds`/`endSeconds` are the user's time-of-day window in
- * seconds since midnight (both must be set for the time filter to apply).
+ *
+ * For `advanceNotice`/`areaTypes`, raw URL values are accepted but invalid
+ * entries are dropped, and the remaining (possibly empty) list becomes the
+ * active filter — so a selection of only invalid values matches nothing, the
+ * same as an empty selection (distinct from `undefined`, which disables the
+ * filter). `startSeconds`/`endSeconds` are the user's time-of-day window in
+ * seconds since midnight; both must be set for the time filter to apply.
  */
 export interface FlexAreaFilterCriteria {
   advanceNotice?: readonly string[]

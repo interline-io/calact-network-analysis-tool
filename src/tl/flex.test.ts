@@ -383,8 +383,8 @@ describe('flexAreaMatchesFilters', () => {
     expect(flexAreaMatchesFilters(puOnDemand, { advanceNotice: ['Same day'] })).toBe(false)
   })
 
-  it('ignores invalid filter values (treated as no match against a real type)', () => {
-    // An all-invalid selection filters down to an empty list, which matches nothing.
+  it('treats an all-invalid selection as matching nothing (like an empty selection)', () => {
+    // Invalid values are dropped, leaving an empty active filter that matches nothing.
     expect(flexAreaMatchesFilters(puOnDemand, { areaTypes: ['not-a-type'] })).toBe(false)
   })
 
