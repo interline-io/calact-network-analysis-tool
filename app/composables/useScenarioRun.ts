@@ -64,6 +64,9 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
       return // Need either bbox or geography IDs, unless loading example
     }
     loadingProgress.value = undefined
+    // Clear any error left by a prior run/refetch so a fresh run starts clean —
+    // otherwise the success path (gated on !error) stays suppressed.
+    error.value = undefined
     stopDepartureCount.value = 0
     scenarioPhasePlan.value = undefined
     scenarioPhaseFractions.value = {}
