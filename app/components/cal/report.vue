@@ -88,102 +88,26 @@
           <span v-if="!row.info_url && !row.booking_url" class="has-text-grey-light">—</span>
         </span>
       </template>
-      <template #column-average_trips_per_day="{ value, row }">
+      <template
+        v-for="col of timetableDrillColumns"
+        :key="col.id"
+        #[`column-${col.id}`]="{ value, row }"
+      >
         <button
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
+          @click="handleOpenTimetable(row.id, col.tab)"
         >
-          {{ value }}
-        </button>
-      </template>
-      <template #column-average_trips_per_hour="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
-        >
-          {{ value }}
-        </button>
-      </template>
-      <template #column-average_frequency="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'frequency')"
-        >
-          {{ formatDuration(value) }}
+          {{ col.format(value) }}
         </button>
         <cat-tooltip
-          v-if="row.frequency_irregular || row.frequency_directions_differ"
+          v-if="col.caveat && (row.frequency_irregular || row.frequency_directions_differ)"
           :text="frequencyCaveatText(row)"
           class="cal-report-frequency-caveat"
         >
           <cat-icon icon="alert" size="small" />
         </cat-tooltip>
-      </template>
-      <template #column-fastest_frequency="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'frequency')"
-        >
-          {{ formatDuration(value) }}
-        </button>
-      </template>
-      <template #column-slowest_frequency="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'frequency')"
-        >
-          {{ formatDuration(value) }}
-        </button>
-      </template>
-      <template #column-earliest_trip_start="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
-        >
-          {{ formatGtfsTime(value) }}
-        </button>
-      </template>
-      <template #column-earliest_trip_end="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
-        >
-          {{ formatGtfsTime(value) }}
-        </button>
-      </template>
-      <template #column-latest_trip_start="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
-        >
-          {{ formatGtfsTime(value) }}
-        </button>
-      </template>
-      <template #column-latest_trip_end="{ value, row }">
-        <button
-          v-if="value != null && row.id != null"
-          type="button"
-          class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, 'trips')"
-        >
-          {{ formatGtfsTime(value) }}
-        </button>
       </template>
       <template
         v-for="col of CENSUS_COLUMNS"
@@ -237,6 +161,26 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
     emit('openTimetable', { route, initialTab })
   }
 }
+
+// The trips/frequency columns all render a drill button that opens the route
+// timetable; they vary only by which tab to open and how the value is formatted.
+// average_frequency additionally shows the #368 frequency caveat tooltip.
+const timetableDrillColumns: {
+  id: string
+  tab: RouteTimetableTab
+  format: (value: unknown) => unknown
+  caveat?: boolean
+}[] = [
+  { id: 'average_trips_per_day', tab: 'trips', format: value => value },
+  { id: 'average_trips_per_hour', tab: 'trips', format: value => value },
+  { id: 'average_frequency', tab: 'frequency', format: formatDuration, caveat: true },
+  { id: 'fastest_frequency', tab: 'frequency', format: formatDuration },
+  { id: 'slowest_frequency', tab: 'frequency', format: formatDuration },
+  { id: 'earliest_trip_start', tab: 'trips', format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'trips', format: formatGtfsTime },
+  { id: 'latest_trip_start', tab: 'trips', format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'trips', format: formatGtfsTime },
+]
 
 // Issue #368: explain the frequency caveat flags in the routes table, where
 // analysts compare the derived frequency against agencies' own classifications.

@@ -4,91 +4,21 @@
     <template #footer />
     <template #menu-items>
       <ul class="menu-list">
-        <li>
+        <li v-for="item of menuRailItems" :key="item.tab">
           <button
             type="button"
             class="cal-icon-button"
-            :class="itemHelper('query')"
-            title="Query"
-            aria-label="Query"
-            @click="setTab({ tab: 'query', sub: '' })"
+            :class="[itemHelper(item.tab), { 'is-disabled': item.requiresScenario && !scenarioFilterResult }]"
+            :title="item.requiresScenario && !scenarioFilterResult ? `${item.label} (Run a query first)` : item.label"
+            :aria-label="item.requiresScenario && !scenarioFilterResult ? `${item.label} (Run a query first)` : item.label"
+            :aria-disabled="(item.requiresScenario && !scenarioFilterResult) || undefined"
+            @click="(!item.requiresScenario || scenarioFilterResult) && setTab({ tab: item.tab, sub: '' })"
           >
             <cat-icon
-              icon="magnify"
+              :icon="item.icon"
               class="is-fullwidth"
               size="large"
-              variant="white"
-            />
-          </button>
-        </li>
-        <li>
-          <button
-            type="button"
-            class="cal-icon-button"
-            :class="[itemHelper('filter'), { 'is-disabled': !scenarioFilterResult }]"
-            :title="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
-            :aria-label="scenarioFilterResult ? 'Filter' : 'Filter (Run a query first)'"
-            :aria-disabled="!scenarioFilterResult || undefined"
-            @click="scenarioFilterResult && setTab({ tab: 'filter', sub: '' })"
-          >
-            <cat-icon
-              icon="filter"
-              class="is-fullwidth"
-              size="large"
-              :variant="scenarioFilterResult ? 'white' : 'dark'"
-            />
-          </button>
-        </li>
-        <li>
-          <button
-            type="button"
-            class="cal-icon-button"
-            :class="[itemHelper('map'), { 'is-disabled': !scenarioFilterResult }]"
-            :title="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
-            :aria-label="scenarioFilterResult ? 'Map' : 'Map (Run a query first)'"
-            :aria-disabled="!scenarioFilterResult || undefined"
-            @click="scenarioFilterResult && setTab({ tab: 'map', sub: '' })"
-          >
-            <cat-icon
-              icon="map"
-              class="is-fullwidth"
-              size="large"
-              :variant="scenarioFilterResult ? 'white' : 'dark'"
-            />
-          </button>
-        </li>
-        <li>
-          <button
-            type="button"
-            class="cal-icon-button"
-            :class="[itemHelper('report'), { 'is-disabled': !scenarioFilterResult }]"
-            :title="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
-            :aria-label="scenarioFilterResult ? 'Report' : 'Report (Run a query first)'"
-            :aria-disabled="!scenarioFilterResult || undefined"
-            @click="scenarioFilterResult && setTab({ tab: 'report', sub: '' })"
-          >
-            <cat-icon
-              icon="file-chart"
-              class="is-fullwidth"
-              size="large"
-              :variant="scenarioFilterResult ? 'white' : 'dark'"
-            />
-          </button>
-        </li>
-        <li>
-          <button
-            type="button"
-            class="cal-icon-button"
-            :class="itemHelper('analysis')"
-            title="Analysis"
-            aria-label="Analysis"
-            @click="setTab({ tab: 'analysis', sub: '' })"
-          >
-            <cat-icon
-              icon="chart-scatter-plot"
-              class="is-fullwidth"
-              size="large"
-              variant="white"
+              :variant="!item.requiresScenario || scenarioFilterResult ? 'white' : 'dark'"
             />
           </button>
         </li>
@@ -1330,6 +1260,17 @@ async function resetFilters () {
     stopBufferLayer: undefined,
   })
 }
+
+// Left-rail navigation. Filter/Map/Report require a loaded scenario; Query and
+// Analysis are always available. The disabled styling/labels derive from
+// requiresScenario so the buttons render from one template.
+const menuRailItems: { tab: string, icon: string, label: string, requiresScenario: boolean }[] = [
+  { tab: 'query', icon: 'magnify', label: 'Query', requiresScenario: false },
+  { tab: 'filter', icon: 'filter', label: 'Filter', requiresScenario: true },
+  { tab: 'map', icon: 'map', label: 'Map', requiresScenario: true },
+  { tab: 'report', icon: 'file-chart', label: 'Report', requiresScenario: true },
+  { tab: 'analysis', icon: 'chart-scatter-plot', label: 'Analysis', requiresScenario: false },
+]
 
 function itemHelper (p: string): string {
   if (activeTab.value.tab === p) {
