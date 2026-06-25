@@ -800,7 +800,7 @@ const isPolygon = (f: Feature) => f.geometry?.type === 'Polygon' || f.geometry?.
 // in initMap, so a missing source means none are ready).
 function setSourceData (sourceId: string, features: Feature[], filter?: (f: Feature) => boolean) {
   if (!map) { return }
-  const source = map.getSource(sourceId) as maplibre.GeoJSONSource
+  const source = map.getSource<maplibre.GeoJSONSource>(sourceId)
   if (!source) { return }
   const data = filter ? features.filter(filter) : features
   source.setData({ type: 'FeatureCollection', features: data as any })
