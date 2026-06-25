@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { parseHMS } from '~~/src/core'
+import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
 import turfArea from '@turf/area'
 
 //////////
@@ -263,6 +263,55 @@ export function getFlexAdvanceNotice (feature: FlexAreaFeature): FlexAdvanceNoti
  */
 export function getFlexAgencyName (feature: FlexAreaFeature): string {
   return feature.properties.agencies?.[0]?.agency_name || 'Unknown Agency'
+}
+
+/**
+ * Filter selections for {@link flexAreaMatchesFilters}. Each is optional;
+ * `undefined` means "no filter applied" (everything matches that dimension).
+ * `advanceNotice`/`areaTypes` accept raw URL values — invalid entries are
+ * ignored. `startSeconds`/`endSeconds` are the user's time-of-day window in
+ * seconds since midnight (both must be set for the time filter to apply).
+ */
+export interface FlexAreaFilterCriteria {
+  advanceNotice?: readonly string[]
+  areaTypes?: readonly string[]
+  startSeconds?: number
+  endSeconds?: number
+}
+
+/**
+ * Whether a flex area matches the current advance-notice, area-type, and
+ * time-of-day filters. Returns true when it matches (should be highlighted);
+ * false when it should be downplayed. Agency filtering is handled upstream by
+ * the scenario filter, not here.
+ */
+export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: FlexAreaFilterCriteria): boolean {
+  // Drop invalid URL values; undefined stays undefined ("no filter").
+  const advanceNoticeFilter = criteria.advanceNotice?.filter(
+    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
+  )
+  const areaTypesFilter = criteria.areaTypes?.filter(
+    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
+  )
+
+  const featureAreaType = getFlexAreaType(feature)
+  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
+
+  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
+  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
+
+  // Time-of-day overlap: only applies when the user set a window and the area
+  // declares one. Non-overlapping windows downplay the area.
+  if (criteria.startSeconds !== undefined && criteria.endSeconds !== undefined) {
+    const flexStart = feature.properties.time_window_start
+    const flexEnd = feature.properties.time_window_end
+    if (flexStart !== undefined && flexEnd !== undefined) {
+      const noOverlap = flexEnd < criteria.startSeconds || flexStart > criteria.endSeconds
+      if (noOverlap) { return false }
+    }
+  }
+
+  return true
 }
 
 /**
