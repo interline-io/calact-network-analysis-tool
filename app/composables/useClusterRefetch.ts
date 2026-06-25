@@ -7,7 +7,7 @@ import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import type { FeedVersionRef, StopClusterFetchConfig } from '~~/src/scenario'
 
-// scenarioReceiver is created by useBufferRefetch and shared so refetched
+// scenarioReceiver is created by useScenarioRun and shared so refetched
 // clusters land in the same accumulator.
 export type UseClusterRefetchDeps = StreamingRefetchDeps
 

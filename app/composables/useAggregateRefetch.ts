@@ -10,7 +10,7 @@ import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import type { CensusValuesPhaseConfig } from '~~/src/scenario'
 
-// scenarioReceiver is created by useBufferRefetch and shared so refetched
+// scenarioReceiver is created by useScenarioRun and shared so refetched
 // census values land in the same accumulator.
 export type UseAggregateRefetchDeps = StreamingRefetchDeps
 

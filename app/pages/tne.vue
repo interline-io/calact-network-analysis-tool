@@ -231,7 +231,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useToastNotification, useRouter } from '#imports'
-import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type ScenarioPhaseName, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
 
 // Initialize composables
 const { setQuery } = useUrlQuery()
@@ -328,8 +328,6 @@ const querySubmitted = ref(false)
 // new bbox value takes effect rather than the stale explicit bbox.
 watch(cannedBbox, () => { querySubmitted.value = false })
 
-const error = ref(undefined as Error | string | undefined)
-
 // Runs on explore event from query (when user clicks "Run Query")
 const runQuery = async () => {
   querySubmitted.value = true
@@ -347,16 +345,13 @@ const runQuery = async () => {
   loadingProgress.value = undefined
 }
 
-// Scenario data ref - defined early so flex computed properties can reference it
-// This is populated when fetchScenario runs
+// Scenario data ref - the central scenario data graph, populated by fetchScenario.
+// Defined early so it can be passed into the run / flex / refetch composables below.
 // shallowRef + markRaw: scenario data is huge and updated only by whole-shell
 // replacement (getCurrentData returns a fresh object per batch), so deep
 // proxying would add tracking overhead on every stop/route/departure read
 // without enabling anything.
 const scenarioData = shallowRef<ScenarioData>()
-
-// Flex areas filtering and styling (inline, similar to how fixed-route uses applyScenarioResultFilter)
-// Raw data comes from scenario stream via scenarioData.flexAreas
 
 // Agency filter items with metadata about service types
 // Uses raw scenarioData (not filtered scenarioFilterResult) so ALL agencies appear
@@ -848,19 +843,24 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   selectedAggregationGeoid,
 })
 
-// Loading progress tracking for modal
-const loadingProgress = ref<ScenarioProgress>()
-const stopDepartureCount = ref<number>(0)
-// Weighted progress-bar state, accumulated inside the receiver callback so
-// no events are missed (template-level watchers only sample the latest).
-const scenarioPhasePlan = ref<ScenarioPhaseName[] | undefined>()
-const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
-const showLoadingModal = ref(false)
-// Ref-counted across the buffer/cluster/aggregate refetches so the loading modal
-// stays open until the last in-flight refetch settles (see useStreamingRefetch).
-const refetchInFlight = ref(0)
+// The scenario run lifecycle owns the loading/progress state, the streaming
+// fetch, and the shared receiver that the refetch composables reuse.
+const {
+  scenarioReceiver,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  scenarioPhasePlan,
+  scenarioPhaseFractions,
+  refetchInFlight,
+  stopDepartureCount,
+  fetchScenario,
+} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
 
-const { scenarioReceiver } = useBufferRefetch({
+// Debounced standalone recomputes that stream into the same receiver without
+// re-running the whole scenario.
+useBufferRefetch({
+  scenarioReceiver,
   scenarioData,
   scenarioConfig,
   loadingProgress,
@@ -902,107 +902,6 @@ const loadExampleData = async (exampleName: string) => {
   activeTab.value = { tab: 'map', sub: '' }
   fetchScenario(exampleName)
 }
-
-// Scenario fetching logic
-const fetchScenario = async (loadExample: string) => {
-  // console.log('fetchScenario:', loadExample)
-  const config = scenarioConfig.value
-  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    return // Need either bbox or geography IDs, unless loading example
-  }
-  loadingProgress.value = undefined
-  stopDepartureCount.value = 0
-  scenarioPhasePlan.value = undefined
-  scenarioPhaseFractions.value = {}
-
-  // Create receiver to accumulate scenario data
-  const receiver = new ScenarioDataReceiver({
-    onProgress: (progress: ScenarioProgress) => {
-      // Update progress for modal
-      loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
-
-      // Weighted progress bar: plan announcement + per-phase fractions
-      // (clamped max-so-far; stop pagination grows its denominator mid-phase)
-      if (progress.phasePlan) {
-        scenarioPhasePlan.value = progress.phasePlan
-        scenarioPhaseFractions.value = {}
-      }
-      const pp = progress.phaseProgress
-      if (pp) {
-        const fraction = pp.total > 0 ? Math.min(pp.completed / pp.total, 1) : 0
-        if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
-          scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
-        }
-      }
-
-      if (progress.warnings && progress.warnings.length > 0) {
-        for (const msg of progress.warnings) {
-          useToastNotification().showToast(msg)
-        }
-      }
-
-      // Apply filters to partial data and emit (without schedule-dependent features)
-      // Skip if no route/stop/flex data in this progress update
-      const hasRoutes = (progress.partialData?.routes?.length || 0) > 0
-      const hasStops = (progress.partialData?.stops?.length || 0) > 0
-      const hasFlexAreas = (progress.partialData?.flexAreas?.length || 0) > 0
-      if (!hasRoutes && !hasStops && !hasFlexAreas) {
-        return
-      }
-      scenarioData.value = markRaw(receiver.getCurrentData())
-    },
-    onComplete: () => {
-      // Get final accumulated data and apply filters
-      loadingProgress.value = undefined
-      scenarioData.value = markRaw(receiver.getCurrentData())
-    },
-    onError: (err: any) => {
-      error.value = err
-    }
-  })
-  scenarioReceiver.value = receiver
-
-  let response: Response
-
-  if (loadExample) {
-    // Load example data from public JSON file
-    response = await fetch(`/examples/${loadExample}.json`)
-  } else {
-    // Make request to streaming scenario endpoint
-    response = await fetch('/api/scenario', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(config),
-    })
-  }
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-
-  if (!response.body) {
-    throw new Error('No response body received')
-  }
-
-  // Process the streaming response
-  const streamer = new ScenarioStreamReceiver()
-  const { success } = await streamer.processStream(response.body, receiver)
-  if (!success) {
-    error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
-  }
-}
-
-// Apply filters and emit results when data or filters change
-watch(() => [
-  scenarioData.value,
-  scenarioFilter.value,
-], () => {
-  if (!scenarioData.value) {
-    return
-  }
-  scenarioFilterResult.value = markRaw(applyScenarioResultFilter(scenarioData.value, scenarioConfig.value, scenarioFilter.value))
-})
 
 /////////////////
 // Filter tags
