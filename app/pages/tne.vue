@@ -1070,6 +1070,9 @@ const stopDepartureCount = ref<number>(0)
 const scenarioPhasePlan = ref<ScenarioPhaseName[] | undefined>()
 const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
 const showLoadingModal = ref(false)
+// Ref-counted across the buffer/cluster/aggregate refetches so the loading modal
+// stays open until the last in-flight refetch settles (see useStreamingRefetch).
+const refetchInFlight = ref(0)
 
 const { scenarioReceiver } = useBufferRefetch({
   scenarioData,
@@ -1079,6 +1082,7 @@ const { scenarioReceiver } = useBufferRefetch({
   error,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
 })
 
 // recompute clusters when the distance changes, reusing the same receiver.
@@ -1091,6 +1095,20 @@ useClusterRefetch({
   error,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
+})
+
+// recompute census values when the Aggregate-by layer changes, reusing the same receiver.
+useAggregateRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
 })
 
 const loadExampleData = async (exampleName: string) => {

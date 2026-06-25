@@ -20,8 +20,8 @@ import type {
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
-import { runBufferPasses, type BufferFetchConfig } from './buffer-passes'
-import { runStopClustersPhase, type StopCluster, type StopClusterFetchConfig } from './stop-clusters'
+import { runBufferPasses } from './buffer-passes'
+import { runStopClustersPhase, type StopCluster } from './stop-clusters'
 import {
   runFeedVersionsPhase,
   runStopsPhase,
@@ -246,63 +246,6 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
 
   // Final complete
   scenarioDataSender.onComplete()
-  writer.close()
-}
-
-// Powers /api/buffer-geographies — the SPA's snappy radius/layer refetch path.
-export async function streamBufferGeographies (
-  controller: ReadableStreamDefaultController,
-  config: BufferFetchConfig,
-  client: GraphQLClient,
-): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-  const sender = new ScenarioStreamSender(writer)
-
-  sender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting buffer refetch',
-  })
-
-  try {
-    await runBufferPasses(config, client, p => sender.onProgress(p))
-  } catch (err) {
-    sender.onError(err)
-    writer.close()
-    return
-  }
-
-  sender.onComplete()
-  writer.close()
-}
-
-// Powers /api/stop-clusters — the SPA's snappy cluster-distance refetch path.
-// Recomputes only the clusters when the user changes the distance.
-export async function streamStopClusters (
-  controller: ReadableStreamDefaultController,
-  config: StopClusterFetchConfig,
-  client: GraphQLClient,
-): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-  const sender = new ScenarioStreamSender(writer)
-
-  sender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Recomputing stop clusters',
-  })
-
-  try {
-    await runStopClustersPhase(config, client, p => sender.onProgress(p))
-  } catch (err) {
-    sender.onError(err)
-    writer.close()
-    return
-  }
-
-  sender.onComplete()
   writer.close()
 }
 
@@ -709,6 +652,12 @@ export class ScenarioDataReceiver {
   // the new run errors before emitting.
   clearStopClusters (): void {
     this.accumulatedData.stopClusters = []
+  }
+
+  // Reset before an aggregate-layer refetch so the previous layer's geographies
+  // don't linger in the map (choropleth ids are read from this map).
+  clearCensusGeographies (): void {
+    this.accumulatedData.censusGeographies?.clear()
   }
 
   /**

@@ -1,5 +1,6 @@
 // Shared engine for the incremental "recompute one slice without re-running the
-// whole scenario" composables (stop buffers, stop clusters). Owns the parts they
+// whole scenario" composables (stop buffers, stop clusters, aggregation
+// demographics). Owns the parts they
 // share — debounce, AbortController lifecycle, the NDJSON stream into the existing
 // receiver, loading-modal wiring — and leaves each feature its inputs/endpoint/body.
 
@@ -27,6 +28,11 @@ export interface StreamingRefetchDeps {
   // installs a single-phase plan so the bar tracks just this pass.
   phasePlan: Ref<ScenarioPhaseName[] | undefined>
   phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
+  // Ref-counts concurrent refetches across the buffer/cluster/aggregate
+  // composables (they share these refs). The shared loading modal/progress is
+  // only torn down when the last refetch finishes, so a sibling that finishes
+  // first can't close it mid-load.
+  refetchInFlight: Ref<number>
 }
 
 // What a single refetch should do given the current inputs:
@@ -89,6 +95,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       applyClear(receiver)
     }
 
+    deps.refetchInFlight.value++
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
       isLoading: true,
@@ -129,8 +136,14 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       }
       deps.error.value = err
     } finally {
+      // Every run that incremented must decrement, even a superseded one (whose
+      // abort !== localAbort), or the count leaks and the modal never closes.
+      deps.refetchInFlight.value = Math.max(0, deps.refetchInFlight.value - 1)
       if (abort === localAbort) {
         abort = undefined
+      }
+      // Only the last refetch standing tears down the shared loading state.
+      if (deps.refetchInFlight.value === 0) {
         deps.showLoadingModal.value = false
         deps.loadingProgress.value = undefined
       }

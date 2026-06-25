@@ -30,6 +30,7 @@ interface UseBufferRefetchDeps {
   // installs a single-phase plan so the bar tracks the buffer passes.
   phasePlan: Ref<ScenarioPhaseName[] | undefined>
   phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
+  refetchInFlight: Ref<number>
 }
 
 export interface UseBufferRefetchReturn {

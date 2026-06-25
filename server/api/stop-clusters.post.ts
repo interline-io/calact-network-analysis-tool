@@ -3,10 +3,9 @@
 
 import { createError } from 'h3'
 import type { StopClusterFetchConfig } from '~~/src/scenario'
-import { streamStopClusters } from '~~/src/scenario'
+import { runStopClustersPhase } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setStreamHeaders } from '~~/server/utils/phase-stream'
-import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('stop-clusters-request-start')
@@ -23,15 +22,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  setStreamHeaders(event)
-  const client = await buildServerGraphQLClient(event)
-
-  const stream = new ReadableStream({
-    async start (controller) {
-      await streamStopClusters(controller, config, client)
-      logMemory('stop-clusters-stream-complete')
-    }
+  return streamPhaseResponse(event, 'Recomputing stop clusters', async (client, emit) => {
+    await runStopClustersPhase(config, client, emit)
+    logMemory('stop-clusters-stream-complete')
   })
-
-  return sendStream(event, stream)
 })
