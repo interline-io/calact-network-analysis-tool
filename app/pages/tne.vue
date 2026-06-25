@@ -195,22 +195,16 @@
 <script lang="ts" setup>
 import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
-import { useFlexAreaFormatting } from '~/composables/useFlexAreaFormatting'
+import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import {
-  getFlexAreaType,
-  getFlexAdvanceNotice,
-  getFlexAgencyName,
   geographyLayerQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
   parseFvids,
 } from '~~/src/tl'
 import type {
-  FlexAdvanceNotice,
-  FlexAreaType,
-  FlexAreaFeature,
   CensusDataset,
   CensusGeography,
   Route,
@@ -220,17 +214,12 @@ import {
   type Point,
   type Feature,
   type AgencyFilterItem,
-  createCategoryColorScale,
-  flexColors,
   routeTypeNames,
   fmtDate,
   fmtTime,
-  dateToSeconds,
   convertBbox,
   SCENARIO_DEFAULTS,
   censusLayerLabels,
-  flexAdvanceNoticeTypes,
-  flexAreaTypes,
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
@@ -245,13 +234,11 @@ import { useToastNotification, useRouter } from '#imports'
 import { ScenarioStreamReceiver, applyScenarioResultFilter, getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type ScenarioPhaseName, ScenarioDataReceiver, type ScenarioProgress } from '~~/src/scenario'
 
 // Initialize composables
-const { buildFlexAreaProperties } = useFlexAreaFormatting()
 const { setQuery } = useUrlQuery()
 const {
   showAggAreas,
   aggregateLayer,
   onlyWithStops,
-  hideUnmarked,
   showBbox,
 } = useScenarioDisplay()
 const {
@@ -281,10 +268,6 @@ const {
   selectedWeekdayMode,
   frequencyUnder,
   frequencyOver,
-  flexServicesEnabled,
-  flexAdvanceNotice,
-  flexAreaTypesSelected,
-  flexColorBy,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -404,139 +387,9 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
   return Array.from(agencyMap.values()).sort((a, b) => a.name.localeCompare(b.name))
 })
 
-const flexAgencyNames = computed(() => {
-  const names = new Set<string>()
-  for (const feature of scenarioData.value?.flexAreas || []) {
-    const name = getFlexAgencyName(feature)
-    if (name) { names.add(name) }
-  }
-  return Array.from(names).sort()
-})
-
-const flexAgencyColorScale = computed(() => {
-  return createCategoryColorScale(flexAgencyNames.value, flexColors.agency)
-})
-
-// Check if a flex area matches the current filters
-// Returns true if it matches, false if it should be "downplayed"
-const flexAreaMatchesFilters = (feature: FlexAreaFeature): boolean => {
-  // Filter to only valid values to handle potential invalid URL query params
-  // undefined means "not set" = all values match (no filter applied)
-  const advanceNoticeFilter = flexAdvanceNotice.value?.filter(
-    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
-  )
-  const areaTypesFilter = flexAreaTypesSelected.value?.filter(
-    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
-  )
-
-  const featureAreaType = getFlexAreaType(feature)
-  // If filter is set (not undefined) and doesn't include this type, filter it out
-  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
-
-  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-  // If filter is set (not undefined) and doesn't include this notice type, filter it out
-  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
-
-  // Time-of-day filtering for flex areas
-  const applyTimeFilter = startTime.value != null || endTime.value != null
-  if (applyTimeFilter) {
-    const userStartSeconds = dateToSeconds(startTime.value)
-    const userEndSeconds = dateToSeconds(endTime.value)
-    const flexStart = feature.properties.time_window_start
-    const flexEnd = feature.properties.time_window_end
-
-    // If flex area has time windows defined and user has set time filters, check for overlap
-    if (flexStart !== undefined && flexEnd !== undefined
-      && userStartSeconds !== undefined && userEndSeconds !== undefined) {
-      const noOverlap = flexEnd < userStartSeconds || flexStart > userEndSeconds
-      if (noOverlap) { return false }
-    }
-  }
-
-  return true
-}
-
-// All flex areas with their "marked" status (matches filters)
-// Base computed that always calculates marked status (independent of map toggle)
-// Combines agency filtering from scenario-filter with advance notice, area type, and time filters
-const flexAreasWithMarkedBase = computed(() => {
-  return (scenarioFilterResult.value?.flexAreas || []).map(feature => ({
-    feature,
-    // Combine marked status from scenario-filter (agency) with local filters (advance notice, area type, time)
-    marked: (feature.properties.marked !== false) && flexAreaMatchesFilters(feature)
-  }))
-})
-
-// Flex areas for map display (respects flexServicesEnabled toggle)
-const flexAreasWithMarked = computed(() => {
-  if (!flexServicesEnabled.value) { return [] }
-  return flexAreasWithMarkedBase.value
-})
-
-// Flex areas for Reports tab (always available if data exists, independent of map toggle)
-const flexAreasWithMarkedForReport = computed(() => {
-  return flexAreasWithMarkedBase.value
-})
-
-const flexDisplayFeatures = computed((): Feature[] => {
-  if (!flexServicesEnabled.value) { return [] }
-
-  const colorBy = flexColorBy.value
-
-  return flexAreasWithMarked.value
-    .filter(({ marked }) => !hideUnmarked.value || marked) // Hide unmarked if toggle is on
-    .map(({ feature, marked }) => {
-      // Determine color based on colorBy mode
-      let color: string
-      if (colorBy === 'Advance notice') {
-        const advanceNotice = getFlexAdvanceNotice(feature)
-        color = flexColors.advanceNotice[advanceNotice] || flexColors.default
-      } else {
-        const agencyName = getFlexAgencyName(feature)
-        color = flexAgencyColorScale.value(agencyName)
-      }
-
-      // Style based on marked status
-      // Marked: filled polygon with solid outline
-      // Unmarked: no fill, dashed outline, reduced opacity
-      const fillOpacity = marked ? 0.3 : 0
-      const strokeOpacity = marked ? 0.8 : 0.4
-
-      const properties: Record<string, any> = {
-        ...buildFlexAreaProperties(feature, marked),
-        // Custom styling for marked/unmarked
-        'fill': color,
-        'fill-opacity': fillOpacity,
-        'stroke': color,
-        'stroke-width': 2,
-        'stroke-opacity': strokeOpacity,
-      }
-
-      // Only set stroke-dasharray for unmarked features (dashed outline)
-      if (!marked) {
-        properties['stroke-dasharray'] = true
-      }
-
-      return {
-        type: 'Feature',
-        id: feature.id,
-        geometry: feature.geometry,
-        properties
-      } as Feature
-    })
-})
-
-// Flex features for Reports tab (always available if data exists, independent of map toggle)
-const flexFeaturesForReport = computed((): Feature[] => {
-  return flexAreasWithMarkedForReport.value.map(({ feature, marked }) => {
-    return {
-      type: 'Feature',
-      id: feature.id,
-      geometry: feature.geometry,
-      properties: buildFlexAreaProperties(feature, marked)
-    } as Feature
-  })
-})
+// Flex (demand-responsive) display features for the map and Reports tab are
+// derived by useFlexDisplayFeatures — wired up below, once scenarioFilterResult
+// is defined (see flexDisplayFeatures / flexFeaturesForReport).
 
 /////////////////
 // Geography datasets
@@ -912,10 +765,13 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
-// Internal state for streaming scenario data
-// Note: scenarioData is defined earlier in the file (before useFlexAreas)
+// Internal state for streaming scenario data (scenarioData is defined earlier).
 const scenarioFilterResult = shallowRef<ScenarioFilterResult | undefined>(undefined)
 const exportFeatures = shallowRef<Feature[]>([])
+
+// Flex display features (map + Reports tab). Instantiated here because it
+// depends on scenarioFilterResult; consumed by the map and report components.
+const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.

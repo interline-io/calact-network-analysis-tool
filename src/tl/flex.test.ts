@@ -5,6 +5,7 @@ import {
   bookingTypeToAdvanceNotice,
   getFlexAgencyName,
   getFlexAgencyNames,
+  flexAreaMatchesFilters,
   isBookingAvailableOnDay,
   isBookingAvailableToday,
   formatBookingDays,
@@ -351,5 +352,58 @@ describe('formatBookingDays', () => {
       saturday: false,
     }
     expect(formatBookingDays(noDays)).toBe('No days')
+  })
+})
+
+describe('flexAreaMatchesFilters', () => {
+  // PU-only, On-demand area for filter targeting
+  const puOnDemand = createFlexFeature({
+    pickup_available: true,
+    drop_off_available: false,
+    pickup_booking_rules: [{ booking_rule_id: 'r1', booking_type: 0 }],
+  })
+
+  it('matches everything when no criteria are set', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, {})).toBe(true)
+  })
+
+  it('matches when the area type is in the area-type filter', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, { areaTypes: ['PU only'] })).toBe(true)
+  })
+
+  it('does not match when the area type is excluded by the area-type filter', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, { areaTypes: ['DO only'] })).toBe(false)
+  })
+
+  it('matches when the advance notice is in the filter', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, { advanceNotice: ['On-demand'] })).toBe(true)
+  })
+
+  it('does not match when the advance notice is excluded', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, { advanceNotice: ['Same day'] })).toBe(false)
+  })
+
+  it('treats an all-invalid selection as matching nothing (like an empty selection)', () => {
+    // Invalid values are dropped, leaving an empty active filter that matches nothing.
+    expect(flexAreaMatchesFilters(puOnDemand, { areaTypes: ['not-a-type'] })).toBe(false)
+  })
+
+  it('does not match when the area time window is outside the user window', () => {
+    const area = createFlexFeature({ time_window_start: 100, time_window_end: 200 })
+    expect(flexAreaMatchesFilters(area, { startSeconds: 500, endSeconds: 600 })).toBe(false)
+  })
+
+  it('matches when the time windows overlap', () => {
+    const area = createFlexFeature({ time_window_start: 100, time_window_end: 200 })
+    expect(flexAreaMatchesFilters(area, { startSeconds: 150, endSeconds: 600 })).toBe(true)
+  })
+
+  it('does not apply the time filter unless both start and end are set', () => {
+    const area = createFlexFeature({ time_window_start: 100, time_window_end: 200 })
+    expect(flexAreaMatchesFilters(area, { startSeconds: 500 })).toBe(true)
+  })
+
+  it('matches when the area declares no time window even if the user set one', () => {
+    expect(flexAreaMatchesFilters(puOnDemand, { startSeconds: 500, endSeconds: 600 })).toBe(true)
   })
 })
