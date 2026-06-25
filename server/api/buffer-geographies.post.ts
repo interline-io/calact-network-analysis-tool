@@ -2,10 +2,9 @@
 
 import { createError } from 'h3'
 import type { BufferFetchConfig } from '~~/src/scenario'
-import { streamBufferGeographies } from '~~/src/scenario'
+import { runBufferPasses } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setStreamHeaders } from '~~/server/utils/phase-stream'
-import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('buffer-request-start')
@@ -26,15 +25,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'at least one of stopIds/routeIds/agencyIds must be non-empty' })
   }
 
-  setStreamHeaders(event)
-  const client = await buildServerGraphQLClient(event)
-
-  const stream = new ReadableStream({
-    async start (controller) {
-      await streamBufferGeographies(controller, config, client)
-      logMemory('buffer-stream-complete')
-    }
+  return streamPhaseResponse(event, 'Starting buffer refetch', async (client, emit) => {
+    await runBufferPasses(config, client, emit)
+    logMemory('buffer-stream-complete')
   })
-
-  return sendStream(event, stream)
 })

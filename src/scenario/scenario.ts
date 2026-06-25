@@ -20,8 +20,8 @@ import type {
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
-import { runBufferPasses, type BufferFetchConfig } from './buffer-passes'
-import { runStopClustersPhase, type StopCluster, type StopClusterFetchConfig } from './stop-clusters'
+import { runBufferPasses } from './buffer-passes'
+import { runStopClustersPhase, type StopCluster } from './stop-clusters'
 import {
   runFeedVersionsPhase,
   runStopsPhase,
@@ -29,7 +29,6 @@ import {
   runDeparturesPhase,
   runFlexPhase,
   runCensusValuesPhase,
-  type CensusValuesPhaseConfig,
   StopDepartureTuple,
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
@@ -247,92 +246,6 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
 
   // Final complete
   scenarioDataSender.onComplete()
-  writer.close()
-}
-
-// Powers /api/buffer-geographies — the SPA's snappy radius/layer refetch path.
-export async function streamBufferGeographies (
-  controller: ReadableStreamDefaultController,
-  config: BufferFetchConfig,
-  client: GraphQLClient,
-): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-  const sender = new ScenarioStreamSender(writer)
-
-  sender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting buffer refetch',
-  })
-
-  try {
-    await runBufferPasses(config, client, p => sender.onProgress(p))
-  } catch (err) {
-    sender.onError(err)
-    writer.close()
-    return
-  }
-
-  sender.onComplete()
-  writer.close()
-}
-
-// Powers /api/stop-clusters — the SPA's snappy cluster-distance refetch path.
-// Recomputes only the clusters when the user changes the distance.
-export async function streamStopClusters (
-  controller: ReadableStreamDefaultController,
-  config: StopClusterFetchConfig,
-  client: GraphQLClient,
-): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-  const sender = new ScenarioStreamSender(writer)
-
-  sender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Recomputing stop clusters',
-  })
-
-  try {
-    await runStopClustersPhase(config, client, p => sender.onProgress(p))
-  } catch (err) {
-    sender.onError(err)
-    writer.close()
-    return
-  }
-
-  sender.onComplete()
-  writer.close()
-}
-
-// Powers /api/census-values — the SPA's aggregate-layer refetch path. Recomputes
-// only the census-values map when the user changes the Aggregate-by layer.
-export async function streamCensusValues (
-  controller: ReadableStreamDefaultController,
-  config: CensusValuesPhaseConfig,
-  client: GraphQLClient,
-): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-  const sender = new ScenarioStreamSender(writer)
-
-  sender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Recomputing aggregation demographics',
-  })
-
-  try {
-    await runCensusValuesPhase(config, client, p => sender.onProgress(p))
-  } catch (err) {
-    sender.onError(err)
-    writer.close()
-    return
-  }
-
-  sender.onComplete()
   writer.close()
 }
 

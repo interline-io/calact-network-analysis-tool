@@ -6,6 +6,7 @@
 // in useStreamingRefetch.
 
 import { useScenarioDisplay } from './useScenarioDisplay'
+import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
 import type { CensusValuesPhaseConfig } from '~~/src/scenario'
 
@@ -15,10 +16,16 @@ export type UseAggregateRefetchDeps = StreamingRefetchDeps
 
 export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
   const { aggregateLayer } = useScenarioDisplay()
+  // The census-values phase pads the fetch bbox by the stop buffer radius, so a
+  // radius change (not just a layer change) can shift which edge geographies the
+  // map needs — refetch on both.
+  const { stopBufferRadius } = useScenarioInputs()
 
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer],
-    endpoint: '/api/census-values',
+    watchSources: [aggregateLayer, stopBufferRadius],
+    // Reuse the standalone census-values phase endpoint (it re-resolves
+    // geographyIds or a plain bbox server-side) rather than a bespoke one.
+    endpoint: '/api/scenario/census-values',
     phase: 'census-values',
     loadingMessage: 'Recomputing aggregation demographics...',
     // Drop the previous layer's geographies up-front so a slow/failed refetch
