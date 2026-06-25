@@ -791,128 +791,54 @@ function createLayers () {
   })
 }
 
-function updateChoroplethFeatures (features: Feature[]) {
+const isPoint = (f: Feature) => f.geometry?.type === 'Point'
+const isLine = (f: Feature) => f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString'
+const isPolygon = (f: Feature) => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
+
+// Push features into a GeoJSON source, optionally filtering by geometry type.
+// No-ops if the map or the source isn't ready yet (sources are added together
+// in initMap, so a missing source means none are ready).
+function setSourceData (sourceId: string, features: Feature[], filter?: (f: Feature) => boolean) {
   if (!map) { return }
-  const source = map.getSource('choropleth') as maplibre.GeoJSONSource
+  const source = map.getSource<maplibre.GeoJSONSource>(sourceId)
   if (!source) { return }
-  const polygons = features.filter(s => s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon')
-  source.setData({ type: 'FeatureCollection', features: polygons as any })
+  const data = filter ? features.filter(filter) : features
+  source.setData({ type: 'FeatureCollection', features: data as any })
+}
+
+function updateChoroplethFeatures (features: Feature[]) {
+  setSourceData('choropleth', features, isPolygon)
 }
 
 function updateOverlayFeatures (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  // Check source exists
-  const p = map.getSource('overlayPolygons')
-  if (!p) {
-    return
-  }
-  if (!map) {
-    return
-  }
-  // Update sources
-  const polygonSource = map.getSource('overlayPolygons') as maplibre.GeoJSONSource
-  if (polygonSource) {
-    const polygons = features.filter((s) => { return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon' })
-    polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
-  }
+  setSourceData('overlayPolygons', features, isPolygon)
 }
 
 function updateSelectableGeographies (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  const source = map.getSource('selectableGeographies') as maplibre.GeoJSONSource
-  if (!source) {
-    return
-  }
-  const polygons = features.filter((s) => {
-    return s.geometry?.type === 'MultiPolygon' || s.geometry?.type === 'Polygon'
-  })
-  source.setData({ type: 'FeatureCollection', features: polygons as any })
+  setSourceData('selectableGeographies', features, isPolygon)
 }
 
 function updateFeatures (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  // Check source exists
-  const p = map.getSource('lines')
-  if (!p) {
-    return
-  }
-  if (!map) {
-    return
-  }
-  // Update sources
-  const points = features.filter((s) => { return s.geometry?.type === 'Point' })
-  const lines = features.filter((s) => { return s.geometry?.type === 'LineString' || s.geometry?.type === 'MultiLineString' })
-  const polygons = features.filter((s) => { return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon' })
-  const lineSource = map.getSource('lines') as maplibre.GeoJSONSource
-  const pointSource = map.getSource('points') as maplibre.GeoJSONSource
-  const polygonSource = map.getSource('polygons') as maplibre.GeoJSONSource
-  if (lineSource) {
-    lineSource.setData({ type: 'FeatureCollection', features: lines as any })
-  }
-  if (pointSource) {
-    pointSource.setData({ type: 'FeatureCollection', features: points as any })
-  }
-  if (polygonSource) {
-    polygonSource.setData({ type: 'FeatureCollection', features: polygons as any })
-  }
+  setSourceData('points', features, isPoint)
+  setSourceData('lines', features, isLine)
+  setSourceData('polygons', features, isPolygon)
 }
 
-/**
- * Update flex service area polygons on the map
- */
 function updateFlexFeatures (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  const flexSource = map.getSource('flexPolygons') as maplibre.GeoJSONSource
-  if (!flexSource) {
-    return
-  }
-  // Filter to only polygon/multipolygon geometries (flex areas are polygons)
-  const polygons = features.filter((s) => {
-    return s.geometry?.type === 'Polygon' || s.geometry?.type === 'MultiPolygon'
-  })
-  flexSource.setData({ type: 'FeatureCollection', features: polygons as any })
+  setSourceData('flexPolygons', features, isPolygon)
 }
 
 // update the cluster marker + radius-circle sources.
 function updateClusterFeatures (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  const source = map.getSource('clusters') as maplibre.GeoJSONSource
-  if (!source) {
-    return
-  }
-  source.setData({ type: 'FeatureCollection', features: features as any })
+  setSourceData('clusters', features)
 }
 
 function updateClusterCircle (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  const source = map.getSource('clusterCircle') as maplibre.GeoJSONSource
-  if (!source) {
-    return
-  }
-  source.setData({ type: 'FeatureCollection', features: features as any })
+  setSourceData('clusterCircle', features)
 }
 
 function updateClusterLines (features: Feature[]) {
-  if (!map) {
-    return
-  }
-  const source = map.getSource('clusterLines') as maplibre.GeoJSONSource
-  if (!source) {
-    return
-  }
-  source.setData({ type: 'FeatureCollection', features: features as any })
+  setSourceData('clusterLines', features)
 }
 
 function fitFeatures (features: Feature[]) {
