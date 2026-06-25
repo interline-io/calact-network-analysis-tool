@@ -53,20 +53,20 @@ import {
   pickDominantDirection,
   buildRouteFrequencyCaveats,
   scopeDatesToWeekdays,
+  WEEKDAY_BY_GETDAY,
   type RouteDepartures,
 } from './route-headway'
 import {
-  applyClusterTransferTime,
+  deriveFilteredStopClusters,
   type StopCluster,
-  type StopClusterMeta,
 } from './stop-clusters'
+import { stopVisits } from './stop-visits'
 import {
   type Weekday,
   type WeekdayMode,
   type RouteType,
   type CensusGeographyData,
   dowValues,
-  parseHMS,
   routeTypeNames,
 } from '~~/src/core'
 import type {
@@ -75,9 +75,7 @@ import type {
   Route,
   Stop,
   StopDepartureCache,
-  StopGql,
   StopVisitCounts,
-  StopVisitSummary,
   FlexAreaFeature,
   RouteDepartureIndex,
   BufferGeographyIntersection,
@@ -261,8 +259,6 @@ function routeMarked (
   return true
 }
 
-const dowDateString: Weekday[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-
 //////////////////////////////////////
 // Stop filtering
 //////////////////////////////////////
@@ -303,84 +299,6 @@ function stopSetDerived (
     markedRoutes,
     sdCache,
   )
-}
-
-function newStopVisitSummary (): StopVisitSummary {
-  return {
-    total: newStopVisitCounts(),
-    monday: newStopVisitCounts(),
-    tuesday: newStopVisitCounts(),
-    wednesday: newStopVisitCounts(),
-    thursday: newStopVisitCounts(),
-    friday: newStopVisitCounts(),
-    saturday: newStopVisitCounts(),
-    sunday: newStopVisitCounts(),
-  }
-}
-
-function stopVisits (
-  stop: StopGql,
-  selectedWeekdays?: Weekday[],
-  selectedDateRange?: Date[],
-  selectedStartTime?: string,
-  selectedEndTime?: string,
-  sdCache?: StopDepartureCache,
-): StopVisitSummary {
-  const result = newStopVisitSummary()
-  if (!sdCache) {
-    return result
-  }
-  const startTime = parseHMS(selectedStartTime)
-  const endTime = parseHMS(selectedEndTime)
-  for (const sd of selectedDateRange || []) {
-    const sdDow = dowDateString[sd.getDay()]
-    if (selectedWeekdays != null && (!sdDow || !selectedWeekdays.includes(sdDow))) {
-      continue
-    }
-    // TODO: memoize formatted date
-    const stopDepTimes = sdCache.get(stop.id, format(sd, 'yyyy-MM-dd')).map(st => st.departureTime)
-    let count = 0
-    for (const depTime of stopDepTimes) {
-      if (depTime >= startTime && depTime <= endTime) {
-        count += 1
-      }
-    }
-    result.total.date_count += 1
-    result.total.visit_count += count
-    result.total.visit_average = checkDiv(result.total.visit_count, result.total.date_count)
-    let resultDay = result.total
-    switch (sd.getDay()) {
-      case 0:
-        resultDay = result.sunday
-        break
-      case 1:
-        resultDay = result.monday
-        break
-      case 2:
-        resultDay = result.tuesday
-        break
-      case 3:
-        resultDay = result.wednesday
-        break
-      case 4:
-        resultDay = result.thursday
-        break
-      case 5:
-        resultDay = result.friday
-        break
-      case 6:
-        resultDay = result.saturday
-        break
-    }
-    resultDay.date_count += 1
-    resultDay.visit_count += count
-    resultDay.visit_average = checkDiv(resultDay.visit_count, resultDay.date_count)
-    if (count === 0) {
-      resultDay.all_date_service = false
-    }
-  }
-  // console.log('stopVisitResult:', stop.id, 'counts:', result)
-  return result
 }
 
 // Filter stops
@@ -457,19 +375,6 @@ function stopMarked (
   return true
 }
 
-function newStopVisitCounts (): StopVisitCounts {
-  return {
-    visit_count: 0,
-    date_count: 0,
-    visit_average: undefined,
-    all_date_service: true
-  }
-}
-
-function checkDiv (a: number, b: number): number {
-  return b === 0 ? 0 : a / b
-}
-
 //////////////////////////////////////
 // Flex area filtering
 //////////////////////////////////////
@@ -509,7 +414,7 @@ function flexAreaMarked (
     for (const weekday of effectiveWeekdays) {
       let hasServiceOnWeekday = false
       for (const date of dateRange) {
-        if (dowDateString[date.getDay()] === weekday) {
+        if (WEEKDAY_BY_GETDAY[date.getDay()] === weekday) {
           if (flexDepartureCache.hasService(locationId, format(date, 'yyyy-MM-dd'))) {
             hasServiceOnWeekday = true
             break
@@ -736,80 +641,4 @@ export function applyScenarioResultFilter (
     stopClusters,
   }
   return result
-}
-
-// Build the per-member departure-time and agency/route lookups the temporal
-// prune needs, then apply it. Only member stops are indexed, so the cost scales
-// with cluster membership, not the full stop set. Departures are gathered with
-// the SAME weekday + time-of-day window the rest of the filter uses (mirroring
-// stopVisits), so a cluster is only kept on service the user can actually see.
-function deriveFilteredStopClusters (
-  proximityClusters: StopCluster[] | undefined,
-  maxTransferMinutes: number | undefined,
-  stopFeatures: Stop[],
-  sdCache: StopDepartureCache,
-  selectedDateRange: Date[],
-  effectiveWeekdays: Weekday[] | undefined,
-  startTimeValue: string,
-  endTimeValue: string,
-): StopCluster[] {
-  const clusters = proximityClusters || []
-  if (clusters.length === 0) {
-    return []
-  }
-  // The prune needs departures; if the scenario loaded without them the cache is
-  // empty, so keep the proximity clusters rather than silently dropping every one.
-  if (maxTransferMinutes && maxTransferMinutes > 0 && sdCache.isEmpty()) {
-    return clusters
-  }
-  const memberIds = new Set<number>()
-  for (const cluster of clusters) {
-    for (const id of cluster.memberStopIds) {
-      memberIds.add(id)
-    }
-  }
-  const stopById = new Map<number, Stop>(stopFeatures.map(s => [s.id, s]))
-  const startSeconds = parseHMS(startTimeValue)
-  const endSeconds = parseHMS(endTimeValue)
-  // Weekday-eligible dates, each with a calendar-day offset. Folding the day into
-  // each departure value (below) keeps the prune from matching departures on
-  // different service days as if they were same-day.
-  const eligibleDates = selectedDateRange
-    .filter((date) => {
-      const dow = dowDateString[date.getDay()]
-      return effectiveWeekdays == null || (!!dow && effectiveWeekdays.includes(dow))
-    })
-    .map(date => ({ dateKey: format(date, 'yyyy-MM-dd'), dayOffset: Math.floor(date.getTime() / 86_400_000) }))
-  const departureSecondsByStop = new Map<number, number[]>()
-  const stopMeta = new Map<number, StopClusterMeta>()
-  for (const id of memberIds) {
-    const stop = stopById.get(id)
-    if (!stop) {
-      continue
-    }
-    // dayBase * 86400 + secs-since-midnight: a same-day departure keeps its
-    // ordering, while different days land >= 86400s apart (always > maxGap).
-    const times: number[] = []
-    for (const { dateKey, dayOffset } of eligibleDates) {
-      const dayBase = dayOffset * 86_400
-      for (const st of sdCache.get(id, dateKey)) {
-        if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
-          times.push(dayBase + st.departureTime)
-        }
-      }
-    }
-    departureSecondsByStop.set(id, times)
-    const agencyIds = new Set<number>()
-    const routeIds = new Set<number>()
-    for (const rs of stop.route_stops || []) {
-      if (rs.route?.id != null) {
-        routeIds.add(rs.route.id)
-      }
-      if (rs.route?.agency?.id != null) {
-        agencyIds.add(rs.route.agency.id)
-      }
-    }
-    stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
-  }
-  return applyClusterTransferTime(clusters, maxTransferMinutes, departureSecondsByStop, stopMeta)
 }

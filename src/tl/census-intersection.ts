@@ -1,31 +1,9 @@
 import { gql } from 'graphql-tag'
-import type { Bbox, Geometry } from './geom'
-import { convertBbox } from './geom'
-import type { GraphQLClient } from './graphql'
-import type { CensusValues } from './census-columns'
+import { convertBbox, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
+import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
 // query with intersection data. Used by both the scenario pipeline and WSDOT.
-
-export interface CensusGeographyData {
-  id: number
-  name: string
-  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
-  values: CensusValues
-  /** Fraction of the geography inside the query area, in [0, 1]. */
-  intersectionRatio: number
-  /** Full geography area in m². */
-  geometryArea: number
-  /** Intersection (geography ∩ query area) in m². */
-  intersectionArea: number
-  /**
-   * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
-   * Optional for backward compatibility with code paths that don't carry it,
-   * but populated by the scenario pipeline so the UI can filter by layer
-   * without parsing GEOID length.
-   */
-  layer?: string
-}
 
 export interface CensusGeographyFeature {
   id: string
@@ -144,18 +122,6 @@ query (
 }
 `
 
-// ACS "jam values": negative sentinels the Census Bureau publishes in place
-// of an estimate when the value is unavailable, not applicable, or suppressed
-// for sample size. Drop them so derivations + the UI see missing data and
-// render "—" instead of surfacing e.g. -$666,666,666 as median income.
-// Authoritative list: 2024_Jam_Values.xlsx on
-// census.gov/programs-surveys/acs/technical-documentation/code-lists.html.
-// (MoE-only jam values like -222222222 are intentionally omitted — we read
-// estimate fields, not MoE.)
-export const ACS_JAM_VALUES = new Set<number>([
-  -666666666, -888888888, -999999999,
-])
-
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
@@ -183,19 +149,8 @@ export async function fetchCensusIntersection (
       }
       const intersectionArea = geography.intersection_area || 0
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
-      // Backend returns one entry per (geography, ACS table); flatten them
-      // into a single keyed map for consumers, dropping ACS jam values.
-      const values: CensusValues = {}
-      for (const row of geography.values || []) {
-        if (row.dataset_name !== config.tableDatasetName) {
-          continue
-        }
-        for (const [k, v] of Object.entries(row.values)) {
-          if (typeof v === 'number' && Number.isFinite(v) && !ACS_JAM_VALUES.has(v)) {
-            values[k] = v
-          }
-        }
-      }
+      // Flatten the per-(geography, table) value rows into one keyed map.
+      const values = parseAcsValues(geography.values, config.tableDatasetName)
       features.push({
         id: geography.geoid,
         type: 'Feature',

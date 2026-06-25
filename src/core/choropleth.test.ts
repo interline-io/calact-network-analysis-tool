@@ -5,7 +5,7 @@ import {
   getChoroplethColor,
   pickChoroplethValue,
 } from './choropleth'
-import type { CensusGeographyData } from './census-intersection'
+import type { CensusGeographyData } from './census-columns'
 
 function picked (entries: Array<[string, number | null]>): Map<string, number | null> {
   return new Map(entries)
