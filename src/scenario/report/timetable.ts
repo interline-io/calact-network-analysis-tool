@@ -6,9 +6,9 @@
  * and (via `representativeStopId`) the frequency stats.
  */
 
-import type { RouteDepartureIndex } from '../tl/departure-cache'
-import type { Route } from '../tl/route'
-import { pickRepresentativeStop } from './route-headway'
+import type { RouteDepartureIndex } from '../../tl/departure-cache'
+import type { Route } from '../../tl/route'
+import { pickRepresentativeStop } from '../route-headway'
 
 export interface TimetableRow {
   tripId: number

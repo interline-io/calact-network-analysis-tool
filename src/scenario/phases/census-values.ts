@@ -2,13 +2,13 @@
 // resolved geographic context — independent of stops/routes/departures.
 
 import {
-  fetchCensusIntersection,
   padBboxMeters,
   REQUIRED_ACS_TABLES,
   type Bbox,
   type CensusGeographyData,
   type GraphQLClient,
 } from '~~/src/core'
+import { fetchCensusIntersection } from '~~/src/tl'
 import { resolveGeographyContext } from './feed-versions'
 import { phaseDone, type PhaseEmit } from './common'
 

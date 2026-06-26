@@ -1,5 +1,38 @@
 import { gql } from 'graphql-tag'
-import type { Geometry } from '~~/src/core'
+import type { Geometry, CensusValues } from '~~/src/core'
+
+// ACS "jam values": negative sentinels the Census Bureau publishes in place
+// of an estimate when the value is unavailable, not applicable, or suppressed
+// for sample size. Drop them so derivations + the UI see missing data and
+// render "—" instead of surfacing e.g. -$666,666,666 as median income.
+// Authoritative list: 2024_Jam_Values.xlsx on
+// census.gov/programs-surveys/acs/technical-documentation/code-lists.html.
+// (MoE-only jam values like -222222222 are intentionally omitted — we read
+// estimate fields, not MoE.)
+export const ACS_JAM_VALUES = new Set<number>([
+  -666666666, -888888888, -999999999,
+])
+
+// Flatten the backend's per-(geography, table) value rows into one keyed map,
+// keeping only the requested table dataset and dropping ACS jam values. Shared
+// by the census-intersection and stop-buffer fetchers.
+export function parseAcsValues (
+  rows: { dataset_name: string, values: Record<string, number> }[] | undefined,
+  tableDataset: string,
+): CensusValues {
+  const values: CensusValues = {}
+  for (const row of rows || []) {
+    if (row.dataset_name !== tableDataset) {
+      continue
+    }
+    for (const [k, v] of Object.entries(row.values || {})) {
+      if (typeof v === 'number' && Number.isFinite(v) && !ACS_JAM_VALUES.has(v)) {
+        values[k] = v
+      }
+    }
+  }
+  return values
+}
 
 export const geographyLayerQuery = gql`
 query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_name: String) {

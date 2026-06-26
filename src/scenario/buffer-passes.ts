@@ -5,10 +5,10 @@
 import {
   type GraphQLClient,
   chunkArray,
-  fetchCensusIntersection,
   REQUIRED_ACS_TABLES,
 } from '~~/src/core'
 import {
+  fetchCensusIntersection,
   fetchEntityBufferGeographies,
   type BufferEntityKind,
   type BufferGeographyIntersection,
