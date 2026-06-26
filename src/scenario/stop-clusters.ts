@@ -24,6 +24,7 @@ import {
   parseHMS,
   routeTypeNames,
   TaskQueue,
+  WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
   type Weekday,
@@ -36,7 +37,6 @@ import {
   type PhaseEmit,
   type PhaseOpts,
 } from './phases/common'
-import { WEEKDAY_BY_GETDAY } from './route-headway'
 import type { ScenarioProgress } from './scenario'
 
 /** Minimal per-stop input for clustering, decoupled from GraphQL types. */

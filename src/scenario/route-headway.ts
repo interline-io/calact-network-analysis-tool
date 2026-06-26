@@ -14,6 +14,7 @@ import {
   IRREGULAR_MIN_LARGEST_GAP_SECONDS,
   MIN_GAPS_FOR_IRREGULAR,
   FREQUENCY_DIRECTION_DIVERGENCE_RATIO,
+  WEEKDAY_BY_GETDAY,
   type Weekday,
 } from '../core'
 import type {
@@ -21,14 +22,6 @@ import type {
   StopTimeCacheItem,
   RouteDepartureIndex,
 } from '../tl'
-
-// Maps JS Date.getDay() (0=Sun..6=Sat) to the Weekday string keys. Exported so
-// debug views (Route Timetable) can map a date to its weekday with the same
-// convention used here; `dowValues` in src/core/constants.ts starts at monday,
-// not sunday, so it can't be indexed by getDay() directly.
-export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
-  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
-] as const
 
 /**
  * Per-direction, per-date in-window departures at each day's representative stop.
@@ -361,7 +354,9 @@ export function calculateRouteTripStats (
 // Minimum headway threshold (2 minutes in seconds)
 // Headways below this are filtered out as noise (e.g., bunched buses during peak demand)
 // Re-export so existing consumers (tests, UI) can still import from this module.
-export { MIN_HEADWAY_SECONDS } from '../core'
+// WEEKDAY_BY_GETDAY lives in core (used app-wide) but rides along here so the
+// Route Timetable debug view keeps importing the frequency bundle from one place.
+export { MIN_HEADWAY_SECONDS, WEEKDAY_BY_GETDAY } from '../core'
 
 /**
  * A headway (interval) between two consecutive departures within the same

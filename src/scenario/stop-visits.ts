@@ -4,9 +4,8 @@
 // marking/filter logic, mirroring how route-headway owns the frequency math.
 
 import { format } from 'date-fns'
-import { parseHMS, type Weekday } from '~~/src/core'
+import { parseHMS, WEEKDAY_BY_GETDAY, type Weekday } from '~~/src/core'
 import type { StopGql, StopVisitSummary, StopVisitCounts, StopDepartureCache } from '~~/src/tl'
-import { WEEKDAY_BY_GETDAY } from './route-headway'
 
 function newStopVisitCounts (): StopVisitCounts {
   return {

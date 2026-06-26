@@ -4,7 +4,7 @@
 // standalone requests, each safely under proxy/CDN time limits.
 
 import { format } from 'date-fns'
-import { chunkArray, parseHMS, TaskQueue, type GraphQLClient } from '~~/src/core'
+import { chunkArray, parseHMS, TaskQueue, WEEKDAY_BY_GETDAY, type GraphQLClient } from '~~/src/core'
 import { stopDepartureQuery, stopTimeQuery, type StopDeparture, type StopTime } from '~~/src/tl'
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
@@ -168,8 +168,7 @@ export async function runDeparturesPhase (
     if (task.ids.length === 0) {
       return
     }
-    const dowDateStringLower = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const fetchDates = dowDateStringLower.filter(s => task.get(s)).map(s => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
+    const fetchDates = WEEKDAY_BY_GETDAY.filter(s => task.get(s)).map(s => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
     console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
     const q = config.departureMode === 'departures' ? stopDepartureQuery : stopTimeQuery
     const response = await client.query<{ stops: StopDeparture[] }>(q, task)
@@ -177,7 +176,7 @@ export async function runDeparturesPhase (
     const stopDepartures: StopDepartureTuple[] = []
     const tripIdStrings = new Map<number, string>()
     for (const stop of response.data?.stops || []) {
-      for (const dow of dowDateStringLower) {
+      for (const dow of WEEKDAY_BY_GETDAY) {
         const dowDate = task.get(dow)
         if (!dowDate) {
           continue

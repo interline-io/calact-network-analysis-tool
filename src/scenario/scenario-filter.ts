@@ -53,7 +53,6 @@ import {
   pickDominantDirection,
   buildRouteFrequencyCaveats,
   scopeDatesToWeekdays,
-  WEEKDAY_BY_GETDAY,
   type RouteDepartures,
 } from './route-headway'
 import {
@@ -68,6 +67,7 @@ import {
   type CensusGeographyData,
   dowValues,
   routeTypeNames,
+  WEEKDAY_BY_GETDAY,
 } from '~~/src/core'
 import type {
   Agency,
