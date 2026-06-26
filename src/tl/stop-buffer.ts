@@ -1,5 +1,6 @@
 import { gql } from 'graphql-tag'
-import { ACS_JAM_VALUES, type CensusValues, type GraphQLClient } from '~~/src/core'
+import type { CensusValues, GraphQLClient } from '~~/src/core'
+import { parseAcsValues } from './census'
 
 // #315 — per-entity buffer ∩ census intersections + inline ACS values.
 // Layer is a parameter; apportionment math is in `src/core/census-buffer.ts`.
@@ -172,17 +173,7 @@ export function parseGeographyRow (g: BufferGeographyResponse, tableDataset: str
   if (geometryArea <= 0) {
     return null
   }
-  const values: CensusValues = {}
-  for (const row of g.values || []) {
-    if (row.dataset_name !== tableDataset) {
-      continue
-    }
-    for (const [k, v] of Object.entries(row.values || {})) {
-      if (typeof v === 'number' && Number.isFinite(v) && !ACS_JAM_VALUES.has(v)) {
-        values[k] = v
-      }
-    }
-  }
+  const values = parseAcsValues(g.values, tableDataset)
   return {
     geoid: g.geoid,
     layer: g.layer_name,

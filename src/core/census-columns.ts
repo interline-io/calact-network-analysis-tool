@@ -55,6 +55,30 @@ const B23024_DISABILITY_COLS = [
 ]
 
 export type CensusValues = Record<string, number | undefined>
+
+// The processed per-geography census result the pipeline and UI work with
+// (distinct from the raw fetch shape, CensusGeographyFeature, in src/tl). Lives
+// in core because the pure census math (choropleth, census-buffer) consumes it.
+export interface CensusGeographyData {
+  id: number
+  name: string
+  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
+  values: CensusValues
+  /** Fraction of the geography inside the query area, in [0, 1]. */
+  intersectionRatio: number
+  /** Full geography area in m². */
+  geometryArea: number
+  /** Intersection (geography ∩ query area) in m². */
+  intersectionArea: number
+  /**
+   * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
+   * Optional for backward compatibility with code paths that don't carry it,
+   * but populated by the scenario pipeline so the UI can filter by layer
+   * without parsing GEOID length.
+   */
+  layer?: string
+}
+
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
 
 export interface CensusColumnDef {

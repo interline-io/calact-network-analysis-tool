@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes } from '~~/src/core'
+import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, WEEKDAY_BY_GETDAY } from '~~/src/core'
 import turfArea from '@turf/area'
 
 //////////
@@ -328,14 +328,6 @@ export function getFlexAgencyNames (feature: FlexAreaFeature): string[] {
 }
 
 /**
- * Day of week names matching JavaScript Date.getDay() values
- * Sunday = 0, Monday = 1, ..., Saturday = 6
- */
-const DAY_KEYS: (keyof FlexBookingDays)[] = [
-  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
-]
-
-/**
  * Check if booking is available on a specific day of week
  * @param feature - Flex area feature
  * @param weekday - Day of week (0 = Sunday, 6 = Saturday) - matches Date.getDay()
@@ -352,7 +344,7 @@ export function isBookingAvailableOnDay (feature: FlexAreaFeature, weekday: numb
     throw new Error(`Invalid weekday: ${weekday}. Must be 0-6 (Sunday=0, Saturday=6)`)
   }
 
-  const dayKey = DAY_KEYS[weekday] as keyof FlexBookingDays
+  const dayKey = WEEKDAY_BY_GETDAY[weekday] as keyof FlexBookingDays
   return bookingDays[dayKey]
 }
 

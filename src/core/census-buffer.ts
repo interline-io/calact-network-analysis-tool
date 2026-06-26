@@ -1,6 +1,5 @@
-import type { CensusValues } from './census-columns'
+import type { CensusValues, CensusGeographyData } from './census-columns'
 import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
-import type { CensusGeographyData } from './census-intersection'
 
 // FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
 // its parent's (block group nests in tract, tract in county, county in state), so

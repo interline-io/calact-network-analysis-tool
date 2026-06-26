@@ -14,7 +14,7 @@
 // See: https://github.com/interline-io/transitland-lib/pull/527
 
 import { format } from 'date-fns'
-import { TaskQueue, type GraphQLClient } from '~~/src/core'
+import { TaskQueue, WEEKDAY_BY_GETDAY, type GraphQLClient } from '~~/src/core'
 import {
   flexLocationQuery,
   flexStopTimesQuery,
@@ -173,7 +173,6 @@ export async function runFlexPhase (
     // Fetch slim multi-date stop_times to populate the flex departure cache.
     // Chunk the date range into 7-day windows (one query per week) so every
     // date in a multi-week scenario is covered — mirrors the stop-departure pattern.
-    const dowNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
     const dates = getSelectedDateRange(config)
     const weekSize = 7
     const flexDepartures: FlexDepartureTuple[] = []
@@ -187,7 +186,7 @@ export async function runFlexPhase (
       if (!w.hasAnyDay()) { continue }
       const stopTimesResponse = await client.query<FlexStopTimesQueryResponse>(flexStopTimesQuery, w)
       for (const location of stopTimesResponse?.data?.feed_versions?.[0]?.locations || []) {
-        for (const dowName of dowNames) {
+        for (const dowName of WEEKDAY_BY_GETDAY) {
           const date = w.get(dowName)
           if (!date) { continue }
           if ((location[dowName]?.length ?? 0) > 0) {

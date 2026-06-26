@@ -96,6 +96,13 @@ export const dowValues = [
 
 export type Weekday = typeof dowValues[number]
 
+// Weekday keys ordered for JS Date.getDay() (0=Sun..6=Sat), so a date maps to
+// its weekday via WEEKDAY_BY_GETDAY[date.getDay()]. Distinct from dowValues
+// above, which is monday-first for UI ordering and can't be getDay()-indexed.
+export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+] as const
+
 export const geomSources = {
   mapExtent: 'Covering extent of map',
   bbox: 'Dragging bounding box',

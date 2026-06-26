@@ -1,6 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import { CENSUS_COLUMNS, sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem } from './census-columns'
-import type { CensusGeographyData } from './census-intersection'
+import { CENSUS_COLUMNS, sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem, type CensusGeographyData } from './census-columns'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
 // from breaks, painted with CHOROPLETH_INSUFFICIENT_COLOR); `0` is a real
