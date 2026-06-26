@@ -760,12 +760,18 @@ function mapClickFeatures (pt: any, features: Feature[]) {
       continue
     }
 
-    // Only dedupe if we have a valid ID (skip deduplication for empty IDs)
-    if (featureId && seenIds.has(featureId)) {
+    // Dedupe by a stable key. MapLibre coerces non-numeric GeoJSON string ids to
+    // NaN in queryRenderedFeatures, so flex polygons all report the same id and
+    // every overlapping zone but the first would be dropped (#421); key flex on
+    // its feed+location id instead. Other layers keep feature.id. Empty keys skip
+    // dedupe.
+    const isFlexPolygon = (ft === 'Polygon' || ft === 'MultiPolygon') && fp.location_id
+    const dedupeKey = isFlexPolygon ? `flex:${fp.feed_onestop_id}:${fp.location_id}` : featureId
+    if (dedupeKey && seenIds.has(dedupeKey)) {
       continue // Skip duplicate
     }
-    if (featureId) {
-      seenIds.add(featureId)
+    if (dedupeKey) {
+      seenIds.add(dedupeKey)
     }
 
     let popupFeature: PopupFeature | undefined = undefined
