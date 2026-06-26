@@ -30,11 +30,11 @@ describe('buildStyleData', () => {
     })
 
     it('matches a route to the first bucket whose threshold it clears (cumulative >=)', () => {
-      // headway is compared in seconds (mins * 60).
-      const fast = route({ average_frequency: 2400 }) // 40 min
-      const mid = route({ average_frequency: 600 }) // 10 min
-      expect(rules.find(r => r.match(fast))!.label).toBe('40+ mins')
-      expect(rules.find(r => r.match(mid))!.label).toBe('10-19 mins')
+      // headway is compared in seconds (mins * 60); larger headway = less frequent.
+      const infrequent = route({ average_frequency: 2400 }) // 40 min headway
+      const frequent = route({ average_frequency: 600 }) // 10 min headway
+      expect(rules.find(r => r.match(infrequent))!.label).toBe('40+ mins')
+      expect(rules.find(r => r.match(frequent))!.label).toBe('10-19 mins')
     })
   })
 

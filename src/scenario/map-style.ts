@@ -1,7 +1,9 @@
 // Builds the ordered list of style "matchers" that color stops and routes on the
 // map for the active data-display mode (agency / transit mode / route frequency /
 // stop visits). Each matcher pairs a legend label + color with a predicate that
-// tests a stop or route; the first matching rule wins, with a catchall "Other".
+// tests a stop or route; the first matching rule wins. A catchall "Other" rule is
+// appended when the palette is exhausted (or nothing matched) — see otherThreshold;
+// Agency mode is the exception that omits it until the categorical palette fills up.
 // Pure: every input is passed in, so it can be unit-tested without the map.
 
 import { colors, categoricalColors, routeTypeNames, type DataDisplayMode } from '~~/src/core'
@@ -176,8 +178,10 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     return rules
   }
 
-  // Reserve an extra color for "other", if needed. Agency mode draws from the
-  // wider categorical palette, so its "Other" bucket only kicks in past that.
+  // Cap mode matchers at one short of the full palette so a slot is left before
+  // colors run out. The "Other" rule itself is drawn in black ('#000'), not a
+  // palette color. Agency mode draws from the wider categorical palette, so its
+  // "Other" bucket only kicks in past that.
   const maxColor = colors.length - 1
   const rules: Matcher[] = []
 
@@ -195,7 +199,8 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     // report-only mode; no map color rules
   }
 
-  // If we used all colors (or no colors), add a catchall "other" rule
+  // Once the rules reach the palette threshold (or none were produced), add a
+  // catchall "Other" rule.
   if (rules.length >= otherThreshold || rules.length === 0) {
     rules.push({ label: 'Other', color: '#000', match: _ => true })
   }
