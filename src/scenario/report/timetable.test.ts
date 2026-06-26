@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { StopDepartureCache, RouteDepartureIndex } from '../tl/departure-cache'
-import type { Route } from '../tl/route'
-import type { StopTime } from '../tl/departure'
-import { buildRouteTimetable } from './route-timetable'
+import { StopDepartureCache, RouteDepartureIndex } from '../../tl/departure-cache'
+import type { Route } from '../../tl/route'
+import type { StopTime } from '../../tl/departure'
+import { buildRouteTimetable } from './timetable'
 
 interface TripStop {
   stopId: number
