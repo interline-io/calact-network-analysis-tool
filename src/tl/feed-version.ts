@@ -35,14 +35,6 @@ export interface FeedGql {
   } | null
 }
 
-// Hardcoded denylist of feeds with broken bbox metadata that pollute
-// otherwise-unrelated bbox queries (their reported geometry covers far more
-// area than the actual service). Apply this in any flow that consumes the
-// bbox-feeds query — picker and scenario fetcher — so users never see them.
-export const HIDDEN_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
-  'f-r6-nswtrainlink~sydneytrains~buswayswesternsydney~interlinebus',
-])
-
 // Intercity / charter feeds that match many bboxes but rarely match user
 // intent. Sorted last in the picker so they don't crowd local agencies.
 export const DEPRIORITIZED_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([

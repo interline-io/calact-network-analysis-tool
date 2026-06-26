@@ -9,7 +9,6 @@ import {
   applyFeedVersionOverrides,
   feedVersionQuery,
   feedVersionsByIdsQuery,
-  HIDDEN_FEED_ONESTOP_IDS,
   type FeedGql,
   type FeedVersion,
 } from '~~/src/tl'
@@ -173,12 +172,7 @@ export async function runFeedVersionsPhase (
     const variables = { where: { bbox: bboxForQuery }, limit: FEED_VERSION_PAGE_SIZE, after }
     const response = await client.query<{ feeds: FeedGql[] }>(feedVersionQuery, variables)
     const page = response.data?.feeds || []
-    // Drop feeds with known-broken bbox metadata so they don't poison
-    // every other bbox query with their over-broad coverage claim.
-    for (const f of page) {
-      if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
-      allFeeds.push(f)
-    }
+    allFeeds.push(...page)
     if (page.length < FEED_VERSION_PAGE_SIZE) {
       break
     }

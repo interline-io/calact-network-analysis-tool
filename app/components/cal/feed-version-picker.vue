@@ -55,7 +55,6 @@ import {
   pinnedFeedVersionsQuery,
   serializeFvids,
   type FeedVersionDetailWithFeed,
-  HIDDEN_FEED_ONESTOP_IDS,
   DEPRIORITIZED_FEED_ONESTOP_IDS,
   watchJob,
   jobApiPath,
@@ -184,12 +183,7 @@ const { result, loading, error, refetch } = useQuery<{ feeds: FeedWithVersions[]
 const feeds = computed<FeedWithVersions[]>(() => result.value?.feeds || [])
 
 watch(feeds, (fs) => {
-  const ids: string[] = []
-  for (const f of fs) {
-    if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
-    ids.push(f.onestop_id)
-  }
-  emit('update:feedOnestopIds', ids)
+  emit('update:feedOnestopIds', fs.map(f => f.onestop_id))
 }, { immediate: true })
 
 // Explicitly-pinned versions are fetched by id so the user's current selection
@@ -225,7 +219,6 @@ const visibleFeeds = computed<FeedWithVersions[]>(() => {
 
   const decorated: { feed: FeedWithVersions, sortKey: number, demoted: boolean }[] = []
   for (const f of feeds.value) {
-    if (HIDDEN_FEED_ONESTOP_IDS.has(f.onestop_id)) { continue }
     const activeId = f.feed_state?.feed_version?.id ?? null
     const kept = f.feed_versions.filter(fv =>
       fv.id === activeId || feedVersionHasServiceInRange(fv.service_levels, startIso, endIso)
