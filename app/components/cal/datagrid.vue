@@ -2,7 +2,12 @@
   <div class="mb-6">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
-           labelled (via filterLabel) to distinguish it from other filters. -->
+           labelled (via filterLabel) to distinguish it from other filters.
+           Landmarks of the same role must be uniquely labelled when more than
+           one is exposed at once. Views with several datagrids only ever show
+           one — cat-tabs uses v-show (display:none drops it from the
+           accessibility tree) and census-details uses v-if — so keep that
+           invariant if a layout ever puts two datagrids side by side. -->
       <div class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
         <!-- ariaLabel/aria-controls passed via a v-bind object: cat-search-bar
              sets inheritAttrs:false, so vue-tsc checks attributes against its
@@ -11,7 +16,7 @@
              (which vue-tsc then couldn't map back to the prop). -->
         <cat-search-bar
           v-model="searchQuery"
-          placeholder="Search..."
+          :placeholder="FILTER_PLACEHOLDER"
           v-bind="{ 'ariaLabel': filterLabel, 'aria-controls': tableId }"
         >
           <!-- Announced politely to screen readers as the filter changes. -->
@@ -45,7 +50,7 @@
               :key="column.key"
               scope="col"
               :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
-              :aria-sort="column.sortable ? ariaSort(column) : undefined"
+              :aria-sort="ariaSort(column)"
             >
               <!-- Sortable columns render the header as a real <button> so
                    sorting is keyboard-operable (Enter/Space) and announced as a
@@ -174,6 +179,12 @@ const props = defineProps<{
   // readers announce the table's purpose; sighted users still see surrounding
   // heading/tab UI for context.
   caption?: string
+  // Short name for what this grid holds ("Routes", "Stops"), used to
+  // distinguish this filter from others on the page. Deliberately not derived
+  // from `caption`: a caption describes the whole table and may carry a date
+  // range, which makes for a long name that is re-read on every focus and
+  // changes whenever the range does.
+  filterLabel?: string
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
@@ -184,15 +195,22 @@ const sortDir = ref<'asc' | 'desc' | null>(null)
 // SSR-stable id so the filter's aria-controls can point at this table.
 const tableId = useId()
 
-// Accessible name for the filter (search fields have no visible label).
+// Accessible name for the filter (search fields have no visible label). The
+// placeholder is the field's only visible text, so the name must contain it
+// verbatim — otherwise a speech-input user who says what they see gets no
+// match (WCAG 2.5.3 Label in Name).
+const FILTER_PLACEHOLDER = 'Filter rows'
 const filterLabel = computed(() =>
-  props.caption ? `Filter ${props.caption}` : 'Filter table rows')
+  props.filterLabel ? `${FILTER_PLACEHOLDER} in ${props.filterLabel}` : FILTER_PLACEHOLDER)
 
-// aria-sort value for a sortable column's <th>, reflecting the current sort so
-// screen readers announce the direction (WCAG 4.1.2).
-function ariaSort (column: TableColumn): 'ascending' | 'descending' | 'none' {
+// aria-sort for the <th> of the column that is currently sorted, so screen
+// readers announce the direction (WCAG 4.1.2). Set only on the active column,
+// per the APG sortable-table pattern — an explicit "none" on every sortable
+// header makes screen readers announce "not sorted" column by column, which on
+// a wide census table is pure noise.
+function ariaSort (column: TableColumn): 'ascending' | 'descending' | undefined {
   if (sortKey.value !== column.key || !sortDir.value) {
-    return 'none'
+    return undefined
   }
   return sortDir.value === 'asc' ? 'ascending' : 'descending'
 }
@@ -338,20 +356,26 @@ const rangeEnd = computed(() => {
 
 // Screen-reader announcement of the filter's effect, fed into cat-search-bar's
 // polite live region (its #status slot) so filtering has audible feedback.
-const totalRowCount = computed(() => tableReport.value?.data?.length ?? 0)
+//
+// Empty unless a filter is actually applied, for two reasons. The live region
+// must start empty: this component remounts on every tab switch, and a region
+// inserted with content already in it gets read out immediately. And a status
+// message reports the outcome of a user action (WCAG 4.1.3) — row counts that
+// move because the scenario re-ran or the user changed report sub-tabs are not
+// the outcome of a search, and announcing them from inside the search landmark
+// misattributes them to the filter.
 const filterStatus = computed(() => {
-  const all = totalRowCount.value
-  if (all === 0) {
+  // Trimmed to match filteredData, so a whitespace-only query (which filters
+  // nothing) stays silent rather than claiming "Showing N of N".
+  if (!(searchQuery.value || '').trim()) {
     return ''
-  }
-  if (!searchQuery.value) {
-    return `Showing all ${all} ${all === 1 ? 'row' : 'rows'}`
   }
   const shown = total.value
   if (shown === 0) {
     return 'No rows match the filter'
   }
-  return `Showing ${shown} of ${all} rows`
+  const all = tableReport.value?.data?.length ?? 0
+  return `Showing ${shown} of ${all} ${all === 1 ? 'row' : 'rows'}`
 })
 </script>
 
@@ -399,14 +423,17 @@ const filterStatus = computed(() => {
     }
 
     // Sortable header rendered as a button. Reset to look like plain header
-    // text, but fill the cell so the whole header stays a click target.
+    // text, but carry the cell's own padding (see .is-sortable-th below) so the
+    // button fills the header rather than shrinking the target to the label's
+    // line box — which would leave a ring that still shows the pointer cursor
+    // and hover highlight but no longer sorts.
     .cal-datagrid-sort-button {
       display: flex;
       align-items: center;
       gap: 0.25rem;
       width: 100%;
       margin: 0;
-      padding: 0;
+      padding: 0.5rem 0.75rem;
       border: none;
       background: transparent;
       font: inherit;
@@ -437,6 +464,9 @@ const filterStatus = computed(() => {
     }
 
     &.is-sortable-th {
+      // Padding lives on the inner button instead, so the padded area is part
+      // of the click target and matches the pointer/hover affordance below.
+      padding: 0;
       cursor: pointer;
       user-select: none;
 
