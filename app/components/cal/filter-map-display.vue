@@ -29,13 +29,28 @@
     <p class="menu-label">
       Aggregation
     </p>
-    <ul>
-      <li>
-        <cat-checkbox v-model="showAggAreas">
+    <cat-field>
+      <template #label>
+        <cat-tooltip text="Whether the aggregation overlay shades each area's full census values, the portion inside the query area, or the portion inside both the query area and the stop statistical radius.">
           Show Agg. Areas
-        </cat-checkbox>
-      </li>
-    </ul>
+          <cat-icon icon="information" />
+        </cat-tooltip>
+      </template>
+      <cat-select v-model="aggAreaMode">
+        <option value="off">
+          Off
+        </option>
+        <option value="unclipped">
+          Full geography
+        </option>
+        <option value="queryArea">
+          Clipped to query area
+        </option>
+        <option value="buffer" :disabled="!props.bufferClipAvailable">
+          Clipped to query area and stop radius{{ props.bufferClipAvailable ? '' : ' (needs a stop radius)' }}
+        </option>
+      </cat-select>
+    </cat-field>
     <cat-field class="mt-2">
       <template #label>
         Aggregate by
@@ -116,10 +131,12 @@ import {
 
 const props = defineProps<{
   censusGeographyLayerOptions?: { label: string, value: string }[]
+  // False when the loaded scenario carries no stop-buffer clip to shade by.
+  bufferClipAvailable?: boolean
 }>()
 
 const {
-  showAggAreas,
+  aggAreaMode,
   aggregateLayer,
   choroplethElement,
   shadeByDensity,

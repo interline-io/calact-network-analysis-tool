@@ -150,7 +150,10 @@
         aria-labelledby="cal-filter-tab-data-display"
         tabindex="0"
       >
-        <cal-filter-map-display :census-geography-layer-options="props.censusGeographyLayerOptions" />
+        <cal-filter-map-display
+          :census-geography-layer-options="props.censusGeographyLayerOptions"
+          :buffer-clip-available="bufferClipAvailable"
+        />
       </div>
 
       <!-- SETTINGS -->
@@ -195,6 +198,18 @@ const props = defineProps<{
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
 }>()
+
+// The stop-buffer clip is computed by the scenario, not derived from the
+// current radius input — so the choropleth can only offer it once a run has
+// actually produced it.
+const bufferClipAvailable = computed(() => {
+  const geos = props.scenarioFilterResult?.censusGeographies
+  if (!geos) { return false }
+  for (const g of geos.values()) {
+    if (g.bufferIntersectionRatio != null) { return true }
+  }
+  return false
+})
 
 const {
   startDate,

@@ -223,6 +223,8 @@ import {
   formatAcsDatasetLabel,
   summarizeBbox,
   deriveApportionedRow,
+  censusApportionRatio,
+  AGG_AREA_MODE_DEFAULT,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
   type FilterTag,
@@ -236,7 +238,7 @@ import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type Scen
 // Initialize composables
 const { setQuery } = useUrlQuery()
 const {
-  showAggAreas,
+  aggAreaMode,
   aggregateLayer,
   onlyWithStops,
   showBbox,
@@ -410,7 +412,7 @@ const selectedPanelData = computed(() => {
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
   return {
     row,
-    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
+    apportionedDerived: geo ? deriveApportionedRow(geo.values, censusApportionRatio(geo, aggAreaMode.value)) : null,
     areaStats: geo
       ? {
           geometryArea: geo.geometryArea,
@@ -428,7 +430,7 @@ const allGeographiesDerived = computed((): Record<string, number | null> | null 
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeBbox(geos.keys(), geos).derived
+  return summarizeBbox(geos.keys(), geos, aggAreaMode.value).derived
 })
 
 /////////////////////////
@@ -685,7 +687,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
       }
     }
   }
-  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid), aggAreaMode.value)
 })
 
 const {
@@ -704,7 +706,9 @@ const {
 // Force the overlay on so the selection actually renders on the map.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
-  showAggAreas.value = true
+  if (aggAreaMode.value === 'off') {
+    aggAreaMode.value = AGG_AREA_MODE_DEFAULT
+  }
   selectedAggregationGeoid.value = geoid
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
@@ -801,7 +805,7 @@ const aggregateLayerLabel = computed((): string => {
 // All census geographies in the query area, used to fetch geometry for the
 // choropleth. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
-  if (!showAggAreas.value) { return [] }
+  if (aggAreaMode.value === 'off') { return [] }
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
   return [...geos.values()].map(g => g.id)
@@ -824,7 +828,7 @@ const {
 
 // Compute aggregate stats per geography
 const choroplethAggregateData = computed(() => {
-  if (!showAggAreas.value || !scenarioFilterResult.value) {
+  if (aggAreaMode.value === 'off' || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)

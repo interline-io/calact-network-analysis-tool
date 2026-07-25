@@ -4,6 +4,7 @@ import {
   CHOROPLETH_ELEMENT_OPTIONS,
   buildChoroplethClassification,
   densityPerArea,
+  censusApportionRatio,
   deriveApportionedColumn,
   getChoroplethColor,
   isElementDensityEligible,
@@ -25,7 +26,7 @@ interface UseChoroplethClassificationInput {
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  const { showAggAreas, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
+  const { aggAreaMode, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
 
   const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 
@@ -71,7 +72,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   // Feature properties carry only geoid/name + styling — the census panel
   // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
-    if (!showAggAreas.value) { return [] }
+    if (aggAreaMode.value === 'off') { return [] }
 
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
@@ -101,7 +102,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       let densityValue: number | null = null
       const censusGeo = elementCol ? censusGeos?.get(aggRow.geoid as string) : undefined
       if (elementCol && censusGeo) {
-        scaledValue = deriveApportionedColumn(censusGeo.values, censusGeo.intersectionRatio, element)
+        scaledValue = deriveApportionedColumn(censusGeo.values, censusApportionRatio(censusGeo, aggAreaMode.value), element)
         if (elementIsDensityEligible) {
           densityValue = densityPerArea(fullValue, censusGeo.geometryArea, unitSystem.value)
         }

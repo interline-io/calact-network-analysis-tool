@@ -64,12 +64,19 @@ export interface CensusGeographyData {
   name: string
   /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
   values: CensusValues
-  /** Fraction of the geography inside the analyzed area, in [0, 1]. */
+  /** Fraction of the geography inside the query area, in [0, 1]. */
   intersectionRatio: number
   /** Full geography area in m². */
   geometryArea: number
-  /** Geography ∩ analyzed area in m². */
+  /** Geography ∩ query area in m². */
   intersectionArea: number
+  /**
+   * Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
+   * radius is set, or when the backend can't compose the two clips.
+   */
+  bufferIntersectionArea?: number
+  /** Fraction of the geography inside both clips, in [0, 1]. */
+  bufferIntersectionRatio?: number
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,
@@ -425,11 +432,42 @@ export function deriveApportionedColumn (
 }
 
 // Sum apportioned raw ACS values across geographies, then run derivations.
+/**
+ * How the choropleth overlay clips census values: not at all, to the query
+ * area, or to the query area intersected with the stop buffers. `off` hides
+ * the overlay.
+ */
+export type AggAreaMode = 'off' | 'unclipped' | 'queryArea' | 'buffer'
+
+export const AGG_AREA_MODE_DEFAULT: AggAreaMode = 'queryArea'
+
+/** Minimal shape needed to apportion ACS values under an `AggAreaMode`. */
+export interface CensusApportionable {
+  values: CensusValues
+  intersectionRatio: number
+  bufferIntersectionRatio?: number
+}
+
+/**
+ * Fraction of a geography's ACS values to count under the given mode. Falls
+ * back to the query-area ratio when a buffer clip wasn't computed.
+ */
+export function censusApportionRatio (geo: CensusApportionable, mode: AggAreaMode): number {
+  if (mode === 'unclipped') {
+    return 1
+  }
+  if (mode === 'buffer') {
+    return geo.bufferIntersectionRatio ?? geo.intersectionRatio
+  }
+  return geo.intersectionRatio
+}
+
 // Non-additive columns (medians) come out as nonsense — callers must render
 // `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
 export function summarizeBbox (
   geoids: Iterable<string>,
-  geographies: Map<string, { values: CensusValues, intersectionRatio: number }> | undefined,
+  geographies: Map<string, CensusApportionable> | undefined,
+  mode: AggAreaMode = 'queryArea',
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {
@@ -440,7 +478,7 @@ export function summarizeBbox (
     if (!geo) {
       continue
     }
-    const ratio = geo.intersectionRatio
+    const ratio = censusApportionRatio(geo, mode)
     for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue

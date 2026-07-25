@@ -77,7 +77,7 @@ async function runPhase (config: CensusValuesPhaseConfig, responses: any[]) {
 }
 
 describe('runCensusValuesPhase stop-buffer clipping', () => {
-  it('narrows intersections to the buffers while keeping the query-area universe', async () => {
+  it('keeps both clips so the choropleth can switch modes without refetching', async () => {
     const { query, geographies } = await runPhase(
       baseConfig({ stopIds: [1, 2], stopBufferRadius: 400 }),
       [queryAreaResponse(), clipResponse()],
@@ -88,16 +88,31 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect([...geographies.keys()].sort()).toEqual(['served', 'unserved'])
 
     const served = geographies.get('served')!
-    expect(served.intersectionArea).toBe(250)
-    expect(served.intersectionRatio).toBe(0.25)
-    // ACS values still come from the query-area pass.
+    expect(served.intersectionArea).toBe(1000)
+    expect(served.intersectionRatio).toBe(1)
+    expect(served.bufferIntersectionArea).toBe(250)
+    expect(served.bufferIntersectionRatio).toBe(0.25)
     expect(served.values.b01003_001).toBe(500)
 
+    // Reached by no buffer: present, with a zero buffer clip rather than a
+    // missing one, so `buffer` mode shades it 0% instead of falling back.
     const unserved = geographies.get('unserved')!
-    expect(unserved.intersectionArea).toBe(0)
-    expect(unserved.intersectionRatio).toBe(0)
+    expect(unserved.intersectionArea).toBe(1000)
+    expect(unserved.intersectionRatio).toBe(1)
+    expect(unserved.bufferIntersectionArea).toBe(0)
+    expect(unserved.bufferIntersectionRatio).toBe(0)
     expect(unserved.geometryArea).toBe(1000)
-    expect(unserved.values.b01003_001).toBe(500)
+  })
+
+  it('leaves the buffer clip undefined when the clip pass is skipped', async () => {
+    const { geographies } = await runPhase(
+      baseConfig({ stopIds: [], stopBufferRadius: 400 }),
+      [queryAreaResponse()],
+    )
+    for (const geo of geographies.values()) {
+      expect(geo.bufferIntersectionArea).toBeUndefined()
+      expect(geo.bufferIntersectionRatio).toBeUndefined()
+    }
   })
 
   it('skips the clip pass at radius 0 and keeps query-area intersections', async () => {

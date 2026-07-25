@@ -1,9 +1,9 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
-import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode, type UnitSystem } from '~~/src/core'
+import { AGG_AREA_MODE_DEFAULT, CHOROPLETH_DEFAULT_ELEMENT, type AggAreaMode, type DataDisplayMode, type UnitSystem } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioDisplay {
-  showAggAreas: WritableComputedRef<boolean>
+  aggAreaMode: WritableComputedRef<AggAreaMode>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
   shadeByDensity: WritableComputedRef<boolean>
@@ -23,9 +23,16 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const route = useRoute()
   const { setQuery } = useUrlQuery()
 
-  const showAggAreas = computed<boolean>({
-    get: () => route.query.showAggAreas?.toString() === 'true',
-    set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
+  // `showAggAreas=true` predates the clipping modes and is still in shared
+  // links and canned examples, so it maps onto the default mode.
+  const aggAreaMode = computed<AggAreaMode>({
+    get: () => {
+      const raw = route.query.showAggAreas?.toString()
+      if (raw === 'true') { return AGG_AREA_MODE_DEFAULT }
+      if (raw === 'unclipped' || raw === 'queryArea' || raw === 'buffer') { return raw }
+      return 'off'
+    },
+    set: (v) => { setQuery({ showAggAreas: v === 'off' ? undefined : v }) }
   })
 
   const aggregateLayer = computed<string>({
@@ -80,7 +87,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)
 
   return {
-    showAggAreas,
+    aggAreaMode,
     aggregateLayer,
     choroplethElement,
     shadeByDensity,

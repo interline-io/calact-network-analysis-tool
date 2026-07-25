@@ -1,5 +1,5 @@
-import type { CensusValues, CensusGeographyData } from './census-columns'
-import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
+import type { CensusValues, CensusGeographyData, AggAreaMode } from './census-columns'
+import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS, censusApportionRatio } from './census-columns'
 
 // FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
 // its parent's (block group nests in tract, tract in county, county in state), so
@@ -26,19 +26,21 @@ export interface CensusGeographyEntry {
 export function censusGeographyMapToEntries (
   m: Map<string, CensusGeographyData> | undefined,
   nameFor?: (geoid: string) => string | undefined,
+  mode: AggAreaMode = 'queryArea',
 ): CensusGeographyEntry[] {
   if (!m) {
     return []
   }
   const out: CensusGeographyEntry[] = []
   for (const [geoid, data] of m) {
+    const useBufferClip = mode === 'buffer' && data.bufferIntersectionArea != null
     out.push({
       geoid,
       name: nameFor?.(geoid) ?? data.name ?? undefined,
       layer: data.layer,
       geometryArea: data.geometryArea,
-      intersectionArea: data.intersectionArea,
-      intersectionRatio: data.intersectionRatio,
+      intersectionArea: useBufferClip ? data.bufferIntersectionArea! : data.intersectionArea,
+      intersectionRatio: censusApportionRatio(data, mode),
       values: data.values,
     })
   }

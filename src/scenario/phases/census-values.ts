@@ -92,20 +92,22 @@ export async function runCensusValuesPhase (
 
   const entries: [string, CensusGeographyData][] = features.map((f) => {
     const geometryArea = f.properties.geometry_area
-    const intersectionArea = clipAreas
-      ? (clipAreas.get(f.properties.geoid) ?? 0)
-      : f.properties.intersection_area
+    // Both clips are kept: the choropleth mode picks between them at display
+    // time, so switching never needs a refetch.
+    const bufferArea = clipAreas ? (clipAreas.get(f.properties.geoid) ?? 0) : undefined
     return [
       f.properties.geoid,
       {
         id: f.properties.geography_id,
         name: f.properties.name,
         values: f.properties.values,
-        intersectionRatio: clipAreas
-          ? (geometryArea > 0 ? Math.min(intersectionArea / geometryArea, 1.0) : 0)
-          : f.properties.intersection_ratio,
+        intersectionRatio: f.properties.intersection_ratio,
         geometryArea,
-        intersectionArea,
+        intersectionArea: f.properties.intersection_area,
+        bufferIntersectionArea: bufferArea,
+        bufferIntersectionRatio: bufferArea == null
+          ? undefined
+          : (geometryArea > 0 ? Math.min(bufferArea / geometryArea, 1.0) : 0),
         layer: config.aggregateLayer,
       },
     ]

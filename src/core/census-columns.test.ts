@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
+  censusApportionRatio,
   deriveApportionedRow,
   formatAcsDatasetLabel,
   formatArea,
@@ -176,5 +177,32 @@ describe('formatAcsDatasetLabel', () => {
 
   it('falls back to raw string on unknown format', () => {
     expect(formatAcsDatasetLabel('something-else')).toBe('something-else')
+  })
+})
+
+describe('censusApportionRatio', () => {
+  const geo = { values: {}, intersectionRatio: 0.6, bufferIntersectionRatio: 0.25 }
+
+  it('counts the whole geography when unclipped', () => {
+    expect(censusApportionRatio(geo, 'unclipped')).toBe(1)
+  })
+
+  it('uses the query-area clip by default', () => {
+    expect(censusApportionRatio(geo, 'queryArea')).toBe(0.6)
+    expect(censusApportionRatio(geo, 'off')).toBe(0.6)
+  })
+
+  it('uses the stop-buffer clip when asked for it', () => {
+    expect(censusApportionRatio(geo, 'buffer')).toBe(0.25)
+  })
+
+  // A zero buffer clip is a real answer (no stop reaches this geography) and
+  // must not be mistaken for a missing one.
+  it('keeps a zero buffer clip rather than falling back', () => {
+    expect(censusApportionRatio({ values: {}, intersectionRatio: 0.6, bufferIntersectionRatio: 0 }, 'buffer')).toBe(0)
+  })
+
+  it('falls back to the query-area clip when no buffer clip was computed', () => {
+    expect(censusApportionRatio({ values: {}, intersectionRatio: 0.6 }, 'buffer')).toBe(0.6)
   })
 })
