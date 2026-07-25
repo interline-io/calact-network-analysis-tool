@@ -8,7 +8,7 @@ import { CENSUS_COLUMNS, type Feature, type TableColumn } from '~~/src/core'
 // when a stop statistical radius is in effect.
 function buildCensusColumns (apportioned: boolean): TableColumn[] {
   const tooltip = apportioned
-    ? 'Apportioned to the area within the stop statistical radius. Median values are not apportioned and render as "—".'
+    ? 'Apportioned to the analyzed area within the stop statistical radius. Median values are not apportioned and render as "—".'
     : undefined
   return CENSUS_COLUMNS.map(c => ({
     key: c.id,
@@ -153,7 +153,7 @@ export function buildStopGeoAggregateColumns (allDay: boolean, bufferAggregation
       label: '% Area within Stop Radius',
       sortable: true,
       format: 'percent',
-      tooltip: 'Percentage of this area covered by the union of stop statistical radii. Demographic columns are apportioned to that covered portion.',
+      tooltip: 'Percentage of this area covered by the union of stop statistical radii being analyzed. Demographic columns are apportioned to that covered portion.',
     })
   }
   return cols

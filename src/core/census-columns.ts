@@ -64,14 +64,11 @@ export interface CensusGeographyData {
   name: string
   /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
   values: CensusValues
-  /** Fraction of the geography inside the clip area, in [0, 1]. */
+  /** Fraction of the geography inside the analyzed area, in [0, 1]. */
   intersectionRatio: number
   /** Full geography area in m². */
   geometryArea: number
-  /**
-   * Geography ∩ clip area in m². The clip is the query area, narrowed to the
-   * stop buffers when a radius and an admin-boundary query area are both set.
-   */
+  /** Geography ∩ analyzed area in m². */
   intersectionArea: number
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
