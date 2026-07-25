@@ -87,9 +87,6 @@ query (
     geographies(
       limit: 100000,
       where: {
-        # Redundant with the enclosing census_datasets filter, but the backend
-        # only pushes the (dataset, layer) -> layer_id lookup into the spatial
-        # join when both are set on this filter.
         dataset: $geoDatasetName,
         layer: $layer,
         location: {

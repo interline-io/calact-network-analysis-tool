@@ -35,12 +35,7 @@ export interface BufferFetchConfig {
   stopIds: number[]
   routeIds: number[]
   agencyIds: number[]
-  // Admin-boundary selection; resolved to a `within` polygon when one isn't
-  // already supplied (the standalone-request path).
   geographyIds?: number[]
-  // Pre-resolved admin polygon from the feed-versions phase (the inline path).
-  // Confines the Pass F union to the query area so buffers around edge stops
-  // don't apportion census from outside the user's selection.
   within?: GeoJSON.Polygon
   // Default 100 — matches ScenarioFetcher's stopTimeBatchSize.
   stopChunkSize?: number
