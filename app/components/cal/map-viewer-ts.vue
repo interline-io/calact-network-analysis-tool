@@ -593,25 +593,19 @@ function createLayers () {
       'line-opacity': 0.6
     }
   })
-  map?.addLayer({
-    id: 'stop-buffer-fill',
-    type: 'fill',
-    source: 'stopBufferPolygons',
-    layout: {},
-    paint: {
-      'fill-color': '#1f78b4',
-      'fill-opacity': 0.15
-    }
-  })
+  // Outline only: one polygon per route, so a fill would stack opacity
+  // wherever routes overlap. Dashed to separate it from the solid
+  // geographic-filter outline in the same red.
   map?.addLayer({
     id: 'stop-buffer-outline',
     type: 'line',
     source: 'stopBufferPolygons',
     layout: {},
     paint: {
-      'line-width': 1,
-      'line-color': '#1f78b4',
-      'line-opacity': 0.7
+      'line-width': 2,
+      'line-color': '#ff0000',
+      'line-opacity': 0.6,
+      'line-dasharray': [3, 2]
     }
   })
 

@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import type { CensusValues, GraphQLClient } from '~~/src/core'
+import type { CensusValues, Geometry, GraphQLClient } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // #315 — per-entity buffer ∩ census intersections + inline ACS values.
@@ -211,4 +211,22 @@ export async function fetchEntityBufferGeographies (
     }
     return [ent.id, geographies]
   })
+}
+
+// Union of circles of `radius` around each of a route's stops, computed
+// server-side. Independent of census data, so it renders in any query mode.
+export const routeStopBufferQuery = gql`
+  query ($ids: [Int!], $radius: Float) {
+    routes(ids: $ids, limit: 10000) {
+      id
+      route_stop_buffer(radius: $radius) {
+        stop_buffer
+      }
+    }
+  }
+`
+
+export interface RouteStopBufferResponse {
+  id: number
+  route_stop_buffer?: { stop_buffer?: Geometry | null } | null
 }

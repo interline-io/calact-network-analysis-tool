@@ -94,8 +94,7 @@ export async function runCensusValuesPhase (
     const geometryArea = f.properties.geometry_area
     // Both clips are kept: the choropleth mode picks between them at display
     // time, so switching never needs a refetch.
-    const clip = clips?.get(f.properties.geoid)
-    const bufferArea = clips ? (clip?.area ?? 0) : undefined
+    const bufferArea = clips ? (clips.get(f.properties.geoid) ?? 0) : undefined
     return [
       f.properties.geoid,
       {
@@ -109,7 +108,6 @@ export async function runCensusValuesPhase (
         bufferIntersectionRatio: bufferArea == null
           ? undefined
           : (geometryArea > 0 ? Math.min(bufferArea / geometryArea, 1.0) : 0),
-        bufferIntersectionGeometry: clip?.geometry,
         layer: config.aggregateLayer,
       },
     ]

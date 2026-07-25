@@ -51,13 +51,6 @@
         </option>
       </cat-select>
     </cat-field>
-    <cat-field v-if="props.bufferClipAvailable">
-      <cat-tooltip text="Outlines the area within the stop statistical radius that the buffer-clipped values are computed from.">
-        <cat-checkbox v-model="showStopBuffer">
-          Show stop buffer coverage
-        </cat-checkbox>
-      </cat-tooltip>
-    </cat-field>
     <cat-field class="mt-2">
       <template #label>
         Aggregate by
@@ -113,6 +106,13 @@
         <cat-checkbox v-model="showBbox">
           Show geographic filters
         </cat-checkbox>
+      </li>
+      <li>
+        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops.">
+          <cat-checkbox v-model="showStopBuffer" :disabled="stopBufferRadius <= 0">
+            Show stop buffers
+          </cat-checkbox>
+        </cat-tooltip>
       </li>
     </ul>
     <p class="menu-label">

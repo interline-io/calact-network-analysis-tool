@@ -132,15 +132,9 @@ export interface FetchClipIntersectionsConfig {
   stopBufferRadius: number
 }
 
-/** A geography's overlap with the query area and the stop buffers. */
-export interface ClipIntersection {
-  area: number
-  geometry?: Geometry
-}
-
-// No ACS values — the query-area pass already carries those. The backend
-// clips to the intersection of `within` and the stop-buffer union, so a
-// geography absent from the result has no overlap with both.
+// Areas only — the query-area pass already carries the ACS values. The
+// backend clips to the intersection of `within` and the stop-buffer union, so
+// a geography absent from the result has no overlap with both.
 export const clipIntersectionQuery = gql`
 query (
   $geoDatasetName: String,
@@ -164,26 +158,24 @@ query (
     ) {
       geoid
       intersection_area
-      intersection_geometry
     }
   }
 }
 `
 
-// Overlap of each geography with the query area AND the stop buffers, keyed
-// by geoid. Geographies the buffers don't reach are omitted by the server.
+// Intersection area of each geography with the query area AND the stop
+// buffers, keyed by geoid. Geographies the buffers don't reach are omitted by
+// the server; callers should treat a missing key as zero overlap.
 export async function fetchClipIntersections (
   config: FetchClipIntersectionsConfig,
-): Promise<Map<string, ClipIntersection>> {
+): Promise<Map<string, number>> {
   const stopIds = Array.from(config.stopIds)
-  const out = new Map<string, ClipIntersection>()
+  const out = new Map<string, number>()
   if (stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
     return out
   }
   const result = await config.client.query<{
-    census_datasets: {
-      geographies: { geoid: string, intersection_area: number | null, intersection_geometry: Geometry | null }[]
-    }[]
+    census_datasets: { geographies: { geoid: string, intersection_area: number | null }[] }[]
   }>(clipIntersectionQuery, {
     geoDatasetName: config.geoDatasetName,
     layer: config.geoDatasetLayer,
@@ -194,13 +186,8 @@ export async function fetchClipIntersections (
   for (const geoDataset of result.data?.census_datasets || []) {
     for (const geography of geoDataset.geographies || []) {
       // Multiple rows per geoid are possible in other backend clip modes;
-      // sum so a split clip isn't silently reduced to one part. The first
-      // row's geometry wins — the composed clip only ever emits one.
-      const prev = out.get(geography.geoid)
-      out.set(geography.geoid, {
-        area: (prev?.area || 0) + (geography.intersection_area || 0),
-        geometry: prev?.geometry ?? geography.intersection_geometry ?? undefined,
-      })
+      // sum so a split clip isn't silently reduced to one part.
+      out.set(geography.geoid, (out.get(geography.geoid) || 0) + (geography.intersection_area || 0))
     }
   }
   return out

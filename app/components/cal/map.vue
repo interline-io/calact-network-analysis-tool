@@ -39,7 +39,7 @@
       :zoom="14"
       :initial-bounds="bbox"
       :overlay-features="overlayFeatures"
-      :stop-buffer-features="stopBufferFeatures"
+      :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
@@ -94,6 +94,7 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
+  stopBufferFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
@@ -105,24 +106,7 @@ const props = defineProps<{
   fitOverlayKey?: number
 }>()
 
-const { dataDisplayMode, hideUnmarked, showStopBuffer } = useScenarioDisplay()
-
-// The clipped area each buffer-mode census value was computed from. Drawn
-// straight from the server's intersection geometry — MapLibre can't render a
-// GeometryCollection, which ST_Intersection can return where the query area
-// and a buffer only touch, so those are skipped.
-const stopBufferFeatures = computed((): Feature[] => {
-  if (!showStopBuffer.value) { return [] }
-  const geos = props.scenarioFilterResult?.censusGeographies
-  if (!geos) { return [] }
-  const out: Feature[] = []
-  for (const [geoid, geo] of geos) {
-    const g = geo.bufferIntersectionGeometry
-    if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) { continue }
-    out.push({ id: geoid, type: 'Feature', geometry: g, properties: {} } as Feature)
-  }
-  return out
-})
+const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
 const { bbox, geographyIds, geomSource, geomLayer, fixedRouteEnabled } = useScenarioInputs()
 const { flexServicesEnabled, flexColorBy } = useScenarioFilters()
 

@@ -96,27 +96,19 @@ describe('fetchClipIntersections', () => {
 
   it('keys areas by geoid and sums repeated rows', async () => {
     const { client } = mockClient(geographiesResponse([
-      { geoid: 'A', intersection_area: 100, intersection_geometry: null },
-      { geoid: 'B', intersection_area: 250, intersection_geometry: null },
-      { geoid: 'A', intersection_area: 50, intersection_geometry: null },
+      { geoid: 'A', intersection_area: 100 },
+      { geoid: 'B', intersection_area: 250 },
+      { geoid: 'A', intersection_area: 50 },
     ]))
     const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(clips.get('A')?.area).toBe(150)
-    expect(clips.get('B')?.area).toBe(250)
+    expect(clips.get('A')).toBe(150)
+    expect(clips.get('B')).toBe(250)
     expect(clips.has('C')).toBe(false)
   })
 
   it('treats a null intersection_area as zero', async () => {
-    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: null, intersection_geometry: null }]))
+    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: null }]))
     const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(clips.get('A')?.area).toBe(0)
-  })
-
-  // The geometry is what the map draws for the buffer-coverage layer.
-  it('carries the clipped geometry through', async () => {
-    const geometry = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
-    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: 100, intersection_geometry: geometry }]))
-    const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(clips.get('A')?.geometry).toEqual(geometry)
+    expect(clips.get('A')).toBe(0)
   })
 })
