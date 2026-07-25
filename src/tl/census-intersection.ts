@@ -87,6 +87,10 @@ query (
     geographies(
       limit: 100000,
       where: {
+        # Redundant with the enclosing census_datasets filter, but the backend
+        # only pushes the (dataset, layer) -> layer_id lookup into the spatial
+        # join when both are set on this filter.
+        dataset: $geoDatasetName,
         layer: $layer,
         location: {
           bbox: $bbox,
@@ -121,6 +125,76 @@ query (
   }
 }
 `
+
+export interface FetchClipIntersectionAreasConfig {
+  client: GraphQLClient
+  geoDatasetName: string
+  geoDatasetLayer: string
+  within: GeoJSON.Polygon
+  stopIds: Iterable<number>
+  stopBufferRadius: number
+}
+
+// Areas only — no ACS values, no geometry. The backend clips to the
+// intersection of `within` and the stop-buffer union, so a geography absent
+// from the result has no overlap with both.
+export const clipIntersectionAreaQuery = gql`
+query (
+  $geoDatasetName: String,
+  $layer: String!,
+  $within: Polygon,
+  $stopIds: [Int!],
+  $stopBufferRadius: Float
+) {
+  census_datasets(where: {name: $geoDatasetName}) {
+    id
+    geographies(
+      limit: 100000,
+      where: {
+        dataset: $geoDatasetName,
+        layer: $layer,
+        location: {
+          within: $within,
+          stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
+        }
+      }
+    ) {
+      geoid
+      intersection_area
+    }
+  }
+}
+`
+
+// Intersection area of each geography with the query area AND the stop
+// buffers, keyed by geoid. Geographies the buffers don't reach are omitted
+// by the server; callers should treat a missing key as zero overlap.
+export async function fetchClipIntersectionAreas (
+  config: FetchClipIntersectionAreasConfig,
+): Promise<Map<string, number>> {
+  const stopIds = Array.from(config.stopIds)
+  const areas = new Map<string, number>()
+  if (stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+    return areas
+  }
+  const result = await config.client.query<{
+    census_datasets: { geographies: { geoid: string, intersection_area: number | null }[] }[]
+  }>(clipIntersectionAreaQuery, {
+    geoDatasetName: config.geoDatasetName,
+    layer: config.geoDatasetLayer,
+    within: config.within,
+    stopIds,
+    stopBufferRadius: config.stopBufferRadius,
+  })
+  for (const geoDataset of result.data?.census_datasets || []) {
+    for (const geography of geoDataset.geographies || []) {
+      // Multiple rows per geoid are possible in other backend clip modes;
+      // sum so a split clip isn't silently reduced to one part.
+      areas.set(geography.geoid, (areas.get(geography.geoid) || 0) + (geography.intersection_area || 0))
+    }
+  }
+  return areas
+}
 
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,

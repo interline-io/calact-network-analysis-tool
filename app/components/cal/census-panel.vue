@@ -39,19 +39,19 @@
           <tr>
             <th>Statistic</th>
             <th>
-              <cat-tooltip text="The full raw ACS value for this geography — not scaled by the intersection with the query area.">
+              <cat-tooltip :text="`The full raw ACS value for this geography — not scaled by the intersection with ${scopeLabel}.`">
                 Full Geography
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
             <th>
-              <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the query area. Ratios (% columns) and medians are unchanged.">
+              <cat-tooltip :text="`This geography's raw ACS value scaled by its intersection with ${scopeLabel}. Ratios (% columns) and medians are unchanged.`">
                 Intersection
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
             <th>
-              <cat-tooltip text="Sum of every geography's Intersection value across the query area. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
+              <cat-tooltip :text="`Sum of every geography's Intersection value across ${scopeLabel}. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.`">
                 Query Area Total
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
@@ -112,6 +112,8 @@ const props = defineProps<{
     intersectionArea: number | null
     intersectionRatio: number | null
   } | null
+  // What the Intersection column is measured against.
+  intersectionScope?: 'query-area' | 'query-area-and-buffer'
 }>()
 
 defineEmits<{
@@ -120,6 +122,10 @@ defineEmits<{
 }>()
 
 const { choroplethElement, unitSystem } = useScenarioDisplay()
+
+const scopeLabel = computed(() => props.intersectionScope === 'query-area-and-buffer'
+  ? 'both the query area and the stop buffers'
+  : 'the query area')
 
 function valueFor (id: string): number | null {
   return toFiniteNumber(props.row?.[id])

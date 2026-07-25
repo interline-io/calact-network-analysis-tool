@@ -47,6 +47,9 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
         tableDatasetName: config.tableDatasetName,
         aggregateLayer: config.aggregateLayer,
         stopBufferRadius: config.stopBufferRadius,
+        // The buffer clip needs the same stop set the scenario resolved;
+        // without it the refetch would drop back to query-area-only values.
+        stopIds: data.stops.map(s => s.id),
       }
       return body
     },

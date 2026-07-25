@@ -1,5 +1,6 @@
-// Phase 6: ACS census values for the aggregation layer. Depends only on the
-// resolved geographic context — independent of stops/routes/departures.
+// Phase 6: ACS census values for the aggregation layer. Depends on the
+// resolved geographic context, plus the scenario's stop set when the
+// intersection is narrowed to the stop buffers.
 
 import {
   padBboxMeters,
@@ -8,7 +9,7 @@ import {
   type CensusGeographyData,
   type GraphQLClient,
 } from '~~/src/core'
-import { fetchCensusIntersection } from '~~/src/tl'
+import { fetchCensusIntersection, fetchClipIntersectionAreas } from '~~/src/tl'
 import { resolveGeographyContext } from './feed-versions'
 import { phaseDone, type PhaseEmit } from './common'
 
@@ -27,6 +28,9 @@ export interface CensusValuesPhaseConfig {
   // Bbox is padded by the radius so edge-crossing buffers can apportion
   // against the right tracts.
   stopBufferRadius?: number
+  // With a radius and a `within` polygon, a second pass narrows each
+  // geography's intersection to the query area AND the stop buffers.
+  stopIds?: number[]
 }
 
 export async function runCensusValuesPhase (
@@ -65,18 +69,47 @@ export async function runCensusValuesPhase (
     bbox: paddedBbox,
     within,
   })
-  const entries: [string, CensusGeographyData][] = features.map(f => [
-    f.properties.geoid,
-    {
-      id: f.properties.geography_id,
-      name: f.properties.name,
-      values: f.properties.values,
-      intersectionRatio: f.properties.intersection_ratio,
-      geometryArea: f.properties.geometry_area,
-      intersectionArea: f.properties.intersection_area,
-      layer: config.aggregateLayer,
-    },
-  ])
+
+  // Second pass: intersection with the query area AND the stop buffers. The
+  // first pass stays the row universe, so geographies the buffers don't reach
+  // are kept and reported at zero rather than dropped by the server's clip.
+  // Needs a `within` polygon — the backend ignores a stop buffer alongside a
+  // bbox, so a bbox-only scenario keeps query-area intersections.
+  const stopIds = config.stopIds || []
+  const clipAreas = within && radius > 0 && stopIds.length > 0
+    ? await fetchClipIntersectionAreas({
+        client,
+        geoDatasetName: config.geoDatasetName,
+        geoDatasetLayer: config.aggregateLayer,
+        within,
+        stopIds,
+        stopBufferRadius: radius,
+      })
+    : null
+  if (clipAreas) {
+    console.log(`[CensusValues] Clipped to stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clipAreas.size}/${features.length} geographies overlap`)
+  }
+
+  const entries: [string, CensusGeographyData][] = features.map((f) => {
+    const geometryArea = f.properties.geometry_area
+    const intersectionArea = clipAreas
+      ? (clipAreas.get(f.properties.geoid) ?? 0)
+      : f.properties.intersection_area
+    return [
+      f.properties.geoid,
+      {
+        id: f.properties.geography_id,
+        name: f.properties.name,
+        values: f.properties.values,
+        intersectionRatio: clipAreas
+          ? (geometryArea > 0 ? Math.min(intersectionArea / geometryArea, 1.0) : 0)
+          : f.properties.intersection_ratio,
+        geometryArea,
+        intersectionArea,
+        layer: config.aggregateLayer,
+      },
+    ]
+  })
   console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
   emit({
     isLoading: true,

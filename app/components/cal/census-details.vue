@@ -70,7 +70,7 @@
         <p class="mb-2">
           One row per census geography.
           <strong>Intersection %</strong> shows the fraction of each geography
-          that falls inside the query area or stop buffer.
+          that {{ intersectionScopeText }}.
         </p>
         <p class="mb-3">
           Demographic columns show the <strong>full ACS value for the whole
@@ -355,6 +355,9 @@ const props = defineProps<{
     radius?: number
     layer?: string
   }
+  // What Intersection % is measured against. Defaults to the stop buffer in
+  // per-entity mode and the query area otherwise.
+  intersectionScope?: 'query-area' | 'query-area-and-buffer' | 'buffer'
   // Presence flips the Inspector tab into multi-geography mode + reveals the
   // Apportionment tab.
   apportionmentSummary?: {
@@ -381,6 +384,19 @@ const activeTab = ref<TabId>('geographies')
 const inspectorMode = computed<'single' | 'apportioned'>(() =>
   props.apportionmentSummary ? 'apportioned' : 'single',
 )
+
+const intersectionScopeText = computed(() => {
+  const scope = props.intersectionScope
+    ?? (props.headerProps?.radius != null ? 'buffer' : 'query-area')
+  switch (scope) {
+    case 'buffer':
+      return 'falls inside the stop buffer'
+    case 'query-area-and-buffer':
+      return 'falls inside both the query area and the stop buffers'
+    default:
+      return 'falls inside the query area'
+  }
+})
 
 // Map fetch is one-shot — parent caches.
 const geometryRequested = ref(false)

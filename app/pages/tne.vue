@@ -109,6 +109,7 @@
               :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
               :all-derived="allGeographiesDerived"
               :area-stats="selectedPanelData?.areaStats ?? null"
+              :intersection-scope="censusIntersectionScope"
               @close="selectedAggregationGeoid = null"
               @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
             />
@@ -164,6 +165,7 @@
           v-if="scenarioFilterResult"
           :entries="censusDetailsEntries"
           :layer-label="aggregateLayerLabel"
+          :intersection-scope="censusIntersectionScope"
           :highlighted-geoid="highlightedCensusGeoid ?? undefined"
           @select-geography="onSelectGeographyFromDetails"
           @clear-filter="highlightedCensusGeoid = null"
@@ -687,6 +689,14 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
   }
   return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
 })
+
+// The backend only intersects the stop buffers with an admin-boundary
+// polygon; a bbox query area keeps plain query-area intersections.
+const censusIntersectionScope = computed<'query-area' | 'query-area-and-buffer'>(() =>
+  geographyIds.value.length > 0 && stopBufferRadius.value > 0
+    ? 'query-area-and-buffer'
+    : 'query-area',
+)
 
 const {
   show: showBufferDetails,

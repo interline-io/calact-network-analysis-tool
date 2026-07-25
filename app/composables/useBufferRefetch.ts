@@ -41,6 +41,9 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
         stopIds: data.stops.map(s => s.id),
         routeIds: data.routes.map(r => r.id),
         agencyIds,
+        // Re-resolved server-side so the aggregation union stays clipped to
+        // the query area across radius/layer changes.
+        geographyIds: config.geographyIds,
       }
       return body
     },

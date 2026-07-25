@@ -14,6 +14,7 @@ import {
   type BufferGeographyIntersection,
 } from '~~/src/tl'
 import type { ScenarioProgress } from './scenario'
+import { resolveGeographyContext } from './phases/feed-versions'
 import { phaseDone } from './phases/common'
 
 // Smaller than the stop batch because each route/agency expands to its full
@@ -34,6 +35,13 @@ export interface BufferFetchConfig {
   stopIds: number[]
   routeIds: number[]
   agencyIds: number[]
+  // Admin-boundary selection; resolved to a `within` polygon when one isn't
+  // already supplied (the standalone-request path).
+  geographyIds?: number[]
+  // Pre-resolved admin polygon from the feed-versions phase (the inline path).
+  // Confines the Pass F union to the query area so buffers around edge stops
+  // don't apportion census from outside the user's selection.
+  within?: GeoJSON.Polygon
   // Default 100 — matches ScenarioFetcher's stopTimeBatchSize.
   stopChunkSize?: number
   // Default 50 — matches BUFFER_ENTITY_BATCH_SIZE.
@@ -87,14 +95,23 @@ export async function runBufferPasses (
     }
   }
 
-  // Pass F — server-side union of every stop's buffer ∩ tracts.
+  // Pass F — server-side union of every stop's buffer ∩ tracts, further
+  // clipped to the query area when one is selected.
   if (config.stopIds.length > 0) {
+    let within = config.within
+    if (!within && config.geographyIds && config.geographyIds.length > 0) {
+      within = (await resolveGeographyContext({
+        geographyIds: config.geographyIds,
+        geoDatasetName: config.geoDatasetName,
+      }, client)).within
+    }
     const features = await fetchCensusIntersection({
       client,
       geoDatasetName: config.geoDatasetName,
       geoDatasetLayer: config.layer,
       tableDatasetName: config.tableDatasetName,
       tableNames: REQUIRED_ACS_TABLES,
+      within,
       stopIds: config.stopIds,
       stopBufferRadius: config.radius,
     })
@@ -107,7 +124,7 @@ export async function runBufferPasses (
         intersectionArea: f.properties.intersection_area,
         values: f.properties.values,
       }))
-    console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
+    console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops${within ? ' ∩ query area' : ''} → ${geographies.length} geographies`)
     completedChunks += 1
     emit({
       isLoading: true,
