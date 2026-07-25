@@ -47,9 +47,16 @@
           Clipped to query area
         </option>
         <option value="buffer" :disabled="!props.bufferClipAvailable">
-          Clipped to query area and stop radius{{ props.bufferClipAvailable ? '' : ' (needs a stop radius)' }}
+          Clipped to query area and stop radius{{ bufferClipHint }}
         </option>
       </cat-select>
+    </cat-field>
+    <cat-field v-if="props.bufferClipAvailable">
+      <cat-tooltip text="Outlines the area within the stop statistical radius that the buffer-clipped values are computed from.">
+        <cat-checkbox v-model="showStopBuffer">
+          Show stop buffer coverage
+        </cat-checkbox>
+      </cat-tooltip>
     </cat-field>
     <cat-field class="mt-2">
       <template #label>
@@ -137,6 +144,7 @@ const props = defineProps<{
 
 const {
   aggAreaMode,
+  showStopBuffer,
   aggregateLayer,
   choroplethElement,
   shadeByDensity,
@@ -146,6 +154,16 @@ const {
   showBbox,
 } = useScenarioDisplay()
 const { stopBufferRadius } = useScenarioInputs()
+
+// Without a radius the user can fix it here; otherwise the scenario didn't
+// produce a stop-buffer clip and re-running with a different query area is
+// the only recourse.
+const bufferClipHint = computed(() => {
+  if (props.bufferClipAvailable) { return '' }
+  return stopBufferRadius.value > 0
+    ? ' (not available for this query area)'
+    : ' (needs a stop radius)'
+})
 
 const shadeByDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 

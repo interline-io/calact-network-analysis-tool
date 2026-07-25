@@ -9,7 +9,7 @@ import {
   type CensusGeographyData,
   type GraphQLClient,
 } from '~~/src/core'
-import { fetchCensusIntersection, fetchClipIntersectionAreas } from '~~/src/tl'
+import { fetchCensusIntersection, fetchClipIntersections } from '~~/src/tl'
 import { resolveGeographyContext } from './feed-versions'
 import { phaseDone, type PhaseEmit } from './common'
 
@@ -76,8 +76,8 @@ export async function runCensusValuesPhase (
   // Needs a `within` polygon — the backend ignores a stop buffer alongside a
   // bbox, so a bbox-only scenario keeps query-area intersections.
   const stopIds = config.stopIds || []
-  const clipAreas = within && radius > 0 && stopIds.length > 0
-    ? await fetchClipIntersectionAreas({
+  const clips = within && radius > 0 && stopIds.length > 0
+    ? await fetchClipIntersections({
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
@@ -86,15 +86,16 @@ export async function runCensusValuesPhase (
         stopBufferRadius: radius,
       })
     : null
-  if (clipAreas) {
-    console.log(`[CensusValues] Clipped to stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clipAreas.size}/${features.length} geographies overlap`)
+  if (clips) {
+    console.log(`[CensusValues] Clipped to stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clips.size}/${features.length} geographies overlap`)
   }
 
   const entries: [string, CensusGeographyData][] = features.map((f) => {
     const geometryArea = f.properties.geometry_area
     // Both clips are kept: the choropleth mode picks between them at display
     // time, so switching never needs a refetch.
-    const bufferArea = clipAreas ? (clipAreas.get(f.properties.geoid) ?? 0) : undefined
+    const clip = clips?.get(f.properties.geoid)
+    const bufferArea = clips ? (clip?.area ?? 0) : undefined
     return [
       f.properties.geoid,
       {
@@ -108,6 +109,7 @@ export async function runCensusValuesPhase (
         bufferIntersectionRatio: bufferArea == null
           ? undefined
           : (geometryArea > 0 ? Math.min(bufferArea / geometryArea, 1.0) : 0),
+        bufferIntersectionGeometry: clip?.geometry,
         layer: config.aggregateLayer,
       },
     ]

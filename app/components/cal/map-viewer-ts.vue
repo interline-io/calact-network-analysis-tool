@@ -31,6 +31,7 @@ const emit = defineEmits([
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
+const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: [] })
 const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: [] })
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
 const features = defineModel<Feature[]>('features', { default: [] })
@@ -78,6 +79,12 @@ let choroplethTooltip: HTMLDivElement | undefined
 
 //////////////////////
 // Watchers
+
+watch(() => stopBufferFeatures.value, (v) => {
+  nextTick(() => {
+    updateStopBufferFeatures(v)
+  })
+})
 
 watch(() => overlayFeatures.value, (v) => {
   nextTick(() => {
@@ -272,6 +279,7 @@ function initMap () {
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
+    updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
@@ -453,6 +461,10 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
+  map?.addSource('stopBufferPolygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
   map?.addSource('choropleth', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
@@ -579,6 +591,27 @@ function createLayers () {
       'line-width': 2,
       'line-color': '#ff0000',
       'line-opacity': 0.6
+    }
+  })
+  map?.addLayer({
+    id: 'stop-buffer-fill',
+    type: 'fill',
+    source: 'stopBufferPolygons',
+    layout: {},
+    paint: {
+      'fill-color': '#1f78b4',
+      'fill-opacity': 0.15
+    }
+  })
+  map?.addLayer({
+    id: 'stop-buffer-outline',
+    type: 'line',
+    source: 'stopBufferPolygons',
+    layout: {},
+    paint: {
+      'line-width': 1,
+      'line-color': '#1f78b4',
+      'line-opacity': 0.7
     }
   })
 
@@ -812,6 +845,10 @@ function updateChoroplethFeatures (features: Feature[]) {
 
 function updateOverlayFeatures (features: Feature[]) {
   setSourceData('overlayPolygons', features, isPolygon)
+}
+
+function updateStopBufferFeatures (features: Feature[]) {
+  setSourceData('stopBufferPolygons', features, isPolygon)
 }
 
 function updateSelectableGeographies (features: Feature[]) {

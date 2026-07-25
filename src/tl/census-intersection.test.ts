@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { GraphQLClient } from '~~/src/core'
-import { fetchCensusIntersection, fetchClipIntersectionAreas } from './census-intersection'
+import { fetchCensusIntersection, fetchClipIntersections } from './census-intersection'
 
 // The GraphQL variables these two functions build are the whole contract with
 // the backend's filter-precedence chain: `bbox` outranks everything, and
@@ -57,7 +57,7 @@ describe('fetchCensusIntersection variables', () => {
   })
 })
 
-describe('fetchClipIntersectionAreas', () => {
+describe('fetchClipIntersections', () => {
   const base = {
     geoDatasetName: 'tiger2021',
     geoDatasetLayer: 'tract',
@@ -66,7 +66,7 @@ describe('fetchClipIntersectionAreas', () => {
 
   it('sends within and the stop buffer together', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
-    await fetchClipIntersectionAreas({ ...base, client, stopIds: [1, 2, 3], stopBufferRadius: 400 })
+    await fetchClipIntersections({ ...base, client, stopIds: [1, 2, 3], stopBufferRadius: 400 })
     expect(query).toHaveBeenCalledTimes(1)
     const vars = query.mock.calls[0]![1]
     expect(vars).toMatchObject({
@@ -82,33 +82,41 @@ describe('fetchClipIntersectionAreas', () => {
   // intersection_area — the field comes back null and would zero every ratio.
   it('makes no request at radius 0', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
-    const areas = await fetchClipIntersectionAreas({ ...base, client, stopIds: [1], stopBufferRadius: 0 })
+    const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 0 })
     expect(query).not.toHaveBeenCalled()
-    expect(areas.size).toBe(0)
+    expect(clips.size).toBe(0)
   })
 
   it('makes no request with an empty stop set', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
-    const areas = await fetchClipIntersectionAreas({ ...base, client, stopIds: [], stopBufferRadius: 400 })
+    const clips = await fetchClipIntersections({ ...base, client, stopIds: [], stopBufferRadius: 400 })
     expect(query).not.toHaveBeenCalled()
-    expect(areas.size).toBe(0)
+    expect(clips.size).toBe(0)
   })
 
   it('keys areas by geoid and sums repeated rows', async () => {
     const { client } = mockClient(geographiesResponse([
-      { geoid: 'A', intersection_area: 100 },
-      { geoid: 'B', intersection_area: 250 },
-      { geoid: 'A', intersection_area: 50 },
+      { geoid: 'A', intersection_area: 100, intersection_geometry: null },
+      { geoid: 'B', intersection_area: 250, intersection_geometry: null },
+      { geoid: 'A', intersection_area: 50, intersection_geometry: null },
     ]))
-    const areas = await fetchClipIntersectionAreas({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(areas.get('A')).toBe(150)
-    expect(areas.get('B')).toBe(250)
-    expect(areas.has('C')).toBe(false)
+    const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
+    expect(clips.get('A')?.area).toBe(150)
+    expect(clips.get('B')?.area).toBe(250)
+    expect(clips.has('C')).toBe(false)
   })
 
   it('treats a null intersection_area as zero', async () => {
-    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: null }]))
-    const areas = await fetchClipIntersectionAreas({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(areas.get('A')).toBe(0)
+    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: null, intersection_geometry: null }]))
+    const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
+    expect(clips.get('A')?.area).toBe(0)
+  })
+
+  // The geometry is what the map draws for the buffer-coverage layer.
+  it('carries the clipped geometry through', async () => {
+    const geometry = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: 100, intersection_geometry: geometry }]))
+    const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
+    expect(clips.get('A')?.geometry).toEqual(geometry)
   })
 })

@@ -3,6 +3,8 @@
 // return null when inputs are missing or denominators are zero so the UI can
 // render "—" instead of misleading zeros.
 
+import type { Geometry } from './geom'
+
 // B01003 — Total population
 const B01003_TOTAL = 'b01003_001'
 
@@ -77,6 +79,8 @@ export interface CensusGeographyData {
   bufferIntersectionArea?: number
   /** Fraction of the geography inside both clips, in [0, 1]. */
   bufferIntersectionRatio?: number
+  /** The clipped area itself, for drawing the buffer coverage on the map. */
+  bufferIntersectionGeometry?: Geometry
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,

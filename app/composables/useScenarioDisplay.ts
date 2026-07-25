@@ -4,6 +4,7 @@ import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioDisplay {
   aggAreaMode: WritableComputedRef<AggAreaMode>
+  showStopBuffer: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
   shadeByDensity: WritableComputedRef<boolean>
@@ -33,6 +34,22 @@ export function useScenarioDisplay (): ScenarioDisplay {
       return 'off'
     },
     set: (v) => { setQuery({ showAggAreas: v === 'off' ? undefined : v }) }
+  })
+
+  // Defaults on in `buffer` mode, where the shaded values only make sense
+  // alongside the coverage they were computed from. An explicit setting in
+  // the URL always wins, so it stays independently togglable.
+  const showStopBuffer = computed<boolean>({
+    get: () => {
+      const raw = route.query.showStopBuffer?.toString()
+      if (raw === 'true') { return true }
+      if (raw === 'false') { return false }
+      return aggAreaMode.value === 'buffer'
+    },
+    set: (v) => {
+      const implied = aggAreaMode.value === 'buffer'
+      setQuery({ showStopBuffer: v === implied ? undefined : String(v) })
+    }
   })
 
   const aggregateLayer = computed<string>({
@@ -88,6 +105,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
 
   return {
     aggAreaMode,
+    showStopBuffer,
     aggregateLayer,
     choroplethElement,
     shadeByDensity,
