@@ -70,6 +70,7 @@
                 v-model="stopBufferRadius"
                 type="number"
                 min="0"
+                max="1600"
               />
             </div>
             <div class="ml-2">
