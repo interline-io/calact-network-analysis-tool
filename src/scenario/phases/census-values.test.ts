@@ -115,6 +115,24 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     }
   })
 
+  // Threading the stop buffer into pass 1 would collapse the row universe:
+  // the backend's composed clip is an inner join.
+  it('never sends a stop buffer on the query-area pass', async () => {
+    const { query } = await runPhase(
+      baseConfig({ stopIds: [1, 2], stopBufferRadius: 400 }),
+      [queryAreaResponse(), clipResponse()],
+    )
+    const pass1 = query.mock.calls[0]![1]
+    expect(pass1.stopIds).toEqual([])
+    expect(pass1.stopBufferRadius).toBeUndefined()
+    // Pass 2 targets the same dataset and layer as pass 1.
+    const pass2 = query.mock.calls[1]![1]
+    expect(pass2.geoDatasetName).toBe(pass1.geoDatasetName)
+    expect(pass2.layer).toBe(pass1.layer)
+    expect(pass2.stopIds).toEqual([1, 2])
+    expect(pass2.stopBufferRadius).toBe(400)
+  })
+
   it('skips the clip pass at radius 0 and keeps query-area intersections', async () => {
     const { query, geographies } = await runPhase(
       baseConfig({ stopIds: [1, 2], stopBufferRadius: 0 }),
@@ -134,14 +152,41 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect(geographies.get('unserved')!.intersectionRatio).toBe(1)
   })
 
-  // The backend ignores a stop buffer whenever a bbox is present, so a
-  // bbox-only scenario must not pretend to have clipped.
-  it('skips the clip pass without a within polygon', async () => {
+  // The backend composes a bbox with a stop buffer, so a bbox-only scenario
+  // clips too — it does not need an admin boundary.
+  it('clips against a bbox when no within polygon is given', async () => {
     const { query, geographies } = await runPhase(
       baseConfig({ within: undefined, stopIds: [1, 2], stopBufferRadius: 400 }),
-      [queryAreaResponse()],
+      [queryAreaResponse(), clipResponse()],
     )
-    expect(query).toHaveBeenCalledTimes(1)
-    expect(geographies.get('unserved')!.intersectionRatio).toBe(1)
+    expect(query).toHaveBeenCalledTimes(2)
+    expect(query.mock.calls[1]![1].bbox).toBeDefined()
+    expect(query.mock.calls[1]![1].within).toBeUndefined()
+    expect(geographies.get('served')!.bufferIntersectionRatio).toBe(0.25)
+    expect(geographies.get('unserved')!.bufferIntersectionRatio).toBe(0)
+  })
+
+  // Pass 1's values must survive a failing clip: the clip is an enhancement,
+  // not a precondition for the scenario.
+  it('keeps query-area values when the clip pass fails', async () => {
+    const query = vi.fn()
+    query.mockResolvedValueOnce(queryAreaResponse())
+    query.mockRejectedValueOnce(new Error('statement timeout'))
+    const client = { query } as unknown as GraphQLClient
+    const emitted: [string, CensusGeographyData][] = []
+    await runCensusValuesPhase(
+      baseConfig({ stopIds: [1, 2], stopBufferRadius: 400 }),
+      client,
+      (p) => {
+        if (p.partialData?.censusGeographies) {
+          emitted.push(...p.partialData.censusGeographies as [string, CensusGeographyData][])
+        }
+      },
+    )
+    const geographies = new Map(emitted)
+    expect(geographies.size).toBe(2)
+    expect(geographies.get('served')!.values.b01003_001).toBe(500)
+    expect(geographies.get('served')!.intersectionRatio).toBe(1)
+    expect(geographies.get('served')!.bufferIntersectionArea).toBeUndefined()
   })
 })

@@ -127,18 +127,21 @@ export interface FetchClipIntersectionsConfig {
   client: GraphQLClient
   geoDatasetName: string
   geoDatasetLayer: string
-  within: GeoJSON.Polygon
+  bbox?: Bbox
+  // Takes precedence over `bbox`, matching the query-area pass.
+  within?: GeoJSON.Polygon
   stopIds: Iterable<number>
   stopBufferRadius: number
 }
 
 // Areas only — the query-area pass already carries the ACS values. The
-// backend clips to the intersection of `within` and the stop-buffer union, so
-// a geography absent from the result has no overlap with both.
+// backend clips to the intersection of the query area and the stop-buffer
+// union, so a geography absent from the result has no overlap with both.
 export const clipIntersectionQuery = gql`
 query (
   $geoDatasetName: String,
   $layer: String!,
+  $bbox: BoundingBox,
   $within: Polygon,
   $stopIds: [Int!],
   $stopBufferRadius: Float
@@ -151,6 +154,7 @@ query (
         dataset: $geoDatasetName,
         layer: $layer,
         location: {
+          bbox: $bbox,
           within: $within,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
         }
@@ -171,7 +175,8 @@ export async function fetchClipIntersections (
 ): Promise<Map<string, number>> {
   const stopIds = Array.from(config.stopIds)
   const out = new Map<string, number>()
-  if (stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+  const clipArea = config.within || config.bbox
+  if (!clipArea || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
     return out
   }
   const result = await config.client.query<{
@@ -179,6 +184,7 @@ export async function fetchClipIntersections (
   }>(clipIntersectionQuery, {
     geoDatasetName: config.geoDatasetName,
     layer: config.geoDatasetLayer,
+    bbox: config.within ? undefined : convertBbox(config.bbox),
     within: config.within,
     stopIds,
     stopBufferRadius: config.stopBufferRadius,
