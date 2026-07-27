@@ -1,9 +1,23 @@
 import { print } from 'graphql'
+import { graphqlTraceEnabled, logGraphqlTrace } from './debug'
 
 /**
  * GraphQL client implementations
  *
  */
+
+// Label for a traced request. Almost every document in this codebase is
+// anonymous, so the root field names are what usually identify it.
+function operationLabel (query: any): string {
+  const def = query?.definitions?.[0]
+  if (def?.name?.value) {
+    return def.name.value
+  }
+  const fields: string[] = (def?.selectionSet?.selections || [])
+    .map((s: any) => s?.name?.value)
+    .filter(Boolean)
+  return fields.length > 0 ? fields.join(',') : 'query'
+}
 
 /**
  * Interface for GraphQL client
@@ -45,7 +59,10 @@ export class BasicGraphQLClient implements GraphQLClient {
       query: queryString,
       variables,
     }
-    // console.log('GraphQL request:', JSON.stringify(requestBody))
+
+    const trace = graphqlTraceEnabled()
+    const startedAt = trace ? Date.now() : 0
+    let responseBytes = 0
 
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -59,10 +76,30 @@ export class BasicGraphQLClient implements GraphQLClient {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
-        const result = await response.json()
+        // Responses are chunked, so Content-Length isn't set; the body has to
+        // be read as text to be measured. Only when tracing — it's an extra
+        // copy of a payload that can run to megabytes.
+        let result: any
+        if (trace) {
+          const text = await response.text()
+          responseBytes = new TextEncoder().encode(text).length
+          result = JSON.parse(text)
+        } else {
+          result = await response.json()
+        }
 
         if (result.errors) {
           throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
+        }
+        if (trace) {
+          logGraphqlTrace({
+            operation: operationLabel(query),
+            query: queryString,
+            variables,
+            elapsedMs: Date.now() - startedAt,
+            responseBytes,
+            attempts: attempt + 1,
+          })
         }
         return result
       } catch (error) {
@@ -73,6 +110,17 @@ export class BasicGraphQLClient implements GraphQLClient {
           console.warn(`GraphQL request failed (attempt ${attempt + 1}/${this.maxRetries + 1}), retrying in ${this.retryDelay}ms:`, error)
           await this.delay(this.retryDelay)
         } else {
+          if (trace) {
+            logGraphqlTrace({
+              operation: operationLabel(query),
+              query: queryString,
+              variables,
+              elapsedMs: Date.now() - startedAt,
+              responseBytes,
+              attempts: attempt + 1,
+              error,
+            })
+          }
           console.error('GraphQL request failed after all retry attempts:', error)
         }
       }

@@ -51,6 +51,7 @@ export async function runCensusValuesPhase (
     return
   }
 
+  // First pass: fetching ACS values
   emit({
     isLoading: true,
     currentStage: 'census-values',
