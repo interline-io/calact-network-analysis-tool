@@ -39,6 +39,7 @@
       :zoom="14"
       :initial-bounds="bbox"
       :overlay-features="overlayFeatures"
+      :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
@@ -94,6 +95,8 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
+  // Stop buffer overlay
+  stopBufferFeatures?: Feature[]
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
   // Loading stage - allow map updates during geometry stages, skip during schedules

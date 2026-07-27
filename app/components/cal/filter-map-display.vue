@@ -92,6 +92,13 @@
           Show geographic filters
         </cat-checkbox>
       </li>
+      <li>
+        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops.">
+          <cat-checkbox v-model="showStopBuffer" :disabled="stopBufferRadius <= 0">
+            Show stop buffers
+          </cat-checkbox>
+        </cat-tooltip>
+      </li>
     </ul>
     <p class="menu-label">
       Display Options
@@ -120,6 +127,7 @@ const props = defineProps<{
 
 const {
   showAggAreas,
+  showStopBuffer,
   aggregateLayer,
   choroplethElement,
   shadeByDensity,

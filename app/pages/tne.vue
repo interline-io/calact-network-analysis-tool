@@ -90,6 +90,7 @@
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
           :choropleth-features="choroplethFeatures"
+          :stop-buffer-features="stopBufferFeatures"
           :choropleth-classification="choroplethClassification"
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
@@ -197,6 +198,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
+import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import {
   geographyLayerQuery,
@@ -835,6 +837,8 @@ const choroplethAggregateData = computed(() => {
     { onlyWithStops: onlyWithStops.value },
   )
 })
+
+const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   choroplethAggregateData,

@@ -4,6 +4,7 @@ import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>
+  showStopBuffer: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
   shadeByDensity: WritableComputedRef<boolean>
@@ -26,6 +27,11 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const showAggAreas = computed<boolean>({
     get: () => route.query.showAggAreas?.toString() === 'true',
     set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
+  })
+
+  const showStopBuffer = computed<boolean>({
+    get: () => route.query.showStopBuffer?.toString() === 'true',
+    set: (v) => { setQuery({ showStopBuffer: v ? 'true' : undefined }) }
   })
 
   const aggregateLayer = computed<string>({
@@ -81,6 +87,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
 
   return {
     showAggAreas,
+    showStopBuffer,
     aggregateLayer,
     choroplethElement,
     shadeByDensity,
