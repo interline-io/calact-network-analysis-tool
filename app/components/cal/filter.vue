@@ -153,6 +153,7 @@
         <cal-filter-map-display
           :census-geography-layer-options="props.censusGeographyLayerOptions"
           :has-buffer-clip="hasBufferClip"
+          @refresh-census="emit('refreshCensus')"
         />
       </div>
 
@@ -251,6 +252,7 @@ const panelPaddingPx = `${PANEL_PADDING}px`
 const emit = defineEmits([
   'resetFilters',
   'showQuery',
+  'refreshCensus',
 ])
 const activeTab = defineModel<string>('activeTab')
 

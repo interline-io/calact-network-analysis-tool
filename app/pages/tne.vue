@@ -59,6 +59,7 @@
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @show-query="activeTab = { tab: 'query', sub: '' }"
+            @refresh-census="refreshCensusClip"
           />
         </div>
 
@@ -752,6 +753,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
     ? true
     : includeDepartures.value,
   includeCensus: includeCensus.value,
+  includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
@@ -921,9 +923,9 @@ useClusterRefetch({
   refetchInFlight,
 })
 
-// recompute census values when the Aggregate-by layer, the stop buffer radius,
-// or the marked stop set changes, reusing the same receiver.
-useAggregateRefetch({
+// recompute census values when the Aggregate-by layer or the stop buffer radius
+// changes, and on demand from the Map Display refresh, reusing the same receiver.
+const { refresh: refreshCensusClip } = useAggregateRefetch({
   scenarioReceiver,
   scenarioData,
   scenarioConfig,

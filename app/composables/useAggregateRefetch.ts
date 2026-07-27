@@ -5,7 +5,7 @@
 // census-values map needs refetching. Streaming/abort/debounce machinery lives
 // in useStreamingRefetch.
 
-import { computed, ref, watchEffect, type Ref } from 'vue'
+import { ref, watchEffect, type Ref } from 'vue'
 import { aggClipNeedsGeometry } from '~~/src/core'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
@@ -21,38 +21,38 @@ export interface UseAggregateRefetchDeps extends StreamingRefetchDeps {
   markedStopIds: Ref<number[]>
 }
 
-export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
-  const { aggregateLayer, showAggAreas, aggClipMode, showStopBuffer } = useScenarioDisplay()
+export interface UseAggregateRefetchReturn {
+  // Recompute the clip against the current filters. Manual rather than
+  // watched: the marked set churns while results stream in, so watching it
+  // fires a recompute in the middle of a scenario load, where it fights the
+  // main run for the loading modal and the census slice of the receiver.
+  refresh: () => void
+}
+
+export function useAggregateRefetch (deps: UseAggregateRefetchDeps): UseAggregateRefetchReturn {
+  const { aggregateLayer, showAggAreas, aggClipMode } = useScenarioDisplay()
   // The census-values phase pads the fetch bbox by the stop buffer radius, so a
   // radius change (not just a layer change) can shift which edge geographies the
   // map needs — refetch on both.
   const { stopBufferRadius } = useScenarioInputs()
 
-  // Clipped outlines aren't fetched by the initial scenario run, so the first
-  // display that draws them costs one refetch. Latched rather than tracked, so
-  // hiding the overlay or switching back to unclipped doesn't throw the
-  // outlines away and make returning cost another round trip. Both clips
-  // arrive together, so queryArea↔buffer is free either way.
+  // The scenario run fetches clipped outlines when the display already wants
+  // them, so this only has to cover turning a clipped mode on afterwards.
+  // Latched, so switching back to unclipped doesn't throw the outlines away
+  // and make returning cost another round trip.
   const geometryLatch = ref(false)
   watchEffect(() => {
-    const forChoropleth = showAggAreas.value && aggClipNeedsGeometry(aggClipMode.value)
-    if (forChoropleth || showStopBuffer.value) {
+    if (showAggAreas.value && aggClipNeedsGeometry(aggClipMode.value)) {
       geometryLatch.value = true
     }
   })
-  const needsGeometry = computed(() => geometryLatch.value)
 
-  // An unfiltered scenario collapses to one sentinel: the initial run already
-  // clipped against every stop, and the marked set churns as results stream
-  // in, which would otherwise fire a pointless recompute on every load.
-  const markedStopKey = computed(() => {
-    const marked = deps.markedStopIds.value
-    const total = deps.scenarioData.value?.stops.length ?? 0
-    return marked.length >= total ? 'all' : marked.join(',')
-  })
+  // Bumped by `refresh()`; see UseAggregateRefetchReturn for why the marked
+  // set isn't watched directly.
+  const manualRefresh = ref(0)
 
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer, stopBufferRadius, needsGeometry, markedStopKey],
+    watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
     // Reuse the standalone census-values phase endpoint (it re-resolves
     // geographyIds or a plain bbox server-side) rather than a bespoke one.
     endpoint: '/api/scenario/census-values',
@@ -86,9 +86,11 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
         // Marked only. An empty set means the filter excluded everything, so
         // the clip pass correctly skips and the values stay query-area.
         stopIds: deps.markedStopIds.value,
-        includeIntersectionGeometry: needsGeometry.value,
+        includeIntersectionGeometry: geometryLatch.value,
       }
       return body
     },
   })
+
+  return { refresh: () => { manualRefresh.value++ } }
 }

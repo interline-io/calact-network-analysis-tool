@@ -596,16 +596,19 @@ function createLayers () {
       'line-dasharray': [6, 3]
     }
   })
-  // Filled, not outlined: the pieces are per-geography and disjoint, so an
-  // outline would draw geography seams that aren't part of the buffer.
+  // Outline only: one polygon per route, so a fill would stack opacity
+  // wherever routes overlap. Shorter dashes than the query-area outline it
+  // shares a red with.
   map?.addLayer({
-    id: 'stop-buffer-fill',
-    type: 'fill',
+    id: 'stop-buffer-outline',
+    type: 'line',
     source: 'stopBufferPolygons',
     layout: {},
     paint: {
-      'fill-color': '#ff0000',
-      'fill-opacity': 0.15
+      'line-width': 2,
+      'line-color': '#ff0000',
+      'line-opacity': 0.6,
+      'line-dasharray': [3, 2]
     }
   })
 

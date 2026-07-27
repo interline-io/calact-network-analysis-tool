@@ -41,6 +41,16 @@
         Clipping mode <cat-tooltip text="How much of each census geography the map measures and draws. Clipped modes scale demographics to the part of the geography inside the area, draw it as that clipped footprint rather than its whole outline, and hide geographies the area doesn't reach.">
           <i class="mdi mdi-information-outline" />
         </cat-tooltip>
+        <cat-tooltip text="Recompute the stop buffer clip against the stops matching your current filters. The clip is a server-side calculation, so it isn't redone automatically as you change filters.">
+          <button
+            type="button"
+            class="cal-agg-refresh"
+            aria-label="Recompute for current filters"
+            @click="$emit('refreshCensus')"
+          >
+            <i class="mdi mdi-refresh" />
+          </button>
+        </cat-tooltip>
       </template>
       <cat-select
         v-model="aggClipMode"
@@ -112,7 +122,7 @@
         </cat-checkbox>
       </li>
       <li>
-        <cat-tooltip text="Shades the part of the query area within the stop statistical radius of the stops matching your filters — the same footprint the stop-buffer clipping mode measures. Draws nothing when the radius is 0.">
+        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops. Draws nothing when the radius is 0.">
           <cat-checkbox v-model="showStopBuffer">
             Show stop buffers
           </cat-checkbox>
@@ -147,6 +157,10 @@ const props = defineProps<{
   hasBufferClip?: boolean
 }>()
 
+defineEmits<{
+  refreshCensus: []
+}>()
+
 const {
   showAggAreas,
   aggClipMode,
@@ -168,3 +182,18 @@ const showFiltered = computed({
   set: (v: boolean) => { hideUnmarked.value = !v }
 })
 </script>
+
+<style scoped lang="scss">
+.cal-agg-refresh {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--bulma-link);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--bulma-link-hover);
+  }
+}
+</style>
