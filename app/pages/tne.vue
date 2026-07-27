@@ -840,6 +840,11 @@ const {
 )
 
 // Compute aggregate stats per geography
+// The stop set the census clip is computed against, so buffer coverage tracks
+// the filter rather than the whole query area.
+const markedStopIds = computed((): number[] =>
+  (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
+
 const choroplethAggregateData = computed(() => {
   if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
@@ -916,7 +921,8 @@ useClusterRefetch({
   refetchInFlight,
 })
 
-// recompute census values when the Aggregate-by layer changes, reusing the same receiver.
+// recompute census values when the Aggregate-by layer, the stop buffer radius,
+// or the marked stop set changes, reusing the same receiver.
 useAggregateRefetch({
   scenarioReceiver,
   scenarioData,
@@ -927,6 +933,7 @@ useAggregateRefetch({
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  markedStopIds,
 })
 
 const loadExampleData = async (exampleName: string) => {

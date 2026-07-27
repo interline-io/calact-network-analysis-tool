@@ -1,69 +1,46 @@
-// Map features for the stop buffer overlay: the area within the stop
-// statistical radius of each marked route's stops, unioned server-side. The
-// filtered scenario result is passed in by the container; the URL-backed
-// radius and display toggle are read from the useScenario* composables.
+// Map features for the stop buffer overlay: the part of each census geography
+// that falls inside both the query area and the stop buffers, as already
+// computed server-side for the `buffer` clipping mode. Derived from the
+// filtered scenario result the container passes in — no fetch of its own.
 
 import { computed, type Ref, type ComputedRef } from 'vue'
-import { useQuery } from '@vue/apollo-composable'
 import { useScenarioDisplay } from './useScenarioDisplay'
-import { useScenarioInputs } from './useScenarioInputs'
-import { routeStopBufferQuery, type RouteStopBufferResponse } from '~~/src/tl'
 import type { Feature } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-
-// The backend clamps `routes(limit:)` to this; asking for more silently
-// returns the same page.
-const ROUTE_LIMIT = 1000
 
 interface UseStopBufferFeaturesDeps {
   scenarioFilterResult: Ref<ScenarioFilterResult | undefined>
 }
 
 export interface UseStopBufferFeaturesReturn {
-  // Empty when the overlay is off, the radius is 0, or no route is marked.
+  // Empty unless the overlay is on and the buffer clip has been fetched.
   stopBufferFeatures: ComputedRef<Feature[]>
 }
 
 export function useStopBufferFeatures (deps: UseStopBufferFeaturesDeps): UseStopBufferFeaturesReturn {
   const { showStopBuffer } = useScenarioDisplay()
-  const { stopBufferRadius } = useScenarioInputs()
 
-  // Marked only, so the outlines trace what the map is drawing. Clamped to
-  // the server's cap: sending more ids returns the same page, and which
-  // buffers came back would depend on backend ordering.
-  const routeIds = computed((): number[] => {
-    if (!showStopBuffer.value || stopBufferRadius.value <= 0) { return [] }
-    const ids = (deps.scenarioFilterResult.value?.routes || []).filter(r => r.marked).map(r => r.id)
-    return ids.length > ROUTE_LIMIT ? ids.slice(0, ROUTE_LIMIT) : ids
-  })
-
-  const { result } = useQuery<{ routes: RouteStopBufferResponse[] }>(
-    routeStopBufferQuery,
-    () => ({
-      ids: routeIds.value,
-      radius: stopBufferRadius.value,
-      limit: ROUTE_LIMIT,
-    }),
-    () => ({
-      enabled: routeIds.value.length > 0,
-      // The radius is a slider; without this every step fires its own union.
-      debounce: 300,
-      // Holds the current outlines while the next radius is in flight.
-      keepPreviousResult: true,
-      // Each radius would otherwise pin its own copy of every route's
-      // geometry in the store for the session, and none of it is reused.
-      fetchPolicy: 'no-cache',
-    })
-  )
-
+  // One piece per geography rather than one polygon: geographies at a layer
+  // don't overlap, so the pieces are disjoint and paint as a single region
+  // without a union, and without the opacity stacking that made the old
+  // per-route buffers unusable as a fill.
+  //
+  // Independent of the clipping mode — the point is to see the analyzed
+  // footprint over whatever the choropleth is shading. In `buffer` mode the
+  // choropleth already draws these same shapes, so the two coincide.
   const stopBufferFeatures = computed((): Feature[] => {
-    // keepPreviousResult holds the last union after the query is disabled.
-    if (routeIds.value.length === 0) { return [] }
+    if (!showStopBuffer.value) { return [] }
+    const geos = deps.scenarioFilterResult.value?.censusGeographies
+    if (!geos) { return [] }
     const out: Feature[] = []
-    for (const route of result.value?.routes || []) {
-      const g = route.route_stop_buffer?.stop_buffer
-      if (!g) { continue }
-      out.push({ id: `route-buffer-${route.id}`, type: 'Feature', geometry: g, properties: {} })
+    for (const [geoid, geo] of geos) {
+      if (!geo.bufferIntersectionGeometry) { continue }
+      out.push({
+        id: `stop-buffer-${geoid}`,
+        type: 'Feature',
+        geometry: geo.bufferIntersectionGeometry,
+        properties: {},
+      })
     }
     return out
   })

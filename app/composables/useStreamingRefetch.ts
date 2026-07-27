@@ -53,15 +53,18 @@ export interface StreamingRefetchOptions {
   // Drop this feature's accumulated slice (e.g. clearBufferGeographies /
   // clearStopClusters). Used by the 'clear' plan and, if clearOnError, on failure.
   clearStale: (receiver: ScenarioDataReceiver) => void
-  // Clear the stale slice up-front, before the server responds.
-  clearBeforeFetch?: boolean
+  // Clear the stale slice up-front, before the server responds. A callback
+  // when only some triggers invalidate what's on screen.
+  clearBeforeFetch?: boolean | (() => boolean)
   // Clear the stale slice when a recompute fails, so a failed run doesn't strand
   // the previous (now mismatched) results.
   clearOnError?: boolean
 }
 
-// Without debounce a slider drag fires one request per step.
-const DEBOUNCE_MS = 500
+// Without debounce a slider drag fires one request per step, and a run of
+// filter toggles fires one per click. Long enough to treat a burst of input
+// as the single intent it usually is.
+const DEBOUNCE_MS = 1000
 
 export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: StreamingRefetchOptions): void {
   let abort: AbortController | undefined
@@ -91,7 +94,10 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       applyClear(receiver)
       return
     }
-    if (opts.clearBeforeFetch) {
+    const clearFirst = typeof opts.clearBeforeFetch === 'function'
+      ? opts.clearBeforeFetch()
+      : opts.clearBeforeFetch
+    if (clearFirst) {
       applyClear(receiver)
     }
 

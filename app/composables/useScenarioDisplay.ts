@@ -8,7 +8,9 @@ import {
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
-const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'queryArea'
+// Full geographies by default: the same numbers the overlay showed before
+// clipping existed, so clipping is something the user opts into.
+const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'unclipped'
 
 interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>

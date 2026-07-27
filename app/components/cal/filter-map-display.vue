@@ -112,7 +112,7 @@
         </cat-checkbox>
       </li>
       <li>
-        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops. Draws nothing when the radius is 0.">
+        <cat-tooltip text="Shades the part of the query area within the stop statistical radius of the stops matching your filters — the same footprint the stop-buffer clipping mode measures. Draws nothing when the radius is 0.">
           <cat-checkbox v-model="showStopBuffer">
             Show stop buffers
           </cat-checkbox>

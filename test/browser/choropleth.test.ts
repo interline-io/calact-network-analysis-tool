@@ -53,9 +53,9 @@ test.describe('Choropleth aggregation overlay', () => {
     await expect(checkbox).not.toBeChecked()
   })
 
-  test('clipping mode defaults to the query area', async () => {
+  test('clipping mode defaults to full geographies', async () => {
     const select = page.locator('.cal-filter-sub').getByLabel('Clipping mode')
-    await expect(select).toHaveValue('queryArea')
+    await expect(select).toHaveValue('unclipped')
   })
 
   test('Aggregate by dropdown is enabled regardless of Show Agg. Areas', async () => {
@@ -79,9 +79,9 @@ test.describe('Choropleth aggregation overlay', () => {
   test('a non-default clipping mode persists in URL', async () => {
     await openFilterSubtab(page, 'Map Display')
     const select = page.locator('.cal-filter-sub').getByLabel('Clipping mode')
-    await select.selectOption('unclipped')
+    await select.selectOption('queryArea')
 
-    await expect(page).toHaveURL(/aggClip=unclipped/)
+    await expect(page).toHaveURL(/aggClip=queryArea/)
   })
 
   test('legend shows choropleth section when aggregation is enabled (requires census data)', async () => {
