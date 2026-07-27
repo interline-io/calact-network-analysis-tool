@@ -28,10 +28,13 @@ export function useStopBufferFeatures (deps: UseStopBufferFeaturesDeps): UseStop
   const { showStopBuffer } = useScenarioDisplay()
   const { stopBufferRadius } = useScenarioInputs()
 
-  // Marked only, so the outlines trace what the map is drawing.
+  // Marked only, so the outlines trace what the map is drawing. Clamped to
+  // the server's cap: sending more ids returns the same page, and which
+  // buffers came back would depend on backend ordering.
   const routeIds = computed((): number[] => {
     if (!showStopBuffer.value || stopBufferRadius.value <= 0) { return [] }
-    return (deps.scenarioFilterResult.value?.routes || []).filter(r => r.marked).map(r => r.id)
+    const ids = (deps.scenarioFilterResult.value?.routes || []).filter(r => r.marked).map(r => r.id)
+    return ids.length > ROUTE_LIMIT ? ids.slice(0, ROUTE_LIMIT) : ids
   })
 
   const { result } = useQuery<{ routes: RouteStopBufferResponse[] }>(

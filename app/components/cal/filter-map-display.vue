@@ -93,8 +93,8 @@
         </cat-checkbox>
       </li>
       <li>
-        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops.">
-          <cat-checkbox v-model="showStopBuffer" :disabled="stopBufferRadius <= 0">
+        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops. Draws nothing when the radius is 0.">
+          <cat-checkbox v-model="showStopBuffer">
             Show stop buffers
           </cat-checkbox>
         </cat-tooltip>
