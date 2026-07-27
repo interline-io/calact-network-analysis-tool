@@ -70,7 +70,7 @@
         <p class="mb-2">
           One row per census geography.
           <strong>Intersection %</strong> shows the fraction of each geography
-          that falls inside the query area or stop buffer.
+          that falls inside the area being analyzed.
         </p>
         <p class="mb-3">
           Demographic columns show the <strong>full ACS value for the whole

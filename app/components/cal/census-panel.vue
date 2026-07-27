@@ -39,19 +39,19 @@
           <tr>
             <th>Statistic</th>
             <th>
-              <cat-tooltip text="The full raw ACS value for this geography — not scaled by the intersection with the query area.">
+              <cat-tooltip text="The full raw ACS value for this geography — not scaled by the intersection with the area being analyzed.">
                 Full Geography
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
             <th>
-              <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the query area. Ratios (% columns) and medians are unchanged.">
+              <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the area being analyzed. Ratios (% columns) and medians are unchanged.">
                 Intersection
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
             <th>
-              <cat-tooltip text="Sum of every geography's Intersection value across the query area. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
+              <cat-tooltip text="Sum of every geography's Intersection value across the area being analyzed. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
                 Query Area Total
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
