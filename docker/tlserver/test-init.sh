@@ -6,14 +6,29 @@ until pg_isready; do echo "Waiting for postgres..."; sleep 2; done
 
 psql -tc "SELECT 1 FROM pg_database WHERE datname = '$PGDATABASE'" | grep -q 1 || createdb "$PGDATABASE"
 
-HAS_DATA=$(psql -d "$PGDATABASE" -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'current_feeds'" 2>/dev/null || echo "")
-if [ "$HAS_DATA" != "1" ]; then
-  # Base (GTFS) then census/NTD — disjoint table sets, so order is not load-bearing.
-  echo "Restoring base database from dump..."
-  pg_restore --no-owner -d "$PGDATABASE" /data/calact_tlserver.dump || echo "pg_restore exited with warnings (usually OK)"
-  echo "Restoring census database from dump..."
-  pg_restore --no-owner -d "$PGDATABASE" /data/calact_tlserver-census.dump || echo "pg_restore exited with warnings (usually OK)"
-  echo "Database restored."
-else
+# Row counts, not table existence: a restore that created the schema and then
+# failed would otherwise look "already restored" on every subsequent start, and
+# the server would come up serving nothing.
+count_rows() {
+  psql -d "$PGDATABASE" -tAc "SELECT count(*) FROM $1" 2>/dev/null || echo 0
+}
+
+if [ "$(count_rows current_feeds)" -gt 0 ] && [ "$(count_rows tl_census_geographies)" -gt 0 ]; then
   echo "Database already restored, skipping."
+else
+  # Base (GTFS) then census/NTD — disjoint table sets, so order is not load-bearing.
+  # pg_restore exits nonzero on benign --no-owner role warnings, so its status is
+  # not a reliable signal; the row checks below are what actually gate success.
+  echo "Restoring base database from dump..."
+  pg_restore --no-owner -d "$PGDATABASE" /data/calact_tlserver.dump || true
+  echo "Restoring census database from dump..."
+  pg_restore --no-owner -d "$PGDATABASE" /data/calact_tlserver-census.dump || true
+
+  for t in current_feeds tl_census_geographies; do
+    if [ "$(count_rows "$t")" -eq 0 ]; then
+      echo "ERROR: restore left $t empty — check the dumps are real files, not LFS pointers." >&2
+      exit 1
+    fi
+  done
+  echo "Database restored."
 fi
