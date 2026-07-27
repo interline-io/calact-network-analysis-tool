@@ -42,6 +42,11 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
   // receiver's census slice. Bumped by `refresh()` instead.
   const manualRefresh = ref(0)
 
+  // Until the user asks for it, the clip uses the same stop set the main run
+  // did. Sticky once asked, so a later layer or radius change doesn't quietly
+  // revert the clip to every stop in the query area.
+  const clipToMarkedStops = ref(false)
+
   useStreamingRefetch(deps, {
     watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
     // Reuse the standalone census-values phase endpoint (it re-resolves
@@ -74,14 +79,21 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
         tableDatasetName: config.tableDatasetName,
         aggregateLayer: config.aggregateLayer,
         stopBufferRadius: config.stopBufferRadius,
-        // Marked only. An empty set means the filter excluded everything, so
-        // the clip pass correctly skips and the values stay query-area.
-        stopIds: deps.markedStopIds.value,
+        // An empty marked set means the filter excluded everything, so the
+        // clip pass correctly skips and the values stay query-area.
+        stopIds: clipToMarkedStops.value
+          ? deps.markedStopIds.value
+          : data.stops.map(s => s.id),
         includeIntersectionGeometry: geometryLatch.value,
       }
       return body
     },
   })
 
-  return { refresh: () => { manualRefresh.value++ } }
+  return {
+    refresh: () => {
+      clipToMarkedStops.value = true
+      manualRefresh.value++
+    },
+  }
 }

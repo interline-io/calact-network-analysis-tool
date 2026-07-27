@@ -72,10 +72,10 @@ export async function runCensusValuesPhase (
   })
 
   // Second pass: intersection with the query area AND the stop buffers. The
-  // first pass stays the row universe, so geographies the buffers don't reach
-  // are kept and reported at zero rather than dropped by the server's clip.
-  // Clips against the same query area pass 1 used, so the two areas stay
-  // comparable.
+  // first pass stays the row universe, so a geography the buffers don't reach
+  // is reported at zero rather than dropped by the server's clip — display
+  // decides whether to draw it. Clips against the same query area pass 1 used,
+  // so the two areas stay comparable.
   //
   // Optional by design: a failure here must not lose the ACS values pass 1
   // already fetched, so it degrades to query-area-only rather than failing
