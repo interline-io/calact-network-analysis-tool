@@ -43,29 +43,45 @@ test.describe('Choropleth aggregation overlay', () => {
 
     // "Aggregation" section should be visible
     await expect(page.getByText('Aggregation')).toBeVisible()
-    await expect(page.getByText('Show agg. areas')).toBeVisible()
+    await expect(page.getByText('Show Agg. Areas')).toBeVisible()
+    await expect(page.getByText('Clipping mode')).toBeVisible()
     await expect(page.getByText('Aggregate by')).toBeVisible()
   })
 
-  test('agg. areas mode is hidden by default', async () => {
-    const select = page.locator('.cal-filter-sub').getByLabel('Show agg. areas')
-    await expect(select).toHaveValue('off')
+  test('Show Agg. Areas checkbox is unchecked by default', async () => {
+    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show Agg. Areas')
+    await expect(checkbox).not.toBeChecked()
   })
 
-  test('Aggregate by dropdown is enabled regardless of the agg. areas mode', async () => {
-    // The dropdown should be enabled even when the overlay is hidden
+  test('clipping mode defaults to the query area', async () => {
+    const select = page.locator('.cal-filter-sub').getByLabel('Clipping mode')
+    await expect(select).toHaveValue('queryArea')
+  })
+
+  test('Aggregate by dropdown is enabled regardless of Show Agg. Areas', async () => {
+    // The dropdown should be enabled even when the checkbox is unchecked
     // (it also drives the Report tab aggregation, not just the map overlay)
     await openFilterSubtab(page, 'Map Display')
     const dropdown = page.locator('.cal-filter-sub').getByLabel('Aggregate by')
     await expect(dropdown).toBeEnabled({ timeout: 5000 })
   })
 
-  test('selecting an agg. areas mode persists in URL', async () => {
+  test('checking Show Agg. Areas persists in URL', async () => {
     await openFilterSubtab(page, 'Map Display')
-    const select = page.locator('.cal-filter-sub').getByLabel('Show agg. areas')
-    await select.selectOption('queryArea')
+    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show Agg. Areas')
+    await checkbox.check()
+    await expect(checkbox).toBeChecked()
 
-    await expect(page).toHaveURL(/showAggAreas=queryArea/)
+    await expect(page).toHaveURL(/showAggAreas=true/)
+  })
+
+  // The default is omitted from the URL, so only a non-default clip appears.
+  test('a non-default clipping mode persists in URL', async () => {
+    await openFilterSubtab(page, 'Map Display')
+    const select = page.locator('.cal-filter-sub').getByLabel('Clipping mode')
+    await select.selectOption('unclipped')
+
+    await expect(page).toHaveURL(/aggClip=unclipped/)
   })
 
   test('legend shows choropleth section when aggregation is enabled (requires census data)', async () => {

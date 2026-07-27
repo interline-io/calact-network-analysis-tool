@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
-  aggAreaModeNeedsGeometry,
+  aggClipNeedsGeometry,
   censusApportionArea,
   censusApportionGeometry,
   censusApportionRatio,
@@ -177,12 +177,11 @@ describe('censusApportionGeometry', () => {
   })
 })
 
-describe('aggAreaModeNeedsGeometry', () => {
+describe('aggClipNeedsGeometry', () => {
   it('is true only for the modes that draw a clipped outline', () => {
-    expect(aggAreaModeNeedsGeometry('off')).toBe(false)
-    expect(aggAreaModeNeedsGeometry('unclipped')).toBe(false)
-    expect(aggAreaModeNeedsGeometry('queryArea')).toBe(true)
-    expect(aggAreaModeNeedsGeometry('buffer')).toBe(true)
+    expect(aggClipNeedsGeometry('unclipped')).toBe(false)
+    expect(aggClipNeedsGeometry('queryArea')).toBe(true)
+    expect(aggClipNeedsGeometry('buffer')).toBe(true)
   })
 })
 

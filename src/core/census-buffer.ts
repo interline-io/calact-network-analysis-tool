@@ -1,4 +1,4 @@
-import type { AggAreaMode, CensusValues, CensusGeographyData } from './census-columns'
+import type { AggClipMode, CensusValues, CensusGeographyData } from './census-columns'
 import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
@@ -32,7 +32,7 @@ export interface CensusGeographyEntry {
 // report the same clip the map is shaded by.
 export function censusGeographyMapToEntries (
   m: Map<string, CensusGeographyData> | undefined,
-  mode: AggAreaMode,
+  mode: AggClipMode,
   nameFor?: (geoid: string) => string | undefined,
 ): CensusGeographyEntry[] {
   if (!m) {

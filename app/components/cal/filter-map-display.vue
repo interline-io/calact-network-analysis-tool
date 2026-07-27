@@ -29,17 +29,24 @@
     <p class="menu-label">
       Aggregation
     </p>
-    <cat-field>
+    <ul>
+      <li>
+        <cat-checkbox v-model="showAggAreas">
+          Show Agg. Areas
+        </cat-checkbox>
+      </li>
+    </ul>
+    <cat-field class="mt-2">
       <template #label>
-        Show agg. areas <cat-tooltip text="Whether the map shades census geographies by their full values, or scales them to the part of each geography inside the query area — optionally narrowed again to what falls within the stop buffer radius. Clipped modes also draw each geography as the clipped footprint rather than its whole outline.">
+        Clipping mode <cat-tooltip text="How much of each census geography the map measures and draws. Clipped modes scale demographics to the part of the geography inside the area, draw it as that clipped footprint rather than its whole outline, and hide geographies the area doesn't reach.">
           <i class="mdi mdi-information-outline" />
         </cat-tooltip>
       </template>
       <cat-select
-        v-model="aggAreaMode"
+        v-model="aggClipMode"
       >
         <option
-          v-for="option of AGG_AREA_MODE_OPTIONS"
+          v-for="option of AGG_CLIP_MODE_OPTIONS"
           :key="option.value"
           :value="option.value"
           :disabled="option.value === 'buffer' && !props.hasBufferClip"
@@ -127,7 +134,7 @@
 
 <script setup lang="ts">
 import {
-  AGG_AREA_MODE_OPTIONS,
+  AGG_CLIP_MODE_OPTIONS,
   baseMapStyles,
   CHOROPLETH_ELEMENT_OPTIONS,
   isElementDensityEligible,
@@ -141,7 +148,8 @@ const props = defineProps<{
 }>()
 
 const {
-  aggAreaMode,
+  showAggAreas,
+  aggClipMode,
   showStopBuffer,
   aggregateLayer,
   choroplethElement,

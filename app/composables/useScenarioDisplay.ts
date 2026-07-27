@@ -1,15 +1,18 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
 import {
-  AGG_AREA_MODE_OPTIONS,
+  AGG_CLIP_MODE_OPTIONS,
   CHOROPLETH_DEFAULT_ELEMENT,
-  type AggAreaMode,
+  type AggClipMode,
   type DataDisplayMode,
   type UnitSystem,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
+const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'queryArea'
+
 interface ScenarioDisplay {
-  aggAreaMode: WritableComputedRef<AggAreaMode>
+  showAggAreas: WritableComputedRef<boolean>
+  aggClipMode: WritableComputedRef<AggClipMode>
   showStopBuffer: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
@@ -30,16 +33,20 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const route = useRoute()
   const { setQuery } = useUrlQuery()
 
-  // Same query parameter as the boolean this replaced, so shared links and
-  // canned examples keep working: `showAggAreas=true` reads as the query-area
-  // clip, which is the one the census panel already reported.
-  const aggAreaMode = computed<AggAreaMode>({
+  const showAggAreas = computed<boolean>({
+    get: () => route.query.showAggAreas?.toString() === 'true',
+    set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
+  })
+
+  // How the overlay measures each geography. Separate from the checkbox above:
+  // whether to draw and what to measure are different questions, and only the
+  // off state of each is worth a URL parameter.
+  const aggClipMode = computed<AggClipMode>({
     get: () => {
-      const v = route.query.showAggAreas?.toString()
-      if (v === 'true') { return 'queryArea' }
-      return AGG_AREA_MODE_OPTIONS.find(o => o.value === v)?.value || 'off'
+      const v = route.query.aggClip?.toString()
+      return AGG_CLIP_MODE_OPTIONS.find(o => o.value === v)?.value || AGG_CLIP_MODE_DEFAULT
     },
-    set: (v) => { setQuery({ showAggAreas: v === 'off' ? undefined : v }) }
+    set: (v) => { setQuery({ aggClip: v === AGG_CLIP_MODE_DEFAULT ? undefined : v }) }
   })
 
   const showStopBuffer = computed<boolean>({
@@ -99,7 +106,8 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)
 
   return {
-    aggAreaMode,
+    showAggAreas,
+    aggClipMode,
     showStopBuffer,
     aggregateLayer,
     choroplethElement,

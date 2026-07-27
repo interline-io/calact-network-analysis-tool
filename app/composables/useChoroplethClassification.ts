@@ -27,7 +27,7 @@ interface UseChoroplethClassificationInput {
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  const { aggAreaMode, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
+  const { showAggAreas, aggClipMode, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
 
   const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 
@@ -38,7 +38,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const isDensity = shadeByDensity.value && isDensityEligible.value
     const geos = input.censusGeographies.value
     const unit = unitSystem.value
-    const mode = aggAreaMode.value
+    const mode = aggClipMode.value
     const out = new Map<string, number | null>()
     for (const a of aggData) {
       const row = a as Record<string, any>
@@ -74,8 +74,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   // Feature properties carry only geoid/name + styling — the census panel
   // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
-    const mode = aggAreaMode.value
-    if (mode === 'off') { return [] }
+    if (!showAggAreas.value) { return [] }
+    const mode = aggClipMode.value
 
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }

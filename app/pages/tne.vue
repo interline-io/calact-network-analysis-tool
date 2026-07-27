@@ -241,7 +241,8 @@ import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type Scen
 // Initialize composables
 const { setQuery } = useUrlQuery()
 const {
-  aggAreaMode,
+  showAggAreas,
+  aggClipMode,
   aggregateLayer,
   onlyWithStops,
   showBbox,
@@ -416,7 +417,7 @@ const selectedPanelData = computed(() => {
   if (!geo) {
     return { row, apportionedDerived: null, areaStats: null }
   }
-  const mode = aggAreaMode.value
+  const mode = aggClipMode.value
   const ratio = censusApportionRatio(geo, mode)
   return {
     row,
@@ -438,7 +439,7 @@ const allGeographiesDerived = computed((): Record<string, number | null> | null 
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeApportioned(geos.keys(), geos, aggAreaMode.value).derived
+  return summarizeApportioned(geos.keys(), geos, aggClipMode.value).derived
 })
 
 /////////////////////////
@@ -695,7 +696,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
       }
     }
   }
-  return censusGeographyMapToEntries(result.censusGeographies, aggAreaMode.value, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, aggClipMode.value, geoid => nameMap.get(geoid))
 })
 
 const {
@@ -715,9 +716,7 @@ const {
 // an already-chosen clip alone.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
-  if (aggAreaMode.value === 'off') {
-    aggAreaMode.value = 'queryArea'
-  }
+  showAggAreas.value = true
   selectedAggregationGeoid.value = geoid
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
@@ -816,8 +815,8 @@ const aggregateLayerLabel = computed((): string => {
 // geography outside every stop buffer, or the window before those outlines
 // have streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
-  const mode = aggAreaMode.value
-  if (mode === 'off') { return [] }
+  if (!showAggAreas.value) { return [] }
+  const mode = aggClipMode.value
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
   return [...geos.values()]
@@ -842,16 +841,29 @@ const {
 
 // Compute aggregate stats per geography
 const choroplethAggregateData = computed(() => {
-  if (aggAreaMode.value === 'off' || !scenarioFilterResult.value) {
+  if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(
+  const rows = stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
+  // A clipped mode measures nothing for a geography the clip doesn't reach, so
+  // drop it rather than paint an empty polygon at zero. Filtered here so the
+  // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
+  // census entry are stop-derived and unaffected.
+  const mode = aggClipMode.value
+  if (mode === 'unclipped') {
+    return rows
+  }
+  const geos = scenarioFilterResult.value.censusGeographies
+  return rows.filter((r) => {
+    const geo = geos?.get(r.geoid)
+    return !geo || censusApportionRatio(geo, mode) > 0
+  })
 })
 
 const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })

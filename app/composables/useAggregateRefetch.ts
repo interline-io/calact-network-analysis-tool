@@ -5,8 +5,8 @@
 // census-values map needs refetching. Streaming/abort/debounce machinery lives
 // in useStreamingRefetch.
 
-import { computed } from 'vue'
-import { aggAreaModeNeedsGeometry } from '~~/src/core'
+import { computed, ref, watchEffect } from 'vue'
+import { aggClipNeedsGeometry } from '~~/src/core'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
@@ -17,16 +17,24 @@ import type { CensusValuesPhaseConfig } from '~~/src/scenario'
 export type UseAggregateRefetchDeps = StreamingRefetchDeps
 
 export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
-  const { aggregateLayer, aggAreaMode } = useScenarioDisplay()
+  const { aggregateLayer, showAggAreas, aggClipMode } = useScenarioDisplay()
   // The census-values phase pads the fetch bbox by the stop buffer radius, so a
   // radius change (not just a layer change) can shift which edge geographies the
   // map needs — refetch on both.
   const { stopBufferRadius } = useScenarioInputs()
-  // Clipped outlines aren't fetched by the initial scenario run, so entering a
-  // mode that draws them costs one refetch. Watching the boolean rather than
-  // the mode keeps the other transitions (off↔unclipped, queryArea↔buffer)
-  // free — both clips already arrive together.
-  const needsGeometry = computed(() => aggAreaModeNeedsGeometry(aggAreaMode.value))
+
+  // Clipped outlines aren't fetched by the initial scenario run, so the first
+  // display that draws them costs one refetch. Latched rather than tracked, so
+  // hiding the overlay or switching back to unclipped doesn't throw the
+  // outlines away and make returning cost another round trip. Both clips
+  // arrive together, so queryArea↔buffer is free either way.
+  const geometryLatch = ref(false)
+  watchEffect(() => {
+    if (showAggAreas.value && aggClipNeedsGeometry(aggClipMode.value)) {
+      geometryLatch.value = true
+    }
+  })
+  const needsGeometry = computed(() => geometryLatch.value)
 
   useStreamingRefetch(deps, {
     watchSources: [aggregateLayer, stopBufferRadius, needsGeometry],

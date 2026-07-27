@@ -96,22 +96,20 @@ export interface CensusGeographyData {
 }
 
 /** Which clip the aggregation overlay shades and reports by. */
-export type AggAreaMode = 'off' | 'unclipped' | 'queryArea' | 'buffer'
+export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer'
 
-export const AGG_AREA_MODE_OPTIONS: { value: AggAreaMode, label: string }[] = [
-  { value: 'off', label: 'Off' },
-  { value: 'unclipped', label: 'Full geographies' },
-  { value: 'queryArea', label: 'Clipped to query area' },
+export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
+  { value: 'unclipped', label: 'None (full geographies)' },
+  { value: 'queryArea', label: 'Query area' },
   // The backend composes both clips, so this is the query area narrowed to
   // the stop buffers — never the buffers on their own.
-  { value: 'buffer', label: 'Clipped to query area + stop buffers' },
+  { value: 'buffer', label: 'Query area + stop buffers' },
 ]
 
 // Fraction of a geography attributed to the analysis area under the selected
 // clip. `buffer` falls back to the query-area clip when the scenario carries
-// no buffer intersection, which is also what `off` reports for the views that
-// stay reachable with the overlay hidden.
-export function censusApportionRatio (geo: CensusGeographyData, mode: AggAreaMode): number {
+// no buffer intersection.
+export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
   if (mode === 'unclipped') {
     return 1
   }
@@ -122,7 +120,7 @@ export function censusApportionRatio (geo: CensusGeographyData, mode: AggAreaMod
 }
 
 // The clipped area in m² matching `censusApportionRatio`.
-export function censusApportionArea (geo: CensusGeographyData, mode: AggAreaMode): number {
+export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode): number {
   if (mode === 'unclipped') {
     return geo.geometryArea
   }
@@ -136,7 +134,7 @@ export function censusApportionArea (geo: CensusGeographyData, mode: AggAreaMode
 // scenario didn't fetch one — callers fall back to the full geography.
 export function censusApportionGeometry (
   geo: CensusGeographyData,
-  mode: AggAreaMode,
+  mode: AggClipMode,
 ): Geometry | undefined {
   if (mode === 'unclipped') {
     return undefined
@@ -150,8 +148,8 @@ export function censusApportionGeometry (
 
 // Whether a mode draws a clipped outline, so the fetch that supplies one can
 // stay off until it's actually needed.
-export function aggAreaModeNeedsGeometry (mode: AggAreaMode): boolean {
-  return mode === 'queryArea' || mode === 'buffer'
+export function aggClipNeedsGeometry (mode: AggClipMode): boolean {
+  return mode !== 'unclipped'
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -505,7 +503,7 @@ export function deriveApportionedColumn (
 export function summarizeApportioned (
   geoids: Iterable<string>,
   geographies: Map<string, CensusGeographyData> | undefined,
-  mode: AggAreaMode,
+  mode: AggClipMode,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {

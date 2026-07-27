@@ -3,7 +3,6 @@
 // intersection is narrowed to the stop buffers.
 
 import {
-  padBboxMeters,
   REQUIRED_ACS_TABLES,
   type Bbox,
   type CensusGeographyData,
@@ -25,9 +24,6 @@ export interface CensusValuesPhaseConfig {
   // ACS dataset (e.g. `acsdt5y2021`).
   tableDatasetName: string
   aggregateLayer: string
-  // Widens the fetch bbox so the aggregation report still gets a row for
-  // geographies just outside the query area that a stop buffer reaches. It
-  // also widens the clip, which overstates every intersection — see #442.
   stopBufferRadius?: number
   // With a radius and a `within` polygon, a second pass narrows each
   // geography's intersection to the query area AND the stop buffers.
@@ -63,15 +59,14 @@ export async function runCensusValuesPhase (
   const radius = config.stopBufferRadius && config.stopBufferRadius > 0
     ? config.stopBufferRadius
     : 0
-  const paddedBbox = radius > 0 ? padBboxMeters(fetchBbox, radius) : fetchBbox
-  console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${config.aggregateLayer} (radius padding=${radius}m)`)
+  console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${config.aggregateLayer}`)
   const features = await fetchCensusIntersection({
     client,
     geoDatasetName: config.geoDatasetName,
     geoDatasetLayer: config.aggregateLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: REQUIRED_ACS_TABLES,
-    bbox: paddedBbox,
+    bbox: fetchBbox,
     within,
     includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
@@ -93,7 +88,7 @@ export async function runCensusValuesPhase (
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
-        bbox: paddedBbox,
+        bbox: fetchBbox,
         within,
         stopIds,
         stopBufferRadius: radius,

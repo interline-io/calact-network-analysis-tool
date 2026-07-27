@@ -211,4 +211,50 @@ describe('stopGeoAggregateCsv', () => {
     const result = stopGeoAggregateCsv([stop], 'tract')
     expect(result[0]?.visit_count_total).toBe(0)
   })
+
+  // A stop buffer reaches past the query area, so the buffer pass returns
+  // geographies the query-area pass never saw. Without a row seeded for them
+  // their demographics are dropped from the table entirely.
+  describe('buffer-reached geographies', () => {
+    const censusGeographies = new Map([
+      ['41051000100', {
+        id: 1, name: 'Tract 1', values: {}, intersectionRatio: 1,
+        geometryArea: 1000, intersectionArea: 1000,
+      }],
+    ])
+    const bufferGeographies = [
+      { geoid: '41051000100', layer: 'tract', name: 'Tract 1', geometryArea: 1000, intersectionArea: 500, values: { b01003_001: 800 } },
+      // Outside the query area — only the buffer reaches it.
+      { geoid: '41051000200', layer: 'tract', name: 'Tract 2', geometryArea: 1000, intersectionArea: 250, values: { b01003_001: 400 } },
+    ]
+
+    it('seeds a row for a geography only the buffer reaches', () => {
+      const rows = stopGeoAggregateCsv([], 'tract', censusGeographies, {
+        aggregationBufferGeographies: bufferGeographies,
+      })
+      const byGeoid = new Map(rows.map(r => [r.geoid, r]))
+      expect([...byGeoid.keys()].sort()).toEqual(['41051000100', '41051000200'])
+      // Named from the buffer pass, and apportioned by its own coverage.
+      expect(byGeoid.get('41051000200')?.name).toBe('Tract 2')
+      expect(byGeoid.get('41051000200')?.total_population).toBeCloseTo(100)
+      expect(byGeoid.get('41051000200')?.stops_count).toBe(0)
+    })
+
+    it('only seeds at the aggregation layer — finer ones roll up by FIPS prefix', () => {
+      const rows = stopGeoAggregateCsv([], 'county', new Map(), {
+        aggregationBufferGeographies: [
+          { geoid: '1400000US41051000200', layer: 'tract', name: 'Tract 2', geometryArea: 1000, intersectionArea: 250, values: {} },
+        ],
+      })
+      expect(rows).toHaveLength(0)
+    })
+
+    it('respects onlyWithStops', () => {
+      const rows = stopGeoAggregateCsv([], 'tract', censusGeographies, {
+        onlyWithStops: true,
+        aggregationBufferGeographies: bufferGeographies,
+      })
+      expect(rows).toHaveLength(0)
+    })
+  })
 })

@@ -1,5 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import { CENSUS_COLUMNS, censusApportionRatio, deriveApportionedColumn, sqMetersPerLargeUnit, toFiniteNumber, type AggAreaMode, type CensusFormat, type UnitSystem, type CensusGeographyData } from './census-columns'
+import { CENSUS_COLUMNS, censusApportionRatio, deriveApportionedColumn, sqMetersPerLargeUnit, toFiniteNumber, type AggClipMode, type CensusFormat, type UnitSystem, type CensusGeographyData } from './census-columns'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
 // from breaks, painted with CHOROPLETH_INSUFFICIENT_COLOR); `0` is a real
@@ -64,7 +64,7 @@ export function pickChoroplethValue (
   isDensity: boolean,
   geographies: Map<string, CensusGeographyData> | undefined,
   unitSystem: UnitSystem,
-  mode: AggAreaMode,
+  mode: AggClipMode,
 ): number | null {
   const n = toFiniteNumber(agg[element])
   if (n === null) { return null }

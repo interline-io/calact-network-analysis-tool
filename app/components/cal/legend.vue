@@ -204,10 +204,10 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { aggAreaMode, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
+const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
 
-const showChoropleth = computed(() => aggAreaMode.value !== 'off' && props.hasChoroplethData)
+const showChoropleth = computed(() => showAggAreas.value && props.hasChoroplethData)
 
 const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
 

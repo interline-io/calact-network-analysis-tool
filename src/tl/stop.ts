@@ -178,6 +178,30 @@ export type Stop = StopGql & StopDerived
 //     HIERARCHICAL_TIGER_LAYERS. FIPS-prefix rollup + apportionBuffer().
 //   - Pass A (bbox-clipped) otherwise — non-hierarchical layers can't roll
 //     up by string match (needs server-side geometric containment, #370).
+interface StopGeoAggregateRow {
+  geoid: string
+  layer_name: string
+  name: string
+  visits_count?: number
+  stops_count: Set<number>
+  routes_count: Set<number>
+  routes_modes: Set<number>
+  agencies_count: Set<number>
+}
+
+function seedAggregateRow (geoid: string, layerName: string, name: string): StopGeoAggregateRow {
+  return {
+    geoid,
+    layer_name: layerName,
+    name,
+    visits_count: 0,
+    stops_count: new Set<number>(),
+    routes_count: new Set<number>(),
+    routes_modes: new Set<number>(),
+    agencies_count: new Set<number>(),
+  }
+}
+
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
@@ -187,47 +211,32 @@ export function stopGeoAggregateCsv (
   const bufferGeographies = options?.aggregationBufferGeographies
   const useBuffer = !!(bufferGeographies && bufferGeographies.length > 0
     && HIERARCHICAL_TIGER_LAYERS.has(aggregationKey))
-  const stopAgg = new Map<string, {
-    geoid: string
-    layer_name: string
-    name: string
-    visits_count?: number
-    stops_count: Set<number>
-    routes_count: Set<number>
-    routes_modes: Set<number>
-    agencies_count: Set<number>
-  }>()
+  const stopAgg = new Map<string, StopGeoAggregateRow>()
 
   // Seed every geography so stop-less tracts still produce a row. Skipped
   // when the caller only wants stop-touched rows.
-  if (censusGeographies && !options?.onlyWithStops) {
-    for (const [geoid, geo] of censusGeographies) {
-      stopAgg.set(geoid, {
-        geoid,
-        layer_name: aggregationKey,
-        name: geo.name,
-        visits_count: 0,
-        stops_count: new Set<number>(),
-        routes_count: new Set<number>(),
-        routes_modes: new Set<number>(),
-        agencies_count: new Set<number>(),
-      })
+  if (!options?.onlyWithStops) {
+    for (const [geoid, geo] of censusGeographies || []) {
+      stopAgg.set(geoid, seedAggregateRow(geoid, aggregationKey, geo.name))
+    }
+    // A stop buffer reaches geographies the query area doesn't cover, and
+    // their demographics belong in this table. Seeded from the buffer
+    // footprint itself, since the query area by definition doesn't include
+    // them. Only at the aggregation layer — finer ones roll up by FIPS
+    // prefix into a row that already exists.
+    if (useBuffer) {
+      for (const geo of bufferGeographies!) {
+        if (geo.layer === aggregationKey && !stopAgg.has(geo.geoid)) {
+          stopAgg.set(geo.geoid, seedAggregateRow(geo.geoid, aggregationKey, geo.name || ''))
+        }
+      }
     }
   }
 
   for (const stop of stops) {
     const geogs = (stop.census_geographies || []).filter(g => g.layer_name === aggregationKey)
     for (const geog of geogs) {
-      const a = stopAgg.get(geog.geoid) || {
-        geoid: geog.geoid,
-        layer_name: geog.layer_name,
-        name: geog.name,
-        visits_count: 0,
-        stops_count: new Set<number>(),
-        routes_count: new Set<number>(),
-        routes_modes: new Set<number>(),
-        agencies_count: new Set<number>(),
-      }
+      const a = stopAgg.get(geog.geoid) || seedAggregateRow(geog.geoid, geog.layer_name, geog.name)
       a.stops_count.add(stop.id)
       a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {

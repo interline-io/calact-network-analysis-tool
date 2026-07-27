@@ -152,14 +152,17 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect(geographies.get('unserved')!.intersectionRatio).toBe(1)
   })
 
-  // Both passes clip against the same padded bbox, so their two areas stay
-  // comparable. That the padding is there at all overstates both — #442.
-  it('clips both passes against the same bbox', async () => {
+  // Both passes once clipped against a bbox widened by the radius, which
+  // measured every intersection against an area the user never drew and
+  // returned geographies that don't touch the query at all.
+  it('clips against the bbox as drawn, not one widened by the radius', async () => {
     const { query } = await runPhase(
       baseConfig({ within: undefined, stopIds: [1, 2], stopBufferRadius: 400 }),
       [queryAreaResponse(), clipResponse()],
     )
-    expect(query.mock.calls[1]![1].bbox).toEqual(query.mock.calls[0]![1].bbox)
+    const drawn = { min_lon: -122.7, min_lat: 45.5, max_lon: -122.6, max_lat: 45.6 }
+    expect(query.mock.calls[0]![1].bbox).toEqual(drawn)
+    expect(query.mock.calls[1]![1].bbox).toEqual(drawn)
   })
 
   // The backend composes a bbox with a stop buffer, so a bbox-only scenario
