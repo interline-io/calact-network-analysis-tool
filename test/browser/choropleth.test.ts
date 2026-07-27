@@ -53,9 +53,9 @@ test.describe('Choropleth aggregation overlay', () => {
     await expect(checkbox).not.toBeChecked()
   })
 
-  test('clipping mode defaults to full geographies', async () => {
+  test('clipping mode defaults to query area + stop buffers', async () => {
     const select = page.locator('.cal-filter-sub').getByLabel('Clipping mode')
-    await expect(select).toHaveValue('unclipped')
+    await expect(select).toHaveValue('buffer')
   })
 
   test('Aggregate by dropdown is enabled regardless of Show Agg. Areas', async () => {

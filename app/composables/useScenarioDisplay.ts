@@ -8,9 +8,10 @@ import {
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
-// Full geographies by default: the same numbers the overlay showed before
-// clipping existed, so clipping is something the user opts into.
-const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'unclipped'
+// The overlay is off until asked for, so when it is asked for, answer the
+// question people actually have: what the transit service reaches. The less
+// clipped modes stay available for context.
+const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'buffer'
 
 interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>

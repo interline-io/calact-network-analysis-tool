@@ -1054,6 +1054,17 @@ async function resetFilters () {
     flexColorBy: undefined,
     stopBufferRadius: undefined,
     stopBufferLayer: undefined,
+    // Map Display panel — every key useScenarioDisplay owns, so a cleared
+    // scenario doesn't inherit an overlay configured for the last one.
+    showAggAreas: undefined,
+    aggClip: undefined,
+    aggregateLayer: undefined,
+    choroplethElement: undefined,
+    shadeByDensity: undefined,
+    onlyWithStops: undefined,
+    showStopBuffer: undefined,
+    showBbox: undefined,
+    dataDisplayMode: undefined,
   })
 }
 

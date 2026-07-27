@@ -59,9 +59,8 @@
           v-for="option of AGG_CLIP_MODE_OPTIONS"
           :key="option.value"
           :value="option.value"
-          :disabled="option.value === 'buffer' && !props.hasBufferClip"
         >
-          {{ option.label }}{{ option.value === 'buffer' && !props.hasBufferClip ? ' (needs a stop radius)' : '' }}
+          {{ option.label }}{{ option.value === 'buffer' && !props.hasBufferClip ? ' (no stop radius set)' : '' }}
         </option>
       </cat-select>
     </cat-field>
@@ -121,13 +120,6 @@
           Show geographic filters
         </cat-checkbox>
       </li>
-      <li>
-        <cat-tooltip text="Outlines the area within the stop statistical radius of each route's stops. Draws nothing when the radius is 0.">
-          <cat-checkbox v-model="showStopBuffer">
-            Show stop buffers
-          </cat-checkbox>
-        </cat-tooltip>
-      </li>
     </ul>
     <p class="menu-label">
       Display Options
@@ -164,7 +156,6 @@ defineEmits<{
 const {
   showAggAreas,
   aggClipMode,
-  showStopBuffer,
   aggregateLayer,
   choroplethElement,
   shadeByDensity,
