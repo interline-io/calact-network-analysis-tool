@@ -19,6 +19,12 @@ cd "$(dirname "$0")"
 
 COMPOSE="docker compose -f docker-compose.services.yaml"
 
+# The dumps are excluded from LFS by default (see .lfsconfig) — bind-mounting a
+# pointer file would restore nothing. `-X ""` clears the configured exclude.
+echo "=== Fetching test fixture dumps (LFS) ==="
+git -C .. lfs pull -I "testdata/gtfs/*.dump" -X ""
+
+echo ""
 echo "=== Tearing down existing services and volumes ==="
 $COMPOSE down -v --remove-orphans
 
