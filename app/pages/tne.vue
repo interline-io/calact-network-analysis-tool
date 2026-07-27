@@ -804,9 +804,11 @@ const aggregateLayerLabel = computed((): string => {
 
 // Server-side union of each route's stop buffers. Independent of the census
 // query, so it renders in any query mode.
+// Marked only, so the outlines match the routes the map is drawing rather
+// than every route in the scenario.
 const stopBufferRouteIds = computed((): number[] => {
   if (!showStopBuffer.value || stopBufferRadius.value <= 0) { return [] }
-  return (scenarioFilterResult.value?.routes || []).map(r => r.id)
+  return (scenarioFilterResult.value?.routes || []).filter(r => r.marked).map(r => r.id)
 })
 
 const { result: stopBufferResult } = useQuery<{ routes: RouteStopBufferResponse[] }>(
@@ -817,6 +819,9 @@ const { result: stopBufferResult } = useQuery<{ routes: RouteStopBufferResponse[
   }),
   () => ({
     enabled: stopBufferRouteIds.value.length > 0,
+    // The radius is a slider; without this every step fires its own union.
+    debounce: 300,
+    keepPreviousResult: true,
   })
 )
 
