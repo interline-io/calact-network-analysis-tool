@@ -124,8 +124,8 @@ export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode
   if (mode === 'unclipped') {
     return geo.geometryArea
   }
-  if (mode === 'buffer' && geo.bufferIntersectionArea != null) {
-    return geo.bufferIntersectionArea
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
+    return geo.bufferIntersectionArea ?? 0
   }
   return geo.intersectionArea
 }
@@ -140,16 +140,10 @@ export function censusApportionGeometry (
     return undefined
   }
   // Same guard as the ratio and area, so all three fall back together.
-  if (mode === 'buffer' && geo.bufferIntersectionArea != null) {
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
     return geo.bufferIntersectionGeometry
   }
   return geo.intersectionGeometry
-}
-
-// Whether a mode draws a clipped outline, so the fetch that supplies one can
-// stay off until it's actually needed.
-export function aggClipNeedsGeometry (mode: AggClipMode): boolean {
-  return mode !== 'unclipped'
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'

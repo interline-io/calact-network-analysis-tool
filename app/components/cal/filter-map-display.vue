@@ -60,7 +60,7 @@
           :key="option.value"
           :value="option.value"
         >
-          {{ option.label }}{{ option.value === 'buffer' && !props.hasBufferClip ? ' (no stop radius set)' : '' }}
+          {{ option.label }}{{ option.value === 'buffer' && stopBufferRadius <= 0 ? ' (no stop radius set)' : '' }}
         </option>
       </cat-select>
     </cat-field>
@@ -145,8 +145,6 @@ import {
 
 const props = defineProps<{
   censusGeographyLayerOptions?: { label: string, value: string }[]
-  // False until a loaded scenario carries buffer-clipped intersections.
-  hasBufferClip?: boolean
 }>()
 
 defineEmits<{

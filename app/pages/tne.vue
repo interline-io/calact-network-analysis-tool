@@ -863,9 +863,6 @@ const choroplethAggregateData = computed(() => {
   // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
   // census entry are stop-derived and unaffected.
   const mode = aggClipMode.value
-  if (mode === 'unclipped') {
-    return rows
-  }
   const geos = scenarioFilterResult.value.censusGeographies
   return rows.filter((r) => {
     const geo = geos?.get(r.geoid)

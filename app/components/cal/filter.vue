@@ -152,7 +152,6 @@
       >
         <cal-filter-map-display
           :census-geography-layer-options="props.censusGeographyLayerOptions"
-          :has-buffer-clip="hasBufferClip"
           @refresh-census="emit('refreshCensus')"
         />
       </div>
@@ -199,22 +198,6 @@ const props = defineProps<{
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
 }>()
-
-// The buffer clip is a second census pass that only runs when the scenario has
-// a stop buffer radius, so the mode it enables stays disabled until the data
-// is actually loaded.
-const hasBufferClip = computed((): boolean => {
-  const geos = props.scenarioFilterResult?.censusGeographies
-  if (!geos) {
-    return false
-  }
-  for (const geo of geos.values()) {
-    if (geo.bufferIntersectionRatio != null) {
-      return true
-    }
-  }
-  return false
-})
 
 const {
   startDate,

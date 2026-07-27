@@ -6,7 +6,6 @@
 // in useStreamingRefetch.
 
 import { ref, watchEffect, type Ref } from 'vue'
-import { aggClipNeedsGeometry } from '~~/src/core'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
@@ -21,19 +20,10 @@ export interface UseAggregateRefetchDeps extends StreamingRefetchDeps {
   markedStopIds: Ref<number[]>
 }
 
-export interface UseAggregateRefetchReturn {
-  // Recompute the clip against the current filters. Manual rather than
-  // watched: the marked set churns while results stream in, so watching it
-  // fires a recompute in the middle of a scenario load, where it fights the
-  // main run for the loading modal and the census slice of the receiver.
-  refresh: () => void
-}
-
-export function useAggregateRefetch (deps: UseAggregateRefetchDeps): UseAggregateRefetchReturn {
+export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: () => void } {
   const { aggregateLayer, showAggAreas, aggClipMode } = useScenarioDisplay()
-  // The census-values phase pads the fetch bbox by the stop buffer radius, so a
-  // radius change (not just a layer change) can shift which edge geographies the
-  // map needs — refetch on both.
+  // The radius defines the stop buffer clip, so changing it changes the
+  // numbers just as much as changing the layer does.
   const { stopBufferRadius } = useScenarioInputs()
 
   // The scenario run fetches clipped outlines when the display already wants
@@ -42,13 +32,14 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): UseAggregat
   // and make returning cost another round trip.
   const geometryLatch = ref(false)
   watchEffect(() => {
-    if (showAggAreas.value && aggClipNeedsGeometry(aggClipMode.value)) {
+    if (showAggAreas.value && aggClipMode.value !== 'unclipped') {
       geometryLatch.value = true
     }
   })
 
-  // Bumped by `refresh()`; see UseAggregateRefetchReturn for why the marked
-  // set isn't watched directly.
+  // The marked set churns while results stream in, so watching it would fire a
+  // recompute mid-load and fight the main run for the loading modal and the
+  // receiver's census slice. Bumped by `refresh()` instead.
   const manualRefresh = ref(0)
 
   useStreamingRefetch(deps, {
