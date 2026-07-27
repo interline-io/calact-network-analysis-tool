@@ -6,9 +6,10 @@
 # its port, so readiness is intrinsic: once it accepts a connection, it's ready.
 # No `-init` services or compose-level completion gates.
 #
-# The image is pulled by default (published to ghcr.io); pass `--build` to rebuild.
-# It holds only the binary and scripts — the dumps are bind-mounted, so refreshing
-# fixtures (rebuild.sh / rebuild-census.sh) never means rebuilding the image.
+# The image is built locally, never published — a cold build is ~30s, cheaper than
+# maintaining a registry and its staleness failure modes. It holds only the binary
+# and scripts; the dumps are bind-mounted, so refreshing fixtures (rebuild.sh /
+# rebuild-census.sh) never means rebuilding the image.
 #
 # Ports are offset into the 2xxxx range so this stack can run alongside a manual
 # testdata/gtfs/restore.sh server on 8080.
@@ -31,7 +32,7 @@ services:
       retries: 5
 
   tlserver:
-    image: ghcr.io/interline-io/calact-tlserver:latest
+    image: calact-tlserver:latest
     build:
       context: ./tlserver
       dockerfile: tlserver.docker
