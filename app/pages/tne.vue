@@ -225,6 +225,7 @@ import {
   formatAcsDatasetLabel,
   summarizeApportioned,
   censusApportionArea,
+  censusApportionGeometry,
   censusApportionRatio,
   deriveApportionedRow,
   censusGeographyMapToEntries,
@@ -810,13 +811,18 @@ const aggregateLayerLabel = computed((): string => {
 // Choropleth aggregation overlay
 /////////////////
 
-// All census geographies in the query area, used to fetch geometry for the
-// choropleth. Empty when the overlay is off.
+// Geographies the choropleth still needs a full outline for. In a clipped mode
+// that's only the ones the census phase returned no clipped outline for — a
+// geography outside every stop buffer, or the window before those outlines
+// have streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
-  if (aggAreaMode.value === 'off') { return [] }
+  const mode = aggAreaMode.value
+  if (mode === 'off') { return [] }
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
-  return [...geos.values()].map(g => g.id)
+  return [...geos.values()]
+    .filter(g => !censusApportionGeometry(g, mode))
+    .map(g => g.id)
 })
 
 // Fetch geometry for the choropleth geographies

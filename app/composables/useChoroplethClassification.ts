@@ -3,6 +3,7 @@ import {
   CENSUS_COLUMNS,
   CHOROPLETH_ELEMENT_OPTIONS,
   buildChoroplethClassification,
+  censusApportionGeometry,
   censusApportionRatio,
   densityPerArea,
   deriveApportionedColumn,
@@ -73,7 +74,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   // Feature properties carry only geoid/name + styling — the census panel
   // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
-    if (aggAreaMode.value === 'off') { return [] }
+    const mode = aggAreaMode.value
+    if (mode === 'off') { return [] }
 
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
@@ -90,7 +92,15 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     for (const agg of aggData) {
       const aggRow = agg as Record<string, any>
       const geo = geoLookup.get(aggRow.geoid as string)
-      if (!geo || !geo.geometry) { continue }
+      const censusGeo = censusGeos?.get(aggRow.geoid as string)
+
+      // The clipped outline when the scenario fetched one, so the polygon
+      // covers the footprint its value was computed over. Falls back to the
+      // full geography — which is all `unclipped` ever wants, and what a
+      // geography outside every stop buffer is drawn as.
+      const geometry = (censusGeo && censusApportionGeometry(censusGeo, mode)) || geo?.geometry
+      const featureId = censusGeo?.id ?? geo?.id
+      if (!geometry || featureId == null) { continue }
 
       const isSelected = aggRow.geoid === selectedGeoid
       const pickedValue = picked.get(aggRow.geoid as string) ?? null
@@ -101,11 +111,10 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       // null for non-census shading elements.
       let scaledValue: number | null = null
       let densityValue: number | null = null
-      const censusGeo = elementCol ? censusGeos?.get(aggRow.geoid as string) : undefined
       if (elementCol && censusGeo) {
         scaledValue = deriveApportionedColumn(
           censusGeo.values,
-          censusApportionRatio(censusGeo, aggAreaMode.value),
+          censusApportionRatio(censusGeo, mode),
           element,
         )
         if (elementIsDensityEligible) {
@@ -115,8 +124,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
 
       features.push({
         type: 'Feature',
-        id: geo.id.toString(),
-        geometry: geo.geometry,
+        id: featureId.toString(),
+        geometry,
         properties: {
           'geoid': aggRow.geoid,
           'name': aggRow.name,

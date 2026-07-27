@@ -5,6 +5,8 @@
 // census-values map needs refetching. Streaming/abort/debounce machinery lives
 // in useStreamingRefetch.
 
+import { computed } from 'vue'
+import { aggAreaModeNeedsGeometry } from '~~/src/core'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
@@ -15,14 +17,19 @@ import type { CensusValuesPhaseConfig } from '~~/src/scenario'
 export type UseAggregateRefetchDeps = StreamingRefetchDeps
 
 export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
-  const { aggregateLayer } = useScenarioDisplay()
+  const { aggregateLayer, aggAreaMode } = useScenarioDisplay()
   // The census-values phase pads the fetch bbox by the stop buffer radius, so a
   // radius change (not just a layer change) can shift which edge geographies the
   // map needs — refetch on both.
   const { stopBufferRadius } = useScenarioInputs()
+  // Clipped outlines aren't fetched by the initial scenario run, so entering a
+  // mode that draws them costs one refetch. Watching the boolean rather than
+  // the mode keeps the other transitions (off↔unclipped, queryArea↔buffer)
+  // free — both clips already arrive together.
+  const needsGeometry = computed(() => aggAreaModeNeedsGeometry(aggAreaMode.value))
 
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer, stopBufferRadius],
+    watchSources: [aggregateLayer, stopBufferRadius, needsGeometry],
     // Reuse the standalone census-values phase endpoint (it re-resolves
     // geographyIds or a plain bbox server-side) rather than a bespoke one.
     endpoint: '/api/scenario/census-values',
@@ -50,6 +57,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): void {
         // Same stop set the scenario resolved; without it the refetch drops
         // back to query-area-only values.
         stopIds: data.stops.map(s => s.id),
+        includeIntersectionGeometry: needsGeometry.value,
       }
       return body
     },

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
+  aggAreaModeNeedsGeometry,
   censusApportionArea,
+  censusApportionGeometry,
   censusApportionRatio,
   deriveApportionedRow,
   formatAcsDatasetLabel,
@@ -142,6 +144,45 @@ describe('censusApportionRatio / censusApportionArea', () => {
     const outsideBuffers = geo({ bufferIntersectionArea: 0, bufferIntersectionRatio: 0 })
     expect(censusApportionRatio(outsideBuffers, 'buffer')).toBe(0)
     expect(censusApportionArea(outsideBuffers, 'buffer')).toBe(0)
+  })
+})
+
+describe('censusApportionGeometry', () => {
+  const queryAreaGeom = { type: 'Polygon', coordinates: [[[0, 0]]] }
+  const bufferGeom = { type: 'Polygon', coordinates: [[[1, 1]]] }
+
+  it('picks the outline matching the mode', () => {
+    const g = geo({
+      intersectionGeometry: queryAreaGeom,
+      bufferIntersectionArea: 250,
+      bufferIntersectionRatio: 0.25,
+      bufferIntersectionGeometry: bufferGeom,
+    })
+    expect(censusApportionGeometry(g, 'queryArea')).toBe(queryAreaGeom)
+    expect(censusApportionGeometry(g, 'buffer')).toBe(bufferGeom)
+  })
+
+  it('has no outline for unclipped — the caller draws the full geography', () => {
+    const g = geo({ intersectionGeometry: queryAreaGeom })
+    expect(censusApportionGeometry(g, 'unclipped')).toBeUndefined()
+  })
+
+  it('falls back with the ratio when the scenario fetched no buffer clip', () => {
+    const g = geo({ intersectionGeometry: queryAreaGeom })
+    expect(censusApportionGeometry(g, 'buffer')).toBe(queryAreaGeom)
+  })
+
+  it('is undefined when the outlines were never fetched', () => {
+    expect(censusApportionGeometry(geo(), 'queryArea')).toBeUndefined()
+  })
+})
+
+describe('aggAreaModeNeedsGeometry', () => {
+  it('is true only for the modes that draw a clipped outline', () => {
+    expect(aggAreaModeNeedsGeometry('off')).toBe(false)
+    expect(aggAreaModeNeedsGeometry('unclipped')).toBe(false)
+    expect(aggAreaModeNeedsGeometry('queryArea')).toBe(true)
+    expect(aggAreaModeNeedsGeometry('buffer')).toBe(true)
   })
 })
 

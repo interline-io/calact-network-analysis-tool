@@ -152,6 +152,16 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect(geographies.get('unserved')!.intersectionRatio).toBe(1)
   })
 
+  // Both passes clip against the same padded bbox, so their two areas stay
+  // comparable. That the padding is there at all overstates both — #442.
+  it('clips both passes against the same bbox', async () => {
+    const { query } = await runPhase(
+      baseConfig({ within: undefined, stopIds: [1, 2], stopBufferRadius: 400 }),
+      [queryAreaResponse(), clipResponse()],
+    )
+    expect(query.mock.calls[1]![1].bbox).toEqual(query.mock.calls[0]![1].bbox)
+  })
+
   // The backend composes a bbox with a stop buffer, so a bbox-only scenario
   // clips too — it does not need an admin boundary.
   it('clips against a bbox when no within polygon is given', async () => {
@@ -164,6 +174,41 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect(query.mock.calls[1]![1].within).toBeUndefined()
     expect(geographies.get('served')!.bufferIntersectionRatio).toBe(0.25)
     expect(geographies.get('unserved')!.bufferIntersectionRatio).toBe(0)
+  })
+
+  // The outlines roughly double the response, so nothing fetches them unless
+  // a mode is actually drawing the clipped footprint.
+  it('fetches clipped outlines only when asked, on both passes', async () => {
+    const { query: without } = await runPhase(
+      baseConfig({ stopIds: [1, 2], stopBufferRadius: 400 }),
+      [queryAreaResponse(), clipResponse()],
+    )
+    expect(without.mock.calls[0]![1].includeIntersectionGeometry).toBe(false)
+    expect(without.mock.calls[1]![1].includeGeometry).toBe(false)
+
+    const queryAreaGeom = { type: 'Polygon', coordinates: [[[0, 0]]] }
+    const bufferGeom = { type: 'Polygon', coordinates: [[[1, 1]]] }
+    const pass1 = queryAreaResponse()
+    pass1.data.census_datasets[0]!.geographies[0]!.intersection_geometry = queryAreaGeom as any
+    const { query: with_, geographies } = await runPhase(
+      baseConfig({ stopIds: [1, 2], stopBufferRadius: 400, includeIntersectionGeometry: true }),
+      [pass1, {
+        data: {
+          census_datasets: [{
+            id: 1,
+            geographies: [{ geoid: 'served', intersection_area: 250, intersection_geometry: bufferGeom }],
+          }],
+        },
+      }],
+    )
+    expect(with_.mock.calls[0]![1].includeIntersectionGeometry).toBe(true)
+    expect(with_.mock.calls[1]![1].includeGeometry).toBe(true)
+
+    const served = geographies.get('served')!
+    expect(served.intersectionGeometry).toEqual(queryAreaGeom)
+    expect(served.bufferIntersectionGeometry).toEqual(bufferGeom)
+    // Reached by no buffer: still zero area, and no outline to draw.
+    expect(geographies.get('unserved')!.bufferIntersectionGeometry).toBeUndefined()
   })
 
   // Pass 1's values must survive a failing clip: the clip is an enhancement,

@@ -31,7 +31,7 @@
     </p>
     <cat-field>
       <template #label>
-        Show agg. areas <cat-tooltip text="Whether the map shades census geographies by their full values, or scales them to the part of each geography inside the query area, or inside the stop buffers.">
+        Show agg. areas <cat-tooltip text="Whether the map shades census geographies by their full values, or scales them to the part of each geography inside the query area — optionally narrowed again to what falls within the stop buffer radius. Clipped modes also draw each geography as the clipped footprint rather than its whole outline.">
           <i class="mdi mdi-information-outline" />
         </cat-tooltip>
       </template>

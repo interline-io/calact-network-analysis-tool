@@ -1,3 +1,5 @@
+import type { Geometry } from './geom'
+
 // ACS demographic columns surfaced in aggregation tables and the map view (#302).
 // Column ID format: lowercase `<table>_<col>` (e.g. `b01001_001`). Derivations
 // return null when inputs are missing or denominators are zero so the UI can
@@ -78,6 +80,13 @@ export interface CensusGeographyData {
   /** Fraction of the geography inside both clips, in [0, 1]. */
   bufferIntersectionRatio?: number
   /**
+   * Clipped outlines matching the two areas above, present only when the
+   * phase was asked for them — they cost roughly as much as the full
+   * geometry. The choropleth draws the full geography without them.
+   */
+  intersectionGeometry?: Geometry
+  bufferIntersectionGeometry?: Geometry
+  /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,
    * but populated by the scenario pipeline so the UI can filter by layer
@@ -93,7 +102,9 @@ export const AGG_AREA_MODE_OPTIONS: { value: AggAreaMode, label: string }[] = [
   { value: 'off', label: 'Off' },
   { value: 'unclipped', label: 'Full geographies' },
   { value: 'queryArea', label: 'Clipped to query area' },
-  { value: 'buffer', label: 'Clipped to stop buffers' },
+  // The backend composes both clips, so this is the query area narrowed to
+  // the stop buffers — never the buffers on their own.
+  { value: 'buffer', label: 'Clipped to query area + stop buffers' },
 ]
 
 // Fraction of a geography attributed to the analysis area under the selected
@@ -119,6 +130,28 @@ export function censusApportionArea (geo: CensusGeographyData, mode: AggAreaMode
     return geo.bufferIntersectionArea
   }
   return geo.intersectionArea
+}
+
+// The clipped outline matching `censusApportionArea`, or undefined when the
+// scenario didn't fetch one — callers fall back to the full geography.
+export function censusApportionGeometry (
+  geo: CensusGeographyData,
+  mode: AggAreaMode,
+): Geometry | undefined {
+  if (mode === 'unclipped') {
+    return undefined
+  }
+  // Same guard as the ratio and area, so all three fall back together.
+  if (mode === 'buffer' && geo.bufferIntersectionArea != null) {
+    return geo.bufferIntersectionGeometry
+  }
+  return geo.intersectionGeometry
+}
+
+// Whether a mode draws a clipped outline, so the fetch that supplies one can
+// stay off until it's actually needed.
+export function aggAreaModeNeedsGeometry (mode: AggAreaMode): boolean {
+  return mode === 'queryArea' || mode === 'buffer'
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'

@@ -101,14 +101,30 @@ describe('fetchClipIntersections', () => {
       { geoid: 'A', intersection_area: 50 },
     ]))
     const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(clips.get('A')).toBe(150)
-    expect(clips.get('B')).toBe(250)
+    expect(clips.get('A')?.area).toBe(150)
+    expect(clips.get('B')?.area).toBe(250)
     expect(clips.has('C')).toBe(false)
   })
 
   it('treats a null intersection_area as zero', async () => {
     const { client } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: null }]))
     const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
-    expect(clips.get('A')).toBe(0)
+    expect(clips.get('A')?.area).toBe(0)
+  })
+
+  it('asks for the clipped outline only when the caller wants it', async () => {
+    const { client, query } = mockClient(geographiesResponse([{ geoid: 'A', intersection_area: 100 }]))
+    await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
+    expect(query.mock.calls[0]![1].includeGeometry).toBe(false)
+
+    const geometry = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
+    const withGeom = mockClient(geographiesResponse([
+      { geoid: 'A', intersection_area: 100, intersection_geometry: geometry },
+    ]))
+    const clips = await fetchClipIntersections({
+      ...base, client: withGeom.client, stopIds: [1], stopBufferRadius: 400, includeGeometry: true,
+    })
+    expect(withGeom.query.mock.calls[0]![1].includeGeometry).toBe(true)
+    expect(clips.get('A')?.geometry).toEqual(geometry)
   })
 })
