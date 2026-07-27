@@ -1,6 +1,5 @@
 export * from './scenario'
 export * from './scenario-filter'
-export * from './buffer-passes'
 export * from './stop-clusters'
 export * from './phases'
 export * from './report'

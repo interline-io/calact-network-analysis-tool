@@ -20,8 +20,7 @@ import type {
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
-import { runBufferPasses } from './buffer-passes'
-import { runStopClustersPhase, type StopCluster } from './stop-clusters'
+import type { StopCluster } from './stop-clusters'
 import {
   runFeedVersionsPhase,
   runStopsPhase,
@@ -29,9 +28,11 @@ import {
   runDeparturesPhase,
   runFlexPhase,
   runCensusValuesPhase,
+  runBufferPasses,
+  runStopClustersPhase,
+  scenarioPhasePlan,
   StopDepartureTuple,
   FlexDepartureTuple,
-  SCENARIO_PHASE_ORDER,
   type FeedVersionRef,
   type ResolvedGeographyContext,
   type ScenarioPhaseName,
@@ -92,34 +93,6 @@ export interface ScenarioConfig {
   // Stop clustering. > 0 (meters) enables the stop-clusters phase; 0/unset disables.
   // The max-transfer-time filter is client-side, so it's not part of the fetch config.
   stopClusterDistance?: number
-}
-
-// Single source of truth for which phases a config enables. Drives both the
-// emitted phase plan and fetchMain's execution gating, so the two cannot
-// drift: a phase runs if and only if it is in the plan. Routes, departures,
-// and buffers execute inside the stops block (they consume its ids), so
-// their predicates must imply the stops predicate.
-const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
-  'feed-versions': () => true,
-  'stops': config => config.includeFixedRoute !== false,
-  'routes': config => config.includeFixedRoute !== false,
-  'departures': config => config.includeFixedRoute !== false
-    && config.includeDepartures !== false,
-  'buffers': config => config.includeFixedRoute !== false
-    && config.includeCensus !== false
-    && (config.stopBufferRadius ?? 0) > 0
-    && !!config.tableDatasetName,
-  'stop-clusters': config => config.includeFixedRoute !== false
-    && (config.stopClusterDistance ?? 0) > 0,
-  'flex-areas': config => config.includeFlexAreas !== false,
-  'census-values': config => config.includeCensus !== false
-    && !!config.tableDatasetName
-    && !!config.aggregateLayer,
-}
-
-// The enabled phases for a scenario config, in pipeline order.
-export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {
-  return SCENARIO_PHASE_ORDER.filter(phase => PHASE_ENABLED[phase](config))
 }
 
 export interface ScenarioFilter {
@@ -465,7 +438,7 @@ export class ScenarioFetcher {
 
   // Config projection around the census-values phase; the inline path passes
   // the already-resolved geography so the phase doesn't re-query. Gating is
-  // the plan's job (PHASE_ENABLED) — this guard exists for type narrowing
+  // the plan's job (the phase registry) — this guard exists for type narrowing
   // and would only fire on a plan/config inconsistency bug.
   private async fetchCensusValues (resolved: ResolvedGeographyContext, stopIds: number[]): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
@@ -487,7 +460,7 @@ export class ScenarioFetcher {
 
   // Delegates to `runBufferPasses` so the same logic runs standalone via
   // /api/buffer-geographies on radius/layer changes. Gating is the plan's
-  // job (PHASE_ENABLED) — this guard exists for type narrowing and would
+  // job (the phase registry) — this guard exists for type narrowing and would
   // only fire on a plan/config inconsistency bug.
   private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[]): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
@@ -513,7 +486,7 @@ export class ScenarioFetcher {
 
   // Delegates to `runStopClustersPhase` so the same logic runs standalone via
   // /api/stop-clusters on distance changes. Gating is the plan's job
-  // (PHASE_ENABLED) — this guard only fires on a plan/config inconsistency bug.
+  // (the phase registry) — this guard only fires on a plan/config inconsistency bug.
   private async fetchStopClusters (fvRefs: FeedVersionRef[]): Promise<void> {
     const distance = this.config.stopClusterDistance ?? 0
     if (distance <= 0) {

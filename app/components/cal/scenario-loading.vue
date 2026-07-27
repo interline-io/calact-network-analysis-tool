@@ -145,7 +145,9 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   if (stageText) {
     return stageText
   }
-  const stageLabels: Record<string, string> = {
+  // Exhaustive over the stage union, so a new stage can't silently fall back
+  // to a generic "Loading...".
+  const stageLabels: Record<ScenarioProgress['currentStage'], string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
@@ -156,6 +158,10 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'route-buffer-geographies': 'Loading per-route buffer demographics...',
     'agency-buffer-geographies': 'Loading per-agency buffer demographics...',
     'aggregation-buffer-geographies': 'Loading aggregation buffer demographics...',
+    'stop-clusters': 'Loading transfer hub clusters...',
+    // Analyses emit 'extra' with their own message, so this is only the
+    // fallback for one that doesn't set it.
+    'extra': 'Processing...',
     'complete': 'Complete',
     'ready': 'Ready',
   }

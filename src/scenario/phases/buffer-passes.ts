@@ -13,8 +13,8 @@ import {
   type BufferEntityKind,
   type BufferGeographyIntersection,
 } from '~~/src/tl'
-import type { ScenarioProgress } from './scenario'
-import { phaseDone } from './phases/common'
+import type { ScenarioProgress } from '../scenario'
+import { phaseDone } from './common'
 
 // Smaller than the stop batch because each route/agency expands to its full
 // stop set server-side, multiplying per-request cost.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
-import { ScenarioFetcher, scenarioPhasePlan } from './scenario'
+import { ScenarioFetcher } from './scenario'
+import { scenarioPhasePlan } from './phases'
 import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import type { FeedGql, FlexLocationGql } from '~~/src/tl'
 
@@ -309,7 +310,7 @@ describe('ScenarioFetcher', () => {
   })
 
   describe('scenarioPhasePlan', () => {
-    // The plan is also the execution gate (PHASE_ENABLED), so these
+    // The plan is also the execution gate (the phase registry), so these
     // permutations pin which phases run for a given config.
     const fullConfig: ScenarioConfig = {
       ...config,
