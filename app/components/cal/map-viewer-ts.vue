@@ -30,23 +30,23 @@ const emit = defineEmits([
   'openTimetable',
 ])
 
-const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
-const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: [] })
-const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: [] })
-const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
-const features = defineModel<Feature[]>('features', { default: [] })
-const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
+const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
+const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: () => [] })
+const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: () => [] })
+const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: () => [] })
+const features = defineModel<Feature[]>('features', { default: () => [] })
+const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: () => [] })
 // stop cluster markers + the selected cluster's radius circle.
-const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
-const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
+const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: () => [] })
+const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: () => [] })
 // connector lines from the selected cluster's anchor stop to its member stops.
-const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: [] })
+const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: () => [] })
 // multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
-const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: [] })
-const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
-const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
+const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
+const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
+const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
-const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
+const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
 const props = defineProps<{

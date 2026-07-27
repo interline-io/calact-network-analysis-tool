@@ -84,5 +84,13 @@ function createMockSender () {
 
 export function createStreamController (): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController
+  // `start` runs synchronously during construction, so `controller` is
+  // assigned before this returns. Without the stream it never was, and the
+  // helper silently handed every caller `undefined` behind the `!`.
+  new ReadableStream({
+    start (ctrl) {
+      controller = ctrl
+    }
+  })
   return controller!
 }
