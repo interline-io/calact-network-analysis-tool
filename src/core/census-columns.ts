@@ -68,8 +68,15 @@ export interface CensusGeographyData {
   intersectionRatio: number
   /** Full geography area in m². */
   geometryArea: number
-  /** Intersection (geography ∩ query area) in m². */
+  /** Geography ∩ query area in m². */
   intersectionArea: number
+  /**
+   * Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
+   * radius is set, or when the backend can't compose the two clips.
+   */
+  bufferIntersectionArea?: number
+  /** Fraction of the geography inside both clips, in [0, 1]. */
+  bufferIntersectionRatio?: number
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,
