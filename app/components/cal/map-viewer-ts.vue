@@ -572,6 +572,8 @@ function createLayers () {
       'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0],
     }
   })
+  // Kept at zero opacity rather than dropped: it's the hit target for
+  // dragging the bbox by its interior in edit mode.
   map?.addLayer({
     id: 'overlay-polygons',
     type: 'fill',
@@ -579,7 +581,7 @@ function createLayers () {
     layout: {},
     paint: {
       'fill-color': '#ccc',
-      'fill-opacity': 0.3
+      'fill-opacity': 0
     }
   })
   map?.addLayer({
@@ -590,12 +592,13 @@ function createLayers () {
     paint: {
       'line-width': 2,
       'line-color': '#ff0000',
-      'line-opacity': 0.6
+      'line-opacity': 0.6,
+      'line-dasharray': [6, 3]
     }
   })
   // Outline only: one polygon per route, so a fill would stack opacity
-  // wherever routes overlap. Dashed to separate it from the solid
-  // geographic-filter outline in the same red.
+  // wherever routes overlap. Shorter dashes than the query-area outline it
+  // shares a red with.
   map?.addLayer({
     id: 'stop-buffer-outline',
     type: 'line',

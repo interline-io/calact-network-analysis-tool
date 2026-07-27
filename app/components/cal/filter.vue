@@ -150,7 +150,10 @@
         aria-labelledby="cal-filter-tab-data-display"
         tabindex="0"
       >
-        <cal-filter-map-display :census-geography-layer-options="props.censusGeographyLayerOptions" />
+        <cal-filter-map-display
+          :census-geography-layer-options="props.censusGeographyLayerOptions"
+          @refresh-census="emit('refreshCensus')"
+        />
       </div>
 
       <!-- SETTINGS -->
@@ -232,6 +235,7 @@ const panelPaddingPx = `${PANEL_PADDING}px`
 const emit = defineEmits([
   'resetFilters',
   'showQuery',
+  'refreshCensus',
 ])
 const activeTab = defineModel<string>('activeTab')
 

@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENSUS_COLUMNS,
+  censusApportionArea,
+  censusApportionGeometry,
+  censusApportionRatio,
   deriveApportionedRow,
   formatAcsDatasetLabel,
   formatArea,
   formatCensusBucketLabel,
   formatCensusValue,
-  summarizeBbox,
+  summarizeApportioned,
+  type CensusGeographyData,
   type CensusValues,
 } from './census-columns'
 
@@ -16,6 +20,18 @@ function byId (id: string) {
     throw new Error(`unknown column ${id}`)
   }
   return col
+}
+
+function geo (over: Partial<CensusGeographyData> = {}): CensusGeographyData {
+  return {
+    id: 1,
+    name: 'Tract 1',
+    values: {},
+    geometryArea: 1000,
+    intersectionArea: 600,
+    intersectionRatio: 0.6,
+    ...over,
+  }
 }
 
 describe('derivations', () => {
@@ -98,13 +114,75 @@ describe('formatCensusValue', () => {
   })
 })
 
-describe('summarizeBbox', () => {
+describe('censusApportionRatio / censusApportionArea', () => {
+  const clipped = geo({
+    geometryArea: 1000,
+    intersectionArea: 600,
+    intersectionRatio: 0.6,
+    bufferIntersectionArea: 250,
+    bufferIntersectionRatio: 0.25,
+  })
+
+  it('picks the clip named by the mode', () => {
+    expect(censusApportionRatio(clipped, 'unclipped')).toBe(1)
+    expect(censusApportionRatio(clipped, 'queryArea')).toBe(0.6)
+    expect(censusApportionRatio(clipped, 'buffer')).toBe(0.25)
+
+    expect(censusApportionArea(clipped, 'unclipped')).toBe(1000)
+    expect(censusApportionArea(clipped, 'queryArea')).toBe(600)
+    expect(censusApportionArea(clipped, 'buffer')).toBe(250)
+  })
+
+  it('falls back to the query area when no buffer clip was fetched', () => {
+    const noBuffer = geo({ intersectionRatio: 0.6, intersectionArea: 600 })
+    expect(censusApportionRatio(noBuffer, 'buffer')).toBe(0.6)
+    expect(censusApportionArea(noBuffer, 'buffer')).toBe(600)
+  })
+
+  it('keeps a zero buffer clip rather than falling back to the query area', () => {
+    const outsideBuffers = geo({ bufferIntersectionArea: 0, bufferIntersectionRatio: 0 })
+    expect(censusApportionRatio(outsideBuffers, 'buffer')).toBe(0)
+    expect(censusApportionArea(outsideBuffers, 'buffer')).toBe(0)
+  })
+})
+
+describe('censusApportionGeometry', () => {
+  const queryAreaGeom = { type: 'Polygon', coordinates: [[[0, 0]]] }
+  const bufferGeom = { type: 'Polygon', coordinates: [[[1, 1]]] }
+
+  it('picks the outline matching the mode', () => {
+    const g = geo({
+      intersectionGeometry: queryAreaGeom,
+      bufferIntersectionArea: 250,
+      bufferIntersectionRatio: 0.25,
+      bufferIntersectionGeometry: bufferGeom,
+    })
+    expect(censusApportionGeometry(g, 'queryArea')).toBe(queryAreaGeom)
+    expect(censusApportionGeometry(g, 'buffer')).toBe(bufferGeom)
+  })
+
+  it('has no outline for unclipped — the caller draws the full geography', () => {
+    const g = geo({ intersectionGeometry: queryAreaGeom })
+    expect(censusApportionGeometry(g, 'unclipped')).toBeUndefined()
+  })
+
+  it('falls back with the ratio when the scenario fetched no buffer clip', () => {
+    const g = geo({ intersectionGeometry: queryAreaGeom })
+    expect(censusApportionGeometry(g, 'buffer')).toBe(queryAreaGeom)
+  })
+
+  it('is undefined when the outlines were never fetched', () => {
+    expect(censusApportionGeometry(geo(), 'queryArea')).toBeUndefined()
+  })
+})
+
+describe('summarizeApportioned', () => {
   it('sums raw values apportioned by intersection ratio and runs derivations', () => {
     const geos = new Map([
-      ['1', { values: { b01003_001: 1000, b02001_002: 600 }, intersectionRatio: 1.0 }],
-      ['2', { values: { b01003_001: 500, b02001_002: 400 }, intersectionRatio: 0.5 }],
+      ['1', geo({ values: { b01003_001: 1000, b02001_002: 600 }, intersectionRatio: 1.0 })],
+      ['2', geo({ values: { b01003_001: 500, b02001_002: 400 }, intersectionRatio: 0.5 })],
     ])
-    const { raw, derived } = summarizeBbox(['1', '2'], geos)
+    const { raw, derived } = summarizeApportioned(['1', '2'], geos, 'queryArea')
     // 1000*1.0 + 500*0.5 = 1250
     expect(raw.b01003_001).toBe(1250)
     // 600*1.0 + 400*0.5 = 800
@@ -112,6 +190,19 @@ describe('summarizeBbox', () => {
     // POC% = (1250 − 800) / 1250 = 0.36
     expect(derived.pct_people_of_color).toBeCloseTo(0.36)
     expect(derived.total_population).toBe(1250)
+  })
+
+  it('totals follow the selected clip', () => {
+    const geos = new Map([
+      ['1', geo({
+        values: { b01003_001: 1000 },
+        intersectionRatio: 0.5,
+        bufferIntersectionRatio: 0.2,
+      })],
+    ])
+    expect(summarizeApportioned(['1'], geos, 'unclipped').derived.total_population).toBe(1000)
+    expect(summarizeApportioned(['1'], geos, 'queryArea').derived.total_population).toBe(500)
+    expect(summarizeApportioned(['1'], geos, 'buffer').derived.total_population).toBe(200)
   })
 })
 

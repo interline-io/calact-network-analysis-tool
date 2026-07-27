@@ -44,7 +44,7 @@
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
-            <th>
+            <th v-if="showIntersection">
               <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the area being analyzed. Ratios (% columns) and medians are unchanged.">
                 Intersection
                 <cat-icon size="small" icon="information" />
@@ -52,7 +52,7 @@
             </th>
             <th>
               <cat-tooltip text="Sum of every geography's Intersection value across the area being analyzed. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
-                Query Area Total
+                Analysis Area Total
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>
@@ -79,7 +79,7 @@
             <td class="cal-census-panel-num">
               {{ formatCensusValue(valueFor(col.id), col.format) }}
             </td>
-            <td class="cal-census-panel-num">
+            <td v-if="showIntersection" class="cal-census-panel-num">
               {{ intersectionCell(col) }}
             </td>
             <td class="cal-census-panel-num">
@@ -119,7 +119,10 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { choroplethElement, unitSystem } = useScenarioDisplay()
+const { choroplethElement, unitSystem, aggClipMode } = useScenarioDisplay()
+
+// Unclipped apportions at 1, so the column would only restate Full Geography.
+const showIntersection = computed(() => aggClipMode.value !== 'unclipped')
 
 function valueFor (id: string): number | null {
   return toFiniteNumber(props.row?.[id])

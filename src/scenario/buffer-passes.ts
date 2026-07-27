@@ -103,6 +103,9 @@ export async function runBufferPasses (
       .map(f => ({
         geoid: f.properties.geoid,
         layer: f.properties.layer_name || config.layer,
+        // Carried so the aggregation table can seed a named row for a
+        // geography only the buffer reaches.
+        name: f.properties.name,
         geometryArea: f.properties.geometry_area,
         intersectionArea: f.properties.intersection_area,
         values: f.properties.values,

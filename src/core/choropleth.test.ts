@@ -13,28 +13,71 @@ function picked (entries: Array<[string, number | null]>): Map<string, number | 
 
 describe('pickChoroplethValue', () => {
   it('returns 0 when the value is 0 (not null)', () => {
-    expect(pickChoroplethValue({ x: 0, geoid: '1' }, 'x', false, undefined)).toBe(0)
+    expect(pickChoroplethValue({ x: 0, geoid: '1' }, 'x', false, undefined, 'eu', 'queryArea')).toBe(0)
   })
 
   it('returns null when the value is missing or non-finite', () => {
-    expect(pickChoroplethValue({ geoid: '1' }, 'x', false, undefined)).toBeNull()
-    expect(pickChoroplethValue({ x: null, geoid: '1' }, 'x', false, undefined)).toBeNull()
-    expect(pickChoroplethValue({ x: 'not a number', geoid: '1' }, 'x', false, undefined)).toBeNull()
-    expect(pickChoroplethValue({ x: Number.POSITIVE_INFINITY, geoid: '1' }, 'x', false, undefined)).toBeNull()
+    expect(pickChoroplethValue({ geoid: '1' }, 'x', false, undefined, 'eu', 'queryArea')).toBeNull()
+    expect(pickChoroplethValue({ x: null, geoid: '1' }, 'x', false, undefined, 'eu', 'queryArea')).toBeNull()
+    expect(pickChoroplethValue({ x: 'not a number', geoid: '1' }, 'x', false, undefined, 'eu', 'queryArea')).toBeNull()
+    expect(pickChoroplethValue({ x: Number.POSITIVE_INFINITY, geoid: '1' }, 'x', false, undefined, 'eu', 'queryArea')).toBeNull()
   })
 
   it('density mode scales by 1,000,000 / area_m² → counts per km²', () => {
     // 1000 commuters in a 5 km² (= 5,000,000 m²) area = 200 per km²
     const geos = new Map<string, CensusGeographyData>([
-      ['1', { values: {}, intersectionRatio: 1, geometryArea: 5_000_000, intersectionArea: 5_000_000 }],
+      ['1', { id: 1, name: '', values: {}, intersectionRatio: 1, geometryArea: 5_000_000, intersectionArea: 5_000_000 }],
     ])
-    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, geos)).toBe(200)
+    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, geos, 'eu', 'queryArea')).toBe(200)
   })
 
   it('density mode returns null when geometry area is missing', () => {
-    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, undefined)).toBeNull()
+    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, undefined, 'eu', 'queryArea')).toBeNull()
     const geos = new Map<string, CensusGeographyData>()
-    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, geos)).toBeNull()
+    expect(pickChoroplethValue({ x: 1000, geoid: '1' }, 'x', true, geos, 'eu', 'queryArea')).toBeNull()
+  })
+
+  describe('apportionment by mode', () => {
+    // 1000 people, half the tract inside the query area, a fifth inside the
+    // stop buffers. The aggregation row carries the full-geography value.
+    const geos = new Map<string, CensusGeographyData>([
+      ['1', {
+        id: 1,
+        name: '',
+        values: { b01003_001: 1000, b02001_002: 600 },
+        geometryArea: 5_000_000,
+        intersectionArea: 2_500_000,
+        intersectionRatio: 0.5,
+        bufferIntersectionArea: 1_000_000,
+        bufferIntersectionRatio: 0.2,
+      }],
+    ])
+    const row = { geoid: '1', total_population: 1000, pct_people_of_color: 0.4, visit_count_total: 42 }
+
+    it('scales census counts by the selected clip', () => {
+      expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'unclipped')).toBe(1000)
+      expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'queryArea')).toBeCloseTo(500)
+      expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'buffer')).toBeCloseTo(200)
+    })
+
+    it('leaves ratio columns unchanged — apportionment is scale-invariant', () => {
+      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+        expect(pickChoroplethValue(row, 'pct_people_of_color', false, geos, 'eu', mode)).toBeCloseTo(0.4)
+      }
+    })
+
+    it('leaves stop-aggregation elements unclipped — they already count what the query returned', () => {
+      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+        expect(pickChoroplethValue(row, 'visit_count_total', false, geos, 'eu', mode)).toBe(42)
+      }
+    })
+
+    it('density is clip-invariant — value and area scale together', () => {
+      // 1000 people over the full 5 km², in every mode.
+      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+        expect(pickChoroplethValue(row, 'total_population', true, geos, 'eu', mode)).toBe(200)
+      }
+    })
   })
 })
 

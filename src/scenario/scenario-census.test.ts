@@ -148,7 +148,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 4) Buffer apportionment (the stopBufferRadius>0 report path): the additive value
       //    scales by the intersection ratio, while median income is non-additive => null.
-      const apportioned = apportionBuffer(censusGeographyMapToEntries(data.censusGeographies))
+      const apportioned = apportionBuffer(censusGeographyMapToEntries(data.censusGeographies, 'queryArea'))
       expect(apportioned.values.total_population).toBeCloseTo(c.pop * 0.5, 6)
       expect(apportioned.pctCoverage).toBeCloseTo(0.5, 6)
       expect(apportioned.values.median_household_income).toBeNull()

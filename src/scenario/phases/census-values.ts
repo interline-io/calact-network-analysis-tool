@@ -3,13 +3,12 @@
 // intersection is narrowed to the stop buffers.
 
 import {
-  padBboxMeters,
   REQUIRED_ACS_TABLES,
   type Bbox,
   type CensusGeographyData,
   type GraphQLClient,
 } from '~~/src/core'
-import { fetchCensusIntersection, fetchClipIntersections } from '~~/src/tl'
+import { fetchCensusIntersection, fetchClipIntersections, type ClipIntersection } from '~~/src/tl'
 import { resolveGeographyContext } from './feed-versions'
 import { phaseDone, type PhaseEmit } from './common'
 
@@ -25,12 +24,14 @@ export interface CensusValuesPhaseConfig {
   // ACS dataset (e.g. `acsdt5y2021`).
   tableDatasetName: string
   aggregateLayer: string
-  // Bbox is padded by the radius so edge-crossing buffers can apportion
-  // against the right tracts.
   stopBufferRadius?: number
   // With a radius and a `within` polygon, a second pass narrows each
   // geography's intersection to the query area AND the stop buffers.
   stopIds?: number[]
+  // Also fetch the clipped outlines, for drawing the choropleth as the
+  // analyzed footprint rather than whole geographies. Off by default: the
+  // outlines cost roughly as much as the values.
+  includeIntersectionGeometry?: boolean
 }
 
 export async function runCensusValuesPhase (
@@ -58,53 +59,55 @@ export async function runCensusValuesPhase (
   const radius = config.stopBufferRadius && config.stopBufferRadius > 0
     ? config.stopBufferRadius
     : 0
-  const paddedBbox = radius > 0 ? padBboxMeters(fetchBbox, radius) : fetchBbox
-  console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${config.aggregateLayer} (radius padding=${radius}m)`)
+  console.log(`[CensusValues] Fetching ${REQUIRED_ACS_TABLES.length} ACS tables for layer=${config.aggregateLayer}`)
   const features = await fetchCensusIntersection({
     client,
     geoDatasetName: config.geoDatasetName,
     geoDatasetLayer: config.aggregateLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: REQUIRED_ACS_TABLES,
-    bbox: paddedBbox,
+    bbox: fetchBbox,
     within,
+    includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
 
   // Second pass: intersection with the query area AND the stop buffers. The
-  // first pass stays the row universe, so geographies the buffers don't reach
-  // are kept and reported at zero rather than dropped by the server's clip.
-  // Clips against the same query area pass 1 used, so the two areas stay
-  // comparable.
+  // first pass stays the row universe, so a geography the buffers don't reach
+  // is reported at zero rather than dropped by the server's clip — display
+  // decides whether to draw it. Clips against the same query area pass 1 used,
+  // so the two areas stay comparable.
   //
   // Optional by design: a failure here must not lose the ACS values pass 1
   // already fetched, so it degrades to query-area-only rather than failing
   // the scenario.
   const stopIds = config.stopIds || []
-  let clips: Map<string, number> | null = null
+  let clips: Map<string, ClipIntersection> | null = null
   if (radius > 0 && stopIds.length > 0) {
     try {
       clips = await fetchClipIntersections({
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
-        bbox: paddedBbox,
+        bbox: fetchBbox,
         within,
         stopIds,
         stopBufferRadius: radius,
+        includeGeometry: config.includeIntersectionGeometry,
       })
     } catch (err) {
       console.warn('[CensusValues] Stop buffer clip failed; keeping query-area intersections', err)
     }
   }
   if (clips) {
-    console.log(`[CensusValues] Clipped to stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clips.size}/${features.length} geographies overlap`)
+    console.log(`[CensusValues] Clipped to query area + stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clips.size}/${features.length} geographies overlap`)
   }
 
   const entries: [string, CensusGeographyData][] = features.map((f) => {
     const geometryArea = f.properties.geometry_area
     // Both clips are kept: the choropleth mode picks between them at display
     // time, so switching never needs a refetch.
-    const bufferArea = clips ? (clips.get(f.properties.geoid) ?? 0) : undefined
+    const clip = clips?.get(f.properties.geoid)
+    const bufferArea = clips ? (clip?.area ?? 0) : undefined
     return [
       f.properties.geoid,
       {
@@ -114,10 +117,12 @@ export async function runCensusValuesPhase (
         intersectionRatio: f.properties.intersection_ratio,
         geometryArea,
         intersectionArea: f.properties.intersection_area,
+        intersectionGeometry: f.geometry ?? undefined,
         bufferIntersectionArea: bufferArea,
         bufferIntersectionRatio: bufferArea == null
           ? undefined
           : (geometryArea > 0 ? Math.min(bufferArea / geometryArea, 1.0) : 0),
+        bufferIntersectionGeometry: clip?.geometry,
         layer: config.aggregateLayer,
       },
     ]

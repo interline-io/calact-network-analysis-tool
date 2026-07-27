@@ -10,6 +10,7 @@ export type BufferEntityKind = 'stops' | 'routes' | 'agencies'
 export interface BufferGeographyIntersection {
   geoid: string
   layer: string
+  name?: string
   geometryArea: number
   intersectionArea: number
   values: CensusValues
