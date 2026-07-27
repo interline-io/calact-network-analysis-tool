@@ -186,7 +186,7 @@ const sortedData = computed(() => {
     return base
   }
   const col = tableReport.value?.columns.find(c => c.key === key)
-  const numeric = col?.format !== undefined
+  const numeric = col?.numeric === true || col?.format !== undefined
   const sign = dir === 'asc' ? 1 : -1
   return [...base].sort((a, b) => {
     const va = a[key]
