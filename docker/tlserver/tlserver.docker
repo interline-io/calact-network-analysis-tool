@@ -1,0 +1,20 @@
+# Transitland API server for tests. Holds only the binary and the init scripts —
+# the GTFS/census dumps are bind-mounted from testdata/gtfs and restored into the
+# compose postgres on start, so refreshing fixtures never means rebuilding this.
+FROM golang:1.26-bookworm AS build
+ARG TRANSITLAND_REF=main
+RUN CGO_ENABLED=0 go install github.com/interline-io/transitland-lib/cmd/transitland@${TRANSITLAND_REF}
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y curl gnupg lsb-release ca-certificates && \
+    echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg && \
+    apt-get update && apt-get install -y postgresql-client-17 && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=build /go/bin/transitland /usr/local/bin/transitland
+COPY entrypoint.sh /tlserver/entrypoint.sh
+COPY test-init.sh /tlserver/test-init.sh
+RUN chmod +x /tlserver/entrypoint.sh /tlserver/test-init.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/bin/bash", "/tlserver/entrypoint.sh"]
