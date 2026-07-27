@@ -216,8 +216,8 @@ export async function fetchEntityBufferGeographies (
 // Union of circles of `radius` around each of a route's stops, computed
 // server-side. Independent of census data, so it renders in any query mode.
 export const routeStopBufferQuery = gql`
-  query ($ids: [Int!], $radius: Float) {
-    routes(ids: $ids, limit: 10000) {
+  query ($ids: [Int!], $radius: Float, $limit: Int) {
+    routes(ids: $ids, limit: $limit) {
       id
       route_stop_buffer(radius: $radius) {
         stop_buffer
@@ -226,7 +226,8 @@ export const routeStopBufferQuery = gql`
   }
 `
 
+// Raw GraphQL shape for one route in the stop-buffer query response.
 export interface RouteStopBufferResponse {
   id: number
-  route_stop_buffer?: { stop_buffer?: Geometry | null } | null
+  route_stop_buffer?: { stop_buffer?: Geometry }
 }

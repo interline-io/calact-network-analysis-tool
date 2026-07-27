@@ -94,8 +94,9 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
-  stopBufferFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
+  // Stop buffer overlay
+  stopBufferFeatures?: Feature[]
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
   // Loading stage - allow map updates during geometry stages, skip during schedules

@@ -198,10 +198,10 @@ import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
+import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import {
   geographyLayerQuery,
-  routeStopBufferQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
   parseFvids,
@@ -210,7 +210,6 @@ import type {
   CensusDataset,
   CensusGeography,
   Route,
-  RouteStopBufferResponse,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -243,7 +242,6 @@ const {
   aggregateLayer,
   onlyWithStops,
   showBbox,
-  showStopBuffer,
 } = useScenarioDisplay()
 const {
   bbox,
@@ -799,46 +797,6 @@ const aggregateLayerLabel = computed((): string => {
 })
 
 /////////////////
-// Stop buffer overlay
-/////////////////
-
-// Server-side union of each route's stop buffers. Independent of the census
-// query, so it renders in any query mode.
-// Marked only, so the outlines match the routes the map is drawing rather
-// than every route in the scenario.
-const stopBufferRouteIds = computed((): number[] => {
-  if (!showStopBuffer.value || stopBufferRadius.value <= 0) { return [] }
-  return (scenarioFilterResult.value?.routes || []).filter(r => r.marked).map(r => r.id)
-})
-
-const { result: stopBufferResult } = useQuery<{ routes: RouteStopBufferResponse[] }>(
-  routeStopBufferQuery,
-  () => ({
-    ids: stopBufferRouteIds.value,
-    radius: stopBufferRadius.value,
-  }),
-  () => ({
-    enabled: stopBufferRouteIds.value.length > 0,
-    // The radius is a slider; without this every step fires its own union.
-    debounce: 300,
-    keepPreviousResult: true,
-  })
-)
-
-// Outlines only, one polygon per route — dissolving them into a single ring
-// would be a client-side geometry operation.
-const stopBufferFeatures = computed((): Feature[] => {
-  if (!showStopBuffer.value) { return [] }
-  const out: Feature[] = []
-  for (const route of stopBufferResult.value?.routes || []) {
-    const g = route.route_stop_buffer?.stop_buffer
-    if (!g) { continue }
-    out.push({ id: `route-buffer-${route.id}`, type: 'Feature', geometry: g, properties: {} } as Feature)
-  }
-  return out
-})
-
-/////////////////
 // Choropleth aggregation overlay
 /////////////////
 
@@ -879,6 +837,8 @@ const choroplethAggregateData = computed(() => {
     { onlyWithStops: onlyWithStops.value },
   )
 })
+
+const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   choroplethAggregateData,
