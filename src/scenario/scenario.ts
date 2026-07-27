@@ -393,6 +393,10 @@ export class ScenarioFetcher {
       feedVersionSha1: fv.sha1,
     }))
 
+    // Hoisted out of the stops block: the census-values phase clips against
+    // these when a stop buffer radius is set.
+    let scenarioStopIds: number[] = []
+
     if (enabled.has('stops')) {
       const { stopIds, routeIds } = await runStopsPhase({
         feedVersions: fvRefs,
@@ -401,6 +405,7 @@ export class ScenarioFetcher {
         geoDatasetName: this.config.geoDatasetName,
         stopLimit: this.config.stopLimit,
       }, this.client, emit, { onError })
+      scenarioStopIds = stopIds
       logMemory('after-stops')
 
       // Departures fan out concurrently with routes, recovering the queue
@@ -444,7 +449,7 @@ export class ScenarioFetcher {
             endDate: this.config.endDate,
           }, this.client, emit, { onError })
         : Promise.resolve(),
-      enabled.has('census-values') ? this.fetchCensusValues(resolved) : Promise.resolve(),
+      enabled.has('census-values') ? this.fetchCensusValues(resolved, scenarioStopIds) : Promise.resolve(),
     ])
     logMemory('after-flex-and-census')
 
@@ -458,7 +463,7 @@ export class ScenarioFetcher {
   // the already-resolved geography so the phase doesn't re-query. Gating is
   // the plan's job (PHASE_ENABLED) — this guard exists for type narrowing
   // and would only fire on a plan/config inconsistency bug.
-  private async fetchCensusValues (resolved: ResolvedGeographyContext): Promise<void> {
+  private async fetchCensusValues (resolved: ResolvedGeographyContext, stopIds: number[]): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
       console.warn('[CensusValues] Planned but tableDatasetName/aggregateLayer missing — skipping')
@@ -471,6 +476,7 @@ export class ScenarioFetcher {
       tableDatasetName,
       aggregateLayer,
       stopBufferRadius: this.config.stopBufferRadius,
+      stopIds,
     }, this.client, p => this.emitProgress(p))
   }
 
