@@ -1,12 +1,30 @@
 <template>
   <div class="mb-6">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
-      <cat-input
-        v-model="searchQuery"
-        type="search"
-        placeholder="Search..."
-        icon="magnify"
-      />
+      <!-- Search landmark so screen-reader users can jump to the table filter;
+           labelled (via filterLabel) to distinguish it from other filters.
+           Landmarks of the same role must be uniquely labelled when more than
+           one is exposed at once. Views with several datagrids only ever show
+           one — cat-tabs uses v-show (display:none drops it from the
+           accessibility tree) and census-details uses v-if — so keep that
+           invariant if a layout ever puts two datagrids side by side. -->
+      <div class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
+        <!-- ariaLabel/aria-controls passed via a v-bind object: cat-search-bar
+             sets inheritAttrs:false, so vue-tsc checks attributes against its
+             declared props and rejects a plain :aria-controls; the object also
+             keeps vue/attribute-hyphenation from rewriting ariaLabel to kebab
+             (which vue-tsc then couldn't map back to the prop). -->
+        <cat-search-bar
+          v-model="searchQuery"
+          :placeholder="FILTER_PLACEHOLDER"
+          v-bind="{ 'ariaLabel': filterLabel, 'aria-controls': tableId }"
+        >
+          <!-- Announced politely to screen readers as the filter changes. -->
+          <template #status>
+            {{ filterStatus }}
+          </template>
+        </cat-search-bar>
+      </div>
 
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
@@ -21,7 +39,7 @@
     </div>
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <caption v-if="props.caption" class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -30,37 +48,60 @@
             <th
               v-for="column in tableReport.columns"
               :key="column.key"
+              scope="col"
               :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
-              @click="cycleSort(column)"
+              :aria-sort="ariaSort(column)"
             >
-              <span class="th-content">
+              <!-- Sortable columns render the header as a real <button> so
+                   sorting is keyboard-operable (Enter/Space) and announced as a
+                   button; aria-sort on the <th> conveys the current direction.
+                   When the column also has a tooltip, the button lives inside
+                   cat-tooltip — cat-tooltip detects the focusable button and
+                   describes it (aria-describedby) rather than adding its own tab
+                   stop, so there's no nested interactive content. -->
+              <cat-tooltip
+                v-if="column.sortable && column.tooltip"
+                :text="column.tooltip"
+                position="bottom"
+                class="cal-datagrid-sort-tooltip"
+              >
+                <button type="button" class="cal-datagrid-sort-button" @click="cycleSort(column)">
+                  {{ column.label }}
+                  <cat-icon icon="information" size="small" />
+                  <span class="cal-datagrid-sort-icon">
+                    <cat-icon
+                      :icon="sortIcon(column)"
+                      size="small"
+                      :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
+                    />
+                  </span>
+                </button>
+              </cat-tooltip>
+              <button
+                v-else-if="column.sortable"
+                type="button"
+                class="cal-datagrid-sort-button"
+                @click="cycleSort(column)"
+              >
+                {{ column.label }}
+                <!-- Sort indicator. Always rendered for sortable columns so
+                     toggling the active chevron doesn't change column width;
+                     the inactive state shows a hidden chevron as a spacer. -->
+                <span class="cal-datagrid-sort-icon">
+                  <cat-icon
+                    :icon="sortIcon(column)"
+                    size="small"
+                    :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
+                  />
+                </span>
+              </button>
+              <!-- Non-sortable columns: plain header content. -->
+              <span v-else class="th-content">
                 <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
                   {{ column.label }}
                   <cat-icon icon="information" size="small" />
                 </cat-tooltip>
                 <span v-else>{{ column.label }}</span>
-                <!-- Sort indicator slot. Always rendered for sortable
-                     columns so adding/removing the active chevron doesn't
-                     change column width. Inactive state uses a hidden
-                     chevron-up as a width spacer. -->
-                <span v-if="column.sortable" class="cal-datagrid-sort-icon">
-                  <cat-icon
-                    v-if="sortKey === column.key && sortDir === 'asc'"
-                    icon="chevron-up"
-                    size="small"
-                  />
-                  <cat-icon
-                    v-else-if="sortKey === column.key && sortDir === 'desc'"
-                    icon="chevron-down"
-                    size="small"
-                  />
-                  <cat-icon
-                    v-else
-                    icon="chevron-up"
-                    size="small"
-                    class="cal-datagrid-sort-icon-placeholder"
-                  />
-                </span>
               </span>
             </th>
           </tr>
@@ -138,11 +179,49 @@ const props = defineProps<{
   // readers announce the table's purpose; sighted users still see surrounding
   // heading/tab UI for context.
   caption?: string
+  // Short name for what this grid holds ("Routes", "Stops"), used to
+  // distinguish this filter from others on the page. Deliberately not derived
+  // from `caption`: a caption describes the whole table and may carry a date
+  // range, which makes for a long name that is re-read on every focus and
+  // changes whenever the range does.
+  filterLabel?: string
 }>()
 
-const searchQuery = ref('')
+// cat-search-bar clears to null (not ''), so the model is nullable.
+const searchQuery = ref<string | null>('')
 const sortKey = ref<string | null>(null)
 const sortDir = ref<'asc' | 'desc' | null>(null)
+
+// SSR-stable id so the filter's aria-controls can point at this table.
+const tableId = useId()
+
+// Accessible name for the filter (search fields have no visible label). The
+// placeholder is the field's only visible text, so the name must contain it
+// verbatim — otherwise a speech-input user who says what they see gets no
+// match (WCAG 2.5.3 Label in Name).
+const FILTER_PLACEHOLDER = 'Filter rows'
+const filterLabel = computed(() =>
+  props.filterLabel ? `${FILTER_PLACEHOLDER} in ${props.filterLabel}` : FILTER_PLACEHOLDER)
+
+// aria-sort for the <th> of the column that is currently sorted, so screen
+// readers announce the direction (WCAG 4.1.2). Set only on the active column,
+// per the APG sortable-table pattern — an explicit "none" on every sortable
+// header makes screen readers announce "not sorted" column by column, which on
+// a wide census table is pure noise.
+function ariaSort (column: TableColumn): 'ascending' | 'descending' | undefined {
+  if (sortKey.value !== column.key || !sortDir.value) {
+    return undefined
+  }
+  return sortDir.value === 'asc' ? 'ascending' : 'descending'
+}
+
+// Chevron shown in a sortable header: down when this column is the active
+// descending sort, up otherwise (ascending, or the hidden inactive spacer).
+function sortIcon (column: TableColumn): string {
+  return sortKey.value === column.key && sortDir.value === 'desc'
+    ? 'chevron-down'
+    : 'chevron-up'
+}
 
 function cycleSort (column: TableColumn) {
   if (!column.sortable) {
@@ -165,7 +244,7 @@ function cycleSort (column: TableColumn) {
 
 const filteredData = computed(() => {
   const data = tableReport?.value?.data || []
-  const query = searchQuery.value.trim().toLowerCase()
+  const query = (searchQuery.value || '').trim().toLowerCase()
   if (!query) {
     return data
   }
@@ -274,9 +353,40 @@ const rangeStart = computed(() => {
 const rangeEnd = computed(() => {
   return Math.min(current.value * perPage, total.value)
 })
+
+// Screen-reader announcement of the filter's effect, fed into cat-search-bar's
+// polite live region (its #status slot) so filtering has audible feedback.
+//
+// Empty unless a filter is actually applied, for two reasons. The live region
+// must start empty: this component remounts on every tab switch, and a region
+// inserted with content already in it gets read out immediately. And a status
+// message reports the outcome of a user action (WCAG 4.1.3) — row counts that
+// move because the scenario re-ran or the user changed report sub-tabs are not
+// the outcome of a search, and announcing them from inside the search landmark
+// misattributes them to the filter.
+const filterStatus = computed(() => {
+  // Trimmed to match filteredData, so a whitespace-only query (which filters
+  // nothing) stays silent rather than claiming "Showing N of N".
+  if (!(searchQuery.value || '').trim()) {
+    return ''
+  }
+  const shown = total.value
+  if (shown === 0) {
+    return 'No rows match the filter'
+  }
+  const all = tableReport.value?.data?.length ?? 0
+  return `Showing ${shown} of ${all} ${all === 1 ? 'row' : 'rows'}`
+})
 </script>
 
 <style scoped lang="scss">
+// cat-search-bar renders full-width; cap it so it stays a filter box in the
+// toolbar rather than stretching to the download buttons.
+.cal-datagrid-filter {
+  flex: 0 1 22rem;
+  min-width: 12rem;
+}
+
 .table-container {
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
@@ -312,6 +422,38 @@ const rangeEnd = computed(() => {
       gap: 0.25rem;
     }
 
+    // Sortable header rendered as a button. Reset to look like plain header
+    // text, but carry the cell's own padding (see .is-sortable-th below) so the
+    // button fills the header rather than shrinking the target to the label's
+    // line box — which would leave a ring that still shows the pointer cursor
+    // and hover highlight but no longer sorts.
+    .cal-datagrid-sort-button {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      width: 100%;
+      margin: 0;
+      padding: 0.5rem 0.75rem;
+      border: none;
+      background: transparent;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid var(--bulma-primary);
+        outline-offset: -2px;
+      }
+    }
+
+    // When a sortable header also has a tooltip, the tooltip wraps the button;
+    // keep it filling the cell so the button underneath still spans the header.
+    .cal-datagrid-sort-tooltip {
+      display: block;
+      width: 100%;
+    }
+
     .cal-datagrid-sort-icon {
       display: inline-flex;
       align-items: center;
@@ -322,6 +464,9 @@ const rangeEnd = computed(() => {
     }
 
     &.is-sortable-th {
+      // Padding lives on the inner button instead, so the padded area is part
+      // of the click target and matches the pointer/hover affordance below.
+      padding: 0;
       cursor: pointer;
       user-select: none;
 
