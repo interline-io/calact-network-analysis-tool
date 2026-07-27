@@ -39,6 +39,7 @@
       :zoom="14"
       :initial-bounds="bbox"
       :overlay-features="overlayFeatures"
+      :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
@@ -93,6 +94,7 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
+  stopBufferFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
