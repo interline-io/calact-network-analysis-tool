@@ -223,7 +223,9 @@ import {
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   formatAcsDatasetLabel,
-  summarizeBbox,
+  summarizeApportioned,
+  censusApportionArea,
+  censusApportionRatio,
   deriveApportionedRow,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
@@ -238,7 +240,7 @@ import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type Scen
 // Initialize composables
 const { setQuery } = useUrlQuery()
 const {
-  showAggAreas,
+  aggAreaMode,
   aggregateLayer,
   onlyWithStops,
   showBbox,
@@ -410,27 +412,32 @@ const selectedPanelData = computed(() => {
   const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
+  if (!geo) {
+    return { row, apportionedDerived: null, areaStats: null }
+  }
+  const mode = aggAreaMode.value
+  const ratio = censusApportionRatio(geo, mode)
   return {
     row,
-    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
-    areaStats: geo
-      ? {
-          geometryArea: geo.geometryArea,
-          intersectionArea: geo.intersectionArea,
-          intersectionRatio: geo.intersectionRatio,
-        }
-      : null,
+    apportionedDerived: deriveApportionedRow(geo.values, ratio),
+    areaStats: {
+      geometryArea: geo.geometryArea,
+      // Unclipped mode has no intersection to report — the panel hides the
+      // row rather than restating the full area at 100%.
+      intersectionArea: mode === 'unclipped' ? null : censusApportionArea(geo, mode),
+      intersectionRatio: mode === 'unclipped' ? null : ratio,
+    },
   }
 })
 
-// Bbox-wide aggregate, fed to the panel's "Query Area Total" column.
-// Independent of the selection so it doesn't recompute on every click.
+// Aggregate across every geography, fed to the panel's total column. Independent
+// of the selection so it doesn't recompute on every click.
 const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeBbox(geos.keys(), geos).derived
+  return summarizeApportioned(geos.keys(), geos, aggAreaMode.value).derived
 })
 
 /////////////////////////
@@ -687,7 +694,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
       }
     }
   }
-  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, aggAreaMode.value, geoid => nameMap.get(geoid))
 })
 
 const {
@@ -703,10 +710,13 @@ const {
   loadGeometry: loadBufferGeometry,
 } = useBufferDetails()
 
-// Force the overlay on so the selection actually renders on the map.
+// Force the overlay on so the selection actually renders on the map, leaving
+// an already-chosen clip alone.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
-  showAggAreas.value = true
+  if (aggAreaMode.value === 'off') {
+    aggAreaMode.value = 'queryArea'
+  }
   selectedAggregationGeoid.value = geoid
 }
 const selectedDateRange = computed(() => getSelectedDateRange(scenarioConfig.value))
@@ -803,7 +813,7 @@ const aggregateLayerLabel = computed((): string => {
 // All census geographies in the query area, used to fetch geometry for the
 // choropleth. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
-  if (!showAggAreas.value) { return [] }
+  if (aggAreaMode.value === 'off') { return [] }
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
   return [...geos.values()].map(g => g.id)
@@ -826,7 +836,7 @@ const {
 
 // Compute aggregate stats per geography
 const choroplethAggregateData = computed(() => {
-  if (!showAggAreas.value || !scenarioFilterResult.value) {
+  if (aggAreaMode.value === 'off' || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)

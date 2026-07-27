@@ -140,7 +140,7 @@
             <div><em>Not</em> satisfying all filters</div>
           </div>
         </div>
-        <div v-if="showAggAreas && props.hasChoroplethData" class="choropleth-legend">
+        <div v-if="showChoropleth" class="choropleth-legend">
           <div class="legend-heading">
             {{ props.choroplethClassification?.label || 'Aggregated Areas' }}
             <span v-if="props.choroplethClassification?.isDensity" class="cal-legend-unit-suffix">
@@ -204,10 +204,12 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
+const { aggAreaMode, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || (showAggAreas.value && props.hasChoroplethData))
+const showChoropleth = computed(() => aggAreaMode.value !== 'off' && props.hasChoroplethData)
+
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification

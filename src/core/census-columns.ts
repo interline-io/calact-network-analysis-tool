@@ -86,6 +86,41 @@ export interface CensusGeographyData {
   layer?: string
 }
 
+/** Which clip the aggregation overlay shades and reports by. */
+export type AggAreaMode = 'off' | 'unclipped' | 'queryArea' | 'buffer'
+
+export const AGG_AREA_MODE_OPTIONS: { value: AggAreaMode, label: string }[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'unclipped', label: 'Full geographies' },
+  { value: 'queryArea', label: 'Clipped to query area' },
+  { value: 'buffer', label: 'Clipped to stop buffers' },
+]
+
+// Fraction of a geography attributed to the analysis area under the selected
+// clip. `buffer` falls back to the query-area clip when the scenario carries
+// no buffer intersection, which is also what `off` reports for the views that
+// stay reachable with the overlay hidden.
+export function censusApportionRatio (geo: CensusGeographyData, mode: AggAreaMode): number {
+  if (mode === 'unclipped') {
+    return 1
+  }
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
+    return geo.bufferIntersectionRatio
+  }
+  return geo.intersectionRatio
+}
+
+// The clipped area in m² matching `censusApportionRatio`.
+export function censusApportionArea (geo: CensusGeographyData, mode: AggAreaMode): number {
+  if (mode === 'unclipped') {
+    return geo.geometryArea
+  }
+  if (mode === 'buffer' && geo.bufferIntersectionArea != null) {
+    return geo.bufferIntersectionArea
+  }
+  return geo.intersectionArea
+}
+
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
 
 export interface CensusColumnDef {
@@ -434,9 +469,10 @@ export function deriveApportionedColumn (
 // Sum apportioned raw ACS values across geographies, then run derivations.
 // Non-additive columns (medians) come out as nonsense — callers must render
 // `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
-export function summarizeBbox (
+export function summarizeApportioned (
   geoids: Iterable<string>,
-  geographies: Map<string, { values: CensusValues, intersectionRatio: number }> | undefined,
+  geographies: Map<string, CensusGeographyData> | undefined,
+  mode: AggAreaMode,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {
@@ -447,7 +483,7 @@ export function summarizeBbox (
     if (!geo) {
       continue
     }
-    const ratio = geo.intersectionRatio
+    const ratio = censusApportionRatio(geo, mode)
     for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue

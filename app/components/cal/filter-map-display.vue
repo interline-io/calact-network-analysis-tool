@@ -29,13 +29,25 @@
     <p class="menu-label">
       Aggregation
     </p>
-    <ul>
-      <li>
-        <cat-checkbox v-model="showAggAreas">
-          Show Agg. Areas
-        </cat-checkbox>
-      </li>
-    </ul>
+    <cat-field>
+      <template #label>
+        Show agg. areas <cat-tooltip text="Whether the map shades census geographies by their full values, or scales them to the part of each geography inside the query area, or inside the stop buffers.">
+          <i class="mdi mdi-information-outline" />
+        </cat-tooltip>
+      </template>
+      <cat-select
+        v-model="aggAreaMode"
+      >
+        <option
+          v-for="option of AGG_AREA_MODE_OPTIONS"
+          :key="option.value"
+          :value="option.value"
+          :disabled="option.value === 'buffer' && !props.hasBufferClip"
+        >
+          {{ option.label }}{{ option.value === 'buffer' && !props.hasBufferClip ? ' (needs a stop radius)' : '' }}
+        </option>
+      </cat-select>
+    </cat-field>
     <cat-field class="mt-2">
       <template #label>
         Aggregate by
@@ -115,6 +127,7 @@
 
 <script setup lang="ts">
 import {
+  AGG_AREA_MODE_OPTIONS,
   baseMapStyles,
   CHOROPLETH_ELEMENT_OPTIONS,
   isElementDensityEligible,
@@ -123,10 +136,12 @@ import {
 
 const props = defineProps<{
   censusGeographyLayerOptions?: { label: string, value: string }[]
+  // False until a loaded scenario carries buffer-clipped intersections.
+  hasBufferClip?: boolean
 }>()
 
 const {
-  showAggAreas,
+  aggAreaMode,
   showStopBuffer,
   aggregateLayer,
   choroplethElement,

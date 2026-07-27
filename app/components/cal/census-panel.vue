@@ -52,7 +52,7 @@
             </th>
             <th>
               <cat-tooltip text="Sum of every geography's Intersection value across the area being analyzed. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
-                Query Area Total
+                Analysis Area Total
                 <cat-icon size="small" icon="information" />
               </cat-tooltip>
             </th>

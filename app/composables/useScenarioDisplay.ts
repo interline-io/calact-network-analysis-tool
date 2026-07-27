@@ -1,9 +1,15 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
-import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode, type UnitSystem } from '~~/src/core'
+import {
+  AGG_AREA_MODE_OPTIONS,
+  CHOROPLETH_DEFAULT_ELEMENT,
+  type AggAreaMode,
+  type DataDisplayMode,
+  type UnitSystem,
+} from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioDisplay {
-  showAggAreas: WritableComputedRef<boolean>
+  aggAreaMode: WritableComputedRef<AggAreaMode>
   showStopBuffer: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
@@ -24,9 +30,16 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const route = useRoute()
   const { setQuery } = useUrlQuery()
 
-  const showAggAreas = computed<boolean>({
-    get: () => route.query.showAggAreas?.toString() === 'true',
-    set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
+  // Same query parameter as the boolean this replaced, so shared links and
+  // canned examples keep working: `showAggAreas=true` reads as the query-area
+  // clip, which is the one the census panel already reported.
+  const aggAreaMode = computed<AggAreaMode>({
+    get: () => {
+      const v = route.query.showAggAreas?.toString()
+      if (v === 'true') { return 'queryArea' }
+      return AGG_AREA_MODE_OPTIONS.find(o => o.value === v)?.value || 'off'
+    },
+    set: (v) => { setQuery({ showAggAreas: v === 'off' ? undefined : v }) }
   })
 
   const showStopBuffer = computed<boolean>({
@@ -86,7 +99,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)
 
   return {
-    showAggAreas,
+    aggAreaMode,
     showStopBuffer,
     aggregateLayer,
     choroplethElement,

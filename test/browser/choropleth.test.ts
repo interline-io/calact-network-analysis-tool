@@ -43,31 +43,29 @@ test.describe('Choropleth aggregation overlay', () => {
 
     // "Aggregation" section should be visible
     await expect(page.getByText('Aggregation')).toBeVisible()
-    await expect(page.getByText('Show Agg. Areas')).toBeVisible()
+    await expect(page.getByText('Show agg. areas')).toBeVisible()
     await expect(page.getByText('Aggregate by')).toBeVisible()
   })
 
-  test('Show Agg. Areas checkbox is unchecked by default', async () => {
-    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show Agg. Areas')
-    await expect(checkbox).not.toBeChecked()
+  test('agg. areas mode is hidden by default', async () => {
+    const select = page.locator('.cal-filter-sub').getByLabel('Show agg. areas')
+    await expect(select).toHaveValue('off')
   })
 
-  test('Aggregate by dropdown is enabled regardless of Show Agg. Areas', async () => {
-    // The dropdown should be enabled even when the checkbox is unchecked
+  test('Aggregate by dropdown is enabled regardless of the agg. areas mode', async () => {
+    // The dropdown should be enabled even when the overlay is hidden
     // (it also drives the Report tab aggregation, not just the map overlay)
     await openFilterSubtab(page, 'Map Display')
     const dropdown = page.locator('.cal-filter-sub').getByLabel('Aggregate by')
     await expect(dropdown).toBeEnabled({ timeout: 5000 })
   })
 
-  test('checking Show Agg. Areas persists in URL', async () => {
+  test('selecting an agg. areas mode persists in URL', async () => {
     await openFilterSubtab(page, 'Map Display')
-    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show Agg. Areas')
-    await checkbox.check()
-    await expect(checkbox).toBeChecked()
+    const select = page.locator('.cal-filter-sub').getByLabel('Show agg. areas')
+    await select.selectOption('queryArea')
 
-    // Verify URL contains showAggAreas=true
-    await expect(page).toHaveURL(/showAggAreas=true/)
+    await expect(page).toHaveURL(/showAggAreas=queryArea/)
   })
 
   test('legend shows choropleth section when aggregation is enabled (requires census data)', async () => {
