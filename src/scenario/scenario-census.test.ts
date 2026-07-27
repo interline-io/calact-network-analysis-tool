@@ -159,17 +159,17 @@ describe('scenario census pipeline (hermetic)', () => {
 // --- Integration suite ----------------------------------------------------------
 //
 // Hits a live transitland-server backed by the rebuild-census.sh test DB (states
-// WA/OR/CA, datasets acsdt5y2021 + tiger2021). Opt-in so an environment without a
-// server doesn't fail; enable with:
-//   TEST_CENSUS=true TRANSITLAND_API_BASE=http://localhost:8080 pnpm test
+// WA/OR, datasets acsdt5y2021 + tiger2021). Bring one up with
+// `./docker/reset-test-services.sh`, or testdata/gtfs/restore.sh. No API key —
+// we only ever test against a local server.
 //
 // The raw b01003_001 total population is bbox-clip-invariant (the server returns the
 // full-geography ACS value and reports clipping separately), so the pinned values are
 // deterministic against the rebuild-census.sh test DB.
-describe.skipIf(process.env.TEST_CENSUS !== 'true')('scenario census pipeline (integration)', () => {
+describe('scenario census pipeline (integration)', () => {
   const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || ''),
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
   )
 
   for (const c of CASES) {

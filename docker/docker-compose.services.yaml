@@ -1,0 +1,59 @@
+# Backing test services (postgres + tlserver). Used locally and in CI:
+#   docker compose -f docker-compose.services.yaml up   (publishes host ports:
+#   tlserver on localhost:28080, postgres on localhost:25432)
+#
+# tlserver self-initializes in its entrypoint (restores the dumps) BEFORE binding
+# its port, so readiness is intrinsic: once it accepts a connection, it's ready.
+# No `-init` services or compose-level completion gates.
+#
+# The image is built locally, never published — a cold build is ~30s, cheaper than
+# maintaining a registry and its staleness failure modes. It holds only the binary
+# and scripts; the dumps are bind-mounted, so refreshing fixtures (rebuild.sh /
+# rebuild-census.sh) never means rebuilding the image.
+#
+# Ports are offset into the 2xxxx range so this stack can run alongside a manual
+# testdata/gtfs/restore.sh server on 8080.
+name: calact
+services:
+  postgres:
+    image: imresamu/postgis:16-3.5-alpine
+    environment:
+      POSTGRES_DB: calact
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "25432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tlserver:
+    image: calact-tlserver:latest
+    build:
+      context: ./tlserver
+      dockerfile: tlserver.docker
+    entrypoint: ["/bin/bash", "/tlserver/entrypoint.sh"]
+    volumes:
+      - ../testdata/gtfs/calact_tlserver.dump:/data/calact_tlserver.dump:ro
+      - ../testdata/gtfs/calact_tlserver-census.dump:/data/calact_tlserver-census.dump:ro
+      - ./tlserver/entrypoint.sh:/tlserver/entrypoint.sh:ro
+      - ./tlserver/test-init.sh:/tlserver/test-init.sh:ro
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: calact_tlserver
+      TL_LOG: info
+    ports:
+      - "28080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  db:

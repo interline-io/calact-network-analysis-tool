@@ -5,9 +5,6 @@ testdata/gtfs/data/*.zip
 # Census raw downloads, fetched by rebuild-census.sh.
 testdata/gtfs/census-data/
 
-# DB dumps — regenerated locally (rebuild.sh / rebuild-census.sh), not committed for now
-# (LFS bloat). Drop this once dump-based fixtures are wired into CI.
-*.dump
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Node template

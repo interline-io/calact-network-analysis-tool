@@ -1,0 +1,30 @@
+# Transitland API server for tests. Holds only the binary and the init scripts —
+# the GTFS/census dumps are bind-mounted from testdata/gtfs and restored into the
+# compose postgres on start, so refreshing fixtures never means rebuilding this.
+FROM golang:1.26-bookworm AS build
+# Pinned so the image is reproducible. de5d222 is the commit that made `bbox`
+# compose with `stop_buffer` (transitland-lib #720), which the census clip tests
+# depend on and which no tagged release carries yet.
+ARG TRANSITLAND_REF=de5d222c1415e30b6247f4a38e9b78f335219d23
+# Built from a checkout rather than `go install pkg@version`: transitland-lib's
+# go.mod carries a replace directive (kin-openapi), which go install rejects
+# unless the module is the main module. CGO stays on — the sqlite driver is
+# excluded by build constraints without it — so both stages are bookworm and
+# the glibc the binary links against matches.
+RUN git clone --filter=blob:none https://github.com/interline-io/transitland-lib /src && \
+    cd /src && git checkout "${TRANSITLAND_REF}" && \
+    go build -o /usr/local/bin/transitland ./cmd/transitland
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y curl gnupg lsb-release ca-certificates && \
+    echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg && \
+    apt-get update && apt-get install -y postgresql-client-17 && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=build /usr/local/bin/transitland /usr/local/bin/transitland
+COPY entrypoint.sh /tlserver/entrypoint.sh
+COPY test-init.sh /tlserver/test-init.sh
+RUN chmod +x /tlserver/entrypoint.sh /tlserver/test-init.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/bin/bash", "/tlserver/entrypoint.sh"]
