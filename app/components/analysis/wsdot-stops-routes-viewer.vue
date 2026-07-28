@@ -2,10 +2,7 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <!-- No `expanded`: catenary's is-fullwidth grows each tab but does not center
-           its label, so on a wide viewport the labels scatter across the row.
-           See interline-io/catenary#73; restore once that lands. -->
-      <cat-tabs v-model="activeTab">
+      <cat-tabs v-model="activeTab" expanded>
         <cat-tab-item
           :value="0"
           :label="`Agencies (${computedAgencies.length})`"
