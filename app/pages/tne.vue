@@ -261,6 +261,7 @@ const {
   includeFlexAreas,
   includeDepartures,
   includeCensus,
+  departureMode,
   fvids,
   stopBufferRadius,
   stopBufferLayer,
@@ -753,6 +754,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
     ? true
     : includeDepartures.value,
   includeCensus: includeCensus.value,
+  departureMode: departureMode.value,
   includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,

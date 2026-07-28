@@ -5,9 +5,9 @@
 
 import { format } from 'date-fns'
 import { chunkArray, parseHMS, TaskQueue, WEEKDAY_BY_GETDAY, type GraphQLClient } from '~~/src/core'
-import { stopDepartureQuery, stopTimeQuery, type StopDeparture, type StopTime } from '~~/src/tl'
+import { routeTripsQuery, stopDepartureQuery, stopTimeQuery, type RouteTripsResponse, type StopDeparture, type StopTime } from '~~/src/tl'
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
-import type { ScenarioProgress } from '../scenario'
+import type { DepartureMode, ScenarioProgress } from '../scenario'
 
 // Effectively "no batching" — departures for a fetch stream as one batch.
 const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
@@ -132,9 +132,13 @@ export interface DeparturesPhaseConfig {
   stopIds: number[]
   startDate?: Date
   endDate?: Date
-  departureMode?: 'all' | 'departures'
+  departureMode?: DepartureMode
   // Stop ids per GraphQL request; default 100.
   batchSize?: number
+  // Required by the 'trips' mode, which enters via route rather than stop.
+  routeIds?: number[]
+  // Routes per GraphQL request in 'trips' mode; default 50.
+  routeBatchSize?: number
 }
 
 export async function runDeparturesPhase (
@@ -143,6 +147,9 @@ export async function runDeparturesPhase (
   emit: PhaseEmit,
   opts: PhaseOpts = {},
 ): Promise<void> {
+  if (config.departureMode === 'trips') {
+    return runDeparturesTripsPhase(config, client, emit, opts)
+  }
   const batchSize = config.batchSize ?? DEPARTURE_BATCH_SIZE
 
   const queue: TaskQueue<StopDepartureQueryVars> = new TaskQueue<StopDepartureQueryVars>(
@@ -238,6 +245,132 @@ export async function runDeparturesPhase (
         w.setDay(d)
       }
       queue.enqueueOne(w)
+    }
+  }
+  await queue.run()
+  emit({ ...progressEvent(), phaseProgress: phaseDone('departures') })
+}
+
+// Routes per GraphQL request. Deliberately 1: batching routes returns silently
+// incomplete data — the server answers 200 with fewer trips as the batch grows,
+// and accuracy converges only at 1 (see the batch sweep in the PR notes).
+const TRIP_ROUTE_BATCH_SIZE = 1
+
+// Tuples per emitted progress event. One route batch can expand to hundreds of
+// thousands of departures, and each event is a single NDJSON line.
+const TRIP_DEPARTURE_EMIT_SIZE = 50_000
+
+interface TripFetchTask {
+  routeIds: number[]
+  // One week of requested dates, as `yyyy-MM-dd`.
+  dates: string[]
+  // Weekday (0-6) -> the requested date, for relabelling service-window hits.
+  byWeekday: Map<number, string>
+}
+
+// Departures via route -> trips -> stop_times instead of per (stop, date).
+// The backend states each trip's identity and service dates once and returns
+// its stop times undated; this expands them back into the same flat
+// StopDepartureTuple stream the stop-oriented phase emits, so nothing
+// downstream changes.
+async function runDeparturesTripsPhase (
+  config: DeparturesPhaseConfig,
+  client: GraphQLClient,
+  emit: PhaseEmit,
+  opts: PhaseOpts = {},
+): Promise<void> {
+  const routeIds = config.routeIds || []
+  const stopIds = config.stopIds || []
+  const selectedDates = getSelectedDateRange(config)
+  const batchSize = config.routeBatchSize ?? TRIP_ROUTE_BATCH_SIZE
+
+  const queue: TaskQueue<TripFetchTask> = new TaskQueue<TripFetchTask>(
+    PHASE_MAX_CONCURRENT_REQUESTS,
+    task => fetchRouteTrips(task),
+    {
+      onProgress: () => { emit(progressEvent()) },
+      onError: error => opts.onError?.(error),
+    },
+  )
+
+  function progressEvent (): ScenarioProgress {
+    const p = queue.getProgress()
+    return {
+      isLoading: true,
+      currentStage: 'schedules',
+      stopDepartureProgress: p,
+      phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
+    }
+  }
+
+  async function fetchRouteTrips (task: TripFetchTask): Promise<void> {
+    const { routeIds: chunk, dates, byWeekday } = task
+    const response = await client.query<{ routes: RouteTripsResponse[] }>(routeTripsQuery, {
+      ids: chunk,
+      dates,
+      stopIds,
+      limit: chunk.length,
+    })
+    const stopDepartures: StopDepartureTuple[] = []
+    const tripIdStrings = new Map<number, string>()
+    for (const route of response.data?.routes || []) {
+      for (const trip of route.trips || []) {
+        if (trip.trip_id) {
+          tripIdStrings.set(trip.id, trip.trip_id)
+        }
+        // The fan-out the backend no longer does: one tuple per stop time per
+        // date the trip runs.
+        for (const st of trip.stop_times || []) {
+          const departureTime = parseHMS(st.departure_time)
+          for (const date of trip.service_dates || []) {
+            // `use_service_window` can move a requested date into the feed
+            // version's fallback week, and the server reports where it landed.
+            // The stop-oriented phase labels its tuples with the date the
+            // caller asked for; match that, or the scenario's own date filter
+            // drops them. The mapping preserves weekday, so that identifies it.
+            const requested = byWeekday.get(new Date(`${date}T00:00:00`).getDay()) ?? date
+            stopDepartures.push(StopDepartureTuple.create(
+              st.stop.id,
+              requested,
+              departureTime,
+              trip.id,
+              trip.direction_id,
+              route.id,
+              st.pickup_type ?? null,
+            ))
+          }
+        }
+      }
+    }
+    // A route batch expands to far more departures than a stop batch does, so
+    // the tuples are emitted in bounded slices rather than one array per
+    // request. The tripIdStrings sidecar rides on the first slice; later ones
+    // would only repeat it.
+    const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
+    let sentTripIdStrings = false
+    for (const batch of chunkArray(stopDepartures, TRIP_DEPARTURE_EMIT_SIZE)) {
+      emit({
+        ...progressEvent(),
+        partialData: {
+          stopDepartures: batch,
+          tripIdStrings: sentTripIdStrings ? undefined : tripIdStringPairs,
+        },
+      })
+      sentTripIdStrings = true
+    }
+  }
+
+  // One task per (route batch × 7-day window). Weekday identifies a requested
+  // date only within a single week, which is also why the stop-oriented phase
+  // batches by week.
+  for (const week of chunkArray(selectedDates, 7)) {
+    const dates = week.map(d => format(d, 'yyyy-MM-dd'))
+    const byWeekday = new Map<number, string>()
+    for (const d of week) {
+      byWeekday.set(d.getDay(), format(d, 'yyyy-MM-dd'))
+    }
+    for (const chunk of chunkArray(routeIds, batchSize)) {
+      queue.enqueueOne({ routeIds: chunk, dates, byWeekday })
     }
   }
   await queue.run()

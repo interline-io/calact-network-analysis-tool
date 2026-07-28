@@ -37,6 +37,9 @@ import {
   type ScenarioPhaseName,
 } from './phases'
 
+/** How the departures phase fetches schedules. */
+export type DepartureMode = 'all' | 'departures' | 'trips'
+
 /**
  * Configuration for scenario fetching
  */
@@ -49,7 +52,12 @@ export interface ScenarioConfig {
   geographyIds?: number[]
   stopLimit?: number
   aggregateLayer?: string
-  departureMode?: 'all' | 'departures'
+  /**
+   * How the departures phase fetches schedules. 'trips' enters via route and
+   * expands each trip's stop times across its service dates client-side;
+   * 'all'/'departures' fetch per (stop, date). Defaults to 'all'.
+   */
+  departureMode?: DepartureMode
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
   // pipeline fetches census values for those geographies.
@@ -420,6 +428,9 @@ export class ScenarioFetcher {
             startDate: this.config.startDate,
             endDate: this.config.endDate,
             departureMode: this.config.departureMode,
+            // 'trips' mode enters via route; routeIds come from the stops
+            // phase, so this still fans out alongside runRoutesPhase.
+            routeIds,
           }, this.client, emit, { onError })
         : Promise.resolve()
       const { agencyIds } = enabled.has('routes')

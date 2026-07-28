@@ -12,6 +12,7 @@ import {
   STOP_BUFFER_DEFAULT_RADIUS,
   type Bbox,
 } from '~~/src/core'
+import type { DepartureMode } from '~~/src/scenario'
 import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioInputs {
@@ -27,6 +28,7 @@ interface ScenarioInputs {
   includeFlexAreas: WritableComputedRef<boolean | undefined>
   includeDepartures: WritableComputedRef<boolean | undefined>
   includeCensus: WritableComputedRef<boolean | undefined>
+  departureMode: WritableComputedRef<DepartureMode | undefined>
   fixedRouteEnabled: WritableComputedRef<boolean | undefined>
   // fvids CSV — see parseFvids/serializeFvids for the encoding.
   fvids: WritableComputedRef<string>
@@ -113,6 +115,17 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ includeCensus: v ? undefined : 'false' }) }
   })
 
+  // Which shape the departures phase uses to fetch schedules. URL-backed so the
+  // route-oriented shape can be compared against the stop-oriented one without
+  // a rebuild. Unset means the pipeline default.
+  const departureMode = computed<DepartureMode | undefined>({
+    get: () => {
+      const v = route.query.departureMode?.toString()
+      return v === 'trips' || v === 'departures' || v === 'all' ? v : undefined
+    },
+    set: (v) => { setQuery({ departureMode: v || undefined }) }
+  })
+
   // Display toggle that filters fixed-route features out of the map; on by default.
   const fixedRouteEnabled = computed<boolean | undefined>({
     get: () => route.query.fixedRouteEnabled?.toString() !== 'false',
@@ -189,6 +202,7 @@ export function useScenarioInputs (): ScenarioInputs {
     includeFlexAreas,
     includeDepartures,
     includeCensus,
+    departureMode,
     fixedRouteEnabled,
     fvids,
     stopBufferRadius,
