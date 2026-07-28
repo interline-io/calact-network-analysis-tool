@@ -2,10 +2,7 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <cat-tabs
-        v-model="activeTab"
-        expanded
-      >
+      <cat-tabs v-model="activeTab" expanded>
         <cat-tab-item
           :value="0"
           :label="`Agencies (${computedAgencies.length})`"
