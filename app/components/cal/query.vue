@@ -24,7 +24,7 @@
       aria-label="Transit network query parameters"
       @submit.prevent
     >
-      <cat-msg title="Date range">
+      <cat-msg title="Date range" variant="dark">
         <cat-field>
           <template #label>
             <cat-tooltip text="The start date is used to define which week is used to calculate the days-of-week on which a route runs or a stop is served. By default, the start date is the next Monday.">
@@ -92,7 +92,7 @@
         </div>
       </cat-msg>
 
-      <cat-msg title="Geographic Bounds">
+      <cat-msg title="Geographic Bounds" variant="dark">
         <div class="columns is-align-items-flex-end">
           <div class="column is-half">
             <cat-field>

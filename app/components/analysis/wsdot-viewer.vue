@@ -37,6 +37,7 @@
         <!-- States & Population Settings (Collapsible) -->
         <cat-msg
           title="State Filtering & Population Calculation"
+          variant="dark"
           expandable
           :open="false"
           class="mt-4"
@@ -123,6 +124,7 @@
       <div class="column">
         <cat-msg
           title="Map Display"
+          variant="dark"
           expandable
           :open="false"
           class="mt-4"
