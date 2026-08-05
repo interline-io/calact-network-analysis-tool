@@ -30,23 +30,23 @@ const emit = defineEmits([
   'openTimetable',
 ])
 
-const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
-const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: [] })
-const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: [] })
-const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
-const features = defineModel<Feature[]>('features', { default: [] })
-const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
+const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
+const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: () => [] })
+const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: () => [] })
+const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: () => [] })
+const features = defineModel<Feature[]>('features', { default: () => [] })
+const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: () => [] })
 // stop cluster markers + the selected cluster's radius circle.
-const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
-const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
+const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: () => [] })
+const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: () => [] })
 // connector lines from the selected cluster's anchor stop to its member stops.
-const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: [] })
+const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: () => [] })
 // multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
-const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: [] })
-const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
-const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
+const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
+const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
+const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
-const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
+const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
 const props = defineProps<{
@@ -572,6 +572,8 @@ function createLayers () {
       'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0],
     }
   })
+  // Kept at zero opacity rather than dropped: it's the hit target for
+  // dragging the bbox by its interior in edit mode.
   map?.addLayer({
     id: 'overlay-polygons',
     type: 'fill',
@@ -579,7 +581,7 @@ function createLayers () {
     layout: {},
     paint: {
       'fill-color': '#ccc',
-      'fill-opacity': 0.3
+      'fill-opacity': 0
     }
   })
   map?.addLayer({
@@ -590,12 +592,13 @@ function createLayers () {
     paint: {
       'line-width': 2,
       'line-color': '#ff0000',
-      'line-opacity': 0.6
+      'line-opacity': 0.6,
+      'line-dasharray': [6, 3]
     }
   })
   // Outline only: one polygon per route, so a fill would stack opacity
-  // wherever routes overlap. Dashed to separate it from the solid
-  // geographic-filter outline in the same red.
+  // wherever routes overlap. Shorter dashes than the query-area outline it
+  // shares a red with.
   map?.addLayer({
     id: 'stop-buffer-outline',
     type: 'line',

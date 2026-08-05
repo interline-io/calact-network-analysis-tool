@@ -4,7 +4,7 @@
 // share — debounce, AbortController lifecycle, the NDJSON stream into the existing
 // receiver, loading-modal wiring — and leaves each feature its inputs/endpoint/body.
 
-import { markRaw, watch, onScopeDispose, type Ref, type ShallowRef, type WatchSource } from 'vue'
+import { markRaw, toValue, watch, onScopeDispose, type MaybeRefOrGetter, type Ref, type ShallowRef, type WatchSource } from 'vue'
 import {
   ScenarioStreamReceiver,
   type ScenarioConfig,
@@ -53,8 +53,9 @@ export interface StreamingRefetchOptions {
   // Drop this feature's accumulated slice (e.g. clearBufferGeographies /
   // clearStopClusters). Used by the 'clear' plan and, if clearOnError, on failure.
   clearStale: (receiver: ScenarioDataReceiver) => void
-  // Clear the stale slice up-front, before the server responds.
-  clearBeforeFetch?: boolean
+  // Clear the stale slice up-front, before the server responds. A getter when
+  // only some triggers invalidate what's on screen.
+  clearBeforeFetch?: MaybeRefOrGetter<boolean>
   // Clear the stale slice when a recompute fails, so a failed run doesn't strand
   // the previous (now mismatched) results.
   clearOnError?: boolean
@@ -91,7 +92,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       applyClear(receiver)
       return
     }
-    if (opts.clearBeforeFetch) {
+    if (toValue(opts.clearBeforeFetch)) {
       applyClear(receiver)
     }
 

@@ -1,10 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
-import { PORTLAND_BBOX, openFilterSubtab, waitForScenarioLoad } from './helpers'
+import { PORTLAND_BBOX, waitForScenarioLoad } from './helpers'
 
 // These tests run against a fixed test database (testdata/gtfs/calact_tlserver.dump).
-// They cover the "Show stop buffers" overlay: the Map Display control, its URL
-// round-trip, and that outlines actually reach the map — the last of which is
-// the only check that would catch the GraphQL field being renamed.
+// They cover the "Show stop buffers" overlay, which has no Map Display control
+// and is reached by URL: that outlines make it to the map, which is the only
+// check that would catch the GraphQL field being renamed.
 test.describe('Stop buffer overlay', () => {
   let page: Page
 
@@ -22,36 +22,8 @@ test.describe('Stop buffer overlay', () => {
     await page.close()
   })
 
-  test('Overlay section offers the stop buffer toggle, unchecked by default', async () => {
-    await page.locator('a[title="Filter"]').click()
-    await expect(page.locator('.cal-filter-summary-counts')).toBeVisible({ timeout: 5000 })
-    await openFilterSubtab(page, 'Map Display')
+  // The Map Display checkbox is gone; the overlay is URL-only now.
 
-    await expect(page.getByText('Overlay')).toBeVisible()
-    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show stop buffers')
-    await expect(checkbox).toBeVisible()
-    await expect(checkbox).not.toBeChecked()
-  })
-
-  // The checkbox is deliberately never disabled: at radius 0 it simply draws
-  // nothing, and disabling it would leave a checked box the user can't clear.
-  test('toggle stays usable at radius 0 and round-trips through the URL', async () => {
-    await openFilterSubtab(page, 'Map Display')
-    const checkbox = page.locator('.cal-filter-sub').getByLabel('Show stop buffers')
-
-    await expect(checkbox).toBeEnabled()
-    await checkbox.check()
-    await expect(checkbox).toBeChecked()
-    await expect(page).toHaveURL(/showStopBuffer=true/)
-
-    await checkbox.uncheck()
-    await expect(checkbox).not.toBeChecked()
-    await expect(page).not.toHaveURL(/showStopBuffer=true/)
-  })
-
-  // Asserts on the request rather than the canvas: the map instance is not
-  // exposed to tests, and this is what breaks if the GraphQL field is renamed
-  // or the composable stops wiring the radius through.
   test('a stop buffer query is issued with the configured radius', async () => {
     const request = page.waitForRequest(req =>
       req.method() === 'POST' && (req.postData() || '').includes('route_stop_buffer'),

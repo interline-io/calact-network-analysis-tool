@@ -59,6 +59,7 @@
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @show-query="activeTab = { tab: 'query', sub: '' }"
+            @refresh-census="refreshCensusClip"
           />
         </div>
 
@@ -223,7 +224,10 @@ import {
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   formatAcsDatasetLabel,
-  summarizeBbox,
+  summarizeApportioned,
+  censusApportionArea,
+  censusApportionGeometry,
+  censusApportionRatio,
   deriveApportionedRow,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
@@ -239,6 +243,7 @@ import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type Scen
 const { setQuery } = useUrlQuery()
 const {
   showAggAreas,
+  aggClipMode,
   aggregateLayer,
   onlyWithStops,
   showBbox,
@@ -410,27 +415,32 @@ const selectedPanelData = computed(() => {
   const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
+  if (!geo) {
+    return { row, apportionedDerived: null, areaStats: null }
+  }
+  const mode = aggClipMode.value
+  const ratio = censusApportionRatio(geo, mode)
   return {
     row,
-    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
-    areaStats: geo
-      ? {
-          geometryArea: geo.geometryArea,
-          intersectionArea: geo.intersectionArea,
-          intersectionRatio: geo.intersectionRatio,
-        }
-      : null,
+    apportionedDerived: deriveApportionedRow(geo.values, ratio),
+    areaStats: {
+      geometryArea: geo.geometryArea,
+      // Unclipped mode has no intersection to report — the panel hides the
+      // row rather than restating the full area at 100%.
+      intersectionArea: mode === 'unclipped' ? null : censusApportionArea(geo, mode),
+      intersectionRatio: mode === 'unclipped' ? null : ratio,
+    },
   }
 })
 
-// Bbox-wide aggregate, fed to the panel's "Query Area Total" column.
-// Independent of the selection so it doesn't recompute on every click.
+// Aggregate across every geography, fed to the panel's total column. Independent
+// of the selection so it doesn't recompute on every click.
 const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeBbox(geos.keys(), geos).derived
+  return summarizeApportioned(geos.keys(), geos, aggClipMode.value).derived
 })
 
 /////////////////////////
@@ -687,7 +697,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
       }
     }
   }
-  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, aggClipMode.value, geoid => nameMap.get(geoid))
 })
 
 const {
@@ -703,7 +713,8 @@ const {
   loadGeometry: loadBufferGeometry,
 } = useBufferDetails()
 
-// Force the overlay on so the selection actually renders on the map.
+// Force the overlay on so the selection actually renders on the map, leaving
+// an already-chosen clip alone.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
   showAggAreas.value = true
@@ -742,6 +753,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
     ? true
     : includeDepartures.value,
   includeCensus: includeCensus.value,
+  includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
@@ -800,13 +812,18 @@ const aggregateLayerLabel = computed((): string => {
 // Choropleth aggregation overlay
 /////////////////
 
-// All census geographies in the query area, used to fetch geometry for the
-// choropleth. Empty when the overlay is off.
+// Geographies the choropleth still needs a full outline for. In a clipped mode
+// that's only the ones the census phase returned no clipped outline for — a
+// geography outside every stop buffer, or the window before those outlines
+// have streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
+  const mode = aggClipMode.value
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
-  return [...geos.values()].map(g => g.id)
+  return [...geos.values()]
+    .filter(g => !censusApportionGeometry(g, mode))
+    .map(g => g.id)
 })
 
 // Fetch geometry for the choropleth geographies
@@ -825,17 +842,32 @@ const {
 )
 
 // Compute aggregate stats per geography
+// The stop set the census clip is computed against, so buffer coverage tracks
+// the filter rather than the whole query area.
+const markedStopIds = computed((): number[] =>
+  (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
+
 const choroplethAggregateData = computed(() => {
   if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(
+  const rows = stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
+  // A clipped mode measures nothing for a geography the clip doesn't reach, so
+  // drop it rather than paint an empty polygon at zero. Filtered here so the
+  // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
+  // census entry are stop-derived and unaffected.
+  const mode = aggClipMode.value
+  const geos = scenarioFilterResult.value.censusGeographies
+  return rows.filter((r) => {
+    const geo = geos?.get(r.geoid)
+    return !geo || censusApportionRatio(geo, mode) > 0
+  })
 })
 
 const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })
@@ -888,8 +920,9 @@ useClusterRefetch({
   refetchInFlight,
 })
 
-// recompute census values when the Aggregate-by layer changes, reusing the same receiver.
-useAggregateRefetch({
+// recompute census values when the Aggregate-by layer or the stop buffer radius
+// changes, and on demand from the Map Display refresh, reusing the same receiver.
+const { refresh: refreshCensusClip } = useAggregateRefetch({
   scenarioReceiver,
   scenarioData,
   scenarioConfig,
@@ -899,6 +932,7 @@ useAggregateRefetch({
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  markedStopIds,
 })
 
 const loadExampleData = async (exampleName: string) => {
@@ -1017,6 +1051,17 @@ async function resetFilters () {
     flexColorBy: undefined,
     stopBufferRadius: undefined,
     stopBufferLayer: undefined,
+    // Map Display panel — every key useScenarioDisplay owns, so a cleared
+    // scenario doesn't inherit an overlay configured for the last one.
+    showAggAreas: undefined,
+    aggClip: undefined,
+    aggregateLayer: undefined,
+    choroplethElement: undefined,
+    shadeByDensity: undefined,
+    onlyWithStops: undefined,
+    showStopBuffer: undefined,
+    showBbox: undefined,
+    dataDisplayMode: undefined,
   })
 }
 

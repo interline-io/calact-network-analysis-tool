@@ -1,9 +1,21 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
-import { CHOROPLETH_DEFAULT_ELEMENT, type DataDisplayMode, type UnitSystem } from '~~/src/core'
+import {
+  AGG_CLIP_MODE_OPTIONS,
+  CHOROPLETH_DEFAULT_ELEMENT,
+  type AggClipMode,
+  type DataDisplayMode,
+  type UnitSystem,
+} from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
+
+// The overlay is off until asked for, so when it is asked for, answer the
+// question people actually have: what the transit service reaches. The less
+// clipped modes stay available for context.
+const AGG_CLIP_MODE_DEFAULT: AggClipMode = 'buffer'
 
 interface ScenarioDisplay {
   showAggAreas: WritableComputedRef<boolean>
+  aggClipMode: WritableComputedRef<AggClipMode>
   showStopBuffer: WritableComputedRef<boolean>
   aggregateLayer: WritableComputedRef<string>
   choroplethElement: WritableComputedRef<string>
@@ -27,6 +39,17 @@ export function useScenarioDisplay (): ScenarioDisplay {
   const showAggAreas = computed<boolean>({
     get: () => route.query.showAggAreas?.toString() === 'true',
     set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
+  })
+
+  // How the overlay measures each geography. Separate from the checkbox above:
+  // whether to draw and what to measure are different questions, and only the
+  // off state of each is worth a URL parameter.
+  const aggClipMode = computed<AggClipMode>({
+    get: () => {
+      const v = route.query.aggClip?.toString()
+      return AGG_CLIP_MODE_OPTIONS.find(o => o.value === v)?.value || AGG_CLIP_MODE_DEFAULT
+    },
+    set: (v) => { setQuery({ aggClip: v === AGG_CLIP_MODE_DEFAULT ? undefined : v }) }
   })
 
   const showStopBuffer = computed<boolean>({
@@ -87,6 +110,7 @@ export function useScenarioDisplay (): ScenarioDisplay {
 
   return {
     showAggAreas,
+    aggClipMode,
     showStopBuffer,
     aggregateLayer,
     choroplethElement,
