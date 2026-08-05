@@ -115,9 +115,8 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ includeCensus: v ? undefined : 'false' }) }
   })
 
-  // Which shape the departures phase uses to fetch schedules. URL-backed so the
-  // route-oriented shape can be compared against the stop-oriented one without
-  // a rebuild. Unset means the pipeline default.
+  // URL-backed so the two departure shapes can be compared without a rebuild.
+  // Unset means the pipeline default.
   const departureMode = computed<DepartureMode | undefined>({
     get: () => {
       const v = route.query.departureMode?.toString()

@@ -1,8 +1,7 @@
 #!/bin/bash
 set -e
-# Initialize (idempotent DB restore) BEFORE serving, so the server binds its port
-# only once the data is loaded — then "accepts a connection" means "ready", with
-# no separate init service or compose-level completion gate needed.
+# Restore before serving, so the port binds only once the data is loaded and
+# "accepts a connection" means "ready". Idempotent.
 /tlserver/test-init.sh
 
 export TL_DATABASE_URL="postgres://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE?sslmode=disable"

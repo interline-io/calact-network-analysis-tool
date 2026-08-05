@@ -7,8 +7,7 @@ until pg_isready; do echo "Waiting for postgres..."; sleep 2; done
 psql -tc "SELECT 1 FROM pg_database WHERE datname = '$PGDATABASE'" | grep -q 1 || createdb "$PGDATABASE"
 
 # Row counts, not table existence: a restore that created the schema and then
-# failed would otherwise look "already restored" on every subsequent start, and
-# the server would come up serving nothing.
+# failed would otherwise look "already restored" forever.
 count_rows() {
   psql -d "$PGDATABASE" -tAc "SELECT count(*) FROM $1" 2>/dev/null || echo 0
 }
@@ -16,9 +15,8 @@ count_rows() {
 if [ "$(count_rows current_feeds)" -gt 0 ] && [ "$(count_rows tl_census_geographies)" -gt 0 ]; then
   echo "Database already restored, skipping."
 else
-  # Base (GTFS) then census/NTD — disjoint table sets, so order is not load-bearing.
-  # pg_restore exits nonzero on benign --no-owner role warnings, so its status is
-  # not a reliable signal; the row checks below are what actually gate success.
+  # pg_restore exits nonzero on benign --no-owner role warnings, so the row
+  # checks below are what gate success, not its exit status.
   echo "Restoring base database from dump..."
   pg_restore --no-owner -d "$PGDATABASE" /data/calact_tlserver.dump || true
   echo "Restoring census database from dump..."

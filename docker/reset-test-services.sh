@@ -4,15 +4,9 @@
 # Usage:
 #   cd docker && ./reset-test-services.sh
 #
-# This script:
-#   1. Tears down the test services + their volumes (clean slate — the restore is
-#      skipped when the database already has data, so a stale volume is exactly
-#      what you want to drop after refreshing the dumps)
-#   2. Rebuilds the tlserver image, so Dockerfile / TRANSITLAND_REF changes are
-#      picked up
-#   3. Brings it back up; tlserver self-initializes in its entrypoint (restores
-#      both dumps) before binding its port
-#   4. Waits for it to be ready
+# Tears down the services and their volumes, rebuilds the image, and brings it
+# back up. The volumes go because the restore is skipped when the database
+# already has data, so a stale volume survives a fixture refresh.
 set -e
 
 cd "$(dirname "$0")"

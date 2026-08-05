@@ -148,15 +148,13 @@ export interface StopDeparture {
 // Route -> trips -> stop times
 //////////
 
-// One request per route batch instead of one per (stop chunk × date). The trip
-// identity and the service dates are stated once per trip rather than repeated
-// on every stop time, and `stop_ids` keeps a route crossing the query area from
-// returning its stops outside it.
+// One request per route batch instead of one per (stop chunk × date). Trip
+// identity and service dates are stated once rather than on every stop time.
 export const routeTripsQuery = gql`
 query ($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
   routes(ids: $ids, limit: $limit) {
     id
-    trips(limit: 100000, where: {service_dates: $dates, use_service_window: true}) {
+    trips(limit: 100000, where: {dates: $dates, use_service_window: true}) {
       id
       direction_id
       trip_id

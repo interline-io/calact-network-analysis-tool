@@ -52,11 +52,8 @@ export interface ScenarioConfig {
   geographyIds?: number[]
   stopLimit?: number
   aggregateLayer?: string
-  /**
-   * How the departures phase fetches schedules. 'trips' enters via route and
-   * expands each trip's stop times across its service dates client-side;
-   * 'all'/'departures' fetch per (stop, date). Defaults to 'all'.
-   */
+  // 'trips' (the default) enters via route; 'all'/'departures' fetch per
+  // (stop, date).
   departureMode?: DepartureMode
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
@@ -428,8 +425,7 @@ export class ScenarioFetcher {
             startDate: this.config.startDate,
             endDate: this.config.endDate,
             departureMode: this.config.departureMode,
-            // 'trips' mode enters via route; routeIds come from the stops
-            // phase, so this still fans out alongside runRoutesPhase.
+            // 'trips' mode enters via route rather than stop.
             routeIds,
           }, this.client, emit, { onError })
         : Promise.resolve()

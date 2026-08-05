@@ -216,7 +216,9 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValueOnce(stopsResponse)
         .mockResolvedValue({ data: { stops: [] } }) // departure queries
 
-      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client)
+      // Pinned to the stop-oriented shape, whose query variables
+      // `departureCalls` fingerprints.
+      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, departureMode: 'all' }, client)
       await fetcher.fetch()
 
       // The 8-day range chunks into two 7-day departure windows

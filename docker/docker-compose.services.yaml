@@ -1,15 +1,11 @@
-# Backing test services (postgres + tlserver). Used locally and in CI:
-#   docker compose -f docker-compose.services.yaml up   (publishes host ports:
-#   tlserver on localhost:28080, postgres on localhost:25432)
+# Backing test services (postgres + tlserver), used locally and in CI:
+#   docker compose -f docker-compose.services.yaml up
 #
-# tlserver self-initializes in its entrypoint (restores the dumps) BEFORE binding
-# its port, so readiness is intrinsic: once it accepts a connection, it's ready.
-# No `-init` services or compose-level completion gates.
+# tlserver restores the dumps in its entrypoint BEFORE binding its port, so
+# readiness is intrinsic and needs no `-init` service or completion gate.
 #
-# The image is built locally, never published — a cold build is ~30s, cheaper than
-# maintaining a registry and its staleness failure modes. It holds only the binary
-# and scripts; the dumps are bind-mounted, so refreshing fixtures (rebuild.sh /
-# rebuild-census.sh) never means rebuilding the image.
+# The image is built locally, never published — a cold build is ~30s, cheaper
+# than a registry and its staleness failure modes.
 #
 # Ports are offset into the 2xxxx range so this stack can run alongside a manual
 # testdata/gtfs/restore.sh server on 8080.
