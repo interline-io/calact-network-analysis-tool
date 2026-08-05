@@ -1,26 +1,35 @@
-// Phase 4: fetch stop departures (schedule data) for an explicit list of
-// stop ids. This is by far the most expensive phase; taking explicit ids
-// means a client can shard one scenario's departures across several
-// standalone requests, each safely under proxy/CDN time limits.
+// Phase 4: fetch departures for the scenario's routes, entering via
+// route -> trips -> stop_times. This is by far the most expensive phase;
+// taking explicit route and stop ids means a client can shard one scenario's
+// departures across several standalone requests, each safely under proxy/CDN
+// time limits.
+//
+// Departures are reported on calendar days, not GTFS service days: a trip
+// departing after midnight belongs to the day it actually departs on, at its
+// wall-clock time.
 
 import { format } from 'date-fns'
-import { chunkArray, parseHMS, TaskQueue, WEEKDAY_BY_GETDAY, type GraphQLClient } from '~~/src/core'
-import { routeTripsQuery, stopDepartureQuery, stopTimeQuery, type RouteTripsResponse, type StopDeparture, type StopTime } from '~~/src/tl'
+import { chunkArray, parseHMS, TaskQueue, type GraphQLClient } from '~~/src/core'
+import { routeTripsQuery, type RouteTripsResponse } from '~~/src/tl'
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
-import type { DepartureMode, ScenarioProgress } from '../scenario'
+import type { ScenarioProgress } from '../scenario'
 
-// Effectively "no batching" — departures for a fetch stream as one batch.
-const PROGRESS_LIMIT_STOP_DEPARTURES = 100_000_000
+// Routes per GraphQL request. Deliberately 1: it keeps each request's scope
+// (and cost) predictable at one route-week, and larger batches have returned
+// silently incomplete data.
+const TRIP_ROUTE_BATCH_SIZE = 1
 
-// Stop ids per departure query.
-const DEPARTURE_BATCH_SIZE = 100
+// Tuples per emitted progress event; one route batch can expand to hundreds of
+// thousands of departures.
+const TRIP_DEPARTURE_EMIT_SIZE = 50_000
 
-// Define the tuple type with named fields
-// Optimized wire format: departure_time as seconds, no string trip_id
+const SECONDS_PER_DAY = 86400
+
+// Optimized wire format: departure_time as seconds, no string trip_id.
 export type StopDepartureTuple = readonly [
   stop_id: number,
-  departure_date: string,
-  departure_time: number, // seconds since midnight
+  departure_date: string, // calendar date the departure falls on
+  departure_time: number, // seconds since midnight on that date, 0..86399
   trip_id: number,
   trip_direction_id: number,
   trip_route_id: number,
@@ -38,15 +47,6 @@ export const StopDepartureTuple = {
     trip_route_id: number,
     pickup_type: number | null,
   ): StopDepartureTuple => [stop_id, departure_date, departure_time, trip_id, trip_direction_id, trip_route_id, pickup_type],
-  fromStopTime: (stopId: number, departureDate: string, stopDeparture: StopTime) => StopDepartureTuple.create(
-    stopId,
-    departureDate,
-    parseHMS(stopDeparture.departure_time),
-    stopDeparture.trip.id,
-    stopDeparture.trip.direction_id,
-    stopDeparture.trip.route.id,
-    stopDeparture.pickup_type ?? null,
-  ),
   stopId: (tuple: StopDepartureTuple) => tuple[0],
   departureDate: (tuple: StopDepartureTuple) => tuple[1],
   departureTime: (tuple: StopDepartureTuple) => tuple[2],
@@ -56,237 +56,47 @@ export const StopDepartureTuple = {
   pickupType: (tuple: StopDepartureTuple) => tuple[6],
 }
 
-export class StopDepartureQueryVars {
-  ids: number[] = []
-  monday: string = ''
-  tuesday: string = ''
-  wednesday: string = ''
-  thursday: string = ''
-  friday: string = ''
-  saturday: string = ''
-  sunday: string = ''
-  include_monday: boolean = false
-  include_tuesday: boolean = false
-  include_wednesday: boolean = false
-  include_thursday: boolean = false
-  include_friday: boolean = false
-  include_saturday: boolean = false
-  include_sunday: boolean = false
-
-  get (dow: string): string {
-    switch (dow) {
-      case 'monday':
-        return this.monday
-      case 'tuesday':
-        return this.tuesday
-      case 'wednesday':
-        return this.wednesday
-      case 'thursday':
-        return this.thursday
-      case 'friday':
-        return this.friday
-      case 'saturday':
-        return this.saturday
-      case 'sunday':
-        return this.sunday
-    }
-    return ''
-  }
-
-  setDay (d: Date) {
-    const dateFmt = 'yyyy-MM-dd'
-    switch (d.getDay()) {
-      case 0:
-        this.sunday = format(d, dateFmt)
-        this.include_sunday = true
-        break
-      case 1:
-        this.monday = format(d, dateFmt)
-        this.include_monday = true
-        break
-      case 2:
-        this.tuesday = format(d, dateFmt)
-        this.include_tuesday = true
-        break
-      case 3:
-        this.wednesday = format(d, dateFmt)
-        this.include_wednesday = true
-        break
-      case 4:
-        this.thursday = format(d, dateFmt)
-        this.include_thursday = true
-        break
-      case 5:
-        this.friday = format(d, dateFmt)
-        this.include_friday = true
-        break
-      case 6:
-        this.saturday = format(d, dateFmt)
-        this.include_saturday = true
-        break
-    }
-  }
-}
-
 export interface DeparturesPhaseConfig {
+  // Stops to keep departures for; routes reach beyond the scenario area.
   stopIds: number[]
+  // Routes to fetch. Nothing is fetched without them.
+  routeIds?: number[]
   startDate?: Date
   endDate?: Date
-  departureMode?: DepartureMode
-  // Stop ids per GraphQL request; default 100.
-  batchSize?: number
-  // Required by the 'trips' mode, which enters via route rather than stop.
-  routeIds?: number[]
-  // Routes per GraphQL request in 'trips' mode; default 50.
+  // Routes per GraphQL request; default 1. Raising it is not recommended —
+  // see TRIP_ROUTE_BATCH_SIZE.
   routeBatchSize?: number
   // Route id -> the stops in this scenario that route serves, as produced by
   // the stops phase. Omitting it falls back to filtering by the whole stop set.
   routeStopIds?: Record<number, number[]>
 }
 
-export async function runDeparturesPhase (
-  config: DeparturesPhaseConfig,
-  client: GraphQLClient,
-  emit: PhaseEmit,
-  opts: PhaseOpts = {},
-): Promise<void> {
-  // Default. 'all'/'departures' select the stop-oriented path explicitly.
-  if ((config.departureMode ?? 'trips') === 'trips') {
-    return runDeparturesTripsPhase(config, client, emit, opts)
-  }
-  const batchSize = config.batchSize ?? DEPARTURE_BATCH_SIZE
-
-  const queue: TaskQueue<StopDepartureQueryVars> = new TaskQueue<StopDepartureQueryVars>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    task => fetchStopDepartures(task),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    }
-  )
-
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      isLoading: true,
-      currentStage: 'schedules',
-      stopDepartureProgress: p,
-      phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
-    }
-  }
-
-  async function fetchStopDepartures (task: StopDepartureQueryVars): Promise<void> {
-    if (task.ids.length === 0) {
-      return
-    }
-    const fetchDates = WEEKDAY_BY_GETDAY.filter(s => task.get(s)).map(s => `${s.slice(0, 2)}:${task.get(s)}`).join(', ')
-    console.log(`Fetching stop departures for ${task.ids.length} stops on dates ${fetchDates}`)
-    const q = config.departureMode === 'departures' ? stopDepartureQuery : stopTimeQuery
-    const response = await client.query<{ stops: StopDeparture[] }>(q, task)
-    // Map into simpler format for wire format
-    const stopDepartures: StopDepartureTuple[] = []
-    const tripIdStrings = new Map<number, string>()
-    for (const stop of response.data?.stops || []) {
-      for (const dow of WEEKDAY_BY_GETDAY) {
-        const dowDate = task.get(dow)
-        if (!dowDate) {
-          continue
-        }
-        const stopTimes = (() => {
-          switch (dow) {
-            case 'monday':
-              return stop.monday || []
-            case 'tuesday':
-              return stop.tuesday || []
-            case 'wednesday':
-              return stop.wednesday || []
-            case 'thursday':
-              return stop.thursday || []
-            case 'friday':
-              return stop.friday || []
-            case 'saturday':
-              return stop.saturday || []
-            case 'sunday':
-              return stop.sunday || []
-            default:
-              return []
-          }
-        })()
-        for (const st of stopTimes) {
-          stopDepartures.push(StopDepartureTuple.fromStopTime(stop.id, dowDate, st))
-          if (st.trip.trip_id && !tripIdStrings.has(st.trip.id)) {
-            tripIdStrings.set(st.trip.id, st.trip.trip_id)
-          }
-        }
-      }
-    }
-
-    // Send progress updates in batches using the generic helper function.
-    // The tripIdStrings sidecar rides on the first batch; subsequent batches
-    // in the same fetch would only duplicate the same entries, so we clear it.
-    const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
-    let sentTripIdStrings = false
-    for (const stopDepartureBatch of chunkArray(stopDepartures, PROGRESS_LIMIT_STOP_DEPARTURES)) {
-      emit({
-        ...progressEvent(),
-        partialData: {
-          stopDepartures: stopDepartureBatch,
-          tripIdStrings: sentTripIdStrings ? undefined : tripIdStringPairs,
-        },
-      })
-      sentTripIdStrings = true
-    }
-  }
-
-  // Build all tasks first: stop id chunks × 7-day windows
-  const dates = getSelectedDateRange(config)
-  const weekSize = 7
-  for (let sid = 0; sid < config.stopIds.length; sid += batchSize) {
-    for (let i = 0; i < dates.length; i += weekSize) {
-      const w = new StopDepartureQueryVars()
-      w.ids = config.stopIds.slice(sid, sid + batchSize)
-      for (const d of dates.slice(i, i + weekSize)) {
-        w.setDay(d)
-      }
-      queue.enqueueOne(w)
-    }
-  }
-  await queue.run()
-  emit({ ...progressEvent(), phaseProgress: phaseDone('departures') })
-}
-
-// Routes per GraphQL request. Deliberately 1: batching returns silently
-// incomplete data, with the shortfall growing with batch size.
-const TRIP_ROUTE_BATCH_SIZE = 1
-
-// Tuples per emitted progress event; one route batch can expand to hundreds of
-// thousands of departures.
-const TRIP_DEPARTURE_EMIT_SIZE = 50_000
-
 interface TripFetchTask {
   routeIds: number[]
-  // One week of requested wall calendar dates, as `yyyy-MM-dd`.
+  // One week of requested calendar dates, as `yyyy-MM-dd`.
   dates: string[]
   // Stop times are filtered to these; never empty.
   stopIds: number[]
 }
 
-// The wall calendar date a departure falls on: `serviceDate + floor(seconds /
-// 86400)`. Anything at or after 24:00:00 lands on a later day.
-function calendarDate (serviceDate: string, seconds: number): string {
-  const days = Math.floor(seconds / 86400)
+// Where a GTFS departure lands on the wall calendar. GTFS counts seconds from
+// the service day's midnight and runs past 24:00:00 for after-midnight trips,
+// so `25:00:00` on a Monday is 01:00:00 on the Tuesday.
+function calendarDeparture (serviceDate: string, seconds: number): { date: string, seconds: number } {
+  const days = Math.floor(seconds / SECONDS_PER_DAY)
+  const secondsIntoDay = seconds - days * SECONDS_PER_DAY
   if (days === 0) {
-    return serviceDate
+    return { date: serviceDate, seconds: secondsIntoDay }
   }
   const d = new Date(`${serviceDate}T00:00:00`)
   d.setDate(d.getDate() + days)
-  return format(d, 'yyyy-MM-dd')
+  return { date: format(d, 'yyyy-MM-dd'), seconds: secondsIntoDay }
 }
 
 // Departures via route -> trips -> stop_times instead of per (stop, date).
-// Trips carry their service dates once; this expands them back into the same
-// flat StopDepartureTuple stream the stop-oriented phase emits.
-async function runDeparturesTripsPhase (
+// Trips carry their service dates once; this expands them back into a flat
+// StopDepartureTuple stream keyed by calendar date.
+export async function runDeparturesPhase (
   config: DeparturesPhaseConfig,
   client: GraphQLClient,
   emit: PhaseEmit,
@@ -334,18 +144,18 @@ async function runDeparturesTripsPhase (
         // The fan-out the backend no longer does: one tuple per stop time per
         // date the trip runs.
         for (const st of trip.stop_times || []) {
-          const departureTime = parseHMS(st.departure_time)
+          const gtfsSeconds = parseHMS(st.departure_time)
           for (const serviceDate of trip.service_dates || []) {
             // Service dates reach one day before the requested range;
             // departures resolving outside it belong to a neighbouring task.
-            const date = calendarDate(serviceDate, departureTime)
-            if (!requested.has(date)) {
+            const departure = calendarDeparture(serviceDate, gtfsSeconds)
+            if (!requested.has(departure.date)) {
               continue
             }
             stopDepartures.push(StopDepartureTuple.create(
               st.stop.id,
-              date,
-              departureTime,
+              departure.date,
+              departure.seconds,
               trip.id,
               trip.direction_id,
               route.id,

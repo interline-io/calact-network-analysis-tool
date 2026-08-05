@@ -37,13 +37,7 @@ import {
   type ScenarioPhaseName,
 } from './phases'
 
-/** How the departures phase fetches schedules. */
-export type DepartureMode = 'all' | 'departures' | 'trips'
-
-/**
- * Configuration for scenario fetching
- */
-
+// Configuration for scenario fetching
 export interface ScenarioConfig {
   reportName: string
   bbox?: Bbox
@@ -52,9 +46,6 @@ export interface ScenarioConfig {
   geographyIds?: number[]
   stopLimit?: number
   aggregateLayer?: string
-  // 'trips' (the default) enters via route; 'all'/'departures' fetch per
-  // (stop, date).
-  departureMode?: DepartureMode
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
   // pipeline fetches census values for those geographies.
@@ -424,8 +415,6 @@ export class ScenarioFetcher {
             stopIds,
             startDate: this.config.startDate,
             endDate: this.config.endDate,
-            departureMode: this.config.departureMode,
-            // 'trips' mode enters via route rather than stop.
             routeIds,
             routeStopIds,
           }, this.client, emit, { onError })

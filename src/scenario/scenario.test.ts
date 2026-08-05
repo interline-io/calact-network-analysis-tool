@@ -204,36 +204,38 @@ describe('ScenarioFetcher', () => {
   })
 
   describe('includeDepartures', () => {
-    // Departure queries are the only ones with day-of-week include flags.
+    // The route -> trips query is the only one taking route ids plus a stop filter.
     function departureCalls (client: MockGraphQLClient) {
-      return client.mockQuery.mock.calls.filter(([, vars]) => vars && 'include_monday' in vars)
+      return client.mockQuery.mock.calls
+        .map(([, vars]) => vars)
+        .filter(vars => vars && 'ids' in vars && 'stopIds' in vars && 'dates' in vars)
+    }
+
+    // A stop served by the given routes, so the stops phase yields route ids.
+    function stop (id: number, routeIds: number[]) {
+      return {
+        ...stopsResponse.data.stops[0],
+        id,
+        route_stops: routeIds.map(rid => ({ route: { id: rid } })),
+      }
     }
 
     it('fetches departures by default', async () => {
       const client = new MockGraphQLClient()
       client.mockQuery
         .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
-        .mockResolvedValueOnce(stopsResponse)
-        .mockResolvedValue({ data: { stops: [] } }) // departure queries
+        .mockResolvedValueOnce({ data: { stops: [stop(1, [10])] } })
+        .mockResolvedValue({ data: {} }) // departure queries
 
-      // Pinned to the stop-oriented shape, whose query variables
-      // `departureCalls` fingerprints.
-      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, departureMode: 'all' }, client)
+      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client)
       await fetcher.fetch()
 
       // The 8-day range chunks into two 7-day departure windows
       expect(departureCalls(client)).toHaveLength(2)
     })
 
-    it('sends only a route\'s own stops in trips mode', async () => {
+    it('sends only a route\'s own stops', async () => {
       const client = new MockGraphQLClient()
-      function stop (id: number, routeIds: number[]) {
-        return {
-          ...stopsResponse.data.stops[0],
-          id,
-          route_stops: routeIds.map(rid => ({ route: { id: rid } })),
-        }
-      }
       client.mockQuery
         .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
         .mockResolvedValueOnce({ data: { stops: [stop(1, [10]), stop(2, [10, 20]), stop(3, [20])] } })
@@ -242,9 +244,7 @@ describe('ScenarioFetcher', () => {
       const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client)
       await fetcher.fetch()
 
-      const tripCalls = client.mockQuery.mock.calls
-        .map(([, vars]) => vars)
-        .filter(vars => vars && 'ids' in vars && 'stopIds' in vars)
+      const tripCalls = departureCalls(client)
       // 2 routes x 2 seven-day windows over the 8-day range
       expect(tripCalls).toHaveLength(4)
       for (const vars of tripCalls) {
@@ -256,14 +256,16 @@ describe('ScenarioFetcher', () => {
       const client = new MockGraphQLClient()
       client.mockQuery
         .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
-        .mockResolvedValueOnce(stopsResponse)
+        .mockResolvedValueOnce({ data: { stops: [stop(1, [10])] } })
 
       const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, includeDepartures: false }, client)
       await fetcher.fetch()
 
+      // A route is present, so the gate — not an empty route set — is what
+      // suppresses the departure queries.
       expect(departureCalls(client)).toHaveLength(0)
-      // Only the feed version and stop queries were issued
-      expect(client.mockQuery).toHaveBeenCalledTimes(2)
+      // Only the feed version, stop and route queries were issued
+      expect(client.mockQuery).toHaveBeenCalledTimes(3)
     })
   })
 

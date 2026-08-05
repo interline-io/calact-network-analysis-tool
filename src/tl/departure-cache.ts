@@ -1,16 +1,14 @@
 import { parseHMS } from '../core'
 import type { StopTime } from './departure'
 
-/**
- * Compact cache item for stop departures.
- * Uses flat numeric fields instead of nested objects for ~57% memory reduction.
- * - departureTime: seconds since midnight (was string "HH:MM:SS")
- * - tripId: internal numeric trip ID (for deduplication)
- * - directionId: 0 or 1
- * - routeId: internal numeric route ID
- * - pickupType: GTFS pickup_type; null when the feed omits it. 1 = no pickup
- *   available (drop-off only), e.g. a loop's return to its terminal.
- */
+// Compact cache item for stop departures, using flat numeric fields instead of
+// nested objects for ~57% memory reduction.
+//
+// departureTime is seconds since midnight of the calendar date the item is
+// filed under, always 0..86399 — the departures phase resolves GTFS 24+ hour
+// times onto the day they actually depart. pickupType is the GTFS value, null
+// when the feed omits it; 1 means no pickup available (drop-off only), e.g. a
+// loop's return to its terminal.
 export class StopTimeCacheItem {
   constructor (
     public readonly departureTime: number,
@@ -20,9 +18,8 @@ export class StopTimeCacheItem {
     public readonly pickupType: number | null = null
   ) {}
 
-  /**
-   * Convert a GraphQL StopTime response to a compact cache item.
-   */
+  // Convert a GraphQL StopTime response to a compact cache item. The result
+  // keeps the feed's raw departure time, which may run past 24:00:00.
   static fromStopTime (st: StopTime): StopTimeCacheItem {
     return new StopTimeCacheItem(
       parseHMS(st.departure_time),
@@ -34,10 +31,8 @@ export class StopTimeCacheItem {
   }
 }
 
-/**
- * Simple two-level cache for stop departures: stopId -> date -> StopTimeCacheItem[]
- * This is the primary data structure for departure lookups by stop.
- */
+// Two-level cache for stop departures: stopId -> calendar date ->
+// StopTimeCacheItem[]. The primary structure for departure lookups by stop.
 export class StopDepartureCache {
   cache: Map<number, Map<string, StopTimeCacheItem[]>> = new Map()
 
@@ -46,9 +41,7 @@ export class StopDepartureCache {
     return a.get(date) || []
   }
 
-  /**
-   * Add stop times to the cache, converting from GraphQL response format to compact form.
-   */
+  // Add stop times from a GraphQL response, converting to compact form.
   add (id: number, date: string, value: StopTime[]) {
     if (value.length === 0) {
       return
@@ -62,10 +55,8 @@ export class StopDepartureCache {
     this.cache.set(id, a)
   }
 
-  /**
-   * Add a single stop time directly from wire format values (no intermediate object).
-   * This is more efficient when receiving streaming data.
-   */
+  // Add a departure straight from wire-format values, skipping the
+  // intermediate object. Cheaper for streaming data.
   addFromWire (stopId: number, date: string, departureTime: number, tripId: number, directionId: number, routeId: number, pickupType: number | null = null) {
     const a = this.cache.get(stopId) || new Map()
     const b = a.get(date) || []
@@ -89,11 +80,9 @@ export class StopDepartureCache {
   }
 }
 
-/**
- * Inverted index for route-based departure lookups: "routeId|date" -> stopId -> StopTimeCacheItem[]
- * Built on-demand from a StopDepartureCache when route-based queries are needed.
- * Separates the memory cost from the basic cache - only pay for it when you use it.
- */
+// Inverted index for route-based departure lookups:
+// "routeId|date" -> stopId -> StopTimeCacheItem[]. Built on demand from a
+// StopDepartureCache so its memory cost is only paid when route queries are used.
 export class RouteDepartureIndex {
   // Separate caches for each direction
   private cache0: Map<string, Map<number, StopTimeCacheItem[]>> = new Map()
@@ -101,10 +90,7 @@ export class RouteDepartureIndex {
 
   private constructor () {}
 
-  /**
-   * Build a route departure index from a StopDepartureCache.
-   * This iterates all departures once to build the inverted index.
-   */
+  // Build the index from a StopDepartureCache, iterating all departures once.
   static fromCache (sdCache: StopDepartureCache): RouteDepartureIndex {
     const index = new RouteDepartureIndex()
     for (const [stopId, dateMap] of sdCache.cache.entries()) {
@@ -127,13 +113,7 @@ export class RouteDepartureIndex {
     cache.set(key, a)
   }
 
-  /**
-   * Get all departures for a route on a date, grouped by stop.
-   * @param routeId - Route ID
-   * @param dir - Direction (0 or 1)
-   * @param date - Date string (YYYY-MM-DD)
-   * @returns Map of stopId -> StopTimeCacheItem[]
-   */
+  // All departures for a route on a calendar date, grouped by stop.
   getRouteDate (routeId: number, dir: number, date: string): Map<number, StopTimeCacheItem[]> {
     const key = `${routeId}|${date}`
     const cache = dir ? this.cache1 : this.cache0

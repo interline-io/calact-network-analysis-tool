@@ -45,7 +45,7 @@ useAnalysisResults
 | `aggregateLayer` + `tableDatasetName` + `geoDatasetName` | census-values (skipped if either is unset) |
 | `includeFixedRoute` (default true) | gates stops + routes + schedules |
 | `includeFlexAreas` (default true) | gates flex-areas |
-| `stopLimit`, `departureMode` | tuning knobs for stop pagination + departure query shape |
+| `stopLimit` | tuning knob for stop pagination |
 
 ## ScenarioFetcher orchestration
 
@@ -68,11 +68,20 @@ Concurrency: four `TaskQueue<T>` instances, each capped at `maxConcurrentRequest
 | 1 | `feed-versions` | `fetchFeedVersions()` | sequential, 1 query (or 2 if `geographyIds` is set — fetches admin polygons first, then bbox-derived feed versions) | Resolves the user's query into a concrete bbox + list of active `FeedVersion`s for that bbox + date range. Sets `resolvedBbox` and (for admin-boundary queries) `resolvedWithin`. Also sets `multiAdminWarning` for the multi-polygon case (#347). |
 | 2 | `stops` | `fetchStops(task)` via `stopFetchQueue` | up to 8 in flight | Per feed version, paginates `stops(limit, after, where: {feed_version_sha1, location: {bbox|geography_ids}})`. Each page batches `PROGRESS_LIMIT_STOPS = 1000` stops per progress event. Each stop carries nested `census_geographies` (containment) and `route_stops` so we discover route IDs without an extra hop. |
 | 3 | `routes` | `fetchRoutes(task)` via `routeFetchQueue` | up to 8 in flight | One query per route ID batch (a single `routes(ids: [...])` per feed version). Routes-IDs come from the stops step's `route_stops`. `fetchedRouteIds` deduplicates pre-emptively so the same route isn't re-requested. |
-| 4 | `schedules` | `fetchStopDepartures(task)` via `stopDepartureQueue` | up to 8 in flight | One query per `(stopId batch, date-window)` task. Stops are chunked at `stopTimeBatchSize = 100`, dates chunked into 7-day windows. The result is parsed into `StopDepartureTuple` (a memory-tight `[stop_id, date, time_seconds, trip_id, direction, route_id]` array) and accumulated into `StopDepartureCache`. Trip-ID strings are stripped from the wire format and shipped separately in a sidecar `tripIdStrings` map (one entry per unique trip). |
+| 4 | `schedules` | `fetchRouteTrips(task)` via the departures queue | up to 8 in flight | One query per `(route batch, date-window)` task, entering via `route -> trips -> stop_times`. Routes are batched at `TRIP_ROUTE_BATCH_SIZE = 1`, dates chunked into 7-day windows, and each request filters stop times to just the stops that route serves in the scenario. Trips state their `service_dates` once; the client fans them back out into `StopDepartureTuple` (a memory-tight `[stop_id, date, time_seconds, trip_id, direction, route_id, pickup_type]` array) and accumulates them into `StopDepartureCache`. Trip-ID strings are stripped from the wire format and shipped separately in a sidecar `tripIdStrings` map (one entry per unique trip). |
 | 5 | `flex-areas` | `fetchFlexArea(fv)` via `flexFetchQueue` | up to 8 in flight, concurrent with census-values | One pass per feed version: fetches GTFS-Flex `Location` objects + slim multi-date `stop_times` to populate `FlexDepartureCache`. Same week-window chunking as schedules. |
 | 6 | `census-values` | `fetchCensusValues()` | one query, concurrent with flex-areas | When `tableDatasetName` + `aggregateLayer` are both set: calls `fetchCensusIntersection` at the user's `aggregateLayer`, returning per-geography `intersection_area` + raw ACS values for `REQUIRED_ACS_TABLES`. Skipped otherwise. Powers the choropleth, aggregation table, and census details panel. |
 
 Terminal stages on the wire: `complete` (final event), `ready` (initial event with `config`), `extra` (out-of-band debug payloads).
+
+### Departures are dated by calendar day, not GTFS service day
+
+GTFS counts a trip's stop times from the midnight its *service day* began, and runs past `24:00:00` for trips that continue after midnight. The departures phase resolves those onto the wall calendar: a `25:00:00` departure on a Monday service day is filed as `01:00:00` on the Tuesday. So `StopDepartureTuple`'s date is the day the departure actually happens, and its time is always `0..86399` seconds into that date.
+
+Two consequences worth knowing:
+
+- Anything bucketing by hour can take `floor(seconds / 3600)` directly — there are no 24+ hours downstream.
+- A window that should span midnight has to reach across two dates. WSDOT's night segments do this by counting hours from midnight of the analyzed weekday and running past 24, resolving hours `>= 24` against the following day's data.
 
 ## Streaming wire protocol
 
