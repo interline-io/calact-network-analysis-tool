@@ -225,6 +225,33 @@ describe('ScenarioFetcher', () => {
       expect(departureCalls(client)).toHaveLength(2)
     })
 
+    it('sends only a route\'s own stops in trips mode', async () => {
+      const client = new MockGraphQLClient()
+      function stop (id: number, routeIds: number[]) {
+        return {
+          ...stopsResponse.data.stops[0],
+          id,
+          route_stops: routeIds.map(rid => ({ route: { id: rid } })),
+        }
+      }
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
+        .mockResolvedValueOnce({ data: { stops: [stop(1, [10]), stop(2, [10, 20]), stop(3, [20])] } })
+        .mockResolvedValue({ data: {} })
+
+      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client)
+      await fetcher.fetch()
+
+      const tripCalls = client.mockQuery.mock.calls
+        .map(([, vars]) => vars)
+        .filter(vars => vars && 'ids' in vars && 'stopIds' in vars)
+      // 2 routes x 2 seven-day windows over the 8-day range
+      expect(tripCalls).toHaveLength(4)
+      for (const vars of tripCalls) {
+        expect(vars.stopIds).toEqual(vars.ids[0] === 10 ? [1, 2] : [2, 3])
+      }
+    })
+
     it('skips departure queries when includeDepartures is false', async () => {
       const client = new MockGraphQLClient()
       client.mockQuery

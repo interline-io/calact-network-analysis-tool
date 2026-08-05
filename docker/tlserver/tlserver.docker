@@ -2,10 +2,10 @@
 # the GTFS/census dumps are bind-mounted and restored on start, so refreshing
 # fixtures never means rebuilding this.
 FROM golang:1.26-bookworm AS build
-# Pinned for reproducibility. Carries the departures API the trips mode needs and
-# the `bbox` + `stop_buffer` composition the census clip tests need; neither is
-# in a tagged release yet.
-ARG TRANSITLAND_REF=3270e80ddbc9c993c25c5756982161299bfb8846
+# Pinned for reproducibility. Carries `TripFilter.dates`, which the trips-mode
+# departures query needs, and the `bbox` + `stop_buffer` composition the census
+# clip tests need; neither is in a tagged release yet.
+ARG TRANSITLAND_REF=9cfbc091364775e136281bcf323a4c1e7ae3c62f
 # Built from a checkout rather than `go install pkg@version`: transitland-lib's
 # go.mod carries a replace directive, which go install rejects unless the module
 # is the main module. CGO stays on — without it build constraints exclude the

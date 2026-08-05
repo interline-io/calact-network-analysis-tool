@@ -407,7 +407,7 @@ export class ScenarioFetcher {
     let scenarioStopIds: number[] = []
 
     if (enabled.has('stops')) {
-      const { stopIds, routeIds } = await runStopsPhase({
+      const { stopIds, routeIds, routeStopIds } = await runStopsPhase({
         feedVersions: fvRefs,
         bbox: this.config.bbox,
         geographyIds: this.config.geographyIds,
@@ -427,6 +427,7 @@ export class ScenarioFetcher {
             departureMode: this.config.departureMode,
             // 'trips' mode enters via route rather than stop.
             routeIds,
+            routeStopIds,
           }, this.client, emit, { onError })
         : Promise.resolve()
       const { agencyIds } = enabled.has('routes')
