@@ -1,10 +1,25 @@
 import { print } from 'graphql'
-import { graphqlTraceEnabled, logGraphqlTrace } from './debug'
 
 /**
  * GraphQL client implementations
  *
  */
+
+// Whether per-request tracing is on (`TL_LOG=trace`). Server-side and CLI only —
+// in the browser, use the network panel.
+function traceEnabled (): boolean {
+  return process.env.TL_LOG === 'trace'
+}
+
+interface Trace {
+  operation: string
+  query: string
+  variables?: unknown
+  elapsedMs: number
+  // Attempts consumed, including the one being traced.
+  attempts: number
+  error?: unknown
+}
 
 // Label for a traced request. Skips past any leading fragment definitions —
 // several documents colocate one, and a fragment has a name of its own that
@@ -19,6 +34,19 @@ function operationLabel (query: any): string {
     .map((s: any) => s?.name?.value)
     .filter(Boolean)
   return fields.length > 0 ? fields.join(',') : 'query'
+}
+
+// A summary line followed by the full request: the query as sent and every
+// variable, unabridged. Nothing is elided — a variable list you can't read in
+// full is a variable list you can't reproduce the request from.
+function logTrace (t: Trace): void {
+  const retried = t.attempts > 1 ? ` retries=${t.attempts - 1}` : ''
+  const status = t.error ? ` FAILED: ${t.error}` : ''
+  console.log(`[GQL ${t.operation}] ${t.elapsedMs}ms${retried}${status}`)
+  console.log(t.query.trim())
+  // Compact, not pretty-printed: a 1000-element id array would otherwise take
+  // 1000 lines and bury the query above it.
+  console.log(`variables: ${JSON.stringify(t.variables ?? {})}`)
 }
 
 /**
@@ -62,7 +90,7 @@ export class BasicGraphQLClient implements GraphQLClient {
       variables,
     }
 
-    const trace = graphqlTraceEnabled()
+    const trace = traceEnabled()
 
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -85,7 +113,7 @@ export class BasicGraphQLClient implements GraphQLClient {
           throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
         }
         if (trace) {
-          logGraphqlTrace({
+          logTrace({
             operation: operationLabel(query),
             query: queryString,
             variables,
@@ -103,7 +131,7 @@ export class BasicGraphQLClient implements GraphQLClient {
           await this.delay(this.retryDelay)
         } else {
           if (trace) {
-            logGraphqlTrace({
+            logTrace({
               operation: operationLabel(query),
               query: queryString,
               variables,
