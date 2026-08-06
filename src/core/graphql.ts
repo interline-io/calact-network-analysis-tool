@@ -1,24 +1,9 @@
 import { print } from 'graphql'
-import { graphqlTraceEnabled, logGraphqlTrace } from './debug'
 
 /**
  * GraphQL client implementations
  *
  */
-
-// Label for a traced request. Almost every document in this codebase is
-// anonymous, so the root field names are what usually identify it.
-// TODO: name our query documents so this falls back less often.
-function operationLabel (query: any): string {
-  const def = query?.definitions?.[0]
-  if (def?.name?.value) {
-    return def.name.value
-  }
-  const fields: string[] = (def?.selectionSet?.selections || [])
-    .map((s: any) => s?.name?.value)
-    .filter(Boolean)
-  return fields.length > 0 ? fields.join(',') : 'query'
-}
 
 /**
  * Interface for GraphQL client
@@ -60,14 +45,10 @@ export class BasicGraphQLClient implements GraphQLClient {
       query: queryString,
       variables,
     }
-
-    const trace = graphqlTraceEnabled()
+    // console.log('GraphQL request:', JSON.stringify(requestBody))
 
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      // Per attempt, so a traced time is the request's own, not the sum of
-      // earlier attempts and the retry sleeps between them.
-      const startedAt = trace ? Date.now() : 0
       try {
         const response = await this.fetch(this.baseUrl, {
           method: 'POST',
@@ -83,15 +64,6 @@ export class BasicGraphQLClient implements GraphQLClient {
         if (result.errors) {
           throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
         }
-        if (trace) {
-          logGraphqlTrace({
-            operation: operationLabel(query),
-            query: queryString,
-            variables,
-            elapsedMs: Date.now() - startedAt,
-            attempts: attempt + 1,
-          })
-        }
         return result
       } catch (error) {
         lastError = error as Error
@@ -101,16 +73,6 @@ export class BasicGraphQLClient implements GraphQLClient {
           console.warn(`GraphQL request failed (attempt ${attempt + 1}/${this.maxRetries + 1}), retrying in ${this.retryDelay}ms:`, error)
           await this.delay(this.retryDelay)
         } else {
-          if (trace) {
-            logGraphqlTrace({
-              operation: operationLabel(query),
-              query: queryString,
-              variables,
-              elapsedMs: Date.now() - startedAt,
-              attempts: attempt + 1,
-              error,
-            })
-          }
           console.error('GraphQL request failed after all retry attempts:', error)
         }
       }
