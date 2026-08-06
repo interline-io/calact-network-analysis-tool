@@ -18,7 +18,7 @@ fragment departure on StopTime {
   }
 }
 
-query (
+query StopDepartures(
   $ids: [Int!],
   $monday: Date,
   $tuesday: Date,
@@ -75,7 +75,7 @@ fragment departure on StopTime {
   }
 }
 
-query (
+query StopTimes(
   $ids: [Int!],
   $monday: Date,
   $tuesday: Date,
