@@ -141,11 +141,9 @@ async function fetchStopClusterInputs (
   return inputs
 }
 
-/**
- * The `stop-clusters` scenario phase: fetch proximity edges from PostGIS, derive
- * clusters, and emit them. Pure over its inputs; callers wrap `emit` with either
- * a stream sender (main scenario / standalone endpoint) or an accumulator.
- */
+// The `stop-clusters` scenario phase: fetch proximity edges from PostGIS, derive
+// clusters, and emit them. Pure over its inputs; callers wrap `emit` with either
+// a stream sender (main scenario / standalone endpoint) or an accumulator.
 export async function runStopClustersPhase (
   config: StopClusterFetchConfig,
   client: GraphQLClient,

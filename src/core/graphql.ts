@@ -8,6 +8,7 @@ import { graphqlTraceEnabled, logGraphqlTrace } from './debug'
 
 // Label for a traced request. Almost every document in this codebase is
 // anonymous, so the root field names are what usually identify it.
+// TODO: name our query documents so this falls back less often.
 function operationLabel (query: any): string {
   const def = query?.definitions?.[0]
   if (def?.name?.value) {
@@ -61,11 +62,12 @@ export class BasicGraphQLClient implements GraphQLClient {
     }
 
     const trace = graphqlTraceEnabled()
-    const startedAt = trace ? Date.now() : 0
-    let responseBytes = 0
 
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      // Per attempt, so a traced time is the request's own, not the sum of
+      // earlier attempts and the retry sleeps between them.
+      const startedAt = trace ? Date.now() : 0
       try {
         const response = await this.fetch(this.baseUrl, {
           method: 'POST',
@@ -76,17 +78,7 @@ export class BasicGraphQLClient implements GraphQLClient {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
-        // Responses are chunked, so Content-Length isn't set; the body has to
-        // be read as text to be measured. Only when tracing — it's an extra
-        // copy of a payload that can run to megabytes.
-        let result: any
-        if (trace) {
-          const text = await response.text()
-          responseBytes = new TextEncoder().encode(text).length
-          result = JSON.parse(text)
-        } else {
-          result = await response.json()
-        }
+        const result = await response.json()
 
         if (result.errors) {
           throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`)
@@ -97,7 +89,6 @@ export class BasicGraphQLClient implements GraphQLClient {
             query: queryString,
             variables,
             elapsedMs: Date.now() - startedAt,
-            responseBytes,
             attempts: attempt + 1,
           })
         }
@@ -116,7 +107,6 @@ export class BasicGraphQLClient implements GraphQLClient {
               query: queryString,
               variables,
               elapsedMs: Date.now() - startedAt,
-              responseBytes,
               attempts: attempt + 1,
               error,
             })
