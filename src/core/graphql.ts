@@ -29,7 +29,9 @@ function operationLabel (query: any): string {
   if (op?.name?.value) {
     return op.name.value
   }
-  // Fallback for a query passed as a string, or one left unnamed.
+  // No name: fall back to the root field names. Every document in the codebase
+  // is named, so this is for one that isn't yet; a query passed as a raw string
+  // has no AST to read at all and lands on 'query'.
   const fields: string[] = (op?.selectionSet?.selections || [])
     .map((s: any) => s?.name?.value)
     .filter(Boolean)
