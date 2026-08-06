@@ -6,15 +6,16 @@ import { graphqlTraceEnabled, logGraphqlTrace } from './debug'
  *
  */
 
-// Label for a traced request. Almost every document in this codebase is
-// anonymous, so the root field names are what usually identify it.
-// TODO: name our query documents so this falls back less often.
+// Label for a traced request. Skips past any leading fragment definitions —
+// several documents colocate one, and a fragment has a name of its own that
+// would otherwise be mistaken for the operation's.
 function operationLabel (query: any): string {
-  const def = query?.definitions?.[0]
-  if (def?.name?.value) {
-    return def.name.value
+  const op = (query?.definitions || []).find((d: any) => d?.kind === 'OperationDefinition')
+  if (op?.name?.value) {
+    return op.name.value
   }
-  const fields: string[] = (def?.selectionSet?.selections || [])
+  // Fallback for a query passed as a string, or one left unnamed.
+  const fields: string[] = (op?.selectionSet?.selections || [])
     .map((s: any) => s?.name?.value)
     .filter(Boolean)
   return fields.length > 0 ? fields.join(',') : 'query'

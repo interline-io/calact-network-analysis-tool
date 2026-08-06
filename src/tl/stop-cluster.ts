@@ -7,7 +7,7 @@ import { gql } from 'graphql-tag'
 // (for the cross-agency rule) and its in-radius neighbor ids (the cluster edges).
 
 export const stopClusterQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter, $radius: Float, $nearbyLimit: Int) {
+query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float, $nearbyLimit: Int) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     route_stops {
