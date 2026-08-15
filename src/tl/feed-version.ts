@@ -10,7 +10,7 @@ export interface FeedVersion {
 }
 
 export const feedVersionQuery = gql`
-query ($where: FeedFilter, $limit: Int, $after: Int) {
+query FeedVersions($where: FeedFilter, $limit: Int, $after: Int) {
   feeds(where: $where, limit: $limit, after: $after) {
     id
     onestop_id
@@ -49,7 +49,7 @@ export const DEPRIORITIZED_FEED_ONESTOP_IDS: ReadonlySet<string> = new Set([
 // Query panel's override summary can describe each pick without a second
 // query; the scenario-side consumer just ignores the extras.
 export const feedVersionsByIdsQuery = gql`
-query ($ids: [Int!]) {
+query FeedVersionsByIds($ids: [Int!]) {
   feed_versions(ids: $ids) {
     id
     sha1
@@ -153,7 +153,7 @@ export interface FeedVersionDetailWithFeed extends FeedVersionDetail {
 // otherwise drop it). service_levels use the same window/swap as the browse
 // query so the timeline renders consistently.
 export const pinnedFeedVersionsQuery = gql`
-query ($ids: [Int!], $serviceLevelStart: Date, $serviceLevelEnd: Date) {
+query PinnedFeedVersions($ids: [Int!], $serviceLevelStart: Date, $serviceLevelEnd: Date) {
   feed_versions(ids: $ids) {
     id
     sha1
@@ -212,7 +212,7 @@ query ($ids: [Int!], $serviceLevelStart: Date, $serviceLevelEnd: Date) {
 // windowStart → end_date to get rows overlapping [windowStart, windowEnd].
 // See transitland-lib/server/finders/dbfinder/feed_version.go.
 export const feedsForImportQuery = gql`
-query ($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date, $coversStart: Date, $coversEnd: Date) {
+query FeedsForImport($bbox: BoundingBox!, $serviceLevelStart: Date, $serviceLevelEnd: Date, $coversStart: Date, $coversEnd: Date) {
   feeds(limit: 100, where: { bbox: $bbox, spec: [GTFS] }) {
     id
     onestop_id

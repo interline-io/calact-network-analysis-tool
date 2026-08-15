@@ -7,7 +7,7 @@ import type { BufferGeographyIntersection } from './stop-buffer'
 //////////
 
 export const routeQuery = gql`
-query ($ids: [Int!], $where: RouteFilter) {
+query Routes($ids: [Int!], $where: RouteFilter) {
   routes(limit: 1000, ids: $ids, where: $where) {
     id
     route_id

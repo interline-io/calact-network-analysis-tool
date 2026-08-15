@@ -69,7 +69,7 @@ interface geographyIntersectionResponse {
 }
 
 export const geographyIntersectionQuery = gql`
-query (
+query GeographyIntersection(
   $geoDatasetName: String,
   $layer: String!,
   $tableNames: [String!]!,
@@ -147,7 +147,7 @@ export interface ClipIntersection {
 // clips to the intersection of both, so a geography absent from the result
 // overlaps neither.
 export const clipIntersectionQuery = gql`
-query (
+query ClipIntersection(
   $geoDatasetName: String,
   $layer: String!,
   $bbox: BoundingBox,

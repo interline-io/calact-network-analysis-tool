@@ -14,7 +14,7 @@ import type { BufferGeographyIntersection } from './stop-buffer'
 //////////
 
 export const stopQuery = gql`
-query ($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String) {
+query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
