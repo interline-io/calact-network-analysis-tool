@@ -1,6 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
-import { runDeparturesPhase, StopDepartureTuple, type DeparturesPhaseConfig, type StopDepartureTuple as Tuple } from './departures'
+import { frequencyDepartures, runDeparturesPhase, StopDepartureTuple, type DeparturesPhaseConfig, type StopDepartureTuple as Tuple } from './departures'
 import { parseDate, type GraphQLClient } from '~~/src/core'
+
+// 'HH:MM' to GTFS seconds and back, so expectations read as clock times. Hours
+// past 24 are kept, since a generated departure can run past midnight.
+function hms (s: string): number {
+  const [h, m, sec = '0'] = s.split(':')
+  return Number(h) * 3600 + Number(m) * 60 + Number(sec)
+}
+
+function hhmm (seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor(seconds / 60) % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 
 class MockGraphQLClient implements GraphQLClient {
   mockQuery = vi.fn().mockResolvedValue({ data: { routes: [] } })
@@ -130,5 +143,100 @@ describe('runDeparturesPhase calendar days', () => {
       tripResponse('25:00:00', ['2024-07-03', '2024-07-04']),
     )
     expect(out.map(t => StopDepartureTuple.departureDate(t))).toEqual(['2024-07-04', '2024-07-05'])
+  })
+})
+
+describe('frequencyDepartures', () => {
+  // One band, matching testdata's STBA: 06:00 to 22:00 every 30 minutes.
+  function band (start: string, end: string, headway: number, anchor = '06:00:00') {
+    return {
+      start_time: start,
+      end_time: end,
+      headway_secs: headway,
+      trip: { stop_times: [{ departure_time: anchor }] },
+    }
+  }
+
+  it('repeats the trip from start_time, ending inclusively', () => {
+    // 06:00 to 07:00 every 30 minutes, at the trip's first stop.
+    expect(frequencyDepartures([band('06:00:00', '07:00:00', 1800)], hms('06:00'))
+      .map(hhmm)).toEqual(['06:00', '06:30', '07:00'])
+  })
+
+  it('stops short when a headway overruns end_time', () => {
+    // CITY1's first band: 06:00:00 to 07:59:59, so 08:00 is not generated.
+    expect(frequencyDepartures([band('06:00:00', '07:59:59', 1800)], hms('06:00'))
+      .map(hhmm)).toEqual(['06:00', '06:30', '07:00', '07:30'])
+  })
+
+  it('offsets a later stop by its distance from the first departure', () => {
+    // CITY1 reaches NADAV at 06:14, fourteen minutes along the trip.
+    expect(frequencyDepartures([band('06:00:00', '07:00:00', 1800)], hms('06:14'))
+      .map(hhmm)).toEqual(['06:14', '06:44', '07:14'])
+  })
+
+  it('generates every band', () => {
+    const bands = [band('06:00:00', '07:00:00', 1800), band('08:00:00', '08:30:00', 600)]
+    expect(frequencyDepartures(bands, hms('06:00')).map(hhmm))
+      .toEqual(['06:00', '06:30', '07:00', '08:00', '08:10', '08:20', '08:30'])
+  })
+
+  it('carries a generated departure past midnight', () => {
+    // A 23:30 band on a trip whose stop is 90 minutes along.
+    expect(frequencyDepartures([band('23:30:00', '23:30:00', 1800)], hms('07:30')))
+      .toEqual([hms('25:00')])
+  })
+
+  // The anchor comes from the unfiltered trip, so a stop time earlier than it
+  // cannot arise from real data; guard the arithmetic anyway.
+  it('returns nothing without an anchor', () => {
+    const noTrip = { start_time: '06:00:00', end_time: '07:00:00', headway_secs: 1800 }
+    expect(frequencyDepartures([noTrip], hms('06:00'))).toEqual([])
+    expect(frequencyDepartures([{ ...noTrip, trip: { stop_times: [] } }], hms('06:00'))).toEqual([])
+  })
+
+  it('skips a band with a non-positive headway', () => {
+    expect(frequencyDepartures([band('06:00:00', '07:00:00', 0)], hms('06:00'))).toEqual([])
+  })
+})
+
+describe('runDeparturesPhase frequencies', () => {
+  it('replaces a frequency trip stop times with the generated departures', async () => {
+    const client = new MockGraphQLClient()
+    client.mockQuery.mockResolvedValue({
+      data: {
+        routes: [{
+          id: 10,
+          trips: [{
+            id: 100,
+            direction_id: 0,
+            trip_id: 't1',
+            service_dates: ['2024-07-03'],
+            stop_times: [{ stop: { id: 1 }, departure_time: '06:00:00', pickup_type: 0 }],
+            frequencies: [{
+              start_time: '06:00:00',
+              end_time: '07:00:00',
+              headway_secs: 1800,
+              trip: { stop_times: [{ departure_time: '06:00:00' }] },
+            }],
+          }],
+        }],
+      },
+    })
+    const out: Tuple[] = []
+    await runDeparturesPhase(
+      {
+        stopIds: [1],
+        routeIds: [10],
+        routeStopIds: { 10: [1] },
+        startDate: parseDate('2024-07-03'),
+        endDate: parseDate('2024-07-03'),
+      },
+      client,
+      (p) => { for (const t of p.partialData?.stopDepartures || []) { out.push(t) } },
+    )
+    // Three departures from one stop time, not the one stop time itself.
+    expect(out.map(t => StopDepartureTuple.departureTime(t)))
+      .toEqual([hms('06:00'), hms('06:30'), hms('07:00')])
   })
 })

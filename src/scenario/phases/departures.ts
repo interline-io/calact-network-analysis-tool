@@ -10,7 +10,7 @@
 
 import { format } from 'date-fns'
 import { chunkArray, parseHMS, TaskQueue, type GraphQLClient } from '~~/src/core'
-import { routeTripsQuery, type RouteTripsResponse } from '~~/src/tl'
+import { routeTripsQuery, type RouteTripFrequency, type RouteTripsResponse } from '~~/src/tl'
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
@@ -93,6 +93,46 @@ function calendarDeparture (serviceDate: string, seconds: number): { date: strin
   return { date: format(d, 'yyyy-MM-dd'), seconds: secondsIntoDay }
 }
 
+// A trip's first departure, which generated departures are measured from.
+// Reached through the frequency's trip so it survives the stop_ids filter on
+// the trip's own stop times.
+function frequencyAnchor (frequencies: RouteTripFrequency[]): number | null {
+  for (const f of frequencies) {
+    const st = f.trip?.stop_times?.[0]
+    if (st?.departure_time) {
+      return parseHMS(st.departure_time)
+    }
+  }
+  return null
+}
+
+// When one stop time of a frequency-based trip departs, in GTFS seconds from
+// the service day's midnight.
+//
+// Such a trip's stop times state travel times rather than real departures: the
+// trip repeats every headway_secs from start_time, and each repetition reaches
+// a stop at that stop's offset from the trip's first departure. end_time counts
+// when a headway lands exactly on it. Returns nothing without an anchor, since
+// the offsets cannot be placed.
+export function frequencyDepartures (frequencies: RouteTripFrequency[], stopTimeSeconds: number): number[] {
+  const anchor = frequencyAnchor(frequencies)
+  if (anchor === null) {
+    return []
+  }
+  const offset = stopTimeSeconds - anchor
+  const departures: number[] = []
+  for (const f of frequencies) {
+    if (f.headway_secs <= 0) {
+      continue
+    }
+    const end = parseHMS(f.end_time)
+    for (let t = parseHMS(f.start_time); t <= end; t += f.headway_secs) {
+      departures.push(t + offset)
+    }
+  }
+  return departures
+}
+
 // Departures via route -> trips -> stop_times instead of per (stop, date).
 // Trips carry their service dates once; this expands them back into a flat
 // StopDepartureTuple stream keyed by calendar date.
@@ -143,24 +183,32 @@ export async function runDeparturesPhase (
         }
         // The fan-out the backend no longer does: one tuple per stop time per
         // date the trip runs.
+        const frequencies = trip.frequencies || []
         for (const st of trip.stop_times || []) {
-          const gtfsSeconds = parseHMS(st.departure_time)
-          for (const serviceDate of trip.service_dates || []) {
-            // Service dates reach one day before the requested range;
-            // departures resolving outside it belong to a neighbouring task.
-            const departure = calendarDeparture(serviceDate, gtfsSeconds)
-            if (!requested.has(departure.date)) {
-              continue
+          const stopTimeSeconds = parseHMS(st.departure_time)
+          // A frequency-based trip's generated departures replace its stop
+          // times rather than adding to them.
+          const departureSeconds = frequencies.length > 0
+            ? frequencyDepartures(frequencies, stopTimeSeconds)
+            : [stopTimeSeconds]
+          for (const gtfsSeconds of departureSeconds) {
+            for (const serviceDate of trip.service_dates || []) {
+              // Service dates reach one day before the requested range;
+              // departures resolving outside it belong to a neighbouring task.
+              const departure = calendarDeparture(serviceDate, gtfsSeconds)
+              if (!requested.has(departure.date)) {
+                continue
+              }
+              stopDepartures.push(StopDepartureTuple.create(
+                st.stop.id,
+                departure.date,
+                departure.seconds,
+                trip.id,
+                trip.direction_id,
+                route.id,
+                st.pickup_type ?? null,
+              ))
             }
-            stopDepartures.push(StopDepartureTuple.create(
-              st.stop.id,
-              departure.date,
-              departure.seconds,
-              trip.id,
-              trip.direction_id,
-              route.id,
-              st.pickup_type ?? null,
-            ))
           }
         }
       }

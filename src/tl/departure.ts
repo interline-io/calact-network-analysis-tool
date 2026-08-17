@@ -37,6 +37,16 @@ query RouteTrips($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
         departure_time
         pickup_type
       }
+      frequencies {
+        start_time
+        end_time
+        headway_secs
+        trip {
+          stop_times(limit: 1) {
+            departure_time
+          }
+        }
+      }
     }
   }
 }`
@@ -48,12 +58,27 @@ export interface RouteTripStopTime {
   pickup_type?: number | null
 }
 
+// A frequencies.txt entry. The trip's first departure comes back through the
+// trip back-reference because the sibling stop_times selection is filtered to
+// the scenario's stops and may not include the trip's first stop.
+export interface RouteTripFrequency {
+  start_time: string
+  end_time: string
+  headway_secs: number
+  trip?: {
+    stop_times: { departure_time: string }[]
+  }
+}
+
 export interface RouteTrip {
   id: number
   direction_id: number
   trip_id: string
   service_dates: string[]
   stop_times: RouteTripStopTime[]
+  // Present only for frequency-based trips, where stop_times is a travel-time
+  // template rather than a set of real departures.
+  frequencies?: RouteTripFrequency[]
 }
 
 export interface RouteTripsResponse {

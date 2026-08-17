@@ -5,7 +5,7 @@ FROM golang:1.26-bookworm AS build
 # Pinned for reproducibility. Carries `TripFilter.dates`, which the trips-mode
 # departures query needs, and the `bbox` + `stop_buffer` composition the census
 # clip tests need; neither is in a tagged release yet.
-ARG TRANSITLAND_REF=1211ea741751518c9dea31007b34991ee9caccee
+ARG TRANSITLAND_REF=5b80c14e5340640c2ddca949856afb31919c8a0e
 # Built from a checkout rather than `go install pkg@version`: transitland-lib's
 # go.mod carries a replace directive, which go install rejects unless the module
 # is the main module. CGO stays on — without it build constraints exclude the
