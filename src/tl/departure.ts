@@ -30,7 +30,7 @@ query RouteTrips($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
       direction_id
       trip_id
       service_dates
-      stop_times(limit: 100000, where: {stop_ids: $stopIds}) {
+      stop_times(limit: 1000, where: {stop_ids: $stopIds}) {
         stop {
           id
         }
@@ -42,7 +42,7 @@ query RouteTrips($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
         end_time
         headway_secs
         trip {
-          stop_times(limit: 1) {
+          stop_times {
             departure_time
           }
         }

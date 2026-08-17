@@ -186,6 +186,12 @@ export async function runDeparturesPhase (
         const frequencies = trip.frequencies || []
         for (const st of trip.stop_times || []) {
           const stopTimeSeconds = parseHMS(st.departure_time)
+          // A feed may leave departure_time blank at a non-timepoint stop. The
+          // stop-oriented path dropped those server-side; keeping them would
+          // resolve -1 seconds onto the previous day at 23:59:59.
+          if (stopTimeSeconds < 0) {
+            continue
+          }
           // A frequency-based trip's generated departures replace its stop
           // times rather than adding to them.
           const departureSeconds = frequencies.length > 0

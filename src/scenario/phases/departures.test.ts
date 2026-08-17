@@ -240,3 +240,42 @@ describe('runDeparturesPhase frequencies', () => {
       .toEqual([hms('06:00'), hms('06:30'), hms('07:00')])
   })
 })
+
+describe('runDeparturesPhase blank departure times', () => {
+  it('drops a stop time with no departure_time', async () => {
+    // Feeds may leave departure_time blank at a non-timepoint stop; parseHMS
+    // returns -1, which would otherwise land on the previous day at 23:59:59.
+    const client = new MockGraphQLClient()
+    client.mockQuery.mockResolvedValue({
+      data: {
+        routes: [{
+          id: 10,
+          trips: [{
+            id: 100,
+            direction_id: 0,
+            trip_id: 't1',
+            service_dates: ['2024-07-03', '2024-07-04'],
+            stop_times: [
+              { stop: { id: 1 }, departure_time: null, pickup_type: 0 },
+              { stop: { id: 2 }, departure_time: '08:00:00', pickup_type: 0 },
+            ],
+          }],
+        }],
+      },
+    })
+    const out: Tuple[] = []
+    await runDeparturesPhase(
+      {
+        stopIds: [1, 2],
+        routeIds: [10],
+        routeStopIds: { 10: [1, 2] },
+        startDate: parseDate('2024-07-03'),
+        endDate: parseDate('2024-07-04'),
+      },
+      client,
+      (p) => { for (const t of p.partialData?.stopDepartures || []) { out.push(t) } },
+    )
+    expect(out.map(t => StopDepartureTuple.stopId(t))).toEqual([2, 2])
+    expect(out.map(t => StopDepartureTuple.departureTime(t))).toEqual([hms('08:00'), hms('08:00')])
+  })
+})
