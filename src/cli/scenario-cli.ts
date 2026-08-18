@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { format, nextMonday, nextSunday } from 'date-fns'
-import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~~/src/core'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS, STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 import { runScenarioFetcher } from '~~/src/scenario'
 
@@ -15,6 +15,8 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--aggregate-layer <layer>', 'Census geography layer for aggregation (e.g., tract, bg)', 'tract')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
+    .option('--stop-buffer-radius <meters>', 'Stop buffer radius in meters; > 0 enables the per-stop/route/agency buffer passes', '0')
+    .option('--stop-buffer-layer <layer>', 'Census geography layer the buffer passes intersect against', STOP_BUFFER_DEFAULT_LAYER)
     .option('--no-schedule', 'Disable schedule fetching')
 }
 
@@ -34,6 +36,11 @@ export function configureScenarioCli (program: Command) {
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
         geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
+        // The buffer and census-values phases both gate on this, so the CLI
+        // only reaches them once it is set.
+        tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+        stopBufferRadius: Number(opts.stopBufferRadius) || 0,
+        stopBufferLayer: opts.stopBufferLayer,
       }
 
       const client = new BasicGraphQLClient(
@@ -112,6 +119,8 @@ export interface ScenarioCliOptions {
   endTime: string
   output: string
   aggregateLayer: string
+  stopBufferRadius: string
+  stopBufferLayer: string
   saveScenarioData?: string
   schedule?: boolean
 }

@@ -5,6 +5,7 @@
 import {
   type GraphQLClient,
   chunkArray,
+  TaskQueue,
   REQUIRED_ACS_TABLES,
 } from '~~/src/core'
 import {
@@ -14,11 +15,12 @@ import {
   type BufferGeographyIntersection,
 } from '~~/src/tl'
 import type { ScenarioProgress } from './scenario'
-import { phaseDone } from './phases/common'
+import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './phases/common'
 
-// Smaller than the stop batch because each route/agency expands to its full
-// stop set server-side, multiplying per-request cost.
-const BUFFER_ENTITY_BATCH_SIZE = 50
+// One route/agency per request. The server resolves these kinds an entity at a
+// time — a batch of N is N sequential queries inside one request — so batching
+// buys nothing but a longer request. Concurrency comes from the queue instead.
+const BUFFER_ENTITY_BATCH_SIZE = 1
 
 const BUFFER_PASS_BY_KIND = {
   stops: { stage: 'stop-buffer-geographies', partialKey: 'stopBufferGeographies' },
@@ -36,7 +38,7 @@ export interface BufferFetchConfig {
   agencyIds: number[]
   // Default 100 — matches ScenarioFetcher's stopTimeBatchSize.
   stopChunkSize?: number
-  // Default 50 — matches BUFFER_ENTITY_BATCH_SIZE.
+  // Default 1 — matches BUFFER_ENTITY_BATCH_SIZE.
   entityChunkSize?: number
 }
 
@@ -46,6 +48,7 @@ export async function runBufferPasses (
   config: BufferFetchConfig,
   client: GraphQLClient,
   emit: (progress: ScenarioProgress) => void,
+  opts: PhaseOpts = {},
 ): Promise<void> {
   const stopChunkSize = config.stopChunkSize ?? 100
   const entityChunkSize = config.entityChunkSize ?? BUFFER_ENTITY_BATCH_SIZE
@@ -73,18 +76,37 @@ export async function runBufferPasses (
     return
   }
 
+  // A queue per kind rather than one over all three, so the stage a chunk
+  // reports stays stable for the duration of its pass.
   for (const { kind, ids, batchSize } of passes) {
-    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
-    for (const chunk of chunkArray(ids, batchSize)) {
-      const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
-      completedChunks += 1
-      emit({
-        isLoading: true,
-        currentStage: stage,
-        partialData: { [partialKey]: results },
-        phaseProgress: { phase: 'buffers', completed: completedChunks, total: totalChunks },
-      })
+    const chunks = chunkArray(ids, batchSize)
+    if (chunks.length === 0) {
+      continue
     }
+    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
+    let completedInPass = 0
+    const progressEvent = (): ScenarioProgress => ({
+      isLoading: true,
+      currentStage: stage,
+      phaseProgress: { phase: 'buffers', completed: completedChunks + completedInPass, total: totalChunks },
+    })
+    const queue = new TaskQueue<number[]>(
+      PHASE_MAX_CONCURRENT_REQUESTS,
+      async (chunk) => {
+        const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
+        emit({ ...progressEvent(), partialData: { [partialKey]: results } })
+      },
+      {
+        onProgress: (completed) => {
+          completedInPass = completed
+          emit(progressEvent())
+        },
+        onError: error => opts.onError?.(error),
+      },
+    )
+    queue.enqueue(chunks)
+    await queue.run()
+    completedChunks += chunks.length
   }
 
   // Pass F — server-side union of every stop's buffer ∩ tracts.

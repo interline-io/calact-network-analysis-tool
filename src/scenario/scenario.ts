@@ -4,6 +4,7 @@ import {
   type Weekday,
   type Bbox,
   type GraphQLClient,
+  type RequestFailure,
   GenericStreamReceiver,
   GenericStreamSender,
   multiplexStream,
@@ -29,6 +30,8 @@ import {
   runDeparturesPhase,
   runFlexPhase,
   runCensusValuesPhase,
+  createFailureReporter,
+  type FailureReporter,
   StopDepartureTuple,
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
@@ -188,6 +191,9 @@ export interface ScenarioProgress {
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
+  // Requests that failed after exhausting their retries. The run continues, so
+  // the consumer must show these — the results are incomplete without them.
+  requestErrors?: RequestFailure[]
   // The enabled phases for this run, in pipeline order. Emitted once at the
   // start of a fetch; drives the weighted overall progress bar.
   phasePlan?: ScenarioPhaseName[]
@@ -311,6 +317,13 @@ export class ScenarioFetcher {
   private callbacks: ScenarioCallbacks
   private client: GraphQLClient
 
+  // The stage a request-failure report is attributed to, so reporting one
+  // doesn't rewind the stage the loading modal is displaying.
+  private lastStage: ScenarioProgress['currentStage'] = 'ready'
+
+  // Installed for the duration of `fetch()`.
+  private failures?: FailureReporter
+
   // Latest per-phase queue counters, summed into the legacy progress fields
   // so every emitted event carries pipeline-wide numbers (the loading modal
   // computes its percentage from these).
@@ -329,17 +342,27 @@ export class ScenarioFetcher {
   }
 
   async fetch () {
+    // Installed for the whole run: every failed request reports through it,
+    // whichever phase issued it, so a partial result is never silently partial.
+    this.failures = createFailureReporter(
+      this.client,
+      progress => this.emitProgress(progress),
+      () => this.lastStage,
+    )
     try {
       await this.fetchMain()
     } catch (error) {
       this.callbacks.onError?.(error)
       throw error
+    } finally {
+      this.failures.dispose()
     }
   }
 
   // Phase emissions carry only their own queue counters; route them into the
   // right slot and re-emit with the summed pipeline totals attached.
   private emitProgress (progress: ScenarioProgress): void {
+    this.lastStage = progress.currentStage
     if (progress.feedVersionProgress) {
       if (progress.currentStage === 'stops') {
         this.stopsProgress = progress.feedVersionProgress
@@ -364,7 +387,8 @@ export class ScenarioFetcher {
   private async fetchMain () {
     logMemory('fetchMain-start')
     const emit = (progress: ScenarioProgress) => this.emitProgress(progress)
-    const onError = (error: any) => this.callbacks.onError?.(error)
+    // A failed task doesn't abort its phase — it reports and the rest continue.
+    const onError = (error: any) => this.failures?.onError(error)
 
     // Announce the plan before any work so the progress bar can apportion
     // its slices across exactly the phases this run will execute. The same
@@ -426,9 +450,8 @@ export class ScenarioFetcher {
       await departuresPromise
       logMemory('after-departures')
 
-      // Serial batched (no measured need for concurrency at current entity counts).
       if (enabled.has('buffers')) {
-        await this.fetchBufferData(stopIds, routeIds, agencyIds)
+        await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
       }
       logMemory('after-buffer-passes')
 
@@ -486,7 +509,7 @@ export class ScenarioFetcher {
   // /api/buffer-geographies on radius/layer changes. Gating is the plan's
   // job (PHASE_ENABLED) — this guard exists for type narrowing and would
   // only fire on a plan/config inconsistency bug.
-  private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[]): Promise<void> {
+  private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[], onError: (error: any) => void): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
     if (radius <= 0 || !tableDatasetName) {
@@ -505,6 +528,7 @@ export class ScenarioFetcher {
       },
       this.client,
       progress => this.emitProgress(progress),
+      { onError },
     )
   }
 

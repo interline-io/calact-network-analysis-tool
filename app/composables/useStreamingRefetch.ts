@@ -13,6 +13,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
+import type { RequestFailure } from '~~/src/core'
 
 export interface StreamingRefetchDeps {
   // Shared with the main fetch path so refetched slices land in the same
@@ -24,6 +25,9 @@ export interface StreamingRefetchDeps {
   loadingProgress: Ref<ScenarioProgress | undefined>
   showLoadingModal: Ref<boolean>
   error: Ref<any>
+  // Shared with the main run: failures reported by this refetch's requests land
+  // here too, and hold the modal open so an incomplete recompute is visible.
+  requestErrors: Ref<RequestFailure[]>
   // Weighted progress-bar state shared with the loading modal; the refetch
   // installs a single-phase plan so the bar tracks just this pass.
   phasePlan: Ref<ScenarioPhaseName[] | undefined>
@@ -97,6 +101,11 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
 
     deps.refetchInFlight.value++
+    // Only the first refetch of a burst clears; a later one must not discard
+    // failures a sibling still in flight has already reported.
+    if (deps.refetchInFlight.value === 1) {
+      deps.requestErrors.value = []
+    }
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
       isLoading: true,
@@ -143,8 +152,9 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       if (abort === localAbort) {
         abort = undefined
       }
-      // Only the last refetch standing tears down the shared loading state.
-      if (deps.refetchInFlight.value === 0) {
+      // Only the last refetch standing tears down the shared loading state, and
+      // only when nothing failed — a failure report has to stay on screen.
+      if (deps.refetchInFlight.value === 0 && deps.requestErrors.value.length === 0) {
         deps.showLoadingModal.value = false
         deps.loadingProgress.value = undefined
       }
