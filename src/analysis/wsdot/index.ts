@@ -1,6 +1,7 @@
 import {
   requestStream,
   fmtDate,
+  parseDate,
   type GraphQLClient,
   type Geometry,
   type Bbox,
@@ -62,13 +63,23 @@ export interface WSDOTReportConfig extends ScenarioConfig {
 // night segments. Everything else in the scenario's date range is fetched (the
 // client's map and tables show it) but never folded.
 //
-// The config crosses a JSON boundary on the server, so these arrive as ISO
-// strings at runtime; `.valueOf()` feeds `new Date()` either way.
+// The config crosses a JSON boundary on the server, so these are strings at
+// runtime rather than the Dates the type states.
 export function wsdotReportDates (config: WSDOTReportConfig): Date[] {
-  const weekday = new Date(config.weekdayDate.valueOf())
+  const weekday = configDate(config.weekdayDate)
   const overnight = new Date(weekday.valueOf())
   overnight.setDate(overnight.getDate() + 1)
-  return [weekday, new Date(config.weekendDate.valueOf()), overnight]
+  return [weekday, configDate(config.weekendDate), overnight]
+}
+
+// A bare `yyyy-MM-dd` is parsed as local midnight. `new Date()` would read it
+// as UTC midnight, which lands on the day before west of Greenwich, and the
+// dates the departures phase files under are local.
+function configDate (value: Date | string): Date {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return parseDate(value)!
+  }
+  return new Date(value.valueOf())
 }
 
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
