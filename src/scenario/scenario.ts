@@ -426,9 +426,8 @@ export class ScenarioFetcher {
       await departuresPromise
       logMemory('after-departures')
 
-      // Serial batched (no measured need for concurrency at current entity counts).
       if (enabled.has('buffers')) {
-        await this.fetchBufferData(stopIds, routeIds, agencyIds)
+        await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
       }
       logMemory('after-buffer-passes')
 
@@ -486,7 +485,7 @@ export class ScenarioFetcher {
   // /api/buffer-geographies on radius/layer changes. Gating is the plan's
   // job (PHASE_ENABLED) — this guard exists for type narrowing and would
   // only fire on a plan/config inconsistency bug.
-  private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[]): Promise<void> {
+  private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[], onError: (error: any) => void): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
     if (radius <= 0 || !tableDatasetName) {
@@ -505,6 +504,7 @@ export class ScenarioFetcher {
       },
       this.client,
       progress => this.emitProgress(progress),
+      { onError },
     )
   }
 
