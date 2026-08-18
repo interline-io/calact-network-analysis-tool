@@ -61,7 +61,8 @@ describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integratio
       agencyIds: [],
     }, client, p => events.push(p))
 
-    const stopEvents = events.filter(e => e.currentStage === 'stop-buffer-geographies')
+    // Chunks emit a data event and a progress tick; only the former carries results.
+    const stopEvents = events.filter(e => e.partialData?.stopBufferGeographies)
     expect(stopEvents.length).toBeGreaterThan(0)
 
     // Each emitted chunk reports tracts for the input stops, by stop id.
@@ -98,8 +99,8 @@ describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integratio
       agencyIds: [],
     }, client, (p) => {
       events.push(p)
-      if (p.currentStage === 'stop-buffer-geographies') {
-        for (const [, geos] of p.partialData!.stopBufferGeographies!) {
+      if (p.partialData?.stopBufferGeographies) {
+        for (const [, geos] of p.partialData.stopBufferGeographies) {
           perStopGeographyCount += geos.length
         }
       }

@@ -25,8 +25,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'at least one of stopIds/routeIds/agencyIds must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'Starting buffer refetch', async (client, emit) => {
-    await runBufferPasses(config, client, emit)
+  return streamPhaseResponse(event, 'Starting buffer refetch', async (client, emit, onError) => {
+    await runBufferPasses(config, client, emit, { onError })
     logMemory('buffer-stream-complete')
   })
 })
