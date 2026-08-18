@@ -12,6 +12,7 @@ import { fetchCensusIntersection, type CensusGeographyFeature, type StopTimeCach
 import {
   SERVICE_LEVELS,
   processServiceLevel,
+  parseHour,
   type StopFrequencyData,
   type RouteFrequencyData,
 } from './service-levels'
@@ -455,13 +456,6 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     console.log(`\thour ${i}: ${totalHourlyDepartures.get(i) || 0} departures`)
   }
   return { stops, routes }
-}
-
-// Hour of the calendar day, 0-23. Departures are already normalized to their
-// calendar date by the departures phase, so GTFS 24+ hour times don't reach
-// here — an after-midnight trip arrives as an early hour of the following day.
-function parseHour (seconds: number): number {
-  return Math.floor(seconds / 3600)
 }
 
 ////////////////

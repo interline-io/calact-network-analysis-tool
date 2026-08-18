@@ -125,6 +125,18 @@ export interface RouteFrequencyData {
   stopIds: Set<number>
 }
 
+// Hour of the calendar day, 0-23. Departures are filed under the calendar date
+// they fall on but keep the feed's seconds, so an after-midnight trip arrives on
+// the right day reading 24:00:00 or later and folds back to an early hour.
+//
+// processNightSegments depends on this: its 24-28 segment hours are looked up as
+// `hour % 24` in the following day's map, which only lines up if the buckets were
+// folded the same way.
+export function parseHour (seconds: number): number {
+  const hour = Math.floor(seconds / 3600)
+  return hour >= 24 ? hour - 24 : hour
+}
+
 export function processServiceLevel (
   config: ServiceLevelConfig,
   weekdayFreq: { stops: Map<number, StopFrequencyData>, routes: Map<number, RouteFrequencyData> },

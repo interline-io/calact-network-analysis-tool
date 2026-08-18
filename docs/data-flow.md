@@ -76,12 +76,15 @@ Terminal stages on the wire: `complete` (final event), `ready` (initial event wi
 
 ### Departures are dated by calendar day, not GTFS service day
 
-GTFS counts a trip's stop times from the midnight its *service day* began, and runs past `24:00:00` for trips that continue after midnight. The departures phase resolves those onto the wall calendar: a `25:00:00` departure on a Monday service day is filed as `01:00:00` on the Tuesday. So `StopDepartureTuple`'s date is the day the departure actually happens, and its time is always `0..86399` seconds into that date.
+GTFS counts a trip's stop times from the midnight its *service day* began, and runs past `24:00:00` for trips that continue after midnight. The departures phase resolves the *date* onto the wall calendar — a `25:00:00` departure on a Monday service day is filed under the Tuesday — but leaves the *time* as the feed states it. So `StopDepartureTuple`'s date is the day the departure actually happens, and its time still reads `90000`, not `3600`.
 
-Two consequences worth knowing:
+The split is deliberate: consumers treat `86400` as the end of a day, so keeping the raw seconds is what makes a `00:00:00`-`24:00:00` window exclude an after-midnight trip rather than counting it as an early-morning one. It also means `seconds >= 86400` identifies a departure as belonging to the previous service day, which is the only marker available for telling an overnight break apart from a headway.
 
-- Anything bucketing by hour can take `floor(seconds / 3600)` directly — there are no 24+ hours downstream.
-- A window that should span midnight has to reach across two dates. WSDOT's night segments do this by counting hours from midnight of the analyzed weekday and running past 24, resolving hours `>= 24` against the following day's data.
+Three consequences worth knowing:
+
+- Anything bucketing by hour must fold 24+ back into range rather than taking `floor(seconds / 3600)` directly. WSDOT's `parseHour` does this.
+- Sorting a date's departures by their stored seconds is not wall-clock order: `05:00` (18000) sorts before `24:30` (88200). Sort by `seconds % 86400` when order matters.
+- A window that should span midnight has to reach across two dates. WSDOT's night segments do this by counting hours from midnight of the analyzed weekday and running past 24, resolving hours `>= 24` against the following day's data at `hour % 24`.
 
 ## Streaming wire protocol
 
