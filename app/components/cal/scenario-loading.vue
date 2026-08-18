@@ -24,8 +24,22 @@
       {{ typeof error === 'string' ? error : error?.message }}
     </cat-msg>
 
+    <!-- Requests that failed after every retry: the results are missing whatever
+         they would have returned. -->
+    <cat-msg
+      v-if="requestErrors && requestErrors.length > 0"
+      variant="warning"
+      :title="`${requestErrors.length} request${requestErrors.length === 1 ? '' : 's'} failed — results are incomplete`"
+    >
+      <ul class="cal-request-error-list">
+        <li v-for="(failure, idx) in requestErrors" :key="idx">
+          <strong>{{ failure.operation }}</strong> ({{ failure.attempts }} attempts): {{ failure.message }}
+        </li>
+      </ul>
+    </cat-msg>
+
     <!-- Completion Status -->
-    <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
+    <div v-if="progress?.currentStage === 'complete' && !error && !requestErrors?.length" class="completion-status">
       <cat-icon icon="check-circle" class="mr-2" />
       Scenario data loading completed successfully!
     </div>
@@ -85,6 +99,7 @@
 
 <script lang="ts" setup>
 import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
+import type { RequestFailure } from '~~/src/core'
 
 // Props. Phase plan/fractions are accumulated by the parent inside the
 // stream receiver callback — every event is seen there. (A `watch` on the
@@ -94,6 +109,7 @@ import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName, type ScenarioProgress, 
 const props = withDefaults(defineProps<{
   progress?: ScenarioProgress
   error?: Error | string
+  requestErrors?: RequestFailure[]
   scenarioData?: ScenarioData
   stopDepartureCount?: number
   phasePlan?: ScenarioPhaseName[]
@@ -164,6 +180,11 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
 </script>
 
 <style scoped>
+.cal-request-error-list {
+  list-style: disc outside;
+  margin-left: 1.5rem;
+}
+
 .progress-section {
   margin-bottom: 1.5rem;
 }

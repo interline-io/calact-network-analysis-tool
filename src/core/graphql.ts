@@ -51,12 +51,27 @@ function logTrace (t: Trace): void {
   console.log(`variables: ${JSON.stringify(t.variables ?? {})}`)
 }
 
+// A request that failed after every retry was spent. Retried attempts that
+// eventually succeed are not reported.
+export interface RequestFailure {
+  operation: string
+  variables?: unknown
+  // Attempts consumed, including the one that failed last.
+  attempts: number
+  message: string
+}
+
 /**
  * Interface for GraphQL client
  * Implementations should provide the actual GraphQL query execution
  */
 export interface GraphQLClient {
   query<T = any>(query: any, variables?: any): Promise<{ data?: T }>
+  // Assigned by the caller to collect failed requests for display. The failure
+  // still throws to the caller; this only makes it reportable. The original
+  // error is passed alongside so a caller that also sees the throw can tell
+  // it has already been reported.
+  onRequestError?: (failure: RequestFailure, error: unknown) => void
 }
 
 type fetcher = (url: string, options?: RequestInit) => Promise<Response>
@@ -69,6 +84,9 @@ export class BasicGraphQLClient implements GraphQLClient {
   private fetch: fetcher
   private maxRetries: number
   private retryDelay: number
+
+  // See GraphQLClient.onRequestError.
+  onRequestError?: (failure: RequestFailure, error: unknown) => void
 
   constructor (baseUrl: string, apiFetch: fetcher, options?: { maxRetries?: number, retryDelay?: number }) {
     this.baseUrl = baseUrl
@@ -143,6 +161,12 @@ export class BasicGraphQLClient implements GraphQLClient {
             })
           }
           console.error('GraphQL request failed after all retry attempts:', error)
+          this.onRequestError?.({
+            operation: operationLabel(query),
+            variables,
+            attempts: attempt + 1,
+            message: (error as Error)?.message || String(error),
+          }, error)
         }
       }
     }
