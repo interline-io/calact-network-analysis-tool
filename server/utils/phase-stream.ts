@@ -6,7 +6,7 @@
 import type { H3Event } from 'h3'
 import { setHeader, sendStream } from 'h3'
 import { requestStream, type GraphQLClient } from '~~/src/core'
-import { createFailureReporter, ScenarioStreamSender, type ScenarioProgress } from '~~/src/scenario'
+import { ScenarioStreamSender, type ScenarioProgress } from '~~/src/scenario'
 import { buildServerGraphQLClient } from './graphql-client'
 
 // Headers for the NDJSON progress streams. The body is NDJSON, but typed as
@@ -32,27 +32,17 @@ export async function streamPhaseResponse (
     async start (controller) {
       const writer = requestStream(controller).getWriter()
       const sender = new ScenarioStreamSender(writer)
-      // Attributed to the last stage emitted, so reporting a failure doesn't
-      // rewind the stage the loading modal is displaying.
-      let lastStage: ScenarioProgress['currentStage'] = 'ready'
-      const emit = (p: ScenarioProgress) => {
-        lastStage = p.currentStage
-        sender.onProgress(p)
-      }
-      emit({
+      sender.onProgress({
         isLoading: true,
         currentStage: 'ready',
         currentStageMessage: startMessage,
       })
-      const failures = createFailureReporter(client, emit, () => lastStage)
       try {
-        await run(client, emit, failures.onError)
+        await run(client, p => sender.onProgress(p), e => sender.onError(e))
       } catch (err) {
         sender.onError(err)
         writer.close()
         return
-      } finally {
-        failures.dispose()
       }
       sender.onComplete()
       writer.close()

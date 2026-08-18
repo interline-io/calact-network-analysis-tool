@@ -18,7 +18,6 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import type { RequestFailure } from '~~/src/core'
 
 interface UseScenarioRunDeps {
   // Owned by the container (the central data graph); written here as the stream
@@ -37,9 +36,6 @@ export interface UseScenarioRunReturn {
   loadingProgress: Ref<ScenarioProgress | undefined>
   showLoadingModal: Ref<boolean>
   error: Ref<Error | string | undefined>
-  // Requests that failed after all retries. Non-fatal — the run finishes — so
-  // this is what tells the user the results are incomplete.
-  requestErrors: Ref<RequestFailure[]>
   // Weighted progress-bar state shared with the loading modal and refetches.
   scenarioPhasePlan: Ref<ScenarioPhaseName[] | undefined>
   scenarioPhaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
@@ -60,7 +56,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
   const showLoadingModal = ref(false)
   const refetchInFlight = ref(0)
   const error = ref(undefined as Error | string | undefined)
-  const requestErrors = ref<RequestFailure[]>([])
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
 
   const fetchScenario = async (loadExample: string): Promise<void> => {
@@ -72,7 +67,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     // Clear any error left by a prior run/refetch so a fresh run starts clean —
     // otherwise the success path (gated on !error) stays suppressed.
     error.value = undefined
-    requestErrors.value = []
     stopDepartureCount.value = 0
     scenarioPhasePlan.value = undefined
     scenarioPhaseFractions.value = {}
@@ -96,10 +90,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
           if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
             scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
           }
-        }
-
-        if (progress.requestErrors && progress.requestErrors.length > 0) {
-          requestErrors.value = [...requestErrors.value, ...progress.requestErrors]
         }
 
         if (progress.warnings && progress.warnings.length > 0) {
@@ -177,7 +167,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     loadingProgress,
     showLoadingModal,
     error,
-    requestErrors,
     scenarioPhasePlan,
     scenarioPhaseFractions,
     refetchInFlight,

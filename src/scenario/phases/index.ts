@@ -8,8 +8,6 @@
 // (PhaseEmit, PhaseOpts, phaseDone, PHASE_MAX_CONCURRENT_REQUESTS) stays
 // internal — phase modules import it directly from './common'.
 export {
-  createFailureReporter,
-  type FailureReporter,
   getSelectedDateRange,
   SCENARIO_PHASE_ORDER,
   SCENARIO_PHASE_WEIGHTS,

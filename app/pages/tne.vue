@@ -126,12 +126,11 @@
       <cat-modal
         v-model="showLoadingModal"
         title="Loading"
-        :closable="!!error || requestErrors.length > 0"
+        :closable="false"
       >
         <cal-scenario-loading
           :progress="loadingProgress"
           :error="error"
-          :request-errors="requestErrors"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
           :phase-plan="scenarioPhasePlan"
@@ -346,11 +345,11 @@ const runQuery = async () => {
   } catch (err: any) {
     error.value = err
   }
-  if (!error.value && requestErrors.value.length === 0) {
+  if (!error.value) {
     useToastNotification().showToast('Browsing query data loaded successfully!')
     showLoadingModal.value = false
-    loadingProgress.value = undefined
   }
+  loadingProgress.value = undefined
 }
 
 // Scenario data ref - the central scenario data graph, populated by fetchScenario.
@@ -887,7 +886,6 @@ const {
   loadingProgress,
   showLoadingModal,
   error,
-  requestErrors,
   scenarioPhasePlan,
   scenarioPhaseFractions,
   refetchInFlight,
@@ -904,7 +902,6 @@ useBufferRefetch({
   loadingProgress,
   showLoadingModal,
   error,
-  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
@@ -918,7 +915,6 @@ useClusterRefetch({
   loadingProgress,
   showLoadingModal,
   error,
-  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
@@ -933,7 +929,6 @@ const { refresh: refreshCensusClip } = useAggregateRefetch({
   loadingProgress,
   showLoadingModal,
   error,
-  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,

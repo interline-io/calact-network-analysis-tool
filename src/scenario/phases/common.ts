@@ -3,7 +3,6 @@
 // standalone via its own server endpoint, emitting the same ScenarioProgress
 // NDJSON envelope either way (the pattern established by buffer-passes).
 
-import type { GraphQLClient, RequestFailure } from '~~/src/core'
 import type { ScenarioProgress } from '../scenario'
 
 // Phases report progress (and stream partial data) through this callback.
@@ -69,47 +68,4 @@ export function getSelectedDateRange (config: { startDate?: Date, endDate?: Date
     sd.setDate(sd.getDate() + 1)
   }
   return dates
-}
-
-export interface FailureReporter {
-  // Pass as PhaseOpts.onError so an abandoned task is reported too.
-  onError: (error: any) => void
-  dispose: () => void
-}
-
-// Reports every request that failed after exhausting its retries, so a run that
-// finishes with holes in it says so. Requests report through the client hook;
-// a task that failed for some other reason reports through `onError`, which
-// skips failures the hook already covered.
-export function createFailureReporter (
-  client: GraphQLClient,
-  emit: PhaseEmit,
-  currentStage: () => ScenarioProgress['currentStage'],
-): FailureReporter {
-  const reported = new WeakSet<object>()
-  const report = (failure: RequestFailure): void => {
-    emit({ isLoading: true, currentStage: currentStage(), requestErrors: [failure] })
-  }
-  client.onRequestError = (failure, error) => {
-    if (error && typeof error === 'object') {
-      reported.add(error)
-    }
-    report(failure)
-  }
-  return {
-    onError (error: any): void {
-      if (error && typeof error === 'object' && reported.has(error)) {
-        return
-      }
-      console.warn('[Scenario] task abandoned after error:', error)
-      report({
-        operation: currentStage(),
-        attempts: 1,
-        message: error?.message || String(error),
-      })
-    },
-    dispose (): void {
-      client.onRequestError = undefined
-    },
-  }
 }

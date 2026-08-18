@@ -196,12 +196,8 @@ describe('ScenarioFetcher', () => {
       const fetcher = new ScenarioFetcher(flexConfig, client, { onError: errorCb, onProgress: progressCb })
       await fetcher.fetch()
 
-      // A per-feed failure is reported on the progress stream, not as a fatal
-      // error, so the remaining feeds still finish.
-      const reported = progressCb.mock.calls.flatMap(([p]) => p.requestErrors ?? [])
-      expect(reported).toHaveLength(1)
-      expect(reported[0].message).toBe('network timeout')
-      expect(errorCb).not.toHaveBeenCalled()
+      expect(errorCb).toHaveBeenCalledTimes(1)
+      expect(errorCb).toHaveBeenCalledWith(expect.any(Error))
       const flexProgressCalls = progressCb.mock.calls.filter(([p]) => p.partialData?.flexAreas?.length > 0)
       expect(flexProgressCalls).toHaveLength(2)
     })
