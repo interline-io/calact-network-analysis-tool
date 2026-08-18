@@ -12,6 +12,7 @@ import { fetchCensusIntersection, type CensusGeographyFeature, type StopTimeCach
 import {
   SERVICE_LEVELS,
   processServiceLevel,
+  parseHour,
   type StopFrequencyData,
   type RouteFrequencyData,
 } from './service-levels'
@@ -69,7 +70,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
   // TODO: ScenarioFetcher fetches census values from configCopy here, but
   // WSDOT re-queries them via getGeographyData and ignores the scenario map.
   // Drop the duplicate once WSDOT consumes CensusGeographyData directly.
-  const configCopy = { ...config, departureMode: 'all' as const, routeHourCompatMode: true }
+  const configCopy = { ...config, routeHourCompatMode: true }
   const scenarioDataSender = new ScenarioStreamSender(writer)
   const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
 
@@ -151,6 +152,17 @@ export class WSDOTReportFetcher {
     const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
     console.log(`Analyzed ${weekendFreq.stops.size} stops routes for weekend ${this.config.weekendDate}`)
 
+    // Departures land on the calendar day they run, so the night that follows
+    // the weekday is in the next day's data. Its early hours feed the night
+    // segments; the scenario range must extend a day past weekdayDate for
+    // levelNights to see anything.
+    const nextDay = new Date(this.config.weekdayDate)
+    nextDay.setDate(nextDay.getDate() + 1)
+    const overnightFreq = extractFrequencyData(this.scenarioData, nextDay)
+    if (overnightFreq.stops.size === 0) {
+      console.warn(`No departures on ${fmtDate(nextDay)} — night service after ${fmtDate(this.config.weekdayDate)} cannot be evaluated`)
+    }
+
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
     const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
@@ -159,7 +171,7 @@ export class WSDOTReportFetcher {
     // Process each service level
     for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
       console.log(`===== Processing ${levelKey} =====`)
-      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq, this.config.routeHourCompatMode)
+      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq, overnightFreq, this.config.routeHourCompatMode)
       levelStops[levelKey] = Array.from(qualifyingStops)
       results[levelKey] = qualifyingStops
       console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
@@ -444,16 +456,6 @@ function extractFrequencyData (data: ScenarioData, date: Date): {
     console.log(`\thour ${i}: ${totalHourlyDepartures.get(i) || 0} departures`)
   }
   return { stops, routes }
-}
-
-function parseHour (seconds: number): number {
-  // Convert seconds since midnight to hour of day (0-23)
-  let hour = Math.floor(seconds / 3600)
-  // Handle GTFS 24+ hour format
-  if (hour >= 24) {
-    hour = hour - 24
-  }
-  return hour
 }
 
 ////////////////

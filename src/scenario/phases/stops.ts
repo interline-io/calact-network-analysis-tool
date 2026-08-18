@@ -22,6 +22,9 @@ export interface StopsPhaseConfig {
 export interface StopsPhaseResult {
   stopIds: number[]
   routeIds: number[]
+  // Route id -> the stops in this scenario that route serves. Lets the
+  // departures phase filter stop times per route instead of by the whole set.
+  routeStopIds: Record<number, number[]>
 }
 
 interface StopFetchTask {
@@ -39,6 +42,7 @@ export async function runStopsPhase (
   const stopLimit = config.stopLimit ?? 1000
   const stopIds: number[] = []
   const routeIds: Set<number> = new Set()
+  const routeStopIds: Record<number, number[]> = {}
 
   const queue: TaskQueue<StopFetchTask> = new TaskQueue<StopFetchTask>(
     PHASE_MAX_CONCURRENT_REQUESTS,
@@ -86,12 +90,15 @@ export async function runStopsPhase (
       emit({ ...progressEvent(), partialData: { stops: stopBatch } })
     }
 
-    // Collect stop ids and (deduplicated) route ids for downstream phases
+    // Collect stop ids and (deduplicated) route ids for downstream phases,
+    // inverting route_stops into the route -> stops mapping at the same time.
     for (const stop of stopData) {
       stopIds.push(stop.id)
       for (const rs of stop.route_stops || []) {
-        if (rs.route?.id != null) {
-          routeIds.add(rs.route.id)
+        const routeId = rs.route?.id
+        if (routeId != null) {
+          routeIds.add(routeId)
+          ;(routeStopIds[routeId] ??= []).push(stop.id)
         }
       }
     }
@@ -118,5 +125,5 @@ export async function runStopsPhase (
   await queue.run()
   emit({ ...progressEvent(), phaseProgress: phaseDone('stops') })
 
-  return { stopIds, routeIds: [...routeIds] }
+  return { stopIds, routeIds: [...routeIds], routeStopIds }
 }

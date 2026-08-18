@@ -39,7 +39,7 @@ fi
 
 if [ -n "$TLSERVER_URL" ]; then
   # The restore runs before the port binds, so a successful query means the
-  # fixture data is loaded, not just that the process started.
+  # fixture data is loaded.
   echo "Waiting for tlserver ($TLSERVER_URL)..."
   $TIMEOUT 300 bash -c '
     until curl -sf -H "content-type: application/json" \

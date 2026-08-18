@@ -1,16 +1,15 @@
-# Transitland API server for tests. Holds only the binary and the init scripts —
-# the GTFS/census dumps are bind-mounted from testdata/gtfs and restored into the
-# compose postgres on start, so refreshing fixtures never means rebuilding this.
+# Transitland API server for tests. Holds only the binary and the init scripts;
+# the GTFS/census dumps are bind-mounted and restored on start, so refreshing
+# fixtures never means rebuilding this.
 FROM golang:1.26-bookworm AS build
-# Pinned so the image is reproducible. de5d222 is the commit that made `bbox`
-# compose with `stop_buffer` (transitland-lib #720), which the census clip tests
-# depend on and which no tagged release carries yet.
-ARG TRANSITLAND_REF=de5d222c1415e30b6247f4a38e9b78f335219d23
+# Pinned for reproducibility. Carries `TripFilter.dates`, which the trips-mode
+# departures query needs, and the `bbox` + `stop_buffer` composition the census
+# clip tests need; neither is in a tagged release yet.
+ARG TRANSITLAND_REF=5b80c14e5340640c2ddca949856afb31919c8a0e
 # Built from a checkout rather than `go install pkg@version`: transitland-lib's
-# go.mod carries a replace directive (kin-openapi), which go install rejects
-# unless the module is the main module. CGO stays on — the sqlite driver is
-# excluded by build constraints without it — so both stages are bookworm and
-# the glibc the binary links against matches.
+# go.mod carries a replace directive, which go install rejects unless the module
+# is the main module. CGO stays on — without it build constraints exclude the
+# sqlite driver — so both stages are bookworm and the glibc matches.
 RUN git clone --filter=blob:none https://github.com/interline-io/transitland-lib /src && \
     cd /src && git checkout "${TRANSITLAND_REF}" && \
     go build -o /usr/local/bin/transitland ./cmd/transitland

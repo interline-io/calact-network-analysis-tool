@@ -37,10 +37,7 @@ import {
   type ScenarioPhaseName,
 } from './phases'
 
-/**
- * Configuration for scenario fetching
- */
-
+// Configuration for scenario fetching
 export interface ScenarioConfig {
   reportName: string
   bbox?: Bbox
@@ -49,7 +46,6 @@ export interface ScenarioConfig {
   geographyIds?: number[]
   stopLimit?: number
   aggregateLayer?: string
-  departureMode?: 'all' | 'departures'
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
   // pipeline fetches census values for those geographies.
@@ -402,7 +398,7 @@ export class ScenarioFetcher {
     let scenarioStopIds: number[] = []
 
     if (enabled.has('stops')) {
-      const { stopIds, routeIds } = await runStopsPhase({
+      const { stopIds, routeIds, routeStopIds } = await runStopsPhase({
         feedVersions: fvRefs,
         bbox: this.config.bbox,
         geographyIds: this.config.geographyIds,
@@ -419,7 +415,8 @@ export class ScenarioFetcher {
             stopIds,
             startDate: this.config.startDate,
             endDate: this.config.endDate,
-            departureMode: this.config.departureMode,
+            routeIds,
+            routeStopIds,
           }, this.client, emit, { onError })
         : Promise.resolve()
       const { agencyIds } = enabled.has('routes')

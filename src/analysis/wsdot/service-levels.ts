@@ -23,6 +23,10 @@ interface TimeConfig {
   min_total: number
 }
 
+// Hours are counted from midnight of the analyzed weekday and run past 24, so
+// a segment stays contiguous across midnight: 24 is 00:00 the next calendar
+// day, 28 is 04:00. Departures are bucketed by calendar day, so anything from
+// 24 up is resolved against the following day's data.
 interface NightSegmentConfig {
   hours: number[]
   min_total: number
@@ -43,10 +47,10 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     extended: { hours: EXTENDED_HOURS, min_tph: 3, min_total: 32 },
     weekend: { hours: PEAK_HOURS, min_tph: 3, min_total: 32 },
     nightSegments: [
-      { hours: [23, 0], min_total: 0 },
-      { hours: [1, 2], min_total: 0 },
-      { hours: [3, 4], min_total: 0 },
-      { hours: [2, 3], min_total: 0 }
+      { hours: [23, 24], min_total: 0 },
+      { hours: [25, 26], min_total: 0 },
+      { hours: [27, 28], min_total: 0 },
+      { hours: [26, 27], min_total: 0 }
     ],
   },
   level2: {
@@ -83,10 +87,10 @@ export const SERVICE_LEVELS: Record<LevelKey, ServiceLevelConfig> = {
     description: 'Night service',
     peak: { hours: ALL_HOURS, min_tph: 0, min_total: 4 },
     nightSegments: [
-      { hours: [23, 0], min_total: 1 },
-      { hours: [1, 2], min_total: 1 },
-      { hours: [3, 4], min_total: 1 },
-      { hours: [2, 3], min_total: 1 }
+      { hours: [23, 24], min_total: 1 },
+      { hours: [25, 26], min_total: 1 },
+      { hours: [27, 28], min_total: 1 },
+      { hours: [26, 27], min_total: 1 }
     ],
   },
   levelAll: {
@@ -121,10 +125,24 @@ export interface RouteFrequencyData {
   stopIds: Set<number>
 }
 
+// Hour of the calendar day, 0-23. Departures are filed under the calendar date
+// they fall on but keep the feed's seconds, so an after-midnight trip arrives on
+// the right day reading 24:00:00 or later and folds back to an early hour.
+//
+// processNightSegments depends on this: its 24-28 segment hours are looked up as
+// `hour % 24` in the following day's map, which only lines up if the buckets were
+// folded the same way.
+export function parseHour (seconds: number): number {
+  return Math.floor(seconds / 3600) % 24
+}
+
 export function processServiceLevel (
   config: ServiceLevelConfig,
   weekdayFreq: { stops: Map<number, StopFrequencyData>, routes: Map<number, RouteFrequencyData> },
   weekendFreq: { stops: Map<number, StopFrequencyData>, routes: Map<number, RouteFrequencyData> },
+  // The calendar day after weekdayFreq; supplies the post-midnight half of the
+  // night segments.
+  overnightFreq: { stops: Map<number, StopFrequencyData>, routes: Map<number, RouteFrequencyData> },
   routeHourCompatMode?: boolean
 ): Set<number> {
   const stopIdMap = new Map<number, string>()
@@ -157,7 +175,7 @@ export function processServiceLevel (
 
   // Night segments analysis
   if (config.nightSegments) {
-    const nightStops = processNightSegments(weekdayFreq.stops, config.nightSegments)
+    const nightStops = processNightSegments(weekdayFreq.stops, overnightFreq.stops, config.nightSegments)
     console.log(`Stops meeting night criteria: ${nightStops.size}`)
     stopResults.push(nightStops)
   }
@@ -312,14 +330,21 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
   return { matchedStops: qualifyingRouteStops, matchedRoutes: qualifyingRoutes }
 }
 
-function processNightSegments (stops: Map<number, StopFrequencyData>, nightSegments: NightSegmentConfig[]): Set<number> {
+// Hours below 24 come from the analyzed weekday, hours from 24 up from the
+// following calendar day (see NightSegmentConfig).
+function processNightSegments (
+  stops: Map<number, StopFrequencyData>,
+  overnightStops: Map<number, StopFrequencyData>,
+  nightSegments: NightSegmentConfig[],
+): Set<number> {
   const segmentResults: Set<number>[] = []
   for (const segment of nightSegments) {
     const segmentStops = new Set<number>()
-    for (const [stopId, stopData] of stops) {
+    for (const stopId of stops.keys()) {
       let totalDepartures = 0
       for (const hour of segment.hours) {
-        totalDepartures += (stopData.hourlyDepartures.get(hour) || []).length
+        const source = hour >= 24 ? overnightStops.get(stopId) : stops.get(stopId)
+        totalDepartures += (source?.hourlyDepartures.get(hour % 24) || []).length
       }
       if (totalDepartures >= segment.min_total) {
         segmentStops.add(stopId)
