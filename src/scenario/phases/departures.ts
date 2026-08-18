@@ -14,14 +14,16 @@ import { routeTripsQuery, type RouteTripFrequency, type RouteTripsResponse } fro
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
-// Routes per GraphQL request. This was 1 for as long as batching returned
-// silently incomplete data, which the pinned backend fixed: batches spanning
-// several feed versions used to keep only one of them. 40 routes over a week
-// now return identical departures batched or not.
+// Routes per GraphQL request. One, because that is the shape this phase's
+// measured performance was established with.
 //
-// Kept modest because a batch's stop filter is the union of its routes' stops,
-// so a wide batch asks each route for stops it does not serve.
-const TRIP_ROUTE_BATCH_SIZE = 10
+// Larger batches are no longer incorrect — the pinned backend fixed the
+// feed-version bug that made them silently incomplete, and 40 routes over a week
+// return identical departures batched or not — but they have not been shown to
+// be faster. Eight requests are already in flight, so batching trades more
+// concurrency for less, and a batch's stop filter is the union of its routes'
+// stops, which matches every route in it against stops it does not serve.
+const TRIP_ROUTE_BATCH_SIZE = 1
 
 // Tuples per emitted progress event; one route batch can expand to hundreds of
 // thousands of departures.
