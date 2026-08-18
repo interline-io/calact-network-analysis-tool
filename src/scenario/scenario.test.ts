@@ -234,7 +234,7 @@ describe('ScenarioFetcher', () => {
       expect(departureCalls(client)).toHaveLength(2)
     })
 
-    it('sends only a route\'s own stops', async () => {
+    it('sends the batch\'s routes with the stops those routes serve', async () => {
       const client = new MockGraphQLClient()
       client.mockQuery
         .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
@@ -245,10 +245,13 @@ describe('ScenarioFetcher', () => {
       await fetcher.fetch()
 
       const tripCalls = departureCalls(client)
-      // 2 routes x 2 seven-day windows over the 8-day range
-      expect(tripCalls).toHaveLength(4)
+      // Both routes fit one batch, over 2 seven-day windows of the 8-day range.
+      // The per-route stop filtering itself is covered in departures.test.ts,
+      // which pins the batch size rather than riding on the default.
+      expect(tripCalls).toHaveLength(2)
       for (const vars of tripCalls) {
-        expect(vars.stopIds).toEqual(vars.ids[0] === 10 ? [1, 2] : [2, 3])
+        expect(vars.ids).toEqual([10, 20])
+        expect(vars.stopIds).toEqual([1, 2, 3])
       }
     })
 

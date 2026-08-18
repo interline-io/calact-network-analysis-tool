@@ -42,9 +42,12 @@ function tripResponse (departureTime: string, serviceDates: string[]) {
 }
 
 describe('runDeparturesPhase (trips mode)', () => {
+  // One route per request, so these assert the per-route stop filtering itself
+  // rather than whatever TRIP_ROUTE_BATCH_SIZE currently is.
   const baseConfig: DeparturesPhaseConfig = {
     stopIds: [1, 2, 3],
     routeIds: [10, 20],
+    routeBatchSize: 1,
     startDate: parseDate('2024-07-03'),
     endDate: parseDate('2024-07-03'),
   }
@@ -90,6 +93,35 @@ describe('runDeparturesPhase (trips mode)', () => {
     const calls = tripCalls(client)
     expect(calls).toHaveLength(2)
     expect(calls.map(v => v.stopIds)).toEqual([[1, 2, 3], [1, 2, 3]])
+  })
+
+  it('batches several routes into one request, with the union of their stops', async () => {
+    const client = new MockGraphQLClient()
+    await runDeparturesPhase({
+      ...baseConfig,
+      routeBatchSize: 2,
+      routeStopIds: { 10: [1, 2], 20: [2, 3] },
+    }, client, () => {})
+
+    const calls = tripCalls(client)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].ids).toEqual([10, 20])
+    expect(calls[0].stopIds).toEqual([1, 2, 3])
+  })
+
+  it('drops a stopless route before batching, not after', async () => {
+    // Batched with a route that does have stops, a stopless route would
+    // otherwise be fetched and return nothing.
+    const client = new MockGraphQLClient()
+    await runDeparturesPhase({
+      ...baseConfig,
+      routeBatchSize: 2,
+      routeStopIds: { 10: [1, 2] },
+    }, client, () => {})
+
+    const calls = tripCalls(client)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].ids).toEqual([10])
   })
 })
 

@@ -14,10 +14,13 @@ import { routeTripsQuery, type RouteTripFrequency, type RouteTripsResponse } fro
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
-// Routes per GraphQL request. Deliberately 1: it keeps each request's scope
-// (and cost) predictable at one route-week, and larger batches have returned
-// silently incomplete data.
-const TRIP_ROUTE_BATCH_SIZE = 1
+// Routes per GraphQL request. Held at 1 while batching returned silently
+// incomplete data; the pinned backend fixed that (batches spanning several feed
+// versions dropped all but one), and 40 routes over a week now return identical
+// departures batched or not. Kept modest because a batch's stop filter is the
+// union of its routes' stops, so a wide batch asks each route for stops it does
+// not serve.
+const TRIP_ROUTE_BATCH_SIZE = 10
 
 // Tuples per emitted progress event; one route batch can expand to hundreds of
 // thousands of departures.
@@ -65,8 +68,7 @@ export interface DeparturesPhaseConfig {
   routeIds?: number[]
   startDate?: Date
   endDate?: Date
-  // Routes per GraphQL request; default 1. Raising it is not recommended —
-  // see TRIP_ROUTE_BATCH_SIZE.
+  // Routes per GraphQL request; see TRIP_ROUTE_BATCH_SIZE for the default.
   routeBatchSize?: number
   // Route id -> the stops in this scenario that route serves, as produced by
   // the stops phase. Omitting it falls back to filtering by the whole stop set.
@@ -246,19 +248,25 @@ export async function runDeparturesPhase (
   // by its own routes' stops rather than repeating the whole scenario stop set
   // on every request. Without the mapping, fall back to the full set.
   const routeStopIds = config.routeStopIds
-  const batches = chunkArray(routeIds, batchSize).map(ids => ({
+  // Dropped before batching rather than after: a route with no stops in the
+  // scenario can return nothing, and batched alongside routes that do have
+  // stops it would be fetched anyway.
+  const fetchableRouteIds = routeStopIds
+    ? routeIds.filter(id => (routeStopIds[id] || []).length > 0)
+    : routeIds
+  const skipped = routeIds.length - fetchableRouteIds.length
+  if (skipped > 0) {
+    console.log(`Skipping ${skipped} routes with no stops in the scenario`)
+  }
+  const batches = chunkArray(fetchableRouteIds, batchSize).map(ids => ({
     routeIds: ids,
     stopIds: routeStopIds
       ? [...new Set(ids.flatMap(id => routeStopIds[id] || []))]
       : config.stopIds || [],
   }))
   // An empty stop_ids filter is ignored by the backend rather than matching
-  // nothing, so routes with no stops in the scenario are dropped outright.
+  // nothing, so a batch without one is not worth issuing.
   const fetchable = batches.filter(b => b.stopIds.length > 0)
-  const skipped = batches.length - fetchable.length
-  if (skipped > 0) {
-    console.log(`Skipping ${skipped} route batches with no stops in the scenario`)
-  }
 
   // One task per (route batch × 7-day window), bounding response size. A
   // departure crossing a window boundary is claimed by exactly one window.
