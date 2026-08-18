@@ -644,7 +644,12 @@ export class ScenarioDataReceiver {
           )
         }
       }
-      mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
+      // The sidecar only exists to name the departures the cache holds, so a
+      // receiver that folds them has nothing to pair it with. One entry per
+      // trip is not free at statewide scale.
+      if (!this.options.onStopDepartures) {
+        mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
+      }
       if (p.flexAreas) {
         this.accumulatedData.flexAreas.push(...p.flexAreas)
       }
