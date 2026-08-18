@@ -187,6 +187,15 @@ export function checkTransitlandEnv () {
   }
 }
 
+/**
+ * A stream controller standing in for the HTTP response the server writes to.
+ *
+ * The stream is always drained, whether or not anything is being saved. An
+ * unread ReadableStream queues every chunk that is enqueued into it, so a CLI
+ * run that left it unread held the whole NDJSON payload in memory and reported
+ * memory numbers the server would never see. Draining keeps `DEBUG_MEMORY=1`
+ * runs an honest proxy for the request path.
+ */
 export function createStreamController (saveToFile?: string): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController
 
@@ -196,34 +205,29 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
     }
   })
 
-  if (saveToFile) {
-    // Set up file writing in the background
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
 
-    // Import fs dynamically to handle Node.js environment
-    import('node:fs').then(async (fs) => {
-      const writeStream = fs.createWriteStream(saveToFile)
+  // Import fs dynamically to handle Node.js environment
+  import('node:fs').then(async (fs) => {
+    const writeStream = saveToFile ? fs.createWriteStream(saveToFile) : undefined
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) { break }
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) { break }
 
-          const text = decoder.decode(value)
-          writeStream.write(text)
-        }
-      } catch (error) {
-        console.error('Error writing to file:', error)
-      } finally {
-        writeStream.end()
-        reader.releaseLock()
+        writeStream?.write(decoder.decode(value))
       }
-    }).catch((error) => {
-      console.error('Error importing fs module:', error)
-    })
-  }
-  // If saveToFile is not provided, the stream just acts as a dummy
-  // The controller will still work but data won't be written anywhere
+    } catch (error) {
+      console.error('Error reading scenario stream:', error)
+    } finally {
+      writeStream?.end()
+      reader.releaseLock()
+    }
+  }).catch((error) => {
+    console.error('Error importing fs module:', error)
+  })
+
   return controller!
 }

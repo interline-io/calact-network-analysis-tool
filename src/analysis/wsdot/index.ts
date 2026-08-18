@@ -1,5 +1,4 @@
 import {
-  multiplexStream,
   requestStream,
   fmtDate,
   type GraphQLClient,
@@ -7,19 +6,15 @@ import {
   type Bbox,
   chunkArray,
 } from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, ScenarioStreamReceiver, type ScenarioCallbacks, type ScenarioProgress } from '~~/src/scenario'
-import { fetchCensusIntersection, type CensusGeographyFeature, type StopTimeCacheItem } from '~~/src/tl'
-import {
-  SERVICE_LEVELS,
-  processServiceLevel,
-  parseHour,
-  type StopFrequencyData,
-  type RouteFrequencyData,
-} from './service-levels'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks, type ScenarioReceiverOptions, type ScenarioProgress } from '~~/src/scenario'
+import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
+import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
+import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
 
 // Re-export the public service-level config so consumers (e.g. wsdot-viewer.vue)
 // keep importing it from ~~/src/analysis/wsdot.
 export { SERVICE_LEVELS, levelColors, type LevelKey } from './service-levels'
+export { WSDOTFrequencyAggregator, type FrequencyData, type FrequencyLabels } from './frequency'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
@@ -62,17 +57,45 @@ export interface WSDOTReportConfig extends ScenarioConfig {
   routeHourCompatMode: boolean
 }
 
+// The calendar dates the report reads: the weekday, the weekend day, and the
+// day after the weekday, whose early hours are the post-midnight half of the
+// night segments. Everything else in the scenario's date range is fetched (the
+// client's map and tables show it) but never folded.
+//
+// The config crosses a JSON boundary on the server, so these arrive as ISO
+// strings at runtime; `.valueOf()` feeds `new Date()` either way.
+export function wsdotReportDates (config: WSDOTReportConfig): Date[] {
+  const weekday = new Date(config.weekdayDate.valueOf())
+  const overnight = new Date(weekday.valueOf())
+  overnight.setDate(overnight.getDate() + 1)
+  return [weekday, new Date(config.weekendDate.valueOf()), overnight]
+}
+
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
-  // Create a multiplex stream that writes to both the response and a new output stream
-  const { inputStream, outputStream } = multiplexStream(requestStream(controller))
-  const writer = inputStream.getWriter()
+  const writer = requestStream(controller).getWriter()
+  const scenarioDataSender = new ScenarioStreamSender(writer)
 
   // TODO: ScenarioFetcher fetches census values from configCopy here, but
   // WSDOT re-queries them via getGeographyData and ignores the scenario map.
   // Drop the duplicate once WSDOT consumes CensusGeographyData directly.
-  const configCopy = { ...config, routeHourCompatMode: true }
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(configCopy, client, scenarioDataSender)
+  //
+  // Flex is off regardless of what the browse config asked for: no part of the
+  // report reads flex areas or flex departures, and the phase costs a request
+  // per feed version.
+  const configCopy = { ...config, routeHourCompatMode: true, includeFlexAreas: false }
+
+  // Departures are folded into per-hour counters as they stream rather than
+  // accumulated. The report reads only counts, and holding every departure is
+  // what put a statewide run over the Worker's memory limit. Stops, routes and
+  // feed versions are still accumulated: the stop table is built from them,
+  // and so is the stops-and-routes report layered on top of this one.
+  const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
+  const receiver = new ScenarioDataReceiver({
+    onProgress: progress => scenarioDataSender.onProgress(progress),
+    onError: error => scenarioDataSender.onError(error),
+  }, {
+    onStopDepartures: departures => frequency.addDepartures(departures),
+  })
 
   // Send config as initial extra data
   scenarioDataSender.onProgress({
@@ -82,15 +105,10 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
     config: config,
   })
 
-  // Configure client/receiver - use specialized WSDOT receiver
-  const receiver = new WSDOTReportDataReceiver()
-  const scenarioDataClient = new ScenarioStreamReceiver()
-  const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
-
   // Start the fetch process
+  const fetcher = new ScenarioFetcher(configCopy, client, receiver)
   await fetcher.fetch()
 
-  // Run wsdot analysis
   const scenarioData = receiver.getCurrentData()
 
   // Update the client with the wsdot result
@@ -100,9 +118,13 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
     currentStageMessage: 'Running WSDOT frequency analysis...'
   })
 
+  // The report is returned directly rather than reassembled from the stream
+  // the way a browser consumer does, so a failed analysis still leaves the
+  // caller with the empty report and the scenario data behind it.
+  let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, client, scenarioDataSender)
-    await wsdotFetcher.fetch()
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, frequency, client, scenarioDataSender)
+    wsdotResult = await wsdotFetcher.fetch()
   } catch (e) {
     console.error('WSDOT analysis error:', e)
     scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
@@ -110,57 +132,49 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
 
   // Complete the scenario data stream
   scenarioDataSender.onComplete()
+  await writer.close()
 
-  // Final complete - close the multiplexed stream
-  writer.close()
-
-  // Ensure all scenario client progress has been processed
-  const { success } = await scenarioClientProgress
-  if (!success) {
-    console.warn('WSDOT stream ended without completion message')
-  }
-
-  // Get the final accumulated data from the receiver
-  const { scenarioData: finalScenarioData, wsdotReport } = receiver.getCurrentCombinedData()
-  return { scenarioData: finalScenarioData, wsdotResult: wsdotReport }
+  return { scenarioData, wsdotResult }
 }
 
 export class WSDOTReportFetcher {
   private config: WSDOTReportConfig
   private scenarioData: ScenarioData
+  private frequency: WSDOTFrequencyAggregator
   private client: GraphQLClient
   private progressSender: ScenarioStreamSender
 
   constructor (
     config: WSDOTReportConfig,
     data: ScenarioData,
+    frequency: WSDOTFrequencyAggregator,
     client: GraphQLClient,
     progressSender: ScenarioStreamSender
   ) {
     this.config = config
     this.scenarioData = data
+    this.frequency = frequency
     this.client = client
     this.progressSender = progressSender
   }
 
-  async fetch () {
+  async fetch (): Promise<WSDOTReport> {
     console.log('Starting WSDOT frequency analysis...')
 
+    const labels = frequencyLabels(this.scenarioData)
+    const [weekdayDate, weekendDate, overnightDate] = wsdotReportDates(this.config)
+
     // Extract frequency data for weekday and weekend
-    const weekdayFreq = extractFrequencyData(this.scenarioData, this.config.weekdayDate)
-    console.log(`Analyzed ${weekdayFreq.stops.size} stops for weekday ${this.config.weekdayDate}`)
-    const weekendFreq = extractFrequencyData(this.scenarioData, this.config.weekendDate)
-    console.log(`Analyzed ${weekendFreq.stops.size} stops routes for weekend ${this.config.weekendDate}`)
+    const weekdayFreq = this.buildFrequencyData(weekdayDate!, labels, 'weekday')
+    const weekendFreq = this.buildFrequencyData(weekendDate!, labels, 'weekend')
 
     // Departures land on the calendar day they run, so the night that follows
     // the weekday is in the next day's data. Its early hours feed the night
     // segments; the scenario range must extend a day past weekdayDate for
     // levelNights to see anything.
-    const nextDay = new Date(this.config.weekdayDate)
-    nextDay.setDate(nextDay.getDate() + 1)
-    const overnightFreq = extractFrequencyData(this.scenarioData, nextDay)
-    if (overnightFreq.stops.size === 0) {
-      console.warn(`No departures on ${fmtDate(nextDay)} — night service after ${fmtDate(this.config.weekdayDate)} cannot be evaluated`)
+    const overnightFreq = this.buildFrequencyData(overnightDate!, labels, 'overnight')
+    if (this.frequency.departureCount(overnightDate!) === 0) {
+      console.warn(`No departures on ${fmtDate(overnightDate)} — night service after ${fmtDate(weekdayDate)} cannot be evaluated`)
     }
 
     const results: Record<string, Set<number>> = {}
@@ -221,15 +235,17 @@ export class WSDOTReportFetcher {
       levelLayers[levelKey] = geogLayers
     }
 
-    // Build final result
+    // Build final result. Every stop in the scenario is listed, which is what
+    // the frequency maps' domain gave before they were built from counters.
     const stops: WSDOTStopResult[] = []
-    const allStopIds = new Set([...weekdayFreq.stops.keys(), ...weekendFreq.stops.keys()])
+    const seenStopIds = new Set<number>()
 
-    for (const stopId of allStopIds) {
-      const stop = this.scenarioData.stops.find(s => s.id === stopId)
-      if (!stop?.geometry) {
+    for (const stop of this.scenarioData.stops) {
+      const stopId = stop.id
+      if (!stop.geometry || seenStopIds.has(stopId)) {
         continue
       }
+      seenStopIds.add(stopId)
       const stateName = (stop.census_geographies || []).find(g => g.layer_name === this.config.aggregateLayer)?.name || ''
       stops.push({
         feedOnestopId: stop.feed_version?.feed?.onestop_id,
@@ -304,18 +320,50 @@ export class WSDOTReportFetcher {
     }
 
     console.log('WSDOT frequency analysis completed...')
+    return { stops, levelStops, levelLayers, bboxIntersection }
   }
+
+  // One date's frequency maps, plus the per-hour summary the cache-based
+  // extraction used to print while it walked the departures.
+  private buildFrequencyData (date: Date, labels: FrequencyLabels, label: string) {
+    const freq = this.frequency.build(date, labels)
+    const dateStr = fmtDate(date)
+    console.log(`Analyzed ${freq.stops.size} stops for ${label} ${dateStr} with ${this.frequency.departureCount(date)} departures`)
+    const totals = this.frequency.hourlyTotals(date)
+    for (let hour = 0; hour < totals.length; hour++) {
+      console.log(`\thour ${hour}: ${totals[hour]} departures`)
+    }
+    return freq
+  }
+}
+
+// Numeric id -> GTFS id for every stop and route the scenario fetched. These
+// are the domain the frequency maps are built over, so a stop with no service
+// still appears with empty counters.
+function frequencyLabels (data: ScenarioData): FrequencyLabels {
+  const stopGtfsIds = new Map<number, string>()
+  for (const stop of data.stops) {
+    stopGtfsIds.set(stop.id, stop.stop_id)
+  }
+  const routeGtfsIds = new Map<number, string>()
+  for (const route of data.routes) {
+    routeGtfsIds.set(route.id, route.route_id)
+  }
+  return { stopGtfsIds, routeGtfsIds }
 }
 
 /**
  * Specialized receiver that extends ScenarioDataReceiver to handle WSDOT report aggregation
  * Accumulates scenario data and merges batched WSDOT report data from extraData
+ *
+ * For browser consumers, which reassemble the report from the NDJSON stream.
+ * The server builds it in-process and returns it from runAnalysis instead.
  */
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
-  constructor (callbacks: ScenarioCallbacks = {}) {
-    super(callbacks)
+  constructor (callbacks: ScenarioCallbacks = {}, options: ScenarioReceiverOptions = {}) {
+    super(callbacks, options)
   }
 
   override onProgress (progress: ScenarioProgress): void {
@@ -375,87 +423,6 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
       wsdotReport: this.getCurrentWSDOTReport()
     }
   }
-}
-
-function extractFrequencyData (data: ScenarioData, date: Date): {
-  stops: Map<number, StopFrequencyData>
-  routes: Map<number, RouteFrequencyData>
-} {
-  const dateStr = fmtDate(date)
-  console.log('Processing frequency data for date:', dateStr)
-  const stops = new Map<number, StopFrequencyData>()
-  const routes = new Map<number, RouteFrequencyData>()
-
-  for (const route of data.routes) {
-    const routeData = {
-      routeId: route.id,
-      route: route,
-      stopHourlyDepartures: new Map<number, Map<number, StopTimeCacheItem[]>>(),
-      hourlyDepartures: new Map<number, StopTimeCacheItem[]>(),
-      stopIds: new Set<number>(),
-    }
-    routes.set(route.id, routeData)
-  }
-
-  let depCount = 0
-
-  // Process each stop
-  for (const stop of data.stops) {
-    // console.log('\tstop:', stop.id, stop.stop_name)
-    const departures = data.stopDepartureCache.get(stop.id, dateStr)
-
-    const stopData: StopFrequencyData = {
-      stopId: stop.id,
-      gtfsStopId: stop.stop_id,
-      hourlyDepartures: new Map<number, StopTimeCacheItem[]> (),
-      routeIds: new Set<number>()
-    }
-
-    // Count trips by hour
-    for (const departure of departures) {
-      // console.log('\t\tdeparture:', departure)
-      if (departure.departureTime < 0) {
-        console.log('\t\t\tno departure time, skipping')
-        continue
-      }
-      depCount += 1
-      if (depCount % 1000 === 0) {
-        console.log(`\tProcessed ${depCount} departures...`)
-      }
-      const routeId = departure.routeId
-      const hour = parseHour(departure.departureTime)
-      const stopHourData = stopData.hourlyDepartures.get(hour) || []
-      stopHourData.push(departure)
-      stopData.hourlyDepartures.set(hour, stopHourData)
-      stopData.routeIds.add(routeId)
-      // console.log('\t\tstop data:', stopData)
-
-      const routeData = routes.get(routeId)
-      if (!routeData) {
-        console.warn(`Route ID ${routeId} not found for departure, skipping`)
-        continue
-      }
-      const routeHourData = routeData.hourlyDepartures.get(hour) || []
-      routeHourData.push(departure)
-      routeData.hourlyDepartures.set(hour, routeHourData)
-      routeData.stopIds.add(stop.id)
-      routes.set(routeId, routeData)
-    }
-    stops.set(stop.id, stopData)
-  }
-
-  // Summary
-  const totalHourlyDepartures: Map<number, number> = new Map()
-  for (const sd of stops.values()) {
-    for (const [hour, count] of sd.hourlyDepartures.entries()) {
-      totalHourlyDepartures.set(hour, (totalHourlyDepartures.get(hour) || 0) + count.length)
-    }
-  }
-  console.log(`Processed ${stops.size} date ${date} stops with ${depCount} total departures`)
-  for (let i = 0; i < 24; i++) {
-    console.log(`\thour ${i}: ${totalHourlyDepartures.get(i) || 0} departures`)
-  }
-  return { stops, routes }
 }
 
 ////////////////

@@ -572,6 +572,19 @@ function mergeIntoMap<K, V> (
 // SCENARIO DATA RECEIVER - Core accumulation logic
 // ============================================================================
 
+export interface ScenarioReceiverOptions {
+  /**
+   * Fold departures instead of accumulating them. When set, each streamed
+   * batch is handed to this callback and `stopDepartureCache` is left empty.
+   *
+   * A retained departure costs ~80 bytes, so a statewide scenario's several
+   * million of them do not fit alongside everything else in a Cloudflare
+   * Worker. Consumers that only need a derived summary (the WSDOT report reads
+   * per-hour counts and nothing else) fold here and hold constant memory.
+   */
+  onStopDepartures?: (departures: readonly StopDepartureTuple[]) => void
+}
+
 /**
  * Receives progress events and accumulates ScenarioData
  * This is the core logic used by both in-process and streaming scenarios
@@ -579,9 +592,11 @@ function mergeIntoMap<K, V> (
 export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
+  private options: ScenarioReceiverOptions
 
-  constructor (callbacks: ScenarioCallbacks = {}) {
+  constructor (callbacks: ScenarioCallbacks = {}, options: ScenarioReceiverOptions = {}) {
     this.callbacks = callbacks
+    this.options = options
     this.accumulatedData = {
       stops: [],
       routes: [],
@@ -614,7 +629,9 @@ export class ScenarioDataReceiver {
       if (p.feedVersions) {
         this.accumulatedData.feedVersions.push(...p.feedVersions)
       }
-      if (p.stopDepartures) {
+      if (p.stopDepartures && this.options.onStopDepartures) {
+        this.options.onStopDepartures(p.stopDepartures)
+      } else if (p.stopDepartures) {
         for (const event of p.stopDepartures) {
           this.accumulatedData.stopDepartureCache.addFromWire(
             StopDepartureTuple.stopId(event),

@@ -1,7 +1,6 @@
 import { describe, it, afterEach } from 'vitest'
 import { parseDate, apiFetch, BasicGraphQLClient, type Bbox, SCENARIO_DEFAULTS } from '~~/src/core'
-import { runScenarioFetcher, ScenarioStreamSender } from '~~/src/scenario'
-import { WSDOTReportFetcher, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 
 describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
   if (process.env.TEST_WSDOT !== 'true') {
@@ -46,10 +45,7 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
     }
 
     const controller = createStreamController()
-    const scenarioData = await runScenarioFetcher(controller, config, client)
-    const mockSender = createMockSender()
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
-    await wsdotFetcher.fetch()
+    await runAnalysis(controller, config, client)
     console.log('Test completed')
   })
 
@@ -69,18 +65,10 @@ describe.skipIf(process.env.TEST_WSDOT !== 'true')('wsdot', () => {
       stopBufferRadius: 800, // Override default of 0
     }
     const controller = createStreamController()
-    const scenarioData = await runScenarioFetcher(controller, config, client)
-    const mockSender = createMockSender()
-    const wsdotFetcher = new WSDOTReportFetcher(config, scenarioData, client, mockSender)
-    await wsdotFetcher.fetch()
+    await runAnalysis(controller, config, client)
     console.log('Test completed')
   })
 }, 600000)
-
-function createMockSender () {
-  const { writable } = new TransformStream()
-  return new ScenarioStreamSender(writable.getWriter())
-}
 
 export function createStreamController (): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController

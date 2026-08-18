@@ -1,35 +1,33 @@
 import { describe, it, expect } from 'vitest'
 import { parseHour, processServiceLevel, SERVICE_LEVELS, type RouteFrequencyData, type StopFrequencyData } from './service-levels'
-import { StopTimeCacheItem } from '~~/src/tl'
 
 // One stop whose departures are given as GTFS seconds, bucketed with the same
-// parseHour the extraction uses, so the fixtures see what production sees.
+// parseHour the aggregator uses, so the fixtures see what production sees.
 function stopAt (stopId: number, departureSeconds: number[]): Map<number, StopFrequencyData> {
-  const hourlyDepartures = new Map<number, StopTimeCacheItem[]>()
+  const hourlyDepartures = new Map<number, number>()
   for (const secs of departureSeconds) {
     const hour = parseHour(secs)
-    const bucket = hourlyDepartures.get(hour) || []
-    bucket.push(new StopTimeCacheItem(secs, 1, 0, 1, null))
-    hourlyDepartures.set(hour, bucket)
+    hourlyDepartures.set(hour, (hourlyDepartures.get(hour) || 0) + 1)
   }
-  return new Map([[stopId, { stopId, gtfsStopId: `s${stopId}`, hourlyDepartures, routeIds: new Set([1]) }]])
+  return new Map([[stopId, { stopId, gtfsStopId: `s${stopId}`, hourlyDepartures }]])
 }
 
 // The peak criteria are also applied route-wide, so a stop only qualifies when
-// its route does too. One trip per hour in each direction clears every level's
+// its route does too. Six trips per hour in each direction clears every level's
 // min_tph, keeping these fixtures about the night segments.
 function routeServingAllHours (routeId: number, stopId: number): Map<number, RouteFrequencyData> {
-  const hourlyDepartures = new Map<number, StopTimeCacheItem[]>()
+  const hourlyTrips = new Map<number, [Set<number>, Set<number>]>()
   let tripId = 0
   for (let hour = 0; hour < 24; hour++) {
-    hourlyDepartures.set(hour, [0, 1].flatMap(directionId =>
-      Array.from({ length: 6 }, () => new StopTimeCacheItem(hour * 3600, ++tripId, directionId, routeId, null)),
-    ))
+    hourlyTrips.set(hour, [
+      new Set(Array.from({ length: 6 }, () => ++tripId)),
+      new Set(Array.from({ length: 6 }, () => ++tripId)),
+    ])
   }
   return new Map([[routeId, {
     routeId,
-    route: { id: routeId, route_id: `r${routeId}` } as RouteFrequencyData['route'],
-    hourlyDepartures,
+    routeGtfsId: `r${routeId}`,
+    hourlyTrips,
     stopIds: new Set([stopId]),
   }]])
 }
