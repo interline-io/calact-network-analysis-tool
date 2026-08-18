@@ -14,12 +14,13 @@ import { routeTripsQuery, type RouteTripFrequency, type RouteTripsResponse } fro
 import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
 import type { ScenarioProgress } from '../scenario'
 
-// Routes per GraphQL request. Held at 1 while batching returned silently
-// incomplete data; the pinned backend fixed that (batches spanning several feed
-// versions dropped all but one), and 40 routes over a week now return identical
-// departures batched or not. Kept modest because a batch's stop filter is the
-// union of its routes' stops, so a wide batch asks each route for stops it does
-// not serve.
+// Routes per GraphQL request. This was 1 for as long as batching returned
+// silently incomplete data, which the pinned backend fixed: batches spanning
+// several feed versions used to keep only one of them. 40 routes over a week
+// now return identical departures batched or not.
+//
+// Kept modest because a batch's stop filter is the union of its routes' stops,
+// so a wide batch asks each route for stops it does not serve.
 const TRIP_ROUTE_BATCH_SIZE = 10
 
 // Tuples per emitted progress event; one route batch can expand to hundreds of
@@ -92,14 +93,15 @@ interface TripFetchTask {
 // this cache still expect: they treat 86400 as the end of a day, so a departure
 // at 25:00:00 sits outside a 00:00:00-24:00:00 window rather than at 01:00:00
 // inside it.
-function calendarDeparture (serviceDate: string, seconds: number): { date: string, seconds: number } {
-  const days = Math.floor(seconds / SECONDS_PER_DAY)
+function shiftDates (serviceDates: string[], days: number): string[] {
   if (days === 0) {
-    return { date: serviceDate, seconds }
+    return serviceDates
   }
-  const d = new Date(`${serviceDate}T00:00:00`)
-  d.setDate(d.getDate() + days)
-  return { date: format(d, 'yyyy-MM-dd'), seconds }
+  return serviceDates.map((serviceDate) => {
+    const d = new Date(`${serviceDate}T00:00:00`)
+    d.setDate(d.getDate() + days)
+    return format(d, 'yyyy-MM-dd')
+  })
 }
 
 // A trip's first departure, which generated departures are measured from.
@@ -124,22 +126,34 @@ function frequencyAnchor (frequencies: RouteTripFrequency[]): number | null {
 // when a headway lands exactly on it. Returns nothing without an anchor, since
 // the offsets cannot be placed.
 export function frequencyDepartures (frequencies: RouteTripFrequency[], stopTimeSeconds: number): number[] {
-  const anchor = frequencyAnchor(frequencies)
-  if (anchor === null) {
+  const schedule = frequencySchedule(frequencies)
+  if (!schedule) {
     return []
   }
-  const offset = stopTimeSeconds - anchor
-  const departures: number[] = []
+  const offset = stopTimeSeconds - schedule.anchor
+  return schedule.starts.map(t => t + offset)
+}
+
+// The same series before any stop's offset is applied, which is everything about
+// it that depends on the trip rather than the stop. Worth computing once: a trip
+// with fifty in-scenario stops would otherwise re-derive the anchor and re-parse
+// every band fifty times over.
+export function frequencySchedule (frequencies: RouteTripFrequency[]): { anchor: number, starts: number[] } | null {
+  const anchor = frequencyAnchor(frequencies)
+  if (anchor === null) {
+    return null
+  }
+  const starts: number[] = []
   for (const f of frequencies) {
     if (f.headway_secs <= 0) {
       continue
     }
     const end = parseHMS(f.end_time)
     for (let t = parseHMS(f.start_time); t <= end; t += f.headway_secs) {
-      departures.push(t + offset)
+      starts.push(t)
     }
   }
-  return departures
+  return { anchor, starts }
 }
 
 // Departures via route -> trips -> stop_times instead of per (stop, date).
@@ -191,33 +205,49 @@ export async function runDeparturesPhase (
           tripIdStrings.set(trip.id, trip.trip_id)
         }
         // The fan-out the backend no longer does: one tuple per stop time per
-        // date the trip runs.
+        // date the trip runs. Everything that depends only on the trip is
+        // computed here rather than per stop time, which is the hot loop.
         const frequencies = trip.frequencies || []
+        const schedule = frequencies.length > 0 ? frequencySchedule(frequencies) : null
+        const serviceDates = trip.service_dates || []
+        const datesByDayShift = new Map<number, string[]>()
         for (const st of trip.stop_times || []) {
           const stopTimeSeconds = parseHMS(st.departure_time)
-          // A feed may leave departure_time blank at a non-timepoint stop. The
-          // stop-oriented path dropped those server-side; keeping them would
-          // resolve -1 seconds onto the previous day at 23:59:59.
+          // A feed may leave departure_time blank at a non-timepoint stop.
+          // Keeping one would resolve -1 seconds onto the previous day at
+          // 23:59:59, so it is dropped as the stop-oriented path's time window
+          // dropped it.
           if (stopTimeSeconds < 0) {
             continue
           }
           // A frequency-based trip's generated departures replace its stop
           // times rather than adding to them.
           const departureSeconds = frequencies.length > 0
-            ? frequencyDepartures(frequencies, stopTimeSeconds)
+            ? (schedule ? schedule.starts.map(t => t + stopTimeSeconds - schedule.anchor) : [])
             : [stopTimeSeconds]
           for (const gtfsSeconds of departureSeconds) {
-            for (const serviceDate of trip.service_dates || []) {
+            if (gtfsSeconds < 0) {
+              continue
+            }
+            // Seconds past 24:00:00 mean the departure falls on a later calendar
+            // day than the service date. The shift is the same for every stop
+            // time of a trip, so it is resolved once per distinct day offset.
+            const days = Math.floor(gtfsSeconds / SECONDS_PER_DAY)
+            let dates = datesByDayShift.get(days)
+            if (!dates) {
+              dates = shiftDates(serviceDates, days)
+              datesByDayShift.set(days, dates)
+            }
+            for (const date of dates) {
               // Service dates reach one day before the requested range;
               // departures resolving outside it belong to a neighbouring task.
-              const departure = calendarDeparture(serviceDate, gtfsSeconds)
-              if (!requested.has(departure.date)) {
+              if (!requested.has(date)) {
                 continue
               }
               stopDepartures.push(StopDepartureTuple.create(
                 st.stop.id,
-                departure.date,
-                departure.seconds,
+                date,
+                gtfsSeconds,
                 trip.id,
                 trip.direction_id,
                 route.id,

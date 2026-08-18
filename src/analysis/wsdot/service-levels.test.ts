@@ -69,6 +69,15 @@ describe('processServiceLevel night segments', () => {
     expect(qualifying.has(1)).toBe(true)
   })
 
+  it('folds a departure more than 48 hours into its service day', () => {
+    // Long-distance trips state stop times well past 24:00:00 — Amtrak's Empire
+    // Builder reaches 61:00:00 — so a single subtraction leaves the hour out of
+    // range and the departure lands in a bucket nothing reads.
+    expect(parseHour(61 * 3600)).toBe(13)
+    expect(parseHour(25 * 3600)).toBe(1)
+    expect(parseHour(23 * 3600)).toBe(23)
+  })
+
   it('does not count a stop with no overnight service', () => {
     const weekday = stopAt(1, [23.5 * 3600, ...night.peak.hours.map(h => h * 3600)])
     const routes = routeServingAllHours(1, 1)

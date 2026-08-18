@@ -10,7 +10,8 @@ export const stopClusterQuery = gql`
 query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float, $nearbyLimit: Int) {
   stops(limit: $limit, after: $after, where: $where) {
     id
-    route_stops {
+    # Without an explicit limit the backend returns 100; 1000 is its maximum.
+    route_stops(limit: 1000) {
       route {
         id
         agency {

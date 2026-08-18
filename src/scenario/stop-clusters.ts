@@ -382,12 +382,16 @@ export function deriveFilteredStopClusters (
     }
     // dayBase * 86400 + secs-since-midnight: a same-day departure keeps its
     // ordering, while different days land >= 86400s apart (always > maxGap).
+    //
+    // A departure is filed under the date it falls on but keeps the feed's
+    // seconds, so an after-midnight one reads 24:00:00 or later and has to be
+    // folded into the day before it is added, or it lands a day late.
     const times: number[] = []
     for (const { dateKey, dayOffset } of eligibleDates) {
       const dayBase = dayOffset * 86_400
       for (const st of sdCache.get(id, dateKey)) {
         if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
-          times.push(dayBase + st.departureTime)
+          times.push(dayBase + (st.departureTime % 86_400))
         }
       }
     }

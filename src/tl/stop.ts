@@ -46,7 +46,10 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String)
       layer_name
       name
     }    
-    route_stops {
+    # Without an explicit limit the backend returns 100. The departures phase
+    # fetches by route, so a route missing here loses its departures across the
+    # whole scenario, not just this stop's metadata. 1000 is the server maximum.
+    route_stops(limit: 1000) {
       route {
         id
         route_id

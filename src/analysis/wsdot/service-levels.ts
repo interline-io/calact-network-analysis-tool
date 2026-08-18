@@ -133,8 +133,7 @@ export interface RouteFrequencyData {
 // `hour % 24` in the following day's map, which only lines up if the buckets were
 // folded the same way.
 export function parseHour (seconds: number): number {
-  const hour = Math.floor(seconds / 3600)
-  return hour >= 24 ? hour - 24 : hour
+  return Math.floor(seconds / 3600) % 24
 }
 
 export function processServiceLevel (
