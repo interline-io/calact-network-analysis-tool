@@ -195,7 +195,7 @@ export function getUTCDateNoTime (): Date {
  * @param value - Time string in HH:mm:ss format
  * @returns Total seconds since midnight, or -1 if parsing fails
  */
-export function parseHMS (value: string | undefined): number {
+export function parseHMS (value: string | null | undefined): number {
   const a = (value || '').split(':').map((s) => {
     return Number.parseInt(s)
   })

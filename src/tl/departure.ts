@@ -41,8 +41,10 @@ query RouteTrips($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
         start_time
         end_time
         headway_secs
+        # Only the first is read, as the anchor the generated departures are
+        # measured from.
         trip {
-          stop_times {
+          stop_times(limit: 1) {
             departure_time
           }
         }
@@ -54,7 +56,9 @@ query RouteTrips($ids: [Int!], $dates: [Date!], $stopIds: [Int!], $limit: Int) {
 // A trip's stop times, with the dates the trip runs stated once.
 export interface RouteTripStopTime {
   stop: { id: number }
-  departure_time: string
+  // Null at a non-timepoint stop the feed left blank, which is common enough to
+  // be worth stating: such a stop time is not a departure.
+  departure_time: string | null
   pickup_type?: number | null
 }
 
@@ -66,7 +70,7 @@ export interface RouteTripFrequency {
   end_time: string
   headway_secs: number
   trip?: {
-    stop_times: { departure_time: string }[]
+    stop_times: { departure_time: string | null }[]
   }
 }
 
