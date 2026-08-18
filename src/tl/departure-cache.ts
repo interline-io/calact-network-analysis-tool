@@ -4,11 +4,11 @@ import type { StopTime } from './departure'
 // Compact cache item for stop departures, using flat numeric fields instead of
 // nested objects for ~57% memory reduction.
 //
-// departureTime is seconds since midnight of the calendar date the item is
-// filed under, always 0..86399 — the departures phase resolves GTFS 24+ hour
-// times onto the day they actually depart. pickupType is the GTFS value, null
-// when the feed omits it; 1 means no pickup available (drop-off only), e.g. a
-// loop's return to its terminal.
+// Items are filed under the calendar date the departure falls on, but
+// departureTime keeps the feed's own seconds, so an after-midnight departure
+// reads 24:00:00 or later rather than being reduced into the day. pickupType is
+// the GTFS value, null when the feed omits it; 1 means no pickup available
+// (drop-off only), e.g. a loop's return to its terminal.
 export class StopTimeCacheItem {
   constructor (
     public readonly departureTime: number,

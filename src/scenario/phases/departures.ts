@@ -29,7 +29,9 @@ const SECONDS_PER_DAY = 86400
 export type StopDepartureTuple = readonly [
   stop_id: number,
   departure_date: string, // calendar date the departure falls on
-  departure_time: number, // seconds since midnight on that date, 0..86399
+  // Seconds since midnight of the departure's own GTFS service day, so a trip
+  // running past midnight reads 24:00:00 or later on the date it departs.
+  departure_time: number,
   trip_id: number,
   trip_direction_id: number,
   trip_route_id: number,
@@ -79,18 +81,23 @@ interface TripFetchTask {
   stopIds: number[]
 }
 
-// Where a GTFS departure lands on the wall calendar. GTFS counts seconds from
-// the service day's midnight and runs past 24:00:00 for after-midnight trips,
-// so `25:00:00` on a Monday is 01:00:00 on the Tuesday.
+// Which calendar date a GTFS departure falls on. GTFS counts seconds from the
+// service day's midnight and runs past 24:00:00 for after-midnight trips, so
+// `25:00:00` on a Monday belongs to the Tuesday.
+//
+// The seconds are returned as the feed states them rather than reduced into the
+// day, which is what the stop-oriented path produced and what the consumers of
+// this cache still expect: they treat 86400 as the end of a day, so a departure
+// at 25:00:00 sits outside a 00:00:00-24:00:00 window rather than at 01:00:00
+// inside it.
 function calendarDeparture (serviceDate: string, seconds: number): { date: string, seconds: number } {
   const days = Math.floor(seconds / SECONDS_PER_DAY)
-  const secondsIntoDay = seconds - days * SECONDS_PER_DAY
   if (days === 0) {
-    return { date: serviceDate, seconds: secondsIntoDay }
+    return { date: serviceDate, seconds }
   }
   const d = new Date(`${serviceDate}T00:00:00`)
   d.setDate(d.getDate() + days)
-  return { date: format(d, 'yyyy-MM-dd'), seconds: secondsIntoDay }
+  return { date: format(d, 'yyyy-MM-dd'), seconds }
 }
 
 // A trip's first departure, which generated departures are measured from.
