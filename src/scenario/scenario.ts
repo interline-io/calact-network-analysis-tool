@@ -71,6 +71,13 @@ export interface ScenarioConfig {
    */
   includeFlexAreas?: boolean
   /**
+   * Whether to fetch each route's shape. Defaults to true, which the map
+   * needs. Route geometry is 98% of the routes query's bytes and costs
+   * several times that again as parsed coordinate arrays, so consumers that
+   * only classify routes should turn it off.
+   */
+  includeRouteGeometry?: boolean
+  /**
    * Whether to fetch census demographics: ACS values for the aggregation
    * layer (census-values stage) and the stop-buffer demographic passes.
    * Defaults to true.
@@ -444,7 +451,10 @@ export class ScenarioFetcher {
           }, this.client, emit, { onError })
         : Promise.resolve()
       const { agencyIds } = enabled.has('routes')
-        ? await runRoutesPhase({ routeIds }, this.client, emit, { onError })
+        ? await runRoutesPhase({
+            routeIds,
+            includeGeometry: this.config.includeRouteGeometry,
+          }, this.client, emit, { onError })
         : { agencyIds: [] }
       logMemory('after-routes')
       await departuresPromise
@@ -583,6 +593,14 @@ export interface ScenarioReceiverOptions {
    * per-hour counts and nothing else) fold here and hold constant memory.
    */
   onStopDepartures?: (departures: readonly StopDepartureTuple[]) => void
+  /**
+   * Accumulate routes without their geometry. The streamed events are left
+   * untouched, so a browser downstream still receives the shapes; only this
+   * receiver's copy is slimmed. For a server that streams routes on to a
+   * client but never draws them itself, holding a second copy of 49 KB per
+   * route is what the memory limit is spent on.
+   */
+  dropRouteGeometry?: boolean
 }
 
 /**
@@ -623,7 +641,12 @@ export class ScenarioDataReceiver {
       if (p.stops) {
         this.accumulatedData.stops.push(...p.stops)
       }
-      if (p.routes) {
+      if (p.routes && this.options.dropRouteGeometry) {
+        for (const route of p.routes) {
+          const { geometry: _geometry, ...rest } = route
+          this.accumulatedData.routes.push(rest)
+        }
+      } else if (p.routes) {
         this.accumulatedData.routes.push(...p.routes)
       }
       if (p.feedVersions) {

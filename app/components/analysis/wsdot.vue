@@ -207,6 +207,10 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   reportName: 'wsdot-report',
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
+  // This report has no map; route shapes are 98% of the routes query and are
+  // never read here. The stops-and-routes report, which exports them, leaves
+  // this alone.
+  includeRouteGeometry: false,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
   aggregateLayer: 'state',

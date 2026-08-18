@@ -526,6 +526,11 @@ const displayFeatures = computed((): Feature[] => {
     if (hideUnmarked.value && !rp.marked) {
       continue
     }
+    // Absent when the scenario ran with includeRouteGeometry off, which the
+    // mapless analysis reports do. There is no shape to draw.
+    if (!rp.geometry) {
+      continue
+    }
 
     const style = styleRules.find(rule => rule.match(rp))
     const feature = {
@@ -600,7 +605,7 @@ const exportFeatures = computed((): Feature[] => {
   if (fixedRouteEnabled.value !== false) {
     // Gather routes
     for (const rp of props.scenarioFilterResult?.routes || []) {
-      if (!rp.marked) {
+      if (!rp.marked || !rp.geometry) {
         continue
       }
 

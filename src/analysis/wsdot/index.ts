@@ -82,7 +82,22 @@ function configDate (value: Date | string): Date {
   return new Date(value.valueOf())
 }
 
-export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
+export interface WSDOTAnalysisOptions {
+  /**
+   * Keep route geometry in the returned ScenarioData. The HTTP endpoint
+   * discards the return value and browser consumers rebuild from the stream,
+   * so it defaults off: the shapes still go out on the wire, the server just
+   * does not hold a second copy of them.
+   */
+  retainRouteGeometry?: boolean
+}
+
+export async function runAnalysis (
+  controller: ReadableStreamDefaultController,
+  config: WSDOTReportConfig,
+  client: GraphQLClient,
+  opts: WSDOTAnalysisOptions = {},
+): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
   const writer = requestStream(controller).getWriter()
   const scenarioDataSender = new ScenarioStreamSender(writer)
 
@@ -106,6 +121,7 @@ export async function runAnalysis (controller: ReadableStreamDefaultController, 
     onError: error => scenarioDataSender.onError(error),
   }, {
     onStopDepartures: departures => frequency.addDepartures(departures),
+    dropRouteGeometry: !opts.retainRouteGeometry,
   })
 
   // Send config as initial extra data

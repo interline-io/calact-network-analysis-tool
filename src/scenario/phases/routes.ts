@@ -15,6 +15,9 @@ const ROUTE_FETCH_BATCH_SIZE = 100
 export interface RoutesPhaseConfig {
   routeIds: number[]
   batchSize?: number
+  // Fetch each route's shape. Defaults to true; the map needs it. Off for
+  // consumers that only classify routes, since it is 98% of the response.
+  includeGeometry?: boolean
 }
 
 export interface RoutesPhaseResult {
@@ -52,7 +55,10 @@ export async function runRoutesPhase (
     if (ids.length === 0) {
       return
     }
-    const response = await client.query<{ routes: RouteGql[] }>(routeQuery, { ids })
+    const response = await client.query<{ routes: RouteGql[] }>(routeQuery, {
+      ids,
+      include_geometry: config.includeGeometry !== false,
+    })
     const routeData = response.data?.routes || []
 
     // Send progress updates in batches using the generic helper function

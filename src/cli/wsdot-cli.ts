@@ -60,6 +60,9 @@ export function configureWsdotReportCli (program: Command) {
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
+        // Route shapes are 98% of the routes query and this report never
+        // reads them; wsdot-stops-routes, which exports them, does not set it.
+        includeRouteGeometry: false,
         aggregateLayer: opts.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
         tableDatasetName: opts.tableDatasetName,
         tableDatasetTable: opts.tableDatasetTable,
