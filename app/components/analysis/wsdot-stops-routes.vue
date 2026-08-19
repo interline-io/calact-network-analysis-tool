@@ -112,6 +112,7 @@
         :progress="loadingProgress"
         :error="error"
         :stop-departure-count="stopDepartureCount"
+        :stops-with-departures="stopsWithDepartures"
         :scenario-data="scenarioData"
       />
     </cat-modal>
@@ -147,6 +148,9 @@ const loading = ref(false)
 const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
+// Kept here rather than read off the progress event, so the figure survives a
+// stream that ends without completing.
+const stopsWithDepartures = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = defineModel<ScenarioData>('scenarioData')
 const wsdotReport = ref<WSDOTReport>()
@@ -206,6 +210,7 @@ const fetchScenario = async (loadExample: string) => {
   }
   loadingProgress.value = undefined
   stopDepartureCount.value = 0
+  stopsWithDepartures.value = 0
 
   // Create receiver to accumulate scenario data and WSDOT report
   const receiver = new WSDOTReportDataReceiver({
@@ -215,6 +220,7 @@ const fetchScenario = async (loadExample: string) => {
       // totals instead of the tuples; browse-style streams still count them.
       if (progress.departureSummary) {
         stopDepartureCount.value = progress.departureSummary.departures
+        stopsWithDepartures.value = progress.departureSummary.stopsWithDepartures
       } else {
         stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
       }

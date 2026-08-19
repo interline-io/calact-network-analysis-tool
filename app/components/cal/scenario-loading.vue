@@ -112,6 +112,9 @@ const props = withDefaults(defineProps<{
   requestErrors?: RequestFailure[]
   scenarioData?: ScenarioData
   stopDepartureCount?: number
+  // Distinct stops seen with departures. Sticky in the caller, so it survives
+  // the stream ending.
+  stopsWithDepartures?: number
   phasePlan?: ScenarioPhaseName[]
   phaseFractions?: Partial<Record<ScenarioPhaseName, number>>
 }>(), {})
@@ -154,8 +157,14 @@ const totalStops = computed(() => {
 // Number of stops that have departures loaded. A stream that folds departures
 // server-side sends the count rather than the tuples, so there is no cache to
 // measure; browse-style streams fall back to the cache's own size.
+//
+// The caller's running figure wins, because it survives the progress event
+// being cleared. On an aborted stream the modal stays up with no progress to
+// read, and the cache it would otherwise fall back to is empty by design, so
+// the count would read zero next to a departure total in the millions.
 const stopsWithDepartures = computed(() => {
-  return props.progress?.departureSummary?.stopsWithDepartures
+  return props.stopsWithDepartures
+    ?? props.progress?.departureSummary?.stopsWithDepartures
     ?? props.scenarioData?.stopDepartureCache?.cache?.size
     ?? 0
 })
