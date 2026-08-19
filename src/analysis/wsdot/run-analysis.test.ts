@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
-import { runAnalysis, type WSDOTReportConfig } from './index'
+import { runAnalysis, WSDOT_FETCH_PHASES, type WSDOTReportConfig } from './index'
 import { parseDate, SCENARIO_DEFAULTS, type Bbox, type GraphQLClient } from '~~/src/core'
 import type { ScenarioProgress } from '~~/src/scenario'
 
@@ -64,6 +64,32 @@ async function run (opts?: { retainScenarioEntities?: boolean }) {
 }
 
 describe('runAnalysis fetch policy', () => {
+  it('runs only the phases the report reads, whatever the caller asks for', async () => {
+    // The browse config these reports are built from carries explicit values
+    // for flex, census, buffers and clustering, so nothing here can be left to
+    // default. Asserting the whole plan catches a phase coming back on, rather
+    // than needing a separate test per flag.
+    const sent: ScenarioProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, {
+      ...config,
+      includeFlexAreas: true,
+      includeCensus: true,
+      stopBufferRadius: 800,
+      stopClusterDistance: 400,
+    }, client())
+
+    expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_FETCH_PHASES)
+  })
+
   it('never runs the flex phase, even when the caller asks for it', async () => {
     // The browse config these reports are built from always carries an
     // explicit includeFlexAreas: true, so defaulting rather than overriding

@@ -7,7 +7,7 @@ import {
   type Bbox,
   chunkArray,
 } from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress } from '~~/src/scenario'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress, type ScenarioPhaseName } from '~~/src/scenario'
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
@@ -93,6 +93,11 @@ export interface WSDOTProgressSink {
   onProgress: (progress: ScenarioProgress) => void | Promise<void>
 }
 
+// The only phases either report reads from. Asserted in tests against the
+// plan runAnalysis actually emits, so a phase that starts running again is
+// caught wholesale rather than one flag at a time.
+export const WSDOT_FETCH_PHASES: ScenarioPhaseName[] = ['feed-versions', 'stops', 'routes', 'departures']
+
 export interface WSDOTAnalysisOptions {
   /**
    * Populate the returned ScenarioData with whole stops and routes.
@@ -141,16 +146,15 @@ export async function runAnalysis (
   const writer = requestStream(controller).getWriter()
   const scenarioDataSender = new ScenarioStreamSender(writer)
 
-  // TODO: ScenarioFetcher fetches census values from configCopy here, but
-  // WSDOT re-queries them via getGeographyData and ignores the scenario map.
-  // Drop the duplicate once WSDOT consumes CensusGeographyData directly.
+  // These reports read stops, routes and departures. Nothing in them reads
+  // flex areas, buffer demographics, census values or stop clusters, so those
+  // phases are turned off rather than fetched and discarded. The report's own
+  // geography numbers come from getGeographyData, which queries independently.
   //
-  // Flex is off regardless of what the caller asked for. No part of either
-  // report reads flex areas or flex departures, and the phase costs a request
-  // per feed version. Defaulting rather than overriding was tried and is
-  // wrong here: the browse config these reports are built from always carries
-  // an explicit `includeFlexAreas: true`, so `?? false` never fires and the
-  // phase runs for every report.
+  // Overridden rather than defaulted, deliberately. The browse config these
+  // reports are built from carries explicit values for all of them, so `??`
+  // never fires and every phase runs. See wsdotFetchPhases for the plan this
+  // is expected to produce.
   //
   // departureDates does default, because nothing else sets it and a caller
   // narrowing further is a reasonable thing to want.
@@ -158,6 +162,8 @@ export async function runAnalysis (
     ...config,
     routeHourCompatMode: true,
     includeFlexAreas: false,
+    includeCensus: false,
+    stopClusterDistance: 0,
     departureDates: config.departureDates ?? wsdotDepartureDates(config),
   }
 
