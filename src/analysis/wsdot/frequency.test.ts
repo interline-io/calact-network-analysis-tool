@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
 import { StopDepartureTuple } from '~~/src/scenario'
+import { wsdotDepartureDates, wsdotReportDates, type WSDOTReportConfig } from './index'
 
 const WEEKDAY = '2026-08-24'
 const WEEKEND = '2026-08-30'
@@ -126,5 +127,42 @@ describe('WSDOTFrequencyAggregator', () => {
     expect(totals[8]).toBe(2)
     expect(totals[17]).toBe(1)
     expect(agg.departureCount(WEEKDAY)).toBe(3)
+  })
+})
+
+describe('wsdotDepartureDates', () => {
+  const config = (weekday: string, weekend: string) =>
+    ({ weekdayDate: weekday, weekendDate: weekend }) as unknown as WSDOTReportConfig
+
+  it('fetches the day before each date the report reads', () => {
+    // Reads Mon 24th, its following night on the 25th, and Sun 30th. Each
+    // needs its own service date and the one before it, because a departure
+    // stated past 24:00:00 lands on the following day.
+    expect(wsdotDepartureDates(config('2026-08-24', '2026-08-30'))).toEqual([
+      '2026-08-23', '2026-08-24', '2026-08-25', '2026-08-29', '2026-08-30',
+    ])
+  })
+
+  it('does not grow with the scenario range', () => {
+    // The same five dates whether the user picked a week or a month; only the
+    // weekday and weekend dates move them.
+    expect(wsdotDepartureDates(config('2026-08-24', '2026-08-30'))).toHaveLength(5)
+    expect(wsdotDepartureDates(config('2026-08-24', '2026-09-27'))).toHaveLength(5)
+  })
+
+  it('collapses dates that overlap', () => {
+    // A weekend date the day after the weekday makes the overnight date and
+    // the weekend date the same day.
+    expect(wsdotDepartureDates(config('2026-08-24', '2026-08-25'))).toEqual([
+      '2026-08-23', '2026-08-24', '2026-08-25',
+    ])
+  })
+
+  it('covers every date the aggregator folds', () => {
+    const cfg = config('2026-08-24', '2026-08-30')
+    const fetched = new Set(wsdotDepartureDates(cfg))
+    for (const date of new WSDOTFrequencyAggregator(wsdotReportDates(cfg)).dates) {
+      expect(fetched.has(date)).toBe(true)
+    }
   })
 })

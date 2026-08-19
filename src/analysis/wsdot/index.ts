@@ -92,6 +92,29 @@ export interface WSDOTAnalysisOptions {
   retainRouteGeometry?: boolean
 }
 
+/**
+ * The calendar dates the departures phase has to fetch for the report.
+ *
+ * The report reads three days, but a departure stated past 24:00:00 belongs to
+ * the day after its service date, so the day before each is fetched too. That
+ * matters here more than most places: levelNights is entirely about service
+ * that runs past midnight, and a Saturday-only late trip landing on the
+ * Sunday being analyzed would be invisible without its service date.
+ *
+ * The result is five dates for the usual weekday/weekend pair, whatever range
+ * the user picked, so the departure cost stops following the scenario range.
+ */
+export function wsdotDepartureDates (config: WSDOTReportConfig): string[] {
+  const dates = new Set<string>()
+  for (const date of wsdotReportDates(config)) {
+    const previous = new Date(date.valueOf())
+    previous.setDate(previous.getDate() - 1)
+    dates.add(fmtDate(previous))
+    dates.add(fmtDate(date))
+  }
+  return [...dates].sort()
+}
+
 export async function runAnalysis (
   controller: ReadableStreamDefaultController,
   config: WSDOTReportConfig,
@@ -108,7 +131,12 @@ export async function runAnalysis (
   // Flex is off regardless of what the browse config asked for: no part of the
   // report reads flex areas or flex departures, and the phase costs a request
   // per feed version.
-  const configCopy = { ...config, routeHourCompatMode: true, includeFlexAreas: false }
+  const configCopy = {
+    ...config,
+    routeHourCompatMode: true,
+    includeFlexAreas: false,
+    departureDates: wsdotDepartureDates(config),
+  }
 
   // Departures are folded into per-hour counters as they stream rather than
   // accumulated. The report reads only counts, and holding every departure is

@@ -92,6 +92,14 @@ export interface ScenarioConfig {
    */
   includeRouteStopDetails?: boolean
   /**
+   * Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead of
+   * every day from startDate to endDate. A report that reads a few days out of
+   * a wide scenario range sets this so its departure cost follows the days it
+   * reads rather than the range the user picked. Must include the day before
+   * each date read: a departure stated past 24:00:00 falls on the next day.
+   */
+  departureDates?: string[]
+  /**
    * Whether to fetch census demographics: ACS values for the aggregation
    * layer (census-values stage) and the stop-buffer demographic passes.
    * Defaults to true.
@@ -467,6 +475,7 @@ export class ScenarioFetcher {
             stopIds,
             startDate: this.config.startDate,
             endDate: this.config.endDate,
+            dates: this.config.departureDates,
             routeIds,
             routeStopIds,
           }, this.client, emit, { onError })
