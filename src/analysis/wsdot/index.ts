@@ -163,10 +163,19 @@ export async function runAnalysis (
   const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
 
   const receiver = new ScenarioDataReceiver({
-    onProgress: progress => scenarioDataSender.onProgress({
-      ...withoutDepartures(progress),
-      departureSummary: departureSummary(),
-    }),
+    onProgress: (progress) => {
+      // Folded off the progress events rather than in place of accumulation,
+      // so the report is built from the same records whether or not the whole
+      // stops are being kept alongside for the caller.
+      const batch = progress.partialData?.stops
+      if (batch) {
+        stops.add(batch)
+      }
+      scenarioDataSender.onProgress({
+        ...withoutDepartures(progress),
+        departureSummary: departureSummary(),
+      })
+    },
     onError: error => scenarioDataSender.onError(error),
   }, {
     onStopDepartures: (batch) => {
@@ -176,7 +185,7 @@ export async function runAnalysis (
         stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
       }
     },
-    onStops: opts.retainScenarioEntities ? undefined : batch => stops.add(batch),
+    dropStops: !opts.retainScenarioEntities,
     dropRouteGeometry: !opts.retainScenarioEntities,
   })
 
