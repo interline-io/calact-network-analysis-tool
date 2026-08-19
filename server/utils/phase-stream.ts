@@ -48,14 +48,16 @@ export async function streamPhaseResponse (
       try {
         await run(client, emit, failures.onError)
       } catch (err) {
-        sender.onError(err)
-        writer.close()
+        // Awaited before the close: writes are queued behind one another, so
+        // closing first drops the event that says what went wrong.
+        await sender.onError(err)
+        await writer.close()
         return
       } finally {
         failures.dispose()
       }
-      sender.onComplete()
-      writer.close()
+      await sender.onComplete()
+      await writer.close()
     }
   })
 
