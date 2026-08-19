@@ -169,6 +169,8 @@
         :error="error"
         :stop-departure-count="stopDepartureCount"
         :stops-with-departures="stopsWithDepartures"
+        :phase-plan="scenarioPhasePlan"
+        :phase-fractions="scenarioPhaseFractions"
         :scenario-data="scenarioData"
       />
     </cat-modal>
@@ -178,7 +180,7 @@
 <script lang="ts" setup>
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~~/src/scenario'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, trackPhaseProgress, type ScenarioPhaseName, type ScenarioProgress } from '~~/src/scenario'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
 
 interface ExampleConfig {
@@ -198,6 +200,11 @@ const stopDepartureCount = ref<number>(0)
 // Kept here rather than read off the progress event, so the figure survives a
 // stream that ends without completing.
 const stopsWithDepartures = ref<number>(0)
+// Drives the weighted progress bar and decides which result cards apply.
+// Without it the modal falls back to a heuristic that reads 100% once stops
+// finish, while departures carry most of the remaining work.
+const scenarioPhasePlan = ref<ScenarioPhaseName[]>()
+const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
 const wsdotReport = shallowRef<WSDOTReport>()
@@ -329,11 +336,19 @@ const fetchScenario = async () => {
   loadingProgress.value = undefined
   stopDepartureCount.value = 0
   stopsWithDepartures.value = 0
+  scenarioPhasePlan.value = undefined
+  scenarioPhaseFractions.value = {}
 
   // Create receiver to accumulate scenario data and WSDOT report
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
+      const tracked = trackPhaseProgress(
+        { plan: scenarioPhasePlan.value, fractions: scenarioPhaseFractions.value },
+        progress,
+      )
+      scenarioPhasePlan.value = tracked.plan
+      scenarioPhaseFractions.value = tracked.fractions
       // The WSDOT endpoint folds departures server-side and sends running
       // totals instead of the tuples; browse-style streams still count them.
       if (progress.departureSummary) {

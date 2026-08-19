@@ -11,6 +11,7 @@ import {
   ScenarioStreamReceiver,
   ScenarioDataReceiver,
   applyScenarioResultFilter,
+  trackPhaseProgress,
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioFilter,
@@ -84,19 +85,14 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
         loadingProgress.value = progress
         stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
 
-        // Weighted progress bar: plan announcement + per-phase fractions
-        // (clamped max-so-far; stop pagination grows its denominator mid-phase)
-        if (progress.phasePlan) {
-          scenarioPhasePlan.value = progress.phasePlan
-          scenarioPhaseFractions.value = {}
-        }
-        const pp = progress.phaseProgress
-        if (pp) {
-          const fraction = pp.total > 0 ? Math.min(pp.completed / pp.total, 1) : 0
-          if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
-            scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
-          }
-        }
+        // Weighted progress bar, shared with the WSDOT reports so all three
+        // consumers of this stream report progress the same way.
+        const tracked = trackPhaseProgress(
+          { plan: scenarioPhasePlan.value, fractions: scenarioPhaseFractions.value },
+          progress,
+        )
+        scenarioPhasePlan.value = tracked.plan
+        scenarioPhaseFractions.value = tracked.fractions
 
         if (progress.requestErrors && progress.requestErrors.length > 0) {
           requestErrors.value = [...requestErrors.value, ...progress.requestErrors]
