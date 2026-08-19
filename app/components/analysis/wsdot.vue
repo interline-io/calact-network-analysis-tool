@@ -334,6 +334,7 @@ const fetchScenario = async () => {
     return
   }
   loadingProgress.value = undefined
+  error.value = undefined
   stopDepartureCount.value = 0
   stopsWithDepartures.value = 0
   scenarioPhasePlan.value = undefined
@@ -395,7 +396,12 @@ const fetchScenario = async () => {
   // Process the streaming response
   const streamer = new ScenarioStreamReceiver()
   const { success } = await streamer.processStream(response.body, receiver)
-  if (!success) {
+  // A failure the server managed to report is already in `error`, and its
+  // stream then ends without a 'complete' too. Only a stream that stopped
+  // without saying anything is the abnormal termination this describes;
+  // overwriting the reported cause told the user a census-backend error was
+  // an out-of-memory condition.
+  if (!success && !error.value) {
     error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
   }
 }
