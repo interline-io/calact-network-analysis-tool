@@ -142,35 +142,6 @@ export async function runAnalysis (
   const writer = requestStream(controller).getWriter()
   const scenarioDataSender = new ScenarioStreamSender(writer)
 
-  // These reports read stops, routes and departures. Nothing in them reads
-  // flex areas, buffer demographics, census values or stop clusters, so those
-  // phases are turned off rather than fetched and discarded. The report's own
-  // geography numbers come from getGeographyData, which queries independently.
-  //
-  // Overridden rather than defaulted, deliberately. The browse config these
-  // reports are built from carries explicit values for all of them, so `??`
-  // never fires and every phase runs. See wsdotFetchPhases for the plan this
-  // is expected to produce.
-  //
-  // departureDates does default, because nothing else sets it and a caller
-  // narrowing further is a reasonable thing to want.
-  const configCopy = {
-    ...config,
-    routeHourCompatMode: true,
-    includeFlexAreas: false,
-    includeCensus: false,
-    stopClusterDistance: 0,
-    departureDates: config.departureDates ?? wsdotDepartureDates(config),
-  }
-
-  // Departures are folded into per-hour counters as they stream rather than
-  // accumulated. The report reads only counts, and holding every departure is
-  // what put a statewide run over the Worker's memory limit. Stops, routes and
-  // feed versions are still accumulated: the stop table is built from them,
-  // and so is the stops-and-routes report layered on top of this one.
-  const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
-  const stops = new WSDOTStopCollector(config.aggregateLayer)
-
   // Nothing downstream of here reads a departure. The browser shows two
   // numbers from them, so the numbers are what it gets: the tuples are folded
   // and dropped rather than forwarded, keeping several million of them off the
@@ -204,83 +175,126 @@ export async function runAnalysis (
   // Awaited by the phases, so the fetch slows to the rate the client reads at
   // rather than queuing what it has not taken yet.
 
-  const receiver = new ScenarioDataReceiver({
-    onProgress: (progress) => {
-      // Folded off the progress events rather than in place of accumulation,
-      // so the report is built from the same records whether or not the whole
-      // stops are being kept alongside for the caller.
-      const batch = progress.partialData?.stops
-      if (batch) {
-        stops.add(batch)
-      }
-      return clientSender.onProgress(progress)
-    },
-    onError: error => scenarioDataSender.onError(error),
-  }, {
-    onStopDepartures: (batch) => {
-      frequency.addDepartures(batch)
-      departures += batch.length
-      for (const departure of batch) {
-        stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
-      }
-    },
-    dropStops: !opts.retainScenarioEntities,
-    dropRouteGeometry: !opts.retainScenarioEntities,
-  })
-
-  // Send config as initial extra data
-  clientSender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting WSDOT fetcher',
-    config: config,
-  })
-
-  // Start the fetch process
-  const fetcher = new ScenarioFetcher(configCopy, client, receiver)
-  await fetcher.fetch()
-
-  const scenarioData = receiver.getCurrentData()
-
-  // Update the client with the wsdot result
-  clientSender.onProgress({
-    isLoading: true,
-    currentStage: 'extra',
-    currentStageMessage: 'Running WSDOT frequency analysis...'
-  })
-
-  let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
-  let failure: { error: unknown } | undefined
+  // Everything that can fail runs inside this try, so the response stream is
+  // settled exactly once whatever happens: the consumer gets the error and a
+  // closed stream rather than a request that never ends. A throw out of the
+  // fetch — a phase with no search area, a GraphQL error past its retries, a
+  // config whose dates will not parse — used to escape before the close, and
+  // the browser then blocked forever on a read that would never return, under
+  // a loading modal it cannot dismiss.
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, clientSender)
-    wsdotResult = await wsdotFetcher.fetch()
-  } catch (e) {
-    console.error('WSDOT analysis error:', e)
-    failure = { error: e }
-    await scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
-  }
+    // These reports read stops, routes and departures. Nothing in them reads
+    // flex areas, buffer demographics, census values or stop clusters, so those
+    // phases are turned off rather than fetched and discarded. The report's own
+    // geography numbers come from getGeographyData, which queries independently.
+    //
+    // Overridden rather than defaulted, deliberately. The browse config these
+    // reports are built from carries explicit values for all of them, so `??`
+    // never fires and every phase runs. See wsdotFetchPhases for the plan this
+    // is expected to produce.
+    //
+    // The two the report cannot do without are pinned on for the same reason:
+    // the browse config carries the user's Browse checkboxes, and an unchecked
+    // "include departures" or "include fixed route" would otherwise produce a
+    // structurally valid report with no service level on any stop — a service
+    // desert reported as a success, which is what the completion gating here
+    // exists to prevent.
+    //
+    // departureDates does default, because nothing else sets it and a caller
+    // narrowing further is a reasonable thing to want.
+    const configCopy = {
+      ...config,
+      routeHourCompatMode: true,
+      includeFixedRoute: true,
+      includeDepartures: true,
+      includeFlexAreas: false,
+      includeCensus: false,
+      stopClusterDistance: 0,
+      departureDates: config.departureDates ?? wsdotDepartureDates(config),
+    }
 
-  // Completion carries the totals too, so the figures do not blank out on the
-  // last event a consumer sees. Awaited before the close, because writes are
-  // queued behind one another and closing first would drop them.
-  //
-  // Not sent at all when the analysis failed: the consumer should see the
-  // error and an unfinished stream, not a report it believes is complete.
-  if (!failure) {
+    // Departures are folded into per-hour counters as they stream rather than
+    // accumulated. The report reads only counts, and holding every departure is
+    // what put a statewide run over the Worker's memory limit. Stops, routes and
+    // feed versions are still accumulated: the stop table is built from them,
+    // and so is the stops-and-routes report layered on top of this one.
+    const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
+    const stops = new WSDOTStopCollector(config.aggregateLayer)
+
+    const receiver = new ScenarioDataReceiver({
+      onProgress: (progress) => {
+        // Folded off the progress events rather than in place of accumulation,
+        // so the report is built from the same records whether or not the whole
+        // stops are being kept alongside for the caller.
+        const batch = progress.partialData?.stops
+        if (batch) {
+          stops.add(batch)
+        }
+        return clientSender.onProgress(progress)
+      },
+      onError: error => scenarioDataSender.onError(error),
+    }, {
+      onStopDepartures: (batch) => {
+        frequency.addDepartures(batch)
+        departures += batch.length
+        for (const departure of batch) {
+          stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
+        }
+      },
+      dropStops: !opts.retainScenarioEntities,
+      dropRouteGeometry: !opts.retainScenarioEntities,
+    })
+
+    // Send config as initial extra data
+    clientSender.onProgress({
+      isLoading: true,
+      currentStage: 'ready',
+      currentStageMessage: 'Starting WSDOT fetcher',
+      config: config,
+    })
+
+    // Start the fetch process
+    const fetcher = new ScenarioFetcher(configCopy, client, receiver)
+    await fetcher.fetch()
+
+    const scenarioData = receiver.getCurrentData()
+
+    // Update the client with the wsdot result
+    clientSender.onProgress({
+      isLoading: true,
+      currentStage: 'extra',
+      currentStageMessage: 'Running WSDOT frequency analysis...'
+    })
+
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, clientSender)
+    const wsdotResult = await wsdotFetcher.fetch()
+
+    // Completion carries the totals too, so the figures do not blank out on the
+    // last event a consumer sees. Awaited before the close, because writes are
+    // queued behind one another and closing first would drop them.
+    //
+    // Only reached when the report was actually built: a failure leaves the
+    // consumer with the error and an unfinished stream, not a report it
+    // believes is complete.
     reportComplete = true
     await clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
-  }
-  await writer.close()
 
-  if (failure) {
-    // The stream already carries the error and has been closed, so a browser
-    // consumer is unaffected. This is for the in-process callers that build a
-    // report out of the return value: an empty WSDOTReport is structurally
-    // valid and would export as a plausible report of a total service desert.
-    throw failure.error
+    return { scenarioData, wsdotResult }
+  } catch (e) {
+    console.error('WSDOT analysis error:', e)
+    // Reported on the stream, then rethrown for the in-process callers that
+    // build a report out of the return value: an empty WSDOTReport is
+    // structurally valid and would export as a plausible report of a total
+    // service desert.
+    await scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
+    throw e
+  } finally {
+    // The one place the stream is closed. Awaited after the error event, since
+    // writes are queued behind one another and closing first would drop it. A
+    // close that fails — the consumer already went away — must not replace the
+    // failure being propagated.
+    await writer.close().catch(err => console.error('WSDOT stream close failed:', err))
   }
-
-  return { scenarioData, wsdotResult }
 }
 
 export class WSDOTReportFetcher {
@@ -431,10 +445,17 @@ export class WSDOTReportFetcher {
       })
     }
 
+    // Awaited, every one of them. send() stringifies and encodes on the spot
+    // and only queues the write, so emitting these without waiting builds the
+    // encoded bytes for the whole report at once — every stop chunk, every
+    // service level's geography on both layers (tract with intersection
+    // geometry), and the bbox intersection — while the objects they came from
+    // are still live. That is the largest payload in the run, on a 128 MB
+    // Worker, at the moment the frequency maps are also resident.
     // Send stops in batches using the generic helper function
     const stopChunks = chunkArray(stops, PROGRESS_LIMIT_STOPS)
     for (let i = 0; i < stopChunks.length; i++) {
-      this.progressSender.onProgress({
+      await this.progressSender.onProgress({
         isLoading: true,
         currentStage: 'extra',
         extraData: { stops: stopChunks[i], levelStops: {}, levelLayers: {}, bboxIntersection: [] },
@@ -444,7 +465,7 @@ export class WSDOTReportFetcher {
 
     // Send levelStops by individual level
     for (const [levelKey, stopIds] of Object.entries(levelStops)) {
-      this.progressSender.onProgress({
+      await this.progressSender.onProgress({
         isLoading: true,
         currentStage: 'extra',
         extraData: { stops: [], levelStops: { [levelKey]: stopIds }, levelLayers: {}, bboxIntersection: [] },
@@ -463,7 +484,7 @@ export class WSDOTReportFetcher {
               [layerName]: chunk
             }
           }
-          this.progressSender.onProgress({
+          await this.progressSender.onProgress({
             isLoading: true,
             currentStage: 'extra',
             extraData: { stops: [], levelStops: {}, levelLayers: batchLevelLayers, bboxIntersection: [] },
@@ -476,7 +497,7 @@ export class WSDOTReportFetcher {
     // Send bboxIntersection in batches using the generic helper function
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
     for (let i = 0; i < bboxChunks.length; i++) {
-      this.progressSender.onProgress({
+      await this.progressSender.onProgress({
         isLoading: true,
         currentStage: 'extra',
         extraData: { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: bboxChunks[i] },

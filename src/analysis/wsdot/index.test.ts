@@ -75,10 +75,26 @@ export function createStreamController (): ReadableStreamDefaultController {
   // `start` runs synchronously during construction, so `controller` is
   // assigned before this returns. Without the stream it never was, and the
   // helper silently handed every caller `undefined` behind the `!`.
-  new ReadableStream({
+  const stream = new ReadableStream({
     start (ctrl) {
       controller = ctrl
     }
   })
+  // Read and discarded. Nothing here looks at the events, but an unread
+  // stream never drains: desiredSize sits at 0 and every write after the
+  // first waits out the backpressure timeout, so a run of any size blows the
+  // suite's timeout instead of finishing. Same reason scenario-cli's
+  // controller always drains.
+  void drain(stream)
   return controller!
+}
+
+async function drain (stream: ReadableStream): Promise<void> {
+  const reader = stream.getReader()
+  while (true) {
+    const { done } = await reader.read()
+    if (done) {
+      return
+    }
+  }
 }

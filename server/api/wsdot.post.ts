@@ -26,8 +26,15 @@ export default defineEventHandler(async (event) => {
       } catch (e) {
         // runAnalysis reports the failure on the stream and closes it before
         // rethrowing, which it does for in-process callers that build a report
-        // out of its return value. There is nothing left to tell the client.
+        // out of its return value.
         console.error('WSDOT request failed:', e)
+        // Backstop for anything that could throw before it gets that far. A
+        // start() that resolves without closing or erroring the controller
+        // leaves the response stream open forever: sendStream never settles
+        // and the browser blocks on a read that never returns, under a
+        // loading modal it cannot dismiss. Erroring an already-closed
+        // controller is a no-op, so the normal path is unaffected.
+        controller.error(e)
       }
     }
   })

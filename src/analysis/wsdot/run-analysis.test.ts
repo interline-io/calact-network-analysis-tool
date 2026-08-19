@@ -142,6 +142,19 @@ describe('runAnalysis completion signalling', () => {
     expect(sent.some(p => p.currentStage === 'complete')).toBe(false)
     expect(sent.some(p => p.error)).toBe(true)
   })
+
+  it('reports and closes the stream when the fetch itself fails', async () => {
+    // A throw out of the fetch phases used to escape past the close, leaving
+    // the response stream neither closed nor errored: the browser blocked
+    // forever on a read that would never return, under a loading modal it
+    // cannot dismiss.
+    const { sent, controller } = capture()
+    await expect(runAnalysis(controller, { ...config, bbox: undefined, geographyIds: [] }, client()))
+      .rejects.toThrow('No search area')
+    expect(sent.some(p => p.error)).toBe(true)
+    expect(sent.some(p => p.currentStage === 'complete')).toBe(false)
+    expect(controller.close).toHaveBeenCalled()
+  })
 })
 
 describe('runAnalysis geography queries', () => {
@@ -190,11 +203,17 @@ describe('runAnalysis geography queries', () => {
 })
 
 describe('runAnalysis fetch policy', () => {
-  it('runs only the phases the report reads, whatever the caller asks for', async () => {
+  it('runs exactly the phases the report reads, whatever the caller asks for', async () => {
     // The browse config these reports are built from carries explicit values
     // for flex, census, buffers and clustering, so nothing here can be left to
     // default. Asserting the whole plan catches a phase coming back on, rather
     // than needing a separate test per flag.
+    //
+    // Every flag below is set the wrong way for this report: the ones it does
+    // not read are on, and the two it cannot do without are off. Dropping
+    // stops or departures is the worse direction — the run still succeeds, and
+    // every stop comes back with no service level at all, which reads as a
+    // region with no transit service rather than as a failure.
     const sent: ScenarioProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
@@ -211,6 +230,8 @@ describe('runAnalysis fetch policy', () => {
       includeCensus: true,
       stopBufferRadius: 800,
       stopClusterDistance: 400,
+      includeFixedRoute: false,
+      includeDepartures: false,
     }, client())
 
     expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_FETCH_PHASES)
