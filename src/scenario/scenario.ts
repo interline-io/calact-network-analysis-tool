@@ -624,6 +624,16 @@ export interface ScenarioReceiverOptions {
    */
   onStopDepartures?: (departures: readonly StopDepartureTuple[]) => void
   /**
+   * Fold stops instead of accumulating them. When set, each streamed batch is
+   * handed to this callback and `stops` is left empty.
+   *
+   * A StopGql costs ~970 bytes, most of it in the separate heap objects behind
+   * `geometry`, `feed_version`, `census_geographies` and `route_stops` rather
+   * than in the fields themselves. A consumer that reads a handful of values
+   * per stop should fold them into a flat record here, which measures ~300.
+   */
+  onStops?: (stops: readonly StopGql[]) => void
+  /**
    * Accumulate routes without their geometry. The streamed events are left
    * untouched, so a browser downstream still receives the shapes; only this
    * receiver's copy is slimmed. For a server that streams routes on to a
@@ -668,7 +678,9 @@ export class ScenarioDataReceiver {
   onProgress (progress: ScenarioProgress): void {
     const p = progress.partialData
     if (p) {
-      if (p.stops) {
+      if (p.stops && this.options.onStops) {
+        this.options.onStops(p.stops)
+      } else if (p.stops) {
         this.accumulatedData.stops.push(...p.stops)
       }
       if (p.routes && this.options.dropRouteGeometry) {

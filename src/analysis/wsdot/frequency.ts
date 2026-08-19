@@ -103,7 +103,7 @@ export class WSDOTFrequencyAggregator {
       const hour = parseHour(seconds)
       const stopId = StopDepartureTuple.stopId(departure)
       const routeId = StopDepartureTuple.tripRouteId(departure)
-      const direction = StopDepartureTuple.tripDirectionId(departure) ? 1 : 0
+      const direction = StopDepartureTuple.tripDirectionId(departure)
 
       let hours = this.stopHours.get(stopId)
       if (!hours) {
@@ -122,12 +122,20 @@ export class WSDOTFrequencyAggregator {
         counts = { hourlyTrips: new Map(), stopIds: new Set() }
         dateCounts[slot] = counts
       }
-      let trips = counts.hourlyTrips.get(hour)
-      if (!trips) {
-        trips = [new Set<number>(), new Set<number>()]
-        counts.hourlyTrips.set(hour, trips)
+      // The route rules compare direction_id against 0 and 1 and ignore
+      // anything else, so a feed stating some other value must not be folded
+      // into a direction. Coercing truthily would file -1 and 2 under
+      // direction 1 and let them qualify a route-direction that has no such
+      // service. Such a departure still counts at its stop and still marks the
+      // route as serving that stop, which is what the cache-based path did.
+      if (direction === 0 || direction === 1) {
+        let trips = counts.hourlyTrips.get(hour)
+        if (!trips) {
+          trips = [new Set<number>(), new Set<number>()]
+          counts.hourlyTrips.set(hour, trips)
+        }
+        trips[direction].add(StopDepartureTuple.tripId(departure))
       }
-      trips[direction]!.add(StopDepartureTuple.tripId(departure))
       counts.stopIds.add(stopId)
 
       this.slotCounts[slot]! += 1

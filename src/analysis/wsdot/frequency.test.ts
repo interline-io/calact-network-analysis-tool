@@ -52,6 +52,32 @@ describe('WSDOTFrequencyAggregator', () => {
     expect(trips?.[1]).toEqual(new Set([101]))
   })
 
+  it('ignores a direction_id that is neither 0 nor 1', () => {
+    // The route rules compare direction_id against 0 and 1 with strict
+    // equality, so a feed stating -1 or 2 contributed to no direction. A
+    // truthy conversion would file both under direction 1 and let them
+    // qualify a route-direction that has no such service.
+    const agg = aggregator()
+    agg.addDepartures([
+      departure(1, WEEKDAY, 8 * 3600, 100, 2),
+      departure(1, WEEKDAY, 8 * 3600, 101, -1),
+    ])
+    const trips = agg.build(WEEKDAY, labels).routes.get(10)?.hourlyTrips.get(8)
+    expect(trips?.[1] ?? new Set()).toEqual(new Set())
+    expect(trips?.[0] ?? new Set()).toEqual(new Set())
+  })
+
+  it('still counts an odd-direction departure at its stop and route', () => {
+    // It is a real departure at a real stop; only the per-direction trip
+    // bucketing ignores it.
+    const agg = aggregator()
+    agg.addDepartures([departure(1, WEEKDAY, 8 * 3600, 100, 2)])
+    const built = agg.build(WEEKDAY, labels)
+    expect(built.stops.get(1)?.hourlyDepartures.get(8)).toBe(1)
+    expect(built.routes.get(10)?.stopIds).toEqual(new Set([1]))
+    expect(agg.departureCount(WEEKDAY)).toBe(1)
+  })
+
   it('records the stops a route served on each date', () => {
     const agg = aggregator()
     agg.addDepartures([

@@ -75,9 +75,10 @@ export interface WSDOTAgencyResult {
 export type WSDOTStopsRoutesReportConfig = WSDOTReportConfig
 
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotReport: WSDOTReport, stopsRoutesReport: WSDOTStopsRoutesReport }> {
-  // This report exports route and stop shapes, so it is the one caller that
-  // needs the geometry kept rather than only streamed.
-  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client, { retainRouteGeometry: true })
+  // This report is built from the returned ScenarioData rather than from the
+  // stream, and exports whole stops and route shapes, so it is the one caller
+  // that needs the entities kept rather than only relayed.
+  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client, { retainScenarioEntities: true })
   const stopsRoutesReport = processWsdotStopsRoutesReport(scenarioData, wsdotResult)
   return { scenarioData, wsdotReport: wsdotResult, stopsRoutesReport }
 }

@@ -11,11 +11,13 @@ import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioF
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
+import { WSDOTStopCollector } from './stops'
 
 // Re-export the public service-level config so consumers (e.g. wsdot-viewer.vue)
 // keep importing it from ~~/src/analysis/wsdot.
 export { SERVICE_LEVELS, levelColors, type LevelKey } from './service-levels'
 export { WSDOTFrequencyAggregator, type FrequencyData, type FrequencyLabels } from './frequency'
+export { WSDOTStopCollector, type WSDOTStopRecord } from './stops'
 
 // Constants for progress updates
 const PROGRESS_LIMIT_STOPS = 1000
@@ -84,12 +86,18 @@ function configDate (value: Date | string): Date {
 
 export interface WSDOTAnalysisOptions {
   /**
-   * Keep route geometry in the returned ScenarioData. The HTTP endpoint
-   * discards the return value and browser consumers rebuild from the stream,
-   * so it defaults off: the shapes still go out on the wire, the server just
-   * does not hold a second copy of them.
+   * Populate the returned ScenarioData with whole stops and routes.
+   *
+   * The report is built from folded records, so nothing here needs them, and
+   * the HTTP endpoint discards the return value entirely while browser
+   * consumers rebuild from the stream. Only a caller that reads the returned
+   * ScenarioData sets this, which today is the stops-and-routes report.
+   *
+   * Left off, `scenarioData.stops` is empty and its routes carry no geometry.
+   * Both still go out on the wire untouched; the server just does not hold a
+   * second copy of what it is relaying.
    */
-  retainRouteGeometry?: boolean
+  retainScenarioEntities?: boolean
 }
 
 /**
@@ -144,6 +152,7 @@ export async function runAnalysis (
   // feed versions are still accumulated: the stop table is built from them,
   // and so is the stops-and-routes report layered on top of this one.
   const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
+  const stops = new WSDOTStopCollector(config.aggregateLayer)
 
   // Nothing downstream of here reads a departure. The browser shows two
   // numbers from them, so the numbers are what it gets: the tuples are folded
@@ -167,7 +176,8 @@ export async function runAnalysis (
         stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
       }
     },
-    dropRouteGeometry: !opts.retainRouteGeometry,
+    onStops: opts.retainScenarioEntities ? undefined : batch => stops.add(batch),
+    dropRouteGeometry: !opts.retainScenarioEntities,
   })
 
   // Send config as initial extra data
@@ -196,7 +206,7 @@ export async function runAnalysis (
   // caller with the empty report and the scenario data behind it.
   let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, frequency, client, scenarioDataSender)
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, scenarioDataSender)
     wsdotResult = await wsdotFetcher.fetch()
   } catch (e) {
     console.error('WSDOT analysis error:', e)
@@ -213,6 +223,7 @@ export async function runAnalysis (
 export class WSDOTReportFetcher {
   private config: WSDOTReportConfig
   private scenarioData: ScenarioData
+  private stops: WSDOTStopCollector
   private frequency: WSDOTFrequencyAggregator
   private client: GraphQLClient
   private progressSender: ScenarioStreamSender
@@ -220,12 +231,14 @@ export class WSDOTReportFetcher {
   constructor (
     config: WSDOTReportConfig,
     data: ScenarioData,
+    stops: WSDOTStopCollector,
     frequency: WSDOTFrequencyAggregator,
     client: GraphQLClient,
     progressSender: ScenarioStreamSender
   ) {
     this.config = config
     this.scenarioData = data
+    this.stops = stops
     this.frequency = frequency
     this.client = client
     this.progressSender = progressSender
@@ -234,7 +247,7 @@ export class WSDOTReportFetcher {
   async fetch (): Promise<WSDOTReport> {
     console.log('Starting WSDOT frequency analysis...')
 
-    const labels = frequencyLabels(this.scenarioData)
+    const labels = this.frequencyLabels()
     const [weekdayDate, weekendDate, overnightDate] = wsdotReportDates(this.config)
 
     // Extract frequency data for weekday and weekend
@@ -310,24 +323,22 @@ export class WSDOTReportFetcher {
 
     // Build final result. Every stop in the scenario is listed, which is what
     // the frequency maps' domain gave before they were built from counters.
+    // Stops that arrived without geometry are skipped, as they were before.
     const stops: WSDOTStopResult[] = []
-    const seenStopIds = new Set<number>()
 
-    for (const stop of this.scenarioData.stops) {
-      const stopId = stop.id
-      if (!stop.geometry || seenStopIds.has(stopId)) {
+    for (const stop of this.stops.all) {
+      if (stop.lat === null || stop.lon === null) {
         continue
       }
-      seenStopIds.add(stopId)
-      const stateName = (stop.census_geographies || []).find(g => g.layer_name === this.config.aggregateLayer)?.name || ''
+      const stopId = stop.id
       stops.push({
-        feedOnestopId: stop.feed_version?.feed?.onestop_id,
-        feedVersionSha1: stop.feed_version?.sha1,
-        stateName: stateName,
-        stopId: stop.stop_id,
-        stopName: stop.stop_name || '',
-        stopLat: stop.geometry.coordinates[1] ?? 0,
-        stopLon: stop.geometry.coordinates[0] ?? 0,
+        feedOnestopId: stop.feedOnestopId,
+        feedVersionSha1: stop.feedVersionSha1,
+        stateName: stop.stateName,
+        stopId: stop.gtfsStopId,
+        stopName: stop.stopName,
+        stopLat: stop.lat,
+        stopLon: stop.lon,
         level6: results.level6?.has(stopId) || false,
         level5: results.level5?.has(stopId) || false,
         level4: results.level4?.has(stopId) || false,
@@ -396,6 +407,17 @@ export class WSDOTReportFetcher {
     return { stops, levelStops, levelLayers, bboxIntersection }
   }
 
+  // Numeric id -> GTFS id for every stop and route the scenario fetched. These
+  // are the domain the frequency maps are built over, so a stop with no
+  // service still appears with empty counters.
+  private frequencyLabels (): FrequencyLabels {
+    const routeGtfsIds = new Map<number, string>()
+    for (const route of this.scenarioData.routes) {
+      routeGtfsIds.set(route.id, route.route_id)
+    }
+    return { stopGtfsIds: this.stops.gtfsIds(), routeGtfsIds }
+  }
+
   // One date's frequency maps, plus the per-hour summary the cache-based
   // extraction used to print while it walked the departures.
   private buildFrequencyData (date: Date, labels: FrequencyLabels, label: string) {
@@ -420,21 +442,6 @@ function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
   }
   const { stopDepartures: _departures, tripIdStrings: _tripIds, ...rest } = partial
   return { ...progress, partialData: rest }
-}
-
-// Numeric id -> GTFS id for every stop and route the scenario fetched. These
-// are the domain the frequency maps are built over, so a stop with no service
-// still appears with empty counters.
-function frequencyLabels (data: ScenarioData): FrequencyLabels {
-  const stopGtfsIds = new Map<number, string>()
-  for (const stop of data.stops) {
-    stopGtfsIds.set(stop.id, stop.stop_id)
-  }
-  const routeGtfsIds = new Map<number, string>()
-  for (const route of data.routes) {
-    routeGtfsIds.set(route.id, route.route_id)
-  }
-  return { stopGtfsIds, routeGtfsIds }
 }
 
 /**
