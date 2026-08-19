@@ -7,7 +7,7 @@ import {
   type Bbox,
   chunkArray,
 } from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, type ScenarioCallbacks, type ScenarioReceiverOptions, type ScenarioProgress } from '~~/src/scenario'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioCallbacks, type ScenarioReceiverOptions, type ScenarioProgress } from '~~/src/scenario'
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
@@ -116,11 +116,29 @@ export async function runAnalysis (
   // feed versions are still accumulated: the stop table is built from them,
   // and so is the stops-and-routes report layered on top of this one.
   const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
+
+  // Nothing downstream of here reads a departure. The browser shows two
+  // numbers from them, so the numbers are what it gets: the tuples are folded
+  // and dropped rather than forwarded, keeping several million of them off the
+  // wire and out of the browser's heap.
+  let departures = 0
+  const stopsWithDepartures = new Set<number>()
+  const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
+
   const receiver = new ScenarioDataReceiver({
-    onProgress: progress => scenarioDataSender.onProgress(progress),
+    onProgress: progress => scenarioDataSender.onProgress({
+      ...withoutDepartures(progress),
+      departureSummary: departureSummary(),
+    }),
     onError: error => scenarioDataSender.onError(error),
   }, {
-    onStopDepartures: departures => frequency.addDepartures(departures),
+    onStopDepartures: (batch) => {
+      frequency.addDepartures(batch)
+      departures += batch.length
+      for (const departure of batch) {
+        stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
+      }
+    },
     dropRouteGeometry: !opts.retainRouteGeometry,
   })
 
@@ -362,6 +380,18 @@ export class WSDOTReportFetcher {
     }
     return freq
   }
+}
+
+// Strips the departure payload from an event bound for the client, along with
+// the trip-id sidecar that only names departures. Returns the event unchanged
+// when it carries neither, so the common case allocates nothing.
+function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
+  const partial = progress.partialData
+  if (!partial?.stopDepartures && !partial?.tripIdStrings) {
+    return progress
+  }
+  const { stopDepartures: _departures, tripIdStrings: _tripIds, ...rest } = partial
+  return { ...progress, partialData: rest }
 }
 
 // Numeric id -> GTFS id for every stop and route the scenario fetched. These

@@ -565,7 +565,9 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      markedAgencies.add(rstop.route.agency?.id)
+      if (rstop.route.agency?.id != null) {
+        markedAgencies.add(rstop.route.agency.id)
+      }
     }
   })
   routeFeatures.filter(s => s.marked).forEach((s) => {

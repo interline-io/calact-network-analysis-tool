@@ -78,6 +78,20 @@ export interface ScenarioConfig {
    */
   includeRouteGeometry?: boolean
   /**
+   * Whether to fetch every census layer on each stop. Defaults to true, which
+   * is what lets the aggregation layer change without refetching the whole
+   * scenario. All seven layers are 41% of the stops payload, so a report that
+   * fixes one layer should turn this off; `aggregateLayer` is then the only
+   * layer fetched.
+   */
+  includeAllCensusLayers?: boolean
+  /**
+   * Whether to fetch route name/type/agency on each stop's route_stops.
+   * Defaults to true, which map styling, filters and clustering need. Off
+   * leaves just the route id, which is all the stops phase itself reads.
+   */
+  includeRouteStopDetails?: boolean
+  /**
    * Whether to fetch census demographics: ACS values for the aggregation
    * layer (census-values stage) and the stop-buffer demographic passes.
    * Defaults to true.
@@ -195,6 +209,11 @@ export interface ScenarioProgress {
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
+  // Running departure totals for a consumer that is not being sent the
+  // departures themselves. Set by paths that fold them server-side and strip
+  // `partialData.stopDepartures`, so the loading UI still has its numbers
+  // without several million tuples crossing the wire.
+  departureSummary?: { departures: number, stopsWithDepartures: number }
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
@@ -435,6 +454,8 @@ export class ScenarioFetcher {
         geographyIds: this.config.geographyIds,
         geoDatasetName: this.config.geoDatasetName,
         stopLimit: this.config.stopLimit,
+        censusLayer: this.config.includeAllCensusLayers === false ? this.config.aggregateLayer : undefined,
+        includeRouteStopDetails: this.config.includeRouteStopDetails,
       }, this.client, emit, { onError })
       scenarioStopIds = stopIds
       logMemory('after-stops')

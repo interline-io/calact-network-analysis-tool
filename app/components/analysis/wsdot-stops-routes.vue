@@ -211,7 +211,13 @@ const fetchScenario = async (loadExample: string) => {
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      // The WSDOT endpoint folds departures server-side and sends running
+      // totals instead of the tuples; browse-style streams still count them.
+      if (progress.departureSummary) {
+        stopDepartureCount.value = progress.departureSummary.departures
+      } else {
+        stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      }
       if ((progress.partialData?.routes?.length ?? 0) === 0 && (progress.partialData?.stops?.length ?? 0) === 0) {
         return
       }

@@ -595,7 +595,9 @@ export function stopClusterCsv (
         if (rs.route.id != null) {
           routeIds.add(rs.route.id)
         }
-        modes.add(rs.route.route_type)
+        if (rs.route.route_type != null) {
+          modes.add(rs.route.route_type)
+        }
       }
     }
     return {

@@ -211,6 +211,11 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   // never read here. The stops-and-routes report, which exports them, leaves
   // this alone.
   includeRouteGeometry: false,
+  // Only the aggregation layer is read, for each stop's state name, and
+  // nothing here styles or filters by route, so the denormalized route
+  // metadata on every stop goes unread too.
+  includeAllCensusLayers: false,
+  includeRouteStopDetails: false,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
   aggregateLayer: 'state',
@@ -324,7 +329,13 @@ const fetchScenario = async () => {
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      // The WSDOT endpoint folds departures server-side and sends running
+      // totals instead of the tuples; browse-style streams still count them.
+      if (progress.departureSummary) {
+        stopDepartureCount.value = progress.departureSummary.departures
+      } else {
+        stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      }
       scenarioData.value = receiver.getCurrentData()
     },
     onComplete: () => {

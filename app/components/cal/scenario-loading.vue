@@ -151,9 +151,13 @@ const totalStops = computed(() => {
   return props.scenarioData?.stops?.length || 0
 })
 
-// Number of stops that have departures loaded (stops in the departure cache)
+// Number of stops that have departures loaded. A stream that folds departures
+// server-side sends the count rather than the tuples, so there is no cache to
+// measure; browse-style streams fall back to the cache's own size.
 const stopsWithDepartures = computed(() => {
-  return props.scenarioData?.stopDepartureCache?.cache?.size || 0
+  return props.progress?.departureSummary?.stopsWithDepartures
+    ?? props.scenarioData?.stopDepartureCache?.cache?.size
+    ?? 0
 })
 
 // Helper functions
