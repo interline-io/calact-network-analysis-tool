@@ -63,6 +63,39 @@ async function run (opts?: { retainScenarioEntities?: boolean }) {
   return runAnalysis(controller, config, client(), opts)
 }
 
+describe('runAnalysis fetch policy', () => {
+  it('never runs the flex phase, even when the caller asks for it', async () => {
+    // The browse config these reports are built from always carries an
+    // explicit includeFlexAreas: true, so defaulting rather than overriding
+    // would run the phase for every report. Nothing here reads flex.
+    const sent: ScenarioProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, { ...config, includeFlexAreas: true }, client())
+
+    const plan = sent.find(p => p.phasePlan)?.phasePlan
+    expect(plan).toBeDefined()
+    expect(plan).not.toContain('flex-areas')
+  })
+
+  it('narrows departures to the report dates, but lets a caller narrow further', async () => {
+    const controller = { enqueue: vi.fn(), close: vi.fn(), error: vi.fn() } as unknown as ReadableStreamDefaultController
+    const c = client()
+    await runAnalysis(controller, { ...config, departureDates: ['2026-08-25'] }, c)
+    const tripCalls = c.mockQuery.mock.calls.filter(([, v]) => v?.dates)
+    for (const [, vars] of tripCalls) {
+      expect(vars.dates).toEqual(['2026-08-25'])
+    }
+  })
+})
+
 describe('runAnalysis client stream', () => {
   it('attaches the departure totals to every event, including the analysis stage', async () => {
     // The loading modal reads the running figures off whatever event it last

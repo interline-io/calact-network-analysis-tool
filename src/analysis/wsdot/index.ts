@@ -145,13 +145,19 @@ export async function runAnalysis (
   // WSDOT re-queries them via getGeographyData and ignores the scenario map.
   // Drop the duplicate once WSDOT consumes CensusGeographyData directly.
   //
-  // Flex is off regardless of what the browse config asked for: no part of the
+  // Flex is off regardless of what the caller asked for. No part of either
   // report reads flex areas or flex departures, and the phase costs a request
-  // per feed version.
+  // per feed version. Defaulting rather than overriding was tried and is
+  // wrong here: the browse config these reports are built from always carries
+  // an explicit `includeFlexAreas: true`, so `?? false` never fires and the
+  // phase runs for every report.
+  //
+  // departureDates does default, because nothing else sets it and a caller
+  // narrowing further is a reasonable thing to want.
   const configCopy = {
     ...config,
     routeHourCompatMode: true,
-    includeFlexAreas: config.includeFlexAreas ?? false,
+    includeFlexAreas: false,
     departureDates: config.departureDates ?? wsdotDepartureDates(config),
   }
 
