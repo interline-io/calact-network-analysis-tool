@@ -5,13 +5,16 @@ import { runBufferPasses } from './buffer-passes'
 import type { ScenarioProgress } from './scenario'
 
 // Integration tests for the buffer-only fetch path (#315 Passes C/D/E/F).
-// Hits a live transitland-server connected to the test DB. Gate is opt-in so
-// CI without a server doesn't fail; run locally with:
-//   TEST_BUFFER=true TRANSITLAND_API_BASE=http://localhost:8080 pnpm test
-describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integration)', () => {
+// Hits a live transitland-server connected to the test DB, ungated like
+// scenario-census.test.ts: CI stands the services up, and locally they come
+// from ./docker/reset-test-services.sh.
+//
+// Previously behind TEST_BUFFER, which nothing set — so it never ran anywhere
+// and its first case had gone stale against the phase-progress work.
+describe('runBufferPasses (integration)', () => {
   const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || ''),
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
   )
 
   // Small bbox over downtown Portland — has multiple agencies, dozens of
@@ -32,7 +35,7 @@ describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integratio
     return (result.data?.stops ?? []).map(s => s.id)
   }
 
-  it('returns no events for empty id sets', async () => {
+  it('emits only a phase-done tick for empty id sets', async () => {
     const events: ScenarioProgress[] = []
     await runBufferPasses({
       radius: 400,
@@ -43,7 +46,12 @@ describe.skipIf(process.env.TEST_BUFFER !== 'true')('runBufferPasses (integratio
       routeIds: [],
       agencyIds: [],
     }, client, p => events.push(p))
-    expect(events).toHaveLength(0)
+    // A phase whose queue ends up empty still reports itself done, so its
+    // slice of the loading progress fills rather than sitting at zero. What it
+    // must not do is emit demographics for stops nobody asked about.
+    expect(events).toHaveLength(1)
+    expect(events[0]?.phaseProgress).toEqual({ phase: 'buffers', completed: 1, total: 1 })
+    expect(events[0]?.partialData).toBeUndefined()
   })
 
   it('emits per-stop and aggregation events for a real stop set', async () => {
