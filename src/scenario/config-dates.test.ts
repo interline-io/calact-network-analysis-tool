@@ -6,7 +6,20 @@ import { fmtDate, type WSDOTReportConfig } from '~~/src/core'
 function inZone<T> (tz: string, fn: () => T): T {
   const previous = process.env.TZ
   process.env.TZ = tz
-  try { return fn() } finally { process.env.TZ = previous }
+  try {
+    return fn()
+  } finally {
+    // Restored by removing it when it was unset: assigning `undefined` writes
+    // the string "undefined", which Intl resolves to a broken zone and Node
+    // treats as GMT. Vitest runs many files per worker, so that leaks out of
+    // this file and quietly moves every test after it to UTC — where the
+    // behaviour these cases exist to catch looks correct.
+    if (previous === undefined) {
+      delete process.env.TZ
+    } else {
+      process.env.TZ = previous
+    }
+  }
 }
 
 describe('config dates across runtime zones', () => {
