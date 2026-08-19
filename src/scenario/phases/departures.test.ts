@@ -312,3 +312,29 @@ describe('runDeparturesPhase blank departure times', () => {
     expect(out.map(t => StopDepartureTuple.departureTime(t))).toEqual([hms('08:00'), hms('08:00')])
   })
 })
+
+describe('runDeparturesPhase explicit dates', () => {
+  it('fetches nothing when narrowed to no dates', async () => {
+    // Distinct from omitting the option: a caller that computed zero dates
+    // must not fall through to the widest query there is.
+    const client = new MockGraphQLClient()
+    await runDeparturesPhase(
+      { stopIds: [1], routeIds: [10], routeStopIds: { 10: [1] }, dates: [], startDate: parseDate('2026-08-24'), endDate: parseDate('2026-08-30') },
+      client,
+      () => {},
+    )
+    expect(client.mockQuery).not.toHaveBeenCalled()
+  })
+
+  it('fetches exactly the dates it is given', async () => {
+    const client = new MockGraphQLClient()
+    client.mockQuery.mockResolvedValue({ data: { routes: [] } })
+    await runDeparturesPhase(
+      { stopIds: [1], routeIds: [10], routeStopIds: { 10: [1] }, dates: ['2026-08-25', '2026-08-30'], startDate: parseDate('2026-08-24'), endDate: parseDate('2026-08-30') },
+      client,
+      () => {},
+    )
+    expect(client.mockQuery).toHaveBeenCalledTimes(1)
+    expect(client.mockQuery.mock.calls[0]?.[1]?.dates).toEqual(['2026-08-25', '2026-08-30'])
+  })
+})

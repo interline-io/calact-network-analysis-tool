@@ -3,6 +3,8 @@
 // that file stays focused on fetch/stream orchestration. No I/O here — all
 // inputs are the frequency maps built by WSDOTFrequencyAggregator.
 
+import { traceEnabled } from '~~/src/core'
+
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
   name: string
@@ -219,7 +221,12 @@ export function processServiceLevel (
   const mergedStops = mergeSets(stopResults)
 
   console.log(`Total qualifying stops for service level: ${mergedStops.size}`)
-  console.log(printStopIds(mergedStops))
+  // Sorting and stringifying every qualifying id costs a pair of arrays and a
+  // multi-megabyte string per level on a statewide run, at the moment three
+  // frequency maps are also resident, so it is only built when asked for.
+  if (traceEnabled()) {
+    console.log(printStopIds(mergedStops))
+  }
   return mergedStops
 }
 

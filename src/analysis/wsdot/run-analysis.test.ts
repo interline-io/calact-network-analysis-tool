@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import { runAnalysis, type WSDOTReportConfig } from './index'
 import { parseDate, SCENARIO_DEFAULTS, type Bbox, type GraphQLClient } from '~~/src/core'
+import type { ScenarioProgress } from '~~/src/scenario'
 
 class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock = vi.fn()
@@ -61,6 +62,49 @@ async function run (opts?: { retainScenarioEntities?: boolean }) {
   const controller = { enqueue: vi.fn(), close: vi.fn(), error: vi.fn() } as unknown as ReadableStreamDefaultController
   return runAnalysis(controller, config, client(), opts)
 }
+
+describe('runAnalysis client stream', () => {
+  it('attaches the departure totals to every event, including the analysis stage', async () => {
+    // The loading modal reads the running figures off whatever event it last
+    // received. An analysis-stage event without them makes the figures fall
+    // back to a departure cache the server deliberately left empty, so the
+    // readout drops to zero partway through the run.
+    const sent: ScenarioProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, config, client())
+
+    expect(sent.length).toBeGreaterThan(0)
+    expect(sent.every(p => p.departureSummary !== undefined)).toBe(true)
+    // Including the stages the report fetcher emits, and the final one.
+    expect(sent.some(p => p.currentStage === 'extra')).toBe(true)
+    expect(sent.at(-1)?.currentStage).toBe('complete')
+    expect(sent.at(-1)?.departureSummary).toBeDefined()
+  })
+
+  it('never puts departure tuples on the wire', async () => {
+    const sent: ScenarioProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, config, client())
+    expect(sent.some(p => p.partialData?.stopDepartures)).toBe(false)
+    expect(sent.some(p => p.partialData?.tripIdStrings)).toBe(false)
+  })
+})
 
 describe('runAnalysis stop folding', () => {
   it('builds the stop table when whole stops are not retained', async () => {

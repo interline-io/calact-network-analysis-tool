@@ -3,6 +3,14 @@
  */
 
 /**
+ * Whether verbose diagnostic logging is on (`TL_LOG=trace`). Server-side and
+ * CLI only. Gates output whose cost scales with the result set.
+ */
+export function traceEnabled (): boolean {
+  return process.env.TL_LOG === 'trace'
+}
+
+/**
  * Log memory usage with a label. Only logs when DEBUG_MEMORY env var is set.
  * Reports both heap usage and RSS (resident set size).
  *

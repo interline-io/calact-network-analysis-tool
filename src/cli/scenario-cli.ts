@@ -217,8 +217,13 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
         const { done, value } = await reader.read()
         if (done) { break }
 
-        writeStream?.write(decoder.decode(value))
+        // `stream: true`, because chunks are sized by the writer rather than
+        // by character boundaries: a stop name's multi-byte sequence split
+        // across two reads would otherwise decode as two replacement
+        // characters and be saved as mojibake in otherwise valid JSON.
+        writeStream?.write(decoder.decode(value, { stream: true }))
       }
+      writeStream?.write(decoder.decode())
     } catch (error) {
       console.error('Error reading scenario stream:', error)
     } finally {

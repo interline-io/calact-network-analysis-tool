@@ -9,7 +9,7 @@
 // Worker memory limit; the counters cost a few hundred bytes per stop
 // regardless of how much service that stop has.
 //
-// Only the calendar dates the report actually reads are folded — the weekday,
+// Only the calendar dates the report actually reads are folded: the weekday,
 // the weekend day, and the day after the weekday, whose early hours supply the
 // post-midnight half of the night segments. Departures on any other date in
 // the scenario range are dropped as they arrive.

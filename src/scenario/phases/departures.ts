@@ -174,7 +174,10 @@ export async function runDeparturesPhase (
   opts: PhaseOpts = {},
 ): Promise<void> {
   const routeIds = config.routeIds || []
-  const selectedDates = config.dates?.length
+  // `undefined` means the caller did not narrow the range; `[]` means it
+  // narrowed to nothing. Treating them alike would have a caller that computed
+  // zero dates run the widest query there is.
+  const selectedDates = config.dates
     ? [...config.dates]
     : getSelectedDateRange(config).map(d => format(d, 'yyyy-MM-dd'))
   const batchSize = config.routeBatchSize ?? TRIP_ROUTE_BATCH_SIZE

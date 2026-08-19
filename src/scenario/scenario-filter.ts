@@ -557,7 +557,12 @@ export function applyScenarioResultFilter (
         agency: agency,
       }
       adata.routes.add(rstop.route.id)
-      adata.routes_modes.add(rstop.route.route_type)
+      // Absent when the scenario ran with includeRouteStopDetails off. Adding
+      // it regardless puts `undefined` in the set, which renders as an
+      // "Unknown" mode rather than as no mode at all.
+      if (rstop.route.route_type != null) {
+        adata.routes_modes.add(rstop.route.route_type)
+      }
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }

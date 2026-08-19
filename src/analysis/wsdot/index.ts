@@ -7,7 +7,7 @@ import {
   type Bbox,
   chunkArray,
 } from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioCallbacks, type ScenarioReceiverOptions, type ScenarioProgress } from '~~/src/scenario'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress } from '~~/src/scenario'
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
@@ -84,6 +84,15 @@ function configDate (value: Date | string): Date {
   return new Date(value.valueOf())
 }
 
+/**
+ * What the analysis stage needs to reach the client. Narrower than the stream
+ * sender, so the report fetcher cannot close or complete the stream from under
+ * runAnalysis.
+ */
+export interface WSDOTProgressSink {
+  onProgress: (progress: ScenarioProgress) => void
+}
+
 export interface WSDOTAnalysisOptions {
   /**
    * Populate the returned ScenarioData with whole stops and routes.
@@ -142,8 +151,8 @@ export async function runAnalysis (
   const configCopy = {
     ...config,
     routeHourCompatMode: true,
-    includeFlexAreas: false,
-    departureDates: wsdotDepartureDates(config),
+    includeFlexAreas: config.includeFlexAreas ?? false,
+    departureDates: config.departureDates ?? wsdotDepartureDates(config),
   }
 
   // Departures are folded into per-hour counters as they stream rather than
@@ -162,6 +171,18 @@ export async function runAnalysis (
   const stopsWithDepartures = new Set<number>()
   const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
 
+  // Every event bound for the client goes through here, including the ones the
+  // analysis stage emits after the scenario phases are done. Attaching the
+  // totals at each call site instead would leave those events without them,
+  // and the loading modal reads the running figures off whatever it last
+  // received.
+  const clientSender: WSDOTProgressSink = {
+    onProgress: progress => scenarioDataSender.onProgress({
+      ...withoutDepartures(progress),
+      departureSummary: departureSummary(),
+    }),
+  }
+
   const receiver = new ScenarioDataReceiver({
     onProgress: (progress) => {
       // Folded off the progress events rather than in place of accumulation,
@@ -171,10 +192,7 @@ export async function runAnalysis (
       if (batch) {
         stops.add(batch)
       }
-      scenarioDataSender.onProgress({
-        ...withoutDepartures(progress),
-        departureSummary: departureSummary(),
-      })
+      clientSender.onProgress(progress)
     },
     onError: error => scenarioDataSender.onError(error),
   }, {
@@ -190,7 +208,7 @@ export async function runAnalysis (
   })
 
   // Send config as initial extra data
-  scenarioDataSender.onProgress({
+  clientSender.onProgress({
     isLoading: true,
     currentStage: 'ready',
     currentStageMessage: 'Starting WSDOT fetcher',
@@ -204,27 +222,35 @@ export async function runAnalysis (
   const scenarioData = receiver.getCurrentData()
 
   // Update the client with the wsdot result
-  scenarioDataSender.onProgress({
+  clientSender.onProgress({
     isLoading: true,
     currentStage: 'extra',
     currentStageMessage: 'Running WSDOT frequency analysis...'
   })
 
-  // The report is returned directly rather than reassembled from the stream
-  // the way a browser consumer does, so a failed analysis still leaves the
-  // caller with the empty report and the scenario data behind it.
   let wsdotResult: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
+  let failure: { error: unknown } | undefined
   try {
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, scenarioDataSender)
+    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, clientSender)
     wsdotResult = await wsdotFetcher.fetch()
   } catch (e) {
     console.error('WSDOT analysis error:', e)
+    failure = { error: e }
     scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
   }
 
-  // Complete the scenario data stream
-  scenarioDataSender.onComplete()
+  // Completion carries the totals too, so the figures do not blank out on the
+  // last event a consumer sees.
+  clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
   await writer.close()
+
+  if (failure) {
+    // The stream already carries the error and has been closed, so a browser
+    // consumer is unaffected. This is for the in-process callers that build a
+    // report out of the return value: an empty WSDOTReport is structurally
+    // valid and would export as a plausible report of a total service desert.
+    throw failure.error
+  }
 
   return { scenarioData, wsdotResult }
 }
@@ -235,7 +261,7 @@ export class WSDOTReportFetcher {
   private stops: WSDOTStopCollector
   private frequency: WSDOTFrequencyAggregator
   private client: GraphQLClient
-  private progressSender: ScenarioStreamSender
+  private progressSender: WSDOTProgressSink
 
   constructor (
     config: WSDOTReportConfig,
@@ -243,7 +269,7 @@ export class WSDOTReportFetcher {
     stops: WSDOTStopCollector,
     frequency: WSDOTFrequencyAggregator,
     client: GraphQLClient,
-    progressSender: ScenarioStreamSender
+    progressSender: WSDOTProgressSink
   ) {
     this.config = config
     this.scenarioData = data
@@ -463,10 +489,6 @@ function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
-  constructor (callbacks: ScenarioCallbacks = {}, options: ScenarioReceiverOptions = {}) {
-    super(callbacks, options)
-  }
-
   override onProgress (progress: ScenarioProgress): void {
     super.onProgress(progress)
 
@@ -513,16 +535,6 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
    */
   getCurrentWSDOTReport (): WSDOTReport {
     return { ...this.wsdotReport }
-  }
-
-  /**
-   * Get both scenario data and WSDOT report
-   */
-  getCurrentCombinedData (): { scenarioData: ScenarioData, wsdotReport: WSDOTReport } {
-    return {
-      scenarioData: this.getCurrentData(),
-      wsdotReport: this.getCurrentWSDOTReport()
-    }
   }
 }
 
