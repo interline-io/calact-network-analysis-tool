@@ -58,10 +58,136 @@ function client () {
   return c
 }
 
+// A scenario with one stop on one route that actually runs, so the service
+// levels have something to qualify and the per-level geography fetch fires.
+function servingClient () {
+  const c = new MockGraphQLClient()
+  const trip = {
+    id: 900,
+    trip_id: 't900',
+    direction_id: 0,
+    service_dates: ['2026-08-25'],
+    stop_times: [{ stop: { id: stop.id }, departure_time: '08:00:00', pickup_type: 0 }],
+    frequencies: [],
+  }
+  let stopsServed = false
+  c.mockQuery.mockImplementation((_q: any, v: any) => {
+    if (v?.tableNames !== undefined) { return Promise.resolve({ data: { census_datasets: [] } }) }
+    if (v?.where?.bbox !== undefined) { return Promise.resolve({ data: { feeds: [feed] } }) }
+    if (v?.dates !== undefined) { return Promise.resolve({ data: { routes: [{ id: 500, trips: [trip] }] } }) }
+    if (v?.include_geometry !== undefined) {
+      return Promise.resolve({ data: { routes: [{ id: 500, route_id: 'r500', agency: { id: 1, agency_id: 'a', agency_name: 'A' } }] } })
+    }
+    if (v?.dataset_name !== undefined) {
+      if (stopsServed) { return Promise.resolve({ data: { stops: [] } }) }
+      stopsServed = true
+      return Promise.resolve({ data: { stops: [{ ...stop, route_stops: [{ route: { id: 500 } }] }] } })
+    }
+    return Promise.resolve({ data: {} })
+  })
+  return c
+}
+
 async function run (opts?: { retainScenarioEntities?: boolean }) {
   const controller = { enqueue: vi.fn(), close: vi.fn(), error: vi.fn() } as unknown as ReadableStreamDefaultController
   return runAnalysis(controller, config, client(), opts)
 }
+
+// Events the client would see. The analysis stage runs after ScenarioFetcher
+// reports its own phases done, so what reaches the wire around that boundary
+// decides whether a mid-analysis failure is visible.
+function capture () {
+  const sent: ScenarioProgress[] = []
+  const controller = {
+    enqueue: (chunk: Uint8Array) => {
+      for (const line of new TextDecoder().decode(chunk).split('\n')) {
+        if (line.trim()) { sent.push(JSON.parse(line)) }
+      }
+    },
+    close: vi.fn(),
+    error: vi.fn(),
+  } as unknown as ReadableStreamDefaultController
+  return { sent, controller }
+}
+
+// The geography intersection query, identified by the variables only it takes.
+function geographyCalls (c: MockGraphQLClient) {
+  return c.mockQuery.mock.calls.filter(([, v]) => v && v.tableNames !== undefined)
+}
+
+describe('runAnalysis completion signalling', () => {
+  it('reports completion once, after the report is built', async () => {
+    // ScenarioFetcher emits its own 'complete' when its phases finish. Passing
+    // that through let a consumer mark the run successful before the analysis
+    // had produced anything.
+    const { sent, controller } = capture()
+    await runAnalysis(controller, config, client())
+    const completes = sent.filter(p => p.currentStage === 'complete')
+    expect(completes).toHaveLength(1)
+    expect(sent.at(-1)?.currentStage).toBe('complete')
+    // The report went out before the completion did.
+    expect(sent.findIndex(p => p.extraData)).toBeLessThan(sent.length - 1)
+  })
+
+  it('does not report completion when the analysis fails', async () => {
+    // A dead analysis stage previously arrived as a finished run carrying an
+    // empty report, which reads as a region with no transit service at all.
+    const c = client()
+    c.mockQuery.mockImplementation((_q: any, v: any) => {
+      if (v && v.tableNames !== undefined) { return Promise.reject(new Error('census backend died')) }
+      return Promise.resolve({ data: { stops: [], routes: [], feeds: [] } })
+    })
+    const { sent, controller } = capture()
+    await expect(runAnalysis(controller, config, c)).rejects.toThrow('census backend died')
+    expect(sent.some(p => p.currentStage === 'complete')).toBe(false)
+    expect(sent.some(p => p.error)).toBe(true)
+  })
+})
+
+describe('runAnalysis geography queries', () => {
+  it('never asks for geographies without a spatial bound', async () => {
+    // A run started from geography ids carries no bbox. The bbox tract query
+    // has no other filter, so an unbounded one asks for every tract in the
+    // dataset, nationwide.
+    const c = new MockGraphQLClient()
+    // The geography ids resolve to an admin polygon, which is what the bbox
+    // tract query should then be clipped against.
+    c.mockQuery.mockImplementation((_q: any, v: any) => {
+      if (v && v.include_geographies) {
+        return Promise.resolve({ data: { census_datasets: [{ geographies: [{
+          geometry: { type: 'Polygon', coordinates: [[[-122.8, 45.4], [-122.5, 45.4], [-122.5, 45.7], [-122.8, 45.7], [-122.8, 45.4]]] },
+        }] }] } })
+      }
+      if (v && v.where && v.where.bbox !== undefined) { return Promise.resolve({ data: { feeds: [feed] } }) }
+      return Promise.resolve({ data: { stops: [], routes: [], census_datasets: [] } })
+    })
+    const { controller } = capture()
+    await runAnalysis(controller, { ...config, bbox: undefined, geographyIds: [363717] }, c)
+    expect(geographyCalls(c).length).toBeGreaterThan(0)
+    for (const [, v] of geographyCalls(c)) {
+      const bounded = v.bbox !== undefined || v.within !== undefined || (v.stopIds || []).length > 0
+      expect(bounded, `unbounded geography query: ${JSON.stringify(v).slice(0, 200)}`).toBe(true)
+    }
+  })
+
+  it('requests intersection geometry only for the layer that draws it', async () => {
+    // Only the tract outlines are ever rendered. Fetching the state layer's
+    // too doubled the geometry across eight service levels for nothing.
+    //
+    // Needs a stop that actually qualifies for a level, and a buffer radius:
+    // the per-level geography fetch is skipped for an empty level or a zero
+    // radius, so a thinner fixture passes this without issuing a query.
+    const c = servingClient()
+    const { controller } = capture()
+    await runAnalysis(controller, { ...config, stopBufferRadius: 800 }, c)
+
+    const withGeometry = geographyCalls(c).filter(([, v]) => v.includeIntersectionGeometry)
+    expect(withGeometry.length).toBeGreaterThan(0)
+    for (const [, v] of withGeometry) {
+      expect(v.layer).toBe('tract')
+    }
+  })
+})
 
 describe('runAnalysis fetch policy', () => {
   it('runs only the phases the report reads, whatever the caller asks for', async () => {

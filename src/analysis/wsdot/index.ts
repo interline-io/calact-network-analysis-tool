@@ -10,6 +10,7 @@ import {
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress, type ScenarioPhaseName } from '~~/src/scenario'
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
+import { resolveGeographyContext } from '~~/src/scenario'
 import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
 import { WSDOTStopCollector } from './stops'
 
@@ -188,11 +189,22 @@ export async function runAnalysis (
   // totals at each call site instead would leave those events without them,
   // and the loading modal reads the running figures off whatever it last
   // received.
+  // ScenarioFetcher reports 'complete' when its own phases finish, but the
+  // report is not built until the analysis stage after that. Forwarding it
+  // lets a consumer count the run as finished early: a failure during the
+  // analysis then arrives as a successful empty report rather than an error,
+  // which is how a dead Worker came back as a statewide service desert.
+  let reportComplete = false
   const clientSender: WSDOTProgressSink = {
-    onProgress: progress => scenarioDataSender.onProgress({
-      ...withoutDepartures(progress),
-      departureSummary: departureSummary(),
-    }),
+    onProgress: (progress) => {
+      if (progress.currentStage === 'complete' && !reportComplete) {
+        return
+      }
+      return scenarioDataSender.onProgress({
+        ...withoutDepartures(progress),
+        departureSummary: departureSummary(),
+      })
+    },
   }
   // Awaited by the phases, so the fetch slows to the rate the client reads at
   // rather than queuing what it has not taken yet.
@@ -256,7 +268,13 @@ export async function runAnalysis (
   // Completion carries the totals too, so the figures do not blank out on the
   // last event a consumer sees. Awaited before the close, because writes are
   // queued behind one another and closing first would drop them.
-  await clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
+  //
+  // Not sent at all when the analysis failed: the consumer should see the
+  // error and an unfinished stream, not a report it believes is complete.
+  if (!failure) {
+    reportComplete = true
+    await clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
+  }
   await writer.close()
 
   if (failure) {
@@ -337,13 +355,28 @@ export class WSDOTReportFetcher {
       geoDatasetLayer: this.config.geoDatasetLayer,
     }
 
-    // Get bbox population (tract intersections)
-    console.log(`Fetching tract populations for bbox...`)
-    const bboxIntersection = await getGeographyData({
-      ...baseGeographyConfig,
-      geoDatasetLayer: 'tract',
+    // Get bbox population (tract intersections).
+    //
+    // Resolved rather than read straight off the config: a run started from
+    // geography ids carries no bbox, and this query has no other spatial
+    // filter, so it asked for every tract in the dataset nationwide.
+    const geography = await resolveGeographyContext({
       bbox: this.config.bbox,
-    })
+      geographyIds: this.config.geographyIds,
+      geoDatasetName: this.config.geoDatasetName,
+    }, this.client)
+    let bboxIntersection: GeographyDataFeature[] = []
+    if (geography.bbox || geography.within) {
+      console.log(`Fetching tract populations for bbox...`)
+      bboxIntersection = await getGeographyData({
+        ...baseGeographyConfig,
+        geoDatasetLayer: 'tract',
+        bbox: geography.bbox,
+        within: geography.within,
+      })
+    } else {
+      console.warn('No search area resolved — skipping the bbox tract population, which would otherwise be unbounded')
+    }
 
     for (const [levelKey, stopIds] of Object.entries(results)) {
       console.log(`\n====== ${levelKey} ======`)
@@ -362,7 +395,10 @@ export class WSDOTReportFetcher {
           stopIds: stopIds,
           geoDatasetLayer: geoDatasetLayer,
           stopBufferRadius: this.config.stopBufferRadius || 0,
-          includeIntersectionGeometry: true
+          // Only the tract layer's outlines are ever drawn (the stop-buffer
+          // overlay). Asking for the state layer's too doubled the geometry
+          // fetched across eight levels for something nothing reads.
+          includeIntersectionGeometry: geoDatasetLayer === 'tract',
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
@@ -572,6 +608,9 @@ interface GeographyDataFeature {
 
 interface getGeographyDataConfig {
   client: GraphQLClient
+  // Clips against the admin polygon when a run was started from geography ids
+  // rather than a bbox. Takes precedence over bbox in the query.
+  within?: GeoJSON.Polygon
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -593,6 +632,7 @@ async function getGeographyData (
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     bbox: config.bbox,
+    within: config.within,
     stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
     includeIntersectionGeometry: config.includeIntersectionGeometry,
