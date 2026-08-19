@@ -13,6 +13,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
+import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
 
 export interface StreamingRefetchDeps {
@@ -119,7 +120,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       const response = await fetch(opts.endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(plan),
+        body: JSON.stringify(withCalendarDates(plan)),
         signal: localAbort.signal,
       })
       if (!response.ok) {

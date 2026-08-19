@@ -181,7 +181,7 @@
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
 import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, trackPhaseProgress, type ScenarioPhaseName, type ScenarioProgress } from '~~/src/scenario'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
+import { SCENARIO_DEFAULTS, withCalendarDates } from '~~/src/core'
 
 interface ExampleConfig {
   filename: string
@@ -380,7 +380,7 @@ const fetchScenario = async () => {
     response = await fetch('/api/wsdot', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config: wsdotReportConfig.value }),
+      body: JSON.stringify(withCalendarDates({ config: wsdotReportConfig.value })),
     })
   }
 

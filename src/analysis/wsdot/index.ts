@@ -1,7 +1,7 @@
 import {
   requestStream,
   fmtDate,
-  parseDate,
+  parseCalendarDate,
   type GraphQLClient,
   type Geometry,
   type Bbox,
@@ -75,14 +75,9 @@ export function wsdotReportDates (config: WSDOTReportConfig): Date[] {
   return [weekday, configDate(config.weekendDate), overnight]
 }
 
-// A bare `yyyy-MM-dd` is parsed as local midnight. `new Date()` would read it
-// as UTC midnight, which lands on the day before west of Greenwich, and the
-// dates the departures phase files under are local.
+// Shared with the scenario phases so both read a config date the same way.
 function configDate (value: Date | string): Date {
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return parseDate(value)!
-  }
-  return new Date(value.valueOf())
+  return parseCalendarDate(value) ?? new Date(value.valueOf())
 }
 
 /**

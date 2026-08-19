@@ -3,6 +3,7 @@
 // standalone via its own server endpoint, emitting the same ScenarioProgress
 // NDJSON envelope either way (the pattern established by buffer-passes).
 
+import { parseCalendarDate } from '~~/src/core'
 import type { GraphQLClient, RequestFailure } from '~~/src/core'
 import type { ScenarioProgress } from '../scenario'
 
@@ -62,12 +63,13 @@ export interface FeedVersionRef {
   feedVersionSha1: string
 }
 
-// Accepts ScenarioConfig or any phase config carrying the date range. Over
-// the BFF JSON boundary these are ISO strings at runtime; `.valueOf()` feeds
-// `new Date()` either way.
+// Accepts ScenarioConfig or any phase config carrying the date range. These
+// cross a JSON boundary, where a calendar date travels as `yyyy-MM-dd`;
+// parseCalendarDate reads it at local midnight so the day survives whatever
+// zone the runtime is in.
 export function getSelectedDateRange (config: { startDate?: Date, endDate?: Date }): Date[] {
-  const sd = new Date((config.startDate || new Date()).valueOf())
-  const ed = new Date((config.endDate || new Date()).valueOf())
+  const sd = parseCalendarDate(config.startDate) || new Date()
+  const ed = parseCalendarDate(config.endDate) || new Date()
   const dates = []
   while (sd <= ed) {
     dates.push(new Date(sd.valueOf()))

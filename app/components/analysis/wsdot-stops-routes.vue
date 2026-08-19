@@ -132,7 +132,7 @@ import {
 import {
   processWsdotStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
+import { SCENARIO_DEFAULTS, withCalendarDates } from '~~/src/core'
 import type {
   WSDOTStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
@@ -276,7 +276,7 @@ const fetchScenario = async (loadExample: string) => {
     response = await fetch('/api/wsdot', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config: wsdotReportConfig.value }),
+      body: JSON.stringify(withCalendarDates({ config: wsdotReportConfig.value })),
     })
   }
 

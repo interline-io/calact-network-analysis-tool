@@ -19,6 +19,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
+import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
 
 interface UseScenarioRunDeps {
@@ -135,7 +136,7 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
       response = await fetch('/api/scenario', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify(withCalendarDates(config)),
       })
     }
 
