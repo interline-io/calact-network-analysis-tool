@@ -94,7 +94,7 @@ export async function runBufferPasses (
       PHASE_MAX_CONCURRENT_REQUESTS,
       async (chunk) => {
         const results = await fetchEntityBufferGeographies(kind, { ...baseConfig, ids: chunk })
-        emit({ ...progressEvent(), partialData: { [partialKey]: results } })
+        await emit({ ...progressEvent(), partialData: { [partialKey]: results } })
       },
       {
         onProgress: (completed) => {
@@ -134,7 +134,7 @@ export async function runBufferPasses (
       }))
     console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
     completedChunks += 1
-    emit({
+    await emit({
       isLoading: true,
       currentStage: 'aggregation-buffer-geographies',
       partialData: { aggregationBufferGeographies: geographies },

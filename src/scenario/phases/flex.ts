@@ -168,7 +168,7 @@ export async function runFlexPhase (
     }
 
     console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feedOnestopId}`)
-    emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexAreas } })
+    await emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexAreas } })
 
     // Fetch slim multi-date stop_times to populate the flex departure cache.
     // Chunk the date range into 7-day windows (one query per week) so every
@@ -196,7 +196,7 @@ export async function runFlexPhase (
       }
     }
     if (flexDepartures.length > 0) {
-      emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexDepartures } })
+      await emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexDepartures } })
     }
   }
 

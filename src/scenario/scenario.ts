@@ -203,7 +203,8 @@ export interface ScenarioData {
  * Callback interface for scenario fetching events
  */
 export interface ScenarioCallbacks {
-  onProgress?: (progress: ScenarioProgress) => void
+  // Awaitable so a streaming consumer can apply backpressure; see PhaseEmit.
+  onProgress?: (progress: ScenarioProgress) => void | Promise<void>
   onComplete?: () => void
   onError?: (error: any) => void
 }
@@ -285,8 +286,8 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   await fetcher.fetch()
 
   // Final complete
-  scenarioDataSender.onComplete()
-  writer.close()
+  await scenarioDataSender.onComplete()
+  await writer.close()
 }
 
 /**
@@ -321,8 +322,8 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   await fetcher.fetch()
 
   // Final complete - close the multiplexed stream
-  scenarioDataSender.onComplete()
-  writer.close()
+  await scenarioDataSender.onComplete()
+  await writer.close()
 
   // Ensure all scenario client progress has been processed
   const { data } = await scenarioClientProgress
@@ -395,7 +396,7 @@ export class ScenarioFetcher {
 
   // Phase emissions carry only their own queue counters; route them into the
   // right slot and re-emit with the summed pipeline totals attached.
-  private emitProgress (progress: ScenarioProgress): void {
+  private emitProgress (progress: ScenarioProgress): void | Promise<void> {
     this.lastStage = progress.currentStage
     if (progress.feedVersionProgress) {
       if (progress.currentStage === 'stops') {
@@ -407,7 +408,7 @@ export class ScenarioFetcher {
     if (progress.stopDepartureProgress) {
       this.departuresProgress = progress.stopDepartureProgress
     }
-    this.callbacks.onProgress?.({
+    return this.callbacks.onProgress?.({
       ...progress,
       feedVersionProgress: {
         total: this.stopsProgress.total + this.routesProgress.total,
@@ -679,7 +680,7 @@ export class ScenarioDataReceiver {
   /**
    * Handle a progress event from ScenarioFetcher
    */
-  onProgress (progress: ScenarioProgress): void {
+  onProgress (progress: ScenarioProgress): void | Promise<void> {
     const p = progress.partialData
     if (p) {
       if (p.stops && !this.options.dropStops) {
@@ -742,7 +743,7 @@ export class ScenarioDataReceiver {
       }
     }
 
-    this.callbacks.onProgress?.(progress)
+    return this.callbacks.onProgress?.(progress)
   }
 
   /**

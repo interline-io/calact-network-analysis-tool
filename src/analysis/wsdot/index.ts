@@ -90,7 +90,7 @@ function configDate (value: Date | string): Date {
  * runAnalysis.
  */
 export interface WSDOTProgressSink {
-  onProgress: (progress: ScenarioProgress) => void
+  onProgress: (progress: ScenarioProgress) => void | Promise<void>
 }
 
 export interface WSDOTAnalysisOptions {
@@ -188,6 +188,8 @@ export async function runAnalysis (
       departureSummary: departureSummary(),
     }),
   }
+  // Awaited by the phases, so the fetch slows to the rate the client reads at
+  // rather than queuing what it has not taken yet.
 
   const receiver = new ScenarioDataReceiver({
     onProgress: (progress) => {
@@ -198,7 +200,7 @@ export async function runAnalysis (
       if (batch) {
         stops.add(batch)
       }
-      clientSender.onProgress(progress)
+      return clientSender.onProgress(progress)
     },
     onError: error => scenarioDataSender.onError(error),
   }, {
@@ -242,12 +244,13 @@ export async function runAnalysis (
   } catch (e) {
     console.error('WSDOT analysis error:', e)
     failure = { error: e }
-    scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
+    await scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
   }
 
   // Completion carries the totals too, so the figures do not blank out on the
-  // last event a consumer sees.
-  clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
+  // last event a consumer sees. Awaited before the close, because writes are
+  // queued behind one another and closing first would drop them.
+  await clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
   await writer.close()
 
   if (failure) {

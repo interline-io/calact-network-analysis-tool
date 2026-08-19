@@ -276,7 +276,7 @@ export async function runDeparturesPhase (
     const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
     let sentTripIdStrings = false
     for (const batch of chunkArray(stopDepartures, TRIP_DEPARTURE_EMIT_SIZE)) {
-      emit({
+      await emit({
         ...progressEvent(),
         partialData: {
           stopDepartures: batch,

@@ -545,7 +545,7 @@ export async function runStopClustersPhase (
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
   const clusters = deriveStopClusters(inputs, config.maxDistanceMeters)
-  emit({
+  await emit({
     isLoading: true,
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },

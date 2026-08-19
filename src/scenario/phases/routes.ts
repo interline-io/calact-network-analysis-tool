@@ -63,7 +63,7 @@ export async function runRoutesPhase (
 
     // Send progress updates in batches using the generic helper function
     for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
-      emit({ ...progressEvent(), partialData: { routes: routeBatch } })
+      await emit({ ...progressEvent(), partialData: { routes: routeBatch } })
     }
 
     for (const r of routeData) {

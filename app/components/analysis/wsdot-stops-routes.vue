@@ -227,12 +227,13 @@ const fetchScenario = async (loadExample: string) => {
       if ((progress.partialData?.routes?.length ?? 0) === 0 && (progress.partialData?.stops?.length ?? 0) === 0) {
         return
       }
-      // Update both scenario data and WSDOT report from the receiver
+      // Counts for the loading modal. Deriving the report itself is left to
+      // completion: it maps every stop and route accumulated so far, so doing
+      // it per batch is quadratic in the stop count, and a statewide run drew
+      // it a few hundred times over tens of thousands of stops. That made the
+      // client too slow to keep up with the stream, which is what backed the
+      // server's output up until it ran out of memory.
       scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
-      if (scenarioData.value && wsdotReport.value) {
-        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
-      }
     },
     onComplete: () => {
       loadingProgress.value = undefined

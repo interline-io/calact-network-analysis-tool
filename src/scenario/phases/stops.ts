@@ -98,7 +98,7 @@ export async function runStopsPhase (
 
     // Send progress updates in batches using the generic helper function
     for (const stopBatch of chunkArray(stopData, PROGRESS_LIMIT_STOPS)) {
-      emit({ ...progressEvent(), partialData: { stops: stopBatch } })
+      await emit({ ...progressEvent(), partialData: { stops: stopBatch } })
     }
 
     // Collect stop ids and (deduplicated) route ids for downstream phases,

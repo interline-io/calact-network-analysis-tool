@@ -7,7 +7,12 @@ import type { GraphQLClient, RequestFailure } from '~~/src/core'
 import type { ScenarioProgress } from '../scenario'
 
 // Phases report progress (and stream partial data) through this callback.
-export type PhaseEmit = (progress: ScenarioProgress) => void
+//
+// Awaitable: a phase that just emitted a bulk payload should await it, so a
+// producer faster than its consumer waits rather than piling unread events on
+// the heap. Consumers that only accumulate return void, and awaiting is a
+// no-op for them.
+export type PhaseEmit = (progress: ScenarioProgress) => void | Promise<void>
 
 export interface PhaseOpts {
   // Per-task (non-fatal) errors: the phase continues processing remaining
