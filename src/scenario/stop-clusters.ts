@@ -29,7 +29,7 @@ import {
   type GraphQLClient,
   type Weekday,
 } from '~~/src/core'
-import { stopClusterQuery, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
+import { stopClusterQuery, type RouteGql, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
 import {
   PHASE_MAX_CONCURRENT_REQUESTS,
   phaseDone,
@@ -340,6 +340,7 @@ export function deriveFilteredStopClusters (
   proximityClusters: StopCluster[] | undefined,
   maxTransferMinutes: number | undefined,
   stopFeatures: Stop[],
+  routesById: Map<number, RouteGql>,
   sdCache: StopDepartureCache,
   selectedDateRange: Date[],
   effectiveWeekdays: Weekday[] | undefined,
@@ -399,11 +400,13 @@ export function deriveFilteredStopClusters (
     const agencyIds = new Set<number>()
     const routeIds = new Set<number>()
     for (const rs of stop.route_stops || []) {
-      if (rs.route?.id != null) {
-        routeIds.add(rs.route.id)
+      if (rs.route?.id == null) {
+        continue
       }
-      if (rs.route?.agency?.id != null) {
-        agencyIds.add(rs.route.agency.id)
+      routeIds.add(rs.route.id)
+      const agencyId = routesById.get(rs.route.id)?.agency?.id
+      if (agencyId != null) {
+        agencyIds.add(agencyId)
       }
     }
     stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
@@ -576,6 +579,7 @@ export interface StopClusterCsv {
 export function stopClusterCsv (
   clusters: StopCluster[],
   stopById: Map<number, Stop>,
+  routesById: Map<number, RouteGql>,
 ): StopClusterCsv[] {
   return clusters.map((cluster, idx): StopClusterCsv => {
     const agencies = new Set<string>()
@@ -589,15 +593,17 @@ export function stopClusterCsv (
       }
       memberStops.push(stop.stop_name ? `${stop.stop_name} (${stop.stop_id})` : stop.stop_id)
       for (const rs of stop.route_stops || []) {
-        if (rs.route.agency?.agency_name) {
-          agencies.add(rs.route.agency.agency_name)
-        }
         if (rs.route.id != null) {
           routeIds.add(rs.route.id)
         }
-        if (rs.route.route_type != null) {
-          modes.add(rs.route.route_type)
+        const route = routesById.get(rs.route.id)
+        if (!route) {
+          continue
         }
+        if (route.agency?.agency_name) {
+          agencies.add(route.agency.agency_name)
+        }
+        modes.add(route.route_type)
       }
     }
     return {

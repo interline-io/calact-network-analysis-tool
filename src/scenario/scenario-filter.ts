@@ -80,6 +80,7 @@ import type {
   RouteDepartureIndex,
   BufferGeographyIntersection,
 } from '~~/src/tl'
+import { routesById } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
@@ -540,14 +541,19 @@ export function applyScenarioResultFilter (
   })
   const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
+  // A stop's route_stops carry only route ids. The routes phase runs after the
+  // stops phase, so these roll up empty until it lands.
+  const routeLookup = routesById(routeFeatures)
+
   // Apply agency filters
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
-      const agency = rstop.route.agency
+      const route = routeLookup.get(rstop.route.id)
+      const agency = route?.agency
       const aid = agency?.agency_id
-      if (!aid) {
-        continue // no valid agency listed for this stop?
+      if (!route || !aid) {
+        continue // route not fetched yet, or no valid agency listed
       }
       const adata = agencyData.get(aid) || {
         id: aid,
@@ -557,12 +563,7 @@ export function applyScenarioResultFilter (
         agency: agency,
       }
       adata.routes.add(rstop.route.id)
-      // Absent when the scenario ran with includeRouteStopDetails off. Adding
-      // it regardless puts `undefined` in the set, which renders as an
-      // "Unknown" mode rather than as no mode at all.
-      if (rstop.route.route_type != null) {
-        adata.routes_modes.add(rstop.route.route_type)
-      }
+      adata.routes_modes.add(route.route_type)
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }
@@ -570,8 +571,9 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      if (rstop.route.agency?.id != null) {
-        markedAgencies.add(rstop.route.agency.id)
+      const agencyId = routeLookup.get(rstop.route.id)?.agency?.id
+      if (agencyId != null) {
+        markedAgencies.add(agencyId)
       }
     }
   })
@@ -624,6 +626,7 @@ export function applyScenarioResultFilter (
     data.stopClusters,
     filter.clusterMaxTransferMinutes,
     stopFeatures,
+    routeLookup,
     sdCache,
     selectedDateRangeValue,
     resolveEffectiveWeekdays(selectedDaysValue, selectedWeekdayModeValue),

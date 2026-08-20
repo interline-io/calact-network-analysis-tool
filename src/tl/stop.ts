@@ -8,13 +8,14 @@ import {
   HIERARCHICAL_TIGER_LAYERS,
 } from '~~/src/core'
 import type { BufferGeographyIntersection } from './stop-buffer'
+import type { RouteGql } from './route'
 
 //////////
 // Stops
 //////////
 
 export const stopQuery = gql`
-query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $census_layer: String, $include_route_stop_details: Boolean! = true) {
+query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $census_layer: String) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -51,22 +52,12 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String,
     # Without an explicit limit the backend returns 100. The departures phase
     # fetches by route, so a route missing here loses its departures across the
     # whole scenario, not just this stop's metadata. 1000 is the server maximum.
+    # Just the id: the routes phase fetches each of these routes in full, so
+    # denormalizing name, type and agency onto every stop it serves is ~405
+    # bytes per stop of the same data.
     route_stops(limit: 1000) {
       route {
         id
-        # The route id is all the departures phase reads. The rest is what map
-        # styling, filters and clustering need, and it is denormalized onto
-        # every stop the route serves, so a consumer that does none of those
-        # skips it.
-        route_id @include(if: $include_route_stop_details)
-        route_type @include(if: $include_route_stop_details)
-        route_short_name @include(if: $include_route_stop_details)
-        route_long_name @include(if: $include_route_stop_details)
-        agency @include(if: $include_route_stop_details) {
-          id
-          agency_id
-          agency_name
-        }
       }
     }
   }
@@ -128,20 +119,9 @@ export type StopGql = {
       onestop_id: string
     }
   }
-  // Everything but `route.id` is absent when the stops phase ran with
-  // includeRouteStopDetails off.
   route_stops: {
     route: {
       id: number
-      route_id?: string
-      route_type?: number
-      route_short_name?: string
-      route_long_name?: string
-      agency?: {
-        id: number
-        agency_id: string
-        agency_name: string
-      }
     }
   }[]
 } & StopGtfs
@@ -216,6 +196,7 @@ function seedAggregateRow (geoid: string, layerName: string, name: string): Stop
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
+  routesById: Map<number, RouteGql>,
   censusGeographies?: Map<string, CensusGeographyData>,
   options?: { onlyWithStops?: boolean, aggregationBufferGeographies?: BufferGeographyIntersection[] },
 ): StopGeoAggregateCsv[] {
@@ -252,13 +233,12 @@ export function stopGeoAggregateCsv (
       a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {
         a.routes_count.add(rstop.route.id)
-        // Absent when the scenario ran with includeRouteStopDetails off; the
-        // agency and mode rollups are simply empty then.
-        if (rstop.route.agency) {
-          a.agencies_count.add(rstop.route.agency.id)
-        }
-        if (rstop.route.route_type != null) {
-          a.routes_modes.add(rstop.route.route_type)
+        // Absent while the stops phase is still streaming, since the routes
+        // phase runs after it; the rollups fill in when routes arrive.
+        const route = routesById.get(rstop.route.id)
+        if (route) {
+          a.agencies_count.add(route.agency.id)
+          a.routes_modes.add(route.route_type)
         }
       }
       stopAgg.set(geog.geoid, a)
@@ -292,16 +272,17 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
+export function stopToStopCsv (stop: Stop, routesById: Map<number, RouteGql>, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
   for (const rstop of routeStops) {
-    if (rstop.route.agency) {
-      agencies.add(rstop.route.agency.id)
+    const route = routesById.get(rstop.route.id)
+    if (!route) {
+      continue
     }
-    const rtype = rstop.route.route_type
-    const mode = rtype == null ? undefined : routeTypeNames.get(rtype)
+    agencies.add(route.agency.id)
+    const mode = routeTypeNames.get(route.route_type)
     if (mode) {
       modes.add(mode)
     }

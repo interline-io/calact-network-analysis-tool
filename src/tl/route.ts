@@ -121,6 +121,16 @@ export type RouteCsv = RouteGtfs & {
   frequency_directions_differ?: boolean
 }
 
+// Routes keyed by id, for consumers holding stops: route_stops carries only a
+// route id, and the routes phase fetches each of those routes in full.
+export function routesById (routes: RouteGql[]): Map<number, RouteGql> {
+  const byId = new Map<number, RouteGql>()
+  for (const route of routes) {
+    byId.set(route.id, route)
+  }
+  return byId
+}
+
 export type Route = RouteGql & RouteDerived
 
 ////////////////////

@@ -62,7 +62,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getAgencyMatcher (val: string): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.some((rs: any) => rs.route.agency?.agency_id === val)
+        return (v as Stop).route_stops.some(rs => routeLookup.get(rs.route.id)?.agency?.agency_id === val)
       } else if (v.__typename === 'Route') {
         return (v as Route).agency?.agency_id === val
       }
@@ -74,16 +74,12 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getModeMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        // Filter out routes with null/undefined route_type to avoid false matches
-        // Also check that route data exists (may still be loading)
-        const validRoutes = (v as Stop).route_stops.filter((rs: any) => rs.route && rs.route.route_type != null)
-        // If no valid routes, don't match any mode (routes may still be loading)
-        if (validRoutes.length === 0) {
-          return false
-        }
-        // Match if ANY route at this stop has this mode (not every)
-        // This allows multi-modal stops to match their highest-priority mode
-        return validRoutes.some((rs: any) => rs.route.route_type === val)
+        // A stop's route_stops carry only ids; the routes phase runs after the
+        // stops phase, so nothing matches until it lands.
+        return (v as Stop).route_stops.some((rs) => {
+          const route = routeLookup.get(rs.route.id)
+          return route != null && route.route_type === val
+        })
       } else if (v.__typename === 'Route') {
         // For routes, also check for null/undefined
         if ((v as Route).route_type == null || (v as Route).route_type == undefined) {

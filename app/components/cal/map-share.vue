@@ -23,7 +23,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useToastNotification } from '#imports'
-import { stopToStopCsv, routeToRouteCsv, agencyToAgencyCsv } from '~~/src/tl'
+import { stopToStopCsv, routeToRouteCsv, agencyToAgencyCsv, routesById } from '~~/src/tl'
 import type { CensusGeography } from '~~/src/tl'
 import type { Feature } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
@@ -49,9 +49,10 @@ const routeCsvData = computed(() => {
 
 const stopCsvData = computed(() => {
   const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
+  const routeLookup = routesById(props.scenarioFilterResult?.routes || [])
   return props.scenarioFilterResult?.stops
     .filter(s => s.marked)
-    .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id)))
+    .map(s => stopToStopCsv(s, routeLookup, stopBufferGeographies?.get(s.id)))
 })
 
 const agencyCsvData = computed(() => {

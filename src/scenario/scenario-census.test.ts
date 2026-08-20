@@ -140,7 +140,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 3) The aggregation table the report renders: a stop-less row is seeded per
       //    geography and carries the full (un-apportioned) demographic value.
-      const rows = stopGeoAggregateCsv([], c.layer, filtered.censusGeographies)
+      const rows = stopGeoAggregateCsv([], c.layer, new Map(), filtered.censusGeographies)
       const row = rows.find(r => r.geoid === c.geoid)
       expect(row).toBeDefined()
       expect(row!.layer_name).toBe(c.layer)

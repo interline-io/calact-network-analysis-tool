@@ -222,11 +222,8 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   // never read here. The stops-and-routes report, which exports them, leaves
   // this alone.
   includeRouteGeometry: false,
-  // Only the aggregation layer is read, for each stop's state name, and
-  // nothing here styles or filters by route, so the denormalized route
-  // metadata on every stop goes unread too.
+  // Only the aggregation layer is read, for each stop's state name.
   includeAllCensusLayers: false,
-  includeRouteStopDetails: false,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
   aggregateLayer: 'state',

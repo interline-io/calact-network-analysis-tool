@@ -20,10 +20,6 @@ export interface StopsPhaseConfig {
   // aggregation level can change without refetching; a report that fixes one
   // layer names it here.
   censusLayer?: string
-  // Fetch route name/type/agency on each stop's route_stops. Defaults to true,
-  // which map styling, filters and clustering need. Off leaves just the route
-  // id, which is all this phase itself reads.
-  includeRouteStopDetails?: boolean
   // GraphQL page size; pagination continues until a short page.
   stopLimit?: number
 }
@@ -82,7 +78,6 @@ export async function runStopsPhase (
       limit: stopLimit,
       dataset_name: config.geoDatasetName,
       census_layer: config.censusLayer || null,
-      include_route_stop_details: config.includeRouteStopDetails !== false,
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,

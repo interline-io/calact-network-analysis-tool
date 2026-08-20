@@ -70,7 +70,7 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
+import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
@@ -313,6 +313,10 @@ interface AgencyData {
   name: string
   stops: Set<string>
 }
+// A stop's route_stops carry only route ids; route name, type and agency come
+// off the routes the routes phase fetched.
+const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
+
 const agencyData = computed((): AgencyData[] => {
   // Collect agency data from the stop data.
   const data = new Map()
@@ -321,10 +325,10 @@ const agencyData = computed((): AgencyData[] => {
     const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
-      // const rid = rstop.route.route_id
-      const aid = rstop.route.agency?.agency_id
-      const anumeric = rstop.route.agency?.id
-      const aname = rstop.route.agency?.agency_name
+      const agency = routeLookup.value.get(rstop.route.id)?.agency
+      const aid = agency?.agency_id
+      const anumeric = agency?.id
+      const aname = agency?.agency_name
       if (!aid || !aname || anumeric == null) {
         continue // no valid agency listed for this stop?
       }
@@ -648,7 +652,7 @@ const exportFeatures = computed((): Feature[] => {
           'marker-opacity': sp.marked ? 1 : bgOpacity
         }
       }
-      Object.assign(feature.properties, stopToStopCsv(sp, stopBufferGeographies?.get(sp.id)))
+      Object.assign(feature.properties, stopToStopCsv(sp, routeLookup.value, stopBufferGeographies?.get(sp.id)))
       forExport.push(feature)
     }
   }
@@ -891,12 +895,16 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     const agencies = new Set<string>()
     const routes = new Set<string>()
     for (const rs of stop.route_stops || []) {
-      const an = rs.route.agency?.agency_name
+      const route = routeLookup.value.get(rs.route.id)
+      if (!route) {
+        continue
+      }
+      const an = route.agency?.agency_name
       if (an) {
         agencies.add(an)
         allAgencies.add(an)
       }
-      const rn = rs.route.route_short_name || rs.route.route_long_name
+      const rn = route.route_short_name || route.route_long_name
       if (rn) {
         routes.add(rn)
       }
