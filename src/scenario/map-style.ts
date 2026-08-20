@@ -51,7 +51,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     const agencyIds = new Set<string>()
     const modes = new Set<number>()
     for (const rs of stop.route_stops) {
-      const rid = rs.route.id
+      const rid = rs.route_id
       const stops = routeStopLookup.get(rid) || []
       stops.push(stop.id)
       routeStopLookup.set(rid, stops)
@@ -95,7 +95,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     return (v: any) => {
       if (v.__typename === 'Stop') {
         return (v as Stop).route_stops.some((rs) => {
-          const route = routeLookup.get(rs.route.id)
+          const route = routeLookup.get(rs.route_id)
           const headway = route?.average_frequency || -1
           return headway >= val * 60
         })

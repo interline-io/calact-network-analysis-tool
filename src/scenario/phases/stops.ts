@@ -101,11 +101,8 @@ export async function runStopsPhase (
     for (const stop of stopData) {
       stopIds.push(stop.id)
       for (const rs of stop.route_stops || []) {
-        const routeId = rs.route?.id
-        if (routeId != null) {
-          routeIds.add(routeId)
-          ;(routeStopIds[routeId] ??= []).push(stop.id)
-        }
+        routeIds.add(rs.route_id)
+        ;(routeStopIds[rs.route_id] ??= []).push(stop.id)
       }
     }
 

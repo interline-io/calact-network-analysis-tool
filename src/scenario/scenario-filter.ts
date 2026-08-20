@@ -364,7 +364,7 @@ function stopMarked (
   // Check marked routes
   // Must match at least one marked route if any route-level filters are applied
   if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
-    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
+    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route_id))
     if (!hasMarkedRoute) {
       // console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
       return false
@@ -548,7 +548,7 @@ export function applyScenarioResultFilter (
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
-      const route = routeLookup.get(rstop.route.id)
+      const route = routeLookup.get(rstop.route_id)
       if (!route?.agency.agency_id) {
         continue // route not fetched yet, or no agency listed
       }
@@ -561,7 +561,7 @@ export function applyScenarioResultFilter (
         stops: new Set(),
         agency: agency,
       }
-      adata.routes.add(rstop.route.id)
+      adata.routes.add(rstop.route_id)
       adata.routes_modes.add(route.route_type)
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
@@ -570,10 +570,7 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      const agencyId = routeLookup.get(rstop.route.id)?.agency.id
-      if (agencyId != null) {
-        markedAgencies.add(agencyId)
-      }
+      markedAgencies.add(rstop.agency_id)
     }
   })
   routeFeatures.filter(s => s.marked).forEach((s) => {
@@ -625,7 +622,6 @@ export function applyScenarioResultFilter (
     data.stopClusters,
     filter.clusterMaxTransferMinutes,
     stopFeatures,
-    routeLookup,
     sdCache,
     selectedDateRangeValue,
     resolveEffectiveWeekdays(selectedDaysValue, selectedWeekdayModeValue),

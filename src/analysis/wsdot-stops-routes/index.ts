@@ -121,7 +121,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   const stops = currentData.stops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
-      const firstRoute = routeLookup.get(stop.route_stops[0]!.route.id)
+      const firstRoute = routeLookup.get(stop.route_stops[0]!.route_id)
       const agencyId = firstRoute?.agency.agency_id
       const agencyName = firstRoute?.agency.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'

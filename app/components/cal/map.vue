@@ -324,7 +324,7 @@ const agencyData = computed((): AgencyData[] => {
 
     const lookup = routeLookup.value
     for (const rstop of route_stops) {
-      const agency = lookup.get(rstop.route.id)?.agency
+      const agency = lookup.get(rstop.route_id)?.agency
       const aid = agency?.agency_id
       const anumeric = agency?.id
       const aname = agency?.agency_name
@@ -806,8 +806,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           stop_id: sp.stop_id,
           stop_name: sp.stop_name,
           // flatMap drops routes the routes phase has not delivered yet.
-          routes: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route.id)?.route_short_name ?? []),
-          agencies: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route.id)?.agency?.agency_name ?? []),
+          routes: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route_id)?.route_short_name ?? []),
+          agencies: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route_id)?.agency?.agency_name ?? []),
         }
       }
       sortKey = [0, 0]
@@ -896,7 +896,7 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     const routes = new Set<string>()
     const lookup = routeLookup.value
     for (const rs of stop.route_stops || []) {
-      const route = lookup.get(rs.route.id)
+      const route = lookup.get(rs.route_id)
       if (!route) {
         continue
       }

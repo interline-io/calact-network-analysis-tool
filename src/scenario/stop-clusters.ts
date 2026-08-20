@@ -340,7 +340,6 @@ export function deriveFilteredStopClusters (
   proximityClusters: StopCluster[] | undefined,
   maxTransferMinutes: number | undefined,
   stopFeatures: Stop[],
-  routeLookup: Map<number, RouteGql>,
   sdCache: StopDepartureCache,
   selectedDateRange: Date[],
   effectiveWeekdays: Weekday[] | undefined,
@@ -400,11 +399,8 @@ export function deriveFilteredStopClusters (
     const agencyIds = new Set<number>()
     const routeIds = new Set<number>()
     for (const rs of stop.route_stops || []) {
-      routeIds.add(rs.route.id)
-      const agencyId = routeLookup.get(rs.route.id)?.agency.id
-      if (agencyId != null) {
-        agencyIds.add(agencyId)
-      }
+      routeIds.add(rs.route_id)
+      agencyIds.add(rs.agency_id)
     }
     stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
   }
@@ -590,8 +586,8 @@ export function stopClusterCsv (
       }
       memberStops.push(stop.stop_name ? `${stop.stop_name} (${stop.stop_id})` : stop.stop_id)
       for (const rs of stop.route_stops || []) {
-        routeIds.add(rs.route.id)
-        const route = routeLookup.get(rs.route.id)
+        routeIds.add(rs.route_id)
+        const route = routeLookup.get(rs.route_id)
         if (!route) {
           continue
         }

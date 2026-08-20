@@ -13,7 +13,7 @@ function scenarioStop (id: number, gtfsStopId: string, feed: string) {
     stop_name: `Stop ${gtfsStopId} (${feed})`,
     geometry: { type: 'Point', coordinates: [-122.3, 47.6] },
     feed_version: { sha1: `sha-${feed}`, feed: { onestop_id: feed } },
-    route_stops: [{ route: { id: 1 } }],
+    route_stops: [{ route_id: 1, agency_id: 1 }],
   }
 }
 

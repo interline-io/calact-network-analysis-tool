@@ -81,7 +81,7 @@ function servingClient () {
     if (v?.dataset_name !== undefined) {
       if (stopsServed) { return Promise.resolve({ data: { stops: [] } }) }
       stopsServed = true
-      return Promise.resolve({ data: { stops: [{ ...stop, route_stops: [{ route: { id: 500 } }] }] } })
+      return Promise.resolve({ data: { stops: [{ ...stop, route_stops: [{ route_id: 500, agency_id: 1 }] }] } })
     }
     return Promise.resolve({ data: {} })
   })

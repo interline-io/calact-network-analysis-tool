@@ -29,10 +29,10 @@ interface RouteStopArgs {
   agencyName?: string
 }
 
-// A stop's route_stops carry only a route id; name, type and agency live on the
-// routes the routes phase fetches. Both come from one description.
+// route_stops carry scalar ids; the route's name and type come off the routes
+// the routes phase fetches. Both halves come from one description.
 function makeRouteStops (args: RouteStopArgs[]) {
-  return args.map(a => ({ route: { id: a.routeInternalId } }))
+  return args.map(a => ({ route_id: a.routeInternalId, agency_id: a.agencyId }))
 }
 
 function makeRouteLookup (args: RouteStopArgs[]): Map<number, RouteGql> {

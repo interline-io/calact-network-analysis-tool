@@ -52,11 +52,11 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String,
     # Without an explicit limit the backend returns 100. The departures phase
     # fetches by route, so a route missing here loses its departures across the
     # whole scenario, not just this stop's metadata. 1000 is the server maximum.
-    # Just the id: the routes phase fetches each of these routes in full.
+    # Scalars off the association row: no nested route object, and the numeric
+    # agency id lands with the stops rather than waiting on the routes phase.
     route_stops(limit: 1000) {
-      route {
-        id
-      }
+      route_id
+      agency_id
     }
   }
 }`
@@ -118,9 +118,8 @@ export type StopGql = {
     }
   }
   route_stops: {
-    route: {
-      id: number
-    }
+    route_id: number
+    agency_id: number
   }[]
 } & StopGtfs
 
@@ -230,10 +229,11 @@ export function stopGeoAggregateCsv (
       a.stops_count.add(stop.id)
       a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {
-        a.routes_count.add(rstop.route.id)
-        const route = routeLookup.get(rstop.route.id)
+        a.routes_count.add(rstop.route_id)
+        a.agencies_count.add(rstop.agency_id)
+        // Only the mode needs the route the routes phase fetched.
+        const route = routeLookup.get(rstop.route_id)
         if (route) {
-          a.agencies_count.add(route.agency.id)
           a.routes_modes.add(route.route_type)
         }
       }
@@ -273,12 +273,9 @@ export function stopToStopCsv (stop: Stop, routeLookup: Map<number, RouteGql>, b
   const modes = new Set()
   const agencies = new Set()
   for (const rstop of routeStops) {
-    const route = routeLookup.get(rstop.route.id)
-    if (!route) {
-      continue
-    }
-    agencies.add(route.agency.id)
-    const mode = routeTypeNames.get(route.route_type)
+    agencies.add(rstop.agency_id)
+    const route = routeLookup.get(rstop.route_id)
+    const mode = route && routeTypeNames.get(route.route_type)
     if (mode) {
       modes.add(mode)
     }

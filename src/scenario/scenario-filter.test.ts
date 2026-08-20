@@ -184,7 +184,7 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{ route: { id: ROUTE_ID } }],
+      route_stops: [{ route_id: ROUTE_ID, agency_id: AGENCY_ID }],
       __typename: 'Stop',
     }
   }
@@ -287,7 +287,7 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
   const AGENCY_A = 11
   const AGENCY_B = 22
 
-  function makeClusterStop (stopId: number, routeId: number): StopGql {
+  function makeClusterStop (stopId: number, routeId: number, agencyId: number): StopGql {
     return {
       id: stopId,
       geometry: { type: 'Point', coordinates: [-122.68, 45.52] },
@@ -296,7 +296,7 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
       stop_name: `Stop ${stopId}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{ route: { id: routeId } }],
+      route_stops: [{ route_id: routeId, agency_id: agencyId }],
       __typename: 'Stop',
     }
   }
@@ -324,7 +324,7 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
   function buildClusterData (cache: StopDepartureCache): ScenarioData {
     const data = makeData([])
     data.stopDepartureCache = cache
-    data.stops = [makeClusterStop(STOP_A, ROUTE_A), makeClusterStop(STOP_B, ROUTE_B)]
+    data.stops = [makeClusterStop(STOP_A, ROUTE_A, AGENCY_A), makeClusterStop(STOP_B, ROUTE_B, AGENCY_B)]
     // route_stops carry only ids, so the agency rollup joins against these.
     data.routes = [makeClusterRoute(ROUTE_A, AGENCY_A), makeClusterRoute(ROUTE_B, AGENCY_B)]
     data.stopClusters = [{
@@ -368,6 +368,7 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
     endDate: new Date('2024-01-21T00:00:00'),
   }
   const ROUTE_ID = 300
+  const AGENCY_ID = 1
   const STOP_ID = 400
   const WEEKDAY_DATES = ['2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19']
   const WEEKEND_DATES = ['2024-01-20', '2024-01-21']
@@ -400,7 +401,7 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{ route: { id: ROUTE_ID } }],
+      route_stops: [{ route_id: ROUTE_ID, agency_id: AGENCY_ID }],
       __typename: 'Stop',
     }
   }

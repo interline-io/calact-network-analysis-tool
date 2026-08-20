@@ -203,7 +203,7 @@ describe('stopClusterCsv', () => {
       id,
       stop_id: `S${id}`,
       stop_name: name,
-      route_stops: [{ route: { id: id * 10 } }],
+      route_stops: [{ route_id: id * 10, agency_id: id }],
     } as unknown as Stop
   }
 
