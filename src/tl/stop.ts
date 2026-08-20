@@ -14,7 +14,7 @@ import type { BufferGeographyIntersection } from './stop-buffer'
 //////////
 
 export const stopQuery = gql`
-query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String) {
+query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $census_layer: String, $include_route_stop_details: Boolean! = true) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -38,9 +38,11 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String)
         onestop_id
       }
     }
-    # Fetches all layers for the dataset (no layer filter) so aggregation level can change without re-querying.
+    # Every layer for the dataset by default, so the aggregation level can
+    # change without re-querying. A report that fixes one layer passes
+    # $census_layer instead: all seven layers are 41% of this query's bytes.
     # limit:1000 is high enough for typical queries; results silently truncate if exceeded.
-    census_geographies(limit: 1000, where:{dataset: $dataset_name}) {
+    census_geographies(limit: 1000, where:{dataset: $dataset_name, layer: $census_layer}) {
       id
       geoid
       layer_name
@@ -52,11 +54,15 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String)
     route_stops(limit: 1000) {
       route {
         id
-        route_id
-        route_type
-        route_short_name
-        route_long_name
-        agency {
+        # The route id is all the departures phase reads. The rest is what map
+        # styling, filters and clustering need, and it is denormalized onto
+        # every stop the route serves, so a consumer that does none of those
+        # skips it.
+        route_id @include(if: $include_route_stop_details)
+        route_type @include(if: $include_route_stop_details)
+        route_short_name @include(if: $include_route_stop_details)
+        route_long_name @include(if: $include_route_stop_details)
+        agency @include(if: $include_route_stop_details) {
           id
           agency_id
           agency_name
@@ -122,14 +128,16 @@ export type StopGql = {
       onestop_id: string
     }
   }
+  // Everything but `route.id` is absent when the stops phase ran with
+  // includeRouteStopDetails off.
   route_stops: {
     route: {
       id: number
-      route_id: string
-      route_type: number
-      route_short_name: string
-      route_long_name: string
-      agency: {
+      route_id?: string
+      route_type?: number
+      route_short_name?: string
+      route_long_name?: string
+      agency?: {
         id: number
         agency_id: string
         agency_name: string
@@ -243,9 +251,15 @@ export function stopGeoAggregateCsv (
       a.stops_count.add(stop.id)
       a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {
-        a.agencies_count.add(rstop.route.agency.id)
         a.routes_count.add(rstop.route.id)
-        a.routes_modes.add(rstop.route.route_type)
+        // Absent when the scenario ran with includeRouteStopDetails off; the
+        // agency and mode rollups are simply empty then.
+        if (rstop.route.agency) {
+          a.agencies_count.add(rstop.route.agency.id)
+        }
+        if (rstop.route.route_type != null) {
+          a.routes_modes.add(rstop.route.route_type)
+        }
       }
       stopAgg.set(geog.geoid, a)
     }
@@ -283,9 +297,11 @@ export function stopToStopCsv (stop: Stop, bufferGeographies?: BufferGeographyIn
   const modes = new Set()
   const agencies = new Set()
   for (const rstop of routeStops) {
-    agencies.add(rstop.route.agency.id)
+    if (rstop.route.agency) {
+      agencies.add(rstop.route.agency.id)
+    }
     const rtype = rstop.route.route_type
-    const mode = routeTypeNames.get(rtype)
+    const mode = rtype == null ? undefined : routeTypeNames.get(rtype)
     if (mode) {
       modes.add(mode)
     }

@@ -14,7 +14,7 @@
 // See: https://github.com/interline-io/transitland-lib/pull/527
 
 import { format } from 'date-fns'
-import { TaskQueue, WEEKDAY_BY_GETDAY, type GraphQLClient } from '~~/src/core'
+import { TaskQueue, WEEKDAY_BY_GETDAY, fmtDate, parseCalendarDate, type GraphQLClient } from '~~/src/core'
 import {
   flexLocationQuery,
   flexStopTimesQuery,
@@ -143,9 +143,12 @@ export async function runFlexPhase (
 
   // Fetch flex areas for a single feed version
   async function fetchFlexArea (fv: FeedVersionRef): Promise<void> {
-    const queryDate = config.startDate
-      ? format(config.startDate, 'yyyy-MM-dd')
-      : format(new Date(), 'yyyy-MM-dd')
+    // The config crossed a JSON boundary, so startDate is a `yyyy-MM-dd`
+    // string at runtime and date-fns would read it through `new Date(...)` at
+    // UTC midnight — the day before, anywhere west of Greenwich. Same
+    // calendar-date read as getSelectedDateRange below, so both halves of this
+    // phase filter against the day the user actually picked.
+    const queryDate = fmtDate(parseCalendarDate(config.startDate) ?? new Date())
 
     const variables = {
       fvSha1: fv.feedVersionSha1,
@@ -168,7 +171,7 @@ export async function runFlexPhase (
     }
 
     console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feedOnestopId}`)
-    emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexAreas } })
+    await emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexAreas } })
 
     // Fetch slim multi-date stop_times to populate the flex departure cache.
     // Chunk the date range into 7-day windows (one query per week) so every
@@ -196,7 +199,7 @@ export async function runFlexPhase (
       }
     }
     if (flexDepartures.length > 0) {
-      emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexDepartures } })
+      await emit({ isLoading: true, currentStage: 'flex-areas', partialData: { flexDepartures } })
     }
   }
 

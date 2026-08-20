@@ -36,6 +36,57 @@ export function parseDate (s: string | undefined): Date | undefined {
 }
 
 /**
+ * A calendar date from a config, as distinct from an instant.
+ *
+ * `yyyy-MM-dd` is parsed at local midnight, so `fmtDate` renders the same day
+ * back whatever zone the runtime is in. `new Date('2026-08-24')` reads UTC
+ * midnight instead, which is the day before anywhere west of Greenwich: the
+ * CLI running in Pacific would analyse the 23rd for a config saying the 24th.
+ *
+ * A Date or full timestamp is passed through unchanged. Only the client that
+ * produced it knows which calendar day it meant, which is why configs should
+ * carry dates as `yyyy-MM-dd`; see withCalendarDates.
+ */
+export function parseCalendarDate (value: Date | string | undefined): Date | undefined {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  if (typeof value === 'string' && dateOnlyPattern.test(value)) {
+    return parseDate(value)
+  }
+  const d = new Date(value.valueOf())
+  return isValid(d) ? d : undefined
+}
+
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * A config ready for the wire, with every Date rendered as `yyyy-MM-dd`.
+ *
+ * Configs carry calendar dates a user picked, never instants. Serializing a
+ * Date gives an instant, so the day it lands on depends on both the browser's
+ * zone and the server's: a browser at UTC+9 picking the 24th sends
+ * `2026-08-23T15:00:00Z`, and a UTC server reads the 23rd. Sending the day
+ * itself removes both zones from the question.
+ */
+export function withCalendarDates<T> (value: T): T {
+  if (value instanceof Date) {
+    return fmtDate(value) as unknown as T
+  }
+  if (Array.isArray(value)) {
+    return value.map(withCalendarDates) as unknown as T
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = withCalendarDates(v)
+    }
+    return out as T
+  }
+  return value
+}
+
+/**
  * Format a Date object to a string.
  * Also handles string inputs (e.g. from JSON deserialization where Date objects become strings).
  * @param d - Date object to format

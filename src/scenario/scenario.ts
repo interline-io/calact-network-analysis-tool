@@ -71,6 +71,35 @@ export interface ScenarioConfig {
    */
   includeFlexAreas?: boolean
   /**
+   * Whether to fetch each route's shape. Defaults to true, which the map
+   * needs. Route geometry is 98% of the routes query's bytes and costs
+   * several times that again as parsed coordinate arrays, so consumers that
+   * only classify routes should turn it off.
+   */
+  includeRouteGeometry?: boolean
+  /**
+   * Whether to fetch every census layer on each stop. Defaults to true, which
+   * is what lets the aggregation layer change without refetching the whole
+   * scenario. All seven layers are 41% of the stops payload, so a report that
+   * fixes one layer should turn this off; `aggregateLayer` is then the only
+   * layer fetched.
+   */
+  includeAllCensusLayers?: boolean
+  /**
+   * Whether to fetch route name/type/agency on each stop's route_stops.
+   * Defaults to true, which map styling, filters and clustering need. Off
+   * leaves just the route id, which is all the stops phase itself reads.
+   */
+  includeRouteStopDetails?: boolean
+  /**
+   * Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead of
+   * every day from startDate to endDate. A report that reads a few days out of
+   * a wide scenario range sets this so its departure cost follows the days it
+   * reads rather than the range the user picked. Must include the day before
+   * each date read: a departure stated past 24:00:00 falls on the next day.
+   */
+  departureDates?: string[]
+  /**
    * Whether to fetch census demographics: ACS values for the aggregation
    * layer (census-values stage) and the stop-buffer demographic passes.
    * Defaults to true.
@@ -174,7 +203,8 @@ export interface ScenarioData {
  * Callback interface for scenario fetching events
  */
 export interface ScenarioCallbacks {
-  onProgress?: (progress: ScenarioProgress) => void
+  // Awaitable so a streaming consumer can apply backpressure; see PhaseEmit.
+  onProgress?: (progress: ScenarioProgress) => void | Promise<void>
   onComplete?: () => void
   onError?: (error: any) => void
 }
@@ -188,6 +218,11 @@ export interface ScenarioProgress {
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
+  // Running departure totals for a consumer that is not being sent the
+  // departures themselves. Set by paths that fold them server-side and strip
+  // `partialData.stopDepartures`, so the loading UI still has its numbers
+  // without several million tuples crossing the wire.
+  departureSummary?: { departures: number, stopsWithDepartures: number }
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]
@@ -251,8 +286,8 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   await fetcher.fetch()
 
   // Final complete
-  scenarioDataSender.onComplete()
-  writer.close()
+  await scenarioDataSender.onComplete()
+  await writer.close()
 }
 
 /**
@@ -287,8 +322,8 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   await fetcher.fetch()
 
   // Final complete - close the multiplexed stream
-  scenarioDataSender.onComplete()
-  writer.close()
+  await scenarioDataSender.onComplete()
+  await writer.close()
 
   // Ensure all scenario client progress has been processed
   const { data } = await scenarioClientProgress
@@ -361,7 +396,7 @@ export class ScenarioFetcher {
 
   // Phase emissions carry only their own queue counters; route them into the
   // right slot and re-emit with the summed pipeline totals attached.
-  private emitProgress (progress: ScenarioProgress): void {
+  private emitProgress (progress: ScenarioProgress): void | Promise<void> {
     this.lastStage = progress.currentStage
     if (progress.feedVersionProgress) {
       if (progress.currentStage === 'stops') {
@@ -373,7 +408,7 @@ export class ScenarioFetcher {
     if (progress.stopDepartureProgress) {
       this.departuresProgress = progress.stopDepartureProgress
     }
-    this.callbacks.onProgress?.({
+    return this.callbacks.onProgress?.({
       ...progress,
       feedVersionProgress: {
         total: this.stopsProgress.total + this.routesProgress.total,
@@ -428,6 +463,8 @@ export class ScenarioFetcher {
         geographyIds: this.config.geographyIds,
         geoDatasetName: this.config.geoDatasetName,
         stopLimit: this.config.stopLimit,
+        censusLayer: this.config.includeAllCensusLayers === false ? this.config.aggregateLayer : undefined,
+        includeRouteStopDetails: this.config.includeRouteStopDetails,
       }, this.client, emit, { onError })
       scenarioStopIds = stopIds
       logMemory('after-stops')
@@ -439,12 +476,16 @@ export class ScenarioFetcher {
             stopIds,
             startDate: this.config.startDate,
             endDate: this.config.endDate,
+            dates: this.config.departureDates,
             routeIds,
             routeStopIds,
           }, this.client, emit, { onError })
         : Promise.resolve()
       const { agencyIds } = enabled.has('routes')
-        ? await runRoutesPhase({ routeIds }, this.client, emit, { onError })
+        ? await runRoutesPhase({
+            routeIds,
+            includeGeometry: this.config.includeRouteGeometry,
+          }, this.client, emit, { onError })
         : { agencyIds: [] }
       logMemory('after-routes')
       await departuresPromise
@@ -572,6 +613,41 @@ function mergeIntoMap<K, V> (
 // SCENARIO DATA RECEIVER - Core accumulation logic
 // ============================================================================
 
+export interface ScenarioReceiverOptions {
+  /**
+   * Fold departures instead of accumulating them. When set, each streamed
+   * batch is handed to this callback and `stopDepartureCache` is left empty.
+   *
+   * A retained departure costs ~80 bytes, so a statewide scenario's several
+   * million of them do not fit alongside everything else in a Cloudflare
+   * Worker. Consumers that only need a derived summary (the WSDOT report reads
+   * per-hour counts and nothing else) fold here and hold constant memory.
+   */
+  onStopDepartures?: (departures: readonly StopDepartureTuple[]) => void
+  /**
+   * Do not accumulate stops; `stops` is left empty.
+   *
+   * A StopGql costs ~970 bytes, most of it in the separate heap objects behind
+   * `geometry`, `feed_version`, `census_geographies` and `route_stops` rather
+   * than in the fields themselves. A consumer that reads a handful of values
+   * per stop folds them into a flat record of its own, which measures ~300,
+   * and sets this so the whole ones are not held alongside.
+   *
+   * Retention only. A consumer folding stops reads them from the progress
+   * events it is already receiving, so that its fold does not silently stop
+   * happening when someone asks for the whole ones to be kept as well.
+   */
+  dropStops?: boolean
+  /**
+   * Accumulate routes without their geometry. The streamed events are left
+   * untouched, so a browser downstream still receives the shapes; only this
+   * receiver's copy is slimmed. For a server that streams routes on to a
+   * client but never draws them itself, holding a second copy of 49 KB per
+   * route is what the memory limit is spent on.
+   */
+  dropRouteGeometry?: boolean
+}
+
 /**
  * Receives progress events and accumulates ScenarioData
  * This is the core logic used by both in-process and streaming scenarios
@@ -579,9 +655,11 @@ function mergeIntoMap<K, V> (
 export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
+  private options: ScenarioReceiverOptions
 
-  constructor (callbacks: ScenarioCallbacks = {}) {
+  constructor (callbacks: ScenarioCallbacks = {}, options: ScenarioReceiverOptions = {}) {
     this.callbacks = callbacks
+    this.options = options
     this.accumulatedData = {
       stops: [],
       routes: [],
@@ -602,19 +680,26 @@ export class ScenarioDataReceiver {
   /**
    * Handle a progress event from ScenarioFetcher
    */
-  onProgress (progress: ScenarioProgress): void {
+  onProgress (progress: ScenarioProgress): void | Promise<void> {
     const p = progress.partialData
     if (p) {
-      if (p.stops) {
+      if (p.stops && !this.options.dropStops) {
         this.accumulatedData.stops.push(...p.stops)
       }
-      if (p.routes) {
+      if (p.routes && this.options.dropRouteGeometry) {
+        for (const route of p.routes) {
+          const { geometry: _geometry, ...rest } = route
+          this.accumulatedData.routes.push(rest)
+        }
+      } else if (p.routes) {
         this.accumulatedData.routes.push(...p.routes)
       }
       if (p.feedVersions) {
         this.accumulatedData.feedVersions.push(...p.feedVersions)
       }
-      if (p.stopDepartures) {
+      if (p.stopDepartures && this.options.onStopDepartures) {
+        this.options.onStopDepartures(p.stopDepartures)
+      } else if (p.stopDepartures) {
         for (const event of p.stopDepartures) {
           this.accumulatedData.stopDepartureCache.addFromWire(
             StopDepartureTuple.stopId(event),
@@ -627,7 +712,12 @@ export class ScenarioDataReceiver {
           )
         }
       }
-      mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
+      // The sidecar only exists to name the departures the cache holds, so a
+      // receiver that folds them has nothing to pair it with. One entry per
+      // trip is not free at statewide scale.
+      if (!this.options.onStopDepartures) {
+        mergeIntoMap(p.tripIdStrings, this.accumulatedData.tripIdStrings)
+      }
       if (p.flexAreas) {
         this.accumulatedData.flexAreas.push(...p.flexAreas)
       }
@@ -653,7 +743,7 @@ export class ScenarioDataReceiver {
       }
     }
 
-    this.callbacks.onProgress?.(progress)
+    return this.callbacks.onProgress?.(progress)
   }
 
   /**

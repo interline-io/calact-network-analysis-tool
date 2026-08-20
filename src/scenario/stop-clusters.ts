@@ -545,7 +545,7 @@ export async function runStopClustersPhase (
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
   const clusters = deriveStopClusters(inputs, config.maxDistanceMeters)
-  emit({
+  await emit({
     isLoading: true,
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
@@ -595,7 +595,9 @@ export function stopClusterCsv (
         if (rs.route.id != null) {
           routeIds.add(rs.route.id)
         }
-        modes.add(rs.route.route_type)
+        if (rs.route.route_type != null) {
+          modes.add(rs.route.route_type)
+        }
       }
     }
     return {

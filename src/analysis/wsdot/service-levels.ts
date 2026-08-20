@@ -1,9 +1,9 @@
 // WSDOT service-level configuration tables and the pure classification logic
 // that decides which stops/routes meet each level. Extracted from index.ts so
 // that file stays focused on fetch/stream orchestration. No I/O here — all
-// inputs are the frequency maps built by extractFrequencyData.
+// inputs are the frequency maps built by WSDOTFrequencyAggregator.
 
-import type { StopTimeCacheItem, RouteGql } from '~~/src/tl'
+import { traceEnabled } from '~~/src/core'
 
 // Service level configuration matching Python implementation
 interface ServiceLevelConfig {
@@ -111,17 +111,24 @@ export const levelColors: Record<LevelKey, string> = {
   levelAll: '#000000',
 }
 
+// The rules below read exactly two things out of a day's departures: how many
+// a stop has in a given hour, and which distinct trips a route runs in a given
+// hour and direction. Both shapes are foldable, so the aggregator counts
+// departures as they stream past instead of retaining them.
 export interface StopFrequencyData {
   stopId: number
   gtfsStopId: string
-  hourlyDepartures: Map<number, StopTimeCacheItem[]>
-  routeIds: Set<number>
+  // Hour of the calendar day (0-23) -> departures at this stop in that hour.
+  // Absent means zero.
+  hourlyDepartures: Map<number, number>
 }
 
 export interface RouteFrequencyData {
   routeId: number
-  route: RouteGql
-  hourlyDepartures: Map<number, StopTimeCacheItem[]>
+  routeGtfsId: string
+  // Hour of the calendar day (0-23) -> the distinct trips this route departs
+  // in that hour, indexed by direction_id (0 and 1). Absent means none.
+  hourlyTrips: Map<number, [Set<number>, Set<number>]>
   stopIds: Set<number>
 }
 
@@ -214,7 +221,12 @@ export function processServiceLevel (
   const mergedStops = mergeSets(stopResults)
 
   console.log(`Total qualifying stops for service level: ${mergedStops.size}`)
-  console.log(printStopIds(mergedStops))
+  // Sorting and stringifying every qualifying id costs a pair of arrays and a
+  // multi-megabyte string per level on a statewide run, at the moment three
+  // frequency maps are also resident, so it is only built when asked for.
+  if (traceEnabled()) {
+    console.log(printStopIds(mergedStops))
+  }
   return mergedStops
 }
 
@@ -233,7 +245,7 @@ function analyzeFrequency (stops: Map<number, StopFrequencyData>, routes: Map<nu
     let totalTrips = 0
     let meetsTph = true
     for (const hour of timeConfig.hours) {
-      const departureCount = (stopData.hourlyDepartures.get(hour) || []).length
+      const departureCount = stopData.hourlyDepartures.get(hour) || 0
       if (departureCount < timeConfig.min_tph) {
         meetsTph = false
       }
@@ -268,13 +280,13 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
       const dirHourTrips: Map<number, Set<number>> = new Map()
       const dirAllTrips = new Set<number>()
       for (const hour of ALL_HOURS) {
-        const deps = routeData.hourlyDepartures.get(hour) || []
+        const deps = routeData.hourlyTrips.get(hour)?.[directionId] || []
         const hourTrips = new Set<number>()
-        for (const dep of deps.filter(d => d.directionId === directionId)) {
+        for (const tripId of deps) {
           // ... to match python version, only use the first hour for each trip
-          if (!allTrips.has(dep.tripId)) {
-            hourTrips.add(dep.tripId)
-            allTrips.add(dep.tripId)
+          if (!allTrips.has(tripId)) {
+            hourTrips.add(tripId)
+            allTrips.add(tripId)
           }
         }
         dirHourTrips.set(hour, hourTrips)
@@ -315,7 +327,7 @@ function analyzeRouteFrequency (stops: Map<number, StopFrequencyData>, routes: M
 
       // Add all stops served by this qualifying route-direction
       // console.log('QUALIFIES')
-      qualifyingRoutes.add(routeData.route.route_id)
+      qualifyingRoutes.add(routeData.routeGtfsId)
       for (const stopId of routeData.stopIds) {
         qualifyingRouteStops.add(stopId)
       }
@@ -344,7 +356,7 @@ function processNightSegments (
       let totalDepartures = 0
       for (const hour of segment.hours) {
         const source = hour >= 24 ? overnightStops.get(stopId) : stops.get(stopId)
-        totalDepartures += (source?.hourlyDepartures.get(hour % 24) || []).length
+        totalDepartures += source?.hourlyDepartures.get(hour % 24) || 0
       }
       if (totalDepartures >= segment.min_total) {
         segmentStops.add(stopId)

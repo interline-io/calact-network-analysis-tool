@@ -8,6 +8,7 @@ import {
   scenarioOptionsCheck,
   createStreamController,
   type ScenarioCliOptions,
+  parseGeographyIds,
 } from './scenario-cli'
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~~/src/core'
@@ -55,11 +56,19 @@ export function configureWsdotReportCli (program: Command) {
         ...SCENARIO_DEFAULTS,
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
+        // Route shapes are 98% of the routes query and this report never
+        // reads them; wsdot-stops-routes, which exports them, does not set it.
+        includeRouteGeometry: false,
+        // Only the aggregation layer is read, for each stop's state name, and
+        // nothing here styles or filters by route.
+        includeAllCensusLayers: false,
+        includeRouteStopDetails: false,
         aggregateLayer: opts.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
         tableDatasetName: opts.tableDatasetName,
         tableDatasetTable: opts.tableDatasetTable,

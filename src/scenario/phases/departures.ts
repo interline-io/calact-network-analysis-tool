@@ -71,6 +71,12 @@ export interface DeparturesPhaseConfig {
   routeIds?: number[]
   startDate?: Date
   endDate?: Date
+  // Explicit calendar dates (`yyyy-MM-dd`) to fetch, instead of every day from
+  // startDate to endDate. A consumer that reads a few days out of a wide
+  // scenario range pays for those days rather than for the range. Callers must
+  // include the day before each date they care about: a departure stated past
+  // 24:00:00 belongs to the day after its service date.
+  dates?: string[]
   // Routes per GraphQL request; see TRIP_ROUTE_BATCH_SIZE for the default.
   routeBatchSize?: number
   // Route id -> the stops in this scenario that route serves, as produced by
@@ -168,7 +174,12 @@ export async function runDeparturesPhase (
   opts: PhaseOpts = {},
 ): Promise<void> {
   const routeIds = config.routeIds || []
-  const selectedDates = getSelectedDateRange(config)
+  // `undefined` means the caller did not narrow the range; `[]` means it
+  // narrowed to nothing. Treating them alike would have a caller that computed
+  // zero dates run the widest query there is.
+  const selectedDates = config.dates
+    ? [...config.dates]
+    : getSelectedDateRange(config).map(d => format(d, 'yyyy-MM-dd'))
   const batchSize = config.routeBatchSize ?? TRIP_ROUTE_BATCH_SIZE
 
   const queue: TaskQueue<TripFetchTask> = new TaskQueue<TripFetchTask>(
@@ -265,7 +276,7 @@ export async function runDeparturesPhase (
     const tripIdStringPairs: [number, string][] = [...tripIdStrings.entries()]
     let sentTripIdStrings = false
     for (const batch of chunkArray(stopDepartures, TRIP_DEPARTURE_EMIT_SIZE)) {
-      emit({
+      await emit({
         ...progressEvent(),
         partialData: {
           stopDepartures: batch,
@@ -302,8 +313,7 @@ export async function runDeparturesPhase (
 
   // One task per (route batch × 7-day window), bounding response size. A
   // departure crossing a window boundary is claimed by exactly one window.
-  for (const week of chunkArray(selectedDates, 7)) {
-    const dates = week.map(d => format(d, 'yyyy-MM-dd'))
+  for (const dates of chunkArray(selectedDates, 7)) {
     for (const batch of fetchable) {
       queue.enqueueOne({ ...batch, dates })
     }

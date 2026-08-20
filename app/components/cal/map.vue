@@ -71,7 +71,7 @@
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
-import type { Bbox, Feature, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
+import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
 
@@ -526,6 +526,11 @@ const displayFeatures = computed((): Feature[] => {
     if (hideUnmarked.value && !rp.marked) {
       continue
     }
+    // Absent when the scenario ran with includeRouteGeometry off, which the
+    // mapless analysis reports do. There is no shape to draw.
+    if (!rp.geometry) {
+      continue
+    }
 
     const style = styleRules.find(rule => rule.match(rp))
     const feature = {
@@ -608,7 +613,10 @@ const exportFeatures = computed((): Feature[] => {
       const feature = {
         type: 'Feature',
         id: rp.id.toString(),
-        geometry: rp.geometry,
+        // Null for a feed with no shapes.txt. The routes table and CSV list
+        // the route either way, so skipping it here would make the GeoJSON
+        // disagree with them; RFC 7946 allows a null geometry.
+        geometry: (rp.geometry ?? null) as Geometry,
         properties: {
           'id': rp.id,
           'stroke': style?.color || bgColor,

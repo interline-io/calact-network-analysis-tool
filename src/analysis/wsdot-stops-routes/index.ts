@@ -75,7 +75,10 @@ export interface WSDOTAgencyResult {
 export type WSDOTStopsRoutesReportConfig = WSDOTReportConfig
 
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotReport: WSDOTReport, stopsRoutesReport: WSDOTStopsRoutesReport }> {
-  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client)
+  // This report is built from the returned ScenarioData rather than from the
+  // stream, and exports whole stops and route shapes, so it is the one caller
+  // that needs the entities kept rather than only relayed.
+  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client, { retainScenarioEntities: true })
   const stopsRoutesReport = processWsdotStopsRoutesReport(scenarioData, wsdotResult)
   return { scenarioData, wsdotReport: wsdotResult, stopsRoutesReport }
 }
@@ -85,11 +88,21 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   // Build agency map to avoid duplicates and get proper names
   const agencyMap = new Map<string, { agencyId: string, agencyName: string, feedOnestopId: string, stopsCount: number, routesCount: number }>()
 
+  // Lookup key for a stop's service levels.
+  //
+  // GTFS stop_id is unique within a feed, not across them, and a statewide run
+  // covers a hundred-odd feeds where ids like "1" recur constantly. Keying on
+  // the id alone let one feed's levels overwrite another's, so a busy urban
+  // stop reported whichever rural feed happened to be processed last, which
+  // statewide read as almost nothing having any service at all.
+  const levelKey = (feedVersionSha1: string | undefined, stopId: string): string =>
+    `${feedVersionSha1 || 'unknown'}|${stopId}`
+
   // Create a lookup map for WSDOT service levels by stop ID
   const wsdotServiceLevels = new Map<string, { level6: boolean, level5: boolean, level4: boolean, level3: boolean, level2: boolean, level1: boolean, levelNights: boolean }>()
   if (wsdotReport.stops) {
     for (const wsdotStop of wsdotReport.stops) {
-      wsdotServiceLevels.set(wsdotStop.stopId, {
+      wsdotServiceLevels.set(levelKey(wsdotStop.feedVersionSha1, wsdotStop.stopId), {
         level6: wsdotStop.level6,
         level5: wsdotStop.level5,
         level4: wsdotStop.level4,
@@ -138,7 +151,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
       agencyMap.get(uniqueAgencyId)!.stopsCount++
 
       // Look up service levels for this stop
-      const serviceLevels = wsdotServiceLevels.get(stop.stop_id)
+      const serviceLevels = wsdotServiceLevels.get(levelKey(stop.feed_version?.sha1, stop.stop_id))
 
       return {
         // GTFS stop fields (using existing camelCase convention)

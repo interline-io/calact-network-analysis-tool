@@ -168,6 +168,9 @@
         :progress="loadingProgress"
         :error="error"
         :stop-departure-count="stopDepartureCount"
+        :stops-with-departures="stopsWithDepartures"
+        :phase-plan="scenarioPhasePlan"
+        :phase-fractions="scenarioPhaseFractions"
         :scenario-data="scenarioData"
       />
     </cat-modal>
@@ -177,8 +180,8 @@
 <script lang="ts" setup>
 import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, type ScenarioProgress } from '~~/src/scenario'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
+import { type ScenarioData, type ScenarioConfig, ScenarioStreamReceiver, trackPhaseProgress, type ScenarioPhaseName, type ScenarioProgress } from '~~/src/scenario'
+import { SCENARIO_DEFAULTS, withCalendarDates } from '~~/src/core'
 
 interface ExampleConfig {
   filename: string
@@ -194,6 +197,14 @@ const loading = ref(false)
 const showLoadingModal = ref(false)
 const loadingProgress = ref<ScenarioProgress>()
 const stopDepartureCount = ref<number>(0)
+// Kept here rather than read off the progress event, so the figure survives a
+// stream that ends without completing.
+const stopsWithDepartures = ref<number>(0)
+// Drives the weighted progress bar and decides which result cards apply.
+// Without it the modal falls back to a heuristic that reads 100% once stops
+// finish, while departures carry most of the remaining work.
+const scenarioPhasePlan = ref<ScenarioPhaseName[]>()
+const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
 const wsdotReport = shallowRef<WSDOTReport>()
@@ -207,6 +218,15 @@ const wsdotReportConfig = ref<WSDOTReportConfig>({
   reportName: 'wsdot-report',
   weekdayDate: scenarioConfig.value!.startDate!,
   weekendDate: scenarioConfig.value!.endDate!,
+  // This report has no map; route shapes are 98% of the routes query and are
+  // never read here. The stops-and-routes report, which exports them, leaves
+  // this alone.
+  includeRouteGeometry: false,
+  // Only the aggregation layer is read, for each stop's state name, and
+  // nothing here styles or filters by route, so the denormalized route
+  // metadata on every stop goes unread too.
+  includeAllCensusLayers: false,
+  includeRouteStopDetails: false,
   // WSDOT-specific required properties (not in ScenarioConfig)
   stopBufferRadius: 800, // Override default of 0
   aggregateLayer: 'state',
@@ -314,13 +334,30 @@ const fetchScenario = async () => {
     return
   }
   loadingProgress.value = undefined
+  error.value = undefined
   stopDepartureCount.value = 0
+  stopsWithDepartures.value = 0
+  scenarioPhasePlan.value = undefined
+  scenarioPhaseFractions.value = {}
 
   // Create receiver to accumulate scenario data and WSDOT report
   const receiver = new WSDOTReportDataReceiver({
     onProgress: (progress: ScenarioProgress) => {
       loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      const tracked = trackPhaseProgress(
+        { plan: scenarioPhasePlan.value, fractions: scenarioPhaseFractions.value },
+        progress,
+      )
+      scenarioPhasePlan.value = tracked.plan
+      scenarioPhaseFractions.value = tracked.fractions
+      // The WSDOT endpoint folds departures server-side and sends running
+      // totals instead of the tuples; browse-style streams still count them.
+      if (progress.departureSummary) {
+        stopDepartureCount.value = progress.departureSummary.departures
+        stopsWithDepartures.value = progress.departureSummary.stopsWithDepartures
+      } else {
+        stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
+      }
       scenarioData.value = receiver.getCurrentData()
     },
     onComplete: () => {
@@ -344,7 +381,7 @@ const fetchScenario = async () => {
     response = await fetch('/api/wsdot', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config: wsdotReportConfig.value }),
+      body: JSON.stringify(withCalendarDates({ config: wsdotReportConfig.value })),
     })
   }
 
@@ -359,7 +396,12 @@ const fetchScenario = async () => {
   // Process the streaming response
   const streamer = new ScenarioStreamReceiver()
   const { success } = await streamer.processStream(response.body, receiver)
-  if (!success) {
+  // A failure the server managed to report is already in `error`, and its
+  // stream then ends without a 'complete' too. Only a stream that stopped
+  // without saying anything is the abnormal termination this describes;
+  // overwriting the reported cause told the user a census-backend error was
+  // an out-of-memory condition.
+  if (!success && !error.value) {
     error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
   }
 }

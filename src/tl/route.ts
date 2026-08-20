@@ -7,7 +7,7 @@ import type { BufferGeographyIntersection } from './stop-buffer'
 //////////
 
 export const routeQuery = gql`
-query Routes($ids: [Int!], $where: RouteFilter) {
+query Routes($ids: [Int!], $where: RouteFilter, $include_geometry: Boolean! = true) {
   routes(limit: 1000, ids: $ids, where: $where) {
     id
     route_id
@@ -21,7 +21,10 @@ query Routes($ids: [Int!], $where: RouteFilter) {
     route_desc
     continuous_pickup
     continuous_drop_off    
-    geometry
+    # Skipped by consumers that never draw the route. It is 98% of this
+    # query's bytes (49 KB per route on average, 1.4 MB at the tail) and the
+    # parsed coordinate arrays cost several times that on the heap.
+    geometry @include(if: $include_geometry)
     feed_version {
       sha1
       feed {
@@ -59,7 +62,8 @@ export interface RouteGtfs {
 
 export type RouteGql = {
   id: number
-  geometry: GeoJSON.MultiLineString
+  // Absent when the routes phase ran with includeGeometry off.
+  geometry?: GeoJSON.MultiLineString
   agency: {
     id: number
     agency_id: string

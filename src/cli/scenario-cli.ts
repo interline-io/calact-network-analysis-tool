@@ -7,6 +7,7 @@ import { runScenarioFetcher } from '~~/src/scenario'
 export function scenarioOptionsAdd (program: Command): Command {
   return program
     .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
+    .option('--geography-ids <ids>', 'Comma-separated census geography ids to clip to, instead of a bbox')
     .option('--start-date <date>', 'Start date (YYYY-MM-DD)')
     .option('--end-date <date>', 'End date (YYYY-MM-DD)')
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
@@ -32,6 +33,7 @@ export function configureScenarioCli (program: Command) {
       const config: ScenarioConfig = {
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
@@ -76,14 +78,18 @@ export function configureScenarioCli (program: Command) {
  * Utilities
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
-  if (options.bboxName) {
-    const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
-    options.bbox = b?.bboxString
-    options.reportName = options.reportName || b?.label || ''
-  }
-  if (!options.bbox) {
-    console.error('❌ Error: Must provide --bbox')
-    process.exit(1)
+  // --bbox-name defaults to a canned box, so the assignment below would
+  // otherwise overwrite an explicit geography with Portland.
+  if (!options.geographyIds) {
+    if (options.bboxName) {
+      const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
+      options.bbox = b?.bboxString
+      options.reportName = options.reportName || b?.label || ''
+    }
+    if (!options.bbox) {
+      console.error('❌ Error: Must provide --bbox or --geography-ids')
+      process.exit(1)
+    }
   }
 
   // Check for required environment variables
@@ -109,9 +115,26 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
 /**
  * CLI options interface for scenario commands
  */
+// Census geography ids as the UI carries them. Exits on a non-integer rather
+// than dropping it, since a silently narrowed region reads as a real result.
+export function parseGeographyIds (ids?: string): number[] | undefined {
+  if (!ids) {
+    return undefined
+  }
+  return ids.split(',').map((s) => {
+    const n = Number(s.trim())
+    if (!Number.isInteger(n)) {
+      console.error(`❌ Error: --geography-ids expects integers, got "${s.trim()}"`)
+      process.exit(1)
+    }
+    return n
+  })
+}
+
 export interface ScenarioCliOptions {
   reportName: string
   bbox?: string
+  geographyIds?: string
   bboxName: string
   startDate: string
   endDate: string
@@ -187,6 +210,15 @@ export function checkTransitlandEnv () {
   }
 }
 
+/**
+ * A stream controller standing in for the HTTP response the server writes to.
+ *
+ * The stream is always drained, whether or not anything is being saved. An
+ * unread ReadableStream queues every chunk that is enqueued into it, so a CLI
+ * run that left it unread held the whole NDJSON payload in memory and reported
+ * memory numbers the server would never see. Draining keeps `DEBUG_MEMORY=1`
+ * runs an honest proxy for the request path.
+ */
 export function createStreamController (saveToFile?: string): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController
 
@@ -196,34 +228,34 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
     }
   })
 
-  if (saveToFile) {
-    // Set up file writing in the background
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
 
-    // Import fs dynamically to handle Node.js environment
-    import('node:fs').then(async (fs) => {
-      const writeStream = fs.createWriteStream(saveToFile)
+  // Import fs dynamically to handle Node.js environment
+  import('node:fs').then(async (fs) => {
+    const writeStream = saveToFile ? fs.createWriteStream(saveToFile) : undefined
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) { break }
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) { break }
 
-          const text = decoder.decode(value)
-          writeStream.write(text)
-        }
-      } catch (error) {
-        console.error('Error writing to file:', error)
-      } finally {
-        writeStream.end()
-        reader.releaseLock()
+        // `stream: true`, because chunks are sized by the writer rather than
+        // by character boundaries: a stop name's multi-byte sequence split
+        // across two reads would otherwise decode as two replacement
+        // characters and be saved as mojibake in otherwise valid JSON.
+        writeStream?.write(decoder.decode(value, { stream: true }))
       }
-    }).catch((error) => {
-      console.error('Error importing fs module:', error)
-    })
-  }
-  // If saveToFile is not provided, the stream just acts as a dummy
-  // The controller will still work but data won't be written anywhere
+      writeStream?.write(decoder.decode())
+    } catch (error) {
+      console.error('Error reading scenario stream:', error)
+    } finally {
+      writeStream?.end()
+      reader.releaseLock()
+    }
+  }).catch((error) => {
+    console.error('Error importing fs module:', error)
+  })
+
   return controller!
 }

@@ -23,7 +23,7 @@ export function setStreamHeaders (event: H3Event): void {
 export async function streamPhaseResponse (
   event: H3Event,
   startMessage: string,
-  run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void, onError: (error: any) => void) => Promise<unknown>,
+  run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void | Promise<void>, onError: (error: any) => void) => Promise<unknown>,
 ) {
   setStreamHeaders(event)
   const client = await buildServerGraphQLClient(event)
@@ -35,9 +35,13 @@ export async function streamPhaseResponse (
       // Attributed to the last stage emitted, so reporting a failure doesn't
       // rewind the stage the loading modal is displaying.
       let lastStage: ScenarioProgress['currentStage'] = 'ready'
-      const emit = (p: ScenarioProgress) => {
+      const emit = (p: ScenarioProgress): Promise<void> => {
         lastStage = p.currentStage
-        sender.onProgress(p)
+        // Returned, not dropped. The phases await this to pace themselves
+        // against the consumer; swallowing the promise turns every one of
+        // those awaits into a no-op and puts these endpoints — which stream
+        // the largest payloads of any — back on an unbounded write queue.
+        return sender.onProgress(p)
       }
       emit({
         isLoading: true,
@@ -48,14 +52,16 @@ export async function streamPhaseResponse (
       try {
         await run(client, emit, failures.onError)
       } catch (err) {
-        sender.onError(err)
-        writer.close()
+        // Awaited before the close: writes are queued behind one another, so
+        // closing first drops the event that says what went wrong.
+        await sender.onError(err)
+        await writer.close()
         return
       } finally {
         failures.dispose()
       }
-      sender.onComplete()
-      writer.close()
+      await sender.onComplete()
+      await writer.close()
     }
   })
 

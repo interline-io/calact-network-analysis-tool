@@ -128,7 +128,7 @@ export async function runCensusValuesPhase (
     ]
   })
   console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
-  emit({
+  await emit({
     isLoading: true,
     currentStage: 'census-values',
     partialData: { censusGeographies: entries },

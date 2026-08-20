@@ -44,9 +44,10 @@
       Scenario data loading completed successfully!
     </div>
 
-    <!-- Results Display -->
+    <!-- Results Display. Only the phases this run executes: a report that
+         never fetches flex areas should not show a flex counter stuck at 0. -->
     <div class="columns is-multiline">
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('stops')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Stops">
           <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
@@ -59,7 +60,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('routes')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Routes">
           <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
@@ -72,7 +73,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('departures')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Departures">
           <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
           <div class="more-label">
@@ -80,7 +81,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('flex-areas')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
@@ -98,7 +99,7 @@
 </template>
 
 <script lang="ts" setup>
-import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
+import { phaseProgressPercent, planRunsPhase, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
 import type { RequestFailure } from '~~/src/core'
 
 // Props. Phase plan/fractions are accumulated by the parent inside the
@@ -112,23 +113,35 @@ const props = withDefaults(defineProps<{
   requestErrors?: RequestFailure[]
   scenarioData?: ScenarioData
   stopDepartureCount?: number
+  // Distinct stops seen with departures. Sticky in the caller, so it survives
+  // the stream ending.
+  stopsWithDepartures?: number
   phasePlan?: ScenarioPhaseName[]
   phaseFractions?: Partial<Record<ScenarioPhaseName, number>>
 }>(), {})
 
+// Which result cards this run can fill.
+const runsPhase = (phase: ScenarioPhaseName) => planRunsPhase(props.phasePlan, phase)
+
+// Four cards no longer always fit; spread whatever is shown across the row.
+const cardColumnClass = computed(() => {
+  const shown = (['stops', 'routes', 'departures', 'flex-areas'] as ScenarioPhaseName[])
+    .filter(runsPhase).length
+  if (shown <= 1) { return 'is-full' }
+  if (shown === 2) { return 'is-half' }
+  if (shown === 3) { return 'is-one-third' }
+  return 'is-one-quarter'
+})
+
 // Computed values
 const progressPercentage = computed(() => {
   // Phase-weighted progress when the stream announced a plan
-  const plan = props.phasePlan
-  if (plan && plan.length > 0) {
-    let weightTotal = 0
-    let weighted = 0
-    for (const phase of plan) {
-      const weight = SCENARIO_PHASE_WEIGHTS[phase] ?? 1
-      weightTotal += weight
-      weighted += weight * (props.phaseFractions?.[phase] ?? 0)
-    }
-    return weightTotal > 0 ? Math.round((weighted / weightTotal) * 100) : 0
+  const weighted = phaseProgressPercent({
+    plan: props.phasePlan,
+    fractions: props.phaseFractions ?? {},
+  })
+  if (weighted !== null) {
+    return weighted
   }
   // Legacy fallback: streams without a phase plan (old saved examples,
   // WSDOT analyses)
@@ -151,9 +164,19 @@ const totalStops = computed(() => {
   return props.scenarioData?.stops?.length || 0
 })
 
-// Number of stops that have departures loaded (stops in the departure cache)
+// Number of stops that have departures loaded. A stream that folds departures
+// server-side sends the count rather than the tuples, so there is no cache to
+// measure; browse-style streams fall back to the cache's own size.
+//
+// The caller's running figure wins, because it survives the progress event
+// being cleared. On an aborted stream the modal stays up with no progress to
+// read, and the cache it would otherwise fall back to is empty by design, so
+// the count would read zero next to a departure total in the millions.
 const stopsWithDepartures = computed(() => {
-  return props.scenarioData?.stopDepartureCache?.cache?.size || 0
+  return props.stopsWithDepartures
+    ?? props.progress?.departureSummary?.stopsWithDepartures
+    ?? props.scenarioData?.stopDepartureCache?.cache?.size
+    ?? 0
 })
 
 // Helper functions

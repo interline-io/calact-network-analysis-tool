@@ -15,7 +15,9 @@ export interface StreamableProgress {
  * Generic callback interface for streaming progress events
  */
 export interface StreamCallbacks<T extends StreamableProgress> {
-  onProgress?: (progress: T) => void
+  // Awaitable so a producer can apply backpressure. Consumers that just
+  // accumulate return void and are unaffected.
+  onProgress?: (progress: T) => void | Promise<void>
   onComplete?: () => void
   onError?: (error: string) => void
 }
@@ -39,26 +41,44 @@ export interface StreamDataReceiver<T extends StreamableProgress, TData> {
  */
 export class GenericStreamSender<T extends StreamableProgress> implements StreamCallbacks<T> {
   private encoder = new TextEncoder()
+  // Writes are serialized: the next one is queued behind the last, so awaiting
+  // what send() returns means everything emitted so far has reached the sink.
+  private tail: Promise<void> = Promise.resolve()
 
   constructor (private writer: WritableStreamDefaultWriter<Uint8Array>) {}
 
-  send (progress: T): void {
+  /**
+   * Queue one event. The returned promise settles when it has been written,
+   * which for a response stream means when the consumer has taken it.
+   *
+   * Awaiting it is what bounds memory: without that, a producer faster than
+   * its consumer piles every unread event onto the heap, which is how a
+   * statewide report killed a 128 MB Worker while the same stream drained
+   * fine into a fast reader.
+   */
+  send (progress: T): Promise<void> {
     const data = JSON.stringify(progress) + '\n'
-    // console.log(`wrote ${data.length} bytes`)
-    this.writer.write(this.encoder.encode(data)).catch(console.error)
+    const chunk = this.encoder.encode(data)
+    this.tail = this.tail
+      .then(() => this.writer.write(chunk))
+      .catch(console.error)
+    return this.tail
   }
 
-  onProgress (progress: T): void {
-    this.send(progress)
+  onProgress (progress: T): Promise<void> {
+    return this.send(progress)
   }
 
-  onComplete (): void {
-    this.send({ isLoading: false, currentStage: 'complete' } as unknown as T)
+  // Both return the queued write, so a caller about to close the stream can
+  // await it. Writes are queued behind one another now, so closing without
+  // awaiting drops whatever has not been flushed yet.
+  onComplete (): Promise<void> {
+    return this.send({ isLoading: false, currentStage: 'complete' } as unknown as T)
   }
 
-  onError (error: any): void {
+  onError (error: any): Promise<void> {
     const errMsg = { message: error.message || 'Unknown error' }
-    this.send({ isLoading: false, currentStage: 'error', error: errMsg } as unknown as T)
+    return this.send({ isLoading: false, currentStage: 'error', error: errMsg } as unknown as T)
   }
 }
 
@@ -144,10 +164,25 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
 // Utility functions to create and manage streams
 // ============================================================================
 
+// How long a write waits for the consumer before giving up and enqueuing
+// anyway. A consumer that has stopped reading entirely should not wedge the
+// producer forever; letting it through risks memory, hanging risks the request.
+const BACKPRESSURE_TIMEOUT_MS = 30_000
+const BACKPRESSURE_POLL_MS = 20
+
 export const requestStream = (controller: ReadableStreamDefaultController): WritableStream => {
   // Create writable stream writer that writes to the response
   return new WritableStream({
-    write (chunk) {
+    async write (chunk) {
+      // Wait for the consumer to drain what is already queued. `desiredSize`
+      // is null on an errored stream and undefined on the plain object test
+      // doubles use, and neither should block.
+      const deadline = Date.now() + BACKPRESSURE_TIMEOUT_MS
+      while (typeof controller.desiredSize === 'number'
+        && controller.desiredSize <= 0
+        && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, BACKPRESSURE_POLL_MS))
+      }
       controller.enqueue(chunk)
     },
     close () {
