@@ -3,6 +3,7 @@ import { applyScenarioResultFilter } from './scenario-filter'
 import { StopDepartureCache } from '../tl/departure-cache'
 import { FlexDepartureCache } from '../tl/flex-departure-cache'
 import { stopToStopCsv } from '../tl/stop'
+import { routesById } from '../tl/route'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import type { FlexAreaFeature } from '../tl/flex'
 import type { RouteGql } from '../tl/route'
@@ -183,16 +184,7 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{
-        route: {
-          id: ROUTE_ID,
-          route_id: `route-${ROUTE_ID}`,
-          route_type: 3,
-          route_short_name: `R${ROUTE_ID}`,
-          route_long_name: `Route ${ROUTE_ID}`,
-          agency: { id: AGENCY_ID, agency_id: 'agency-1', agency_name: 'Test Agency' },
-        },
-      }],
+      route_stops: [{ route_id: ROUTE_ID, agency_id: AGENCY_ID }],
       __typename: 'Stop',
     }
   }
@@ -266,7 +258,7 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
     expect(stop.visits?.monday.visit_count).toBe(3)
     // Tuesday had no service
     expect(stop.visits?.tuesday.visit_count).toBe(0)
-    const csv = stopToStopCsv(stop)
+    const csv = stopToStopCsv(stop, routesById(result.routes))
     expect(csv.visit_count_total).toBe(3)
     expect(csv.visit_count_monday_total).toBe(3)
     expect(csv.visit_count_tuesday_total).toBe(0)
@@ -304,18 +296,21 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
       stop_name: `Stop ${stopId}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{
-        route: {
-          id: routeId,
-          route_id: `route-${routeId}`,
-          route_type: 3,
-          route_short_name: `R${routeId}`,
-          route_long_name: `Route ${routeId}`,
-          agency: { id: agencyId, agency_id: `agency-${agencyId}`, agency_name: `Agency ${agencyId}` },
-        },
-      }],
+      route_stops: [{ route_id: routeId, agency_id: agencyId }],
       __typename: 'Stop',
     }
+  }
+
+  function makeClusterRoute (routeId: number, agencyId: number) {
+    return {
+      id: routeId,
+      route_id: `route-${routeId}`,
+      route_type: 3,
+      route_short_name: `R${routeId}`,
+      route_long_name: `Route ${routeId}`,
+      agency: { id: agencyId, agency_id: `agency-${agencyId}`, agency_name: `Agency ${agencyId}` },
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+    } as unknown as ScenarioData['routes'][number]
   }
 
   function addDeparture (cache: StopDepartureCache, stopId: number, date: string, time: string, routeId: number, tripId: number) {
@@ -330,6 +325,8 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
     const data = makeData([])
     data.stopDepartureCache = cache
     data.stops = [makeClusterStop(STOP_A, ROUTE_A, AGENCY_A), makeClusterStop(STOP_B, ROUTE_B, AGENCY_B)]
+    // route_stops carry only ids, so the agency rollup joins against these.
+    data.routes = [makeClusterRoute(ROUTE_A, AGENCY_A), makeClusterRoute(ROUTE_B, AGENCY_B)]
     data.stopClusters = [{
       id: 'cluster:201',
       anchorStopId: STOP_A,
@@ -371,6 +368,7 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
     endDate: new Date('2024-01-21T00:00:00'),
   }
   const ROUTE_ID = 300
+  const AGENCY_ID = 1
   const STOP_ID = 400
   const WEEKDAY_DATES = ['2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19']
   const WEEKEND_DATES = ['2024-01-20', '2024-01-21']
@@ -403,16 +401,7 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{
-        route: {
-          id: ROUTE_ID,
-          route_id: `route-${ROUTE_ID}`,
-          route_type: 3,
-          route_short_name: `R${ROUTE_ID}`,
-          route_long_name: `Route ${ROUTE_ID}`,
-          agency: { id: 1, agency_id: 'agency-1', agency_name: 'Test Agency' },
-        },
-      }],
+      route_stops: [{ route_id: ROUTE_ID, agency_id: AGENCY_ID }],
       __typename: 'Stop',
     }
   }

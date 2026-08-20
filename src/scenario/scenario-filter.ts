@@ -71,6 +71,7 @@ import {
 } from '~~/src/core'
 import type {
   Agency,
+  AgencyGql,
   FeedVersion,
   Route,
   Stop,
@@ -80,6 +81,7 @@ import type {
   RouteDepartureIndex,
   BufferGeographyIntersection,
 } from '~~/src/tl'
+import { routesById } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
@@ -363,7 +365,7 @@ function stopMarked (
   // Check marked routes
   // Must match at least one marked route if any route-level filters are applied
   if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
-    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
+    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route_id))
     if (!hasMarkedRoute) {
       // console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
       return false
@@ -540,15 +542,18 @@ export function applyScenarioResultFilter (
   })
   const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
-  // Apply agency filters
+  const routeLookup = routesById(routeFeatures)
+
+  // Agencies come off the routes phase, so this rolls up empty until it lands.
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
-      const agency = rstop.route.agency
-      const aid = agency?.agency_id
-      if (!aid) {
-        continue // no valid agency listed for this stop?
+      const route = routeLookup.get(rstop.route_id)
+      if (!route?.agency.agency_id) {
+        continue // route not fetched yet, or no agency listed
       }
+      const agency = route.agency
+      const aid = agency.agency_id
       const adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),
@@ -556,13 +561,8 @@ export function applyScenarioResultFilter (
         stops: new Set(),
         agency: agency,
       }
-      adata.routes.add(rstop.route.id)
-      // Absent when the scenario ran with includeRouteStopDetails off. Adding
-      // it regardless puts `undefined` in the set, which renders as an
-      // "Unknown" mode rather than as no mode at all.
-      if (rstop.route.route_type != null) {
-        adata.routes_modes.add(rstop.route.route_type)
-      }
+      adata.routes.add(rstop.route_id)
+      adata.routes_modes.add(route.route_type)
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }
@@ -570,9 +570,7 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      if (rstop.route.agency?.id != null) {
-        markedAgencies.add(rstop.route.agency.id)
-      }
+      markedAgencies.add(rstop.agency_id)
     }
   })
   routeFeatures.filter(s => s.marked).forEach((s) => {
@@ -580,20 +578,13 @@ export function applyScenarioResultFilter (
   })
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
-    const agency = adata.agency as Agency
+    const agency: AgencyGql = adata.agency
     return {
+      ...agency,
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
       stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
-      id: agency.id,
-      agency_id: agency.agency_id,
-      agency_name: agency.agency_name,
-      agency_email: agency.agency_email,
-      agency_fare_url: agency.agency_fare_url,
-      agency_lang: agency.agency_lang,
-      agency_phone: agency.agency_phone,
-      agency_timezone: agency.agency_timezone,
       __typename: 'Agency', // backwards compat
     }
   })

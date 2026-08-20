@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { stopToStopCsv, stopGeoAggregateCsv } from './stop'
+import { routesById } from './route'
+import type { RouteGql } from './route'
 import type { Stop, StopVisitSummary, StopVisitCounts } from './stop'
 
 function counts (visit_count: number, date_count = 1): StopVisitCounts {
@@ -27,22 +29,47 @@ interface RouteStopArgs {
   agencyName?: string
 }
 
-function makeRouteStop (a: RouteStopArgs) {
-  return {
-    route: {
-      id: a.routeInternalId,
-      route_id: a.routeId ?? `route-${a.routeInternalId}`,
-      route_type: a.routeType ?? 3,
-      route_short_name: `R${a.routeInternalId}`,
-      route_long_name: `Route ${a.routeInternalId}`,
-      agency: {
-        id: a.agencyId,
-        agency_id: `agency-${a.agencyId}`,
-        agency_name: a.agencyName ?? `Agency ${a.agencyId}`,
-      },
-    },
-  }
+// route_stops carry scalar ids; the route's name and type come off the routes
+// the routes phase fetches. Both halves come from one description.
+function makeRouteStops (args: RouteStopArgs[]) {
+  return args.map(a => ({ route_id: a.routeInternalId, agency_id: a.agencyId }))
 }
+
+function makeRouteLookup (args: RouteStopArgs[]): Map<number, RouteGql> {
+  return routesById(args.map(a => ({
+    id: a.routeInternalId,
+    route_id: a.routeId ?? `route-${a.routeInternalId}`,
+    route_type: a.routeType ?? 3,
+    route_short_name: `R${a.routeInternalId}`,
+    route_long_name: `Route ${a.routeInternalId}`,
+    agency: {
+      id: a.agencyId,
+      agency_id: `agency-${a.agencyId}`,
+      agency_name: a.agencyName ?? `Agency ${a.agencyId}`,
+    },
+  }) as unknown as RouteGql))
+}
+
+const ROUTE_10: RouteStopArgs[] = [{ routeInternalId: 10, agencyId: 1 }]
+const ROUTES_A: RouteStopArgs[] = [
+  { routeInternalId: 10, agencyId: 1 },
+  { routeInternalId: 11, agencyId: 1 },
+]
+const ROUTES_TWO_AGENCIES: RouteStopArgs[] = [
+  { routeInternalId: 10, agencyId: 1 },
+  { routeInternalId: 11, agencyId: 1 },
+  { routeInternalId: 12, agencyId: 2 },
+]
+const ROUTES_MIXED_MODES: RouteStopArgs[] = [
+  { routeInternalId: 10, agencyId: 1, routeType: 3 }, // Bus
+  { routeInternalId: 11, agencyId: 1, routeType: 3 }, // Bus dup
+  { routeInternalId: 12, agencyId: 2, routeType: 0 }, // Tram
+]
+const AGG_ROUTES: RouteStopArgs[] = [
+  { routeInternalId: 10, agencyId: 1 },
+  { routeInternalId: 11, agencyId: 2 },
+  { routeInternalId: 12, agencyId: 1 },
+]
 
 function makeStop (partial: Partial<Stop> & { id: number }): Stop {
   return {
@@ -64,10 +91,7 @@ describe('stopToStopCsv', () => {
   it('sets visit_count_total and per-weekday totals from stop.visits', () => {
     const stop = makeStop({
       id: 1,
-      route_stops: [
-        makeRouteStop({ routeInternalId: 10, agencyId: 1 }),
-        makeRouteStop({ routeInternalId: 11, agencyId: 1 }),
-      ],
+      route_stops: makeRouteStops(ROUTES_A),
       visits: makeVisitSummary({
         total: counts(42, 5),
         monday: counts(10, 1),
@@ -78,7 +102,7 @@ describe('stopToStopCsv', () => {
       }),
     })
 
-    const csv = stopToStopCsv(stop)
+    const csv = stopToStopCsv(stop, makeRouteLookup(ROUTES_A))
     expect(csv.visit_count_total).toBe(42)
     expect(csv.visit_count_monday_total).toBe(10)
     expect(csv.visit_count_tuesday_total).toBe(8)
@@ -92,27 +116,23 @@ describe('stopToStopCsv', () => {
   it('emits visit_count_total = 0 for a stop with zero in-window visits', () => {
     const stop = makeStop({
       id: 2,
-      route_stops: [makeRouteStop({ routeInternalId: 10, agencyId: 1 })],
+      route_stops: makeRouteStops(ROUTE_10),
       visits: makeVisitSummary({ total: counts(0, 5) }),
     })
-    expect(stopToStopCsv(stop).visit_count_total).toBe(0)
+    expect(stopToStopCsv(stop, makeRouteLookup(ROUTE_10)).visit_count_total).toBe(0)
   })
 
   it('leaves visit_count_total undefined when stop.visits is missing', () => {
     const stop = makeStop({ id: 3 })
-    expect(stopToStopCsv(stop).visit_count_total).toBeUndefined()
+    expect(stopToStopCsv(stop, new Map()).visit_count_total).toBeUndefined()
   })
 
   it('counts agencies uniquely when multiple routes share an agency', () => {
     const stop = makeStop({
       id: 4,
-      route_stops: [
-        makeRouteStop({ routeInternalId: 10, agencyId: 1 }),
-        makeRouteStop({ routeInternalId: 11, agencyId: 1 }),
-        makeRouteStop({ routeInternalId: 12, agencyId: 2 }),
-      ],
+      route_stops: makeRouteStops(ROUTES_TWO_AGENCIES),
     })
-    const csv = stopToStopCsv(stop)
+    const csv = stopToStopCsv(stop, makeRouteLookup(ROUTES_TWO_AGENCIES))
     // Pre-existing behavior: routes_count is the raw route_stops length
     // (not filter-aware, not de-duped). Tracked as #239 follow-up.
     expect(csv.routes_count).toBe(3)
@@ -122,13 +142,9 @@ describe('stopToStopCsv', () => {
   it('joins unique route modes in routes_modes', () => {
     const stop = makeStop({
       id: 5,
-      route_stops: [
-        makeRouteStop({ routeInternalId: 10, agencyId: 1, routeType: 3 }), // Bus
-        makeRouteStop({ routeInternalId: 11, agencyId: 1, routeType: 3 }), // Bus dup
-        makeRouteStop({ routeInternalId: 12, agencyId: 2, routeType: 0 }), // Tram
-      ],
+      route_stops: makeRouteStops(ROUTES_MIXED_MODES),
     })
-    const modes = stopToStopCsv(stop).routes_modes.split(',').map(s => s.trim()).sort()
+    const modes = stopToStopCsv(stop, makeRouteLookup(ROUTES_MIXED_MODES)).routes_modes.split(',').map(s => s.trim()).sort()
     expect(modes).toEqual(['Bus', 'Light rail'])
   })
 })
@@ -145,25 +161,25 @@ describe('stopGeoAggregateCsv', () => {
     const stops: Stop[] = [
       makeStop({
         id: 1,
-        route_stops: [makeRouteStop({ routeInternalId: 10, agencyId: 1 })],
+        route_stops: makeRouteStops([AGG_ROUTES[0]!]),
         census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
         visits: makeVisitSummary({ total: counts(30, 5) }),
       }),
       makeStop({
         id: 2,
-        route_stops: [makeRouteStop({ routeInternalId: 11, agencyId: 2 })],
+        route_stops: makeRouteStops([AGG_ROUTES[1]!]),
         census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
         visits: makeVisitSummary({ total: counts(12, 5) }),
       }),
       makeStop({
         id: 3,
-        route_stops: [makeRouteStop({ routeInternalId: 12, agencyId: 1 })],
+        route_stops: makeRouteStops([AGG_ROUTES[2]!]),
         census_geographies: [tract('200')] as unknown as Stop['census_geographies'],
         visits: makeVisitSummary({ total: counts(7, 5) }),
       }),
     ]
 
-    const result = stopGeoAggregateCsv(stops, 'tract')
+    const result = stopGeoAggregateCsv(stops, 'tract', makeRouteLookup(AGG_ROUTES))
     const byGeoid = new Map(result.map(r => [r.geoid, r]))
 
     expect(byGeoid.get('100')?.visit_count_total).toBe(42)
@@ -180,7 +196,7 @@ describe('stopGeoAggregateCsv', () => {
   it('filters census_geographies by aggregationKey (layer_name)', () => {
     const stop = makeStop({
       id: 1,
-      route_stops: [makeRouteStop({ routeInternalId: 10, agencyId: 1 })],
+      route_stops: makeRouteStops(ROUTE_10),
       census_geographies: [
         { id: 1, geoid: '100', layer_name: 'tract', name: 'Tract 100' },
         { id: 2, geoid: '100-1', layer_name: 'bg', name: 'BG 100-1' },
@@ -188,27 +204,27 @@ describe('stopGeoAggregateCsv', () => {
       visits: makeVisitSummary({ total: counts(5, 1) }),
     })
 
-    const byTract = stopGeoAggregateCsv([stop], 'tract')
+    const byTract = stopGeoAggregateCsv([stop], 'tract', makeRouteLookup(ROUTE_10))
     expect(byTract).toHaveLength(1)
     expect(byTract[0]?.geoid).toBe('100')
     expect(byTract[0]?.layer_name).toBe('tract')
 
-    const byBg = stopGeoAggregateCsv([stop], 'bg')
+    const byBg = stopGeoAggregateCsv([stop], 'bg', makeRouteLookup(ROUTE_10))
     expect(byBg).toHaveLength(1)
     expect(byBg[0]?.geoid).toBe('100-1')
     expect(byBg[0]?.layer_name).toBe('bg')
 
     // Unknown layer: no match
-    expect(stopGeoAggregateCsv([stop], 'county')).toHaveLength(0)
+    expect(stopGeoAggregateCsv([stop], 'county', makeRouteLookup(ROUTE_10))).toHaveLength(0)
   })
 
   it('emits 0 when stops in the geography have no visits set', () => {
     const stop = makeStop({
       id: 1,
-      route_stops: [makeRouteStop({ routeInternalId: 10, agencyId: 1 })],
+      route_stops: makeRouteStops(ROUTE_10),
       census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
     })
-    const result = stopGeoAggregateCsv([stop], 'tract')
+    const result = stopGeoAggregateCsv([stop], 'tract', makeRouteLookup(ROUTE_10))
     expect(result[0]?.visit_count_total).toBe(0)
   })
 
@@ -229,7 +245,7 @@ describe('stopGeoAggregateCsv', () => {
     ]
 
     it('seeds a row for a geography only the buffer reaches', () => {
-      const rows = stopGeoAggregateCsv([], 'tract', censusGeographies, {
+      const rows = stopGeoAggregateCsv([], 'tract', new Map(), censusGeographies, {
         aggregationBufferGeographies: bufferGeographies,
       })
       const byGeoid = new Map(rows.map(r => [r.geoid, r]))
@@ -241,7 +257,7 @@ describe('stopGeoAggregateCsv', () => {
     })
 
     it('only seeds at the aggregation layer — finer ones roll up by FIPS prefix', () => {
-      const rows = stopGeoAggregateCsv([], 'county', new Map(), {
+      const rows = stopGeoAggregateCsv([], 'county', new Map(), new Map(), {
         aggregationBufferGeographies: [
           { geoid: '1400000US41051000200', layer: 'tract', name: 'Tract 2', geometryArea: 1000, intersectionArea: 250, values: {} },
         ],
@@ -250,7 +266,7 @@ describe('stopGeoAggregateCsv', () => {
     })
 
     it('respects onlyWithStops', () => {
-      const rows = stopGeoAggregateCsv([], 'tract', censusGeographies, {
+      const rows = stopGeoAggregateCsv([], 'tract', new Map(), censusGeographies, {
         onlyWithStops: true,
         aggregationBufferGeographies: bufferGeographies,
       })

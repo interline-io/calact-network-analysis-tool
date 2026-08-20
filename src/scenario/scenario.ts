@@ -86,12 +86,6 @@ export interface ScenarioConfig {
    */
   includeAllCensusLayers?: boolean
   /**
-   * Whether to fetch route name/type/agency on each stop's route_stops.
-   * Defaults to true, which map styling, filters and clustering need. Off
-   * leaves just the route id, which is all the stops phase itself reads.
-   */
-  includeRouteStopDetails?: boolean
-  /**
    * Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead of
    * every day from startDate to endDate. A report that reads a few days out of
    * a wide scenario range sets this so its departure cost follows the days it
@@ -464,7 +458,6 @@ export class ScenarioFetcher {
         geoDatasetName: this.config.geoDatasetName,
         stopLimit: this.config.stopLimit,
         censusLayer: this.config.includeAllCensusLayers === false ? this.config.aggregateLayer : undefined,
-        includeRouteStopDetails: this.config.includeRouteStopDetails,
       }, this.client, emit, { onError })
       scenarioStopIds = stopIds
       logMemory('after-stops')

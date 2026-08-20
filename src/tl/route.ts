@@ -1,6 +1,7 @@
 import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
 import type { BufferGeographyIntersection } from './stop-buffer'
+import type { AgencyGql } from './agency'
 
 //////////
 // Routes
@@ -64,11 +65,8 @@ export type RouteGql = {
   id: number
   // Absent when the routes phase ran with includeGeometry off.
   geometry?: GeoJSON.MultiLineString
-  agency: {
-    id: number
-    agency_id: string
-    agency_name: string
-  }
+  // routeQuery selects every agency field, and the agency CSV exports them.
+  agency: AgencyGql
   feed_version: {
     sha1: string
     feed: {
@@ -119,6 +117,11 @@ export type RouteCsv = RouteGtfs & {
   latest_trip_end_time?: string
   frequency_irregular?: boolean
   frequency_directions_differ?: boolean
+}
+
+// Routes keyed by id. Stops carry only route ids, so consumers join through this.
+export function routesById<T extends RouteGql> (routes: T[]): Map<number, T> {
+  return new Map(routes.map(route => [route.id, route]))
 }
 
 export type Route = RouteGql & RouteDerived

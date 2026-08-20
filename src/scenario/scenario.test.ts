@@ -220,7 +220,7 @@ describe('ScenarioFetcher', () => {
       return {
         ...stopsResponse.data.stops[0],
         id,
-        route_stops: routeIds.map(rid => ({ route: { id: rid } })),
+        route_stops: routeIds.map(rid => ({ route_id: rid, agency_id: 1 })),
       }
     }
 

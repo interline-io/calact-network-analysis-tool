@@ -133,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, type Route, type Stop, type Agency } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, type Route, type Stop, type Agency } from '~~/src/tl'
 import { stopClusterCsv, type ScenarioFilterResult, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
 
@@ -357,6 +357,8 @@ const stopGeoAggregateColumns = computed(() => buildStopGeoAggregateColumns(isAl
 
 const agencyColumns = computed(() => buildAgencyColumns(stopBufferRadius.value > 0))
 
+const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
+
 const geoReportData = computed((): TableReport => {
   if (aggregateLayer.value === '' || aggregateLayer.value === 'none') {
     return { data: [], columns: [] }
@@ -365,6 +367,7 @@ const geoReportData = computed((): TableReport => {
     data: stopGeoAggregateCsv(
       (props.scenarioFilterResult?.stops || []).filter(s => (s.marked)),
       aggregateLayer.value,
+      routeLookup.value,
       props.scenarioFilterResult?.censusGeographies,
       {
         onlyWithStops: onlyWithStops.value,
@@ -392,7 +395,7 @@ const stopsReportData = computed((): TableReport => {
   return {
     data: (props.scenarioFilterResult?.stops || [])
       .filter(s => s.marked)
-      .map(s => stopToStopCsv(s, stopBufferGeographies?.get(s.id))),
+      .map(s => stopToStopCsv(s, routeLookup.value, stopBufferGeographies?.get(s.id))),
     columns: stopColumns.value
   }
 })
@@ -420,7 +423,7 @@ const stopClusterReportData = computed((): TableReport => {
     stopById.set(s.id, s)
   }
   return {
-    data: stopClusterCsv(props.scenarioFilterResult?.stopClusters || [], stopById),
+    data: stopClusterCsv(props.scenarioFilterResult?.stopClusters || [], stopById, routeLookup.value),
     columns: stopClusterColumns,
   }
 })

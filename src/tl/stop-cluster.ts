@@ -12,12 +12,8 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
     id
     # Without an explicit limit the backend returns 100; 1000 is its maximum.
     route_stops(limit: 1000) {
-      route {
-        id
-        agency {
-          id
-        }
-      }
+      route_id
+      agency_id
     }
     nearby_stops(radius: $radius, limit: $nearbyLimit) {
       id
@@ -29,12 +25,8 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
 export interface StopClusterStopResponse {
   id: number
   route_stops: {
-    route: {
-      id: number
-      agency: {
-        id: number
-      }
-    }
+    route_id: number
+    agency_id: number
   }[]
   nearby_stops: {
     id: number

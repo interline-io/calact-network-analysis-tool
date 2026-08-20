@@ -145,7 +145,7 @@ function fixtureStop (id: number, name: string, routeIds: number[]) {
     geometry: { type: 'Point', coordinates: [-122.68 - id / 1000, 45.52] },
     census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
     feed_version: { sha1: 'sha1', feed: { onestop_id: 'f-1' } },
-    route_stops: routeIds.map(routeId => ({ route: { id: routeId } })),
+    route_stops: routeIds.map(routeId => ({ route_id: routeId, agency_id: 1 })),
   }
 }
 

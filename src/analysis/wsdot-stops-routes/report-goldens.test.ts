@@ -124,10 +124,9 @@ describe('WSDOT stops-and-routes goldens (integration)', () => {
   })
 
   it('exports every route with a shape and every stop with an agency', () => {
-    // Both are what the GeoJSON download carries. The agency comes off
-    // route_stops, which the plain report asks the server to leave out, so a
-    // config change reaching this report would empty the column rather than
-    // fail anything.
+    // Both are what the GeoJSON download carries. The agency is joined from the
+    // routes phase, so a routes failure degrades the label rather than the
+    // grouping — this pins that every stop still gets one.
     expect(report.routes.filter(r => (r.geometry?.coordinates || []).length > 0))
       .toHaveLength(GOLDEN_COUNTS.routes)
     expect(report.stops.filter(s => s.agencyId)).toHaveLength(GOLDEN_COUNTS.stops)

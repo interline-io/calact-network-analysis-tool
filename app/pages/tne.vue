@@ -206,6 +206,7 @@ import {
   geographyLayerQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
+  routesById,
   parseFvids,
 } from '~~/src/tl'
 import type {
@@ -856,6 +857,7 @@ const choroplethAggregateData = computed(() => {
   const rows = stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
+    routesById(scenarioFilterResult.value.routes),
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
