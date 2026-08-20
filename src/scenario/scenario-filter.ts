@@ -541,8 +541,7 @@ export function applyScenarioResultFilter (
   })
   const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
-  // A stop's route_stops carry only route ids. The routes phase runs after the
-  // stops phase, so these roll up empty until it lands.
+  // Rolls up empty until the routes phase lands.
   const routeLookup = routesById(routeFeatures)
 
   // Apply agency filters
@@ -550,11 +549,11 @@ export function applyScenarioResultFilter (
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
       const route = routeLookup.get(rstop.route.id)
-      const agency = route?.agency
-      const aid = agency?.agency_id
-      if (!route || !aid) {
-        continue // route not fetched yet, or no valid agency listed
+      if (!route?.agency.agency_id) {
+        continue // route not fetched yet, or no agency listed
       }
+      const agency = route.agency
+      const aid = agency.agency_id
       const adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),
@@ -571,7 +570,7 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      const agencyId = routeLookup.get(rstop.route.id)?.agency?.id
+      const agencyId = routeLookup.get(rstop.route.id)?.agency.id
       if (agencyId != null) {
         markedAgencies.add(agencyId)
       }

@@ -13,7 +13,7 @@ function scenarioStop (id: number, gtfsStopId: string, feed: string) {
     stop_name: `Stop ${gtfsStopId} (${feed})`,
     geometry: { type: 'Point', coordinates: [-122.3, 47.6] },
     feed_version: { sha1: `sha-${feed}`, feed: { onestop_id: feed } },
-    route_stops: [{ route: { id: 1, route_id: 'r1', agency: { id: 1, agency_id: 'a', agency_name: 'A' } } }],
+    route_stops: [{ route: { id: 1 } }],
   }
 }
 
@@ -39,7 +39,11 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
     // and every colliding stop then reports whichever feed happened to be last.
     const data = {
       stops: [scenarioStop(101, '1', 'f-busy'), scenarioStop(202, '1', 'f-rural')],
-      routes: [],
+      routes: [{
+        id: 1,
+        route_id: 'r1',
+        agency: { id: 1, agency_id: 'a', agency_name: 'A' },
+      }] as unknown as ScenarioData['routes'],
     } as unknown as ScenarioData
 
     const report: WSDOTReport = {
@@ -65,7 +69,11 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
   it('still maps levels when stop ids do not collide', () => {
     const data = {
       stops: [scenarioStop(101, 'A1', 'f-busy'), scenarioStop(202, 'B1', 'f-rural')],
-      routes: [],
+      routes: [{
+        id: 1,
+        route_id: 'r1',
+        agency: { id: 1, agency_id: 'a', agency_name: 'A' },
+      }] as unknown as ScenarioData['routes'],
     } as unknown as ScenarioData
     const report: WSDOTReport = {
       stops: [reportStop('A1', 'f-busy', { level2: true }), reportStop('B1', 'f-rural', {})],

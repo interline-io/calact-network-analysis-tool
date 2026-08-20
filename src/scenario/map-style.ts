@@ -7,7 +7,7 @@
 // Pure: every input is passed in, so it can be unit-tested without the map.
 
 import { colors, categoricalColors, routeTypeNames, type DataDisplayMode } from '~~/src/core'
-import type { Stop, Route } from '~~/src/tl'
+import { routesById, type Stop, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from './scenario-filter'
 
 export type MatchFunction = (x: Stop | Route) => boolean
@@ -38,31 +38,38 @@ export interface BuildStyleDataParams {
 export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   const { scenarioFilterResult, dataDisplayMode, agencies, agencyColorScale } = params
 
-  const routeLookup = new Map<number, Route>()
-  for (const route of scenarioFilterResult?.routes || []) {
-    routeLookup.set(route.id, route)
-  }
+  const routeLookup = routesById(scenarioFilterResult?.routes || [])
 
   const stopLookup = new Map<number, Stop>()
+  const routeStopLookup = new Map<number, number[]>()
+  // Agencies and modes per stop, so a matcher answers with one lookup instead
+  // of re-joining every route_stop once per style rule.
+  const stopAgencyIds = new Map<number, Set<string>>()
+  const stopModes = new Map<number, Set<number>>()
   for (const stop of scenarioFilterResult?.stops || []) {
     stopLookup.set(stop.id, stop)
-  }
-
-  const routeStopLookup = new Map<number, number[]>()
-  for (const stop of scenarioFilterResult?.stops || []) {
+    const agencyIds = new Set<string>()
+    const modes = new Set<number>()
     for (const rs of stop.route_stops) {
       const rid = rs.route.id
       const stops = routeStopLookup.get(rid) || []
       stops.push(stop.id)
       routeStopLookup.set(rid, stops)
+      const route = routeLookup.get(rid)
+      if (route) {
+        agencyIds.add(route.agency.agency_id)
+        modes.add(route.route_type)
+      }
     }
+    stopAgencyIds.set(stop.id, agencyIds)
+    stopModes.set(stop.id, modes)
   }
 
   // Style based on AGENCY
   function getAgencyMatcher (val: string): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.some(rs => routeLookup.get(rs.route.id)?.agency?.agency_id === val)
+        return stopAgencyIds.get((v as Stop).id)?.has(val) ?? false
       } else if (v.__typename === 'Route') {
         return (v as Route).agency?.agency_id === val
       }
@@ -74,17 +81,9 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getModeMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        // A stop's route_stops carry only ids; the routes phase runs after the
-        // stops phase, so nothing matches until it lands.
-        return (v as Stop).route_stops.some((rs) => {
-          const route = routeLookup.get(rs.route.id)
-          return route != null && route.route_type === val
-        })
+        // Empty until the routes phase lands.
+        return stopModes.get((v as Stop).id)?.has(val) ?? false
       } else if (v.__typename === 'Route') {
-        // For routes, also check for null/undefined
-        if ((v as Route).route_type == null || (v as Route).route_type == undefined) {
-          return false
-        }
         return (v as Route).route_type === val
       }
       return false
@@ -95,7 +94,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getRouteFrequencyMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.some((rs: any) => {
+        return (v as Stop).route_stops.some((rs) => {
           const route = routeLookup.get(rs.route.id)
           const headway = route?.average_frequency || -1
           return headway >= val * 60

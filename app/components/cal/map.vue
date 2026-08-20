@@ -313,8 +313,6 @@ interface AgencyData {
   name: string
   stops: Set<string>
 }
-// A stop's route_stops carry only route ids; route name, type and agency come
-// off the routes the routes phase fetched.
 const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
 
 const agencyData = computed((): AgencyData[] => {
@@ -324,8 +322,9 @@ const agencyData = computed((): AgencyData[] => {
     const props = stop
     const route_stops = props.route_stops || []
 
+    const lookup = routeLookup.value
     for (const rstop of route_stops) {
-      const agency = routeLookup.value.get(rstop.route.id)?.agency
+      const agency = lookup.get(rstop.route.id)?.agency
       const aid = agency?.agency_id
       const anumeric = agency?.id
       const aname = agency?.agency_name
@@ -806,8 +805,9 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         data: {
           stop_id: sp.stop_id,
           stop_name: sp.stop_name,
-          routes: sp.route_stops.map((rs: any) => rs.route.route_short_name),
-          agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
+          // flatMap drops routes the routes phase has not delivered yet.
+          routes: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route.id)?.route_short_name ?? []),
+          agencies: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route.id)?.agency?.agency_name ?? []),
         }
       }
       sortKey = [0, 0]
@@ -894,12 +894,13 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     }
     const agencies = new Set<string>()
     const routes = new Set<string>()
+    const lookup = routeLookup.value
     for (const rs of stop.route_stops || []) {
-      const route = routeLookup.value.get(rs.route.id)
+      const route = lookup.get(rs.route.id)
       if (!route) {
         continue
       }
-      const an = route.agency?.agency_name
+      const an = route.agency.agency_name
       if (an) {
         agencies.add(an)
         allAgencies.add(an)

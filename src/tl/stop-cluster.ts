@@ -11,6 +11,8 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
   stops(limit: $limit, after: $after, where: $where) {
     id
     # Without an explicit limit the backend returns 100; 1000 is its maximum.
+    # Agency stays denormalized here: this phase is refetchable on its own and
+    # has no routes phase to join against.
     route_stops(limit: 1000) {
       route {
         id

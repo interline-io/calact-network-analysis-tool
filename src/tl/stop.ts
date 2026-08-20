@@ -52,9 +52,7 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String,
     # Without an explicit limit the backend returns 100. The departures phase
     # fetches by route, so a route missing here loses its departures across the
     # whole scenario, not just this stop's metadata. 1000 is the server maximum.
-    # Just the id: the routes phase fetches each of these routes in full, so
-    # denormalizing name, type and agency onto every stop it serves is ~405
-    # bytes per stop of the same data.
+    # Just the id: the routes phase fetches each of these routes in full.
     route_stops(limit: 1000) {
       route {
         id
@@ -196,7 +194,7 @@ function seedAggregateRow (geoid: string, layerName: string, name: string): Stop
 export function stopGeoAggregateCsv (
   stops: Stop[],
   aggregationKey: string,
-  routesById: Map<number, RouteGql>,
+  routeLookup: Map<number, RouteGql>,
   censusGeographies?: Map<string, CensusGeographyData>,
   options?: { onlyWithStops?: boolean, aggregationBufferGeographies?: BufferGeographyIntersection[] },
 ): StopGeoAggregateCsv[] {
@@ -233,9 +231,7 @@ export function stopGeoAggregateCsv (
       a.visits_count = (a.visits_count || 0) + (stop.visits?.total?.visit_count || 0)
       for (const rstop of stop.route_stops) {
         a.routes_count.add(rstop.route.id)
-        // Absent while the stops phase is still streaming, since the routes
-        // phase runs after it; the rollups fill in when routes arrive.
-        const route = routesById.get(rstop.route.id)
+        const route = routeLookup.get(rstop.route.id)
         if (route) {
           a.agencies_count.add(route.agency.id)
           a.routes_modes.add(route.route_type)
@@ -272,12 +268,12 @@ export function stopGeoAggregateCsv (
   return [...result]
 }
 
-export function stopToStopCsv (stop: Stop, routesById: Map<number, RouteGql>, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
+export function stopToStopCsv (stop: Stop, routeLookup: Map<number, RouteGql>, bufferGeographies?: BufferGeographyIntersection[]): StopCsv {
   const routeStops = stop.route_stops || []
   const modes = new Set()
   const agencies = new Set()
   for (const rstop of routeStops) {
-    const route = routesById.get(rstop.route.id)
+    const route = routeLookup.get(rstop.route.id)
     if (!route) {
       continue
     }

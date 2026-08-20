@@ -123,8 +123,8 @@ export type RouteCsv = RouteGtfs & {
 
 // Routes keyed by id, for consumers holding stops: route_stops carries only a
 // route id, and the routes phase fetches each of those routes in full.
-export function routesById (routes: RouteGql[]): Map<number, RouteGql> {
-  const byId = new Map<number, RouteGql>()
+export function routesById<T extends { id: number }> (routes: T[]): Map<number, T> {
+  const byId = new Map<number, T>()
   for (const route of routes) {
     byId.set(route.id, route)
   }

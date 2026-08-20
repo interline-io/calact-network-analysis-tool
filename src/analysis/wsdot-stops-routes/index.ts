@@ -115,17 +115,15 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     }
   }
 
-  // A stop's route_stops carry only route ids; the agency comes off the route
-  // the routes phase fetched.
   const routeLookup = routesById(currentData.routes)
 
   // Process stops to build agency map - filter out stops with no routes
   const stops = currentData.stops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
-      const firstRoute = routeLookup.get(stop.route_stops?.[0]?.route?.id ?? -1)
-      const agencyId = firstRoute?.agency?.agency_id
-      const agencyName = firstRoute?.agency?.agency_name
+      const firstRoute = routeLookup.get(stop.route_stops[0]!.route.id)
+      const agencyId = firstRoute?.agency.agency_id
+      const agencyName = firstRoute?.agency.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
       const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
 

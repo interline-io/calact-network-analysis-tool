@@ -357,8 +357,6 @@ const stopGeoAggregateColumns = computed(() => buildStopGeoAggregateColumns(isAl
 
 const agencyColumns = computed(() => buildAgencyColumns(stopBufferRadius.value > 0))
 
-// A stop's route_stops carry only route ids; the rollups join against the
-// routes the routes phase fetched.
 const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
 
 const geoReportData = computed((): TableReport => {

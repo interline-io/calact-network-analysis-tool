@@ -207,16 +207,15 @@ describe('stopClusterCsv', () => {
     } as unknown as Stop
   }
 
-  // route_stops carry only ids; the agency comes off the routes phase's output.
-  function makeRouteLookup (byStopId: Map<number, string>) {
-    return routesById([...byStopId].map(([stopId, agency]) => ({
+  function makeRoute (stopId: number, agency: string): RouteGql {
+    return {
       id: stopId * 10,
       route_id: agency,
       route_type: 3,
       route_short_name: agency,
       route_long_name: '',
       agency: { id: stopId, agency_id: agency, agency_name: agency },
-    }) as unknown as RouteGql))
+    } as unknown as RouteGql
   }
 
   it('flattens a cluster into a report row with agency/stop/route counts', () => {
@@ -232,8 +231,8 @@ describe('stopClusterCsv', () => {
       [1, makeStop(1, 'First & Main')],
       [2, makeStop(2, 'First & Oak')],
     ])
-    const agencyByStopId = new Map([[1, 'TriMet'], [2, 'C-Tran']])
-    const rows = stopClusterCsv([cluster], stopById, makeRouteLookup(agencyByStopId))
+    const routeLookup = routesById([makeRoute(1, 'TriMet'), makeRoute(2, 'C-Tran')])
+    const rows = stopClusterCsv([cluster], stopById, routeLookup)
     expect(rows).toHaveLength(1)
     expect(rows[0]?.cluster).toBe('Cluster 1')
     expect(rows[0]?.agencies_count).toBe(2)

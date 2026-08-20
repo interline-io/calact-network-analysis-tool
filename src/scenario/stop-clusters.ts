@@ -340,7 +340,7 @@ export function deriveFilteredStopClusters (
   proximityClusters: StopCluster[] | undefined,
   maxTransferMinutes: number | undefined,
   stopFeatures: Stop[],
-  routesById: Map<number, RouteGql>,
+  routeLookup: Map<number, RouteGql>,
   sdCache: StopDepartureCache,
   selectedDateRange: Date[],
   effectiveWeekdays: Weekday[] | undefined,
@@ -400,11 +400,8 @@ export function deriveFilteredStopClusters (
     const agencyIds = new Set<number>()
     const routeIds = new Set<number>()
     for (const rs of stop.route_stops || []) {
-      if (rs.route?.id == null) {
-        continue
-      }
       routeIds.add(rs.route.id)
-      const agencyId = routesById.get(rs.route.id)?.agency?.id
+      const agencyId = routeLookup.get(rs.route.id)?.agency.id
       if (agencyId != null) {
         agencyIds.add(agencyId)
       }
@@ -579,7 +576,7 @@ export interface StopClusterCsv {
 export function stopClusterCsv (
   clusters: StopCluster[],
   stopById: Map<number, Stop>,
-  routesById: Map<number, RouteGql>,
+  routeLookup: Map<number, RouteGql>,
 ): StopClusterCsv[] {
   return clusters.map((cluster, idx): StopClusterCsv => {
     const agencies = new Set<string>()
@@ -593,14 +590,12 @@ export function stopClusterCsv (
       }
       memberStops.push(stop.stop_name ? `${stop.stop_name} (${stop.stop_id})` : stop.stop_id)
       for (const rs of stop.route_stops || []) {
-        if (rs.route.id != null) {
-          routeIds.add(rs.route.id)
-        }
-        const route = routesById.get(rs.route.id)
+        routeIds.add(rs.route.id)
+        const route = routeLookup.get(rs.route.id)
         if (!route) {
           continue
         }
-        if (route.agency?.agency_name) {
+        if (route.agency.agency_name) {
           agencies.add(route.agency.agency_name)
         }
         modes.add(route.route_type)

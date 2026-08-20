@@ -184,16 +184,7 @@ describe('applyScenarioResultFilter — route/stop derived fields (#239)', () =>
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{
-        route: {
-          id: ROUTE_ID,
-          route_id: `route-${ROUTE_ID}`,
-          route_type: 3,
-          route_short_name: `R${ROUTE_ID}`,
-          route_long_name: `Route ${ROUTE_ID}`,
-          agency: { id: AGENCY_ID, agency_id: 'agency-1', agency_name: 'Test Agency' },
-        },
-      }],
+      route_stops: [{ route: { id: ROUTE_ID } }],
       __typename: 'Stop',
     }
   }
@@ -409,16 +400,7 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
       stop_name: `Stop ${STOP_ID}`,
       census_geographies: [] as unknown as StopGql['census_geographies'],
       feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
-      route_stops: [{
-        route: {
-          id: ROUTE_ID,
-          route_id: `route-${ROUTE_ID}`,
-          route_type: 3,
-          route_short_name: `R${ROUTE_ID}`,
-          route_long_name: `Route ${ROUTE_ID}`,
-          agency: { id: 1, agency_id: 'agency-1', agency_name: 'Test Agency' },
-        },
-      }],
+      route_stops: [{ route: { id: ROUTE_ID } }],
       __typename: 'Stop',
     }
   }
