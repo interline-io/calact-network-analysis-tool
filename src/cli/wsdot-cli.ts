@@ -8,6 +8,7 @@ import {
   scenarioOptionsCheck,
   createStreamController,
   type ScenarioCliOptions,
+  parseGeographyIds,
 } from './scenario-cli'
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~~/src/core'
@@ -55,6 +56,7 @@ export function configureWsdotReportCli (program: Command) {
         ...SCENARIO_DEFAULTS,
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,

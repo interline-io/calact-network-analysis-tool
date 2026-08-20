@@ -342,7 +342,6 @@ export class WSDOTReportFetcher {
 
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
-    const levelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {}
     const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
 
     // Process each service level
@@ -390,7 +389,6 @@ export class WSDOTReportFetcher {
     for (const [levelKey, stopIds] of Object.entries(results)) {
       console.log(`\n====== ${levelKey} ======`)
       console.log(`${levelKey}: ${stopIds.size} qualifying stops`)
-      const geogLayers: Record<string, GeographyDataFeature[]> = {}
       for (const geoDatasetLayer of getGeographyLayers) {
         if ((this.config?.stopBufferRadius || 0) <= 0) {
           console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
@@ -411,9 +409,25 @@ export class WSDOTReportFetcher {
         }
         console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
         const data = await getGeographyData(geoConfig)
-        geogLayers[geoDatasetLayer] = data
+
+        // Sent and released here rather than collected. The levels are nested,
+        // so eight statewide tract sets are largely the same outlines, and
+        // holding them all before sending any is what exhausted the Worker.
+        const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
+        for (let i = 0; i < featureChunks.length; i++) {
+          await this.progressSender.onProgress({
+            isLoading: true,
+            currentStage: 'extra',
+            extraData: {
+              stops: [],
+              levelStops: {},
+              levelLayers: { [levelKey]: { [geoDatasetLayer]: featureChunks[i] ?? [] } },
+              bboxIntersection: []
+            },
+            currentStageMessage: `WSDOT ${levelKey} ${geoDatasetLayer} batch ${i + 1} of ${featureChunks.length}...`
+          })
+        }
       }
-      levelLayers[levelKey] = geogLayers
     }
 
     // Build final result. Every stop in the scenario is listed, which is what
@@ -473,27 +487,6 @@ export class WSDOTReportFetcher {
       })
     }
 
-    // Send geography layers in batches using the generic helper function
-    for (const [levelKey, layers] of Object.entries(levelLayers)) {
-      for (const [layerName, features] of Object.entries(layers)) {
-        const featureChunks = chunkArray(features, PROGRESS_LIMIT_STOPS)
-        for (let i = 0; i < featureChunks.length; i++) {
-          const chunk = featureChunks[i] ?? []
-          const batchLevelLayers: Record<string, Record<string, GeographyDataFeature[]>> = {
-            [levelKey]: {
-              [layerName]: chunk
-            }
-          }
-          await this.progressSender.onProgress({
-            isLoading: true,
-            currentStage: 'extra',
-            extraData: { stops: [], levelStops: {}, levelLayers: batchLevelLayers, bboxIntersection: [] },
-            currentStageMessage: `WSDOT ${levelKey} ${layerName} batch ${i + 1} of ${featureChunks.length}...`
-          })
-        }
-      }
-    }
-
     // Send bboxIntersection in batches using the generic helper function
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
     for (let i = 0; i < bboxChunks.length; i++) {
@@ -506,7 +499,9 @@ export class WSDOTReportFetcher {
     }
 
     console.log('WSDOT frequency analysis completed...')
-    return { stops, levelStops, levelLayers, bboxIntersection }
+    // levelLayers is empty by design: the geography layers went out on the
+    // stream as they were fetched, and the client rebuilds them in its receiver.
+    return { stops, levelStops, levelLayers: {}, bboxIntersection }
   }
 
   // Numeric id -> GTFS id for every stop and route the scenario fetched. These

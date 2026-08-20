@@ -7,6 +7,7 @@ import { runScenarioFetcher } from '~~/src/scenario'
 export function scenarioOptionsAdd (program: Command): Command {
   return program
     .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
+    .option('--geography-ids <ids>', 'Comma-separated census geography ids to clip to, instead of a bbox')
     .option('--start-date <date>', 'Start date (YYYY-MM-DD)')
     .option('--end-date <date>', 'End date (YYYY-MM-DD)')
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
@@ -32,6 +33,7 @@ export function configureScenarioCli (program: Command) {
       const config: ScenarioConfig = {
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
@@ -76,14 +78,18 @@ export function configureScenarioCli (program: Command) {
  * Utilities
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
-  if (options.bboxName) {
-    const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
-    options.bbox = b?.bboxString
-    options.reportName = options.reportName || b?.label || ''
-  }
-  if (!options.bbox) {
-    console.error('❌ Error: Must provide --bbox')
-    process.exit(1)
+  // --bbox-name defaults to a canned box, so the assignment below would
+  // otherwise overwrite an explicit geography with Portland.
+  if (!options.geographyIds) {
+    if (options.bboxName) {
+      const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
+      options.bbox = b?.bboxString
+      options.reportName = options.reportName || b?.label || ''
+    }
+    if (!options.bbox) {
+      console.error('❌ Error: Must provide --bbox or --geography-ids')
+      process.exit(1)
+    }
   }
 
   // Check for required environment variables
@@ -109,9 +115,26 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
 /**
  * CLI options interface for scenario commands
  */
+// Census geography ids as the UI carries them. Exits on a non-integer rather
+// than dropping it, since a silently narrowed region reads as a real result.
+export function parseGeographyIds (ids?: string): number[] | undefined {
+  if (!ids) {
+    return undefined
+  }
+  return ids.split(',').map((s) => {
+    const n = Number(s.trim())
+    if (!Number.isInteger(n)) {
+      console.error(`❌ Error: --geography-ids expects integers, got "${s.trim()}"`)
+      process.exit(1)
+    }
+    return n
+  })
+}
+
 export interface ScenarioCliOptions {
   reportName: string
   bbox?: string
+  geographyIds?: string
   bboxName: string
   startDate: string
   endDate: string
