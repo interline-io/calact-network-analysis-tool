@@ -52,8 +52,7 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String,
     # Without an explicit limit the backend returns 100. The departures phase
     # fetches by route, so a route missing here loses its departures across the
     # whole scenario, not just this stop's metadata. 1000 is the server maximum.
-    # Scalars off the association row: no nested route object, and the numeric
-    # agency id lands with the stops rather than waiting on the routes phase.
+    # Ids only; names and route_type join from the routes phase.
     route_stops(limit: 1000) {
       route_id
       agency_id
@@ -231,7 +230,6 @@ export function stopGeoAggregateCsv (
       for (const rstop of stop.route_stops) {
         a.routes_count.add(rstop.route_id)
         a.agencies_count.add(rstop.agency_id)
-        // Only the mode needs the route the routes phase fetched.
         const route = routeLookup.get(rstop.route_id)
         if (route) {
           a.routes_modes.add(route.route_type)

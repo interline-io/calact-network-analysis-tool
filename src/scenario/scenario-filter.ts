@@ -71,6 +71,7 @@ import {
 } from '~~/src/core'
 import type {
   Agency,
+  AgencyGql,
   FeedVersion,
   Route,
   Stop,
@@ -548,7 +549,7 @@ export function applyScenarioResultFilter (
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
       const route = routeLookup.get(rstop.route_id)
-      if (!route?.agency?.agency_id) {
+      if (!route?.agency.agency_id) {
         continue // route not fetched yet, or no agency listed
       }
       const agency = route.agency
@@ -577,20 +578,13 @@ export function applyScenarioResultFilter (
   })
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
-    const agency = adata.agency as Agency
+    const agency: AgencyGql = adata.agency
     return {
+      ...agency,
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
       stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
-      id: agency.id,
-      agency_id: agency.agency_id,
-      agency_name: agency.agency_name,
-      agency_email: agency.agency_email,
-      agency_fare_url: agency.agency_fare_url,
-      agency_lang: agency.agency_lang,
-      agency_phone: agency.agency_phone,
-      agency_timezone: agency.agency_timezone,
       __typename: 'Agency', // backwards compat
     }
   })

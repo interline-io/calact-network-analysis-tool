@@ -65,7 +65,7 @@ export type RouteGql = {
   id: number
   // Absent when the routes phase ran with includeGeometry off.
   geometry?: GeoJSON.MultiLineString
-  // routeQuery selects every agency field; the agency CSV reads six of them.
+  // routeQuery selects every agency field, and the agency CSV exports them.
   agency: AgencyGql
   feed_version: {
     sha1: string
@@ -119,14 +119,9 @@ export type RouteCsv = RouteGtfs & {
   frequency_directions_differ?: boolean
 }
 
-// Routes keyed by id, for consumers holding stops: route_stops carries only a
-// route id, and the routes phase fetches each of those routes in full.
-export function routesById<T extends { id: number }> (routes: T[]): Map<number, T> {
-  const byId = new Map<number, T>()
-  for (const route of routes) {
-    byId.set(route.id, route)
-  }
-  return byId
+// Routes keyed by id. Stops carry only route ids, so consumers join through this.
+export function routesById<T extends RouteGql> (routes: T[]): Map<number, T> {
+  return new Map(routes.map(route => [route.id, route]))
 }
 
 export type Route = RouteGql & RouteDerived

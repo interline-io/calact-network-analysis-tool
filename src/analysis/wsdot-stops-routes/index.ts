@@ -5,6 +5,9 @@ import type { ScenarioData } from '~~/src/scenario'
 import { routesById } from '~~/src/tl'
 import { runAnalysis as runWsdotAnalysis } from '~~/src/analysis/wsdot'
 
+// An agency key with no GTFS agency_id behind it, either numeric-only or absent.
+const UNRESOLVED_AGENCY = /:(null|#\d+)$/
+
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
   routes: WSDOTRouteResult[]
@@ -117,34 +120,31 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
 
   const routeLookup = routesById(currentData.routes)
 
+  // GTFS agency_id is unique only within a feed, hence the composite. A blank
+  // agency_id is legal, so an agency known only by its numeric id is kept
+  // distinct from one whose id is genuinely absent.
+  const agencyKey = (feedOnestopId: string, agencyId?: string, numericId?: number): string => {
+    if (agencyId) {
+      return `${feedOnestopId}:${agencyId}`
+    }
+    return `${feedOnestopId}:${numericId != null ? `#${numericId}` : 'null'}`
+  }
+
   // Process stops to build agency map - filter out stops with no routes
   const stops = currentData.stops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
       const firstRouteStop = stop.route_stops[0]!
       const firstRoute = routeLookup.get(firstRouteStop.route_id)
-      const agencyId = firstRoute?.agency?.agency_id
-      const agencyName = firstRoute?.agency?.agency_name
+      const agencyId = firstRoute?.agency.agency_id
+      const agencyName = firstRoute?.agency.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
       const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
 
-      // The association row carries the numeric agency id, so stops still group
-      // by their real agency when the route itself is missing; only the label
-      // falls back. `null` is a legitimate GTFS agency_id, hence the separate
-      // unresolved case.
-      const effectiveAgencyId = agencyId || `#${firstRouteStop.agency_id}`
-      const effectiveAgencyName = agencyName || (agencyId || 'No Agency Info')
-      const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
-
-      // Debug logging for agency extraction
-      if (!agencyName && !agencyId) {
-        console.log('Stop with no agency info:', {
-          stopId: stop.stop_id,
-          routeStops: stop.route_stops?.length || 0,
-          firstRoute: firstRoute?.route_id,
-          agency: firstRoute?.agency
-        })
-      }
+      // Stops still group by their real agency when the route has not loaded;
+      // only the label falls back.
+      const effectiveAgencyName = agencyName || agencyId || 'No Agency Info'
+      const uniqueAgencyId = agencyKey(feedOnestopId, agencyId, firstRouteStop.agency_id)
 
       // Add to agency map
       if (!agencyMap.has(uniqueAgencyId)) {
@@ -202,18 +202,8 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
     const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
 
-    // Handle null agency_id (allowed in GTFS)
-    const effectiveAgencyId = agencyId || 'null'
-    const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
-    const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
-
-    // Debug logging for agency extraction
-    if (!agencyName && !agencyId) {
-      console.log('Route with no agency info:', {
-        routeId: route.route_id,
-        agency: route.agency
-      })
-    }
+    const effectiveAgencyName = agencyName || agencyId || 'No Agency Info'
+    const uniqueAgencyId = agencyKey(feedOnestopId, agencyId ?? undefined, route.agency?.id)
 
     // Add to agency map
     if (!agencyMap.has(uniqueAgencyId)) {
@@ -257,9 +247,9 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     totalAgencies: agencies.length,
     agencies: agencies.map(a => ({ id: a.agencyId, name: a.agencyName, stops: a.stopsCount, routes: a.routesCount })),
     totalStops: stops.length,
-    stopsWithoutAgency: stops.filter(s => s.agencyId.includes(':null')).length,
+    stopsWithoutAgency: stops.filter(s => UNRESOLVED_AGENCY.test(s.agencyId)).length,
     totalRoutes: routes.length,
-    routesWithoutAgency: routes.filter(r => r.agencyId.includes(':null')).length,
+    routesWithoutAgency: routes.filter(r => UNRESOLVED_AGENCY.test(r.agencyId)).length,
     originalStopsCount: currentData.stops.length,
     filteredOutStops: currentData.stops.length - stops.length
   })

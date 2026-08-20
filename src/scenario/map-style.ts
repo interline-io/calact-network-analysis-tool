@@ -42,43 +42,40 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
 
   const stopLookup = new Map<number, Stop>()
   const routeStopLookup = new Map<number, number[]>()
-  // Agencies and modes per stop, so a matcher answers with one lookup instead of
-  // re-joining every route_stop once per style rule. Only these two modes read
-  // them, and the maps are per-stop, so the other modes skip the allocation.
-  const indexRouteData = dataDisplayMode === 'Agency' || dataDisplayMode === 'Transit mode'
-  const stopAgencyIds = new Map<number, Set<string>>()
-  const stopModes = new Map<number, Set<number>>()
   for (const stop of scenarioFilterResult?.stops || []) {
     stopLookup.set(stop.id, stop)
-    const agencyIds = new Set<string>()
-    const modes = new Set<number>()
     for (const rs of stop.route_stops) {
-      const rid = rs.route_id
-      const stops = routeStopLookup.get(rid) || []
+      const stops = routeStopLookup.get(rs.route_id) || []
       stops.push(stop.id)
-      routeStopLookup.set(rid, stops)
-      if (!indexRouteData) {
-        continue
-      }
-      const route = routeLookup.get(rid)
-      if (route) {
-        agencyIds.add(route.agency?.agency_id)
-        modes.add(route.route_type)
-      }
+      routeStopLookup.set(rs.route_id, stops)
     }
-    if (indexRouteData) {
-      stopAgencyIds.set(stop.id, agencyIds)
+  }
+
+  // route_type is the one styling input not on the association row, so it is
+  // indexed per stop rather than re-joined once per style rule. Only mode
+  // styling reads it.
+  const stopModes = new Map<number, Set<number>>()
+  if (dataDisplayMode === 'Transit mode') {
+    for (const stop of scenarioFilterResult?.stops || []) {
+      const modes = new Set<number>()
+      for (const rs of stop.route_stops) {
+        const route = routeLookup.get(rs.route_id)
+        if (route) {
+          modes.add(route.route_type)
+        }
+      }
       stopModes.set(stop.id, modes)
     }
   }
 
-  // Style based on AGENCY
-  function getAgencyMatcher (val: string): MatchFunction {
+  // Style based on AGENCY. The numeric id is on every route_stop, so this needs
+  // no index and works before the routes phase lands.
+  function getAgencyMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return stopAgencyIds.get((v as Stop).id)?.has(val) ?? false
+        return (v as Stop).route_stops.some(rs => rs.agency_id === val)
       } else if (v.__typename === 'Route') {
-        return (v as Route).agency?.agency_id === val
+        return (v as Route).agency.id === val
       }
       return false
     }
@@ -138,7 +135,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     for (let i = 0; i < Math.min(agencies.length, categoricalColors.length); i++) {
       const agency = agencies[i]
       if (agency) {
-        rules.push({ label: agency.name ?? '', color: agencyColorScale(String(agency.numericId)), match: getAgencyMatcher(agency.id ?? '') })
+        rules.push({ label: agency.name ?? '', color: agencyColorScale(String(agency.numericId)), match: getAgencyMatcher(agency.numericId) })
       }
     }
     return rules

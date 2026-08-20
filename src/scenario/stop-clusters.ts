@@ -396,13 +396,7 @@ export function deriveFilteredStopClusters (
       }
     }
     departureSecondsByStop.set(id, times)
-    const agencyIds = new Set<number>()
-    const routeIds = new Set<number>()
-    for (const rs of stop.route_stops || []) {
-      routeIds.add(rs.route_id)
-      agencyIds.add(rs.agency_id)
-    }
-    stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
+    stopMeta.set(id, stopRouteAgencyIds(stop.route_stops))
   }
   return applyClusterTransferTime(clusters, maxTransferMinutes, departureSecondsByStop, stopMeta)
 }
@@ -435,18 +429,23 @@ interface StopClusterFetchTask {
   feedVersionSha1: string
 }
 
-// Map a raw GraphQL stop into the minimal ClusterInputStop the algorithm needs.
-function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
+// Distinct route and agency ids serving a stop, both carried on the association
+// row. Shared by the client-side prune and the server-side cluster phase.
+function stopRouteAgencyIds (routeStops?: { route_id: number, agency_id: number }[]): StopClusterMeta {
   const agencyIds = new Set<number>()
   const routeIds = new Set<number>()
-  for (const rs of stop.route_stops || []) {
+  for (const rs of routeStops || []) {
     routeIds.add(rs.route_id)
     agencyIds.add(rs.agency_id)
   }
+  return { agencyIds: [...agencyIds], routeIds: [...routeIds] }
+}
+
+// Map a raw GraphQL stop into the minimal ClusterInputStop the algorithm needs.
+function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
   return {
+    ...stopRouteAgencyIds(stop.route_stops),
     id: stop.id,
-    agencyIds: [...agencyIds],
-    routeIds: [...routeIds],
     neighborIds: (stop.nearby_stops || []).map(n => n.id),
   }
 }
@@ -589,7 +588,7 @@ export function stopClusterCsv (
         if (!route) {
           continue
         }
-        if (route.agency?.agency_name) {
+        if (route.agency.agency_name) {
           agencies.add(route.agency.agency_name)
         }
         modes.add(route.route_type)

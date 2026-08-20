@@ -315,12 +315,12 @@ interface AgencyData {
 }
 const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
 
-// Distinct names for a stop popup, skipping routes the routes phase has not
-// delivered and routes whose chosen name is blank.
+// Distinct names for a popup, skipping routes the routes phase has not delivered.
 function stopPopupNames (stop: Stop, name: (route: Route) => string | undefined): string[] {
+  const lookup = routeLookup.value
   const names = new Set<string>()
   for (const rs of stop.route_stops || []) {
-    const route = routeLookup.value.get(rs.route_id)
+    const route = lookup.get(rs.route_id)
     const n = route && name(route)
     if (n) {
       names.add(n)
@@ -328,6 +328,9 @@ function stopPopupNames (stop: Stop, name: (route: Route) => string | undefined)
   }
   return [...names]
 }
+
+const routeName = (route: Route): string | undefined => route.route_short_name || route.route_long_name
+const agencyName = (route: Route): string | undefined => route.agency.agency_name
 
 const agencyData = computed((): AgencyData[] => {
   // Collect agency data from the stop data.
@@ -819,8 +822,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         data: {
           stop_id: sp.stop_id,
           stop_name: sp.stop_name,
-          routes: stopPopupNames(sp, r => r.route_short_name || r.route_long_name),
-          agencies: stopPopupNames(sp, r => r.agency?.agency_name),
+          routes: stopPopupNames(sp, routeName),
+          agencies: stopPopupNames(sp, agencyName),
         }
       }
       sortKey = [0, 0]
@@ -905,29 +908,16 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     if (!stop) {
       continue
     }
-    const agencies = new Set<string>()
-    const routes = new Set<string>()
-    const lookup = routeLookup.value
-    for (const rs of stop.route_stops || []) {
-      const route = lookup.get(rs.route_id)
-      if (!route) {
-        continue
-      }
-      const an = route.agency.agency_name
-      if (an) {
-        agencies.add(an)
-        allAgencies.add(an)
-      }
-      const rn = route.route_short_name || route.route_long_name
-      if (rn) {
-        routes.add(rn)
-      }
+    const agencies = stopPopupNames(stop, agencyName)
+    const routes = stopPopupNames(stop, routeName)
+    for (const an of agencies) {
+      allAgencies.add(an)
     }
     members.push({
       stop_id: stop.stop_id,
       stop_name: stop.stop_name,
-      agency_names: [...agencies],
-      route_names: [...routes],
+      agency_names: agencies,
+      route_names: routes,
     })
   }
   return {
