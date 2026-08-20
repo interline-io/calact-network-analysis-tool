@@ -342,7 +342,6 @@ export class WSDOTReportFetcher {
 
     const results: Record<string, Set<number>> = {}
     const levelStops: Record<string, number[]> = {}
-    const getGeographyLayers = ['tract', 'state'] // 'state', 'county',
 
     // Process each service level
     for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
@@ -386,48 +385,56 @@ export class WSDOTReportFetcher {
       console.warn('No search area resolved — skipping the bbox tract population, which would otherwise be unbounded')
     }
 
+    // Sent and released as each layer arrives rather than collected: the levels
+    // are nested, so eight statewide tract sets are largely the same outlines,
+    // and holding them all before sending any is what exhausted the Worker.
+    const sendGeographyLayer = async (levelKey: string, geoDatasetLayer: string, stopIds: Set<number>) => {
+      const geoConfig: getGeographyDataConfig = {
+        ...baseGeographyConfig,
+        stopIds: stopIds,
+        geoDatasetLayer: geoDatasetLayer,
+        stopBufferRadius: this.config.stopBufferRadius || 0,
+        // Only tract outlines are ever drawn, behind the stop-buffer toggle.
+        includeIntersectionGeometry: geoDatasetLayer === 'tract',
+      }
+      console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
+      const data = await getGeographyData(geoConfig)
+      const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
+      for (let i = 0; i < featureChunks.length; i++) {
+        await this.progressSender.onProgress({
+          isLoading: true,
+          currentStage: 'extra',
+          extraData: {
+            stops: [],
+            levelStops: {},
+            levelLayers: { [levelKey]: { [geoDatasetLayer]: featureChunks[i] ?? [] } },
+            bboxIntersection: []
+          },
+          currentStageMessage: `WSDOT ${levelKey} ${geoDatasetLayer} batch ${i + 1} of ${featureChunks.length}...`
+        })
+      }
+    }
+
+    const bufferRadius = this.config.stopBufferRadius || 0
+    if (bufferRadius <= 0) {
+      console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
+    }
+
+    // The state rollup is the viewer's population denominator, and it reads
+    // only levelAll's. The buffer picks which states appear, not their totals,
+    // so one fetch answers it for every level.
+    const allStops = results.levelAll
+    if (bufferRadius > 0 && allStops && allStops.size > 0) {
+      await sendGeographyLayer('levelAll', 'state', allStops)
+    }
+
     for (const [levelKey, stopIds] of Object.entries(results)) {
       console.log(`\n====== ${levelKey} ======`)
       console.log(`${levelKey}: ${stopIds.size} qualifying stops`)
-      for (const geoDatasetLayer of getGeographyLayers) {
-        if ((this.config?.stopBufferRadius || 0) <= 0) {
-          console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
-          continue
-        }
-        if (stopIds.size === 0) {
-          continue
-        }
-        const geoConfig: getGeographyDataConfig = {
-          ...baseGeographyConfig,
-          stopIds: stopIds,
-          geoDatasetLayer: geoDatasetLayer,
-          stopBufferRadius: this.config.stopBufferRadius || 0,
-          // Only the tract layer's outlines are ever drawn (the stop-buffer
-          // overlay). Asking for the state layer's too doubled the geometry
-          // fetched across eight levels for something nothing reads.
-          includeIntersectionGeometry: geoDatasetLayer === 'tract',
-        }
-        console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
-        const data = await getGeographyData(geoConfig)
-
-        // Sent and released here rather than collected. The levels are nested,
-        // so eight statewide tract sets are largely the same outlines, and
-        // holding them all before sending any is what exhausted the Worker.
-        const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
-        for (let i = 0; i < featureChunks.length; i++) {
-          await this.progressSender.onProgress({
-            isLoading: true,
-            currentStage: 'extra',
-            extraData: {
-              stops: [],
-              levelStops: {},
-              levelLayers: { [levelKey]: { [geoDatasetLayer]: featureChunks[i] ?? [] } },
-              bboxIntersection: []
-            },
-            currentStageMessage: `WSDOT ${levelKey} ${geoDatasetLayer} batch ${i + 1} of ${featureChunks.length}...`
-          })
-        }
+      if (bufferRadius <= 0 || stopIds.size === 0) {
+        continue
       }
+      await sendGeographyLayer(levelKey, 'tract', stopIds)
     }
 
     // Build final result. Every stop in the scenario is listed, which is what
