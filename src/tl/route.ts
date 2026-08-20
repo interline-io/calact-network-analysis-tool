@@ -1,6 +1,7 @@
 import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
 import type { BufferGeographyIntersection } from './stop-buffer'
+import type { AgencyGql } from './agency'
 
 //////////
 // Routes
@@ -64,11 +65,8 @@ export type RouteGql = {
   id: number
   // Absent when the routes phase ran with includeGeometry off.
   geometry?: GeoJSON.MultiLineString
-  agency: {
-    id: number
-    agency_id: string
-    agency_name: string
-  }
+  // routeQuery selects every agency field; the agency CSV reads six of them.
+  agency: AgencyGql
   feed_version: {
     sha1: string
     feed: {

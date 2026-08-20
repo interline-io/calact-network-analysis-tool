@@ -541,15 +541,14 @@ export function applyScenarioResultFilter (
   })
   const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
-  // Rolls up empty until the routes phase lands.
   const routeLookup = routesById(routeFeatures)
 
-  // Apply agency filters
+  // Agencies come off the routes phase, so this rolls up empty until it lands.
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
       const route = routeLookup.get(rstop.route_id)
-      if (!route?.agency.agency_id) {
+      if (!route?.agency?.agency_id) {
         continue // route not fetched yet, or no agency listed
       }
       const agency = route.agency

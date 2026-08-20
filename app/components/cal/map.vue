@@ -315,14 +315,28 @@ interface AgencyData {
 }
 const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
 
+// Distinct names for a stop popup, skipping routes the routes phase has not
+// delivered and routes whose chosen name is blank.
+function stopPopupNames (stop: Stop, name: (route: Route) => string | undefined): string[] {
+  const names = new Set<string>()
+  for (const rs of stop.route_stops || []) {
+    const route = routeLookup.value.get(rs.route_id)
+    const n = route && name(route)
+    if (n) {
+      names.add(n)
+    }
+  }
+  return [...names]
+}
+
 const agencyData = computed((): AgencyData[] => {
   // Collect agency data from the stop data.
   const data = new Map()
+  const lookup = routeLookup.value
   for (const stop of props.scenarioFilterResult?.stops || []) {
     const props = stop
     const route_stops = props.route_stops || []
 
-    const lookup = routeLookup.value
     for (const rstop of route_stops) {
       const agency = lookup.get(rstop.route_id)?.agency
       const aid = agency?.agency_id
@@ -805,9 +819,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         data: {
           stop_id: sp.stop_id,
           stop_name: sp.stop_name,
-          // flatMap drops routes the routes phase has not delivered yet.
-          routes: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route_id)?.route_short_name ?? []),
-          agencies: sp.route_stops.flatMap(rs => routeLookup.value.get(rs.route_id)?.agency?.agency_name ?? []),
+          routes: stopPopupNames(sp, r => r.route_short_name || r.route_long_name),
+          agencies: stopPopupNames(sp, r => r.agency?.agency_name),
         }
       }
       sortKey = [0, 0]

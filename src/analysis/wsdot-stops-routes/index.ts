@@ -121,15 +121,19 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   const stops = currentData.stops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
-      const firstRoute = routeLookup.get(stop.route_stops[0]!.route_id)
-      const agencyId = firstRoute?.agency.agency_id
-      const agencyName = firstRoute?.agency.agency_name
+      const firstRouteStop = stop.route_stops[0]!
+      const firstRoute = routeLookup.get(firstRouteStop.route_id)
+      const agencyId = firstRoute?.agency?.agency_id
+      const agencyName = firstRoute?.agency?.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
       const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
 
-      // Handle null agency_id (allowed in GTFS)
-      const effectiveAgencyId = agencyId || 'null'
-      const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
+      // The association row carries the numeric agency id, so stops still group
+      // by their real agency when the route itself is missing; only the label
+      // falls back. `null` is a legitimate GTFS agency_id, hence the separate
+      // unresolved case.
+      const effectiveAgencyId = agencyId || `#${firstRouteStop.agency_id}`
+      const effectiveAgencyName = agencyName || (agencyId || 'No Agency Info')
       const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
 
       // Debug logging for agency extraction

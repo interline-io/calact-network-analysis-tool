@@ -440,13 +440,8 @@ function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
   const agencyIds = new Set<number>()
   const routeIds = new Set<number>()
   for (const rs of stop.route_stops || []) {
-    const route = rs.route
-    if (route?.id != null) {
-      routeIds.add(route.id)
-    }
-    if (route?.agency?.id != null) {
-      agencyIds.add(route.agency.id)
-    }
+    routeIds.add(rs.route_id)
+    agencyIds.add(rs.agency_id)
   }
   return {
     id: stop.id,
@@ -576,6 +571,7 @@ export function stopClusterCsv (
 ): StopClusterCsv[] {
   return clusters.map((cluster, idx): StopClusterCsv => {
     const agencies = new Set<string>()
+    const agencyIds = new Set<number>()
     const modes = new Set<number>()
     const routeIds = new Set<number>()
     const memberStops: string[] = []
@@ -587,11 +583,13 @@ export function stopClusterCsv (
       memberStops.push(stop.stop_name ? `${stop.stop_name} (${stop.stop_id})` : stop.stop_id)
       for (const rs of stop.route_stops || []) {
         routeIds.add(rs.route_id)
+        // Counted by id: two feeds can name different agencies the same thing.
+        agencyIds.add(rs.agency_id)
         const route = routeLookup.get(rs.route_id)
         if (!route) {
           continue
         }
-        if (route.agency.agency_name) {
+        if (route.agency?.agency_name) {
           agencies.add(route.agency.agency_name)
         }
         modes.add(route.route_type)
@@ -599,7 +597,7 @@ export function stopClusterCsv (
     }
     return {
       cluster: `Cluster ${idx + 1}`,
-      agencies_count: agencies.size,
+      agencies_count: agencyIds.size,
       agencies: [...agencies].join(', '),
       stops_count: cluster.memberStopIds.length,
       routes_count: routeIds.size,

@@ -42,8 +42,10 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
 
   const stopLookup = new Map<number, Stop>()
   const routeStopLookup = new Map<number, number[]>()
-  // Agencies and modes per stop, so a matcher answers with one lookup instead
-  // of re-joining every route_stop once per style rule.
+  // Agencies and modes per stop, so a matcher answers with one lookup instead of
+  // re-joining every route_stop once per style rule. Only these two modes read
+  // them, and the maps are per-stop, so the other modes skip the allocation.
+  const indexRouteData = dataDisplayMode === 'Agency' || dataDisplayMode === 'Transit mode'
   const stopAgencyIds = new Map<number, Set<string>>()
   const stopModes = new Map<number, Set<number>>()
   for (const stop of scenarioFilterResult?.stops || []) {
@@ -55,14 +57,19 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
       const stops = routeStopLookup.get(rid) || []
       stops.push(stop.id)
       routeStopLookup.set(rid, stops)
+      if (!indexRouteData) {
+        continue
+      }
       const route = routeLookup.get(rid)
       if (route) {
-        agencyIds.add(route.agency.agency_id)
+        agencyIds.add(route.agency?.agency_id)
         modes.add(route.route_type)
       }
     }
-    stopAgencyIds.set(stop.id, agencyIds)
-    stopModes.set(stop.id, modes)
+    if (indexRouteData) {
+      stopAgencyIds.set(stop.id, agencyIds)
+      stopModes.set(stop.id, modes)
+    }
   }
 
   // Style based on AGENCY
