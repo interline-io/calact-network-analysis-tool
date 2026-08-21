@@ -1,9 +1,9 @@
-// The main scenario run lifecycle: streams a scenario from /api/scenario (or a
-// canned example JSON) into a ScenarioDataReceiver and derives the filtered
-// result whenever the raw data or filters change. Stream consumption and
-// progress state live in useScenarioStream; this owns the receiver (shared
-// with the buffer/cluster/aggregate refetch composables) and the data-graph
-// wiring. Receives the data and config refs from the container, which owns the
+// The main scenario run lifecycle: streams a scenario from /api/scenario into
+// a ScenarioDataReceiver and derives the filtered result whenever the raw data
+// or filters change. Stream consumption and progress state live in
+// useScenarioStream; this owns the receiver (shared with the
+// buffer/cluster/aggregate refetch composables) and the data-graph wiring.
+// Receives the data and config refs from the container, which owns the
 // scenario data graph.
 
 import { shallowRef, ref, watch, markRaw, type Ref, type ShallowRef } from 'vue'
@@ -16,10 +16,8 @@ import {
   type ScenarioData,
   type ScenarioFilter,
   type ScenarioFilterResult,
-  type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import type { RequestFailure } from '~~/src/core'
 
 interface UseScenarioRunDeps {
   // Owned by the container (the central data graph); written here as the stream
@@ -31,26 +29,18 @@ interface UseScenarioRunDeps {
   scenarioFilter: Ref<ScenarioFilter>
 }
 
-export interface UseScenarioRunReturn {
+// The stream state passes through under its own names; renames happen at the
+// consumer's destructure, as the WSDOT components already do.
+export interface UseScenarioRunReturn extends Pick<UseScenarioStreamReturn,
+  'loadingProgress' | 'showLoadingModal' | 'error' | 'requestErrors'
+  | 'phasePlan' | 'phaseFractions' | 'stopDepartureCount'> {
   // Live accumulator, shared with the refetch composables so incremental
   // recomputes land in the same data. Reassigned on each fetch.
   scenarioReceiver: ShallowRef<ScenarioDataReceiver | undefined>
-  loadingProgress: Ref<ScenarioProgress | undefined>
-  showLoadingModal: Ref<boolean>
-  error: Ref<Error | undefined>
-  // Requests that failed after all retries. Non-fatal — the run finishes — so
-  // this is what tells the user the results are incomplete.
-  requestErrors: Ref<RequestFailure[]>
-  // Weighted progress-bar state shared with the loading modal and refetches.
-  scenarioPhasePlan: Ref<ScenarioPhaseName[] | undefined>
-  scenarioPhaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
   // Ref-counts concurrent refetches so the modal closes only when the last settles.
   refetchInFlight: Ref<number>
-  stopDepartureCount: Ref<number>
-  // Streams a scenario. Returns false when validation declined to run.
-  fetchScenario: () => Promise<boolean>
-  // The shared modal/toast lifecycle around fetchScenario; see useScenarioStream.
-  runQuery: UseScenarioStreamReturn['runQuery']
+  // Streams a scenario inside the shared modal/toast lifecycle.
+  runQuery: (successToast: string) => Promise<void>
 }
 
 export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn {
@@ -113,11 +103,10 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     showLoadingModal: stream.showLoadingModal,
     error: stream.error,
     requestErrors: stream.requestErrors,
-    scenarioPhasePlan: stream.phasePlan,
-    scenarioPhaseFractions: stream.phaseFractions,
+    phasePlan: stream.phasePlan,
+    phaseFractions: stream.phaseFractions,
     refetchInFlight,
     stopDepartureCount: stream.stopDepartureCount,
-    fetchScenario,
-    runQuery: stream.runQuery,
+    runQuery: successToast => stream.runQuery(fetchScenario, successToast),
   }
 }

@@ -53,6 +53,20 @@ export async function streamServerResponse (
   return sendStream(event, stream)
 }
 
+// Response wrapper for an envelope-wrapped run (one that goes through
+// runProgressStream). The envelope reports failures on-stream and closes
+// before rethrowing, so the rethrow is swallowed-and-logged here — reaching
+// the controller.error backstop would discard the queued error frame. This is
+// the one place that invariant is enforced; envelope endpoints must use it.
+export async function streamEnvelopeResponse (
+  event: H3Event,
+  label: string,
+  run: (client: GraphQLClient, controller: ReadableStreamDefaultController) => Promise<unknown>,
+) {
+  return streamServerResponse(event, (client, controller) =>
+    run(client, controller).catch(err => console.error(`${label} failed:`, err)))
+}
+
 // Wraps a bare phase run — one that takes emit/onError rather than a
 // controller — in the shared envelope, for the standalone phase endpoints.
 // The phase name becomes the stream's announced plan, so phase streams
@@ -63,10 +77,7 @@ export async function streamPhaseResponse (
   startMessage: string,
   run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void | Promise<void>, onError: (error: any) => void) => Promise<unknown>,
 ) {
-  return streamServerResponse(event, (client, controller) =>
+  return streamEnvelopeResponse(event, `Phase run (${phase})`, (client, controller) =>
     runProgressStream(requestStream(controller), client, { startMessage, phasePlan: [phase] },
-      (emit, onError) => run(client, emit, onError))
-      // The envelope already reported this failure on-stream and closed;
-      // reaching the backstop would discard the queued error frame.
-      .catch(err => console.error(`Phase run failed (${phase}):`, err)))
+      (emit, onError) => run(client, emit, onError)))
 }

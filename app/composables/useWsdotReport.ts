@@ -5,7 +5,7 @@
 // and whatever it derives from the finished report.
 
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
-import { useScenarioStream } from './useScenarioStream'
+import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import { useToastNotification } from './useToastNotification'
 import { WSDOTReportDataReceiver, type WSDOTReport, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
@@ -24,15 +24,9 @@ export interface UseWsdotReportDeps {
   onComplete?: (data: ScenarioData, report: WSDOTReport) => void
 }
 
-export interface UseWsdotReportReturn {
-  loadingProgress: Ref<ScenarioProgress | undefined>
-  error: Ref<Error | undefined>
-  requestErrors: ReturnType<typeof useScenarioStream>['requestErrors']
-  phasePlan: ReturnType<typeof useScenarioStream>['phasePlan']
-  phaseFractions: ReturnType<typeof useScenarioStream>['phaseFractions']
-  stopDepartureCount: Ref<number>
-  stopsWithDepartures: Ref<number>
-  showLoadingModal: Ref<boolean>
+export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
+  'loadingProgress' | 'error' | 'requestErrors' | 'phasePlan' | 'phaseFractions'
+  | 'stopDepartureCount' | 'stopsWithDepartures' | 'showLoadingModal'> {
   wsdotReport: ShallowRef<WSDOTReport | undefined>
   wsdotReportConfig: Ref<WSDOTReportConfig>
   // Run the report inside the shared modal/toast lifecycle.
@@ -72,8 +66,9 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
         // out of memory.
         deps.scenarioData.value = receiver.getCurrentData()
       },
+      // No loadingProgress teardown here: this receiver only ever runs inside
+      // stream.runQuery, whose final clear covers every path.
       onComplete: () => {
-        stream.loadingProgress.value = undefined
         deps.scenarioData.value = receiver.getCurrentData()
         wsdotReport.value = receiver.getCurrentWSDOTReport()
         if (deps.scenarioData.value && wsdotReport.value) {
@@ -81,7 +76,6 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
         }
       },
       onError: (err: any) => {
-        stream.loadingProgress.value = undefined
         stream.error.value = err
       },
     })

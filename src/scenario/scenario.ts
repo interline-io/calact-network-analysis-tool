@@ -352,10 +352,6 @@ export class ScenarioFetcher {
   // The phases this run executes, in pipeline order.
   private plan: ScenarioPhaseName[]
 
-  // The geography context the feed-versions phase resolved, kept for callers
-  // that run report stages after the fetch (so they don't re-resolve).
-  resolvedGeography?: ResolvedGeographyContext
-
   constructor (
     config: ScenarioConfig,
     client: GraphQLClient,
@@ -390,7 +386,6 @@ export class ScenarioFetcher {
       feedVersionOverrides: this.config.feedVersionOverrides,
       excludedFeeds: this.config.excludedFeeds,
     }, this.client, emit)
-    this.resolvedGeography = resolved
     logMemory('after-feed-versions')
     const fvRefs: FeedVersionRef[] = feedVersions.map(fv => ({
       feedOnestopId: fv.feed.onestop_id,
@@ -467,6 +462,10 @@ export class ScenarioFetcher {
     // analysis stage layered after these phases — has finished.
     logMemory('fetchMain-complete')
     console.log(`🎉 Scenario fetch complete`)
+
+    // The geography context the feed-versions phase resolved, for callers
+    // that run report stages after the fetch (so they don't re-resolve).
+    return { resolvedGeography: resolved }
   }
 
   // Config projection around the census-values phase; the inline path passes

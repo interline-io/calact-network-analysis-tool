@@ -1,6 +1,6 @@
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { hasSearchArea } from '~~/src/scenario'
-import { streamServerResponse } from '~~/server/utils/phase-stream'
+import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -14,11 +14,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return streamServerResponse(event, (client, controller) =>
-    // The envelope reports failures on-stream and closes before rethrowing
-    // (for in-process callers that read the return value); the rethrow must
-    // not reach the controller.error backstop, which would discard the
-    // queued error frame.
-    runAnalysis(controller, config, client)
-      .catch(err => console.error('WSDOT run failed:', err)))
+  return streamEnvelopeResponse(event, 'WSDOT run', (client, controller) =>
+    runAnalysis(controller, config, client))
 })

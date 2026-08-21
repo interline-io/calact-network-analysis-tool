@@ -10,12 +10,11 @@
 import { GenericStreamSender } from '~~/src/core'
 import type { GraphQLClient } from '~~/src/core'
 import { createFailureReporter, type ScenarioPhaseName } from './phases'
+import type { PhaseEmit } from './phases/common'
 import type { ScenarioProgress } from './scenario'
 
-// Emit for the run body. Awaitable: a run that just emitted a bulk payload
-// should await it, so a producer faster than its consumer waits rather than
-// piling unread events on the heap.
-export type ProgressEmit = (progress: ScenarioProgress) => void | Promise<void>
+// Emit for the run body — the same contract phases use.
+export type ProgressEmit = PhaseEmit
 
 export interface ProgressStreamOptions {
   // Message on the opening 'ready' event.
@@ -29,19 +28,20 @@ export interface ProgressStreamOptions {
   phasePlan: ScenarioPhaseName[]
 }
 
-// Run a scenario-shaped producer inside the shared stream envelope.
+// Run a scenario-shaped producer inside the shared stream envelope, returning
+// the run body's result.
 //
 // Errors are reported on the stream, then rethrown for in-process callers
 // that build a result out of the run's return value — an empty result is
 // often structurally valid and would read as a real, empty region. The
 // stream is settled exactly once whatever happens; server wrappers should
 // still backstop with controller.error for throws outside the envelope.
-export async function runProgressStream (
+export async function runProgressStream<T> (
   stream: WritableStream,
   client: GraphQLClient,
   opts: ProgressStreamOptions,
-  run: (emit: ProgressEmit, onError: (error: any) => void) => Promise<unknown>,
-): Promise<void> {
+  run: (emit: ProgressEmit, onError: (error: any) => void) => Promise<T>,
+): Promise<T> {
   const writer = stream.getWriter()
   const sender = new GenericStreamSender<ScenarioProgress>(writer)
 
@@ -67,8 +67,9 @@ export async function runProgressStream (
   // with holes in it says so.
   const failures = createFailureReporter(client, emit, () => lastStage)
   try {
-    await run(emit, failures.onError)
+    const result = await run(emit, failures.onError)
     await emit({ currentStage: 'complete' })
+    return result
   } catch (err) {
     // Awaited before the close in finally: writes are queued behind one
     // another, so closing first would drop the event that says what went

@@ -34,9 +34,6 @@
     >
       An error occurred while running the WSDOT analysis.
     </cat-msg>
-    <div v-else-if="loading">
-      Loading...
-    </div>
     <div v-else-if="wsdotReport">
       <analysis-wsdot-viewer
         :report="wsdotReport"
@@ -158,7 +155,6 @@
 <script lang="ts" setup>
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 
-const loading = ref(false)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
 

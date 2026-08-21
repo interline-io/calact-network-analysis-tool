@@ -17,7 +17,6 @@ import {
   WSDOT_PHASE_PLAN,
   type WSDOTReport,
   type WSDOTReportConfig,
-  type WSDOTReportPartialData,
   type WSDOTProgress,
 } from './report-phases'
 
@@ -58,8 +57,7 @@ export async function runAnalysis (
   // in-process callers that build a report out of the return value: an empty
   // WSDOTReport is structurally valid and would export as a plausible report
   // of a total service desert.
-  let result: { scenarioData: ScenarioData, wsdotResult: WSDOTReport } | undefined
-  await runProgressStream(requestStream(controller), client, {
+  return runProgressStream(requestStream(controller), client, {
     startMessage: 'Starting WSDOT fetcher',
     config,
     phasePlan: WSDOT_PHASE_PLAN,
@@ -132,7 +130,7 @@ export async function runAnalysis (
       onError,
       plan: WSDOT_PHASE_PLAN,
     })
-    await fetcher.fetch()
+    const { resolvedGeography } = await fetcher.fetch()
     const scenarioData = receiver.getCurrentData()
 
     // The report phases, over the folded records the fetch just produced.
@@ -143,13 +141,12 @@ export async function runAnalysis (
     }, send)
     const { bboxIntersection } = await runWsdotGeographiesPhase(configCopy, {
       levelSets: levels.levelSets,
-      // Resolved once by the feed-versions phase; set whenever fetch() returns.
-      resolved: fetcher.resolvedGeography!,
+      resolved: resolvedGeography,
     }, client, send)
 
     // levelLayers is empty by design: the geography layers went out on the
     // stream as they were fetched, and the client rebuilds them in its receiver.
-    result = {
+    return {
       scenarioData,
       wsdotResult: {
         stops: levels.stops,
@@ -159,7 +156,6 @@ export async function runAnalysis (
       },
     }
   })
-  return result!
 }
 
 // Strips the departure payload from an event bound for the client, along with
@@ -182,10 +178,12 @@ function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
-  override onProgress (progress: ScenarioProgress): void {
+  // Narrower than the base signature (method-position bivariance permits it);
+  // structurally safe since every WSDOT payload field is optional.
+  override onProgress (progress: WSDOTProgress): void {
     super.onProgress(progress)
 
-    const p: WSDOTReportPartialData | undefined = (progress as WSDOTProgress).partialData
+    const p = progress.partialData
     if (p?.wsdotStops) {
       this.wsdotReport.stops.push(...p.wsdotStops)
     }

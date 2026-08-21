@@ -341,7 +341,7 @@ watch(cannedBbox, () => { querySubmitted.value = false })
 const runQuery = async () => {
   querySubmitted.value = true
   activeTab.value = { tab: 'map', sub: '' }
-  await runScenarioQuery(fetchScenario, 'Browsing query data loaded successfully!')
+  await runScenarioQuery('Browsing query data loaded successfully!')
 }
 
 // Scenario data ref - the central scenario data graph, populated by fetchScenario.
@@ -880,11 +880,10 @@ const {
   showLoadingModal,
   error,
   requestErrors,
-  scenarioPhasePlan,
-  scenarioPhaseFractions,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
   stopDepartureCount,
-  fetchScenario,
   runQuery: runScenarioQuery,
 } = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
 

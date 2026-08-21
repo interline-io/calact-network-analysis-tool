@@ -33,12 +33,6 @@
     <cat-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
     </cat-msg>
-    <div v-else-if="loading" class="has-text-centered">
-      <cat-loading :active="true" :full-page="false" />
-      <p class="mt-4">
-        Running WSDOT Transit Stops and Routes Analysis...
-      </p>
-    </div>
     <div v-else-if="wsdotReport && wsdotStopsRoutesReport">
       <analysis-wsdot-stops-routes-viewer
         v-model:report="wsdotStopsRoutesReport"
@@ -134,10 +128,11 @@ import type {
   ScenarioConfig,
 } from '~~/src/scenario'
 
-const loading = ref(false)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = defineModel<ScenarioData>('scenarioData')
-const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport>()
+// shallowRef: replaced wholesale on completion, never mutated, and large
+// enough statewide that deep proxying every row would be real overhead.
+const wsdotStopsRoutesReport = shallowRef<WSDOTStopsRoutesReport>()
 
 // Report scaffolding shared with the frequency report: config, stream state,
 // receiver, and the run lifecycle around the loading modal. This report is

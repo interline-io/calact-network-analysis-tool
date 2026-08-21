@@ -96,19 +96,17 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     }
   }
 
-  // Monotonic run identity: a new run bumps the token, and everything the old
-  // run might still do — receiver events from its buffered tail, its final
-  // stream-ended check, its lifecycle framing — is gated on still holding the
-  // current token. A partial failed run is dropped, never resumed.
-  let runToken = 0
+  // Run identity is the run's own AbortController: a new run aborts its
+  // predecessor, and everything the old run might still do — receiver events
+  // from its buffered tail, its final stream-ended check — is gated on its
+  // signal. A partial failed run is dropped, never resumed.
   let abort: AbortController | undefined
 
   const run = async (receiver: ScenarioDataReceiver, url: string, body: unknown): Promise<void> => {
-    const token = ++runToken
     abort?.abort()
     const controller = new AbortController()
     abort = controller
-    const live = () => token === runToken
+    const live = () => !controller.signal.aborted
 
     // Clear state left by a prior run so a fresh run starts clean — a stale
     // error would keep the success path (gated on !error) suppressed.
@@ -164,9 +162,9 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     }
   }
 
-  // Separate from runToken: gates the modal/toast framing on being the most
-  // recent runQuery invocation, whether or not its fetch got far enough to
-  // start a run.
+  // Gates the modal/toast framing on being the most recent runQuery
+  // invocation — a counter rather than the run's abort signal, because a
+  // fetch that declines validation never starts a run at all.
   let queryToken = 0
 
   const runQuery = async (fetch: () => Promise<boolean>, successToast: string): Promise<void> => {
