@@ -439,14 +439,12 @@ describe('ScenarioFetcher', () => {
 
     await fetcher.fetch()
 
-    expect(progressCallback).toHaveBeenCalledWith(
-      expect.objectContaining({ isLoading: true })
-    )
+    expect(progressCallback).toHaveBeenCalled()
     // Completion is the stream envelope's frame, not the fetcher's: the
     // fetcher never claims the run is done, since an analysis stage may still
     // be layered after its phases.
     expect(progressCallback).not.toHaveBeenCalledWith(
-      expect.objectContaining({ isLoading: false })
+      expect.objectContaining({ currentStage: 'complete' })
     )
   })
 })

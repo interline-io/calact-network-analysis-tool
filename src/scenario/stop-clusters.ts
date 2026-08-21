@@ -464,7 +464,6 @@ async function fetchStopClusterInputs (
   function progressEvent (): ScenarioProgress {
     const p = queue.getProgress()
     return {
-      isLoading: true,
       currentStage: 'stop-clusters',
       phaseProgress: { phase: 'stop-clusters', completed: p.completed, total: p.total },
     }
@@ -536,7 +535,6 @@ export async function runStopClustersPhase (
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
   const clusters = deriveStopClusters(inputs, config.maxDistanceMeters)
   await emit({
-    isLoading: true,
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
     phaseProgress: phaseDone('stop-clusters'),

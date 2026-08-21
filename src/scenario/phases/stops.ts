@@ -61,7 +61,6 @@ export async function runStopsPhase (
   function progressEvent (): ScenarioProgress {
     const p = queue.getProgress()
     return {
-      isLoading: true,
       currentStage: 'stops',
       phaseProgress: { phase: 'stops', completed: p.completed, total: p.total },
     }

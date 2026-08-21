@@ -72,7 +72,7 @@ export async function runBufferPasses (
     + (config.stopIds.length > 0 ? 1 : 0)
   let completedChunks = 0
   if (totalChunks === 0) {
-    emit({ isLoading: true, currentStage: 'stop-buffer-geographies', phaseProgress: phaseDone('buffers') })
+    emit({ currentStage: 'stop-buffer-geographies', phaseProgress: phaseDone('buffers') })
     return
   }
 
@@ -86,7 +86,6 @@ export async function runBufferPasses (
     const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
     let completedInPass = 0
     const progressEvent = (): ScenarioProgress => ({
-      isLoading: true,
       currentStage: stage,
       phaseProgress: { phase: 'buffers', completed: completedChunks + completedInPass, total: totalChunks },
     })
@@ -135,7 +134,6 @@ export async function runBufferPasses (
     console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
     completedChunks += 1
     await emit({
-      isLoading: true,
       currentStage: 'aggregation-buffer-geographies',
       partialData: { aggregationBufferGeographies: geographies },
       phaseProgress: { phase: 'buffers', completed: completedChunks, total: totalChunks },

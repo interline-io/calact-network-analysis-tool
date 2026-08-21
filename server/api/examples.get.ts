@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { GenericStreamReceiver } from '~~/src/core'
 
 interface ProgressData {
-  isLoading: boolean
   currentStage: string
   config?: any
   error?: any

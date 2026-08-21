@@ -25,9 +25,9 @@ describe('GenericStreamSender', () => {
     const writer = requestStream(controller).getWriter()
     const sender = new GenericStreamSender<Progress>(writer)
     for (let seq = 0; seq < 5; seq++) {
-      sender.onProgress({ isLoading: true, currentStage: 'stops', seq })
+      sender.onProgress({ currentStage: 'stops', seq })
     }
-    await sender.onProgress({ isLoading: true, currentStage: 'stops', seq: 5 })
+    await sender.onProgress({ currentStage: 'stops', seq: 5 })
     expect(events().map(e => e.seq)).toEqual([0, 1, 2, 3, 4, 5])
   })
 
@@ -35,7 +35,7 @@ describe('GenericStreamSender', () => {
     const { controller, events } = collector()
     const writer = requestStream(controller).getWriter()
     const sender = new GenericStreamSender<Progress>(writer)
-    sender.onProgress({ isLoading: true, currentStage: 'stops' })
+    sender.onProgress({ currentStage: 'stops' })
     await sender.onComplete()
     await writer.close()
     expect(events().at(-1)?.currentStage).toBe('complete')
@@ -50,7 +50,7 @@ describe('GenericStreamSender', () => {
     const { controller, events } = collector()
     const writer = requestStream(controller).getWriter()
     const sender = new GenericStreamSender<Progress>(writer)
-    sender.onProgress({ isLoading: true, currentStage: 'stops' })
+    sender.onProgress({ currentStage: 'stops' })
     sender.onComplete()
     await writer.close().catch(() => {})
     expect(events().some(e => e.currentStage === 'complete')).toBe(false)
@@ -84,7 +84,7 @@ describe('requestStream backpressure', () => {
 
     const writer = requestStream(controller).getWriter()
     const sender = new GenericStreamSender<Progress>(writer)
-    const pending = sender.onProgress({ isLoading: true, currentStage: 'stops' })
+    const pending = sender.onProgress({ currentStage: 'stops' })
 
     await new Promise(resolve => setTimeout(resolve, 60))
     expect(enqueued).toHaveLength(0)
@@ -105,7 +105,7 @@ describe('requestStream backpressure', () => {
     } as unknown as ReadableStreamDefaultController
     const writer = requestStream(controller).getWriter()
     const sender = new GenericStreamSender<Progress>(writer)
-    await sender.onProgress({ isLoading: true, currentStage: 'stops' })
+    await sender.onProgress({ currentStage: 'stops' })
     expect(enqueued).toHaveLength(1)
   })
 })

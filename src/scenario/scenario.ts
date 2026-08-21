@@ -6,7 +6,6 @@ import {
   type GraphQLClient,
   type RequestFailure,
   GenericStreamReceiver,
-  GenericStreamSender,
   multiplexStream,
   requestStream,
   logMemory,
@@ -212,10 +211,7 @@ export interface ScenarioCallbacks {
  * Progress information for scenario fetching
  */
 export interface ScenarioProgress {
-  isLoading: boolean
-  // 'extra' is legacy: saved WSDOT example streams predate the report phases
-  // and carry the report under it as untyped extraData.
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'wsdot-levels' | 'wsdot-geographies' | 'complete' | 'ready' | 'extra'
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'wsdot-levels' | 'wsdot-geographies' | 'complete' | 'ready'
   currentStageMessage?: string
   // Running departure totals for a consumer that is not being sent the
   // departures themselves. Set by paths that fold them server-side and strip
@@ -254,7 +250,6 @@ export interface ScenarioProgress {
     // the full set of derived clusters (recomputed each time, not merged).
     stopClusters?: StopCluster[]
   }
-  extraData?: any
   config?: any
 }
 
@@ -754,15 +749,6 @@ export class ScenarioDataReceiver {
     return { ...this.accumulatedData }
   }
 }
-
-// ============================================================================
-// SCENARIO-SPECIFIC IMPLEMENTATIONS (backward compatibility)
-// ============================================================================
-
-/**
- * ScenarioCallbacks that write progress data to a stream
- */
-export class ScenarioStreamSender extends GenericStreamSender<ScenarioProgress> implements ScenarioCallbacks {}
 
 /**
  * Streaming client processes readable streams and uses ScenarioDataReceiver

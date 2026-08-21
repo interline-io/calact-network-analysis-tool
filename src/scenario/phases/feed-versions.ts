@@ -190,7 +190,6 @@ export async function runFeedVersionsPhase (
   }
 
   await emit({
-    isLoading: true,
     currentStage: 'feed-versions',
     partialData: { feedVersions },
     warnings: warnings.length > 0 ? warnings : undefined,

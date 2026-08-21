@@ -198,37 +198,6 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
     if (p?.wsdotBboxIntersection) {
       this.wsdotReport.bboxIntersection.push(...p.wsdotBboxIntersection)
     }
-
-    // Legacy: saved example streams predate the report phases and carry the
-    // report as untyped extraData under the 'extra' stage.
-    if (progress.extraData) {
-      this.mergeWSDOTReportData(progress.extraData as WSDOTReport)
-    }
-  }
-
-  private mergeWSDOTReportData (extraData: WSDOTReport): void {
-    if (extraData.stops) {
-      this.wsdotReport.stops.push(...extraData.stops)
-    }
-    if (extraData.levelStops) {
-      Object.assign(this.wsdotReport.levelStops, extraData.levelStops)
-    }
-    if (extraData.levelLayers) {
-      for (const [levelKey, layers] of Object.entries(extraData.levelLayers)) {
-        if (!this.wsdotReport.levelLayers[levelKey]) {
-          this.wsdotReport.levelLayers[levelKey] = {}
-        }
-        for (const [layerName, features] of Object.entries(layers)) {
-          if (!this.wsdotReport.levelLayers[levelKey][layerName]) {
-            this.wsdotReport.levelLayers[levelKey][layerName] = []
-          }
-          this.wsdotReport.levelLayers[levelKey][layerName].push(...features)
-        }
-      }
-    }
-    if (extraData.bboxIntersection) {
-      this.wsdotReport.bboxIntersection.push(...extraData.bboxIntersection)
-    }
   }
 
   /**

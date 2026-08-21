@@ -102,7 +102,7 @@ export function createFailureReporter (
 ): FailureReporter {
   const reported = new WeakSet<object>()
   const report = (failure: RequestFailure): void => {
-    emit({ isLoading: true, currentStage: currentStage(), requestErrors: [failure] })
+    emit({ currentStage: currentStage(), requestErrors: [failure] })
   }
   const previous = client.onRequestError
   client.onRequestError = (failure, error) => {

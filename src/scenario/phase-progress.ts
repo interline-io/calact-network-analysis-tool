@@ -14,8 +14,7 @@ import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName } from './phases'
 import type { ScenarioProgress } from './scenario'
 
 export interface PhaseProgressState {
-  // Absent until the run announces its plan, and for streams that predate it
-  // (saved example files).
+  // Absent until the run's opening event announces its plan.
   plan?: ScenarioPhaseName[]
   // Phase -> 0..1. Highest seen wins: stop pagination grows its own
   // denominator mid-phase, so the raw fraction can move backwards.
@@ -57,8 +56,7 @@ export function trackPhaseProgress (
  * of the fifteen points in a full plan, so counting phases would call a run
  * two thirds done before the expensive part began.
  *
- * Returns null when no plan has been announced, leaving the caller to fall
- * back rather than reporting a confident zero.
+ * Returns null before the plan announcement arrives.
  */
 export function phaseProgressPercent (state: PhaseProgressState): number | null {
   const plan = state.plan
@@ -76,15 +74,12 @@ export function phaseProgressPercent (state: PhaseProgressState): number | null 
 }
 
 /**
- * Whether a run executes this phase, for a UI deciding what to show.
- *
- * An unannounced plan shows everything: a saved example or an older stream
- * carries no plan, and hiding its results would be worse than showing a
- * counter that stays at zero.
+ * Whether a run executes this phase, for a UI deciding what to show. False
+ * until the run's opening event announces its plan.
  */
 export function planRunsPhase (
   plan: ScenarioPhaseName[] | undefined,
   phase: ScenarioPhaseName,
 ): boolean {
-  return !plan || plan.includes(phase)
+  return plan?.includes(phase) ?? false
 }

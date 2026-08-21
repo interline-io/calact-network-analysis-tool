@@ -109,7 +109,6 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
     deps.showLoadingModal.value = true
     deps.loadingProgress.value = {
-      isLoading: true,
       currentStage: 'ready',
       currentStageMessage: opts.loadingMessage,
     }

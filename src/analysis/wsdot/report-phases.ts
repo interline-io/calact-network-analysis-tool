@@ -174,7 +174,6 @@ export async function runWsdotLevelsPhase (
   emit: WSDOTPhaseEmit,
 ): Promise<WSDOTLevelsResult> {
   await emit({
-    isLoading: true,
     currentStage: 'wsdot-levels',
     currentStageMessage: 'Computing WSDOT service levels...',
   })
@@ -245,7 +244,6 @@ export async function runWsdotLevelsPhase (
   const stopChunks = chunkArray(stops, PROGRESS_LIMIT_STOPS)
   for (let i = 0; i < stopChunks.length; i++) {
     await emit({
-      isLoading: true,
       currentStage: 'wsdot-levels',
       partialData: { wsdotStops: stopChunks[i] ?? [] },
       currentStageMessage: `WSDOT stops batch ${i + 1} of ${stopChunks.length}...`,
@@ -253,14 +251,13 @@ export async function runWsdotLevelsPhase (
   }
   for (const [levelKey, stopIds] of Object.entries(levelStops)) {
     await emit({
-      isLoading: true,
       currentStage: 'wsdot-levels',
       partialData: { wsdotLevelStops: { [levelKey]: stopIds } },
       currentStageMessage: `WSDOT service level stops for ${levelKey}...`,
     })
   }
 
-  await emit({ isLoading: true, currentStage: 'wsdot-levels', phaseProgress: phaseDone('wsdot-levels') })
+  await emit({ currentStage: 'wsdot-levels', phaseProgress: phaseDone('wsdot-levels') })
   return { levelSets, levelStops, stops }
 }
 
@@ -350,7 +347,6 @@ export async function runWsdotGeographiesPhase (
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
     for (let i = 0; i < bboxChunks.length; i++) {
       await emit({
-        isLoading: true,
         currentStage: 'wsdot-geographies',
         partialData: { wsdotBboxIntersection: bboxChunks[i] ?? [] },
         phaseProgress: progress(),
@@ -373,7 +369,6 @@ export async function runWsdotGeographiesPhase (
     const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
     for (let i = 0; i < featureChunks.length; i++) {
       await emit({
-        isLoading: true,
         currentStage: 'wsdot-geographies',
         partialData: { wsdotLevelLayers: [{ level: task.level, layer: task.layer, features: featureChunks[i] ?? [] }] },
         phaseProgress: progress(),
@@ -382,7 +377,7 @@ export async function runWsdotGeographiesPhase (
     }
   }
 
-  await emit({ isLoading: true, currentStage: 'wsdot-geographies', phaseProgress: phaseDone('wsdot-geographies') })
+  await emit({ currentStage: 'wsdot-geographies', phaseProgress: phaseDone('wsdot-geographies') })
   return { bboxIntersection }
 }
 

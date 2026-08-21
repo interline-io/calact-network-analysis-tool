@@ -56,7 +56,6 @@ export async function runProgressStream (
     return sender.onProgress(p)
   }
   emit({
-    isLoading: true,
     currentStage: 'ready',
     currentStageMessage: opts.startMessage,
     config: opts.config,
@@ -69,7 +68,7 @@ export async function runProgressStream (
   const failures = createFailureReporter(client, emit, () => lastStage)
   try {
     await run(emit, failures.onError)
-    await emit({ isLoading: false, currentStage: 'complete' })
+    await emit({ currentStage: 'complete' })
   } catch (err) {
     // Awaited before the close in finally: writes are queued behind one
     // another, so closing first would drop the event that says what went
