@@ -14,8 +14,8 @@ import {
   type BufferEntityKind,
   type BufferGeographyIntersection,
 } from '~~/src/tl'
-import type { ScenarioProgress } from './scenario'
-import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './phases/common'
+import type { ScenarioProgress } from '../scenario'
+import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './common'
 
 // One route/agency per request. The server resolves these kinds an entity at a
 // time — a batch of N is N sequential queries inside one request — so batching

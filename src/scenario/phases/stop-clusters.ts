@@ -35,7 +35,7 @@ import {
   type FeedVersionRef,
   type PhaseEmit,
   type PhaseOpts,
-} from './phases/common'
+} from './common'
 
 /** Minimal per-stop input for clustering, decoupled from GraphQL types. */
 export interface ClusterInputStop {
