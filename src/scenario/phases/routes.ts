@@ -46,7 +46,6 @@ export async function runRoutesPhase (
     return {
       isLoading: true,
       currentStage: 'routes',
-      feedVersionProgress: p,
       phaseProgress: { phase: 'routes', completed: p.completed, total: p.total },
     }
   }

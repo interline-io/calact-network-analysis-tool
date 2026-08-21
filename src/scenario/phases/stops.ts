@@ -63,7 +63,6 @@ export async function runStopsPhase (
     return {
       isLoading: true,
       currentStage: 'stops',
-      feedVersionProgress: p,
       phaseProgress: { phase: 'stops', completed: p.completed, total: p.total },
     }
   }

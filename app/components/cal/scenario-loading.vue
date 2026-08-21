@@ -133,30 +133,14 @@ const cardColumnClass = computed(() => {
   return 'is-one-quarter'
 })
 
-// Computed values
+// Weighted across the run's announced phase plan. Streams without a plan
+// (saved examples that predate the announcement) read 0 — they load from a
+// static file, so there is no progress worth animating.
 const progressPercentage = computed(() => {
-  // Phase-weighted progress when the stream announced a plan
-  const weighted = phaseProgressPercent({
+  return phaseProgressPercent({
     plan: props.phasePlan,
     fractions: props.phaseFractions ?? {},
-  })
-  if (weighted !== null) {
-    return weighted
-  }
-  // Legacy fallback: streams without a phase plan (old saved examples,
-  // WSDOT analyses)
-  if (!props.progress) { return 0 }
-  let total = 0
-  let completed = 0
-  if (props.progress.feedVersionProgress) {
-    total += props.progress.feedVersionProgress.total
-    completed += props.progress.feedVersionProgress.completed
-  }
-  if (props.progress.stopDepartureProgress) {
-    total += props.progress.stopDepartureProgress.total
-    completed += props.progress.stopDepartureProgress.completed
-  }
-  return total > 0 ? Math.round((completed / total) * 100) : 0
+  }) ?? 0
 })
 
 // Total number of stops loaded

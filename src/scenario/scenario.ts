@@ -217,8 +217,6 @@ export interface ScenarioProgress {
   // and carry the report under it as untyped extraData.
   currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'wsdot-levels' | 'wsdot-geographies' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
-  stopDepartureProgress?: { total: number, completed: number }
-  feedVersionProgress?: { total: number, completed: number }
   // Running departure totals for a consumer that is not being sent the
   // departures themselves. Set by paths that fold them server-side and strip
   // `partialData.stopDepartures`, so the loading UI still has its numbers
@@ -343,13 +341,6 @@ export class ScenarioFetcher {
   // Installed for the duration of `fetch()`.
   private failures?: FailureReporter
 
-  // Latest per-phase queue counters, summed into the legacy progress fields
-  // so every emitted event carries pipeline-wide numbers (the loading modal
-  // computes its percentage from these).
-  private stopsProgress = { total: 0, completed: 0 }
-  private routesProgress = { total: 0, completed: 0 }
-  private departuresProgress = { total: 0, completed: 0 }
-
   constructor (
     config: ScenarioConfig,
     client: GraphQLClient,
@@ -380,28 +371,10 @@ export class ScenarioFetcher {
     }
   }
 
-  // Phase emissions carry only their own queue counters; route them into the
-  // right slot and re-emit with the summed pipeline totals attached.
+  // Track the stage for failure attribution, then forward.
   private emitProgress (progress: ScenarioProgress): void | Promise<void> {
     this.lastStage = progress.currentStage
-    if (progress.feedVersionProgress) {
-      if (progress.currentStage === 'stops') {
-        this.stopsProgress = progress.feedVersionProgress
-      } else if (progress.currentStage === 'routes') {
-        this.routesProgress = progress.feedVersionProgress
-      }
-    }
-    if (progress.stopDepartureProgress) {
-      this.departuresProgress = progress.stopDepartureProgress
-    }
-    return this.callbacks.onProgress?.({
-      ...progress,
-      feedVersionProgress: {
-        total: this.stopsProgress.total + this.routesProgress.total,
-        completed: this.stopsProgress.completed + this.routesProgress.completed,
-      },
-      stopDepartureProgress: { ...this.departuresProgress },
-    })
+    return this.callbacks.onProgress?.(progress)
   }
 
   // Start the scenario fetching process

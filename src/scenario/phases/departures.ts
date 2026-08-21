@@ -196,7 +196,6 @@ export async function runDeparturesPhase (
     return {
       isLoading: true,
       currentStage: 'schedules',
-      stopDepartureProgress: p,
       phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
     }
   }
