@@ -133,9 +133,8 @@ const cardColumnClass = computed(() => {
   return 'is-one-quarter'
 })
 
-// Weighted across the run's announced phase plan. Streams without a plan
-// (saved examples that predate the announcement) read 0 — they load from a
-// static file, so there is no progress worth animating.
+// Weighted across the run's announced phase plan, which every stream carries
+// on its opening event; 0 only in the moment before that event arrives.
 const progressPercentage = computed(() => {
   return phaseProgressPercent({
     plan: props.phasePlan,

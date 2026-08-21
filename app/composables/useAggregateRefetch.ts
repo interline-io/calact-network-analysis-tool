@@ -52,7 +52,6 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
     // Reuse the standalone census-values phase endpoint (it re-resolves
     // geographyIds or a plain bbox server-side) rather than a bespoke one.
     endpoint: '/api/scenario/census-values',
-    phase: 'census-values',
     loadingMessage: 'Recomputing aggregation demographics...',
     // Drop the previous layer's geographies up-front so a slow/failed refetch
     // can't leave the choropleth painting the old layer. Only for a layer

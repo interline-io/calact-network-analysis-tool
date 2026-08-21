@@ -51,7 +51,7 @@ export async function runAnalysis (
   opts: WSDOTAnalysisOptions = {},
 ): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
   // The envelope owns the stream lifecycle: the opening 'ready' (carrying the
-  // config for saved examples and the declared phase plan), error reporting,
+  // config and the declared phase plan), error reporting,
   // the single 'complete' — only emitted once the report phases after the
   // fetch have finished, so a failure during them can never arrive as a
   // successful empty report — and the close. Errors rethrow for the

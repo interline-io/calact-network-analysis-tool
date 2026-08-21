@@ -7,10 +7,11 @@
 // scenario data graph.
 
 import { shallowRef, ref, watch, markRaw, type Ref, type ShallowRef } from 'vue'
-import { useScenarioStream } from './useScenarioStream'
+import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import {
   ScenarioDataReceiver,
   applyScenarioResultFilter,
+  hasSearchArea,
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioFilter,
@@ -46,20 +47,21 @@ export interface UseScenarioRunReturn {
   // Ref-counts concurrent refetches so the modal closes only when the last settles.
   refetchInFlight: Ref<number>
   stopDepartureCount: Ref<number>
-  // Streams a scenario; pass an example name to load canned JSON, '' for a live query.
-  fetchScenario: (loadExample: string) => Promise<void>
+  // Streams a scenario. Returns false when validation declined to run.
+  fetchScenario: () => Promise<boolean>
+  // The shared modal/toast lifecycle around fetchScenario; see useScenarioStream.
+  runQuery: UseScenarioStreamReturn['runQuery']
 }
 
 export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn {
   const stream = useScenarioStream()
-  const showLoadingModal = ref(false)
   const refetchInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
 
-  const fetchScenario = async (loadExample: string): Promise<void> => {
+  const fetchScenario = async (): Promise<boolean> => {
     const config = deps.scenarioConfig.value
-    if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-      return // Need either bbox or geography IDs, unless loading example
+    if (!hasSearchArea(config)) {
+      return false
     }
 
     // Create receiver to accumulate scenario data
@@ -88,9 +90,8 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     })
     scenarioReceiver.value = receiver
 
-    await stream.run(receiver, loadExample
-      ? { url: `/examples/${loadExample}.json` }
-      : { url: '/api/scenario', body: config })
+    await stream.run(receiver, '/api/scenario', config)
+    return true
   }
 
   // Apply filters and emit results when data or filters change
@@ -109,7 +110,7 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
   return {
     scenarioReceiver,
     loadingProgress: stream.loadingProgress,
-    showLoadingModal,
+    showLoadingModal: stream.showLoadingModal,
     error: stream.error,
     requestErrors: stream.requestErrors,
     scenarioPhasePlan: stream.phasePlan,
@@ -117,5 +118,6 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     refetchInFlight,
     stopDepartureCount: stream.stopDepartureCount,
     fetchScenario,
+    runQuery: stream.runQuery,
   }
 }

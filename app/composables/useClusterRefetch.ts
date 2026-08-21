@@ -17,7 +17,6 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
   useStreamingRefetch(deps, {
     watchSources: [clusterDistance],
     endpoint: '/api/stop-clusters',
-    phase: 'stop-clusters',
     loadingMessage: 'Recomputing stop clusters...',
     // A failed recompute would otherwise strand hubs computed at the old distance.
     clearOnError: true,

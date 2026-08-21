@@ -20,13 +20,13 @@ export type ProgressEmit = (progress: ScenarioProgress) => void | Promise<void>
 export interface ProgressStreamOptions {
   // Message on the opening 'ready' event.
   startMessage: string
-  // Attached to the 'ready' event. Saved example streams carry the run's
-  // config this way, and /api/examples reads it back out of them.
+  // Attached to the 'ready' event so saved stream captures self-describe.
   config?: unknown
   // The run's phase plan, announced on the 'ready' event so the progress bar
-  // can apportion its slices before any work happens. Run-level framing, like
-  // completion: a run may span phases executed by more than one stage.
-  phasePlan?: ScenarioPhaseName[]
+  // can apportion its slices before any work happens. Required: every stream
+  // declares what it will run — derive with scenarioPhasePlan(config) for a
+  // browse config, or pass the run's own declared plan.
+  phasePlan: ScenarioPhaseName[]
 }
 
 // Run a scenario-shaped producer inside the shared stream envelope.

@@ -9,7 +9,7 @@ import { useScenarioStream } from './useScenarioStream'
 import { useToastNotification } from './useToastNotification'
 import { WSDOTReportDataReceiver, type WSDOTReport, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
-import type { ScenarioConfig, ScenarioData, ScenarioProgress } from '~~/src/scenario'
+import { hasSearchArea, type ScenarioConfig, type ScenarioData, type ScenarioProgress } from '~~/src/scenario'
 
 export interface UseWsdotReportDeps {
   // The browse config the report is built from.
@@ -35,14 +35,12 @@ export interface UseWsdotReportReturn {
   showLoadingModal: Ref<boolean>
   wsdotReport: ShallowRef<WSDOTReport | undefined>
   wsdotReportConfig: Ref<WSDOTReportConfig>
-  // Run the report; pass a canned-example URL to replay it instead of a live
-  // /api/wsdot request.
-  runQuery: (exampleUrl?: string) => Promise<void>
+  // Run the report inside the shared modal/toast lifecycle.
+  runQuery: () => Promise<void>
 }
 
 export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn {
   const stream = useScenarioStream()
-  const showLoadingModal = ref(false)
   const wsdotReport = shallowRef<WSDOTReport>()
   const wsdotReportConfig = ref<WSDOTReportConfig>({
     ...SCENARIO_DEFAULTS,
@@ -53,11 +51,11 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     ...deps.configExtras,
   })
 
-  const fetchReport = async (exampleUrl?: string): Promise<void> => {
+  const fetchReport = async (): Promise<boolean> => {
     const config = wsdotReportConfig.value
-    if (!exampleUrl && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+    if (!hasSearchArea(config)) {
       useToastNotification().showToast('Please provide a bounding box or geography IDs.')
-      return
+      return false
     }
 
     // Create receiver to accumulate scenario data and the WSDOT report
@@ -88,26 +86,11 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
       },
     })
 
-    await stream.run(receiver, exampleUrl
-      ? { url: exampleUrl }
-      : { url: '/api/wsdot', body: { config: wsdotReportConfig.value } })
+    await stream.run(receiver, '/api/wsdot', { config: wsdotReportConfig.value })
+    return true
   }
 
-  const runQuery = async (exampleUrl?: string): Promise<void> => {
-    showLoadingModal.value = true
-    try {
-      await fetchReport(exampleUrl)
-    } catch (err: any) {
-      stream.error.value = err
-    }
-    // Request failures hold the modal open too — the run finished, but the
-    // results are incomplete and the user has to see that.
-    if (!stream.error.value && stream.requestErrors.value.length === 0) {
-      useToastNotification().showToast(deps.successToast)
-      showLoadingModal.value = false
-    }
-    stream.loadingProgress.value = undefined
-  }
+  const runQuery = () => stream.runQuery(fetchReport, deps.successToast)
 
   return {
     loadingProgress: stream.loadingProgress,
@@ -117,7 +100,7 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     phaseFractions: stream.phaseFractions,
     stopDepartureCount: stream.stopDepartureCount,
     stopsWithDepartures: stream.stopsWithDepartures,
-    showLoadingModal,
+    showLoadingModal: stream.showLoadingModal,
     wsdotReport,
     wsdotReportConfig,
     runQuery,

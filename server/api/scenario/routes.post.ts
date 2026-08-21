@@ -13,6 +13,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'routeIds must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'Starting routes phase', (client, emit, onError) =>
+  return streamPhaseResponse(event, 'routes', 'Starting routes phase', (client, emit, onError) =>
     runRoutesPhase(config, client, emit, { onError }))
 })

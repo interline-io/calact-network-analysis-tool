@@ -20,6 +20,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'stopIds must be non-empty when routeStopIds is not given' })
   }
 
-  return streamPhaseResponse(event, 'Starting departures phase', (client, emit, onError) =>
+  return streamPhaseResponse(event, 'departures', 'Starting departures phase', (client, emit, onError) =>
     runDeparturesPhase(config, client, emit, { onError }))
 })

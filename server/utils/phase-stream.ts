@@ -6,7 +6,7 @@
 import type { H3Event } from 'h3'
 import { setHeader, sendStream } from 'h3'
 import { requestStream, type GraphQLClient } from '~~/src/core'
-import { runProgressStream, type ScenarioProgress } from '~~/src/scenario'
+import { runProgressStream, type ScenarioPhaseName, type ScenarioProgress } from '~~/src/scenario'
 import { buildServerGraphQLClient } from './graphql-client'
 
 // Headers for the NDJSON progress streams. The body is NDJSON, but typed as
@@ -20,13 +20,18 @@ export function setStreamHeaders (event: H3Event): void {
   setHeader(event, 'connection', 'keep-alive')
 }
 
-// Response wrapper for a run that streams NDJSON into the controller. The run
-// (via runProgressStream) reports its own failures on the stream and closes
-// it before rethrowing; the catch here is the backstop for anything thrown
-// outside the envelope. A start() that resolves without closing or erroring
-// the controller leaves the response open forever: the browser blocks on a
-// read that never returns, under a loading modal it cannot dismiss. Erroring
-// an already-closed controller is a no-op, so the normal path is unaffected.
+// Response wrapper for a run that streams NDJSON into the controller. The
+// catch here is a backstop for throws that happen before the envelope takes
+// over: a start() that resolves without closing or erroring the controller
+// leaves the response open forever — the browser blocks on a read that never
+// returns, under a loading modal it cannot dismiss.
+//
+// Envelope-wrapped runs must NOT let their rethrow reach this backstop: the
+// envelope has already reported the error on-stream and closed, and erroring
+// the controller while that error frame is still queued (a backpressured
+// consumer) resets the queue and discards it — the client would then see a
+// generic failure instead of the reported cause. Callers swallow-and-log the
+// envelope's rethrow instead.
 export async function streamServerResponse (
   event: H3Event,
   run: (client: GraphQLClient, controller: ReadableStreamDefaultController) => Promise<unknown>,
@@ -50,12 +55,18 @@ export async function streamServerResponse (
 
 // Wraps a bare phase run — one that takes emit/onError rather than a
 // controller — in the shared envelope, for the standalone phase endpoints.
+// The phase name becomes the stream's announced plan, so phase streams
+// self-describe like full runs do.
 export async function streamPhaseResponse (
   event: H3Event,
+  phase: ScenarioPhaseName,
   startMessage: string,
   run: (client: GraphQLClient, emit: (progress: ScenarioProgress) => void | Promise<void>, onError: (error: any) => void) => Promise<unknown>,
 ) {
   return streamServerResponse(event, (client, controller) =>
-    runProgressStream(requestStream(controller), client, { startMessage },
-      (emit, onError) => run(client, emit, onError)))
+    runProgressStream(requestStream(controller), client, { startMessage, phasePlan: [phase] },
+      (emit, onError) => run(client, emit, onError))
+      // The envelope already reported this failure on-stream and closed;
+      // reaching the backstop would discard the queued error frame.
+      .catch(err => console.error(`Phase run failed (${phase}):`, err)))
 }

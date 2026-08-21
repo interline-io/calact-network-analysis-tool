@@ -153,7 +153,7 @@ const {
   showLoadingModal,
   wsdotReport,
   wsdotReportConfig,
-  runQuery: runReport,
+  runQuery,
 } = useWsdotReport({
   scenarioConfig,
   scenarioData,
@@ -183,7 +183,4 @@ const handleCancel = () => {
 defineExpose({
   hasResults
 })
-
-// Runs on explore event from query (when user clicks "Run Query")
-const runQuery = () => runReport()
 </script>

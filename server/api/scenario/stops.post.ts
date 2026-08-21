@@ -19,6 +19,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName is required' })
   }
 
-  return streamPhaseResponse(event, 'Starting stops phase', (client, emit, onError) =>
+  return streamPhaseResponse(event, 'stops', 'Starting stops phase', (client, emit, onError) =>
     runStopsPhase(config, client, emit, { onError }))
 })

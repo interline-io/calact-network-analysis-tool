@@ -51,29 +51,6 @@
           </p>
         </header>
 
-        <cat-msg
-          v-if="debugMenu"
-          variant="warning"
-          class="mt-4"
-          title="Debug menu"
-        >
-          <cat-field label="Example configuration">
-            <cat-select v-model="selectedExample">
-              <option value="">
-                Select an example...
-              </option>
-              <option
-                v-for="example of exampleConfigs"
-                :key="example.filename"
-                :value="example.filename"
-              >
-                {{ example.config.reportName }}
-              </option>
-            </cat-select>
-          </cat-field>
-          <br>
-        </cat-msg>
-
         <div class="card-content">
           <cat-field>
             <template #label>
@@ -179,18 +156,8 @@
 </template>
 
 <script lang="ts" setup>
-import type { WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 
-interface ExampleConfig {
-  filename: string
-  config: WSDOTReportConfig
-  hasError: boolean
-}
-
-const debugMenu = useDebugMenu()
-const route = useRoute()
-const router = useRouter()
 const loading = ref(false)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
@@ -208,7 +175,7 @@ const {
   showLoadingModal,
   wsdotReport,
   wsdotReportConfig,
-  runQuery: runReport,
+  runQuery,
 } = useWsdotReport({
   scenarioConfig,
   scenarioData,
@@ -224,10 +191,6 @@ const {
     aggregateLayer: 'state',
   },
 })
-
-// Example configurations from index.json
-const exampleConfigs = ref<ExampleConfig[]>([])
-const selectedExample = ref<string>(String(route.query.selectedExample || ''))
 
 const emit = defineEmits<{
   cancel: []
@@ -245,69 +208,8 @@ const handleCancel = () => {
   emit('cancel')
 }
 
-// Load example configurations from index.json
-const loadExampleConfigs = async () => {
-  try {
-    const response = await fetch('/api/examples')
-    if (!response.ok) {
-      throw new Error(`Failed to fetch examples: ${response.status}`)
-    }
-    const data = await response.json()
-    exampleConfigs.value = data.files.filter((file: ExampleConfig) =>
-      file.filename.includes('.wsdot.') && !file.hasError,
-    )
-  } catch (err) {
-    console.error('Failed to load example configurations:', err)
-  }
-}
-
-// Watch for changes in selectedExample and auto-load
-watch(selectedExample, (newValue) => {
-  if (newValue) {
-    const example = exampleConfigs.value.find(config => config.filename === newValue)
-    console.log('Selected example:', newValue, example)
-    if (!example) {
-      return
-    }
-
-    // Update wsdotReportConfig with all values from the example
-    Object.assign(wsdotReportConfig.value!, {
-      ...example.config,
-      // Convert date strings back to Date objects if needed
-      weekdayDate: new Date(example.config.weekdayDate),
-      weekendDate: new Date(example.config.weekendDate),
-    })
-  }
-})
-
-// Sync selectedExample with URL query parameter
-watch(selectedExample, (newValue) => {
-  const currentQuery = { ...route.query }
-  if (newValue) {
-    currentQuery.selectedExample = newValue
-  } else {
-    delete currentQuery.selectedExample
-  }
-  router.replace({ query: currentQuery })
-})
-
-// Watch for URL changes to update selectedExample
-watch(() => route.query.selectedExample, (newValue) => {
-  const newSelectedExample = String(newValue || '')
-  if (selectedExample.value !== newSelectedExample) {
-    selectedExample.value = newSelectedExample
-  }
-})
-
-// Load examples on component mount
-onMounted(() => {
-  loadExampleConfigs()
-})
-
 // Expose hasResults to parent component
 defineExpose({
   hasResults,
 })
-
-const runQuery = () => runReport(selectedExample.value ? `/examples/${selectedExample.value}` : undefined)
 </script>

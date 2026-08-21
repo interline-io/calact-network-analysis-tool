@@ -276,9 +276,6 @@
                 {{ cannedBboxDetails.label }}
               </option>
             </cat-select>
-            <cat-button @click="loadExampleData">
-              Load example
-            </cat-button>
           </div>
         </cat-field>
       </cat-msg>
@@ -341,14 +338,9 @@ const emit = defineEmits([
   'fitToGeographies',
   'clearGeographies',
   'explore',
-  'loadExampleData',
   'switchToAnalysisTab',
   'resetScenario'
 ])
-
-const loadExampleData = async () => {
-  emit('loadExampleData', cannedBbox.value)
-}
 
 const props = defineProps<{
   censusGeographyLayerOptions: { label: string, value: string }[]

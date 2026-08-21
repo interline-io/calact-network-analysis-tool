@@ -16,6 +16,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName is required' })
   }
 
-  return streamPhaseResponse(event, 'Starting feed-versions phase', (client, emit) =>
+  return streamPhaseResponse(event, 'feed-versions', 'Starting feed-versions phase', (client, emit) =>
     runFeedVersionsPhase(config, client, emit))
 })

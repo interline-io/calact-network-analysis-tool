@@ -149,6 +149,12 @@ export function phaseEnabled (phase: ScenarioPhaseName, config: ScenarioConfig):
   return PHASE_ENABLED[phase](config)
 }
 
+// Whether a config carries a search area: a bbox or at least one geography id.
+// The one validation every run entry point shares, client and server.
+export function hasSearchArea (config: Pick<ScenarioConfig, 'bbox' | 'geographyIds'>): boolean {
+  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0
+}
+
 // The enabled phases for a browse config, in pipeline order. Runs with their
 // own fixed phase set declare a plan instead (ScenarioFetcher's `plan`).
 export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {

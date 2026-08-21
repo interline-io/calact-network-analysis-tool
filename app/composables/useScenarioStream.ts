@@ -1,12 +1,14 @@
 // Shared client-side consumption of a scenario NDJSON stream: the state refs a
-// loading modal reads, a progress folder for receiver callbacks, and a runner
-// that fetches a stream and drains it into a receiver.
+// loading modal reads, a progress folder for receiver callbacks, a runner that
+// fetches a stream and drains it into a receiver, and the run lifecycle around
+// the loading modal.
 //
-// Split in two on purpose. foldProgress belongs with the receiver, not the
-// request: the refetch composables stream into the same shared receiver as the
-// main run, so their events fold into the same state through the same
-// callback. run() owns one request's lifecycle. Browse and the two WSDOT
-// reports each construct their own receiver and share everything else here.
+// foldProgress belongs with the receiver, not the request: the refetch
+// composables stream into the same shared receiver as the main run, so their
+// events fold into the same state through the same callback. run() owns one
+// request's lifecycle; runQuery() owns the modal/toast framing around it.
+// Browse and the two WSDOT reports each construct their own receiver and
+// share everything else here.
 
 import { ref, type Ref } from 'vue'
 import { useToastNotification } from './useToastNotification'
@@ -19,13 +21,6 @@ import {
 } from '~~/src/scenario'
 import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
-
-// A live query POSTs `body` (with dates converted to calendar strings); an
-// example file omits it and is fetched with a plain GET.
-export interface ScenarioStreamRequest {
-  url: string
-  body?: unknown
-}
 
 export interface UseScenarioStreamReturn {
   loadingProgress: Ref<ScenarioProgress | undefined>
@@ -44,12 +39,21 @@ export interface UseScenarioStreamReturn {
   // server-side and send summary counts. Sticky here so the figure survives a
   // stream that ends without completing.
   stopsWithDepartures: Ref<number>
+  // The loading modal's visibility, shared with the refetch composables.
+  showLoadingModal: Ref<boolean>
   // Fold one progress event into the state above. Call from every receiver's
   // onProgress, whichever run or refetch the event came from.
   foldProgress: (progress: ScenarioProgress) => void
-  // Reset the state and stream one request into the receiver. Throws on HTTP
-  // errors; stream-level failures land in `error` instead.
-  run: (receiver: ScenarioDataReceiver, request: ScenarioStreamRequest) => Promise<void>
+  // Reset the state and stream one POST into the receiver. Throws on HTTP
+  // errors; stream-level failures land in `error` instead. Starting a new run
+  // supersedes any still-draining predecessor: its fetch aborts and its
+  // remaining events are dropped, never merged.
+  run: (receiver: ScenarioDataReceiver, url: string, body: unknown) => Promise<void>
+  // The run lifecycle around the loading modal: open it, run `fetch`, then
+  // either toast success and close, or leave the failure showing. `fetch`
+  // returns false when it declined to run (failed validation), which closes
+  // the modal with no toast. A superseded invocation touches nothing.
+  runQuery: (fetch: () => Promise<boolean>, successToast: string) => Promise<void>
 }
 
 export function useScenarioStream (): UseScenarioStreamReturn {
@@ -60,6 +64,7 @@ export function useScenarioStream (): UseScenarioStreamReturn {
   const phaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
   const stopDepartureCount = ref<number>(0)
   const stopsWithDepartures = ref<number>(0)
+  const showLoadingModal = ref(false)
 
   const foldProgress = (progress: ScenarioProgress): void => {
     loadingProgress.value = progress
@@ -91,7 +96,20 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     }
   }
 
-  const run = async (receiver: ScenarioDataReceiver, request: ScenarioStreamRequest): Promise<void> => {
+  // Monotonic run identity: a new run bumps the token, and everything the old
+  // run might still do — receiver events from its buffered tail, its final
+  // stream-ended check, its lifecycle framing — is gated on still holding the
+  // current token. A partial failed run is dropped, never resumed.
+  let runToken = 0
+  let abort: AbortController | undefined
+
+  const run = async (receiver: ScenarioDataReceiver, url: string, body: unknown): Promise<void> => {
+    const token = ++runToken
+    abort?.abort()
+    const controller = new AbortController()
+    abort = controller
+    const live = () => token === runToken
+
     // Clear state left by a prior run so a fresh run starts clean — a stale
     // error would keep the success path (gated on !error) suppressed.
     loadingProgress.value = undefined
@@ -102,13 +120,21 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     phasePlan.value = undefined
     phaseFractions.value = {}
 
-    const response = request.body === undefined
-      ? await fetch(request.url)
-      : await fetch(request.url, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(withCalendarDates(request.body)),
-        })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(withCalendarDates(body)),
+        signal: controller.signal,
+      })
+    } catch (err) {
+      // Superseded runs abort their own fetch; that is not a failure.
+      if (controller.signal.aborted) {
+        return
+      }
+      throw err
+    }
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -116,8 +142,18 @@ export function useScenarioStream (): UseScenarioStreamReturn {
       throw new Error('No response body received')
     }
 
-    const streamer = new ScenarioStreamReceiver()
-    const { success } = await streamer.processStream(response.body, receiver)
+    // The receiver is gated on run identity, so a superseded run's buffered
+    // tail cannot write into its successor's state.
+    const gated = {
+      onProgress: (progress: ScenarioProgress) => { if (live()) { receiver.onProgress(progress) } },
+      onComplete: () => { if (live()) { receiver.onComplete() } },
+      onError: (err: any) => { if (live()) { receiver.onError(err) } },
+      getCurrentData: () => receiver.getCurrentData(),
+    }
+    const { success } = await new ScenarioStreamReceiver().processStream(response.body, gated)
+    if (!live()) {
+      return
+    }
     // A failure the server managed to report is already in `error`, and its
     // stream then ends without a 'complete' too. Only a stream that stopped
     // without saying anything is the abnormal termination this describes —
@@ -128,6 +164,42 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     }
   }
 
+  // Separate from runToken: gates the modal/toast framing on being the most
+  // recent runQuery invocation, whether or not its fetch got far enough to
+  // start a run.
+  let queryToken = 0
+
+  const runQuery = async (fetch: () => Promise<boolean>, successToast: string): Promise<void> => {
+    const token = ++queryToken
+    showLoadingModal.value = true
+    let ran: boolean
+    try {
+      ran = await fetch()
+    } catch (err: any) {
+      if (token === queryToken) {
+        error.value = err
+      }
+      ran = true
+    }
+    // A newer invocation owns the modal and toasts now; this one is done.
+    if (token !== queryToken) {
+      return
+    }
+    // Declined validation: nothing ran, so there is nothing to report.
+    if (!ran) {
+      showLoadingModal.value = false
+      loadingProgress.value = undefined
+      return
+    }
+    // Request failures hold the modal open too — the run finished, but the
+    // results are incomplete and the user has to see that.
+    if (!error.value && requestErrors.value.length === 0) {
+      useToastNotification().showToast(successToast)
+      showLoadingModal.value = false
+    }
+    loadingProgress.value = undefined
+  }
+
   return {
     loadingProgress,
     error,
@@ -136,7 +208,9 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     phaseFractions,
     stopDepartureCount,
     stopsWithDepartures,
+    showLoadingModal,
     foldProgress,
     run,
+    runQuery,
   }
 }

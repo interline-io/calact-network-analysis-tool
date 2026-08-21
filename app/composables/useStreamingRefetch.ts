@@ -50,8 +50,6 @@ export interface StreamingRefetchOptions {
   // Reactive inputs whose change triggers a debounced refetch.
   watchSources: WatchSource[]
   endpoint: string
-  // Single-phase plan the loading bar tracks during the refetch.
-  phase: ScenarioPhaseName
   loadingMessage: string
   // Decide what this run should do (see RefetchPlan).
   plan: (data: ScenarioData, config: ScenarioConfig) => RefetchPlan
@@ -112,8 +110,8 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       currentStage: 'ready',
       currentStageMessage: opts.loadingMessage,
     }
-    deps.phasePlan.value = [opts.phase]
-    deps.phaseFractions.value = {}
+    // The phase endpoint announces its own single-phase plan on the stream's
+    // opening event; folding it resets the plan and fractions for this pass.
 
     try {
       const response = await fetch(opts.endpoint, {
@@ -131,7 +129,10 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       const streamer = new ScenarioStreamReceiver()
       const { success } = await streamer.processStream(response.body, receiver)
       if (!success) {
-        throw new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
+        // A failure the server managed to report is already in deps.error via
+        // the receiver; rethrow it rather than overwriting the cause with the
+        // generic message.
+        throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
       }
       deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
