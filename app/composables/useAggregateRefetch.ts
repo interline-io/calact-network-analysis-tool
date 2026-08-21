@@ -9,7 +9,7 @@ import { ref, watchEffect, type Ref } from 'vue'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
-import type { CensusValuesPhaseConfig } from '~~/src/scenario'
+import { phaseEnabled, type CensusValuesPhaseConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched
 // census values land in the same accumulator.
@@ -65,19 +65,18 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
     },
     clearStale: receiver => receiver.clearCensusGeographies(),
     plan: (data, config) => {
-      // Census was excluded at query time; nothing to recompute.
-      if (config.includeCensus === false) {
-        return 'skip'
-      }
-      if (!config.aggregateLayer || !config.tableDatasetName) {
+      // The phase's own enablement: census excluded at query time, or no
+      // layer/dataset to aggregate against — nothing to recompute.
+      if (!phaseEnabled('census-values', config)) {
         return 'skip'
       }
       const body: CensusValuesPhaseConfig = {
         bbox: config.bbox,
         geographyIds: config.geographyIds,
         geoDatasetName: config.geoDatasetName,
-        tableDatasetName: config.tableDatasetName,
-        aggregateLayer: config.aggregateLayer,
+        // The predicate above guarantees these are set.
+        tableDatasetName: config.tableDatasetName!,
+        aggregateLayer: config.aggregateLayer!,
         stopBufferRadius: config.stopBufferRadius,
         // An empty marked set means the filter excluded everything, so the
         // clip pass correctly skips and the values stay query-area.

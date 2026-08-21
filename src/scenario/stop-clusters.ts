@@ -23,7 +23,6 @@ import {
   convertBbox,
   parseHMS,
   routeTypeNames,
-  TaskQueue,
   WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
@@ -31,13 +30,12 @@ import {
 } from '~~/src/core'
 import { stopClusterQuery, type RouteGql, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
 import {
-  PHASE_MAX_CONCURRENT_REQUESTS,
   phaseDone,
+  phaseQueue,
   type FeedVersionRef,
   type PhaseEmit,
   type PhaseOpts,
 } from './phases/common'
-import type { ScenarioProgress } from './scenario'
 
 /** Minimal per-stop input for clustering, decoupled from GraphQL types. */
 export interface ClusterInputStop {
@@ -461,13 +459,7 @@ async function fetchStopClusterInputs (
   const stopLimit = config.stopLimit ?? 1000
   const inputs: ClusterInputStop[] = []
 
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      currentStage: 'stop-clusters',
-      phaseProgress: { phase: 'stop-clusters', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue } = phaseQueue<StopClusterFetchTask>('stop-clusters', emit, task => fetchPage(task), opts)
 
   async function fetchPage (task: StopClusterFetchTask): Promise<void> {
     const geoIds = config.geographyIds || []
@@ -500,15 +492,6 @@ async function fetchStopClusterInputs (
       })
     }
   }
-
-  const queue: TaskQueue<StopClusterFetchTask> = new TaskQueue<StopClusterFetchTask>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    task => fetchPage(task),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    },
-  )
 
   for (const fv of config.feedVersions) {
     queue.enqueueOne({

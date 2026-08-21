@@ -3,7 +3,7 @@
 // standalone via its own server endpoint, emitting the same ScenarioProgress
 // NDJSON envelope either way (the pattern established by buffer-passes).
 
-import { parseCalendarDate } from '~~/src/core'
+import { parseCalendarDate, TaskQueue } from '~~/src/core'
 import type { GraphQLClient, RequestFailure } from '~~/src/core'
 import type { ScenarioProgress } from '../scenario'
 
@@ -61,6 +61,30 @@ export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
 // and the slice would never fill).
 export function phaseDone (phase: ScenarioPhaseName): { phase: ScenarioPhaseName, completed: number, total: number } {
   return { phase, completed: 1, total: 1 }
+}
+
+// Progress plumbing for a queue-driven phase: a TaskQueue whose ticks emit the
+// phase's progress slice, an event builder for decorating payload emissions
+// with the current counters, and a `done` bookend that closes the slice.
+export function phaseQueue<T> (
+  phase: ScenarioPhaseName,
+  emit: PhaseEmit,
+  task: (item: T) => Promise<void>,
+  opts: PhaseOpts = {},
+): { queue: TaskQueue<T>, progressEvent: () => ScenarioProgress, done: () => void | Promise<void> } {
+  const queue: TaskQueue<T> = new TaskQueue<T>(PHASE_MAX_CONCURRENT_REQUESTS, task, {
+    onProgress: () => { emit(progressEvent()) },
+    onError: error => opts.onError?.(error),
+  })
+  const progressEvent = (): ScenarioProgress => {
+    const p = queue.getProgress()
+    return {
+      currentStage: phase,
+      phaseProgress: { phase, completed: p.completed, total: p.total },
+    }
+  }
+  const done = (): void | Promise<void> => emit({ currentStage: phase, phaseProgress: phaseDone(phase) })
+  return { queue, progressEvent, done }
 }
 
 // The slim feed version identity that stops/flex phases need — full

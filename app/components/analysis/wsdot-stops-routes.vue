@@ -123,30 +123,25 @@
 </template>
 
 <script lang="ts" setup>
-import type {
-  WSDOTReport,
-  WSDOTReportConfig
-} from '~~/src/analysis/wsdot'
-import {
-  WSDOTReportDataReceiver
-} from '~~/src/analysis/wsdot'
 import {
   processWsdotStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
 import type {
   WSDOTStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
 import type {
   ScenarioData,
   ScenarioConfig,
-  ScenarioProgress,
 } from '~~/src/scenario'
 
 const loading = ref(false)
-const showLoadingModal = ref(false)
-// Stream state + progress folding, shared with browse and the frequency
-// report so all three consumers of this stream report progress the same way.
+const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
+const scenarioData = defineModel<ScenarioData>('scenarioData')
+const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport>()
+
+// Report scaffolding shared with the frequency report: config, stream state,
+// receiver, and the run lifecycle around the loading modal. This report is
+// derived on top of the base WSDOT report once it completes.
 const {
   loadingProgress,
   error,
@@ -155,20 +150,17 @@ const {
   phaseFractions: scenarioPhaseFractions,
   stopDepartureCount,
   stopsWithDepartures,
-  foldProgress,
-  run,
-} = useScenarioStream()
-const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
-const scenarioData = defineModel<ScenarioData>('scenarioData')
-const wsdotReport = ref<WSDOTReport>()
-const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport>()
-const wsdotReportConfig = ref<WSDOTReportConfig>({
-  // WSDOT-specific required properties (not in ScenarioConfig)
-  ...SCENARIO_DEFAULTS,
-  ...scenarioConfig.value,
-  reportName: 'wsdot-report',
-  weekdayDate: scenarioConfig.value!.startDate!,
-  weekendDate: scenarioConfig.value!.endDate!,
+  showLoadingModal,
+  wsdotReport,
+  wsdotReportConfig,
+  runQuery: runReport,
+} = useWsdotReport({
+  scenarioConfig,
+  scenarioData,
+  successToast: 'WSDOT stops and routes analysis completed successfully!',
+  onComplete: (data, report) => {
+    wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(data, report)
+  },
 })
 
 const emit = defineEmits<{
@@ -193,63 +185,5 @@ defineExpose({
 })
 
 // Runs on explore event from query (when user clicks "Run Query")
-const runQuery = async () => {
-  showLoadingModal.value = true
-  try {
-    await fetchScenario('')
-  } catch (err: any) {
-    error.value = err
-  }
-  // Request failures hold the modal open too — the run finished, but the
-  // results are incomplete and the user has to see that.
-  if (!error.value && requestErrors.value.length === 0) {
-    useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
-    showLoadingModal.value = false
-  }
-  loadingProgress.value = undefined
-}
-
-// Based on components/analysis/wsdot.vue fetchScenario
-const fetchScenario = async (loadExample: string) => {
-  const config = scenarioConfig.value!
-  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    // Need either bbox or geography IDs, unless loading example
-    useToastNotification().showToast('Please provide a bounding box or geography IDs.')
-    return
-  }
-
-  // Create receiver to accumulate scenario data and WSDOT report
-  const receiver = new WSDOTReportDataReceiver({
-    onProgress: (progress: ScenarioProgress) => {
-      foldProgress(progress)
-      if ((progress.partialData?.routes?.length ?? 0) === 0 && (progress.partialData?.stops?.length ?? 0) === 0) {
-        return
-      }
-      // Counts for the loading modal. Deriving the report itself is left to
-      // completion: it maps every stop and route accumulated so far, so doing
-      // it per batch is quadratic in the stop count, and a statewide run drew
-      // it a few hundred times over tens of thousands of stops. That made the
-      // client too slow to keep up with the stream, which is what backed the
-      // server's output up until it ran out of memory.
-      scenarioData.value = receiver.getCurrentData()
-    },
-    onComplete: () => {
-      loadingProgress.value = undefined
-      // Get final data from receiver
-      scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
-      if (scenarioData.value && wsdotReport.value) {
-        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
-      }
-    },
-    onError: (err: any) => {
-      loadingProgress.value = undefined
-      error.value = err
-    }
-  })
-
-  await run(receiver, loadExample
-    ? { url: `/examples/${loadExample}.json` }
-    : { url: '/api/wsdot', body: { config: wsdotReportConfig.value } })
-}
+const runQuery = () => runReport()
 </script>

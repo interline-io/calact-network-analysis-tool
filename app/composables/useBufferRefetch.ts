@@ -8,8 +8,7 @@
 
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
-import type { BufferFetchConfig } from '~~/src/scenario'
+import { phaseEnabled, type BufferFetchConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched buffer
 // geographies land in the same accumulator as the main scenario fetch.
@@ -26,8 +25,14 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
     clearBeforeFetch: true,
     clearStale: receiver => receiver.clearBufferGeographies(),
     plan: (data, config) => {
-      // Census demographics were excluded at query time; don't fetch them post-hoc.
-      if (config.includeCensus === false) {
+      // Disabling buffers (radius 0) just clears the slice — no server call.
+      if (!(stopBufferRadius.value > 0)) {
+        return 'clear'
+      }
+      // The phase's own enablement, for the radius now in effect: a config
+      // whose fetch excluded census or fixed-route data has nothing to
+      // recompute post-hoc.
+      if (!phaseEnabled('buffers', { ...config, stopBufferRadius: stopBufferRadius.value })) {
         return 'skip'
       }
       const agencyIds = [...new Set(
@@ -37,7 +42,8 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
         radius: stopBufferRadius.value,
         layer: stopBufferLayer.value,
         geoDatasetName: geoDatasetName.value,
-        tableDatasetName: config.tableDatasetName ?? SCENARIO_DEFAULTS.tableDatasetName,
+        // The predicate above guarantees this is set.
+        tableDatasetName: config.tableDatasetName!,
         stopIds: data.stops.map(s => s.id),
         routeIds: data.routes.map(r => r.id),
         agencyIds,

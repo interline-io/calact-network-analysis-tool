@@ -141,6 +141,13 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
   'wsdot-geographies': () => false,
 }
 
+// Whether a browse config enables a phase — the per-phase predicate behind
+// scenarioPhasePlan, shared with the client refetch gates so they cannot
+// drift from the plan derivation.
+export function phaseEnabled (phase: ScenarioPhaseName, config: ScenarioConfig): boolean {
+  return PHASE_ENABLED[phase](config)
+}
+
 // The enabled phases for a browse config, in pipeline order. Runs with their
 // own fixed phase set declare a plan instead (ScenarioFetcher's `plan`).
 export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {

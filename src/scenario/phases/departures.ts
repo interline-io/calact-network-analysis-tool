@@ -9,10 +9,9 @@
 // wall-clock time.
 
 import { format } from 'date-fns'
-import { chunkArray, parseHMS, TaskQueue, type GraphQLClient } from '~~/src/core'
+import { chunkArray, parseHMS, type GraphQLClient } from '~~/src/core'
 import { routeTripsQuery, type RouteTripFrequency, type RouteTripsResponse } from '~~/src/tl'
-import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
-import type { ScenarioProgress } from '../scenario'
+import { getSelectedDateRange, phaseQueue, type PhaseEmit, type PhaseOpts } from './common'
 
 // Routes per GraphQL request. One, because that is the shape this phase's
 // measured performance was established with.
@@ -182,22 +181,7 @@ export async function runDeparturesPhase (
     : getSelectedDateRange(config).map(d => format(d, 'yyyy-MM-dd'))
   const batchSize = config.routeBatchSize ?? TRIP_ROUTE_BATCH_SIZE
 
-  const queue: TaskQueue<TripFetchTask> = new TaskQueue<TripFetchTask>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    task => fetchRouteTrips(task),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    },
-  )
-
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      currentStage: 'departures',
-      phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue, progressEvent, done } = phaseQueue<TripFetchTask>('departures', emit, task => fetchRouteTrips(task), opts)
 
   async function fetchRouteTrips (task: TripFetchTask): Promise<void> {
     const { routeIds: chunk, dates, stopIds } = task
@@ -317,5 +301,5 @@ export async function runDeparturesPhase (
     }
   }
   await queue.run()
-  emit({ ...progressEvent(), phaseProgress: phaseDone('departures') })
+  done()
 }

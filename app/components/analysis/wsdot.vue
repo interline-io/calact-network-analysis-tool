@@ -179,10 +179,8 @@
 </template>
 
 <script lang="ts" setup>
-import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
-import { WSDOTReportDataReceiver } from '~~/src/analysis/wsdot'
-import type { ScenarioData, ScenarioConfig, ScenarioProgress } from '~~/src/scenario'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
+import type { WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 
 interface ExampleConfig {
   filename: string
@@ -194,9 +192,11 @@ const debugMenu = useDebugMenu()
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
-const showLoadingModal = ref(false)
-// Stream state + progress folding, shared with browse and the stops-and-routes
-// report so all three consumers of this stream report progress the same way.
+const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
+const scenarioData = shallowRef<ScenarioData>()
+
+// Report scaffolding shared with the stops-and-routes report: config, stream
+// state, receiver, and the run lifecycle around the loading modal.
 const {
   loadingProgress,
   error,
@@ -205,32 +205,29 @@ const {
   phaseFractions: scenarioPhaseFractions,
   stopDepartureCount,
   stopsWithDepartures,
-  foldProgress,
-  run,
-} = useScenarioStream()
-const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
-const scenarioData = shallowRef<ScenarioData>()
-const wsdotReport = shallowRef<WSDOTReport>()
+  showLoadingModal,
+  wsdotReport,
+  wsdotReportConfig,
+  runQuery: runReport,
+} = useWsdotReport({
+  scenarioConfig,
+  scenarioData,
+  successToast: 'WSDOT analysis completed successfully!',
+  configExtras: {
+    // This report has no map; route shapes are 98% of the routes query and are
+    // never read here. The stops-and-routes report, which exports them, leaves
+    // this alone.
+    includeRouteGeometry: false,
+    // Only the aggregation layer is read, for each stop's state name.
+    includeAllCensusLayers: false,
+    stopBufferRadius: 800, // Override default of 0
+    aggregateLayer: 'state',
+  },
+})
 
 // Example configurations from index.json
 const exampleConfigs = ref<ExampleConfig[]>([])
 const selectedExample = ref<string>(String(route.query.selectedExample || ''))
-const wsdotReportConfig = ref<WSDOTReportConfig>({
-  ...SCENARIO_DEFAULTS,
-  ...scenarioConfig.value,
-  reportName: 'wsdot-report',
-  weekdayDate: scenarioConfig.value!.startDate!,
-  weekendDate: scenarioConfig.value!.endDate!,
-  // This report has no map; route shapes are 98% of the routes query and are
-  // never read here. The stops-and-routes report, which exports them, leaves
-  // this alone.
-  includeRouteGeometry: false,
-  // Only the aggregation layer is read, for each stop's state name.
-  includeAllCensusLayers: false,
-  // WSDOT-specific required properties (not in ScenarioConfig)
-  stopBufferRadius: 800, // Override default of 0
-  aggregateLayer: 'state',
-})
 
 const emit = defineEmits<{
   cancel: []
@@ -312,50 +309,5 @@ defineExpose({
   hasResults,
 })
 
-const runQuery = async () => {
-  showLoadingModal.value = true
-  try {
-    await fetchScenario()
-  } catch (err: any) {
-    error.value = err
-  }
-  // Request failures hold the modal open too — the run finished, but the
-  // results are incomplete and the user has to see that.
-  if (!error.value && requestErrors.value.length === 0) {
-    useToastNotification().showToast('WSDOT analysis completed successfully!')
-    showLoadingModal.value = false
-  }
-  loadingProgress.value = undefined
-}
-
-const fetchScenario = async () => {
-  const config = wsdotReportConfig.value!
-  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    // Need either bbox or geography IDs, unless loading example
-    useToastNotification().showToast('Please provide a bounding box or geography IDs.')
-    return
-  }
-
-  // Create receiver to accumulate scenario data and WSDOT report
-  const receiver = new WSDOTReportDataReceiver({
-    onProgress: (progress: ScenarioProgress) => {
-      foldProgress(progress)
-      scenarioData.value = receiver.getCurrentData()
-    },
-    onComplete: () => {
-      loadingProgress.value = undefined
-      // Get final data from receiver
-      scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
-    },
-    onError: (err: any) => {
-      loadingProgress.value = undefined
-      error.value = err
-    },
-  })
-
-  await run(receiver, selectedExample.value
-    ? { url: `/examples/${selectedExample.value}` }
-    : { url: '/api/wsdot', body: { config: wsdotReportConfig.value } })
-}
+const runQuery = () => runReport(selectedExample.value ? `/examples/${selectedExample.value}` : undefined)
 </script>

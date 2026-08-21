@@ -14,7 +14,7 @@
 // See: https://github.com/interline-io/transitland-lib/pull/527
 
 import { format } from 'date-fns'
-import { TaskQueue, WEEKDAY_BY_GETDAY, fmtDate, parseCalendarDate, type GraphQLClient } from '~~/src/core'
+import { WEEKDAY_BY_GETDAY, fmtDate, parseCalendarDate, type GraphQLClient } from '~~/src/core'
 import {
   flexLocationQuery,
   flexStopTimesQuery,
@@ -22,7 +22,7 @@ import {
   type FlexLocationQueryResponse,
   type FlexStopTimesQueryResponse,
 } from '~~/src/tl'
-import { getSelectedDateRange, PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
+import { getSelectedDateRange, phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
 /**
  * Maximum number of flex locations to fetch per feed version.
@@ -116,29 +116,16 @@ export async function runFlexPhase (
   emit: PhaseEmit,
   opts: PhaseOpts = {},
 ): Promise<void> {
+  const { queue, done } = phaseQueue<FeedVersionRef>('flex-areas', emit, fv => fetchFlexArea(fv), opts)
+
   if (config.feedVersions.length === 0) {
     console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
-    emit({ currentStage: 'flex-areas', phaseProgress: phaseDone('flex-areas') })
+    done()
     return
   }
 
   emit({ currentStage: 'flex-areas' })
   console.log(`[FlexAreas] Fetching flex areas from ${config.feedVersions.length} feed versions`)
-
-  const queue: TaskQueue<FeedVersionRef> = new TaskQueue<FeedVersionRef>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    fv => fetchFlexArea(fv),
-    {
-      onProgress: () => {
-        const p = queue.getProgress()
-        emit({
-          currentStage: 'flex-areas',
-          phaseProgress: { phase: 'flex-areas', completed: p.completed, total: p.total },
-        })
-      },
-      onError: error => opts.onError?.(error),
-    }
-  )
 
   // Fetch flex areas for a single feed version
   async function fetchFlexArea (fv: FeedVersionRef): Promise<void> {
@@ -206,7 +193,7 @@ export async function runFlexPhase (
     queue.enqueueOne(fv)
   }
   await queue.run()
-  emit({ currentStage: 'flex-areas', phaseProgress: phaseDone('flex-areas') })
+  done()
 
   console.log(`[FlexAreas] Complete`)
 }
