@@ -195,6 +195,8 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'route-buffer-geographies': 'Loading per-route buffer demographics...',
     'agency-buffer-geographies': 'Loading per-agency buffer demographics...',
     'aggregation-buffer-geographies': 'Loading aggregation buffer demographics...',
+    'wsdot-levels': 'Computing WSDOT service levels...',
+    'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',
     'ready': 'Ready',
   }

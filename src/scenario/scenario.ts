@@ -117,11 +117,12 @@ export interface ScenarioConfig {
   stopClusterDistance?: number
 }
 
-// Single source of truth for which phases a config enables. Drives both the
-// emitted phase plan and fetchMain's execution gating, so the two cannot
-// drift: a phase runs if and only if it is in the plan. Routes, departures,
-// and buffers execute inside the stops block (they consume its ids), so
-// their predicates must imply the stops predicate.
+// Single source of truth for which phases a *browse* config enables: the
+// derived plan for runs that don't declare one. Routes, departures, and
+// buffers execute inside the stops block (they consume its ids), so their
+// predicates must imply the stops predicate. Report phases are never part of
+// a derived plan — they join a run only through an explicitly declared plan
+// (e.g. WSDOT_PHASE_PLAN).
 const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
   'feed-versions': () => true,
   'stops': config => config.includeFixedRoute !== false,
@@ -138,9 +139,12 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
   'census-values': config => config.includeCensus !== false
     && !!config.tableDatasetName
     && !!config.aggregateLayer,
+  'wsdot-levels': () => false,
+  'wsdot-geographies': () => false,
 }
 
-// The enabled phases for a scenario config, in pipeline order.
+// The enabled phases for a browse config, in pipeline order. Runs with their
+// own fixed phase set declare a plan instead (ScenarioFetcher's `plan`).
 export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {
   return SCENARIO_PHASE_ORDER.filter(phase => PHASE_ENABLED[phase](config))
 }
@@ -209,7 +213,9 @@ export interface ScenarioCallbacks {
  */
 export interface ScenarioProgress {
   isLoading: boolean
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'complete' | 'ready' | 'extra'
+  // 'extra' is legacy: saved WSDOT example streams predate the report phases
+  // and carry the report under it as untyped extraData.
+  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'wsdot-levels' | 'wsdot-geographies' | 'complete' | 'ready' | 'extra'
   currentStageMessage?: string
   stopDepartureProgress?: { total: number, completed: number }
   feedVersionProgress?: { total: number, completed: number }
@@ -262,11 +268,15 @@ export interface ScenarioProgress {
  * For cases that need accumulated data, compose with multiplexStream + ScenarioStreamReceiver.
  */
 export async function streamScenario (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<void> {
+  // One derived plan flows to both the announcement and the fetcher's
+  // execution gate, so the two cannot drift.
+  const plan = scenarioPhasePlan(config)
   await runProgressStream(requestStream(controller), client, {
     startMessage: 'Starting scenario fetcher',
     config,
+    phasePlan: plan,
   }, async (emit) => {
-    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit })
+    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit }, plan)
     await fetcher.fetch()
   })
 }
@@ -283,11 +293,13 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
   const receiver = new ScenarioDataReceiver({})
   const scenarioClientProgress = new ScenarioStreamReceiver().processStream(outputStream, receiver)
 
+  const plan = scenarioPhasePlan(config)
   await runProgressStream(inputStream, client, {
     startMessage: 'Starting scenario fetcher',
     config,
+    phasePlan: plan,
   }, async (emit) => {
-    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit })
+    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit }, plan)
     await fetcher.fetch()
   })
 
@@ -316,6 +328,14 @@ export class ScenarioFetcher {
   private callbacks: ScenarioCallbacks
   private client: GraphQLClient
 
+  // The phases this run executes, in pipeline order. Defaults to the
+  // browse-derived plan for the config; a report run declares its own.
+  private plan: ScenarioPhaseName[]
+
+  // The geography context the feed-versions phase resolved, kept for callers
+  // that run report stages after the fetch (so they don't re-resolve).
+  resolvedGeography?: ResolvedGeographyContext
+
   // The stage a request-failure report is attributed to, so reporting one
   // doesn't rewind the stage the loading modal is displaying.
   private lastStage: ScenarioProgress['currentStage'] = 'ready'
@@ -333,11 +353,13 @@ export class ScenarioFetcher {
   constructor (
     config: ScenarioConfig,
     client: GraphQLClient,
-    callbacks: ScenarioCallbacks = {}
+    callbacks: ScenarioCallbacks = {},
+    plan?: ScenarioPhaseName[],
   ) {
     this.config = config
     this.callbacks = callbacks
     this.client = client
+    this.plan = plan ?? scenarioPhasePlan(config)
   }
 
   async fetch () {
@@ -389,18 +411,12 @@ export class ScenarioFetcher {
     // A failed task doesn't abort its phase — it reports and the rest continue.
     const onError = (error: any) => this.failures?.onError(error)
 
-    // Announce the plan before any work so the progress bar can apportion
-    // its slices across exactly the phases this run will execute. The same
-    // plan gates execution below.
-    const plan = scenarioPhasePlan(this.config)
-    const enabled = new Set(plan)
-    console.log(`[Scenario] phase plan: ${plan.join(', ')}`)
-    this.emitProgress({
-      isLoading: true,
-      currentStage: 'ready',
-      currentStageMessage: 'Planning scenario phases',
-      phasePlan: plan,
-    })
+    // The plan gates execution here; announcing it to the stream is the
+    // envelope's job (the 'ready' event), since a run may include report
+    // phases executed after this fetcher by whoever composed it. Phases in
+    // the plan this fetcher doesn't implement are simply not its to run.
+    const enabled = new Set(this.plan)
+    console.log(`[Scenario] phase plan: ${this.plan.join(', ')}`)
 
     // FIRST STAGE: resolve the geography and active feed versions in the area
     const { feedVersions, resolved } = await runFeedVersionsPhase({
@@ -410,6 +426,7 @@ export class ScenarioFetcher {
       feedVersionOverrides: this.config.feedVersionOverrides,
       excludedFeeds: this.config.excludedFeeds,
     }, this.client, emit)
+    this.resolvedGeography = resolved
     logMemory('after-feed-versions')
     const fvRefs: FeedVersionRef[] = feedVersions.map(fv => ({
       feedOnestopId: fv.feed.onestop_id,

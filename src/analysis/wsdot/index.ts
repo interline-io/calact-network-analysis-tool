@@ -1,98 +1,32 @@
+import { requestStream, type GraphQLClient } from '~~/src/core'
 import {
-  requestStream,
-  fmtDate,
-  parseCalendarDate,
-  type GraphQLClient,
-  type Geometry,
-  type Bbox,
-  chunkArray,
-} from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, runProgressStream, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress, type ScenarioPhaseName } from '~~/src/scenario'
-import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
-import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
-import { resolveGeographyContext } from '~~/src/scenario'
-import { WSDOTFrequencyAggregator, type FrequencyLabels } from './frequency'
+  runProgressStream,
+  ScenarioFetcher,
+  ScenarioDataReceiver,
+  StopDepartureTuple,
+  type ScenarioData,
+  type ScenarioProgress,
+} from '~~/src/scenario'
+import { WSDOTFrequencyAggregator } from './frequency'
 import { WSDOTStopCollector } from './stops'
+import {
+  runWsdotLevelsPhase,
+  runWsdotGeographiesPhase,
+  wsdotDepartureDates,
+  wsdotReportDates,
+  WSDOT_PHASE_PLAN,
+  type WSDOTReport,
+  type WSDOTReportConfig,
+  type WSDOTReportPartialData,
+  type WSDOTProgress,
+} from './report-phases'
 
-// Re-export the public service-level config so consumers (e.g. wsdot-viewer.vue)
-// keep importing it from ~~/src/analysis/wsdot.
+// Re-export the report's phases, config, and types so consumers keep
+// importing everything from ~~/src/analysis/wsdot.
+export * from './report-phases'
 export { SERVICE_LEVELS, levelColors, type LevelKey } from './service-levels'
 export { WSDOTFrequencyAggregator, type FrequencyData, type FrequencyLabels } from './frequency'
 export { WSDOTStopCollector, type WSDOTStopRecord } from './stops'
-
-// Constants for progress updates
-const PROGRESS_LIMIT_STOPS = 1000
-const PROGRESS_LIMIT_BBOX_FEATURES = 100
-
-export interface WSDOTReport {
-  stops: WSDOTStopResult[]
-  levelStops: Record<string, number[]>
-  levelLayers: Record<string, Record<string, GeographyDataFeature[]>>
-  bboxIntersection: GeographyDataFeature[]
-}
-
-export interface WSDOTStopResult {
-  feedOnestopId: string
-  feedVersionSha1: string
-  stateName: string
-  stopId: string
-  stopName: string
-  stopLat: number
-  stopLon: number
-  level6: boolean
-  level5: boolean
-  level4: boolean
-  level3: boolean
-  level2: boolean
-  level1: boolean
-  levelNights: boolean
-  levelAll: boolean
-}
-
-export interface WSDOTReportConfig extends ScenarioConfig {
-  weekdayDate: Date
-  weekendDate: Date
-  stopBufferRadius: number
-  tableDatasetName: string
-  tableDatasetTable: string
-  tableDatasetTableCol: string
-  geoDatasetName: string
-  geoDatasetLayer: string
-  routeHourCompatMode: boolean
-}
-
-// The calendar dates the report reads: the weekday, the weekend day, and the
-// day after the weekday, whose early hours are the post-midnight half of the
-// night segments. Everything else in the scenario's date range is fetched (the
-// client's map and tables show it) but never folded.
-//
-// The config crosses a JSON boundary on the server, so these are strings at
-// runtime rather than the Dates the type states.
-export function wsdotReportDates (config: WSDOTReportConfig): Date[] {
-  const weekday = configDate(config.weekdayDate)
-  const overnight = new Date(weekday.valueOf())
-  overnight.setDate(overnight.getDate() + 1)
-  return [weekday, configDate(config.weekendDate), overnight]
-}
-
-// Shared with the scenario phases so both read a config date the same way.
-function configDate (value: Date | string): Date {
-  return parseCalendarDate(value) ?? new Date(value.valueOf())
-}
-
-/**
- * What the analysis stage needs to reach the client. Narrower than the stream
- * sender, so the report fetcher cannot close or complete the stream from under
- * runAnalysis.
- */
-export interface WSDOTProgressSink {
-  onProgress: (progress: ScenarioProgress) => void | Promise<void>
-}
-
-// The only phases either report reads from. Asserted in tests against the
-// plan runAnalysis actually emits, so a phase that starts running again is
-// caught wholesale rather than one flag at a time.
-export const WSDOT_FETCH_PHASES: ScenarioPhaseName[] = ['feed-versions', 'stops', 'routes', 'departures']
 
 export interface WSDOTAnalysisOptions {
   /**
@@ -110,29 +44,6 @@ export interface WSDOTAnalysisOptions {
   retainScenarioEntities?: boolean
 }
 
-/**
- * The calendar dates the departures phase has to fetch for the report.
- *
- * The report reads three days, but a departure stated past 24:00:00 belongs to
- * the day after its service date, so the day before each is fetched too. That
- * matters here more than most places: levelNights is entirely about service
- * that runs past midnight, and a Saturday-only late trip landing on the
- * Sunday being analyzed would be invisible without its service date.
- *
- * The result is five dates for the usual weekday/weekend pair, whatever range
- * the user picked, so the departure cost stops following the scenario range.
- */
-export function wsdotDepartureDates (config: WSDOTReportConfig): string[] {
-  const dates = new Set<string>()
-  for (const date of wsdotReportDates(config)) {
-    const previous = new Date(date.valueOf())
-    previous.setDate(previous.getDate() - 1)
-    dates.add(fmtDate(previous))
-    dates.add(fmtDate(date))
-  }
-  return [...dates].sort()
-}
-
 export async function runAnalysis (
   controller: ReadableStreamDefaultController,
   config: WSDOTReportConfig,
@@ -140,16 +51,18 @@ export async function runAnalysis (
   opts: WSDOTAnalysisOptions = {},
 ): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
   // The envelope owns the stream lifecycle: the opening 'ready' (carrying the
-  // config for saved examples), error reporting, the single 'complete' — only
-  // emitted once the analysis stage after the fetch phases has finished, so a
-  // failure during the analysis can never arrive as a successful empty report
-  // — and the close. Errors rethrow for the in-process callers that build a
-  // report out of the return value: an empty WSDOTReport is structurally valid
-  // and would export as a plausible report of a total service desert.
+  // config for saved examples and the declared phase plan), error reporting,
+  // the single 'complete' — only emitted once the report phases after the
+  // fetch have finished, so a failure during them can never arrive as a
+  // successful empty report — and the close. Errors rethrow for the
+  // in-process callers that build a report out of the return value: an empty
+  // WSDOTReport is structurally valid and would export as a plausible report
+  // of a total service desert.
   let result: { scenarioData: ScenarioData, wsdotResult: WSDOTReport } | undefined
   await runProgressStream(requestStream(controller), client, {
     startMessage: 'Starting WSDOT fetcher',
     config,
+    phasePlan: WSDOT_PHASE_PLAN,
   }, async (emit) => {
     // Nothing downstream of here reads a departure. The browser shows two
     // numbers from them, so the numbers are what it gets: the tuples are folded
@@ -160,43 +73,25 @@ export async function runAnalysis (
     const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
 
     // Every event bound for the client goes through here, including the ones
-    // the analysis stage emits after the scenario phases are done. Attaching
-    // the totals at each call site instead would leave those events without
-    // them. Awaited by the phases, so the fetch slows to the rate the client
-    // reads at rather than queuing what it has not taken yet.
-    const clientSender: WSDOTProgressSink = {
-      onProgress: progress => emit({
-        ...withoutDepartures(progress),
-        departureSummary: departureSummary(),
-      }),
-    }
+    // the report phases emit after the fetch phases are done. Attaching the
+    // totals at each call site instead would leave those events without them.
+    // Awaited by the phases, so the run slows to the rate the client reads at
+    // rather than queuing what it has not taken yet.
+    const send = (progress: ScenarioProgress) => emit({
+      ...withoutDepartures(progress),
+      departureSummary: departureSummary(),
+    })
 
-    // These reports read stops, routes and departures. Nothing in them reads
-    // flex areas, buffer demographics, census values or stop clusters, so those
-    // phases are turned off rather than fetched and discarded. The report's own
-    // geography numbers come from getGeographyData, which queries independently.
-    //
-    // Overridden rather than defaulted, deliberately. The browse config these
-    // reports are built from carries explicit values for all of them, so `??`
-    // never fires and every phase runs. See WSDOT_FETCH_PHASES for the plan
-    // this is expected to produce.
-    //
-    // The two the report cannot do without are pinned on for the same reason:
-    // the browse config carries the user's Browse checkboxes, and an unchecked
-    // "include departures" or "include fixed route" would otherwise produce a
-    // structurally valid report with no service level on any stop — a service
-    // desert reported as a success.
-    //
-    // departureDates does default, because nothing else sets it and a caller
-    // narrowing further is a reasonable thing to want.
+    // The phases come from the declared plan, so the browse flags that gate
+    // phases never apply here: flex, census, buffers and clusters are absent
+    // because they are not declared, not because a flag turned them off. What
+    // the copy pins are parameters — routeHourCompatMode for the analysis,
+    // and departureDates, which defaults to the report's own days so the
+    // departure cost stops following the scenario range (a caller narrowing
+    // further is a reasonable thing to want).
     const configCopy = {
       ...config,
       routeHourCompatMode: true,
-      includeFixedRoute: true,
-      includeDepartures: true,
-      includeFlexAreas: false,
-      includeCensus: false,
-      stopClusterDistance: 0,
       departureDates: config.departureDates ?? wsdotDepartureDates(config),
     }
 
@@ -217,7 +112,7 @@ export async function runAnalysis (
         if (batch) {
           stops.add(batch)
         }
-        return clientSender.onProgress(progress)
+        return send(progress)
       },
     }, {
       onStopDepartures: (batch) => {
@@ -231,263 +126,36 @@ export async function runAnalysis (
       dropRouteGeometry: !opts.retainScenarioEntities,
     })
 
-    // Start the fetch process
-    const fetcher = new ScenarioFetcher(configCopy, client, receiver)
+    // The fetch phases, gated by the declared plan.
+    const fetcher = new ScenarioFetcher(configCopy, client, receiver, WSDOT_PHASE_PLAN)
     await fetcher.fetch()
-
     const scenarioData = receiver.getCurrentData()
 
-    // Update the client with the wsdot result
-    clientSender.onProgress({
-      isLoading: true,
-      currentStage: 'extra',
-      currentStageMessage: 'Running WSDOT frequency analysis...'
-    })
+    // The report phases, over the folded records the fetch just produced.
+    const levels = await runWsdotLevelsPhase(configCopy, {
+      frequency,
+      stops,
+      routes: scenarioData.routes,
+    }, send)
+    const { bboxIntersection } = await runWsdotGeographiesPhase(configCopy, {
+      levelSets: levels.levelSets,
+      // Resolved once by the feed-versions phase; set whenever fetch() returns.
+      resolved: fetcher.resolvedGeography!,
+    }, client, send)
 
-    const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, clientSender)
-    const wsdotResult = await wsdotFetcher.fetch()
-    result = { scenarioData, wsdotResult }
-  })
-  return result!
-}
-
-export class WSDOTReportFetcher {
-  private config: WSDOTReportConfig
-  private scenarioData: ScenarioData
-  private stops: WSDOTStopCollector
-  private frequency: WSDOTFrequencyAggregator
-  private client: GraphQLClient
-  private progressSender: WSDOTProgressSink
-
-  constructor (
-    config: WSDOTReportConfig,
-    data: ScenarioData,
-    stops: WSDOTStopCollector,
-    frequency: WSDOTFrequencyAggregator,
-    client: GraphQLClient,
-    progressSender: WSDOTProgressSink
-  ) {
-    this.config = config
-    this.scenarioData = data
-    this.stops = stops
-    this.frequency = frequency
-    this.client = client
-    this.progressSender = progressSender
-  }
-
-  async fetch (): Promise<WSDOTReport> {
-    console.log('Starting WSDOT frequency analysis...')
-
-    const labels = this.frequencyLabels()
-    const [weekdayDate, weekendDate, overnightDate] = wsdotReportDates(this.config)
-
-    // Extract frequency data for weekday and weekend
-    const weekdayFreq = this.buildFrequencyData(weekdayDate!, labels, 'weekday')
-    const weekendFreq = this.buildFrequencyData(weekendDate!, labels, 'weekend')
-
-    // Departures land on the calendar day they run, so the night that follows
-    // the weekday is in the next day's data. Its early hours feed the night
-    // segments; the scenario range must extend a day past weekdayDate for
-    // levelNights to see anything.
-    const overnightFreq = this.buildFrequencyData(overnightDate!, labels, 'overnight')
-    if (this.frequency.departureCount(overnightDate!) === 0) {
-      console.warn(`No departures on ${fmtDate(overnightDate)} — night service after ${fmtDate(weekdayDate)} cannot be evaluated`)
-    }
-
-    const results: Record<string, Set<number>> = {}
-    const levelStops: Record<string, number[]> = {}
-
-    // Process each service level
-    for (const [levelKey, config] of Object.entries(SERVICE_LEVELS)) {
-      console.log(`===== Processing ${levelKey} =====`)
-      const qualifyingStops = processServiceLevel(config, weekdayFreq, weekendFreq, overnightFreq, this.config.routeHourCompatMode)
-      levelStops[levelKey] = Array.from(qualifyingStops)
-      results[levelKey] = qualifyingStops
-      console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
-    }
-
-    // Fetch geography data for the stops in each level (and all stops)
-    const baseGeographyConfig: getGeographyDataConfig = {
-      client: this.client,
-      tableDatasetName: this.config.tableDatasetName,
-      tableDatasetTable: this.config.tableDatasetTable,
-      tableDatasetTableCol: this.config.tableDatasetTableCol,
-      geoDatasetName: this.config.geoDatasetName,
-      geoDatasetLayer: this.config.geoDatasetLayer,
-    }
-
-    // Get bbox population (tract intersections).
-    //
-    // Resolved rather than read straight off the config: a run started from
-    // geography ids carries no bbox, and this query has no other spatial
-    // filter, so it asked for every tract in the dataset nationwide.
-    const geography = await resolveGeographyContext({
-      bbox: this.config.bbox,
-      geographyIds: this.config.geographyIds,
-      geoDatasetName: this.config.geoDatasetName,
-    }, this.client)
-    let bboxIntersection: GeographyDataFeature[] = []
-    if (geography.bbox || geography.within) {
-      console.log(`Fetching tract populations for bbox...`)
-      bboxIntersection = await getGeographyData({
-        ...baseGeographyConfig,
-        geoDatasetLayer: 'tract',
-        bbox: geography.bbox,
-        within: geography.within,
-      })
-    } else {
-      console.warn('No search area resolved — skipping the bbox tract population, which would otherwise be unbounded')
-    }
-
-    // Sent and released as each layer arrives rather than collected: the levels
-    // are nested, so eight statewide tract sets are largely the same outlines,
-    // and holding them all before sending any is what exhausted the Worker.
-    const sendGeographyLayer = async (levelKey: string, geoDatasetLayer: string, stopIds: Set<number>) => {
-      const geoConfig: getGeographyDataConfig = {
-        ...baseGeographyConfig,
-        stopIds: stopIds,
-        geoDatasetLayer: geoDatasetLayer,
-        stopBufferRadius: this.config.stopBufferRadius || 0,
-        // Only tract outlines are ever drawn, behind the stop-buffer toggle.
-        includeIntersectionGeometry: geoDatasetLayer === 'tract',
-      }
-      console.log(`Fetching geography data for layer: ${geoConfig.geoDatasetName}:${geoDatasetLayer} table ${geoConfig.tableDatasetName}:${geoConfig.tableDatasetTable}:${geoConfig.tableDatasetTableCol} with ${stopIds.size} stop IDs`)
-      const data = await getGeographyData(geoConfig)
-      const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
-      for (let i = 0; i < featureChunks.length; i++) {
-        await this.progressSender.onProgress({
-          isLoading: true,
-          currentStage: 'extra',
-          extraData: {
-            stops: [],
-            levelStops: {},
-            levelLayers: { [levelKey]: { [geoDatasetLayer]: featureChunks[i] ?? [] } },
-            bboxIntersection: []
-          },
-          currentStageMessage: `WSDOT ${levelKey} ${geoDatasetLayer} batch ${i + 1} of ${featureChunks.length}...`
-        })
-      }
-    }
-
-    const bufferRadius = this.config.stopBufferRadius || 0
-    if (bufferRadius <= 0) {
-      console.warn('getGeographyData: stopBufferRadius is zero or negative, skipping geography fetch')
-    }
-
-    // The state rollup is the viewer's population denominator, and it reads
-    // only levelAll's. The buffer picks which states appear, not their totals,
-    // so one fetch answers it for every level.
-    const allStops = results.levelAll
-    if (bufferRadius > 0 && allStops && allStops.size > 0) {
-      await sendGeographyLayer('levelAll', 'state', allStops)
-    }
-
-    for (const [levelKey, stopIds] of Object.entries(results)) {
-      console.log(`\n====== ${levelKey} ======`)
-      console.log(`${levelKey}: ${stopIds.size} qualifying stops`)
-      if (bufferRadius <= 0 || stopIds.size === 0) {
-        continue
-      }
-      await sendGeographyLayer(levelKey, 'tract', stopIds)
-    }
-
-    // Build final result. Every stop in the scenario is listed, which is what
-    // the frequency maps' domain gave before they were built from counters.
-    // Stops that arrived without geometry are skipped, as they were before.
-    const stops: WSDOTStopResult[] = []
-
-    for (const stop of this.stops.all) {
-      if (stop.lat === null || stop.lon === null) {
-        continue
-      }
-      const stopId = stop.id
-      stops.push({
-        feedOnestopId: stop.feedOnestopId,
-        feedVersionSha1: stop.feedVersionSha1,
-        stateName: stop.stateName,
-        stopId: stop.gtfsStopId,
-        stopName: stop.stopName,
-        stopLat: stop.lat,
-        stopLon: stop.lon,
-        level6: results.level6?.has(stopId) || false,
-        level5: results.level5?.has(stopId) || false,
-        level4: results.level4?.has(stopId) || false,
-        level3: results.level3?.has(stopId) || false,
-        level2: results.level2?.has(stopId) || false,
-        level1: results.level1?.has(stopId) || false,
-        levelNights: results.levelNights?.has(stopId) || false,
-        levelAll: true,
-      })
-    }
-
-    // Awaited, every one of them. send() stringifies and encodes on the spot
-    // and only queues the write, so emitting these without waiting builds the
-    // encoded bytes for the whole report at once — every stop chunk, every
-    // service level's geography on both layers (tract with intersection
-    // geometry), and the bbox intersection — while the objects they came from
-    // are still live. That is the largest payload in the run, on a 128 MB
-    // Worker, at the moment the frequency maps are also resident.
-    // Send stops in batches using the generic helper function
-    const stopChunks = chunkArray(stops, PROGRESS_LIMIT_STOPS)
-    for (let i = 0; i < stopChunks.length; i++) {
-      await this.progressSender.onProgress({
-        isLoading: true,
-        currentStage: 'extra',
-        extraData: { stops: stopChunks[i], levelStops: {}, levelLayers: {}, bboxIntersection: [] },
-        currentStageMessage: `WSDOT stops batch ${i + 1} of ${stopChunks.length}...`
-      })
-    }
-
-    // Send levelStops by individual level
-    for (const [levelKey, stopIds] of Object.entries(levelStops)) {
-      await this.progressSender.onProgress({
-        isLoading: true,
-        currentStage: 'extra',
-        extraData: { stops: [], levelStops: { [levelKey]: stopIds }, levelLayers: {}, bboxIntersection: [] },
-        currentStageMessage: `WSDOT service level stops for ${levelKey}...`
-      })
-    }
-
-    // Send bboxIntersection in batches using the generic helper function
-    const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
-    for (let i = 0; i < bboxChunks.length; i++) {
-      await this.progressSender.onProgress({
-        isLoading: true,
-        currentStage: 'extra',
-        extraData: { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: bboxChunks[i] },
-        currentStageMessage: `WSDOT bbox intersection batch ${i + 1} of ${bboxChunks.length}...`
-      })
-    }
-
-    console.log('WSDOT frequency analysis completed...')
     // levelLayers is empty by design: the geography layers went out on the
     // stream as they were fetched, and the client rebuilds them in its receiver.
-    return { stops, levelStops, levelLayers: {}, bboxIntersection }
-  }
-
-  // Numeric id -> GTFS id for every stop and route the scenario fetched. These
-  // are the domain the frequency maps are built over, so a stop with no
-  // service still appears with empty counters.
-  private frequencyLabels (): FrequencyLabels {
-    const routeGtfsIds = new Map<number, string>()
-    for (const route of this.scenarioData.routes) {
-      routeGtfsIds.set(route.id, route.route_id)
+    result = {
+      scenarioData,
+      wsdotResult: {
+        stops: levels.stops,
+        levelStops: levels.levelStops,
+        levelLayers: {},
+        bboxIntersection,
+      },
     }
-    return { stopGtfsIds: this.stops.gtfsIds(), routeGtfsIds }
-  }
-
-  // One date's frequency maps, plus the per-hour summary the cache-based
-  // extraction used to print while it walked the departures.
-  private buildFrequencyData (date: Date, labels: FrequencyLabels, label: string) {
-    const freq = this.frequency.build(date, labels)
-    const dateStr = fmtDate(date)
-    console.log(`Analyzed ${freq.stops.size} stops for ${label} ${dateStr} with ${this.frequency.departureCount(date)} departures`)
-    const totals = this.frequency.hourlyTotals(date)
-    for (let hour = 0; hour < totals.length; hour++) {
-      console.log(`\thour ${hour}: ${totals[hour]} departures`)
-    }
-    return freq
-  }
+  })
+  return result!
 }
 
 // Strips the departure payload from an event bound for the client, along with
@@ -503,11 +171,9 @@ function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
 }
 
 /**
- * Specialized receiver that extends ScenarioDataReceiver to handle WSDOT report aggregation
- * Accumulates scenario data and merges batched WSDOT report data from extraData
- *
- * For browser consumers, which reassemble the report from the NDJSON stream.
- * The server builds it in-process and returns it from runAnalysis instead.
+ * Receiver for browser consumers, which reassemble the report from the NDJSON
+ * stream; the server builds it in-process and returns it from runAnalysis.
+ * Extends ScenarioDataReceiver with the report phases' typed payloads.
  */
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
@@ -515,24 +181,38 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   override onProgress (progress: ScenarioProgress): void {
     super.onProgress(progress)
 
-    // Handle WSDOT report extraData aggregation
+    const p: WSDOTReportPartialData | undefined = (progress as WSDOTProgress).partialData
+    if (p?.wsdotStops) {
+      this.wsdotReport.stops.push(...p.wsdotStops)
+    }
+    if (p?.wsdotLevelStops) {
+      Object.assign(this.wsdotReport.levelStops, p.wsdotLevelStops)
+    }
+    if (p?.wsdotLevelLayers) {
+      for (const chunk of p.wsdotLevelLayers) {
+        const layers = this.wsdotReport.levelLayers[chunk.level] || (this.wsdotReport.levelLayers[chunk.level] = {})
+        const features = layers[chunk.layer] || (layers[chunk.layer] = [])
+        features.push(...chunk.features)
+      }
+    }
+    if (p?.wsdotBboxIntersection) {
+      this.wsdotReport.bboxIntersection.push(...p.wsdotBboxIntersection)
+    }
+
+    // Legacy: saved example streams predate the report phases and carry the
+    // report as untyped extraData under the 'extra' stage.
     if (progress.extraData) {
       this.mergeWSDOTReportData(progress.extraData as WSDOTReport)
     }
   }
 
   private mergeWSDOTReportData (extraData: WSDOTReport): void {
-    // Merge stops by appending new ones
     if (extraData.stops) {
       this.wsdotReport.stops.push(...extraData.stops)
     }
-
-    // Merge levelStops by assigning/updating object properties
     if (extraData.levelStops) {
       Object.assign(this.wsdotReport.levelStops, extraData.levelStops)
     }
-
-    // Deep merge levelLayers - merge each level and append to existing layer arrays
     if (extraData.levelLayers) {
       for (const [levelKey, layers] of Object.entries(extraData.levelLayers)) {
         if (!this.wsdotReport.levelLayers[levelKey]) {
@@ -546,8 +226,6 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
         }
       }
     }
-
-    // Merge bboxIntersection by appending new features
     if (extraData.bboxIntersection) {
       this.wsdotReport.bboxIntersection.push(...extraData.bboxIntersection)
     }
@@ -559,65 +237,4 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   getCurrentWSDOTReport (): WSDOTReport {
     return { ...this.wsdotReport }
   }
-}
-
-////////////////
-// Fetch geography data for a set of stop IDs
-////////////////
-
-// Adds pre-computed total_population/intersection_population from the
-// configured tableDatasetTableCol on top of CensusGeographyFeature.
-interface GeographyDataFeature {
-  id: string
-  type: string
-  properties: CensusGeographyFeature['properties'] & {
-    total_population: number
-    intersection_population: number
-    [key: string]: any
-  }
-  geometry: Geometry | null
-}
-
-interface getGeographyDataConfig {
-  client: GraphQLClient
-  // Clips against the admin polygon when a run was started from geography ids
-  // rather than a bbox. Takes precedence over bbox in the query.
-  within?: GeoJSON.Polygon
-  tableDatasetName: string
-  tableDatasetTable: string
-  tableDatasetTableCol: string
-  geoDatasetName: string
-  geoDatasetLayer: string
-  stopIds?: Set<number>
-  stopBufferRadius?: number
-  includeIntersectionGeometry?: boolean
-  bbox?: Bbox
-}
-
-async function getGeographyData (
-  config: getGeographyDataConfig,
-): Promise<GeographyDataFeature[]> {
-  const features = await fetchCensusIntersection({
-    client: config.client,
-    geoDatasetName: config.geoDatasetName,
-    geoDatasetLayer: config.geoDatasetLayer,
-    tableDatasetName: config.tableDatasetName,
-    tableNames: [config.tableDatasetTable],
-    bbox: config.bbox,
-    within: config.within,
-    stopIds: config.stopIds,
-    stopBufferRadius: config.stopBufferRadius,
-    includeIntersectionGeometry: config.includeIntersectionGeometry,
-  })
-  return features.map((f): GeographyDataFeature => {
-    const totalPop = f.properties.values[config.tableDatasetTableCol] || 0
-    return {
-      ...f,
-      properties: {
-        ...f.properties,
-        total_population: totalPop,
-        intersection_population: totalPop * f.properties.intersection_ratio,
-      },
-    }
-  })
 }

@@ -389,22 +389,25 @@ describe('ScenarioFetcher', () => {
     })
   })
 
-  it('emits a phase plan and per-phase completion ticks', async () => {
+  it('runs per-phase completion ticks for every planned phase', async () => {
     const client = new MockGraphQLClient()
     client.mockQuery
       .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
       .mockResolvedValueOnce(stopsResponse)
       .mockResolvedValue({ data: { stops: [] } }) // departure queries
 
+    // Announcing the plan is the stream envelope's job; the fetcher's is
+    // executing it, with the derived plan as the default.
+    const plan = scenarioPhasePlan({ ...config, includeFlexAreas: false })
+    expect(plan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
+
     const progressCb = vi.fn()
     const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, { onProgress: progressCb })
     await fetcher.fetch()
 
     const events = progressCb.mock.calls.map(([p]) => p)
-    const planEvent = events.find(p => p.phasePlan)
-    expect(planEvent?.phasePlan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
     // Every planned phase reports a completed progress slice
-    for (const phase of planEvent!.phasePlan!) {
+    for (const phase of plan) {
       const done = events.some(p =>
         p.phaseProgress?.phase === phase
         && p.phaseProgress.total > 0

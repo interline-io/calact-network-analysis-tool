@@ -27,12 +27,17 @@ export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 
 // Phase identities for the progress plan and weights. 'buffers' covers all
 // four buffer passes as a single slice. 'stop-clusters' is the transfer-hub
-// pass (a separate stop query with nearby_stops neighbors).
-export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'flex-areas' | 'census-values'
+// pass (a separate stop query with nearby_stops neighbors). The 'wsdot-*'
+// names are the WSDOT report's own phases (implemented in src/analysis/wsdot);
+// only their identity lives here, so plans and progress cover them like any
+// fetch phase.
+export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'flex-areas' | 'census-values' | 'wsdot-levels' | 'wsdot-geographies'
 
-// Pipeline ordering for phase plans and progress display.
+// Pipeline ordering for phase plans and progress display. Report phases come
+// after the fetch phases they consume.
 export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
   'feed-versions', 'stops', 'routes', 'departures', 'buffers', 'stop-clusters', 'flex-areas', 'census-values',
+  'wsdot-levels', 'wsdot-geographies',
 ]
 
 // Relative progress-bar weight per phase; the consumer normalizes over the
@@ -47,6 +52,8 @@ export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
   'stop-clusters': 2,
   'flex-areas': 1,
   'census-values': 1,
+  'wsdot-levels': 1,
+  'wsdot-geographies': 3,
 }
 
 // Final tick for a phase's progress slice. Also covers phases whose queue

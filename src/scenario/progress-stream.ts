@@ -9,7 +9,7 @@
 
 import { GenericStreamSender } from '~~/src/core'
 import type { GraphQLClient } from '~~/src/core'
-import { createFailureReporter } from './phases'
+import { createFailureReporter, type ScenarioPhaseName } from './phases'
 import type { ScenarioProgress } from './scenario'
 
 // Emit for the run body. Awaitable: a run that just emitted a bulk payload
@@ -23,6 +23,10 @@ export interface ProgressStreamOptions {
   // Attached to the 'ready' event. Saved example streams carry the run's
   // config this way, and /api/examples reads it back out of them.
   config?: unknown
+  // The run's phase plan, announced on the 'ready' event so the progress bar
+  // can apportion its slices before any work happens. Run-level framing, like
+  // completion: a run may span phases executed by more than one stage.
+  phasePlan?: ScenarioPhaseName[]
 }
 
 // Run a scenario-shaped producer inside the shared stream envelope.
@@ -56,6 +60,7 @@ export async function runProgressStream (
     currentStage: 'ready',
     currentStageMessage: opts.startMessage,
     config: opts.config,
+    phasePlan: opts.phasePlan,
   })
 
   // Installed for the whole run, so a request that fails after exhausting its

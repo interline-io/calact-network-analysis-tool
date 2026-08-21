@@ -4,13 +4,16 @@
 // composes them inline; server/api/scenario/* exposes each standalone.
 // (buffer-passes.ts is the seventh phase; it predates this directory.)
 
-// Re-export only common's public surface. The phase-contract plumbing
-// (PhaseEmit, PhaseOpts, phaseDone, PHASE_MAX_CONCURRENT_REQUESTS) stays
-// internal — phase modules import it directly from './common'.
+// Re-export common's public surface. Most phase-contract plumbing (PhaseEmit,
+// PhaseOpts, PHASE_MAX_CONCURRENT_REQUESTS) stays internal — the fetch phase
+// modules import it directly from './common' — but phaseDone is public: phase
+// implementations living outside this directory (the WSDOT report phases)
+// close their progress slices with it too.
 export {
   createFailureReporter,
   type FailureReporter,
   getSelectedDateRange,
+  phaseDone,
   SCENARIO_PHASE_ORDER,
   SCENARIO_PHASE_WEIGHTS,
   type ScenarioPhaseName,

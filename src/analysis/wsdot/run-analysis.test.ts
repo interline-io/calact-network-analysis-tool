@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
-import { runAnalysis, WSDOT_FETCH_PHASES, type WSDOTReportConfig } from './index'
+import { runAnalysis, WSDOT_PHASE_PLAN, type WSDOTProgress, type WSDOTReportConfig } from './index'
 import { parseDate, SCENARIO_DEFAULTS, type Bbox, type GraphQLClient } from '~~/src/core'
-import type { ScenarioProgress } from '~~/src/scenario'
 
 class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock = vi.fn()
@@ -97,7 +96,7 @@ async function run (opts?: { retainScenarioEntities?: boolean }) {
 // reports its own phases done, so what reaches the wire around that boundary
 // decides whether a mid-analysis failure is visible.
 function capture () {
-  const sent: ScenarioProgress[] = []
+  const sent: WSDOTProgress[] = []
   const controller = {
     enqueue: (chunk: Uint8Array) => {
       for (const line of new TextDecoder().decode(chunk).split('\n')) {
@@ -127,7 +126,9 @@ describe('runAnalysis completion signalling', () => {
     expect(completes).toHaveLength(1)
     expect(sent.at(-1)?.currentStage).toBe('complete')
     // The report went out before the completion did.
-    expect(sent.findIndex(p => p.extraData)).toBeLessThan(sent.length - 1)
+    const firstReportEvent = sent.findIndex(p => p.partialData?.wsdotStops)
+    expect(firstReportEvent).toBeGreaterThanOrEqual(0)
+    expect(firstReportEvent).toBeLessThan(sent.length - 1)
   })
 
   it('does not report completion when the analysis fails', async () => {
@@ -204,18 +205,16 @@ describe('runAnalysis geography queries', () => {
 })
 
 describe('runAnalysis fetch policy', () => {
-  it('runs exactly the phases the report reads, whatever the caller asks for', async () => {
-    // The browse config these reports are built from carries explicit values
-    // for flex, census, buffers and clustering, so nothing here can be left to
-    // default. Asserting the whole plan catches a phase coming back on, rather
-    // than needing a separate test per flag.
+  it('runs exactly the declared plan, whatever the caller asks for', async () => {
+    // The plan is declared (WSDOT_PHASE_PLAN), not derived from the config, so
+    // the browse flags a caller's config carries must not change what runs.
     //
     // Every flag below is set the wrong way for this report: the ones it does
     // not read are on, and the two it cannot do without are off. Dropping
     // stops or departures is the worse direction — the run still succeeds, and
     // every stop comes back with no service level at all, which reads as a
     // region with no transit service rather than as a failure.
-    const sent: ScenarioProgress[] = []
+    const sent: WSDOTProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
         for (const line of new TextDecoder().decode(chunk).split('\n')) {
@@ -235,14 +234,14 @@ describe('runAnalysis fetch policy', () => {
       includeDepartures: false,
     }, client())
 
-    expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_FETCH_PHASES)
+    expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_PHASE_PLAN)
   })
 
   it('never runs the flex phase, even when the caller asks for it', async () => {
     // The browse config these reports are built from always carries an
-    // explicit includeFlexAreas: true, so defaulting rather than overriding
-    // would run the phase for every report. Nothing here reads flex.
-    const sent: ScenarioProgress[] = []
+    // explicit includeFlexAreas: true; only the declared plan keeps the phase
+    // out. Nothing here reads flex.
+    const sent: WSDOTProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
         for (const line of new TextDecoder().decode(chunk).split('\n')) {
@@ -276,7 +275,7 @@ describe('runAnalysis client stream', () => {
     // bare frames — but every event the run emits must carry them, or the
     // figures the client keeps would come from a departure cache the server
     // deliberately left empty and read zero partway through the run.
-    const sent: ScenarioProgress[] = []
+    const sent: WSDOTProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
         for (const line of new TextDecoder().decode(chunk).split('\n')) {
@@ -292,13 +291,14 @@ describe('runAnalysis client stream', () => {
     // 'complete' — carry no figures; everything between them does.
     expect(sent.length).toBeGreaterThan(2)
     expect(sent.slice(1, -1).every(p => p.departureSummary !== undefined)).toBe(true)
-    // Including the stages the report fetcher emits.
-    expect(sent.some(p => p.currentStage === 'extra')).toBe(true)
+    // Including the events the report phases emit.
+    expect(sent.some(p => p.currentStage === 'wsdot-levels')).toBe(true)
+    expect(sent.some(p => p.currentStage === 'wsdot-geographies')).toBe(true)
     expect(sent.at(-1)?.currentStage).toBe('complete')
   })
 
   it('never puts departure tuples on the wire', async () => {
-    const sent: ScenarioProgress[] = []
+    const sent: WSDOTProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
         for (const line of new TextDecoder().decode(chunk).split('\n')) {
