@@ -50,7 +50,7 @@ const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, 
 const zoom = defineModel<number>('zoom', { default: 12 })
 
 const props = defineProps<{
-  // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
+  // Current loading stage - skip map updates during 'departures' stage to prevent browser crashes
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
@@ -67,7 +67,7 @@ const props = defineProps<{
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
 
 // Stages during which we should skip expensive map updates
-const skipUpdateStages = new Set(['schedules'])
+const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
@@ -112,7 +112,7 @@ watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
 })
 
-// Skip feature updates during heavy loading stages (schedules) to prevent browser crashes
+// Skip feature updates during heavy loading stages (departures) to prevent browser crashes
 // Allow updates during geometry stages (feed-versions, stops, routes, flex-areas)
 watch(() => features.value, (v) => {
   if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
@@ -142,7 +142,7 @@ watch(() => clusterMarkers.value, (v) => {
   drawClusterMarkers(v)
 })
 
-// When exiting a skip stage (e.g., schedules -> complete), render all features
+// When exiting a skip stage (e.g., departures -> complete), render all features
 watch(() => props.loadingStage, (newStage, oldStage) => {
   if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
     // Exited a skip stage - render the features

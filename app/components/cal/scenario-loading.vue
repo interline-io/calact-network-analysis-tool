@@ -172,17 +172,16 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
-    'schedules': 'Loading schedules...',
+    'departures': 'Loading departure schedules...',
     'flex-areas': 'Loading flex service areas...',
     'census-values': 'Loading census data...',
-    'stop-buffer-geographies': 'Loading per-stop buffer demographics...',
-    'route-buffer-geographies': 'Loading per-route buffer demographics...',
-    'agency-buffer-geographies': 'Loading per-agency buffer demographics...',
-    'aggregation-buffer-geographies': 'Loading aggregation buffer demographics...',
+    'buffers': 'Loading buffer demographics...',
+    'stop-clusters': 'Loading stop clusters...',
     'wsdot-levels': 'Computing WSDOT service levels...',
     'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',
     'ready': 'Ready',
+    'error': 'Error',
   }
   return stageLabels[stage] || 'Loading...'
 }

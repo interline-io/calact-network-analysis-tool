@@ -194,7 +194,7 @@ export async function runDeparturesPhase (
   function progressEvent (): ScenarioProgress {
     const p = queue.getProgress()
     return {
-      currentStage: 'schedules',
+      currentStage: 'departures',
       phaseProgress: { phase: 'departures', completed: p.completed, total: p.total },
     }
   }

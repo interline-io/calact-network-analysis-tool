@@ -211,7 +211,10 @@ export interface ScenarioCallbacks {
  * Progress information for scenario fetching
  */
 export interface ScenarioProgress {
-  currentStage: 'feed-versions' | 'stops' | 'routes' | 'schedules' | 'flex-areas' | 'census-values' | 'stop-buffer-geographies' | 'route-buffer-geographies' | 'agency-buffer-geographies' | 'aggregation-buffer-geographies' | 'stop-clusters' | 'wsdot-levels' | 'wsdot-geographies' | 'complete' | 'ready'
+  // A phase name, or one of the envelope's frames ('ready' opens the run,
+  // 'complete'/'error' end it). Sub-steps within a phase (the buffer passes)
+  // distinguish themselves through currentStageMessage.
+  currentStage: ScenarioPhaseName | 'ready' | 'complete' | 'error'
   currentStageMessage?: string
   // Running departure totals for a consumer that is not being sent the
   // departures themselves. Set by paths that fold them server-side and strip

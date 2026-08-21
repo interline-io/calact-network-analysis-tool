@@ -99,7 +99,7 @@ const props = defineProps<{
   stopBufferFeatures?: Feature[]
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
-  // Loading stage - allow map updates during geometry stages, skip during schedules
+  // Loading stage - allow map updates during geometry stages, skip during departures
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
