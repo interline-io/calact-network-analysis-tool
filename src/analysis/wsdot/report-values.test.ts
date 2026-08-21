@@ -289,7 +289,9 @@ describe('WSDOT report values (hermetic)', () => {
     // and the night route's 6 — four landing on the weekday and two on the
     // following morning. The two days fetched only to catch trips stated past
     // midnight (the day before each report day) carry no service here.
-    const summary = sent.at(-1)?.departureSummary
+    // Read off the last event carrying figures — the envelope's final
+    // 'complete' frame is bare.
+    const summary = sent.findLast(p => p.departureSummary)?.departureSummary
     expect(summary).toEqual({ departures: 144 * 3 + 8 + 6, stopsWithDepartures: 3 })
 
     // Folded and dropped: the tuples never reach the client.

@@ -22,6 +22,7 @@ import type {
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runBufferPasses } from './buffer-passes'
+import { runProgressStream } from './progress-stream'
 import { runStopClustersPhase, type StopCluster } from './stop-clusters'
 import {
   runFeedVersionsPhase,
@@ -261,27 +262,13 @@ export interface ScenarioProgress {
  * For cases that need accumulated data, compose with multiplexStream + ScenarioStreamReceiver.
  */
 export async function streamScenario (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<void> {
-  const stream = requestStream(controller)
-  const writer = stream.getWriter()
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Send config as initial extra data
-  scenarioDataSender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting scenario fetcher',
-    config: config,
+  await runProgressStream(requestStream(controller), client, {
+    startMessage: 'Starting scenario fetcher',
+    config,
+  }, async (emit) => {
+    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit })
+    await fetcher.fetch()
   })
-
-  // Start the fetch process
-  await fetcher.fetch()
-
-  // Final complete
-  await scenarioDataSender.onComplete()
-  await writer.close()
 }
 
 /**
@@ -293,36 +280,19 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
 export async function runScenarioFetcher (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
   // Multiplex stream: one copy streams to controller, one copy accumulates
   const { inputStream, outputStream } = multiplexStream(requestStream(controller))
-  const writer = inputStream.getWriter()
-
-  // Configure fetcher/sender
-  const scenarioDataSender = new ScenarioStreamSender(writer)
-  const fetcher = new ScenarioFetcher(config, client, scenarioDataSender)
-
-  // Send config as initial extra data
-  scenarioDataSender.onProgress({
-    isLoading: true,
-    currentStage: 'ready',
-    currentStageMessage: 'Starting scenario fetcher',
-    config: config,
-  })
-
-  // Configure receiver for accumulation
   const receiver = new ScenarioDataReceiver({})
-  const scenarioDataClient = new ScenarioStreamReceiver()
-  const scenarioClientProgress = scenarioDataClient.processStream(outputStream, receiver)
+  const scenarioClientProgress = new ScenarioStreamReceiver().processStream(outputStream, receiver)
 
-  // Start the fetch process
-  await fetcher.fetch()
-
-  // Final complete - close the multiplexed stream
-  await scenarioDataSender.onComplete()
-  await writer.close()
+  await runProgressStream(inputStream, client, {
+    startMessage: 'Starting scenario fetcher',
+    config,
+  }, async (emit) => {
+    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit })
+    await fetcher.fetch()
+  })
 
   // Ensure all scenario client progress has been processed
   const { data } = await scenarioClientProgress
-
-  // Return the accumulated data
   return data
 }
 
@@ -511,10 +481,11 @@ export class ScenarioFetcher {
     ])
     logMemory('after-flex-and-census')
 
-    // Done - send completion progress event (client will handle onComplete)
-    this.emitProgress({ isLoading: false, currentStage: 'complete' })
+    // No completion event here: 'complete' belongs to the stream envelope
+    // (runProgressStream), which emits it once the whole run — including any
+    // analysis stage layered after these phases — has finished.
     logMemory('fetchMain-complete')
-    console.log(`🎉 Scenario complete`)
+    console.log(`🎉 Scenario fetch complete`)
   }
 
   // Config projection around the census-values phase; the inline path passes

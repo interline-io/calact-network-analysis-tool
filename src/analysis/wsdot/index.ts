@@ -7,7 +7,7 @@ import {
   type Bbox,
   chunkArray,
 } from '~~/src/core'
-import { type ScenarioData, type ScenarioConfig, ScenarioStreamSender, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress, type ScenarioPhaseName } from '~~/src/scenario'
+import { type ScenarioData, type ScenarioConfig, runProgressStream, ScenarioFetcher, ScenarioDataReceiver, StopDepartureTuple, type ScenarioProgress, type ScenarioPhaseName } from '~~/src/scenario'
 import { fetchCensusIntersection, type CensusGeographyFeature } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import { resolveGeographyContext } from '~~/src/scenario'
@@ -139,50 +139,38 @@ export async function runAnalysis (
   client: GraphQLClient,
   opts: WSDOTAnalysisOptions = {},
 ): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
-  const writer = requestStream(controller).getWriter()
-  const scenarioDataSender = new ScenarioStreamSender(writer)
+  // The envelope owns the stream lifecycle: the opening 'ready' (carrying the
+  // config for saved examples), error reporting, the single 'complete' — only
+  // emitted once the analysis stage after the fetch phases has finished, so a
+  // failure during the analysis can never arrive as a successful empty report
+  // — and the close. Errors rethrow for the in-process callers that build a
+  // report out of the return value: an empty WSDOTReport is structurally valid
+  // and would export as a plausible report of a total service desert.
+  let result: { scenarioData: ScenarioData, wsdotResult: WSDOTReport } | undefined
+  await runProgressStream(requestStream(controller), client, {
+    startMessage: 'Starting WSDOT fetcher',
+    config,
+  }, async (emit) => {
+    // Nothing downstream of here reads a departure. The browser shows two
+    // numbers from them, so the numbers are what it gets: the tuples are folded
+    // and dropped rather than forwarded, keeping several million of them off the
+    // wire and out of the browser's heap.
+    let departures = 0
+    const stopsWithDepartures = new Set<number>()
+    const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
 
-  // Nothing downstream of here reads a departure. The browser shows two
-  // numbers from them, so the numbers are what it gets: the tuples are folded
-  // and dropped rather than forwarded, keeping several million of them off the
-  // wire and out of the browser's heap.
-  let departures = 0
-  const stopsWithDepartures = new Set<number>()
-  const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
-
-  // Every event bound for the client goes through here, including the ones the
-  // analysis stage emits after the scenario phases are done. Attaching the
-  // totals at each call site instead would leave those events without them,
-  // and the loading modal reads the running figures off whatever it last
-  // received.
-  // ScenarioFetcher reports 'complete' when its own phases finish, but the
-  // report is not built until the analysis stage after that. Forwarding it
-  // lets a consumer count the run as finished early: a failure during the
-  // analysis then arrives as a successful empty report rather than an error,
-  // which is how a dead Worker came back as a statewide service desert.
-  let reportComplete = false
-  const clientSender: WSDOTProgressSink = {
-    onProgress: (progress) => {
-      if (progress.currentStage === 'complete' && !reportComplete) {
-        return
-      }
-      return scenarioDataSender.onProgress({
+    // Every event bound for the client goes through here, including the ones
+    // the analysis stage emits after the scenario phases are done. Attaching
+    // the totals at each call site instead would leave those events without
+    // them. Awaited by the phases, so the fetch slows to the rate the client
+    // reads at rather than queuing what it has not taken yet.
+    const clientSender: WSDOTProgressSink = {
+      onProgress: progress => emit({
         ...withoutDepartures(progress),
         departureSummary: departureSummary(),
-      })
-    },
-  }
-  // Awaited by the phases, so the fetch slows to the rate the client reads at
-  // rather than queuing what it has not taken yet.
+      }),
+    }
 
-  // Everything that can fail runs inside this try, so the response stream is
-  // settled exactly once whatever happens: the consumer gets the error and a
-  // closed stream rather than a request that never ends. A throw out of the
-  // fetch — a phase with no search area, a GraphQL error past its retries, a
-  // config whose dates will not parse — used to escape before the close, and
-  // the browser then blocked forever on a read that would never return, under
-  // a loading modal it cannot dismiss.
-  try {
     // These reports read stops, routes and departures. Nothing in them reads
     // flex areas, buffer demographics, census values or stop clusters, so those
     // phases are turned off rather than fetched and discarded. The report's own
@@ -190,15 +178,14 @@ export async function runAnalysis (
     //
     // Overridden rather than defaulted, deliberately. The browse config these
     // reports are built from carries explicit values for all of them, so `??`
-    // never fires and every phase runs. See wsdotFetchPhases for the plan this
-    // is expected to produce.
+    // never fires and every phase runs. See WSDOT_FETCH_PHASES for the plan
+    // this is expected to produce.
     //
     // The two the report cannot do without are pinned on for the same reason:
     // the browse config carries the user's Browse checkboxes, and an unchecked
     // "include departures" or "include fixed route" would otherwise produce a
     // structurally valid report with no service level on any stop — a service
-    // desert reported as a success, which is what the completion gating here
-    // exists to prevent.
+    // desert reported as a success.
     //
     // departureDates does default, because nothing else sets it and a caller
     // narrowing further is a reasonable thing to want.
@@ -232,7 +219,6 @@ export async function runAnalysis (
         }
         return clientSender.onProgress(progress)
       },
-      onError: error => scenarioDataSender.onError(error),
     }, {
       onStopDepartures: (batch) => {
         frequency.addDepartures(batch)
@@ -243,14 +229,6 @@ export async function runAnalysis (
       },
       dropStops: !opts.retainScenarioEntities,
       dropRouteGeometry: !opts.retainScenarioEntities,
-    })
-
-    // Send config as initial extra data
-    clientSender.onProgress({
-      isLoading: true,
-      currentStage: 'ready',
-      currentStageMessage: 'Starting WSDOT fetcher',
-      config: config,
     })
 
     // Start the fetch process
@@ -268,33 +246,9 @@ export async function runAnalysis (
 
     const wsdotFetcher = new WSDOTReportFetcher(configCopy, scenarioData, stops, frequency, client, clientSender)
     const wsdotResult = await wsdotFetcher.fetch()
-
-    // Completion carries the totals too, so the figures do not blank out on the
-    // last event a consumer sees. Awaited before the close, because writes are
-    // queued behind one another and closing first would drop them.
-    //
-    // Only reached when the report was actually built: a failure leaves the
-    // consumer with the error and an unfinished stream, not a report it
-    // believes is complete.
-    reportComplete = true
-    await clientSender.onProgress({ isLoading: false, currentStage: 'complete' })
-
-    return { scenarioData, wsdotResult }
-  } catch (e) {
-    console.error('WSDOT analysis error:', e)
-    // Reported on the stream, then rethrown for the in-process callers that
-    // build a report out of the return value: an empty WSDOTReport is
-    // structurally valid and would export as a plausible report of a total
-    // service desert.
-    await scenarioDataSender.onError({ message: `WSDOT analysis error: ${e}` })
-    throw e
-  } finally {
-    // The one place the stream is closed. Awaited after the error event, since
-    // writes are queued behind one another and closing first would drop it. A
-    // close that fails — the consumer already went away — must not replace the
-    // failure being propagated.
-    await writer.close().catch(err => console.error('WSDOT stream close failed:', err))
-  }
+    result = { scenarioData, wsdotResult }
+  })
+  return result!
 }
 
 export class WSDOTReportFetcher {

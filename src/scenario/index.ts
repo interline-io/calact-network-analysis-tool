@@ -1,5 +1,6 @@
 export * from './scenario'
 export * from './scenario-filter'
+export * from './progress-stream'
 export * from './buffer-passes'
 export * from './stop-clusters'
 export * from './phases'

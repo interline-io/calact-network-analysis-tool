@@ -1,14 +1,10 @@
-/**
- * Server-side streaming scenario endpoint
- * Uses new ScenarioDataSender class for streaming implementation
- */
+// Server-side streaming scenario endpoint.
 
 import { createError } from 'h3'
 import type { ScenarioConfig } from '~~/src/scenario'
 import { streamScenario } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setStreamHeaders } from '~~/server/utils/phase-stream'
-import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { streamServerResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')
@@ -24,17 +20,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setStreamHeaders(event)
-  const client = await buildServerGraphQLClient(event)
-
-  logMemory('before-stream')
-
-  const stream = new ReadableStream({
-    async start (controller) {
-      await streamScenario(controller, config, client)
-      logMemory('stream-complete')
-    }
+  return streamServerResponse(event, async (client, controller) => {
+    await streamScenario(controller, config, client)
+    logMemory('stream-complete')
   })
-
-  return sendStream(event, stream)
 })

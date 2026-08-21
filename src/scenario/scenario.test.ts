@@ -436,11 +436,13 @@ describe('ScenarioFetcher', () => {
 
     await fetcher.fetch()
 
-    // Should be called at least twice (start loading, stop loading)
     expect(progressCallback).toHaveBeenCalledWith(
       expect.objectContaining({ isLoading: true })
     )
-    expect(progressCallback).toHaveBeenCalledWith(
+    // Completion is the stream envelope's frame, not the fetcher's: the
+    // fetcher never claims the run is done, since an analysis stage may still
+    // be layered after its phases.
+    expect(progressCallback).not.toHaveBeenCalledWith(
       expect.objectContaining({ isLoading: false })
     )
   })

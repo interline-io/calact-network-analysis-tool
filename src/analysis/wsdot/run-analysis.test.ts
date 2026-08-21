@@ -117,9 +117,10 @@ function geographyCalls (c: MockGraphQLClient) {
 
 describe('runAnalysis completion signalling', () => {
   it('reports completion once, after the report is built', async () => {
-    // ScenarioFetcher emits its own 'complete' when its phases finish. Passing
-    // that through let a consumer mark the run successful before the analysis
-    // had produced anything.
+    // 'complete' is the stream envelope's frame, emitted only once the whole
+    // run — fetch phases and analysis stage — has finished. A completion
+    // emitted at the fetch boundary let a consumer mark the run successful
+    // before the analysis had produced anything.
     const { sent, controller } = capture()
     await runAnalysis(controller, config, client())
     const completes = sent.filter(p => p.currentStage === 'complete')
@@ -270,11 +271,11 @@ describe('runAnalysis fetch policy', () => {
 })
 
 describe('runAnalysis client stream', () => {
-  it('attaches the departure totals to every event, including the analysis stage', async () => {
-    // The loading modal reads the running figures off whatever event it last
-    // received. An analysis-stage event without them makes the figures fall
-    // back to a departure cache the server deliberately left empty, so the
-    // readout drops to zero partway through the run.
+  it('attaches the departure totals to every event of its own, including the analysis stage', async () => {
+    // The client keeps the last figures it saw, so they survive the envelope's
+    // bare frames — but every event the run emits must carry them, or the
+    // figures the client keeps would come from a departure cache the server
+    // deliberately left empty and read zero partway through the run.
     const sent: ScenarioProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
@@ -287,12 +288,13 @@ describe('runAnalysis client stream', () => {
     } as unknown as ReadableStreamDefaultController
     await runAnalysis(controller, config, client())
 
-    expect(sent.length).toBeGreaterThan(0)
-    expect(sent.every(p => p.departureSummary !== undefined)).toBe(true)
-    // Including the stages the report fetcher emits, and the final one.
+    // The envelope's own frames — the opening 'ready' and the final
+    // 'complete' — carry no figures; everything between them does.
+    expect(sent.length).toBeGreaterThan(2)
+    expect(sent.slice(1, -1).every(p => p.departureSummary !== undefined)).toBe(true)
+    // Including the stages the report fetcher emits.
     expect(sent.some(p => p.currentStage === 'extra')).toBe(true)
     expect(sent.at(-1)?.currentStage).toBe('complete')
-    expect(sent.at(-1)?.departureSummary).toBeDefined()
   })
 
   it('never puts departure tuples on the wire', async () => {

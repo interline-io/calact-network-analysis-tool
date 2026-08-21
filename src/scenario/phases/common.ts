@@ -97,6 +97,7 @@ export function createFailureReporter (
   const report = (failure: RequestFailure): void => {
     emit({ isLoading: true, currentStage: currentStage(), requestErrors: [failure] })
   }
+  const previous = client.onRequestError
   client.onRequestError = (failure, error) => {
     if (error && typeof error === 'object') {
       reported.add(error)
@@ -116,7 +117,10 @@ export function createFailureReporter (
       })
     },
     dispose (): void {
-      client.onRequestError = undefined
+      // Restore rather than clear: reporters nest (the stream envelope
+      // installs one for the whole run, ScenarioFetcher its own during the
+      // fetch phases), and the outer one must keep covering later stages.
+      client.onRequestError = previous
     },
   }
 }
