@@ -63,7 +63,7 @@ export async function runAnalysis (
     startMessage: 'Starting WSDOT fetcher',
     config,
     phasePlan: WSDOT_PHASE_PLAN,
-  }, async (emit) => {
+  }, async (emit, onError) => {
     // Nothing downstream of here reads a departure. The browser shows two
     // numbers from them, so the numbers are what it gets: the tuples are folded
     // and dropped rather than forwarded, keeping several million of them off the
@@ -126,8 +126,12 @@ export async function runAnalysis (
       dropRouteGeometry: !opts.retainScenarioEntities,
     })
 
-    // The fetch phases, gated by the declared plan.
-    const fetcher = new ScenarioFetcher(configCopy, client, receiver, WSDOT_PHASE_PLAN)
+    // The fetch phases, gated by the declared plan. Progress routes through
+    // the receiver (accumulation + folds) on its way to the client.
+    const fetcher = new ScenarioFetcher(configCopy, client, p => receiver.onProgress(p), {
+      onError,
+      plan: WSDOT_PHASE_PLAN,
+    })
     await fetcher.fetch()
     const scenarioData = receiver.getCurrentData()
 

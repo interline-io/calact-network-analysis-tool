@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher, scenarioPhasePlan } from './scenario'
+import { createFailureReporter } from './phases'
 import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import type { FeedGql, FlexLocationGql } from '~~/src/tl'
 
@@ -63,16 +64,14 @@ describe('ScenarioFetcher', () => {
   }
 
   it('should handle GraphQL errors', async () => {
+    // Fatal errors propagate out of fetch(); reporting them on the stream is
+    // the envelope's job, not the fetcher's.
     const mockError = new Error('GraphQL Error')
     mockClient.mockQuery.mockRejectedValue(mockError)
 
-    const errorCallback = vi.fn()
-    const fetcher = new ScenarioFetcher(config, mockClient, {
-      onError: errorCallback
-    })
+    const fetcher = new ScenarioFetcher(config, mockClient)
 
     await expect(fetcher.fetch()).rejects.toThrow('GraphQL Error')
-    expect(errorCallback).toHaveBeenCalledWith(mockError)
   })
 
   describe('feed version pagination', () => {
@@ -98,7 +97,7 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValueOnce({ data: { feeds: page2 } })
 
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(paginationConfig, client, { onProgress: progressCb })
+      const fetcher = new ScenarioFetcher(paginationConfig, client, progressCb)
       await fetcher.fetch()
 
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
@@ -172,7 +171,7 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValue(emptyStopTimesResponse) // stop-times queries (one per fv)
 
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(flexConfig, client, { onProgress: progressCb })
+      const fetcher = new ScenarioFetcher(flexConfig, client, progressCb)
       await fetcher.fetch()
 
       const flexProgressCalls = progressCb.mock.calls.filter(([p]) => p.partialData?.flexAreas?.length > 0)
@@ -191,17 +190,19 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValueOnce(flexResponse(true)) // fv3: success (location)
         .mockResolvedValue(emptyStopTimesResponse) // fv1 + fv3 stop-times queries
 
-      const errorCb = vi.fn()
+      // Composed the way the envelope composes it: the failure reporter is the
+      // run's, and the fetcher receives its onError as the per-task hook.
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(flexConfig, client, { onError: errorCb, onProgress: progressCb })
+      const failures = createFailureReporter(client, p => progressCb(p), () => 'flex-areas')
+      const fetcher = new ScenarioFetcher(flexConfig, client, progressCb, { onError: failures.onError })
       await fetcher.fetch()
+      failures.dispose()
 
       // A per-feed failure is reported on the progress stream, not as a fatal
       // error, so the remaining feeds still finish.
       const reported = progressCb.mock.calls.flatMap(([p]) => p.requestErrors ?? [])
       expect(reported).toHaveLength(1)
       expect(reported[0].message).toBe('network timeout')
-      expect(errorCb).not.toHaveBeenCalled()
       const flexProgressCalls = progressCb.mock.calls.filter(([p]) => p.partialData?.flexAreas?.length > 0)
       expect(flexProgressCalls).toHaveLength(2)
     })
@@ -402,7 +403,7 @@ describe('ScenarioFetcher', () => {
     expect(plan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
 
     const progressCb = vi.fn()
-    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, { onProgress: progressCb })
+    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, progressCb)
     await fetcher.fetch()
 
     const events = progressCb.mock.calls.map(([p]) => p)
@@ -433,9 +434,7 @@ describe('ScenarioFetcher', () => {
       .mockResolvedValue({ data: { stops: [] } }) // All subsequent calls return empty
 
     const progressCallback = vi.fn()
-    const fetcher = new ScenarioFetcher(config, mockClient, {
-      onProgress: progressCallback
-    })
+    const fetcher = new ScenarioFetcher(config, mockClient, progressCallback)
 
     await fetcher.fetch()
 

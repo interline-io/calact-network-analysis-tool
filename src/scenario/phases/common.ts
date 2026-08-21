@@ -124,9 +124,8 @@ export function createFailureReporter (
       })
     },
     dispose (): void {
-      // Restore rather than clear: reporters nest (the stream envelope
-      // installs one for the whole run, ScenarioFetcher its own during the
-      // fetch phases), and the outer one must keep covering later stages.
+      // Restore rather than clear, so disposing never clobbers a hook
+      // installed around this one.
       client.onRequestError = previous
     },
   }

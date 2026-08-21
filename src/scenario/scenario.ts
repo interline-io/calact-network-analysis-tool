@@ -21,8 +21,9 @@ import type {
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runBufferPasses } from './buffer-passes'
-import { runProgressStream } from './progress-stream'
+import { runProgressStream, type ProgressEmit } from './progress-stream'
 import { runStopClustersPhase, type StopCluster } from './stop-clusters'
+import type { PhaseOpts } from './phases/common'
 import {
   runFeedVersionsPhase,
   runStopsPhase,
@@ -30,8 +31,6 @@ import {
   runDeparturesPhase,
   runFlexPhase,
   runCensusValuesPhase,
-  createFailureReporter,
-  type FailureReporter,
   StopDepartureTuple,
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
@@ -198,7 +197,7 @@ export interface ScenarioData {
 }
 
 /**
- * Callback interface for scenario fetching events
+ * Callback interface for scenario stream receivers
  */
 export interface ScenarioCallbacks {
   // Awaitable so a streaming consumer can apply backpressure; see PhaseEmit.
@@ -271,8 +270,8 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
     startMessage: 'Starting scenario fetcher',
     config,
     phasePlan: plan,
-  }, async (emit) => {
-    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit }, plan)
+  }, async (emit, onError) => {
+    const fetcher = new ScenarioFetcher(config, client, emit, { onError, plan })
     await fetcher.fetch()
   })
 }
@@ -294,8 +293,8 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
     startMessage: 'Starting scenario fetcher',
     config,
     phasePlan: plan,
-  }, async (emit) => {
-    const fetcher = new ScenarioFetcher(config, client, { onProgress: emit }, plan)
+  }, async (emit, onError) => {
+    const fetcher = new ScenarioFetcher(config, client, emit, { onError, plan })
     await fetcher.fetch()
   })
 
@@ -308,6 +307,15 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
 // SCENARIO FETCHER - Composition of the pipeline phases
 // ============================================================================
 
+// Options for a fetcher run, beyond the phase contract's emit. onError is the
+// per-task (non-fatal) failure hook, normally the envelope's failure reporter;
+// fatal errors throw out of fetch() and are the envelope's to report.
+export interface ScenarioFetcherOpts extends PhaseOpts {
+  // The phases to execute, in pipeline order. Defaults to the browse-derived
+  // plan for the config; a report run declares its own.
+  plan?: ScenarioPhaseName[]
+}
+
 /**
  * Composes the scenario pipeline out of the standalone phases in ./phases:
  *
@@ -317,70 +325,41 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
  *                  └─ census-values
  *
  * Each phase is also exposed as its own server endpoint (server/api/scenario/*)
- * so clients can run, skip, shard, or retry them independently.
+ * so clients can run, skip, shard, or retry them independently. The fetcher
+ * itself follows the same contract as a phase — emit plus a non-fatal onError
+ * — and runs inside a stream envelope that owns the run's framing.
  */
 export class ScenarioFetcher {
   private config: ScenarioConfig
-  private callbacks: ScenarioCallbacks
   private client: GraphQLClient
+  private emit: ProgressEmit
+  private onError: (error: any) => void
 
-  // The phases this run executes, in pipeline order. Defaults to the
-  // browse-derived plan for the config; a report run declares its own.
+  // The phases this run executes, in pipeline order.
   private plan: ScenarioPhaseName[]
 
   // The geography context the feed-versions phase resolved, kept for callers
   // that run report stages after the fetch (so they don't re-resolve).
   resolvedGeography?: ResolvedGeographyContext
 
-  // The stage a request-failure report is attributed to, so reporting one
-  // doesn't rewind the stage the loading modal is displaying.
-  private lastStage: ScenarioProgress['currentStage'] = 'ready'
-
-  // Installed for the duration of `fetch()`.
-  private failures?: FailureReporter
-
   constructor (
     config: ScenarioConfig,
     client: GraphQLClient,
-    callbacks: ScenarioCallbacks = {},
-    plan?: ScenarioPhaseName[],
+    emit: ProgressEmit = () => {},
+    opts: ScenarioFetcherOpts = {},
   ) {
     this.config = config
-    this.callbacks = callbacks
     this.client = client
-    this.plan = plan ?? scenarioPhasePlan(config)
+    this.emit = emit
+    // A failed task doesn't abort its phase — it reports and the rest continue.
+    this.onError = opts.onError ?? (() => {})
+    this.plan = opts.plan ?? scenarioPhasePlan(config)
   }
 
   async fetch () {
-    // Installed for the whole run: every failed request reports through it,
-    // whichever phase issued it, so a partial result is never silently partial.
-    this.failures = createFailureReporter(
-      this.client,
-      progress => this.emitProgress(progress),
-      () => this.lastStage,
-    )
-    try {
-      await this.fetchMain()
-    } catch (error) {
-      this.callbacks.onError?.(error)
-      throw error
-    } finally {
-      this.failures.dispose()
-    }
-  }
-
-  // Track the stage for failure attribution, then forward.
-  private emitProgress (progress: ScenarioProgress): void | Promise<void> {
-    this.lastStage = progress.currentStage
-    return this.callbacks.onProgress?.(progress)
-  }
-
-  // Start the scenario fetching process
-  private async fetchMain () {
     logMemory('fetchMain-start')
-    const emit = (progress: ScenarioProgress) => this.emitProgress(progress)
-    // A failed task doesn't abort its phase — it reports and the rest continue.
-    const onError = (error: any) => this.failures?.onError(error)
+    const emit = this.emit
+    const onError = this.onError
 
     // The plan gates execution here; announcing it to the stream is the
     // envelope's job (the 'ready' event), since a run may include report
@@ -495,7 +474,7 @@ export class ScenarioFetcher {
       stopBufferRadius: this.config.stopBufferRadius,
       stopIds,
       includeIntersectionGeometry: this.config.includeIntersectionGeometry,
-    }, this.client, p => this.emitProgress(p))
+    }, this.client, this.emit)
   }
 
   // Delegates to `runBufferPasses` so the same logic runs standalone via
@@ -520,7 +499,7 @@ export class ScenarioFetcher {
         agencyIds,
       },
       this.client,
-      progress => this.emitProgress(progress),
+      this.emit,
       { onError },
     )
   }
@@ -544,7 +523,7 @@ export class ScenarioFetcher {
         stopLimit: this.config.stopLimit,
       },
       this.client,
-      progress => this.emitProgress(progress),
+      this.emit,
     )
   }
 }
