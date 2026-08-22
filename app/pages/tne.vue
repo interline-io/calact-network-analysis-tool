@@ -877,6 +877,7 @@ const {
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
   stopDepartureCount,
   runQuery: runScenarioQuery,
 } = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
@@ -894,6 +895,7 @@ useBufferRefetch({
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
 })
 
 // recompute clusters when the distance changes, reusing the same receiver.
@@ -908,6 +910,23 @@ useClusterRefetch({
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
+})
+
+// reload each stop's census geography when the Aggregate-by layer changes —
+// the phase fetches one layer, so the previous one's entries no longer match.
+useStopCensusRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
+  runInFlight,
 })
 
 // recompute census values when the Aggregate-by layer or the stop buffer radius
@@ -923,6 +942,7 @@ const { refresh: refreshCensusClip } = useAggregateRefetch({
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
   markedStopIds,
 })
 

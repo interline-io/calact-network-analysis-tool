@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import { runAnalysis, WSDOT_PHASE_PLAN, type WSDOTProgress, type WSDOTReportConfig } from './index'
 import { parseDate, SCENARIO_DEFAULTS, type Bbox, type GraphQLClient } from '~~/src/core'
+import { stopCensusQuery } from '~~/src/tl'
 
 class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock = vi.fn()
@@ -43,17 +44,27 @@ const stop = {
   stop_name: 'Test Stop',
   location_type: 0,
   geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-  census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
   feed_version: { sha1: 'sha1', feed: { onestop_id: 'f-1' } },
   route_stops: [],
 }
 
+// The stop-census phase's answer for that stop — the report's stateName.
+const stopCensus = {
+  id: stop.id,
+  census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
+}
+
+// Feeds then stops are awaited in order; everything after them fans out, so
+// the stop-census phase is answered by variables rather than by position.
 function client () {
   const c = new MockGraphQLClient()
   c.mockQuery
     .mockResolvedValueOnce({ data: { feeds: [feed] } })
     .mockResolvedValueOnce({ data: { stops: [stop] } })
-    .mockResolvedValue({ data: { stops: [], routes: [], census_geographies: [] } })
+    .mockImplementation((q: any) => {
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
+      return Promise.resolve({ data: { stops: [], routes: [], census_geographies: [] } })
+    })
   return c
 }
 
@@ -70,14 +81,17 @@ function servingClient () {
     frequencies: [],
   }
   let stopsServed = false
-  c.mockQuery.mockImplementation((_q: any, v: any) => {
+  c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+    if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
     if (v?.tableNames !== undefined) { return Promise.resolve({ data: { census_datasets: [] } }) }
     if (v?.where?.bbox !== undefined) { return Promise.resolve({ data: { feeds: [feed] } }) }
     if (v?.dates !== undefined) { return Promise.resolve({ data: { routes: [{ id: 500, trips: [trip] }] } }) }
     if (v?.include_geometry !== undefined) {
       return Promise.resolve({ data: { routes: [{ id: 500, route_id: 'r500', agency: { id: 1, agency_id: 'a', agency_name: 'A' } }] } })
     }
-    if (v?.dataset_name !== undefined) {
+    if (v?.after !== undefined) {
       if (stopsServed) { return Promise.resolve({ data: { stops: [] } }) }
       stopsServed = true
       return Promise.resolve({ data: { stops: [{ ...stop, route_stops: [{ route_id: 500, agency_id: 1 }] }] } })
@@ -133,7 +147,10 @@ describe('runAnalysis completion signalling', () => {
     // A dead analysis stage previously arrived as a finished run carrying an
     // empty report, which reads as a region with no transit service at all.
     const c = client()
-    c.mockQuery.mockImplementation((_q: any, v: any) => {
+    c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
       if (v && v.tableNames !== undefined) { return Promise.reject(new Error('census backend died')) }
       return Promise.resolve({ data: { stops: [], routes: [], feeds: [] } })
     })
@@ -165,7 +182,10 @@ describe('runAnalysis geography queries', () => {
     const c = new MockGraphQLClient()
     // The geography ids resolve to an admin polygon, which is what the bbox
     // tract query should then be clipped against.
-    c.mockQuery.mockImplementation((_q: any, v: any) => {
+    c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
       if (v && v.include_geographies) {
         return Promise.resolve({ data: { census_datasets: [{ geographies: [{
           geometry: { type: 'Polygon', coordinates: [[[-122.8, 45.4], [-122.5, 45.4], [-122.5, 45.7], [-122.8, 45.7], [-122.8, 45.4]]] },
@@ -232,6 +252,30 @@ describe('runAnalysis fetch policy', () => {
     }, client())
 
     expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_PHASE_PLAN)
+  })
+
+  it('closes every declared phase even without an aggregation layer', async () => {
+    // The plan names stop-census unconditionally while aggregateLayer is
+    // optional, so the skip path is reachable — and a planned phase that never
+    // reports leaves the loading bar short of 100% for the whole run.
+    const sent: WSDOTProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, { ...config, aggregateLayer: undefined }, client())
+
+    for (const phase of WSDOT_PHASE_PLAN) {
+      const closed = sent.some(p => p.phaseProgress?.phase === phase
+        && p.phaseProgress.total > 0
+        && p.phaseProgress.completed >= p.phaseProgress.total)
+      expect(closed, `phase ${phase} should close its slice`).toBe(true)
+    }
   })
 
   it('never runs the flex phase, even when the caller asks for it', async () => {

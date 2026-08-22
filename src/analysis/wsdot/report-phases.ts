@@ -50,7 +50,7 @@ export interface WSDOTReportConfig extends ScenarioConfig {
 // then the report's own phases. What runs is exactly what is declared —
 // browse-style derivation from config flags never applies.
 export const WSDOT_PHASE_PLAN: ScenarioPhaseName[] = [
-  'feed-versions', 'stops', 'routes', 'departures', 'wsdot-levels', 'wsdot-geographies',
+  'feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'wsdot-levels', 'wsdot-geographies',
 ]
 
 // The calendar dates the report reads: the weekday, the weekend day, and the

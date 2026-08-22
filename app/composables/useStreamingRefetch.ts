@@ -37,6 +37,10 @@ export interface StreamingRefetchDeps {
   // only torn down when the last refetch finishes, so a sibling that finishes
   // first can't close it mid-load.
   refetchInFlight: Ref<number>
+  // Non-zero while the main scenario run is streaming. A refetch started then
+  // would interleave with the run's own phases in the shared accumulator, so
+  // it waits for the run to finish instead — see the deferral below.
+  runInFlight: Ref<number>
 }
 
 // What a single refetch should do given the current inputs:
@@ -70,12 +74,31 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
   let abort: AbortController | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
 
+  // An input changed while a run was streaming and is waiting for it to finish.
+  let deferred = false
+
+  // A new run installs its own receiver, superseding the one a refetch captured
+  // when it started. Publishing that one afterwards would put the previous
+  // run's results back on screen, so a superseded refetch accumulates in
+  // private and never reaches the shared data.
+  function publish (receiver: ScenarioDataReceiver): void {
+    if (deps.scenarioReceiver.value === receiver) {
+      deps.scenarioData.value = markRaw(receiver.getCurrentData())
+    }
+  }
+
   function applyClear (receiver: ScenarioDataReceiver): void {
     opts.clearStale(receiver)
-    deps.scenarioData.value = markRaw(receiver.getCurrentData())
+    publish(receiver)
   }
 
   async function refetch (): Promise<void> {
+    // A run started while this was waiting out its debounce. Its phases write
+    // the same slices, so wait for it rather than interleave with it.
+    if (deps.runInFlight.value > 0) {
+      deferred = true
+      return
+    }
     const receiver = deps.scenarioReceiver.value
     const data = deps.scenarioData.value
     if (!receiver || !data) {
@@ -133,7 +156,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
         // Rethrow a server-reported cause rather than overwrite it.
         throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
       }
-      deps.scenarioData.value = markRaw(receiver.getCurrentData())
+      publish(receiver)
     } catch (err: any) {
       // Superseded or disposed; a stale run must not touch shared state. Keyed
       // off the signal since a mid-stream abort surfaces as a drain failure.
@@ -160,12 +183,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
   }
 
-  // Initial query reads these inputs via `scenarioConfig` directly; this watch
-  // only kicks in once a scenario is loaded.
-  watch(opts.watchSources, () => {
-    if (!deps.scenarioReceiver.value || !deps.scenarioData.value) {
-      return
-    }
+  function schedule (): void {
     if (timer) {
       clearTimeout(timer)
     }
@@ -173,6 +191,37 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       timer = undefined
       refetch()
     }, DEBOUNCE_MS)
+  }
+
+  // Initial query reads these inputs via `scenarioConfig` directly; this watch
+  // only kicks in once a scenario is loaded.
+  watch(opts.watchSources, () => {
+    // Checked before the receiver/data guard below: on a session's first run
+    // there is no data until the first batch arrives, and a change made in that
+    // window has to be recorded or it is lost — the run has already captured
+    // the old input and nothing would fire once it finishes.
+    //
+    // Both this refetch and the run's own phases write the same slices of the
+    // shared accumulator, and neither can supersede the other's stream — a
+    // clear-then-fetch here would be overwritten piecemeal by whatever the run
+    // has left to emit, leaving the slice holding both inputs' results at once.
+    if (deps.runInFlight.value > 0) {
+      deferred = true
+      return
+    }
+    if (!deps.scenarioReceiver.value || !deps.scenarioData.value) {
+      return
+    }
+    schedule()
+  })
+
+  // The run that was in the way has finished; apply what it deferred. The plan
+  // is built at that point, so it reflects the inputs as they stand now.
+  watch(deps.runInFlight, (inFlight) => {
+    if (inFlight === 0 && deferred) {
+      deferred = false
+      schedule()
+    }
   })
 
   onScopeDispose(() => {

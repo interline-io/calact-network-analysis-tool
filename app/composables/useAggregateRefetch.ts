@@ -1,9 +1,8 @@
 // Debounced census-values refetch on Aggregate-by layer change: recomputes only
 // the ACS census geographies/values for the new layer (server-side) into the
-// existing receiver, leaving the rest of the scenario untouched. Per-stop
-// census_geographies already carry every layer in the dataset, so only the
-// census-values map needs refetching. Streaming/abort/debounce machinery lives
-// in useStreamingRefetch.
+// existing receiver, leaving the rest of the scenario untouched. The per-stop
+// half of the same layer change is useStopCensusRefetch's; the two run
+// concurrently. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
 import { ref, watchEffect, type Ref } from 'vue'
 import { useScenarioDisplay } from './useScenarioDisplay'

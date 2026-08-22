@@ -181,8 +181,6 @@ const {
     // stops, not lines. The stops-and-routes report, which exports them,
     // leaves this alone.
     includeRouteGeometry: false,
-    // Only the aggregation layer is read, for each stop's state name.
-    includeAllCensusLayers: false,
     stopBufferRadius: 800, // Override default of 0
     aggregateLayer: 'state',
   },

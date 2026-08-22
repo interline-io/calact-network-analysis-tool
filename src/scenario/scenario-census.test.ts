@@ -13,7 +13,7 @@ import {
   applyScenarioResultFilter,
   type ScenarioConfig,
 } from '~~/src/scenario'
-import { stopGeoAggregateCsv } from '~~/src/tl'
+import { routesById, stopGeoAggregateCsv } from '~~/src/tl'
 
 // End-to-end tests of the census branch of the scenario pipeline. Both suites drive
 // runScenarioFetcher and assert the same census numbers (tract and block group) — the
@@ -49,6 +49,13 @@ function censusConfig (aggregateLayer: string): ScenarioConfig {
     includeFixedRoute: false,
     includeFlexAreas: false,
   }
+}
+
+function integrationClient (): BasicGraphQLClient {
+  return new BasicGraphQLClient(
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
+  )
 }
 
 // runScenarioFetcher streams progress to this controller while also accumulating
@@ -166,10 +173,7 @@ describe('scenario census pipeline (hermetic)', () => {
 // full-geography ACS value and reports clipping separately), so the pinned values are
 // deterministic against the rebuild-census.sh test DB.
 describe('scenario census pipeline (integration)', () => {
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
-    apiFetch(''),
-  )
+  const client = integrationClient()
 
   for (const c of CASES) {
     it(`fetches real ${c.layer} census values from the server`, async () => {
@@ -187,4 +191,54 @@ describe('scenario census pipeline (integration)', () => {
       expect(known!.values['b01003_001']).toBe(c.pop)
     }, 120000)
   }
+})
+
+// --- Per-stop census suite ------------------------------------------------------
+//
+// The other suites run with includeFixedRoute:false, so nothing there covers the
+// stop-census phase or the join that puts its results on each Stop. That path
+// fails silently when it breaks: the aggregation table keeps rendering, with
+// every stop count at zero.
+describe('per-stop census pipeline (integration)', () => {
+  const client = integrationClient()
+
+  const LAYER = 'tract'
+  // The census config with fixed-route back on — the one difference that
+  // brings the stops, and with them this phase.
+  const stopCensusConfig: ScenarioConfig = {
+    ...censusConfig(LAYER),
+    reportName: 'stop-census-test',
+    includeFixedRoute: true,
+  }
+
+  it('carries the aggregation layer from the phase through to the aggregation table', async () => {
+    const data = await runScenarioFetcher(noopController(), stopCensusConfig, client)
+    expect(data.stops.length).toBeGreaterThan(0)
+
+    // 1) The phase answered for every stop the run discovered, at one layer.
+    expect(data.stopCensusGeographies?.size).toBe(data.stops.length)
+    for (const geographies of data.stopCensusGeographies!.values()) {
+      for (const g of geographies) {
+        expect(g.layer_name).toBe(LAYER)
+      }
+    }
+
+    // 2) The result filter joins them onto each Stop, which is where every
+    //    consumer reads them from.
+    const filtered = applyScenarioResultFilter(data, stopCensusConfig, {})
+    const withGeographies = filtered.stops.filter(s => (s.census_geographies?.length ?? 0) > 0)
+    expect(withGeographies.length).toBeGreaterThan(0)
+
+    // 3) The Stops (Aggregated) table: rows the stops actually landed in, not
+    //    just the stop-less rows census-values seeds.
+    const rows = stopGeoAggregateCsv(
+      filtered.stops.filter(s => s.marked),
+      LAYER,
+      routesById(filtered.routes),
+      filtered.censusGeographies,
+    )
+    const withStops = rows.filter(r => r.stops_count > 0)
+    expect(withStops.length).toBeGreaterThan(0)
+    expect(withStops.reduce((n, r) => n + r.stops_count, 0)).toBe(withGeographies.length)
+  }, 300000)
 })

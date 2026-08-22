@@ -13,12 +13,6 @@ export interface StopsPhaseConfig {
   feedVersions: FeedVersionRef[]
   bbox?: Bbox
   geographyIds?: number[]
-  geoDatasetName: string
-  // Fetch only this census layer on each stop instead of every layer in the
-  // dataset. Every layer is 41% of the stops payload, and it exists so the
-  // aggregation level can change without refetching; a report that fixes one
-  // layer names it here.
-  censusLayer?: string
   // GraphQL page size; pagination continues until a short page.
   stopLimit?: number
 }
@@ -58,8 +52,6 @@ export async function runStopsPhase (
     const variables = {
       after: task.after,
       limit: stopLimit,
-      dataset_name: config.geoDatasetName,
-      census_layer: config.censusLayer || null,
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,

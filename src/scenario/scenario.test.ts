@@ -57,7 +57,6 @@ describe('ScenarioFetcher', () => {
         stop_name: 'Test Stop',
         location_type: 0,
         geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-        census_geographies: [],
         route_stops: []
       }]
     }
@@ -339,7 +338,7 @@ describe('ScenarioFetcher', () => {
 
     it('includes every phase for a fully-enabled config', () => {
       expect(scenarioPhasePlan(fullConfig)).toEqual(
-        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
     })
 
     it('drops all fixed-route phases when includeFixedRoute is false', () => {
@@ -349,22 +348,22 @@ describe('ScenarioFetcher', () => {
 
     it('drops buffers and census-values when includeCensus is false', () => {
       expect(scenarioPhasePlan({ ...fullConfig, includeCensus: false })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'departures', 'flex-areas'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'flex-areas'])
     })
 
     it('drops buffers but keeps census-values when radius is 0', () => {
       expect(scenarioPhasePlan({ ...fullConfig, stopBufferRadius: 0 })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'departures', 'flex-areas', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'flex-areas', 'census-values'])
     })
 
-    it('drops census-values but keeps buffers without an aggregateLayer', () => {
+    it('drops the aggregation-layer phases but keeps buffers without an aggregateLayer', () => {
       expect(scenarioPhasePlan({ ...fullConfig, aggregateLayer: undefined })).toEqual(
         ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas'])
     })
 
     it('drops flex when includeFlexAreas is false', () => {
       expect(scenarioPhasePlan({ ...fullConfig, includeFlexAreas: false })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'census-values'])
     })
   })
 
@@ -405,7 +404,6 @@ describe('ScenarioFetcher', () => {
           stop_name: 'Test Stop',
           location_type: 0,
           geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-          census_geographies: [],
           route_stops: []
         }
       ] } })

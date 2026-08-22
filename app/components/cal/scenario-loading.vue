@@ -153,9 +153,12 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   if (stageText) {
     return stageText
   }
-  const stageLabels: Record<string, string> = {
+  // Exhaustive over currentStage, so a new phase without a label is a build
+  // error rather than a silent 'Loading...'.
+  const stageLabels: Record<ScenarioProgress['currentStage'], string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
+    'stop-census': 'Loading stop census areas...',
     'routes': 'Loading routes...',
     'departures': 'Loading departure schedules...',
     'flex-areas': 'Loading flex service areas...',
