@@ -217,9 +217,12 @@ const props = defineProps<{
 
 const { config: wsdotReportConfig, report: wsdotReport } = toRefs(props)
 
+// Owned by the parent, which fetches the outlines the first time it is set —
+// they are not part of the report a run returns.
+const showStopBuffers = defineModel<boolean>('showStopBuffers', { required: true })
+
 const levelKeys = Object.keys(SERVICE_LEVELS) as LevelKey[]
 const selectedLevels = ref<LevelKey[]>(Object.keys(SERVICE_LEVELS) as LevelKey[])
-const showStopBuffers = ref(false)
 const popMethod = ref<'state' | 'bboxIntersection'>('state')
 
 // Helper functions for Highest Level column rendering
@@ -390,23 +393,22 @@ const displayFeatures = computed(() => {
     features.push(...levelStops)
   }
 
+  // Empty until the parent's fetch lands, so the overlay draws nothing for a
+  // moment after it is switched on.
   if (showStopBuffers.value) {
     for (const levelName of levelKeys) {
       if (!selectedLevels.value.includes(levelName)) {
         continue
       }
-      const layerFeatures = (wsdotReport.value.levelLayers[levelName] || {})['tract']
-      for (const feature of layerFeatures || []) {
-        if (!feature.geometry) {
-          continue
-        }
+      const outlines = wsdotReport.value.levelGeometry[levelName] || []
+      for (let i = 0; i < outlines.length; i++) {
         features.push({
-          id: feature.id,
+          id: `${levelName}_${i}`,
           type: 'Feature',
           properties: {
             stroke: levelColors[levelName],
           },
-          geometry: feature.geometry
+          geometry: outlines[i]!
         })
       }
     }

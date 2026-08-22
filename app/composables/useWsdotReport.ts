@@ -6,7 +6,12 @@
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import { useToastNotification } from './useToastNotification'
-import { WSDOTReportDataReceiver, type WSDOTReport, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import {
+  WSDOTReportDataReceiver,
+  type WSDOTLevelGeometryConfig,
+  type WSDOTReport,
+  type WSDOTReportConfig,
+} from '~~/src/analysis/wsdot'
 import { SCENARIO_DEFAULTS } from '~~/src/core'
 import { hasSearchArea, type ScenarioConfig, type ScenarioData, type ScenarioProgress } from '~~/src/scenario'
 
@@ -30,11 +35,17 @@ export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
   wsdotReportConfig: Ref<WSDOTReportConfig>
   // Run the report inside the shared modal/toast lifecycle.
   runQuery: () => Promise<void>
+  // Fetch the map overlay's stop buffer outlines into the current report.
+  // A no-op once they are loaded, so a caller can drive it from a toggle.
+  loadLevelGeometry: () => Promise<void>
 }
 
 export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn {
   const stream = useScenarioStream()
   const wsdotReport = shallowRef<WSDOTReport>()
+  // Kept past the run so the overlay's outlines stream into the report it
+  // built rather than replacing it.
+  let reportReceiver: WSDOTReportDataReceiver | undefined
   const wsdotReportConfig = ref<WSDOTReportConfig>({
     ...SCENARIO_DEFAULTS,
     ...deps.scenarioConfig.value,
@@ -74,12 +85,63 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
         stream.error.value = err
       },
     })
+    reportReceiver = receiver
 
     await stream.run(receiver, '/api/wsdot', { config: wsdotReportConfig.value })
     return true
   }
 
+  // The report whose outlines are loaded. Identity rather than a flag, so the
+  // reassignment the fetch itself makes doesn't read as a second report, and a
+  // report built by a later run isn't drawn with the previous one's outlines.
+  let geometryLoadedFor: WSDOTReport | undefined
+
+  // What to outline for a report, or undefined when there is nothing: no
+  // buffer radius, or no level with qualifying stops.
+  function levelGeometryRequest (report: WSDOTReport): WSDOTLevelGeometryConfig | undefined {
+    const config = wsdotReportConfig.value
+    const levels = Object.entries(report.levelStops)
+      .filter(([, stopIds]) => stopIds.length > 0)
+      .map(([level, stopIds]) => ({ level, stopIds }))
+    if (!(config.stopBufferRadius > 0) || levels.length === 0) {
+      return undefined
+    }
+    return {
+      geoDatasetName: config.geoDatasetName,
+      stopBufferRadius: config.stopBufferRadius,
+      levels,
+    }
+  }
+
   const runQuery = () => stream.runQuery(fetchReport, deps.successToast)
+
+  const loadLevelGeometry = async (): Promise<void> => {
+    const report = wsdotReport.value
+    const receiver = reportReceiver
+    if (!report || !receiver || report === geometryLoadedFor) {
+      return
+    }
+    // Claimed before the fetch so a re-entrant call can't start a second one.
+    // A report with nothing to outline is claimed and never asked about again.
+    geometryLoadedFor = report
+    const body = levelGeometryRequest(report)
+    if (!body) {
+      return
+    }
+    await stream.runQuery(async () => {
+      receiver.clearLevelGeometry()
+      await stream.run(receiver, '/api/wsdot-level-geometry', body)
+      // Reassigned rather than mutated: the viewer reads the report through a
+      // shallowRef, which never sees a nested push.
+      wsdotReport.value = receiver.getCurrentWSDOTReport()
+      geometryLoadedFor = wsdotReport.value
+      return true
+    }, 'Stop buffer outlines loaded')
+    // Released on failure, so toggling the overlay again retries.
+    if (stream.error.value) {
+      geometryLoadedFor = undefined
+    }
+  }
 
   return {
     loadingProgress: stream.loadingProgress,
@@ -92,5 +154,6 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     wsdotReport,
     wsdotReportConfig,
     runQuery,
+    loadLevelGeometry,
   }
 }

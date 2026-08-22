@@ -183,9 +183,10 @@ describe('runAnalysis geography queries', () => {
     }
   })
 
-  it('requests intersection geometry only for the layer that draws it', async () => {
-    // Only the tract outlines are ever rendered. Fetching the state layer's
-    // too doubled the geometry across eight service levels for nothing.
+  it('never requests intersection geometry', async () => {
+    // Outlines are drawn behind an off-by-default toggle and come from
+    // runWsdotLevelGeometryPhase when it asks. Fetching them here cost two
+    // thirds of the census response on every run, across eight service levels.
     //
     // Needs a stop that actually qualifies for a level, and a buffer radius:
     // the per-level geography fetch is skipped for an empty level or a zero
@@ -194,10 +195,9 @@ describe('runAnalysis geography queries', () => {
     const { controller } = capture()
     await runAnalysis(controller, { ...config, stopBufferRadius: 800 }, c)
 
-    const withGeometry = geographyCalls(c).filter(([, v]) => v.includeIntersectionGeometry)
-    expect(withGeometry.length).toBeGreaterThan(0)
-    for (const [, v] of withGeometry) {
-      expect(v.layer).toBe('tract')
+    expect(geographyCalls(c).length).toBeGreaterThan(0)
+    for (const [, v] of geographyCalls(c)) {
+      expect(v.includeIntersectionGeometry).toBeFalsy()
     }
   })
 })

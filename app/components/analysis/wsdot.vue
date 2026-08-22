@@ -36,6 +36,7 @@
     </cat-msg>
     <div v-else-if="wsdotReport">
       <analysis-wsdot-viewer
+        v-model:show-stop-buffers="showStopBuffers"
         :report="wsdotReport"
         :config="wsdotReportConfig"
       />
@@ -170,20 +171,31 @@ const {
   wsdotReport,
   wsdotReportConfig,
   runQuery,
+  loadLevelGeometry,
 } = useWsdotReport({
   scenarioConfig,
   scenarioData,
   successToast: 'WSDOT analysis completed successfully!',
   configExtras: {
-    // This report has no map; route shapes are 98% of the routes query and are
-    // never read here. The stops-and-routes report, which exports them, leaves
-    // this alone.
+    // Route shapes are 98% of the routes query and this report's map draws
+    // stops, not lines. The stops-and-routes report, which exports them,
+    // leaves this alone.
     includeRouteGeometry: false,
     // Only the aggregation layer is read, for each stop's state name.
     includeAllCensusLayers: false,
     stopBufferRadius: 800, // Override default of 0
     aggregateLayer: 'state',
   },
+})
+
+// The map's stop buffer overlay. Its outlines are not part of the report a run
+// returns — the run fetches the areas behind the numbers and nothing else — so
+// switching it on fetches them, once.
+const showStopBuffers = ref(false)
+watch(showStopBuffers, (show) => {
+  if (show) {
+    loadLevelGeometry()
+  }
 })
 
 const emit = defineEmits<{

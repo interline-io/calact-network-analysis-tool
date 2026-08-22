@@ -222,6 +222,73 @@ export async function fetchClipIntersections (
   return out
 }
 
+export interface FetchBufferClipGeometryConfig {
+  client: GraphQLClient
+  geoDatasetName: string
+  geoDatasetLayer: string
+  stopIds: Iterable<number>
+  stopBufferRadius: number
+}
+
+// Outlines of each geography clipped to a union of stop buffers, with no
+// query area and no ACS values — the display-only half of what
+// geographyIntersectionQuery returns, for callers that already hold the areas.
+//
+// Unlike clipIntersectionQuery this composes no second clip, so the backend
+// returns one row per disjoint part of the buffer union: a geography split by
+// a gap between buffers appears more than once. The parts are the shapes to
+// draw, so they are returned as a flat list rather than keyed by geoid.
+export const bufferClipGeometryQuery = gql`
+query BufferClipGeometry(
+  $geoDatasetName: String,
+  $layer: String!,
+  $stopIds: [Int!],
+  $stopBufferRadius: Float
+) {
+  census_datasets(where: {name: $geoDatasetName}) {
+    id
+    geographies(
+      limit: 100000,
+      where: {
+        dataset: $geoDatasetName,
+        layer: $layer,
+        location: {stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}}
+      }
+    ) {
+      intersection_geometry
+    }
+  }
+}
+`
+
+// The clipped outlines for one stop set, in no particular order. Geographies
+// the buffers don't reach are omitted by the server.
+export async function fetchBufferClipGeometry (
+  config: FetchBufferClipGeometryConfig,
+): Promise<Geometry[]> {
+  const stopIds = Array.from(config.stopIds)
+  if (stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+    return []
+  }
+  const result = await config.client.query<{
+    census_datasets: { geographies: { intersection_geometry: Geometry | null }[] }[]
+  }>(bufferClipGeometryQuery, {
+    geoDatasetName: config.geoDatasetName,
+    layer: config.geoDatasetLayer,
+    stopIds,
+    stopBufferRadius: config.stopBufferRadius,
+  })
+  const out: Geometry[] = []
+  for (const geoDataset of result.data?.census_datasets || []) {
+    for (const geography of geoDataset.geographies || []) {
+      if (geography.intersection_geometry) {
+        out.push(geography.intersection_geometry)
+      }
+    }
+  }
+  return out
+}
+
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
