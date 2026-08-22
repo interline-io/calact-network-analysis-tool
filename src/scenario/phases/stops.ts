@@ -2,10 +2,9 @@
 // (via each stop's route_stops) the route ids that gate the downstream
 // routes/departures/buffer phases.
 
-import { convertBbox, chunkArray, TaskQueue, type Bbox, type GraphQLClient } from '~~/src/core'
+import { convertBbox, chunkArray, type Bbox, type GraphQLClient } from '~~/src/core'
 import { stopQuery, type StopGql } from '~~/src/tl'
-import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
-import type { ScenarioProgress } from '../scenario'
+import { phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
 // Emission batch size for streamed stops.
 const PROGRESS_LIMIT_STOPS = 1000
@@ -49,24 +48,7 @@ export async function runStopsPhase (
   const routeIds: Set<number> = new Set()
   const routeStopIds: Record<number, number[]> = {}
 
-  const queue: TaskQueue<StopFetchTask> = new TaskQueue<StopFetchTask>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    task => fetchStopPage(task),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    }
-  )
-
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      isLoading: true,
-      currentStage: 'stops',
-      feedVersionProgress: p,
-      phaseProgress: { phase: 'stops', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue, progressEvent, done } = phaseQueue<StopFetchTask>('stops', emit, task => fetchStopPage(task), opts)
 
   async function fetchStopPage (task: StopFetchTask): Promise<void> {
     // If we have geography IDs, use them and no bbox
@@ -126,7 +108,7 @@ export async function runStopsPhase (
     })
   }
   await queue.run()
-  emit({ ...progressEvent(), phaseProgress: phaseDone('stops') })
+  done()
 
   return { stopIds, routeIds: [...routeIds], routeStopIds }
 }

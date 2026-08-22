@@ -1,14 +1,10 @@
-/**
- * Server-side streaming scenario endpoint
- * Uses new ScenarioDataSender class for streaming implementation
- */
+// Server-side streaming scenario endpoint.
 
 import { createError } from 'h3'
 import type { ScenarioConfig } from '~~/src/scenario'
-import { streamScenario } from '~~/src/scenario'
+import { hasSearchArea, streamScenario } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { setStreamHeaders } from '~~/server/utils/phase-stream'
-import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('request-start')
@@ -16,25 +12,15 @@ export default defineEventHandler(async (event) => {
   // Parse the request body
   const config: ScenarioConfig = await readBody(event)
 
-  // Validate the config
-  if (!config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
+  if (!hasSearchArea(config)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Either bbox or geographyIds must be provided'
     })
   }
 
-  setStreamHeaders(event)
-  const client = await buildServerGraphQLClient(event)
-
-  logMemory('before-stream')
-
-  const stream = new ReadableStream({
-    async start (controller) {
-      await streamScenario(controller, config, client)
-      logMemory('stream-complete')
-    }
+  return streamEnvelopeResponse(event, 'Scenario run', async (client, controller) => {
+    await streamScenario(controller, config, client)
+    logMemory('stream-complete')
   })
-
-  return sendStream(event, stream)
 })

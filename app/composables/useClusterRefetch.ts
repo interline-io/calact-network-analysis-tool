@@ -5,7 +5,7 @@
 
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
-import type { FeedVersionRef, StopClusterFetchConfig } from '~~/src/scenario'
+import { phaseEnabled, type FeedVersionRef, type StopClusterFetchConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched
 // clusters land in the same accumulator.
@@ -17,7 +17,6 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
   useStreamingRefetch(deps, {
     watchSources: [clusterDistance],
     endpoint: '/api/stop-clusters',
-    phase: 'stop-clusters',
     loadingMessage: 'Recomputing stop clusters...',
     // A failed recompute would otherwise strand hubs computed at the old distance.
     clearOnError: true,
@@ -26,6 +25,12 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
       // Disabling clustering (distance 0) just clears the slice — no server call.
       if (!(clusterDistance.value > 0)) {
         return 'clear'
+      }
+      // The phase's own enablement, for the distance now in effect: without
+      // fixed-route data no stops are shown, so clusters would decorate a map
+      // with nothing under them.
+      if (!phaseEnabled('stop-clusters', { ...config, stopClusterDistance: clusterDistance.value })) {
+        return 'skip'
       }
       const feedVersions: FeedVersionRef[] = data.feedVersions.map(fv => ({
         feedOnestopId: fv.feed.onestop_id,

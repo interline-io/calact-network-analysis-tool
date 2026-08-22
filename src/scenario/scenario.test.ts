@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import type { ScenarioConfig } from './scenario'
 import { ScenarioFetcher, scenarioPhasePlan } from './scenario'
+import { createFailureReporter } from './phases'
 import { parseDate, type Bbox, type GraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import type { FeedGql, FlexLocationGql } from '~~/src/tl'
 
@@ -63,16 +64,14 @@ describe('ScenarioFetcher', () => {
   }
 
   it('should handle GraphQL errors', async () => {
+    // Fatal errors propagate out of fetch(); reporting them on the stream is
+    // the envelope's job, not the fetcher's.
     const mockError = new Error('GraphQL Error')
     mockClient.mockQuery.mockRejectedValue(mockError)
 
-    const errorCallback = vi.fn()
-    const fetcher = new ScenarioFetcher(config, mockClient, {
-      onError: errorCallback
-    })
+    const fetcher = new ScenarioFetcher(config, mockClient)
 
     await expect(fetcher.fetch()).rejects.toThrow('GraphQL Error')
-    expect(errorCallback).toHaveBeenCalledWith(mockError)
   })
 
   describe('feed version pagination', () => {
@@ -98,7 +97,7 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValueOnce({ data: { feeds: page2 } })
 
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(paginationConfig, client, { onProgress: progressCb })
+      const fetcher = new ScenarioFetcher(paginationConfig, client, progressCb)
       await fetcher.fetch()
 
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
@@ -172,7 +171,7 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValue(emptyStopTimesResponse) // stop-times queries (one per fv)
 
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(flexConfig, client, { onProgress: progressCb })
+      const fetcher = new ScenarioFetcher(flexConfig, client, progressCb)
       await fetcher.fetch()
 
       const flexProgressCalls = progressCb.mock.calls.filter(([p]) => p.partialData?.flexAreas?.length > 0)
@@ -191,23 +190,25 @@ describe('ScenarioFetcher', () => {
         .mockResolvedValueOnce(flexResponse(true)) // fv3: success (location)
         .mockResolvedValue(emptyStopTimesResponse) // fv1 + fv3 stop-times queries
 
-      const errorCb = vi.fn()
+      // Composed the way the envelope composes it: the failure reporter is the
+      // run's, and the fetcher receives its onError as the per-task hook.
       const progressCb = vi.fn()
-      const fetcher = new ScenarioFetcher(flexConfig, client, { onError: errorCb, onProgress: progressCb })
+      const failures = createFailureReporter(client, p => progressCb(p), () => 'flex-areas')
+      const fetcher = new ScenarioFetcher(flexConfig, client, progressCb, { onError: failures.onError })
       await fetcher.fetch()
+      failures.dispose()
 
       // A per-feed failure is reported on the progress stream, not as a fatal
       // error, so the remaining feeds still finish.
       const reported = progressCb.mock.calls.flatMap(([p]) => p.requestErrors ?? [])
       expect(reported).toHaveLength(1)
       expect(reported[0].message).toBe('network timeout')
-      expect(errorCb).not.toHaveBeenCalled()
       const flexProgressCalls = progressCb.mock.calls.filter(([p]) => p.partialData?.flexAreas?.length > 0)
       expect(flexProgressCalls).toHaveLength(2)
     })
   })
 
-  describe('includeDepartures', () => {
+  describe('departures', () => {
     // The route -> trips query is the only one taking route ids plus a stop filter.
     function departureCalls (client: MockGraphQLClient) {
       return client.mockQuery.mock.calls
@@ -255,22 +256,6 @@ describe('ScenarioFetcher', () => {
         expect(vars.stopIds).toEqual(vars.ids[0] === 10 ? [1, 2] : [2, 3])
       }
     })
-
-    it('skips departure queries when includeDepartures is false', async () => {
-      const client = new MockGraphQLClient()
-      client.mockQuery
-        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
-        .mockResolvedValueOnce({ data: { stops: [stop(1, [10])] } })
-
-      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, includeDepartures: false }, client)
-      await fetcher.fetch()
-
-      // A route is present, so the gate — not an empty route set — is what
-      // suppresses the departure queries.
-      expect(departureCalls(client)).toHaveLength(0)
-      // Only the feed version, stop and route queries were issued
-      expect(client.mockQuery).toHaveBeenCalledTimes(3)
-    })
   })
 
   describe('includeCensus', () => {
@@ -287,7 +272,6 @@ describe('ScenarioFetcher', () => {
     // the buffer passes.
     const bufferConfig: ScenarioConfig = {
       ...config,
-      includeDepartures: false,
       includeFlexAreas: false,
       tableDatasetName: 'acsdt5y2021',
       stopBufferRadius: 400,
@@ -358,11 +342,6 @@ describe('ScenarioFetcher', () => {
         ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
     })
 
-    it('drops only departures when includeDepartures is false', () => {
-      expect(scenarioPhasePlan({ ...fullConfig, includeDepartures: false })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'buffers', 'flex-areas', 'census-values'])
-    })
-
     it('drops all fixed-route phases when includeFixedRoute is false', () => {
       expect(scenarioPhasePlan({ ...fullConfig, includeFixedRoute: false })).toEqual(
         ['feed-versions', 'flex-areas', 'census-values'])
@@ -389,22 +368,25 @@ describe('ScenarioFetcher', () => {
     })
   })
 
-  it('emits a phase plan and per-phase completion ticks', async () => {
+  it('runs per-phase completion ticks for every planned phase', async () => {
     const client = new MockGraphQLClient()
     client.mockQuery
       .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
       .mockResolvedValueOnce(stopsResponse)
       .mockResolvedValue({ data: { stops: [] } }) // departure queries
 
+    // Announcing the plan is the stream envelope's job; the fetcher's is
+    // executing it, with the derived plan as the default.
+    const plan = scenarioPhasePlan({ ...config, includeFlexAreas: false })
+    expect(plan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
+
     const progressCb = vi.fn()
-    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, { onProgress: progressCb })
+    const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, progressCb)
     await fetcher.fetch()
 
     const events = progressCb.mock.calls.map(([p]) => p)
-    const planEvent = events.find(p => p.phasePlan)
-    expect(planEvent?.phasePlan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
     // Every planned phase reports a completed progress slice
-    for (const phase of planEvent!.phasePlan!) {
+    for (const phase of plan) {
       const done = events.some(p =>
         p.phaseProgress?.phase === phase
         && p.phaseProgress.total > 0
@@ -430,18 +412,16 @@ describe('ScenarioFetcher', () => {
       .mockResolvedValue({ data: { stops: [] } }) // All subsequent calls return empty
 
     const progressCallback = vi.fn()
-    const fetcher = new ScenarioFetcher(config, mockClient, {
-      onProgress: progressCallback
-    })
+    const fetcher = new ScenarioFetcher(config, mockClient, progressCallback)
 
     await fetcher.fetch()
 
-    // Should be called at least twice (start loading, stop loading)
-    expect(progressCallback).toHaveBeenCalledWith(
-      expect.objectContaining({ isLoading: true })
-    )
-    expect(progressCallback).toHaveBeenCalledWith(
-      expect.objectContaining({ isLoading: false })
+    expect(progressCallback).toHaveBeenCalled()
+    // Completion is the stream envelope's frame, not the fetcher's: the
+    // fetcher never claims the run is done, since an analysis stage may still
+    // be layered after its phases.
+    expect(progressCallback).not.toHaveBeenCalledWith(
+      expect.objectContaining({ currentStage: 'complete' })
     )
   })
 })

@@ -102,20 +102,15 @@
 import { phaseProgressPercent, planRunsPhase, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
 import type { RequestFailure } from '~~/src/core'
 
-// Props. Phase plan/fractions are accumulated by the parent inside the
-// stream receiver callback — every event is seen there. (A `watch` on the
-// latest-event prop samples: multiple NDJSON lines decoded from one network
-// chunk collapse into a single watcher invocation, dropping events like the
-// phase plan announcement.)
+// Phase plan/fractions are accumulated by the parent inside the receiver
+// callback, where every event is seen — a watch on the latest-event prop
+// would sample and drop one-off events like the plan announcement.
 const props = withDefaults(defineProps<{
   progress?: ScenarioProgress
   error?: Error | string
   requestErrors?: RequestFailure[]
   scenarioData?: ScenarioData
   stopDepartureCount?: number
-  // Distinct stops seen with departures. Sticky in the caller, so it survives
-  // the stream ending.
-  stopsWithDepartures?: number
   phasePlan?: ScenarioPhaseName[]
   phaseFractions?: Partial<Record<ScenarioPhaseName, number>>
 }>(), {})
@@ -133,30 +128,13 @@ const cardColumnClass = computed(() => {
   return 'is-one-quarter'
 })
 
-// Computed values
+// Weighted across the run's announced phase plan, which every stream carries
+// on its opening event; 0 only in the moment before that event arrives.
 const progressPercentage = computed(() => {
-  // Phase-weighted progress when the stream announced a plan
-  const weighted = phaseProgressPercent({
+  return phaseProgressPercent({
     plan: props.phasePlan,
     fractions: props.phaseFractions ?? {},
-  })
-  if (weighted !== null) {
-    return weighted
-  }
-  // Legacy fallback: streams without a phase plan (old saved examples,
-  // WSDOT analyses)
-  if (!props.progress) { return 0 }
-  let total = 0
-  let completed = 0
-  if (props.progress.feedVersionProgress) {
-    total += props.progress.feedVersionProgress.total
-    completed += props.progress.feedVersionProgress.completed
-  }
-  if (props.progress.stopDepartureProgress) {
-    total += props.progress.stopDepartureProgress.total
-    completed += props.progress.stopDepartureProgress.completed
-  }
-  return total > 0 ? Math.round((completed / total) * 100) : 0
+  }) ?? 0
 })
 
 // Total number of stops loaded
@@ -164,18 +142,9 @@ const totalStops = computed(() => {
   return props.scenarioData?.stops?.length || 0
 })
 
-// Number of stops that have departures loaded. A stream that folds departures
-// server-side sends the count rather than the tuples, so there is no cache to
-// measure; browse-style streams fall back to the cache's own size.
-//
-// The caller's running figure wins, because it survives the progress event
-// being cleared. On an aborted stream the modal stays up with no progress to
-// read, and the cache it would otherwise fall back to is empty by design, so
-// the count would read zero next to a departure total in the millions.
+// Number of stops that have departures loaded, from the accumulated cache.
 const stopsWithDepartures = computed(() => {
-  return props.stopsWithDepartures
-    ?? props.progress?.departureSummary?.stopsWithDepartures
-    ?? props.scenarioData?.stopDepartureCache?.cache?.size
+  return props.scenarioData?.stopDepartureCache?.cache?.size
     ?? 0
 })
 
@@ -188,15 +157,16 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
     'routes': 'Loading routes...',
-    'schedules': 'Loading schedules...',
+    'departures': 'Loading departure schedules...',
     'flex-areas': 'Loading flex service areas...',
     'census-values': 'Loading census data...',
-    'stop-buffer-geographies': 'Loading per-stop buffer demographics...',
-    'route-buffer-geographies': 'Loading per-route buffer demographics...',
-    'agency-buffer-geographies': 'Loading per-agency buffer demographics...',
-    'aggregation-buffer-geographies': 'Loading aggregation buffer demographics...',
+    'buffers': 'Loading buffer demographics...',
+    'stop-clusters': 'Loading stop clusters...',
+    'wsdot-levels': 'Computing WSDOT service levels...',
+    'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',
     'ready': 'Ready',
+    'error': 'Error',
   }
   return stageLabels[stage] || 'Loading...'
 }

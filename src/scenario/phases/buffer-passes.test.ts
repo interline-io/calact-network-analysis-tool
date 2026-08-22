@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { gql } from 'graphql-tag'
 import { apiFetch, BasicGraphQLClient, SCENARIO_DEFAULTS } from '~~/src/core'
 import { runBufferPasses } from './buffer-passes'
-import type { ScenarioProgress } from './scenario'
+import type { ScenarioProgress } from '../scenario'
 
 // Integration tests for the buffer-only fetch path (#315 Passes C/D/E/F).
 // Hits a live transitland-server connected to the test DB, ungated like
@@ -85,7 +85,7 @@ describe('runBufferPasses (integration)', () => {
     expect([...seenStopIds].sort()).toEqual([...stopIds].sort())
 
     // Pass F runs whenever stopIds is non-empty.
-    const aggEvent = events.find(e => e.currentStage === 'aggregation-buffer-geographies')
+    const aggEvent = events.find(e => e.partialData?.aggregationBufferGeographies)
     expect(aggEvent).toBeDefined()
     const aggTracts = aggEvent!.partialData!.aggregationBufferGeographies!
     expect(aggTracts.length).toBeGreaterThan(0)
@@ -114,7 +114,7 @@ describe('runBufferPasses (integration)', () => {
       }
     })
 
-    const aggEvent = events.find(e => e.currentStage === 'aggregation-buffer-geographies')!
+    const aggEvent = events.find(e => e.partialData?.aggregationBufferGeographies)!
     // Union over neighbouring stops in downtown PDX necessarily produces
     // fewer total tract rows than naively summing per-stop tract lists
     // (overlapping buffers share tracts).

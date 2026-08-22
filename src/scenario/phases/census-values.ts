@@ -47,12 +47,11 @@ export async function runCensusValuesPhase (
   }
   if (!fetchBbox) {
     console.warn('[CensusValues] No resolved bbox — skipping')
-    emit({ isLoading: true, currentStage: 'census-values', phaseProgress: phaseDone('census-values') })
+    emit({ currentStage: 'census-values', phaseProgress: phaseDone('census-values') })
     return
   }
 
   emit({
-    isLoading: true,
     currentStage: 'census-values',
     phaseProgress: { phase: 'census-values', completed: 0, total: 1 },
   })
@@ -129,7 +128,6 @@ export async function runCensusValuesPhase (
   })
   console.log(`[CensusValues] Fetched values for ${entries.length} geographies`)
   await emit({
-    isLoading: true,
     currentStage: 'census-values',
     partialData: { censusGeographies: entries },
     phaseProgress: phaseDone('census-values'),

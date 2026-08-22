@@ -6,7 +6,6 @@
  * Base interface for progress data that can be streamed
  */
 export interface StreamableProgress {
-  isLoading: boolean
   error?: any
   currentStage: string
 }
@@ -73,12 +72,12 @@ export class GenericStreamSender<T extends StreamableProgress> implements Stream
   // await it. Writes are queued behind one another now, so closing without
   // awaiting drops whatever has not been flushed yet.
   onComplete (): Promise<void> {
-    return this.send({ isLoading: false, currentStage: 'complete' } as unknown as T)
+    return this.send({ currentStage: 'complete' } as unknown as T)
   }
 
   onError (error: any): Promise<void> {
     const errMsg = { message: error.message || 'Unknown error' }
-    return this.send({ isLoading: false, currentStage: 'error', error: errMsg } as unknown as T)
+    return this.send({ currentStage: 'error', error: errMsg } as unknown as T)
   }
 }
 

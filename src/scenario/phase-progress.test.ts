@@ -3,7 +3,7 @@ import { emptyPhaseProgress, phaseProgressPercent, planRunsPhase, trackPhaseProg
 import type { ScenarioProgress } from './scenario'
 
 const event = (p: Partial<ScenarioProgress>): ScenarioProgress =>
-  ({ isLoading: true, currentStage: 'stops', ...p }) as ScenarioProgress
+  ({ currentStage: 'stops', ...p }) as ScenarioProgress
 
 describe('trackPhaseProgress', () => {
   it('records the plan the run announces', () => {
@@ -78,9 +78,9 @@ describe('planRunsPhase', () => {
     expect(planRunsPhase(['feed-versions', 'stops', 'routes', 'departures'], 'flex-areas')).toBe(false)
   })
 
-  it('shows everything when no plan was announced', () => {
-    // Saved examples and older streams carry no plan; hiding their results
-    // would be worse than a counter that stays at zero.
-    expect(planRunsPhase(undefined, 'flex-areas')).toBe(true)
+  it('shows nothing before the plan is announced', () => {
+    // The plan rides the run's opening event, so this window lasts until the
+    // first NDJSON line is processed.
+    expect(planRunsPhase(undefined, 'flex-areas')).toBe(false)
   })
 })

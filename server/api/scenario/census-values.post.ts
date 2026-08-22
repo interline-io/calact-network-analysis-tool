@@ -17,6 +17,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName, tableDatasetName, and aggregateLayer are required' })
   }
 
-  return streamPhaseResponse(event, 'Starting census-values phase', (client, emit) =>
+  return streamPhaseResponse(event, 'census-values', 'Starting census-values phase', (client, emit) =>
     runCensusValuesPhase(config, client, emit))
 })

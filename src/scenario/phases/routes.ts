@@ -1,10 +1,9 @@
 // Phase 3: fetch route details for the route ids discovered by the stops
 // phase. Returns the agency ids the buffer passes roll up to.
 
-import { chunkArray, TaskQueue, type GraphQLClient } from '~~/src/core'
+import { chunkArray, type GraphQLClient } from '~~/src/core'
 import { routeQuery, type RouteGql } from '~~/src/tl'
-import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
-import type { ScenarioProgress } from '../scenario'
+import { phaseQueue, type PhaseEmit, type PhaseOpts } from './common'
 
 // Emission batch size for streamed routes.
 const PROGRESS_LIMIT_ROUTES = 10
@@ -32,24 +31,7 @@ export async function runRoutesPhase (
 ): Promise<RoutesPhaseResult> {
   const agencyIds: Set<number> = new Set()
 
-  const queue: TaskQueue<number[]> = new TaskQueue<number[]>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    ids => fetchRouteBatch(ids),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    }
-  )
-
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      isLoading: true,
-      currentStage: 'routes',
-      feedVersionProgress: p,
-      phaseProgress: { phase: 'routes', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue, progressEvent, done } = phaseQueue<number[]>('routes', emit, ids => fetchRouteBatch(ids), opts)
 
   async function fetchRouteBatch (ids: number[]): Promise<void> {
     if (ids.length === 0) {
@@ -80,7 +62,7 @@ export async function runRoutesPhase (
     queue.enqueueOne(chunk)
   }
   await queue.run()
-  emit({ ...progressEvent(), phaseProgress: phaseDone('routes') })
+  done()
 
   return { agencyIds: [...agencyIds] }
 }

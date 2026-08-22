@@ -48,7 +48,6 @@ function censusConfig (aggregateLayer: string): ScenarioConfig {
     aggregateLayer,
     includeFixedRoute: false,
     includeFlexAreas: false,
-    includeDepartures: false,
   }
 }
 

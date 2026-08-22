@@ -14,8 +14,8 @@ import {
   type BufferEntityKind,
   type BufferGeographyIntersection,
 } from '~~/src/tl'
-import type { ScenarioProgress } from './scenario'
-import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './phases/common'
+import type { ScenarioProgress } from '../scenario'
+import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './common'
 
 // One route/agency per request. The server resolves these kinds an entity at a
 // time — a batch of N is N sequential queries inside one request — so batching
@@ -23,9 +23,9 @@ import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseOpts } from './phas
 const BUFFER_ENTITY_BATCH_SIZE = 1
 
 const BUFFER_PASS_BY_KIND = {
-  stops: { stage: 'stop-buffer-geographies', partialKey: 'stopBufferGeographies' },
-  routes: { stage: 'route-buffer-geographies', partialKey: 'routeBufferGeographies' },
-  agencies: { stage: 'agency-buffer-geographies', partialKey: 'agencyBufferGeographies' },
+  stops: { message: 'Loading per-stop buffer demographics...', partialKey: 'stopBufferGeographies' },
+  routes: { message: 'Loading per-route buffer demographics...', partialKey: 'routeBufferGeographies' },
+  agencies: { message: 'Loading per-agency buffer demographics...', partialKey: 'agencyBufferGeographies' },
 } as const
 
 export interface BufferFetchConfig {
@@ -72,22 +72,22 @@ export async function runBufferPasses (
     + (config.stopIds.length > 0 ? 1 : 0)
   let completedChunks = 0
   if (totalChunks === 0) {
-    emit({ isLoading: true, currentStage: 'stop-buffer-geographies', phaseProgress: phaseDone('buffers') })
+    emit({ currentStage: 'buffers', phaseProgress: phaseDone('buffers') })
     return
   }
 
-  // A queue per kind rather than one over all three, so the stage a chunk
+  // A queue per kind rather than one over all three, so the message a chunk
   // reports stays stable for the duration of its pass.
   for (const { kind, ids, batchSize } of passes) {
     const chunks = chunkArray(ids, batchSize)
     if (chunks.length === 0) {
       continue
     }
-    const { stage, partialKey } = BUFFER_PASS_BY_KIND[kind]
+    const { message, partialKey } = BUFFER_PASS_BY_KIND[kind]
     let completedInPass = 0
     const progressEvent = (): ScenarioProgress => ({
-      isLoading: true,
-      currentStage: stage,
+      currentStage: 'buffers',
+      currentStageMessage: message,
       phaseProgress: { phase: 'buffers', completed: completedChunks + completedInPass, total: totalChunks },
     })
     const queue = new TaskQueue<number[]>(
@@ -135,8 +135,8 @@ export async function runBufferPasses (
     console.log(`[AggregationBuffer] union over ${config.stopIds.length} stops → ${geographies.length} geographies`)
     completedChunks += 1
     await emit({
-      isLoading: true,
-      currentStage: 'aggregation-buffer-geographies',
+      currentStage: 'buffers',
+      currentStageMessage: 'Loading aggregation buffer demographics...',
       partialData: { aggregationBufferGeographies: geographies },
       phaseProgress: { phase: 'buffers', completed: completedChunks, total: totalChunks },
     })

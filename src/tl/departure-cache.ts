@@ -73,8 +73,8 @@ export class StopDepartureCache {
     return (a.get(date) || []).length > 0
   }
 
-  // True when no departures have been loaded at all (e.g. the scenario ran with
-  // includeDepartures off) — distinct from a particular stop having no service.
+  // True when no departures have been loaded at all — distinct from a
+  // particular stop having no service.
   isEmpty (): boolean {
     return this.cache.size === 0
   }
