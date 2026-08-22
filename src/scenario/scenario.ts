@@ -348,8 +348,11 @@ export class ScenarioFetcher {
       scenarioStopIds = stopIds
       logMemory('after-stops')
 
-      // Departures and the per-stop census fan out concurrently with routes;
-      // all three need only the stop ids.
+      // Departures, the per-stop census, and routes all consume only the stop
+      // ids, so all three run together. Awaited as one group rather than in
+      // sequence: an `await` between them strands whichever is still running
+      // when an earlier one rejects, and its rejection surfaces later with no
+      // handler attached.
       const departuresPromise = enabled.has('departures')
         ? runDeparturesPhase({
             stopIds,
@@ -363,16 +366,13 @@ export class ScenarioFetcher {
       const stopCensusPromise = enabled.has('stop-census')
         ? this.fetchStopCensus(stopIds, onError)
         : Promise.resolve()
-      const { agencyIds } = enabled.has('routes')
-        ? await runRoutesPhase({
+      const routesPromise = enabled.has('routes')
+        ? runRoutesPhase({
             routeIds,
             includeGeometry: this.config.includeRouteGeometry,
           }, this.client, emit, { onError })
-        : { agencyIds: [] }
-      logMemory('after-routes')
-      // Awaited together: awaiting in sequence strands the second promise when
-      // the first rejects, which surfaces as an unhandled rejection.
-      await Promise.all([departuresPromise, stopCensusPromise])
+        : Promise.resolve({ agencyIds: [] as number[] })
+      const [, , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, routesPromise])
       logMemory('after-departures')
 
       if (enabled.has('buffers')) {

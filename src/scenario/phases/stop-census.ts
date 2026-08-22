@@ -35,9 +35,15 @@ export async function runStopCensusPhase (
       dataset: config.geoDatasetName,
       layer: config.censusLayer,
     })
-    // A stop outside every geography of the layer comes back with none; it
-    // still gets an entry so a consumer can tell "none" from "not fetched".
-    const entries: [number, StopCensusGeography[]][] = (response.data?.stops || [])
+    // One entry per stop asked about, including stops in no geography of the
+    // layer. That makes a short response detectable: the nested limit is a cap
+    // across the server's whole dataloader batch, not a per-stop one, so
+    // truncation would otherwise look like a region with no census at all.
+    const stops = response.data?.stops || []
+    if (stops.length !== stopIds.length) {
+      console.warn(`[StopCensus] asked for ${stopIds.length} stops, got ${stops.length} — results may be truncated`)
+    }
+    const entries: [number, StopCensusGeography[]][] = stops
       .map(stop => [stop.id, stop.census_geographies || []])
     await emit({ ...progressEvent(), partialData: { stopCensusGeographies: entries } })
   }

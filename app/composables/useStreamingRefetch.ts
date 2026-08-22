@@ -37,6 +37,10 @@ export interface StreamingRefetchDeps {
   // only torn down when the last refetch finishes, so a sibling that finishes
   // first can't close it mid-load.
   refetchInFlight: Ref<number>
+  // Non-zero while the main scenario run is streaming. A refetch started then
+  // would interleave with the run's own phases in the shared accumulator, so
+  // it waits for the run to finish instead — see the deferral below.
+  runInFlight: Ref<number>
 }
 
 // What a single refetch should do given the current inputs:
@@ -160,12 +164,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
   }
 
-  // Initial query reads these inputs via `scenarioConfig` directly; this watch
-  // only kicks in once a scenario is loaded.
-  watch(opts.watchSources, () => {
-    if (!deps.scenarioReceiver.value || !deps.scenarioData.value) {
-      return
-    }
+  function schedule (): void {
     if (timer) {
       clearTimeout(timer)
     }
@@ -173,6 +172,35 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       timer = undefined
       refetch()
     }, DEBOUNCE_MS)
+  }
+
+  // An input changed mid-run and is waiting for the run to finish.
+  let deferred = false
+
+  // Initial query reads these inputs via `scenarioConfig` directly; this watch
+  // only kicks in once a scenario is loaded.
+  watch(opts.watchSources, () => {
+    if (!deps.scenarioReceiver.value || !deps.scenarioData.value) {
+      return
+    }
+    // Both this refetch and the run's own phases write the same slices of the
+    // shared accumulator, and neither can supersede the other's stream — a
+    // clear-then-fetch here would be overwritten piecemeal by whatever the run
+    // has left to emit, leaving the slice holding both inputs' results at once.
+    if (deps.runInFlight.value > 0) {
+      deferred = true
+      return
+    }
+    schedule()
+  })
+
+  // The run that was in the way has finished; apply what it deferred. The plan
+  // is built at that point, so it reflects the inputs as they stand now.
+  watch(deps.runInFlight, (inFlight) => {
+    if (inFlight === 0 && deferred) {
+      deferred = false
+      schedule()
+    }
   })
 
   onScopeDispose(() => {

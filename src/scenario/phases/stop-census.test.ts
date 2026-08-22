@@ -67,9 +67,9 @@ describe('runStopCensusPhase', () => {
     expect(events[0]?.phaseProgress).toEqual({ phase: 'stop-census', completed: 1, total: 1 })
   })
 
-  it('emits an entry for a stop in no geography of the layer', async () => {
-    // "None" has to be distinguishable from "not fetched": a stop outside every
-    // place still belongs in the aggregation table's stop count.
+  it('accounts for every stop it asked about, including ones in no geography', async () => {
+    // A stop outside every place still gets an entry, so a short response is
+    // visible as a missing entry rather than as an empty region.
     const client: GraphQLClient = {
       query: vi.fn().mockResolvedValue({ data: { stops: [{ id: 1, census_geographies: [] }] } }),
     }
@@ -77,6 +77,18 @@ describe('runStopCensusPhase', () => {
     await runStopCensusPhase({ stopIds: [1], geoDatasetName: 'tiger2021', censusLayer: 'place' }, client, emit)
 
     expect(streamedEntries(events)).toEqual([[1, []]])
+  })
+
+  it('warns when the server returns fewer stops than were asked about', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const client: GraphQLClient = {
+      query: vi.fn().mockResolvedValue({ data: { stops: [{ id: 1, census_geographies: [] }] } }),
+    }
+    const { emit } = collect()
+    await runStopCensusPhase({ stopIds: [1, 2, 3], geoDatasetName: 'tiger2021', censusLayer: 'tract' }, client, emit)
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('asked for 3 stops, got 1'))
+    warn.mockRestore()
   })
 })
 

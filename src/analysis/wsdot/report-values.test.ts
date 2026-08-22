@@ -7,6 +7,7 @@ import {
   type GraphQLClient,
 } from '~~/src/core'
 import { StopDepartureTuple, type ScenarioProgress } from '~~/src/scenario'
+import { stopCensusQuery } from '~~/src/tl'
 
 // The values the report actually puts in front of a user: which service level
 // each stop qualifies for. The rest of this directory tests plumbing, and none
@@ -182,7 +183,10 @@ function fixtureClient () {
   // same tick does not model a network round trip, and code that consumes its
   // own output stream behaves differently under the two.
   const reply = (data: any) => new Promise(resolve => setTimeout(() => resolve({ data }), 0))
-  client.mockQuery.mockImplementation((_query: any, v: any) => {
+  client.mockQuery.mockImplementation((query: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+    if (query === stopCensusQuery) { return reply({ stops: STOP_CENSUS }) }
     if (v?.tableNames !== undefined) {
       return reply({ census_datasets: [] })
     }
@@ -201,10 +205,6 @@ function fixtureClient () {
           agency: { id: 1, agency_id: 'a', agency_name: 'A' },
         })),
       })
-    }
-    // Only the stop-census query takes both an id list and a single layer.
-    if (v?.ids !== undefined && v?.layer !== undefined) {
-      return reply({ stops: STOP_CENSUS })
     }
     if (v?.after !== undefined) {
       if (stopsServed) { return reply({ stops: [] }) }

@@ -39,6 +39,9 @@ export interface UseScenarioRunReturn extends Pick<UseScenarioStreamReturn,
   scenarioReceiver: ShallowRef<ScenarioDataReceiver | undefined>
   // Ref-counts concurrent refetches so the modal closes only when the last settles.
   refetchInFlight: Ref<number>
+  // Non-zero while a run is streaming. The refetch composables hold off while
+  // it is, so their writes cannot interleave with the run's own phases.
+  runInFlight: Ref<number>
   // Streams a scenario inside the shared modal/toast lifecycle.
   runQuery: (successToast: string) => Promise<void>
 }
@@ -46,6 +49,7 @@ export interface UseScenarioRunReturn extends Pick<UseScenarioStreamReturn,
 export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn {
   const stream = useScenarioStream()
   const refetchInFlight = ref(0)
+  const runInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
 
   const fetchScenario = async (): Promise<boolean> => {
@@ -80,7 +84,12 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     })
     scenarioReceiver.value = receiver
 
-    await stream.run(receiver, '/api/scenario', config)
+    runInFlight.value++
+    try {
+      await stream.run(receiver, '/api/scenario', config)
+    } finally {
+      runInFlight.value = Math.max(0, runInFlight.value - 1)
+    }
     return true
   }
 
@@ -106,6 +115,7 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
     phasePlan: stream.phasePlan,
     phaseFractions: stream.phaseFractions,
     refetchInFlight,
+    runInFlight,
     stopDepartureCount: stream.stopDepartureCount,
     runQuery: successToast => stream.runQuery(fetchScenario, successToast),
   }

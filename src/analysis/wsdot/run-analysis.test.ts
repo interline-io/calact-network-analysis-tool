@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest'
 import { runAnalysis, WSDOT_PHASE_PLAN, type WSDOTProgress, type WSDOTReportConfig } from './index'
 import { parseDate, SCENARIO_DEFAULTS, type Bbox, type GraphQLClient } from '~~/src/core'
+import { stopCensusQuery } from '~~/src/tl'
 
 class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock = vi.fn()
@@ -60,16 +61,11 @@ function client () {
   c.mockQuery
     .mockResolvedValueOnce({ data: { feeds: [feed] } })
     .mockResolvedValueOnce({ data: { stops: [stop] } })
-    .mockImplementation((_q: any, v: any) => {
-      if (isStopCensus(v)) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
+    .mockImplementation((q: any) => {
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
       return Promise.resolve({ data: { stops: [], routes: [], census_geographies: [] } })
     })
   return c
-}
-
-// Only the stop-census query takes both an id list and a single layer.
-function isStopCensus (v: any): boolean {
-  return v?.ids !== undefined && v?.layer !== undefined
 }
 
 // A scenario with one stop on one route that actually runs, so the service
@@ -85,14 +81,16 @@ function servingClient () {
     frequencies: [],
   }
   let stopsServed = false
-  c.mockQuery.mockImplementation((_q: any, v: any) => {
+  c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+    if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
     if (v?.tableNames !== undefined) { return Promise.resolve({ data: { census_datasets: [] } }) }
     if (v?.where?.bbox !== undefined) { return Promise.resolve({ data: { feeds: [feed] } }) }
     if (v?.dates !== undefined) { return Promise.resolve({ data: { routes: [{ id: 500, trips: [trip] }] } }) }
     if (v?.include_geometry !== undefined) {
       return Promise.resolve({ data: { routes: [{ id: 500, route_id: 'r500', agency: { id: 1, agency_id: 'a', agency_name: 'A' } }] } })
     }
-    if (isStopCensus(v)) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
     if (v?.after !== undefined) {
       if (stopsServed) { return Promise.resolve({ data: { stops: [] } }) }
       stopsServed = true
@@ -149,7 +147,10 @@ describe('runAnalysis completion signalling', () => {
     // A dead analysis stage previously arrived as a finished run carrying an
     // empty report, which reads as a region with no transit service at all.
     const c = client()
-    c.mockQuery.mockImplementation((_q: any, v: any) => {
+    c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
       if (v && v.tableNames !== undefined) { return Promise.reject(new Error('census backend died')) }
       return Promise.resolve({ data: { stops: [], routes: [], feeds: [] } })
     })
@@ -181,7 +182,10 @@ describe('runAnalysis geography queries', () => {
     const c = new MockGraphQLClient()
     // The geography ids resolve to an admin polygon, which is what the bbox
     // tract query should then be clipped against.
-    c.mockQuery.mockImplementation((_q: any, v: any) => {
+    c.mockQuery.mockImplementation((q: any, v: any) => {
+    // Dispatched on the document: the buffer queries take `ids` and `layer`
+    // too, so variable names alone cannot tell this one apart.
+      if (q === stopCensusQuery) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
       if (v && v.include_geographies) {
         return Promise.resolve({ data: { census_datasets: [{ geographies: [{
           geometry: { type: 'Polygon', coordinates: [[[-122.8, 45.4], [-122.5, 45.4], [-122.5, 45.7], [-122.8, 45.7], [-122.8, 45.4]]] },
