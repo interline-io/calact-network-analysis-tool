@@ -107,7 +107,6 @@
         :error="error"
         :request-errors="requestErrors"
         :stop-departure-count="stopDepartureCount"
-        :stops-with-departures="stopsWithDepartures"
         :phase-plan="scenarioPhasePlan"
         :phase-fractions="scenarioPhaseFractions"
         :scenario-data="scenarioData"
@@ -144,7 +143,6 @@ const {
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   stopDepartureCount,
-  stopsWithDepartures,
   showLoadingModal,
   wsdotReport,
   wsdotReportConfig,

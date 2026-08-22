@@ -59,13 +59,6 @@ export interface ScenarioConfig {
    */
   includeFixedRoute?: boolean
   /**
-   * Whether to fetch stop departures (schedule data). Departures dominate
-   * scenario loading time and size; disabling them allows quickly browsing
-   * stops, routes, flex, and census data. Only meaningful when
-   * includeFixedRoute is enabled. Defaults to true.
-   */
-  includeDepartures?: boolean
-  /**
    * Whether to fetch flex service areas
    * Defaults to true
    */
@@ -126,8 +119,7 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
   'feed-versions': () => true,
   'stops': config => config.includeFixedRoute !== false,
   'routes': config => config.includeFixedRoute !== false,
-  'departures': config => config.includeFixedRoute !== false
-    && config.includeDepartures !== false,
+  'departures': config => config.includeFixedRoute !== false,
   'buffers': config => config.includeFixedRoute !== false
     && config.includeCensus !== false
     && (config.stopBufferRadius ?? 0) > 0
@@ -229,11 +221,6 @@ export interface ScenarioProgress {
   // distinguish themselves through currentStageMessage.
   currentStage: ScenarioPhaseName | 'ready' | 'complete' | 'error'
   currentStageMessage?: string
-  // Running departure totals for a consumer that is not being sent the
-  // departures themselves. Set by paths that fold them server-side and strip
-  // `partialData.stopDepartures`, so the loading UI still has its numbers
-  // without several million tuples crossing the wire.
-  departureSummary?: { departures: number, stopsWithDepartures: number }
   error?: any
   // Non-fatal warnings the consumer should toast. Drained per delivery.
   warnings?: string[]

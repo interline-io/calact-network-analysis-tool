@@ -6,7 +6,7 @@ import {
   type Bbox,
   type GraphQLClient,
 } from '~~/src/core'
-import type { ScenarioProgress } from '~~/src/scenario'
+import { StopDepartureTuple, type ScenarioProgress } from '~~/src/scenario'
 
 // The values the report actually puts in front of a user: which service level
 // each stop qualifies for. The rest of this directory tests plumbing, and none
@@ -289,13 +289,11 @@ describe('WSDOT report values (hermetic)', () => {
     // and the night route's 6 — four landing on the weekday and two on the
     // following morning. The two days fetched only to catch trips stated past
     // midnight (the day before each report day) carry no service here.
-    // Read off the last event carrying figures — the envelope's final
-    // 'complete' frame is bare.
-    const summary = sent.findLast(p => p.departureSummary)?.departureSummary
-    expect(summary).toEqual({ departures: 144 * 3 + 8 + 6, stopsWithDepartures: 3 })
-
-    // Folded and dropped: the tuples never reach the client.
-    expect(sent.some(p => p.partialData?.stopDepartures)).toBe(false)
+    // Departures stream to the client like browse, so the totals derive from
+    // the wire tuples themselves.
+    const tuples = sent.flatMap(p => p.partialData?.stopDepartures ?? [])
+    expect(tuples).toHaveLength(144 * 3 + 8 + 6)
+    expect(new Set(tuples.map(t => StopDepartureTuple.stopId(t))).size).toBe(3)
   })
 
   it('reports a stop with no service rather than dropping it', async () => {

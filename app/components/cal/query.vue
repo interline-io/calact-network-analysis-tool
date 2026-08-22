@@ -212,17 +212,6 @@
                   Include Fixed-Route Transit
                 </cat-checkbox>
               </li>
-              <li class="cal-query-data-toggles-nested">
-                <cat-checkbox
-                  v-model="includeDepartures"
-                  :disabled="!includeFixedRoute"
-                >
-                  Include Departure Schedules
-                </cat-checkbox>
-                <cat-tooltip text="Departure schedules are the largest and slowest part of loading a query. Uncheck to quickly browse stop locations, routes, flex services, and census data; schedule-dependent features such as frequencies and visit counts will be unavailable.">
-                  <cat-icon size="small" icon="information" />
-                </cat-tooltip>
-              </li>
               <li>
                 <cat-checkbox v-model="includeFlexAreas">
                   Include Flex Service Areas
@@ -366,7 +355,6 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
-  includeDepartures,
   includeCensus,
   fvids,
   applyDatesAndFvids,

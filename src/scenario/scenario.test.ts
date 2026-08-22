@@ -208,7 +208,7 @@ describe('ScenarioFetcher', () => {
     })
   })
 
-  describe('includeDepartures', () => {
+  describe('departures', () => {
     // The route -> trips query is the only one taking route ids plus a stop filter.
     function departureCalls (client: MockGraphQLClient) {
       return client.mockQuery.mock.calls
@@ -256,22 +256,6 @@ describe('ScenarioFetcher', () => {
         expect(vars.stopIds).toEqual(vars.ids[0] === 10 ? [1, 2] : [2, 3])
       }
     })
-
-    it('skips departure queries when includeDepartures is false', async () => {
-      const client = new MockGraphQLClient()
-      client.mockQuery
-        .mockResolvedValueOnce({ data: { feeds: [makeFeedGql('1')] } })
-        .mockResolvedValueOnce({ data: { stops: [stop(1, [10])] } })
-
-      const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false, includeDepartures: false }, client)
-      await fetcher.fetch()
-
-      // A route is present, so the gate — not an empty route set — is what
-      // suppresses the departure queries.
-      expect(departureCalls(client)).toHaveLength(0)
-      // Only the feed version, stop and route queries were issued
-      expect(client.mockQuery).toHaveBeenCalledTimes(3)
-    })
   })
 
   describe('includeCensus', () => {
@@ -288,7 +272,6 @@ describe('ScenarioFetcher', () => {
     // the buffer passes.
     const bufferConfig: ScenarioConfig = {
       ...config,
-      includeDepartures: false,
       includeFlexAreas: false,
       tableDatasetName: 'acsdt5y2021',
       stopBufferRadius: 400,
@@ -357,11 +340,6 @@ describe('ScenarioFetcher', () => {
     it('includes every phase for a fully-enabled config', () => {
       expect(scenarioPhasePlan(fullConfig)).toEqual(
         ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
-    })
-
-    it('drops only departures when includeDepartures is false', () => {
-      expect(scenarioPhasePlan({ ...fullConfig, includeDepartures: false })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'buffers', 'flex-areas', 'census-values'])
     })
 
     it('drops all fixed-route phases when includeFixedRoute is false', () => {

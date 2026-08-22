@@ -210,10 +210,10 @@ describe('runAnalysis fetch policy', () => {
     // the browse flags a caller's config carries must not change what runs.
     //
     // Every flag below is set the wrong way for this report: the ones it does
-    // not read are on, and the two it cannot do without are off. Dropping
-    // stops or departures is the worse direction — the run still succeeds, and
-    // every stop comes back with no service level at all, which reads as a
-    // region with no transit service rather than as a failure.
+    // not read are on, and the one it cannot do without is off. Dropping
+    // stops is the worse direction — the run still succeeds, and every stop
+    // comes back with no service level at all, which reads as a region with
+    // no transit service rather than as a failure.
     const sent: WSDOTProgress[] = []
     const controller = {
       enqueue: (chunk: Uint8Array) => {
@@ -231,7 +231,6 @@ describe('runAnalysis fetch policy', () => {
       stopBufferRadius: 800,
       stopClusterDistance: 400,
       includeFixedRoute: false,
-      includeDepartures: false,
     }, client())
 
     expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_PHASE_PLAN)
@@ -270,47 +269,12 @@ describe('runAnalysis fetch policy', () => {
 })
 
 describe('runAnalysis client stream', () => {
-  it('attaches the departure totals to every event of its own, including the analysis stage', async () => {
-    // The client keeps the last figures it saw, so they survive the envelope's
-    // bare frames — but every event the run emits must carry them, or the
-    // figures the client keeps would come from a departure cache the server
-    // deliberately left empty and read zero partway through the run.
-    const sent: WSDOTProgress[] = []
-    const controller = {
-      enqueue: (chunk: Uint8Array) => {
-        for (const line of new TextDecoder().decode(chunk).split('\n')) {
-          if (line.trim()) { sent.push(JSON.parse(line)) }
-        }
-      },
-      close: vi.fn(),
-      error: vi.fn(),
-    } as unknown as ReadableStreamDefaultController
+  it('emits the report phases on the wire', async () => {
+    const { sent, controller } = capture()
     await runAnalysis(controller, config, client())
-
-    // The envelope's own frames — the opening 'ready' and the final
-    // 'complete' — carry no figures; everything between them does.
-    expect(sent.length).toBeGreaterThan(2)
-    expect(sent.slice(1, -1).every(p => p.departureSummary !== undefined)).toBe(true)
-    // Including the events the report phases emit.
     expect(sent.some(p => p.currentStage === 'wsdot-levels')).toBe(true)
     expect(sent.some(p => p.currentStage === 'wsdot-geographies')).toBe(true)
     expect(sent.at(-1)?.currentStage).toBe('complete')
-  })
-
-  it('never puts departure tuples on the wire', async () => {
-    const sent: WSDOTProgress[] = []
-    const controller = {
-      enqueue: (chunk: Uint8Array) => {
-        for (const line of new TextDecoder().decode(chunk).split('\n')) {
-          if (line.trim()) { sent.push(JSON.parse(line)) }
-        }
-      },
-      close: vi.fn(),
-      error: vi.fn(),
-    } as unknown as ReadableStreamDefaultController
-    await runAnalysis(controller, config, client())
-    expect(sent.some(p => p.partialData?.stopDepartures)).toBe(false)
-    expect(sent.some(p => p.partialData?.tripIdStrings)).toBe(false)
   })
 })
 

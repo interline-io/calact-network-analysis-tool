@@ -18,7 +18,6 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
     .option('--stop-buffer-radius <meters>', 'Stop buffer radius in meters; > 0 enables the per-stop/route/agency buffer passes', '0')
     .option('--stop-buffer-layer <layer>', 'Census geography layer the buffer passes intersect against', STOP_BUFFER_DEFAULT_LAYER)
-    .option('--no-schedule', 'Disable schedule fetching')
 }
 
 export function configureScenarioCli (program: Command) {
@@ -145,7 +144,6 @@ export interface ScenarioCliOptions {
   stopBufferRadius: string
   stopBufferLayer: string
   saveScenarioData?: string
-  schedule?: boolean
 }
 
 /**

@@ -3,9 +3,7 @@ import {
   runProgressStream,
   ScenarioFetcher,
   ScenarioDataReceiver,
-  StopDepartureTuple,
   type ScenarioData,
-  type ScenarioProgress,
 } from '~~/src/scenario'
 import { WSDOTFrequencyAggregator } from './frequency'
 import { WSDOTStopCollector } from './stops'
@@ -62,24 +60,6 @@ export async function runAnalysis (
     config,
     phasePlan: WSDOT_PHASE_PLAN,
   }, async (emit, onError) => {
-    // Nothing downstream of here reads a departure. The browser shows two
-    // numbers from them, so the numbers are what it gets: the tuples are folded
-    // and dropped rather than forwarded, keeping several million of them off the
-    // wire and out of the browser's heap.
-    let departures = 0
-    const stopsWithDepartures = new Set<number>()
-    const departureSummary = () => ({ departures, stopsWithDepartures: stopsWithDepartures.size })
-
-    // Every event bound for the client goes through here, including the ones
-    // the report phases emit after the fetch phases are done. Attaching the
-    // totals at each call site instead would leave those events without them.
-    // Awaited by the phases, so the run slows to the rate the client reads at
-    // rather than queuing what it has not taken yet.
-    const send = (progress: ScenarioProgress) => emit({
-      ...withoutDepartures(progress),
-      departureSummary: departureSummary(),
-    })
-
     // The phases come from the declared plan, so the browse flags that gate
     // phases never apply here: flex, census, buffers and clusters are absent
     // because they are not declared, not because a flag turned them off. What
@@ -93,11 +73,12 @@ export async function runAnalysis (
       departureDates: config.departureDates ?? wsdotDepartureDates(config),
     }
 
-    // Departures are folded into per-hour counters as they stream rather than
-    // accumulated. The report reads only counts, and holding every departure is
-    // what put a statewide run over the Worker's memory limit. Stops, routes and
-    // feed versions are still accumulated: the stop table is built from them,
-    // and so is the stops-and-routes report layered on top of this one.
+    // Departures are folded into per-hour counters rather than accumulated —
+    // the report reads only counts, and holding every departure is what put a
+    // statewide run over the Worker's memory limit. That is retention only:
+    // the tuples still stream through to the client untouched, like browse.
+    // Stops, routes and feed versions are still accumulated: the stop table is
+    // built from them, and so is the stops-and-routes report layered on top.
     const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
     const stops = new WSDOTStopCollector(config.aggregateLayer)
 
@@ -110,16 +91,11 @@ export async function runAnalysis (
         if (batch) {
           stops.add(batch)
         }
-        return send(progress)
+        // Returned so the phases pace themselves against the client.
+        return emit(progress)
       },
     }, {
-      onStopDepartures: (batch) => {
-        frequency.addDepartures(batch)
-        departures += batch.length
-        for (const departure of batch) {
-          stopsWithDepartures.add(StopDepartureTuple.stopId(departure))
-        }
-      },
+      onStopDepartures: batch => frequency.addDepartures(batch),
       dropStops: !opts.retainScenarioEntities,
       dropRouteGeometry: !opts.retainScenarioEntities,
     })
@@ -138,11 +114,11 @@ export async function runAnalysis (
       frequency,
       stops,
       routes: scenarioData.routes,
-    }, send)
+    }, emit)
     const { bboxIntersection } = await runWsdotGeographiesPhase(configCopy, {
       levelSets: levels.levelSets,
       resolved: resolvedGeography,
-    }, client, send)
+    }, client, emit)
 
     // levelLayers is empty by design: the geography layers went out on the
     // stream as they were fetched, and the client rebuilds them in its receiver.
@@ -156,18 +132,6 @@ export async function runAnalysis (
       },
     }
   })
-}
-
-// Strips the departure payload from an event bound for the client, along with
-// the trip-id sidecar that only names departures. Returns the event unchanged
-// when it carries neither, so the common case allocates nothing.
-function withoutDepartures (progress: ScenarioProgress): ScenarioProgress {
-  const partial = progress.partialData
-  if (!partial?.stopDepartures && !partial?.tripIdStrings) {
-    return progress
-  }
-  const { stopDepartures: _departures, tripIdStrings: _tripIds, ...rest } = partial
-  return { ...progress, partialData: rest }
 }
 
 /**

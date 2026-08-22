@@ -26,7 +26,7 @@ export interface UseWsdotReportDeps {
 
 export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
   'loadingProgress' | 'error' | 'requestErrors' | 'phasePlan' | 'phaseFractions'
-  | 'stopDepartureCount' | 'stopsWithDepartures' | 'showLoadingModal'> {
+  | 'stopDepartureCount' | 'showLoadingModal'> {
   wsdotReport: ShallowRef<WSDOTReport | undefined>
   wsdotReportConfig: Ref<WSDOTReportConfig>
   // Run the report inside the shared modal/toast lifecycle.
@@ -93,7 +93,6 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     phasePlan: stream.phasePlan,
     phaseFractions: stream.phaseFractions,
     stopDepartureCount: stream.stopDepartureCount,
-    stopsWithDepartures: stream.stopsWithDepartures,
     showLoadingModal: stream.showLoadingModal,
     wsdotReport,
     wsdotReportConfig,

@@ -260,7 +260,6 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
-  includeDepartures,
   includeCensus,
   fvids,
   stopBufferRadius,
@@ -739,11 +738,6 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
-  // the transfer-time prune needs departures, so clustering + a transfer time
-  // forces them on; proximity-only clustering (transfer 0) doesn't need them.
-  includeDepartures: (clusterDistance.value > 0 && clusterMaxTransferMinutes.value > 0)
-    ? true
-    : includeDepartures.value,
   includeCensus: includeCensus.value,
   includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
   // Feed version picks from the Query-tab picker modal (URL-backed).

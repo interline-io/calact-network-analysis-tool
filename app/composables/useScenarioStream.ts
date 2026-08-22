@@ -35,10 +35,6 @@ export interface UseScenarioStreamReturn {
   phasePlan: Ref<ScenarioPhaseName[] | undefined>
   phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
   stopDepartureCount: Ref<number>
-  // Distinct stops seen with departures, from streams that fold departures
-  // server-side and send summary counts. Sticky here so the figure survives a
-  // stream that ends without completing.
-  stopsWithDepartures: Ref<number>
   // The loading modal's visibility, shared with the refetch composables.
   showLoadingModal: Ref<boolean>
   // Fold one progress event into the state above. Call from every receiver's
@@ -63,7 +59,6 @@ export function useScenarioStream (): UseScenarioStreamReturn {
   const phasePlan = ref<ScenarioPhaseName[] | undefined>()
   const phaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
   const stopDepartureCount = ref<number>(0)
-  const stopsWithDepartures = ref<number>(0)
   const showLoadingModal = ref(false)
 
   const foldProgress = (progress: ScenarioProgress): void => {
@@ -76,14 +71,7 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     phasePlan.value = tracked.plan
     phaseFractions.value = tracked.fractions
 
-    // Streams that fold departures server-side send running totals instead of
-    // the tuples; browse-style streams still count them off the wire.
-    if (progress.departureSummary) {
-      stopDepartureCount.value = progress.departureSummary.departures
-      stopsWithDepartures.value = progress.departureSummary.stopsWithDepartures
-    } else {
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
-    }
+    stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
 
     if (progress.requestErrors && progress.requestErrors.length > 0) {
       requestErrors.value = [...requestErrors.value, ...progress.requestErrors]
@@ -114,7 +102,6 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     error.value = undefined
     requestErrors.value = []
     stopDepartureCount.value = 0
-    stopsWithDepartures.value = 0
     phasePlan.value = undefined
     phaseFractions.value = {}
 
@@ -205,7 +192,6 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     phasePlan,
     phaseFractions,
     stopDepartureCount,
-    stopsWithDepartures,
     showLoadingModal,
     foldProgress,
     run,
