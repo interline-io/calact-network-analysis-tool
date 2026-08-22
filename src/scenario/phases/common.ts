@@ -1,24 +1,18 @@
 // Shared plumbing for scenario phases. Each phase is a pure function over an
-// explicit, JSON-serializable config: callable inline by ScenarioFetcher or
-// standalone via its own server endpoint, emitting the same ScenarioProgress
-// NDJSON envelope either way (the pattern established by buffer-passes).
+// explicit, JSON-serializable config, callable inline by ScenarioFetcher or
+// standalone via its own server endpoint.
 
 import { parseCalendarDate, TaskQueue } from '~~/src/core'
 import type { GraphQLClient, RequestFailure } from '~~/src/core'
 import type { ScenarioProgress } from '../scenario'
 
-// Phases report progress (and stream partial data) through this callback.
-//
-// Awaitable: a phase that just emitted a bulk payload should await it, so a
-// producer faster than its consumer waits rather than piling unread events on
-// the heap. Consumers that only accumulate return void, and awaiting is a
-// no-op for them.
+// Progress callback for phases. Awaitable so a producer faster than its
+// consumer waits rather than piling unread events on the heap.
 export type PhaseEmit = (progress: ScenarioProgress) => void | Promise<void>
 
 export interface PhaseOpts {
-  // Per-task (non-fatal) errors: the phase continues processing remaining
-  // tasks, mirroring the pre-split TaskQueue behavior. Phase-fatal errors
-  // are thrown instead.
+  // Per-task (non-fatal) errors; the phase continues processing remaining
+  // tasks. Phase-fatal errors are thrown instead.
   onError?: (error: any) => void
 }
 
@@ -26,11 +20,8 @@ export interface PhaseOpts {
 export const PHASE_MAX_CONCURRENT_REQUESTS = 8
 
 // Phase identities for the progress plan and weights. 'buffers' covers all
-// four buffer passes as a single slice. 'stop-clusters' is the transfer-hub
-// pass (a separate stop query with nearby_stops neighbors). The 'wsdot-*'
-// names are the WSDOT report's own phases (implemented in src/analysis/wsdot);
-// only their identity lives here, so plans and progress cover them like any
-// fetch phase.
+// four buffer passes as one slice; the 'wsdot-*' phases are implemented in
+// src/analysis/wsdot, with only their identity living here.
 export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'routes' | 'departures' | 'buffers' | 'stop-clusters' | 'flex-areas' | 'census-values' | 'wsdot-levels' | 'wsdot-geographies'
 
 // Pipeline ordering for phase plans and progress display. Report phases come
@@ -40,9 +31,8 @@ export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
   'wsdot-levels', 'wsdot-geographies',
 ]
 
-// Relative progress-bar weight per phase; the consumer normalizes over the
-// run's enabled plan. Rough cost ratios — tune from stage timings as data
-// accumulates. Equal weighting is the special case of all-1s.
+// Relative progress-bar weight per phase, normalized over the run's plan.
+// Rough cost ratios — tune from stage timings as data accumulates.
 export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
   'feed-versions': 1,
   'stops': 2,
@@ -56,16 +46,15 @@ export const SCENARIO_PHASE_WEIGHTS: Record<ScenarioPhaseName, number> = {
   'wsdot-geographies': 3,
 }
 
-// Final tick for a phase's progress slice. Also covers phases whose queue
-// ended up with zero tasks (a 0/0 counter would otherwise read as fraction 0
-// and the slice would never fill).
+// Final tick for a phase's progress slice; also fills the slice for a
+// zero-task queue, whose 0/0 counter would otherwise read as fraction 0.
 export function phaseDone (phase: ScenarioPhaseName): { phase: ScenarioPhaseName, completed: number, total: number } {
   return { phase, completed: 1, total: 1 }
 }
 
-// Progress plumbing for a queue-driven phase: a TaskQueue whose ticks emit the
-// phase's progress slice, an event builder for decorating payload emissions
-// with the current counters, and a `done` bookend that closes the slice.
+// Progress plumbing for a queue-driven phase: a TaskQueue whose ticks emit
+// the phase's progress slice, an event builder for payload emissions, and a
+// `done` bookend that closes the slice.
 export function phaseQueue<T> (
   phase: ScenarioPhaseName,
   emit: PhaseEmit,
@@ -94,10 +83,9 @@ export interface FeedVersionRef {
   feedVersionSha1: string
 }
 
-// Accepts ScenarioConfig or any phase config carrying the date range. These
-// cross a JSON boundary, where a calendar date travels as `yyyy-MM-dd`;
-// parseCalendarDate reads it at local midnight so the day survives whatever
-// zone the runtime is in.
+// Expands a config's date range into calendar days. Configs cross a JSON
+// boundary, so dates are read as local-midnight calendar dates to survive
+// whatever zone the runtime is in.
 export function getSelectedDateRange (config: { startDate?: Date, endDate?: Date }): Date[] {
   const sd = parseCalendarDate(config.startDate) || new Date()
   const ed = parseCalendarDate(config.endDate) || new Date()
@@ -115,10 +103,9 @@ export interface FailureReporter {
   dispose: () => void
 }
 
-// Reports every request that failed after exhausting its retries, so a run that
-// finishes with holes in it says so. Requests report through the client hook;
-// a task that failed for some other reason reports through `onError`, which
-// skips failures the hook already covered.
+// Reports every request that failed after exhausting its retries, so a run
+// that finishes with holes in it says so. `onError` covers tasks abandoned
+// for other reasons, skipping failures the client hook already reported.
 export function createFailureReporter (
   client: GraphQLClient,
   emit: PhaseEmit,

@@ -26,18 +26,10 @@ export { WSDOTFrequencyAggregator, type FrequencyData, type FrequencyLabels } fr
 export { WSDOTStopCollector, type WSDOTStopRecord } from './stops'
 
 export interface WSDOTAnalysisOptions {
-  /**
-   * Populate the returned ScenarioData with whole stops and routes.
-   *
-   * The report is built from folded records, so nothing here needs them, and
-   * the HTTP endpoint discards the return value entirely while browser
-   * consumers rebuild from the stream. Only a caller that reads the returned
-   * ScenarioData sets this, which today is the stops-and-routes report.
-   *
-   * Left off, `scenarioData.stops` is empty and its routes carry no geometry.
-   * Both still go out on the wire untouched; the server just does not hold a
-   * second copy of what it is relaying.
-   */
+  // Populate the returned ScenarioData with whole stops and route shapes, for
+  // callers that read the return value (the stops-and-routes report). Left
+  // off, both still go out on the wire untouched; the server just avoids
+  // holding a second copy of what it relays.
   retainScenarioEntities?: boolean
 }
 
@@ -47,26 +39,17 @@ export async function runAnalysis (
   client: GraphQLClient,
   opts: WSDOTAnalysisOptions = {},
 ): Promise<{ scenarioData: ScenarioData, wsdotResult: WSDOTReport }> {
-  // The envelope owns the stream lifecycle: the opening 'ready' (carrying the
-  // config and the declared phase plan), error reporting,
-  // the single 'complete' — only emitted once the report phases after the
-  // fetch have finished, so a failure during them can never arrive as a
-  // successful empty report — and the close. Errors rethrow for the
-  // in-process callers that build a report out of the return value: an empty
-  // WSDOTReport is structurally valid and would export as a plausible report
-  // of a total service desert.
+  // The envelope owns the stream lifecycle. 'complete' fires only after the
+  // report phases finish, so a mid-analysis failure can never arrive as a
+  // successful empty report — which would read as a statewide service desert.
   return runProgressStream(requestStream(controller), client, {
     startMessage: 'Starting WSDOT fetcher',
     config,
     phasePlan: WSDOT_PHASE_PLAN,
   }, async (emit, onError) => {
-    // The phases come from the declared plan, so the browse flags that gate
-    // phases never apply here: flex, census, buffers and clusters are absent
-    // because they are not declared, not because a flag turned them off. What
-    // the copy pins are parameters — routeHourCompatMode for the analysis,
-    // and departureDates, which defaults to the report's own days so the
-    // departure cost stops following the scenario range (a caller narrowing
-    // further is a reasonable thing to want).
+    // Phase gating comes from the declared plan, never from browse flags; the
+    // copy pins only parameters. departureDates defaults to the report's own
+    // days so departure cost doesn't follow the scenario range.
     const configCopy = {
       ...config,
       routeHourCompatMode: true,
@@ -74,19 +57,15 @@ export async function runAnalysis (
     }
 
     // Departures are folded into per-hour counters rather than accumulated —
-    // the report reads only counts, and holding every departure is what put a
-    // statewide run over the Worker's memory limit. That is retention only:
-    // the tuples still stream through to the client untouched, like browse.
-    // Stops, routes and feed versions are still accumulated: the stop table is
-    // built from them, and so is the stops-and-routes report layered on top.
+    // holding every one is what put a statewide run over the Worker's memory
+    // limit. Retention only: the tuples still stream through to the client.
     const frequency = new WSDOTFrequencyAggregator(wsdotReportDates(config))
     const stops = new WSDOTStopCollector(config.aggregateLayer)
 
     const receiver = new ScenarioDataReceiver({
       onProgress: (progress) => {
-        // Folded off the progress events rather than in place of accumulation,
-        // so the report is built from the same records whether or not the whole
-        // stops are being kept alongside for the caller.
+        // Folded off the events, so the report is built from the same records
+        // whether or not whole stops are also being retained for the caller.
         const batch = progress.partialData?.stops
         if (batch) {
           stops.add(batch)
@@ -100,8 +79,8 @@ export async function runAnalysis (
       dropRouteGeometry: !opts.retainScenarioEntities,
     })
 
-    // The fetch phases, gated by the declared plan. Progress routes through
-    // the receiver (accumulation + folds) on its way to the client.
+    // Progress routes through the receiver (accumulation + folds) on its way
+    // to the client.
     const fetcher = new ScenarioFetcher(configCopy, client, p => receiver.onProgress(p), {
       onError,
       plan: WSDOT_PHASE_PLAN,
@@ -109,7 +88,6 @@ export async function runAnalysis (
     const { resolvedGeography } = await fetcher.fetch()
     const scenarioData = receiver.getCurrentData()
 
-    // The report phases, over the folded records the fetch just produced.
     const levels = await runWsdotLevelsPhase(configCopy, {
       frequency,
       stops,
@@ -120,8 +98,8 @@ export async function runAnalysis (
       resolved: resolvedGeography,
     }, client, emit)
 
-    // levelLayers is empty by design: the geography layers went out on the
-    // stream as they were fetched, and the client rebuilds them in its receiver.
+    // levelLayers is empty by design: the layers went out on the stream as
+    // they were fetched, and the client rebuilds them in its receiver.
     return {
       scenarioData,
       wsdotResult: {
@@ -134,16 +112,12 @@ export async function runAnalysis (
   })
 }
 
-/**
- * Receiver for browser consumers, which reassemble the report from the NDJSON
- * stream; the server builds it in-process and returns it from runAnalysis.
- * Extends ScenarioDataReceiver with the report phases' typed payloads.
- */
+// Receiver for browser consumers, which reassemble the report from the
+// stream's typed payloads; the server builds it in-process instead.
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
   private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
 
-  // Narrower than the base signature (method-position bivariance permits it);
-  // structurally safe since every WSDOT payload field is optional.
+  // Narrower than the base signature; safe since every WSDOT field is optional.
   override onProgress (progress: WSDOTProgress): void {
     super.onProgress(progress)
 
@@ -166,9 +140,7 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
     }
   }
 
-  /**
-   * Get the current accumulated WSDOT report
-   */
+  // A shallow copy of the report accumulated so far.
   getCurrentWSDOTReport (): WSDOTReport {
     return { ...this.wsdotReport }
   }

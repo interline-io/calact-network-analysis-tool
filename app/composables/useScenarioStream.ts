@@ -1,14 +1,8 @@
-// Shared client-side consumption of a scenario NDJSON stream: the state refs a
-// loading modal reads, a progress folder for receiver callbacks, a runner that
-// fetches a stream and drains it into a receiver, and the run lifecycle around
-// the loading modal.
-//
-// foldProgress belongs with the receiver, not the request: the refetch
-// composables stream into the same shared receiver as the main run, so their
-// events fold into the same state through the same callback. run() owns one
-// request's lifecycle; runQuery() owns the modal/toast framing around it.
-// Browse and the two WSDOT reports each construct their own receiver and
-// share everything else here.
+// Shared client-side consumption of a scenario NDJSON stream, used by browse
+// and both WSDOT reports: the state refs the loading modal reads, foldProgress
+// for receiver callbacks (refetches into the shared receiver fold into the
+// same state), run() for one request's lifecycle, and runQuery() for the
+// modal/toast framing around it.
 
 import { ref, type Ref } from 'vue'
 import { useToastNotification } from './useToastNotification'
@@ -22,33 +16,29 @@ import {
 import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
 
+// Stream state and lifecycle for one scenario run at a time.
 export interface UseScenarioStreamReturn {
   loadingProgress: Ref<ScenarioProgress | undefined>
   error: Ref<Error | undefined>
-  // Requests that failed after all retries. Non-fatal — the run finishes — so
-  // this is what tells the user the results are incomplete.
+  // Requests that failed after all retries; non-fatal, but the results are
+  // incomplete and the user has to see that.
   requestErrors: Ref<RequestFailure[]>
-  // Weighted progress-bar state for the loading modal. Accumulated in
-  // foldProgress so no events are missed (template-level watchers only sample
-  // the latest: several NDJSON lines decoded from one network chunk collapse
-  // into a single watcher invocation, dropping the plan announcement).
+  // Weighted progress-bar state, accumulated in foldProgress so no events are
+  // missed (template watchers only sample the latest event).
   phasePlan: Ref<ScenarioPhaseName[] | undefined>
   phaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
   stopDepartureCount: Ref<number>
   // The loading modal's visibility, shared with the refetch composables.
   showLoadingModal: Ref<boolean>
-  // Fold one progress event into the state above. Call from every receiver's
+  // Fold one progress event into the state above; call from every receiver's
   // onProgress, whichever run or refetch the event came from.
   foldProgress: (progress: ScenarioProgress) => void
-  // Reset the state and stream one POST into the receiver. Throws on HTTP
-  // errors; stream-level failures land in `error` instead. Starting a new run
+  // Reset the state and stream one POST into the receiver. A new run
   // supersedes any still-draining predecessor: its fetch aborts and its
   // remaining events are dropped, never merged.
   run: (receiver: ScenarioDataReceiver, url: string, body: unknown) => Promise<void>
-  // The run lifecycle around the loading modal: open it, run `fetch`, then
-  // either toast success and close, or leave the failure showing. `fetch`
-  // returns false when it declined to run (failed validation), which closes
-  // the modal with no toast. A superseded invocation touches nothing.
+  // The modal/toast lifecycle around `fetch`, which returns false when it
+  // declined to run (failed validation) — the modal then closes with no toast.
   runQuery: (fetch: () => Promise<boolean>, successToast: string) => Promise<void>
 }
 
@@ -85,9 +75,8 @@ export function useScenarioStream (): UseScenarioStreamReturn {
   }
 
   // Run identity is the run's own AbortController: a new run aborts its
-  // predecessor, and everything the old run might still do — receiver events
-  // from its buffered tail, its final stream-ended check — is gated on its
-  // signal. A partial failed run is dropped, never resumed.
+  // predecessor, and everything the old run might still do is gated on its
+  // signal.
   let abort: AbortController | undefined
 
   const run = async (receiver: ScenarioDataReceiver, url: string, body: unknown): Promise<void> => {
@@ -139,11 +128,8 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     if (!live()) {
       return
     }
-    // A failure the server managed to report is already in `error`, and its
-    // stream then ends without a 'complete' too. Only a stream that stopped
-    // without saying anything is the abnormal termination this describes —
-    // overwriting a reported cause told the user a census-backend error was
-    // an out-of-memory condition.
+    // A server-reported failure is already in `error`; only a stream that
+    // stopped without saying anything gets the generic cause.
     if (!success && !error.value) {
       error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
     }

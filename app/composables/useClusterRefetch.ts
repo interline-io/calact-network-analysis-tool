@@ -27,8 +27,8 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
         return 'clear'
       }
       // The phase's own enablement, for the distance now in effect: without
-      // fixed-route data no stops are shown, so clusters over a fresh stop
-      // query would decorate a map with nothing under them.
+      // fixed-route data no stops are shown, so clusters would decorate a map
+      // with nothing under them.
       if (!phaseEnabled('stop-clusters', { ...config, stopClusterDistance: clusterDistance.value })) {
         return 'skip'
       }

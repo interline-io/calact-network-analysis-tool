@@ -28,6 +28,7 @@ import type { WSDOTStopCollector } from './stops'
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_BBOX_FEATURES = 100
 
+// Scenario config plus the report's own dates, buffer, and census settings.
 export interface WSDOTReportConfig extends ScenarioConfig {
   weekdayDate: Date
   weekendDate: Date
@@ -40,23 +41,17 @@ export interface WSDOTReportConfig extends ScenarioConfig {
   routeHourCompatMode: boolean
 }
 
-// The declared phase plan for both WSDOT reports: the fetch phases the
-// reports read, then the report's own phases. Handed to ScenarioFetcher as
-// the execution gate and announced by the stream envelope, so what runs is
-// exactly what is declared — browse-style derivation from config flags never
-// applies. Asserted in tests against the plan runAnalysis actually emits, so
-// a phase that starts running again is caught wholesale.
+// The declared phase plan for both WSDOT reports: the fetch phases they read,
+// then the report's own phases. What runs is exactly what is declared —
+// browse-style derivation from config flags never applies.
 export const WSDOT_PHASE_PLAN: ScenarioPhaseName[] = [
   'feed-versions', 'stops', 'routes', 'departures', 'wsdot-levels', 'wsdot-geographies',
 ]
 
 // The calendar dates the report reads: the weekday, the weekend day, and the
-// day after the weekday, whose early hours are the post-midnight half of the
-// night segments. Everything else in the scenario's date range is fetched (the
-// client's map and tables show it) but never folded.
-//
-// The config crosses a JSON boundary on the server, so these are strings at
-// runtime rather than the Dates the type states.
+// day after the weekday (whose early hours are the post-midnight half of the
+// night segments). The config crosses a JSON boundary, so these arrive as
+// strings at runtime despite the declared Date type.
 export function wsdotReportDates (config: WSDOTReportConfig): Date[] {
   const weekday = configDate(config.weekdayDate)
   const overnight = new Date(weekday.valueOf())
@@ -69,18 +64,10 @@ function configDate (value: Date | string): Date {
   return parseCalendarDate(value) ?? new Date(value.valueOf())
 }
 
-/**
- * The calendar dates the departures phase has to fetch for the report.
- *
- * The report reads three days, but a departure stated past 24:00:00 belongs to
- * the day after its service date, so the day before each is fetched too. That
- * matters here more than most places: levelNights is entirely about service
- * that runs past midnight, and a Saturday-only late trip landing on the
- * Sunday being analyzed would be invisible without its service date.
- *
- * The result is five dates for the usual weekday/weekend pair, whatever range
- * the user picked, so the departure cost stops following the scenario range.
- */
+// The calendar dates the departures phase must fetch for the report: the
+// three report days plus the day before each, since a departure stated past
+// 24:00:00 belongs to the next day — levelNights would otherwise miss late
+// trips whose service date precedes the day being analyzed.
 export function wsdotDepartureDates (config: WSDOTReportConfig): string[] {
   const dates = new Set<string>()
   for (const date of wsdotReportDates(config)) {
@@ -92,6 +79,8 @@ export function wsdotDepartureDates (config: WSDOTReportConfig): string[] {
   return [...dates].sort()
 }
 
+// The assembled report: the stop table, per-level stop ids, and the census
+// geography rollups.
 export interface WSDOTReport {
   stops: WSDOTStopResult[]
   levelStops: Record<string, number[]>
@@ -99,6 +88,7 @@ export interface WSDOTReport {
   bboxIntersection: GeographyDataFeature[]
 }
 
+// One stop-table row, with per-level qualification flags.
 export interface WSDOTStopResult {
   feedOnestopId: string
   feedVersionSha1: string
@@ -130,11 +120,10 @@ export interface GeographyDataFeature {
   geometry: Geometry | null
 }
 
-// The report's own stream payloads, layered onto partialData the way the
-// fetch phases' fields are — typed here so src/scenario stays free of
+// The report's own stream payloads, typed here so src/scenario stays free of
 // report-specific fields.
 export interface WSDOTReportPartialData {
-  // Chunks of the final stop table, with per-level qualification flags.
+  // Chunks of the stop table.
   wsdotStops?: WSDOTStopResult[]
   // Level key -> qualifying stop ids, one level per event.
   wsdotLevelStops?: Record<string, number[]>
@@ -144,20 +133,23 @@ export interface WSDOTReportPartialData {
   wsdotBboxIntersection?: GeographyDataFeature[]
 }
 
+// ScenarioProgress with the report's payloads layered onto partialData.
 export interface WSDOTProgress extends ScenarioProgress {
   partialData?: ScenarioProgress['partialData'] & WSDOTReportPartialData
 }
 
 type WSDOTPhaseEmit = (progress: WSDOTProgress) => void | Promise<void>
 
+// Folded records the levels phase classifies over.
 export interface WSDOTLevelsInput {
   frequency: WSDOTFrequencyAggregator
   stops: WSDOTStopCollector
-  // The scenario's routes; their numeric id -> GTFS route_id pairs are the
-  // route domain of the frequency maps.
+  // The scenario's routes; their id -> route_id pairs are the route domain
+  // of the frequency maps.
   routes: RouteGql[]
 }
 
+// Level classifications plus the stop table built from them.
 export interface WSDOTLevelsResult {
   // Level key -> qualifying stop ids, as sets for the geographies phase.
   levelSets: Record<string, Set<number>>
@@ -192,9 +184,7 @@ export async function runWsdotLevelsPhase (
   const weekendFreq = buildFrequencyData(input.frequency, weekendDate!, labels, 'weekend')
 
   // Departures land on the calendar day they run, so the night that follows
-  // the weekday is in the next day's data. Its early hours feed the night
-  // segments; the scenario range must extend a day past weekdayDate for
-  // levelNights to see anything.
+  // the weekday is in the next day's data — its early hours feed levelNights.
   const overnightFreq = buildFrequencyData(input.frequency, overnightDate!, labels, 'overnight')
   if (input.frequency.departureCount(overnightDate!) === 0) {
     console.warn(`No departures on ${fmtDate(overnightDate)} — night service after ${fmtDate(weekdayDate)} cannot be evaluated`)
@@ -209,9 +199,7 @@ export async function runWsdotLevelsPhase (
     console.log(`${levelKey}: ${qualifyingStops.size} qualifying stops`)
   }
 
-  // Build the stop table. Every stop in the scenario is listed, which is what
-  // the frequency maps' domain gave before they were built from counters.
-  // Stops that arrived without geometry are skipped, as they were before.
+  // Every stop in the scenario is listed; stops without geometry are skipped.
   const stops: WSDOTStopResult[] = []
   for (const stop of input.stops.all) {
     if (stop.lat === null || stop.lon === null) {
@@ -237,10 +225,9 @@ export async function runWsdotLevelsPhase (
     })
   }
 
-  // Streamed in batches, each awaited: send() encodes on the spot and only
-  // queues the write, so emitting without waiting would build the encoded
-  // bytes for the whole table at once while the objects they came from are
-  // still live — on a 128 MB Worker, with the frequency maps also resident.
+  // Streamed in batches, each awaited: emitting without waiting would encode
+  // the whole table at once while its source objects are still live — too
+  // much for a 128 MB Worker with the frequency maps also resident.
   const stopChunks = chunkArray(stops, PROGRESS_LIMIT_STOPS)
   for (let i = 0; i < stopChunks.length; i++) {
     await emit({
@@ -261,8 +248,7 @@ export async function runWsdotLevelsPhase (
   return { levelSets, levelStops, stops }
 }
 
-// One date's frequency maps, plus the per-hour summary the cache-based
-// extraction used to print while it walked the departures.
+// One date's frequency maps, with a per-hour departure summary logged.
 function buildFrequencyData (frequency: WSDOTFrequencyAggregator, date: Date, labels: FrequencyLabels, label: string) {
   const freq = frequency.build(date, labels)
   console.log(`Analyzed ${freq.stops.size} stops for ${label} ${fmtDate(date)} with ${frequency.departureCount(date)} departures`)
@@ -273,23 +259,19 @@ function buildFrequencyData (frequency: WSDOTFrequencyAggregator, date: Date, la
   return freq
 }
 
+// Level classifications plus the run's search area.
 export interface WSDOTGeographiesInput {
   levelSets: Record<string, Set<number>>
-  // Resolved by the feed-versions phase. A run started from geography ids
-  // carries no bbox of its own, and the bbox tract query has no other spatial
-  // filter, so an unresolved context would ask for every tract in the dataset
-  // nationwide.
+  // From the feed-versions phase. The bbox tract query has no other spatial
+  // filter, so an unresolved context would ask for every tract nationwide.
   resolved: ResolvedGeographyContext
 }
 
-// Fetch the census population rollups for the report: tract intersections of
-// the search area, the state rollup for all stops, and per-level tract
-// intersections of the qualifying stops' buffers.
-//
-// Each layer is sent and released as it arrives rather than collected (the
-// bbox set excepted — the report returns it): the levels are nested, so eight
-// statewide tract sets are largely the same outlines, and holding them all
-// before sending any is what exhausted the Worker.
+// Fetch the report's census population rollups: search-area tract
+// intersections, the state rollup, and per-level tract intersections of the
+// qualifying stops' buffers. Each layer is sent and released as it arrives
+// (the bbox set excepted — the report returns it); holding all eight
+// statewide tract sets at once is what exhausted the Worker.
 export async function runWsdotGeographiesPhase (
   config: WSDOTReportConfig,
   input: WSDOTGeographiesInput,
@@ -316,9 +298,8 @@ export async function runWsdotGeographiesPhase (
     console.warn('No search area resolved — skipping the bbox tract population, which would otherwise be unbounded')
   }
   const levelTasks: { level: string, layer: string, stopIds: Set<number> }[] = []
-  // The state rollup is the viewer's population denominator, and it reads
-  // only levelAll's. The buffer picks which states appear, not their totals,
-  // so one fetch answers it for every level.
+  // The state rollup (the viewer's population denominator) reads only
+  // levelAll's, so one fetch answers it for every level.
   const allStops = input.levelSets.levelAll
   if (bufferRadius > 0 && allStops && allStops.size > 0) {
     levelTasks.push({ level: 'levelAll', layer: 'state', stopIds: allStops })
@@ -381,14 +362,10 @@ export async function runWsdotGeographiesPhase (
   return { bboxIntersection }
 }
 
-////////////////
-// Fetch geography data for a set of stop IDs
-////////////////
-
 interface getGeographyDataConfig {
   client: GraphQLClient
-  // Clips against the admin polygon when a run was started from geography ids
-  // rather than a bbox. Takes precedence over bbox in the query.
+  // Admin polygon for runs started from geography ids; takes precedence over
+  // bbox in the query.
   within?: GeoJSON.Polygon
   tableDatasetName: string
   tableDatasetTable: string
@@ -401,6 +378,8 @@ interface getGeographyDataConfig {
   bbox?: Bbox
 }
 
+// Census intersection features with the configured population column
+// pre-computed onto each one.
 async function getGeographyData (
   config: getGeographyDataConfig,
 ): Promise<GeographyDataFeature[]> {

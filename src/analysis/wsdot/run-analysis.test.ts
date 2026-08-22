@@ -92,9 +92,7 @@ async function run (opts?: { retainScenarioEntities?: boolean }) {
   return runAnalysis(controller, config, client(), opts)
 }
 
-// Events the client would see. The analysis stage runs after ScenarioFetcher
-// reports its own phases done, so what reaches the wire around that boundary
-// decides whether a mid-analysis failure is visible.
+// Captures the NDJSON events a client would see.
 function capture () {
   const sent: WSDOTProgress[] = []
   const controller = {

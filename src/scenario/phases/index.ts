@@ -3,11 +3,9 @@
 // and returns the ids/context downstream phases need. ScenarioFetcher
 // composes them inline; the server exposes each standalone.
 
-// Re-export common's public surface. Most phase-contract plumbing (PhaseEmit,
-// PhaseOpts, PHASE_MAX_CONCURRENT_REQUESTS) stays internal — the fetch phase
-// modules import it directly from './common' — but phaseDone is public: phase
-// implementations living outside this directory (the WSDOT report phases)
-// close their progress slices with it too.
+// Common's public surface. Most phase-contract plumbing stays internal to
+// './common'; phaseDone is public because phase implementations outside this
+// directory (the WSDOT report phases) close their slices with it too.
 export {
   createFailureReporter,
   type FailureReporter,

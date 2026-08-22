@@ -1,14 +1,7 @@
-// Turning a stream of ScenarioProgress events into what a loading UI needs:
+// Turns a stream of ScenarioProgress events into what a loading UI needs:
 // which phases this run will execute, and how far through each one it is.
-//
-// Kept out of the components because three of them consume the same stream
-// (browse and the two WSDOT reports) and only one used to do this, so the
-// others fell back to a heuristic that read 100% once stops finished while
-// departures, two thirds of the work, had not started.
-//
-// Accumulated from every event rather than watched: several NDJSON lines
-// decoded from one network chunk collapse into a single watcher invocation,
-// which drops one-off events like the plan announcement.
+// Fold every event through trackPhaseProgress — watching only the latest
+// event drops one-off events like the plan announcement.
 
 import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName } from './phases'
 import type { ScenarioProgress } from './scenario'
@@ -25,10 +18,8 @@ export function emptyPhaseProgress (): PhaseProgressState {
   return { fractions: {} }
 }
 
-/**
- * Fold one event into the state. Returns a new object so a caller holding it
- * in a reactive ref sees the change.
- */
+// Fold one event into the state. Returns a new object so a caller holding it
+// in a reactive ref sees the change.
 export function trackPhaseProgress (
   state: PhaseProgressState,
   progress: ScenarioProgress,
@@ -49,15 +40,9 @@ export function trackPhaseProgress (
   return next
 }
 
-/**
- * Weighted completion across the run's own plan, 0-100.
- *
- * Weighted, because the phases are nothing like equal: departures carry ten
- * of the fifteen points in a full plan, so counting phases would call a run
- * two thirds done before the expensive part began.
- *
- * Returns null before the plan announcement arrives.
- */
+// Weighted completion across the run's own plan, 0-100, or null before the
+// plan announcement arrives. Weighted because the phases are nothing alike:
+// counting them equally would call a run mostly done before departures began.
 export function phaseProgressPercent (state: PhaseProgressState): number | null {
   const plan = state.plan
   if (!plan || plan.length === 0) {
@@ -73,10 +58,8 @@ export function phaseProgressPercent (state: PhaseProgressState): number | null 
   return weightTotal > 0 ? Math.round((weighted / weightTotal) * 100) : 0
 }
 
-/**
- * Whether a run executes this phase, for a UI deciding what to show. False
- * until the run's opening event announces its plan.
- */
+// Whether a run executes this phase, for a UI deciding what to show. False
+// until the run's opening event announces its plan.
 export function planRunsPhase (
   plan: ScenarioPhaseName[] | undefined,
   phase: ScenarioPhaseName,

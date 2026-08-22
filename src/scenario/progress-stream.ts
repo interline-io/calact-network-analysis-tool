@@ -1,11 +1,7 @@
 // The stream envelope every scenario-shaped run shares: the opening 'ready'
-// event, a failure reporter covering the whole run, error reporting on the
-// stream, exactly one 'complete', and exactly one close. Server endpoints
-// wrap an HTTP response controller; CLI and test runs wrap their own streams.
-//
-// Completion belongs here rather than to any fetcher or analysis stage: only
-// the envelope knows the whole run is finished, so a consumer can never count
-// a stream as complete while a later stage still has work to do.
+// event, a whole-run failure reporter, error reporting on the stream, exactly
+// one 'complete', and exactly one close. Only the envelope knows when the
+// whole run is finished, so completion belongs here.
 
 import { GenericStreamSender } from '~~/src/core'
 import type { GraphQLClient } from '~~/src/core'
@@ -16,26 +12,19 @@ import type { ScenarioProgress } from './scenario'
 // Emit for the run body — the same contract phases use.
 export type ProgressEmit = PhaseEmit
 
+// Framing for the run's opening 'ready' event.
 export interface ProgressStreamOptions {
-  // Message on the opening 'ready' event.
   startMessage: string
-  // Attached to the 'ready' event so saved stream captures self-describe.
+  // Lets saved stream captures self-describe.
   config?: unknown
-  // The run's phase plan, announced on the 'ready' event so the progress bar
-  // can apportion its slices before any work happens. Required: every stream
-  // declares what it will run — derive with scenarioPhasePlan(config) for a
-  // browse config, or pass the run's own declared plan.
+  // Every stream declares what it will run; derive with scenarioPhasePlan for
+  // a browse config, or pass the run's own declared plan.
   phasePlan: ScenarioPhaseName[]
 }
 
-// Run a scenario-shaped producer inside the shared stream envelope, returning
-// the run body's result.
-//
-// Errors are reported on the stream, then rethrown for in-process callers
-// that build a result out of the run's return value — an empty result is
-// often structurally valid and would read as a real, empty region. The
-// stream is settled exactly once whatever happens; server wrappers should
-// still backstop with controller.error for throws outside the envelope.
+// Run a producer inside the shared stream envelope, returning its result.
+// Errors are reported on the stream, then rethrown for in-process callers;
+// the stream is settled exactly once whatever happens.
 export async function runProgressStream<T> (
   stream: WritableStream,
   client: GraphQLClient,
@@ -50,9 +39,7 @@ export async function runProgressStream<T> (
   let lastStage: ScenarioProgress['currentStage'] = 'ready'
   const emit = (p: ScenarioProgress): Promise<void> => {
     lastStage = p.currentStage
-    // Returned, not dropped: the phases await this to pace themselves against
-    // the consumer. Swallowing the promise would put the run back on an
-    // unbounded write queue.
+    // Returned so producers can pace themselves against the consumer.
     return sender.onProgress(p)
   }
   emit({
@@ -62,25 +49,22 @@ export async function runProgressStream<T> (
     phasePlan: opts.phasePlan,
   })
 
-  // Installed for the whole run, so a request that fails after exhausting its
-  // retries is reported whichever stage issued it, and a run that finishes
-  // with holes in it says so.
+  // Reports requests that failed after exhausting retries, whichever stage
+  // issued them, so a run that finishes with holes in it says so.
   const failures = createFailureReporter(client, emit, () => lastStage)
   try {
     const result = await run(emit, failures.onError)
     await emit({ currentStage: 'complete' })
     return result
   } catch (err) {
-    // Awaited before the close in finally: writes are queued behind one
-    // another, so closing first would drop the event that says what went
-    // wrong. The consumer gets the error and a closed stream rather than a
-    // request that never ends.
+    // Awaited before the close: writes queue behind one another, so closing
+    // first would drop the event that says what went wrong.
     await sender.onError(err)
     throw err
   } finally {
     failures.dispose()
-    // The one place the stream is closed. A close that fails — the consumer
-    // already went away — must not replace a failure being propagated.
+    // The one place the stream is closed; a failed close must not replace a
+    // failure being propagated.
     await writer.close().catch(err => console.error('[ProgressStream] close failed:', err))
   }
 }

@@ -102,11 +102,9 @@
 import { phaseProgressPercent, planRunsPhase, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
 import type { RequestFailure } from '~~/src/core'
 
-// Props. Phase plan/fractions are accumulated by the parent inside the
-// stream receiver callback — every event is seen there. (A `watch` on the
-// latest-event prop samples: multiple NDJSON lines decoded from one network
-// chunk collapse into a single watcher invocation, dropping events like the
-// phase plan announcement.)
+// Phase plan/fractions are accumulated by the parent inside the receiver
+// callback, where every event is seen — a watch on the latest-event prop
+// would sample and drop one-off events like the plan announcement.
 const props = withDefaults(defineProps<{
   progress?: ScenarioProgress
   error?: Error | string

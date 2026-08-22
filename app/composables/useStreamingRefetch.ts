@@ -1,8 +1,7 @@
-// Shared engine for the incremental "recompute one slice without re-running the
-// whole scenario" composables (stop buffers, stop clusters, aggregation
-// demographics). Owns the parts they
-// share — debounce, AbortController lifecycle, the NDJSON stream into the existing
-// receiver, loading-modal wiring — and leaves each feature its inputs/endpoint/body.
+// Shared engine for the incremental "recompute one slice" composables (stop
+// buffers, stop clusters, aggregation demographics): debounce, abort
+// lifecycle, the NDJSON stream into the existing receiver, and loading-modal
+// wiring. Each feature supplies its inputs/endpoint/body.
 
 import { markRaw, toValue, watch, onScopeDispose, type MaybeRefOrGetter, type Ref, type ShallowRef, type WatchSource } from 'vue'
 import {
@@ -110,8 +109,6 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       currentStage: 'ready',
       currentStageMessage: opts.loadingMessage,
     }
-    // The phase endpoint announces its own single-phase plan on the stream's
-    // opening event; folding it resets the plan and fractions for this pass.
 
     try {
       const response = await fetch(opts.endpoint, {
@@ -129,16 +126,13 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       const streamer = new ScenarioStreamReceiver()
       const { success } = await streamer.processStream(response.body, receiver)
       if (!success) {
-        // A failure the server managed to report is already in deps.error via
-        // the receiver; rethrow it rather than overwriting the cause with the
-        // generic message.
+        // Rethrow a server-reported cause rather than overwrite it.
         throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
       }
       deps.scenarioData.value = markRaw(receiver.getCurrentData())
     } catch (err: any) {
-      // Superseded by a newer refetch (it called abort()) or the scope was disposed.
-      // Mid-stream that surfaces as a failed stream drain, not an AbortError, so key
-      // off the signal — a stale run touching shared state would clobber the new one.
+      // Superseded or disposed; a stale run must not touch shared state. Keyed
+      // off the signal since a mid-stream abort surfaces as a drain failure.
       if (localAbort.signal.aborted) {
         return
       }

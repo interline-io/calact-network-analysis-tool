@@ -28,9 +28,8 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
       if (!(stopBufferRadius.value > 0)) {
         return 'clear'
       }
-      // The phase's own enablement, for the radius now in effect: a config
-      // whose fetch excluded census or fixed-route data has nothing to
-      // recompute post-hoc.
+      // The phase's own enablement, for the radius now in effect: a fetch
+      // that excluded census or fixed-route data has nothing to recompute.
       if (!phaseEnabled('buffers', { ...config, stopBufferRadius: stopBufferRadius.value })) {
         return 'skip'
       }

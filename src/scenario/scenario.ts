@@ -53,44 +53,23 @@ export interface ScenarioConfig {
   // ACS dataset (e.g. `acsdt5y2021`). When set with `aggregateLayer`, the
   // pipeline fetches census values for those geographies.
   tableDatasetName?: string
-  /**
-   * Whether to fetch fixed-route transit data (stops, routes, departures)
-   * Defaults to true
-   */
+  // Whether to fetch fixed-route data (stops, routes, departures). Default true.
   includeFixedRoute?: boolean
-  /**
-   * Whether to fetch flex service areas
-   * Defaults to true
-   */
+  // Whether to fetch flex service areas. Default true.
   includeFlexAreas?: boolean
-  /**
-   * Whether to fetch each route's shape. Defaults to true, which the map
-   * needs. Route geometry is 98% of the routes query's bytes and costs
-   * several times that again as parsed coordinate arrays, so consumers that
-   * only classify routes should turn it off.
-   */
+  // Whether to fetch route shapes (default true; the map needs them). Geometry
+  // is 98% of the routes payload, so route-classifying consumers turn it off.
   includeRouteGeometry?: boolean
-  /**
-   * Whether to fetch every census layer on each stop. Defaults to true, which
-   * is what lets the aggregation layer change without refetching the whole
-   * scenario. All seven layers are 41% of the stops payload, so a report that
-   * fixes one layer should turn this off; `aggregateLayer` is then the only
-   * layer fetched.
-   */
+  // Whether to fetch every census layer on each stop (default true; lets the
+  // aggregation layer change without refetching). All layers are 41% of the
+  // stops payload; a report that fixes one layer turns this off.
   includeAllCensusLayers?: boolean
-  /**
-   * Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead of
-   * every day from startDate to endDate. A report that reads a few days out of
-   * a wide scenario range sets this so its departure cost follows the days it
-   * reads rather than the range the user picked. Must include the day before
-   * each date read: a departure stated past 24:00:00 falls on the next day.
-   */
+  // Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead
+  // of the whole startDate..endDate range. Must include the day before each
+  // date read: a departure stated past 24:00:00 falls on the next day.
   departureDates?: string[]
-  /**
-   * Whether to fetch census demographics: ACS values for the aggregation
-   * layer (census-values stage) and the stop-buffer demographic passes.
-   * Defaults to true.
-   */
+  // Whether to fetch census demographics (aggregation-layer ACS values and
+  // the stop-buffer passes). Default true.
   includeCensus?: boolean
   // Also fetch the clipped outlines of each census geography. Set from the
   // display so a run started in a clipped mode arrives ready to draw, rather
@@ -109,12 +88,11 @@ export interface ScenarioConfig {
   stopClusterDistance?: number
 }
 
-// Single source of truth for which phases a *browse* config enables: the
-// derived plan for runs that don't declare one. Routes, departures, and
-// buffers execute inside the stops block (they consume its ids), so their
-// predicates must imply the stops predicate. Report phases are never part of
-// a derived plan — they join a run only through an explicitly declared plan
-// (e.g. WSDOT_PHASE_PLAN).
+// Which phases a browse config enables — the derived plan for runs that don't
+// declare one. Report phases join a run only through a declared plan.
+//
+// Routes, departures, and buffers execute inside the stops block (they
+// consume its ids), so their predicates must imply the stops predicate.
 const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
   'feed-versions': () => true,
   'stops': config => config.includeFixedRoute !== false,
@@ -134,21 +112,20 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
   'wsdot-geographies': () => false,
 }
 
-// Whether a browse config enables a phase — the per-phase predicate behind
-// scenarioPhasePlan, shared with the client refetch gates so they cannot
-// drift from the plan derivation.
+// The per-phase predicate behind scenarioPhasePlan, shared with the client
+// refetch gates so they cannot drift from the plan derivation.
 export function phaseEnabled (phase: ScenarioPhaseName, config: ScenarioConfig): boolean {
   return PHASE_ENABLED[phase](config)
 }
 
-// Whether a config carries a search area: a bbox or at least one geography id.
-// The one validation every run entry point shares, client and server.
+// Whether a config carries a search area: a bbox or at least one geography
+// id. The one validation every run entry point shares, client and server.
 export function hasSearchArea (config: Pick<ScenarioConfig, 'bbox' | 'geographyIds'>): boolean {
   return !!config.bbox || (config.geographyIds?.length ?? 0) > 0
 }
 
-// The enabled phases for a browse config, in pipeline order. Runs with their
-// own fixed phase set declare a plan instead (ScenarioFetcher's `plan`).
+// The enabled phases for a browse config, in pipeline order. Runs with a
+// fixed phase set declare a plan instead (ScenarioFetcher's `plan`).
 export function scenarioPhasePlan (config: ScenarioConfig): ScenarioPhaseName[] {
   return SCENARIO_PHASE_ORDER.filter(phase => PHASE_ENABLED[phase](config))
 }
@@ -167,25 +144,18 @@ export interface ScenarioFilter {
   clusterMaxTransferMinutes?: number
 }
 
-/**
- * Scenario results
- */
+// Accumulated scenario results.
 export interface ScenarioData {
   routes: RouteGql[]
   stops: StopGql[]
   feedVersions: FeedVersion[]
   stopDepartureCache: StopDepartureCache
   flexDepartureCache: FlexDepartureCache
-  /**
-   * Flex service areas (GTFS-Flex / DRT)
-   */
+  // Flex service areas (GTFS-Flex / DRT).
   flexAreas: FlexAreaFeature[]
-  /**
-   * Sidecar map of numeric trip.id → GTFS trip_id string. The main
-   * StopDepartureCache drops the string for memory efficiency; this map keeps
-   * one entry per unique trip for debug UIs (Route Timetable modal). Optional
-   * so existing non-streaming constructions of ScenarioData keep compiling.
-   */
+  // Sidecar map of numeric trip.id → GTFS trip_id string, kept one entry per
+  // unique trip for debug UIs; the departure cache drops the string for
+  // memory efficiency.
   tripIdStrings?: Map<number, string>
   // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
@@ -202,9 +172,7 @@ export interface ScenarioData {
   stopClusters?: StopCluster[]
 }
 
-/**
- * Callback interface for scenario stream receivers
- */
+// Callback interface for scenario stream receivers.
 export interface ScenarioCallbacks {
   // Awaitable so a streaming consumer can apply backpressure; see PhaseEmit.
   onProgress?: (progress: ScenarioProgress) => void | Promise<void>
@@ -212,25 +180,22 @@ export interface ScenarioCallbacks {
   onError?: (error: any) => void
 }
 
-/**
- * Progress information for scenario fetching
- */
+// One NDJSON event on a scenario stream.
 export interface ScenarioProgress {
   // A phase name, or one of the envelope's frames ('ready' opens the run,
-  // 'complete'/'error' end it). Sub-steps within a phase (the buffer passes)
-  // distinguish themselves through currentStageMessage.
+  // 'complete'/'error' end it). Sub-steps within a phase distinguish
+  // themselves through currentStageMessage.
   currentStage: ScenarioPhaseName | 'ready' | 'complete' | 'error'
   currentStageMessage?: string
   error?: any
-  // Non-fatal warnings the consumer should toast. Drained per delivery.
+  // Non-fatal warnings the consumer should toast.
   warnings?: string[]
-  // Requests that failed after exhausting their retries. The run continues, so
-  // the consumer must show these — the results are incomplete without them.
+  // Requests that failed after exhausting their retries; the run continues,
+  // so the consumer must show these — the results are incomplete.
   requestErrors?: RequestFailure[]
-  // The enabled phases for this run, in pipeline order. Emitted once at the
-  // start of a fetch; drives the weighted overall progress bar.
+  // The run's phases in pipeline order, announced on the 'ready' event.
   phasePlan?: ScenarioPhaseName[]
-  // The emitting phase's own task counters. Consumers keep the latest
+  // The emitting phase's own task counters; consumers keep the latest
   // fraction per phase and compute overall progress across the plan.
   phaseProgress?: { phase: ScenarioPhaseName, completed: number, total: number }
   // Each pass sets only the fields it produces.
@@ -256,13 +221,8 @@ export interface ScenarioProgress {
   config?: any
 }
 
-/**
- * Stream scenario data to a controller. This is the core streaming primitive.
- * Does not accumulate data - just streams NDJSON to the controller.
- *
- * Use this directly for server/BFF endpoints where memory is constrained.
- * For cases that need accumulated data, compose with multiplexStream + ScenarioStreamReceiver.
- */
+// Stream scenario NDJSON to a controller without accumulating — the
+// memory-constrained server/BFF path.
 export async function streamScenario (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<void> {
   // One derived plan flows to both the announcement and the fetcher's
   // execution gate, so the two cannot drift.
@@ -277,14 +237,9 @@ export async function streamScenario (controller: ReadableStreamDefaultControlle
   })
 }
 
-/**
- * Run the scenario fetcher, streaming results and accumulating data.
- * This is a convenience wrapper that composes streamScenario with accumulation.
- *
- * For server/BFF use where memory is constrained, use streamScenario directly.
- */
+// Run the scenario fetcher, both streaming to the controller and returning
+// the accumulated data — the CLI path.
 export async function runScenarioFetcher (controller: ReadableStreamDefaultController, config: ScenarioConfig, client: GraphQLClient): Promise<ScenarioData> {
-  // Multiplex stream: one copy streams to controller, one copy accumulates
   const { inputStream, outputStream } = multiplexStream(requestStream(controller))
   const receiver = new ScenarioDataReceiver({})
   const scenarioClientProgress = new ScenarioStreamReceiver().processStream(outputStream, receiver)
@@ -308,28 +263,22 @@ export async function runScenarioFetcher (controller: ReadableStreamDefaultContr
 // SCENARIO FETCHER - Composition of the pipeline phases
 // ============================================================================
 
-// Options for a fetcher run, beyond the phase contract's emit. onError is the
-// per-task (non-fatal) failure hook, normally the envelope's failure reporter;
-// fatal errors throw out of fetch() and are the envelope's to report.
+// Options for a fetcher run beyond the phase contract's emit.
 export interface ScenarioFetcherOpts extends PhaseOpts {
-  // The phases to execute, in pipeline order. Defaults to the browse-derived
+  // Phases to execute, in pipeline order. Defaults to the browse-derived
   // plan for the config; a report run declares its own.
   plan?: ScenarioPhaseName[]
 }
 
-/**
- * Composes the scenario pipeline out of the standalone phases in ./phases:
- *
- *   feed-versions ─┬─ stops ─┬─ departures ──┐
- *                  │         └─ routes ──────┴─ buffer passes
- *                  ├─ flex
- *                  └─ census-values
- *
- * Each phase is also exposed as its own server endpoint (server/api/scenario/*)
- * so clients can run, skip, shard, or retry them independently. The fetcher
- * itself follows the same contract as a phase — emit plus a non-fatal onError
- * — and runs inside a stream envelope that owns the run's framing.
- */
+// Composes the scenario pipeline out of the standalone phases in ./phases:
+//
+//   feed-versions ─┬─ stops ─┬─ departures ──┐
+//                  │         └─ routes ──────┴─ buffer passes
+//                  ├─ flex
+//                  └─ census-values
+//
+// Follows the same contract as a phase — emit plus non-fatal onError — and
+// runs inside a stream envelope that owns the run's framing.
 export class ScenarioFetcher {
   private config: ScenarioConfig
   private client: GraphQLClient
@@ -348,7 +297,6 @@ export class ScenarioFetcher {
     this.config = config
     this.client = client
     this.emit = emit
-    // A failed task doesn't abort its phase — it reports and the rest continue.
     this.onError = opts.onError ?? (() => {})
     this.plan = opts.plan ?? scenarioPhasePlan(config)
   }
@@ -358,10 +306,9 @@ export class ScenarioFetcher {
     const emit = this.emit
     const onError = this.onError
 
-    // The plan gates execution here; announcing it to the stream is the
-    // envelope's job (the 'ready' event), since a run may include report
-    // phases executed after this fetcher by whoever composed it. Phases in
-    // the plan this fetcher doesn't implement are simply not its to run.
+    // The plan gates execution here; announcing it is the envelope's job.
+    // Phases in the plan this fetcher doesn't implement (the report phases)
+    // are run afterwards by whoever composed it.
     const enabled = new Set(this.plan)
     console.log(`[Scenario] phase plan: ${this.plan.join(', ')}`)
 
@@ -444,21 +391,17 @@ export class ScenarioFetcher {
     ])
     logMemory('after-flex-and-census')
 
-    // No completion event here: 'complete' belongs to the stream envelope
-    // (runProgressStream), which emits it once the whole run — including any
-    // analysis stage layered after these phases — has finished.
+    // No completion event here: 'complete' is the envelope's, emitted once
+    // the whole run — including any report phases after this — has finished.
     logMemory('fetchMain-complete')
     console.log(`🎉 Scenario fetch complete`)
 
-    // The geography context the feed-versions phase resolved, for callers
-    // that run report stages after the fetch (so they don't re-resolve).
+    // Returned so report stages don't re-resolve the geography context.
     return { resolvedGeography: resolved }
   }
 
-  // Config projection around the census-values phase; the inline path passes
-  // the already-resolved geography so the phase doesn't re-query. Gating is
-  // the plan's job (PHASE_ENABLED) — this guard exists for type narrowing
-  // and would only fire on a plan/config inconsistency bug.
+  // Config projection around the census-values phase. Gating is the plan's
+  // job; the guard is type narrowing that only fires on a plan/config bug.
   private async fetchCensusValues (resolved: ResolvedGeographyContext, stopIds: number[]): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
@@ -477,10 +420,8 @@ export class ScenarioFetcher {
     }, this.client, this.emit)
   }
 
-  // Delegates to `runBufferPasses` so the same logic runs standalone via
-  // /api/buffer-geographies on radius/layer changes. Gating is the plan's
-  // job (PHASE_ENABLED) — this guard exists for type narrowing and would
-  // only fire on a plan/config inconsistency bug.
+  // Config projection around the buffer passes. Gating is the plan's job;
+  // the guard is type narrowing that only fires on a plan/config bug.
   private async fetchBufferData (stopIds: number[], routeIds: number[], agencyIds: number[], onError: (error: any) => void): Promise<void> {
     const { tableDatasetName, geoDatasetName } = this.config
     const radius = this.config.stopBufferRadius ?? 0
@@ -504,9 +445,8 @@ export class ScenarioFetcher {
     )
   }
 
-  // Delegates to `runStopClustersPhase` so the same logic runs standalone via
-  // /api/stop-clusters on distance changes. Gating is the plan's job
-  // (PHASE_ENABLED) — this guard only fires on a plan/config inconsistency bug.
+  // Config projection around the stop-clusters phase. Gating is the plan's
+  // job; the guard is type narrowing that only fires on a plan/config bug.
   private async fetchStopClusters (fvRefs: FeedVersionRef[]): Promise<void> {
     const distance = this.config.stopClusterDistance ?? 0
     if (distance <= 0) {
@@ -544,45 +484,25 @@ function mergeIntoMap<K, V> (
 // SCENARIO DATA RECEIVER - Core accumulation logic
 // ============================================================================
 
+// Retention controls for a receiver. All three affect only this receiver's
+// copy — the streamed events pass through untouched, so a downstream consumer
+// still gets everything.
 export interface ScenarioReceiverOptions {
-  /**
-   * Fold departures instead of accumulating them. When set, each streamed
-   * batch is handed to this callback and `stopDepartureCache` is left empty.
-   *
-   * A retained departure costs ~80 bytes, so a statewide scenario's several
-   * million of them do not fit alongside everything else in a Cloudflare
-   * Worker. Consumers that only need a derived summary (the WSDOT report reads
-   * per-hour counts and nothing else) fold here and hold constant memory.
-   */
+  // Fold departures instead of accumulating them; `stopDepartureCache` stays
+  // empty. A retained departure costs ~80 bytes, so a statewide scenario's
+  // millions of them do not fit in a Cloudflare Worker.
   onStopDepartures?: (departures: readonly StopDepartureTuple[]) => void
-  /**
-   * Do not accumulate stops; `stops` is left empty.
-   *
-   * A StopGql costs ~970 bytes, most of it in the separate heap objects behind
-   * `geometry`, `feed_version`, `census_geographies` and `route_stops` rather
-   * than in the fields themselves. A consumer that reads a handful of values
-   * per stop folds them into a flat record of its own, which measures ~300,
-   * and sets this so the whole ones are not held alongside.
-   *
-   * Retention only. A consumer folding stops reads them from the progress
-   * events it is already receiving, so that its fold does not silently stop
-   * happening when someone asks for the whole ones to be kept as well.
-   */
+  // Do not accumulate stops; `stops` stays empty. A StopGql costs ~970 bytes
+  // of nested heap objects; consumers that read a few values per stop fold
+  // them into flat records of their own instead.
   dropStops?: boolean
-  /**
-   * Accumulate routes without their geometry. The streamed events are left
-   * untouched, so a browser downstream still receives the shapes; only this
-   * receiver's copy is slimmed. For a server that streams routes on to a
-   * client but never draws them itself, holding a second copy of 49 KB per
-   * route is what the memory limit is spent on.
-   */
+  // Accumulate routes without their geometry (~49 KB per route), for a server
+  // that relays routes but never draws them.
   dropRouteGeometry?: boolean
 }
 
-/**
- * Receives progress events and accumulates ScenarioData
- * This is the core logic used by both in-process and streaming scenarios
- */
+// Receives progress events and accumulates ScenarioData, for in-process and
+// streaming consumers alike.
 export class ScenarioDataReceiver {
   private accumulatedData: ScenarioData
   private callbacks: ScenarioCallbacks
@@ -608,9 +528,6 @@ export class ScenarioDataReceiver {
     }
   }
 
-  /**
-   * Handle a progress event from ScenarioFetcher
-   */
   onProgress (progress: ScenarioProgress): void | Promise<void> {
     const p = progress.partialData
     if (p) {
@@ -677,16 +594,10 @@ export class ScenarioDataReceiver {
     return this.callbacks.onProgress?.(progress)
   }
 
-  /**
-   * Handle completion from ScenarioFetcher
-   */
   onComplete (): void {
     this.callbacks.onComplete?.()
   }
 
-  /**
-   * Handle error from ScenarioFetcher
-   */
   onError (error: any): void {
     this.callbacks.onError?.(error)
   }
@@ -713,9 +624,7 @@ export class ScenarioDataReceiver {
     this.accumulatedData.censusGeographies?.clear()
   }
 
-  /**
-   * Get the current accumulated data
-   */
+  // A shallow copy of the accumulated data so far.
   getCurrentData (): ScenarioData {
     if (process.env.DEBUG_MEMORY) {
       const stats = {
@@ -732,7 +641,5 @@ export class ScenarioDataReceiver {
   }
 }
 
-/**
- * Streaming client processes readable streams and uses ScenarioDataReceiver
- */
+// NDJSON stream reader for scenario progress events.
 export class ScenarioStreamReceiver extends GenericStreamReceiver<ScenarioProgress, ScenarioData> {}
