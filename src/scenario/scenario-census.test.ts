@@ -133,7 +133,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 1) Raw pipeline output: the geography + ACS value landed in ScenarioData, tagged
       //    with the requested layer and the area-derived intersection ratio (500/1000).
-      const geo = data.censusGeographies.get(c.geoid)
+      const geo = data.censusGeographies!.get(c.geoid)
       expect(geo).toBeDefined()
       expect(geo!.values['b01003_001']).toBe(c.pop)
       expect(geo!.layer).toBe(c.layer)
@@ -180,13 +180,13 @@ describe('scenario census pipeline (integration)', () => {
       const data = await runScenarioFetcher(noopController(), censusConfig(c.layer), client)
 
       // The census-values query returned geographies for the requested layer.
-      expect(data.censusGeographies.size).toBeGreaterThan(0)
-      for (const geo of data.censusGeographies.values()) {
+      expect(data.censusGeographies!.size).toBeGreaterThan(0)
+      for (const geo of data.censusGeographies!.values()) {
         expect(geo.layer).toBe(c.layer)
       }
 
       // The specific known geography carries its pinned ACS total population.
-      const known = data.censusGeographies.get(c.geoid)
+      const known = data.censusGeographies!.get(c.geoid)
       expect(known, `expected ${c.geoid} in the downtown-Portland ${c.layer} results`).toBeDefined()
       expect(known!.values['b01003_001']).toBe(c.pop)
     }, 120000)

@@ -100,7 +100,7 @@ describe('ScenarioFetcher', () => {
       await fetcher.fetch()
 
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
-      expect(client.mockQuery.mock.calls[1][1]).toMatchObject({ after: 100 })
+      expect(client.mockQuery.mock.calls[1]![1]).toMatchObject({ after: 100 })
       const allFvSha1s = progressCb.mock.calls
         .flatMap(([p]) => (p.partialData?.feedVersions ?? []).map((fv: { sha1: string }) => fv.sha1))
       expect(allFvSha1s).toHaveLength(103)
@@ -286,7 +286,7 @@ describe('ScenarioFetcher', () => {
       await fetcher.fetch()
 
       expect(client.mockQuery).toHaveBeenCalledTimes(2)
-      expect(client.mockQuery.mock.calls[1][1]).toMatchObject({ tableNames: expect.any(Array) })
+      expect(client.mockQuery.mock.calls[1]![1]).toMatchObject({ tableNames: expect.any(Array) })
     })
 
     it('skips census values when includeCensus is false', async () => {

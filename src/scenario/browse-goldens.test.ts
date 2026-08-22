@@ -123,13 +123,13 @@ describe('browse goldens (integration)', () => {
     const stop = filtered.stops.find(s => s.stop_id === '7594')
     expect(stop, 'stop 7594 missing from the browse result').toBeDefined()
     const visits = stopVisits(
-      stop as never, undefined, dates, '00:00:00', '24:00:00', filtered.stopDepartureCache,
-    ) as Record<string, { visit_count: number }>
-    expect(visits.total?.visit_count).toBe(1699)
+      stop!, undefined, dates, '00:00:00', '24:00:00', filtered.stopDepartureCache,
+    )
+    expect(visits.total.visit_count).toBe(1699)
     // Weekdays and weekend days differ, so a range that slipped a day shows up
     // here as well as in the per-route arrays.
-    expect(visits.monday?.visit_count).toBe(249)
-    expect(visits.saturday?.visit_count).toBe(227)
+    expect(visits.monday.visit_count).toBe(249)
+    expect(visits.saturday.visit_count).toBe(227)
   })
 
   it('keeps every route and stop the filter returned addressable', () => {

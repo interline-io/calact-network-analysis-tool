@@ -16,7 +16,7 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--aggregate-layer <layer>', 'Census geography layer for aggregation (e.g., tract, bg)', 'tract')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
-    .option('--stop-buffer-radius <meters>', 'Stop buffer radius in meters; > 0 enables the per-stop/route/agency buffer passes', '0')
+    .option('--stop-buffer-radius <meters>', 'Stop buffer radius in meters; > 0 enables the per-stop/route/agency buffer passes', Number.parseFloat, SCENARIO_DEFAULTS.stopBufferRadius)
     .option('--stop-buffer-layer <layer>', 'Census geography layer the buffer passes intersect against', STOP_BUFFER_DEFAULT_LAYER)
 }
 
@@ -40,7 +40,7 @@ export function configureScenarioCli (program: Command) {
         // The buffer and census-values phases both gate on this, so the CLI
         // only reaches them once it is set.
         tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
-        stopBufferRadius: Number(opts.stopBufferRadius) || 0,
+        stopBufferRadius: opts.stopBufferRadius || 0,
         stopBufferLayer: opts.stopBufferLayer,
       }
 
@@ -141,7 +141,7 @@ export interface ScenarioCliOptions {
   endTime: string
   output: string
   aggregateLayer: string
-  stopBufferRadius: string
+  stopBufferRadius: number
   stopBufferLayer: string
   saveScenarioData?: string
 }

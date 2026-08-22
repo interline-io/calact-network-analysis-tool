@@ -150,8 +150,8 @@ describe('runDeparturesPhase calendar days', () => {
   it('keeps a same-day departure on its service date', async () => {
     const out = await collect(config('2024-07-03'), tripResponse('08:30:00', ['2024-07-03']))
     expect(out).toHaveLength(1)
-    expect(StopDepartureTuple.departureDate(out[0])).toBe('2024-07-03')
-    expect(StopDepartureTuple.departureTime(out[0])).toBe(8 * 3600 + 30 * 60)
+    expect(StopDepartureTuple.departureDate(out[0]!)).toBe('2024-07-03')
+    expect(StopDepartureTuple.departureTime(out[0]!)).toBe(8 * 3600 + 30 * 60)
   })
 
   it('moves an after-midnight departure to the next calendar day, keeping GTFS time', async () => {
@@ -159,8 +159,8 @@ describe('runDeparturesPhase calendar days', () => {
     // so a 00:00:00-24:00:00 window excludes it the way the stop path did.
     const out = await collect(config('2024-07-03'), tripResponse('25:00:00', ['2024-07-02']))
     expect(out).toHaveLength(1)
-    expect(StopDepartureTuple.departureDate(out[0])).toBe('2024-07-03')
-    expect(StopDepartureTuple.departureTime(out[0])).toBe(hms('25:00'))
+    expect(StopDepartureTuple.departureDate(out[0]!)).toBe('2024-07-03')
+    expect(StopDepartureTuple.departureTime(out[0]!)).toBe(hms('25:00'))
   })
 
   it('drops a departure that resolves outside the requested range', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getSelectedDateRange } from '~~/src/scenario'
-import { wsdotDepartureDates, wsdotReportDates } from '~~/src/analysis/wsdot'
-import { fmtDate, type WSDOTReportConfig } from '~~/src/core'
+import { wsdotDepartureDates, wsdotReportDates, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
+import { fmtDate } from '~~/src/core'
 
 function inZone<T> (tz: string, fn: () => T): T {
   const previous = process.env.TZ

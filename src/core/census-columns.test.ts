@@ -230,9 +230,9 @@ describe('deriveApportionedRow', () => {
 
 describe('formatArea', () => {
   it('switches m² to km² at 1,000,000', () => {
-    expect(formatArea(1500)).toBe('1,500 m²')
-    expect(formatArea(1_000_000)).toBe('1.00 km²')
-    expect(formatArea(2_500_000)).toBe('2.50 km²')
+    expect(formatArea(1500, 'eu')).toBe('1,500 m²')
+    expect(formatArea(1_000_000, 'eu')).toBe('1.00 km²')
+    expect(formatArea(2_500_000, 'eu')).toBe('2.50 km²')
   })
 })
 
