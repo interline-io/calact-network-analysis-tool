@@ -1,8 +1,9 @@
 // The WSDOT report's own pipeline phases, run after the fetch phases whose
 // data they consume: 'wsdot-levels' classifies stops into service levels and
 // builds the stop table; 'wsdot-geographies' fetches the per-level census
-// population rollups. Both stream typed partialData payloads and phase
-// progress, so consumers see them exactly like fetch phases.
+// population rollups, and — on demand, once the map overlay asks — their
+// outlines. All stream typed partialData payloads and phase progress, so
+// consumers see them exactly like fetch phases.
 
 import {
   fmtDate,
@@ -19,7 +20,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import { fetchCensusIntersection, type CensusGeographyFeature, type RouteGql } from '~~/src/tl'
+import { fetchBufferClipGeometry, fetchCensusIntersection, type CensusGeographyFeature, type RouteGql } from '~~/src/tl'
 import { SERVICE_LEVELS, processServiceLevel } from './service-levels'
 import type { WSDOTFrequencyAggregator, FrequencyLabels } from './frequency'
 import type { WSDOTStopCollector } from './stops'
@@ -27,6 +28,10 @@ import type { WSDOTStopCollector } from './stops'
 // Batch sizes for streamed report payloads.
 const PROGRESS_LIMIT_STOPS = 1000
 const PROGRESS_LIMIT_BBOX_FEATURES = 100
+const PROGRESS_LIMIT_GEOMETRY = 200
+
+// The census layer the report's tract rollups and its map overlay use.
+const LEVEL_GEOGRAPHY_LAYER = 'tract'
 
 // Scenario config plus the report's own dates, buffer, and census settings.
 export interface WSDOTReportConfig extends ScenarioConfig {
@@ -86,6 +91,10 @@ export interface WSDOTReport {
   levelStops: Record<string, number[]>
   levelLayers: Record<string, Record<string, GeographyDataFeature[]>>
   bboxIntersection: GeographyDataFeature[]
+  // Level key -> the buffer-clipped outlines to draw for it. Empty until the
+  // map overlay asks: the outlines weigh more than everything else in a level
+  // rollup put together, and the overlay is off by default.
+  levelGeometry: Record<string, Geometry[]>
 }
 
 // One stop-table row, with per-level qualification flags.
@@ -131,6 +140,8 @@ export interface WSDOTReportPartialData {
   wsdotLevelLayers?: { level: string, layer: string, features: GeographyDataFeature[] }[]
   // Tract features intersecting the search area (the population denominator).
   wsdotBboxIntersection?: GeographyDataFeature[]
+  // Buffer-clipped outlines, chunked; each entry carries one level.
+  wsdotLevelGeometry?: { level: string, geometry: Geometry[] }[]
 }
 
 // ScenarioProgress with the report's payloads layered onto partialData.
@@ -272,6 +283,10 @@ export interface WSDOTGeographiesInput {
 // qualifying stops' buffers. Each layer is sent and released as it arrives
 // (the bbox set excepted — the report returns it); holding all eight
 // statewide tract sets at once is what exhausted the Worker.
+//
+// Areas only: the outlines of the same intersections weigh more than the rest
+// of the response put together and are drawn behind an off-by-default toggle,
+// so they come from runWsdotLevelGeometryPhase when the viewer asks.
 export async function runWsdotGeographiesPhase (
   config: WSDOTReportConfig,
   input: WSDOTGeographiesInput,
@@ -306,7 +321,7 @@ export async function runWsdotGeographiesPhase (
   }
   for (const [levelKey, stopIds] of Object.entries(input.levelSets)) {
     if (bufferRadius > 0 && stopIds.size > 0) {
-      levelTasks.push({ level: levelKey, layer: 'tract', stopIds })
+      levelTasks.push({ level: levelKey, layer: LEVEL_GEOGRAPHY_LAYER, stopIds })
     }
   }
 
@@ -320,7 +335,7 @@ export async function runWsdotGeographiesPhase (
     console.log(`Fetching tract populations for bbox...`)
     bboxIntersection = await getGeographyData({
       ...baseGeographyConfig,
-      geoDatasetLayer: 'tract',
+      geoDatasetLayer: LEVEL_GEOGRAPHY_LAYER,
       bbox: input.resolved.bbox,
       within: input.resolved.within,
     })
@@ -343,8 +358,6 @@ export async function runWsdotGeographiesPhase (
       stopIds: task.stopIds,
       geoDatasetLayer: task.layer,
       stopBufferRadius: bufferRadius,
-      // Only tract outlines are ever drawn, behind the stop-buffer toggle.
-      includeIntersectionGeometry: task.layer === 'tract',
     })
     completed++
     const featureChunks = chunkArray(data, PROGRESS_LIMIT_STOPS)
@@ -374,7 +387,6 @@ interface getGeographyDataConfig {
   geoDatasetLayer: string
   stopIds?: Set<number>
   stopBufferRadius?: number
-  includeIntersectionGeometry?: boolean
   bbox?: Bbox
 }
 
@@ -393,7 +405,6 @@ async function getGeographyData (
     within: config.within,
     stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
-    includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
   return features.map((f): GeographyDataFeature => {
     const totalPop = f.properties.values[config.tableDatasetTableCol] || 0
@@ -406,4 +417,55 @@ async function getGeographyData (
       },
     }
   })
+}
+
+// Per-level stop sets to outline, from the levels the report already streamed.
+export interface WSDOTLevelGeometryConfig {
+  geoDatasetName: string
+  stopBufferRadius: number
+  levels: { level: string, stopIds: number[] }[]
+}
+
+// Fetch the buffer-clipped tract outlines for each level, for the map overlay.
+// The areas behind the report's numbers come from the geographies phase; this
+// adds only the shapes, so nothing here feeds a population rollup.
+export async function runWsdotLevelGeometryPhase (
+  config: WSDOTLevelGeometryConfig,
+  client: GraphQLClient,
+  emit: WSDOTPhaseEmit,
+): Promise<void> {
+  const radius = config.stopBufferRadius || 0
+  const levels = radius > 0 ? config.levels.filter(l => l.stopIds.length > 0) : []
+  if (levels.length === 0) {
+    console.warn('[WSDOTLevelGeometry] No levels with stops at a positive radius — nothing to outline')
+    await emit({ currentStage: 'wsdot-geographies', phaseProgress: phaseDone('wsdot-geographies') })
+    return
+  }
+
+  let completed = 0
+  const progress = () => ({ phase: 'wsdot-geographies' as const, completed, total: levels.length })
+  for (const level of levels) {
+    console.log(`Fetching ${LEVEL_GEOGRAPHY_LAYER} outlines for ${level.level} from ${level.stopIds.length} stop IDs`)
+    const geometry = await fetchBufferClipGeometry({
+      client,
+      geoDatasetName: config.geoDatasetName,
+      geoDatasetLayer: LEVEL_GEOGRAPHY_LAYER,
+      stopIds: level.stopIds,
+      stopBufferRadius: radius,
+    })
+    completed++
+    // Chunked and awaited like the rollups: a statewide level is several MB of
+    // polygons, and encoding it as one event holds two copies at once.
+    const chunks = chunkArray(geometry, PROGRESS_LIMIT_GEOMETRY)
+    for (let i = 0; i < chunks.length; i++) {
+      await emit({
+        currentStage: 'wsdot-geographies',
+        partialData: { wsdotLevelGeometry: [{ level: level.level, geometry: chunks[i] ?? [] }] },
+        phaseProgress: progress(),
+        currentStageMessage: `WSDOT ${level.level} outlines batch ${i + 1} of ${chunks.length}...`,
+      })
+    }
+  }
+
+  await emit({ currentStage: 'wsdot-geographies', phaseProgress: phaseDone('wsdot-geographies') })
 }

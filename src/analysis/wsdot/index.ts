@@ -100,12 +100,14 @@ export async function runAnalysis (
 
     // levelLayers is empty by design: the layers went out on the stream as
     // they were fetched, and the client rebuilds them in its receiver.
+    // levelGeometry likewise, and it is only ever fetched on request.
     return {
       scenarioData,
       wsdotResult: {
         stops: levels.stops,
         levelStops: levels.levelStops,
         levelLayers: {},
+        levelGeometry: {},
         bboxIntersection,
       },
     }
@@ -115,7 +117,7 @@ export async function runAnalysis (
 // Receiver for browser consumers, which reassemble the report from the
 // stream's typed payloads; the server builds it in-process instead.
 export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
-  private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, bboxIntersection: [] }
+  private wsdotReport: WSDOTReport = { stops: [], levelStops: {}, levelLayers: {}, levelGeometry: {}, bboxIntersection: [] }
 
   // Narrower than the base signature; safe since every WSDOT field is optional.
   override onProgress (progress: WSDOTProgress): void {
@@ -138,6 +140,18 @@ export class WSDOTReportDataReceiver extends ScenarioDataReceiver {
     if (p?.wsdotBboxIntersection) {
       this.wsdotReport.bboxIntersection.push(...p.wsdotBboxIntersection)
     }
+    if (p?.wsdotLevelGeometry) {
+      for (const chunk of p.wsdotLevelGeometry) {
+        const geometry = this.wsdotReport.levelGeometry[chunk.level] || (this.wsdotReport.levelGeometry[chunk.level] = [])
+        geometry.push(...chunk.geometry)
+      }
+    }
+  }
+
+  // Drop the outlines before refetching them, so a second overlay load appends
+  // to nothing. The rest of the report is untouched — it is not refetched.
+  clearLevelGeometry (): void {
+    this.wsdotReport.levelGeometry = {}
   }
 
   // A shallow copy of the report accumulated so far.

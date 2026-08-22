@@ -53,6 +53,7 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
       ],
       levelStops: {},
       levelLayers: {},
+      levelGeometry: {},
       bboxIntersection: [],
     }
 
@@ -79,6 +80,7 @@ describe('processWsdotStopsRoutesReport service level mapping', () => {
       stops: [reportStop('A1', 'f-busy', { level2: true }), reportStop('B1', 'f-rural', {})],
       levelStops: {},
       levelLayers: {},
+      levelGeometry: {},
       bboxIntersection: [],
     }
     const out = processWsdotStopsRoutesReport(data, report)
