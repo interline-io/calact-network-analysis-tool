@@ -250,6 +250,30 @@ describe('runAnalysis fetch policy', () => {
     expect(sent.find(p => p.phasePlan)?.phasePlan).toEqual(WSDOT_PHASE_PLAN)
   })
 
+  it('closes every declared phase even without an aggregation layer', async () => {
+    // The plan names stop-census unconditionally while aggregateLayer is
+    // optional, so the skip path is reachable — and a planned phase that never
+    // reports leaves the loading bar short of 100% for the whole run.
+    const sent: WSDOTProgress[] = []
+    const controller = {
+      enqueue: (chunk: Uint8Array) => {
+        for (const line of new TextDecoder().decode(chunk).split('\n')) {
+          if (line.trim()) { sent.push(JSON.parse(line)) }
+        }
+      },
+      close: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReadableStreamDefaultController
+    await runAnalysis(controller, { ...config, aggregateLayer: undefined }, client())
+
+    for (const phase of WSDOT_PHASE_PLAN) {
+      const closed = sent.some(p => p.phaseProgress?.phase === phase
+        && p.phaseProgress.total > 0
+        && p.phaseProgress.completed >= p.phaseProgress.total)
+      expect(closed, `phase ${phase} should close its slice`).toBe(true)
+    }
+  })
+
   it('never runs the flex phase, even when the caller asks for it', async () => {
     // The browse config these reports are built from always carries an
     // explicit includeFlexAreas: true; only the declared plan keeps the phase

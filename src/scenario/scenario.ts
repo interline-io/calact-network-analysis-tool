@@ -22,7 +22,7 @@ import type {
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runProgressStream, type ProgressEmit } from './progress-stream'
-import type { PhaseOpts } from './phases/common'
+import { phaseDone, type PhaseOpts } from './phases/common'
 import {
   runFeedVersionsPhase,
   runBufferPasses,
@@ -370,10 +370,10 @@ export class ScenarioFetcher {
           }, this.client, emit, { onError })
         : { agencyIds: [] }
       logMemory('after-routes')
-      await departuresPromise
+      // Awaited together: awaiting in sequence strands the second promise when
+      // the first rejects, which surfaces as an unhandled rejection.
+      await Promise.all([departuresPromise, stopCensusPromise])
       logMemory('after-departures')
-      await stopCensusPromise
-      logMemory('after-stop-census')
 
       if (enabled.has('buffers')) {
         await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
@@ -411,12 +411,15 @@ export class ScenarioFetcher {
     return { resolvedGeography: resolved }
   }
 
-  // Config projection around the stop-census phase. Gating is the plan's job;
-  // the guard is type narrowing that only fires on a plan/config bug.
+  // Config projection around the stop-census phase. Unlike its siblings the
+  // guard is reachable: WSDOT_PHASE_PLAN declares this phase unconditionally,
+  // so a report config without an aggregation layer lands here — and has to
+  // close the slice it was planned for, or the progress bar never fills.
   private async fetchStopCensus (stopIds: number[], onError: (error: any) => void): Promise<void> {
     const { aggregateLayer, geoDatasetName } = this.config
     if (!aggregateLayer) {
       console.warn('[StopCensus] Planned but aggregateLayer missing — skipping')
+      await this.emit({ currentStage: 'stop-census', phaseProgress: phaseDone('stop-census') })
       return
     }
     await runStopCensusPhase({

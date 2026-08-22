@@ -84,8 +84,8 @@ export interface StopCensusGeography {
 // from stop discovery: it is not needed to reach routes or departures, and
 // riding along on that query made every page wait for it.
 //
-// `$dataset`/`$layer` rather than `$dataset_name`, which stopQuery uses — test
-// mocks that dispatch on variable names cannot then confuse the two.
+// `$dataset`/`$layer` rather than the repo's usual `$dataset_name`, so the test
+// mocks that dispatch on variable names can tell this query from stopQuery.
 export const stopCensusQuery = gql`
 query StopCensus($ids: [Int!], $limit: Int, $dataset: String, $layer: String) {
   stops(ids: $ids, limit: $limit) {
@@ -100,12 +100,6 @@ query StopCensus($ids: [Int!], $limit: Int, $dataset: String, $layer: String) {
     }
   }
 }`
-
-// One stop's geographies, as the stop-census phase reads them.
-export interface StopCensusGql {
-  id: number
-  census_geographies: StopCensusGeography[]
-}
 
 export interface StopVisitCounts {
   date_count: number

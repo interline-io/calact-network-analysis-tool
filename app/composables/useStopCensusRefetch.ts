@@ -1,12 +1,7 @@
-// Debounced per-stop census refetch on Aggregate-by layer change. The
-// stop-census phase fetches one layer, so the previous layer's entries are
-// wrong rather than stale the moment the selector moves — without this the
-// aggregation table and the choropleth silently come back empty.
-//
-// Runs alongside useAggregateRefetch, which recomputes the ACS values for the
-// same layer change; the shared refetch counter keeps the loading modal open
-// until both settle. Streaming/abort/debounce machinery lives in
-// useStreamingRefetch.
+// Debounced per-stop census refetch on Aggregate-by layer change. The phase
+// fetches one layer, so the previous layer's entries are wrong rather than
+// stale the moment the selector moves. Runs alongside useAggregateRefetch,
+// which covers the ACS half of the same change.
 
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
@@ -21,9 +16,8 @@ export function useStopCensusRefetch (deps: UseStopCensusRefetchDeps): void {
     watchSources: [aggregateLayer],
     endpoint: '/api/scenario/stop-census',
     loadingMessage: 'Reloading stop census areas...',
-    // The old layer's entries can't be shown against the new one, and every
-    // consumer filters on layer_name, so leaving them would read as no stops
-    // in any geography.
+    // Every consumer filters on layer_name, so keeping the old layer's entries
+    // would read as no stops in any geography rather than as stale ones.
     clearBeforeFetch: true,
     clearStale: receiver => receiver.clearStopCensusGeographies(),
     plan: (data, config) => {

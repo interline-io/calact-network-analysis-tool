@@ -51,6 +51,13 @@ function censusConfig (aggregateLayer: string): ScenarioConfig {
   }
 }
 
+function integrationClient (): BasicGraphQLClient {
+  return new BasicGraphQLClient(
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
+  )
+}
+
 // runScenarioFetcher streams progress to this controller while also accumulating
 // ScenarioData internally; the accumulation path doesn't depend on the controller, so
 // a no-op sink is sufficient for assertions.
@@ -166,10 +173,7 @@ describe('scenario census pipeline (hermetic)', () => {
 // full-geography ACS value and reports clipping separately), so the pinned values are
 // deterministic against the rebuild-census.sh test DB.
 describe('scenario census pipeline (integration)', () => {
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
-    apiFetch(''),
-  )
+  const client = integrationClient()
 
   for (const c of CASES) {
     it(`fetches real ${c.layer} census values from the server`, async () => {
@@ -196,19 +200,15 @@ describe('scenario census pipeline (integration)', () => {
 // fails silently when it breaks: the aggregation table keeps rendering, with
 // every stop count at zero.
 describe('per-stop census pipeline (integration)', () => {
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
-    apiFetch(''),
-  )
+  const client = integrationClient()
 
   const LAYER = 'tract'
+  // The census config with fixed-route back on — the one difference that
+  // brings the stops, and with them this phase.
   const stopCensusConfig: ScenarioConfig = {
+    ...censusConfig(LAYER),
     reportName: 'stop-census-test',
-    bbox: BBOX,
-    geoDatasetName: GEO_DATASET,
-    tableDatasetName: TABLE_DATASET,
-    aggregateLayer: LAYER,
-    includeFlexAreas: false,
+    includeFixedRoute: true,
   }
 
   it('carries the aggregation layer from the phase through to the aggregation table', async () => {

@@ -33,44 +33,28 @@ function streamedEntries (events: ScenarioProgress[]): [number, unknown][] {
 }
 
 describe('runStopCensusPhase', () => {
-  it('batches stop ids and asks for one layer', async () => {
+  it('pages stop ids under the server limit and asks for one layer', async () => {
+    // The root `stops` limit maxes out at 1000 and truncates silently above it,
+    // so the ids have to be paged and the limit sent explicitly — it defaults
+    // to 100 whether or not ids are given.
+    const stopIds = Array.from({ length: 2500 }, (_, i) => i + 1)
     const client = echoClient()
     const { emit, events } = collect()
     await runStopCensusPhase({
-      stopIds: [1, 2, 3, 4, 5],
+      stopIds,
       geoDatasetName: 'tiger2021',
       censusLayer: 'tract',
-      stopChunkSize: 2,
     }, client, emit)
 
     expect(client.query).toHaveBeenCalledTimes(3)
     for (const [, variables] of client.query.mock.calls) {
       expect(variables.layer).toBe('tract')
       expect(variables.dataset).toBe('tiger2021')
-      // The server's root limit defaults to 100 and is applied whether or not
-      // ids are given, so it has to be sent explicitly.
+      expect(variables.ids.length).toBeLessThanOrEqual(1000)
       expect(variables.limit).toBe(variables.ids.length)
     }
-    expect(client.query.mock.calls.flatMap(([, v]) => v.ids).sort()).toEqual([1, 2, 3, 4, 5])
-    expect(streamedEntries(events).map(([id]) => id).sort()).toEqual([1, 2, 3, 4, 5])
-  })
-
-  it('never asks for more ids than the server will return', async () => {
-    // The root `stops` limit maxes out at 1000 and truncates silently above it,
-    // so a caller asking for a larger batch must still be paged.
-    const client = echoClient()
-    const { emit } = collect()
-    await runStopCensusPhase({
-      stopIds: Array.from({ length: 2500 }, (_, i) => i + 1),
-      geoDatasetName: 'tiger2021',
-      censusLayer: 'tract',
-      stopChunkSize: 5000,
-    }, client, emit)
-
-    expect(client.query).toHaveBeenCalledTimes(3)
-    for (const [, variables] of client.query.mock.calls) {
-      expect(variables.ids.length).toBeLessThanOrEqual(1000)
-    }
+    expect(client.query.mock.calls.flatMap(([, v]) => v.ids)).toEqual(stopIds)
+    expect(streamedEntries(events).map(([id]) => id)).toEqual(stopIds)
   })
 
   it('closes its progress slice with no stops to ask about', async () => {

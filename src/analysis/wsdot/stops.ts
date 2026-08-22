@@ -61,12 +61,8 @@ export class WSDOTStopCollector {
   setStateNames (entries: readonly [number, StopCensusGeography[]][]): void {
     for (const [stopId, geographies] of entries) {
       const record = this.records.get(stopId)
-      if (!record) {
-        continue
-      }
-      const name = geographies.find(g => g.layer_name === this.aggregateLayer)?.name
-      if (name) {
-        record.stateName = name
+      if (record) {
+        record.stateName = geographies.find(g => g.layer_name === this.aggregateLayer)?.name || ''
       }
     }
   }
