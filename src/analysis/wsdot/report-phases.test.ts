@@ -5,7 +5,6 @@ import {
   BasicGraphQLClient,
   convertBbox,
   parseBbox,
-  SCENARIO_DEFAULTS,
   type GraphQLClient,
 } from '~~/src/core'
 import { stopQuery } from '~~/src/tl'
@@ -93,8 +92,6 @@ describe('runWsdotLevelGeometryPhase (integration)', () => {
     const stops = await client.query<{ stops: { id: number }[] }>(stopQuery, {
       after: 0,
       limit: 1000,
-      dataset_name: GEO_DATASET,
-      census_layer: SCENARIO_DEFAULTS.aggregateLayer,
       where: {
         location_type: 0,
         location: { bbox: convertBbox(BBOX), geography_ids: null },

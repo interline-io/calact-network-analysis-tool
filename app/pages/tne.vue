@@ -910,6 +910,21 @@ useClusterRefetch({
   refetchInFlight,
 })
 
+// reload each stop's census geography when the Aggregate-by layer changes —
+// the phase fetches one layer, so the previous one's entries no longer match.
+useStopCensusRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
+})
+
 // recompute census values when the Aggregate-by layer or the stop buffer radius
 // changes, and on demand from the Map Display refresh, reusing the same receiver.
 const { refresh: refreshCensusClip } = useAggregateRefetch({

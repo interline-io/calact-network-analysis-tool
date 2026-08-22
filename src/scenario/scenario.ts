@@ -17,6 +17,7 @@ import type {
   FeedVersion,
   RouteGql,
   StopGql,
+  StopCensusGeography,
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
@@ -28,6 +29,7 @@ import {
   runStopClustersPhase,
   type StopCluster,
   runStopsPhase,
+  runStopCensusPhase,
   runRoutesPhase,
   runDeparturesPhase,
   runFlexPhase,
@@ -60,10 +62,6 @@ export interface ScenarioConfig {
   // Whether to fetch route shapes (default true; the map needs them). Geometry
   // is 98% of the routes payload, so route-classifying consumers turn it off.
   includeRouteGeometry?: boolean
-  // Whether to fetch every census layer on each stop (default true; lets the
-  // aggregation layer change without refetching). All layers are 41% of the
-  // stops payload; a report that fixes one layer turns this off.
-  includeAllCensusLayers?: boolean
   // Explicit calendar dates (`yyyy-MM-dd`) to fetch departures for, instead
   // of the whole startDate..endDate range. Must include the day before each
   // date read: a departure stated past 24:00:00 falls on the next day.
@@ -96,6 +94,10 @@ export interface ScenarioConfig {
 const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boolean> = {
   'feed-versions': () => true,
   'stops': config => config.includeFixedRoute !== false,
+  // Executes inside the stops block, so the predicate implies stops. Not
+  // gated on includeCensus: the aggregation table has always worked without
+  // it, back when these geographies rode on the stop query.
+  'stop-census': config => config.includeFixedRoute !== false && !!config.aggregateLayer,
   'routes': config => config.includeFixedRoute !== false,
   'departures': config => config.includeFixedRoute !== false,
   'buffers': config => config.includeFixedRoute !== false
@@ -157,6 +159,9 @@ export interface ScenarioData {
   // unique trip for debug UIs; the departure cache drops the string for
   // memory efficiency.
   tripIdStrings?: Map<number, string>
+  // Aggregation-layer geographies per stop, joined onto each Stop by the
+  // result filter. Populated when `aggregateLayer` is set.
+  stopCensusGeographies?: Map<number, StopCensusGeography[]>
   // Populated when `tableDatasetName` + `aggregateLayer` are both set.
   censusGeographies?: Map<string, CensusGeographyData>
   // Populated when `stopBufferRadius > 0`. Keyed by Stop.id.
@@ -201,6 +206,8 @@ export interface ScenarioProgress {
   // Each pass sets only the fields it produces.
   partialData?: {
     stops?: StopGql[]
+    // Stop id -> its geographies at the aggregation layer.
+    stopCensusGeographies?: [number, StopCensusGeography[]][]
     routes?: RouteGql[]
     feedVersions?: FeedVersion[]
     flexAreas?: FlexAreaFeature[]
@@ -272,8 +279,9 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
 
 // Composes the scenario pipeline out of the standalone phases in ./phases:
 //
-//   feed-versions ─┬─ stops ─┬─ departures ──┐
-//                  │         └─ routes ──────┴─ buffer passes
+//   feed-versions ─┬─ stops ─┬─ departures ───┐
+//                  │         ├─ stop-census ──┤
+//                  │         └─ routes ───────┴─ buffer passes
 //                  ├─ flex
 //                  └─ census-values
 //
@@ -335,15 +343,13 @@ export class ScenarioFetcher {
         feedVersions: fvRefs,
         bbox: this.config.bbox,
         geographyIds: this.config.geographyIds,
-        geoDatasetName: this.config.geoDatasetName,
         stopLimit: this.config.stopLimit,
-        censusLayer: this.config.includeAllCensusLayers === false ? this.config.aggregateLayer : undefined,
       }, this.client, emit, { onError })
       scenarioStopIds = stopIds
       logMemory('after-stops')
 
-      // Departures fan out concurrently with routes, recovering the queue
-      // overlap the pre-phase pipeline had.
+      // Departures and the per-stop census fan out concurrently with routes;
+      // all three need only the stop ids.
       const departuresPromise = enabled.has('departures')
         ? runDeparturesPhase({
             stopIds,
@@ -354,6 +360,9 @@ export class ScenarioFetcher {
             routeStopIds,
           }, this.client, emit, { onError })
         : Promise.resolve()
+      const stopCensusPromise = enabled.has('stop-census')
+        ? this.fetchStopCensus(stopIds, onError)
+        : Promise.resolve()
       const { agencyIds } = enabled.has('routes')
         ? await runRoutesPhase({
             routeIds,
@@ -363,6 +372,8 @@ export class ScenarioFetcher {
       logMemory('after-routes')
       await departuresPromise
       logMemory('after-departures')
+      await stopCensusPromise
+      logMemory('after-stop-census')
 
       if (enabled.has('buffers')) {
         await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
@@ -398,6 +409,21 @@ export class ScenarioFetcher {
 
     // Returned so report stages don't re-resolve the geography context.
     return { resolvedGeography: resolved }
+  }
+
+  // Config projection around the stop-census phase. Gating is the plan's job;
+  // the guard is type narrowing that only fires on a plan/config bug.
+  private async fetchStopCensus (stopIds: number[], onError: (error: any) => void): Promise<void> {
+    const { aggregateLayer, geoDatasetName } = this.config
+    if (!aggregateLayer) {
+      console.warn('[StopCensus] Planned but aggregateLayer missing — skipping')
+      return
+    }
+    await runStopCensusPhase({
+      stopIds,
+      geoDatasetName,
+      censusLayer: aggregateLayer,
+    }, this.client, this.emit, { onError })
   }
 
   // Config projection around the census-values phase. Gating is the plan's
@@ -519,6 +545,7 @@ export class ScenarioDataReceiver {
       flexDepartureCache: new FlexDepartureCache(),
       flexAreas: [],
       tripIdStrings: new Map<number, string>(),
+      stopCensusGeographies: new Map<number, StopCensusGeography[]>(),
       censusGeographies: new Map<string, CensusGeographyData>(),
       stopBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
       routeBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
@@ -577,6 +604,11 @@ export class ScenarioDataReceiver {
           )
         }
       }
+      // Skipped alongside the stops themselves: the WSDOT path folds these off
+      // the event into its own records and has no stops to join them to.
+      if (!this.options.dropStops) {
+        mergeIntoMap(p.stopCensusGeographies, this.accumulatedData.stopCensusGeographies)
+      }
       mergeIntoMap(p.censusGeographies, this.accumulatedData.censusGeographies)
       mergeIntoMap(p.stopBufferGeographies, this.accumulatedData.stopBufferGeographies)
       mergeIntoMap(p.routeBufferGeographies, this.accumulatedData.routeBufferGeographies)
@@ -622,6 +654,12 @@ export class ScenarioDataReceiver {
   // don't linger in the map (choropleth ids are read from this map).
   clearCensusGeographies (): void {
     this.accumulatedData.censusGeographies?.clear()
+  }
+
+  // Reset before an aggregate-layer refetch: these are single-layer, so the
+  // previous layer's entries are wrong rather than merely stale.
+  clearStopCensusGeographies (): void {
+    this.accumulatedData.stopCensusGeographies?.clear()
   }
 
   // A shallow copy of the accumulated data so far.

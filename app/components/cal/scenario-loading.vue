@@ -156,6 +156,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   const stageLabels: Record<string, string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
+    'stop-census': 'Loading stop census areas...',
     'routes': 'Loading routes...',
     'departures': 'Loading departure schedules...',
     'flex-areas': 'Loading flex service areas...',

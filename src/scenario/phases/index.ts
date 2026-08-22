@@ -18,6 +18,7 @@ export {
 } from './common'
 export * from './feed-versions'
 export * from './stops'
+export * from './stop-census'
 export * from './routes'
 export * from './departures'
 export * from './buffer-passes'

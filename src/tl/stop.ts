@@ -15,7 +15,7 @@ import type { RouteGql } from './route'
 //////////
 
 export const stopQuery = gql`
-query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String, $census_layer: String) {
+query Stops($limit: Int, $after: Int, $where: StopFilter) {
   stops(limit: $limit, after: $after, where: $where) {
     id
     location_type
@@ -39,16 +39,6 @@ query Stops($limit: Int, $after: Int, $where: StopFilter, $dataset_name: String,
         onestop_id
       }
     }
-    # Every layer for the dataset by default, so the aggregation level can
-    # change without re-querying. A report that fixes one layer passes
-    # $census_layer instead: all seven layers are 41% of this query's bytes.
-    # limit:1000 is high enough for typical queries; results silently truncate if exceeded.
-    census_geographies(limit: 1000, where:{dataset: $dataset_name, layer: $census_layer}) {
-      id
-      geoid
-      layer_name
-      name
-    }    
     # Without an explicit limit the backend returns 100. The departures phase
     # fetches by route, so a route missing here loses its departures across the
     # whole scenario, not just this stop's metadata. 1000 is the server maximum.
@@ -77,6 +67,44 @@ export interface StopGtfs {
 export interface StopDerived {
   marked: boolean
   visits?: StopVisitSummary
+  // The stop's census geographies at the aggregation layer, joined on from the
+  // stop-census phase. Absent on a run that fetched no census.
+  census_geographies?: StopCensusGeography[]
+}
+
+// One census geography a stop falls inside, at a single layer.
+export interface StopCensusGeography {
+  id: number
+  name: string
+  geoid: string
+  layer_name: string
+}
+
+// The aggregation layer's geography for each of a set of stops. Fetched apart
+// from stop discovery: it is not needed to reach routes or departures, and
+// riding along on that query made every page wait for it.
+//
+// `$dataset`/`$layer` rather than `$dataset_name`, which stopQuery uses — test
+// mocks that dispatch on variable names cannot then confuse the two.
+export const stopCensusQuery = gql`
+query StopCensus($ids: [Int!], $limit: Int, $dataset: String, $layer: String) {
+  stops(ids: $ids, limit: $limit) {
+    id
+    # A global cap across the dataloader's batch of stops, not a per-stop one,
+    # so it is set well above one layer's worth of rows per stop.
+    census_geographies(limit: 10000, where:{dataset: $dataset, layer: $layer}) {
+      id
+      geoid
+      layer_name
+      name
+    }
+  }
+}`
+
+// One stop's geographies, as the stop-census phase reads them.
+export interface StopCensusGql {
+  id: number
+  census_geographies: StopCensusGeography[]
 }
 
 export interface StopVisitCounts {
@@ -101,12 +129,6 @@ export type StopGql = {
   __typename?: string // GraphQL compatibility
   id: number
   geometry: GeoJSON.Point
-  census_geographies: [{
-    id: number
-    name: string
-    geoid: string
-    layer_name: string
-  }]
   parent?: {
     stop_id: string
   }

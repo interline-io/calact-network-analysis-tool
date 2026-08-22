@@ -43,18 +43,33 @@ const stop = {
   stop_name: 'Test Stop',
   location_type: 0,
   geometry: { type: 'Point', coordinates: [-122.6, 45.5] },
-  census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
   feed_version: { sha1: 'sha1', feed: { onestop_id: 'f-1' } },
   route_stops: [],
 }
 
+// The stop-census phase's answer for that stop — the report's stateName.
+const stopCensus = {
+  id: stop.id,
+  census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
+}
+
+// Feeds then stops are awaited in order; everything after them fans out, so
+// the stop-census phase is answered by variables rather than by position.
 function client () {
   const c = new MockGraphQLClient()
   c.mockQuery
     .mockResolvedValueOnce({ data: { feeds: [feed] } })
     .mockResolvedValueOnce({ data: { stops: [stop] } })
-    .mockResolvedValue({ data: { stops: [], routes: [], census_geographies: [] } })
+    .mockImplementation((_q: any, v: any) => {
+      if (isStopCensus(v)) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
+      return Promise.resolve({ data: { stops: [], routes: [], census_geographies: [] } })
+    })
   return c
+}
+
+// Only the stop-census query takes both an id list and a single layer.
+function isStopCensus (v: any): boolean {
+  return v?.ids !== undefined && v?.layer !== undefined
 }
 
 // A scenario with one stop on one route that actually runs, so the service
@@ -77,7 +92,8 @@ function servingClient () {
     if (v?.include_geometry !== undefined) {
       return Promise.resolve({ data: { routes: [{ id: 500, route_id: 'r500', agency: { id: 1, agency_id: 'a', agency_name: 'A' } }] } })
     }
-    if (v?.dataset_name !== undefined) {
+    if (isStopCensus(v)) { return Promise.resolve({ data: { stops: [stopCensus] } }) }
+    if (v?.after !== undefined) {
       if (stopsServed) { return Promise.resolve({ data: { stops: [] } }) }
       stopsServed = true
       return Promise.resolve({ data: { stops: [{ ...stop, route_stops: [{ route_id: 500, agency_id: 1 }] }] } })

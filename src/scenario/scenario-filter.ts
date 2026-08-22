@@ -522,6 +522,10 @@ export function applyScenarioResultFilter (
       ...stopGql,
       marked: true,
       visits: undefined,
+      // Joined on here rather than merged into the accumulated stops: the
+      // stop-census phase finishes after the stops it describes have already
+      // streamed past, and the WSDOT path retains no stops to write onto.
+      census_geographies: data.stopCensusGeographies?.get(stopGql.id),
       __typename: 'Stop', // backwards compat
     }
     stopSetDerived(

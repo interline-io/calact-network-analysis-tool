@@ -143,7 +143,6 @@ function fixtureStop (id: number, name: string, routeIds: number[]) {
     stop_name: name,
     location_type: 0,
     geometry: { type: 'Point', coordinates: [-122.68 - id / 1000, 45.52] },
-    census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
     feed_version: { sha1: 'sha1', feed: { onestop_id: 'f-1' } },
     route_stops: routeIds.map(routeId => ({ route_id: routeId, agency_id: 1 })),
   }
@@ -157,6 +156,12 @@ const STOPS = [
   fixtureStop(3, 'Unserved', []),
   fixtureStop(4, 'Night owl', [NIGHT_ROUTE]),
 ]
+
+// The stop-census phase's answers, which carry the report's stateName.
+const STOP_CENSUS = STOPS.map(s => ({
+  id: s.id,
+  census_geographies: [{ id: 1, geoid: '53', layer_name: 'state', name: 'Washington' }],
+}))
 
 class MockGraphQLClient implements GraphQLClient {
   public mockQuery: Mock = vi.fn()
@@ -197,7 +202,11 @@ function fixtureClient () {
         })),
       })
     }
-    if (v?.dataset_name !== undefined) {
+    // Only the stop-census query takes both an id list and a single layer.
+    if (v?.ids !== undefined && v?.layer !== undefined) {
+      return reply({ stops: STOP_CENSUS })
+    }
+    if (v?.after !== undefined) {
       if (stopsServed) { return reply({ stops: [] }) }
       stopsServed = true
       return reply({ stops: STOPS })

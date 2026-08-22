@@ -79,7 +79,7 @@ function makeStop (partial: Partial<Stop> & { id: number }): Stop {
     stop_id: partial.stop_id ?? `stop-${partial.id}`,
     stop_name: partial.stop_name ?? `Stop ${partial.id}`,
     route_stops: partial.route_stops ?? [],
-    census_geographies: partial.census_geographies ?? ([] as unknown as Stop['census_geographies']),
+    census_geographies: partial.census_geographies ?? [],
     feed_version: partial.feed_version ?? { sha1: 'sha1', feed: { onestop_id: 'feed' } },
     marked: partial.marked ?? true,
     visits: partial.visits,
@@ -162,19 +162,19 @@ describe('stopGeoAggregateCsv', () => {
       makeStop({
         id: 1,
         route_stops: makeRouteStops([AGG_ROUTES[0]!]),
-        census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
+        census_geographies: [tract('100')],
         visits: makeVisitSummary({ total: counts(30, 5) }),
       }),
       makeStop({
         id: 2,
         route_stops: makeRouteStops([AGG_ROUTES[1]!]),
-        census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
+        census_geographies: [tract('100')],
         visits: makeVisitSummary({ total: counts(12, 5) }),
       }),
       makeStop({
         id: 3,
         route_stops: makeRouteStops([AGG_ROUTES[2]!]),
-        census_geographies: [tract('200')] as unknown as Stop['census_geographies'],
+        census_geographies: [tract('200')],
         visits: makeVisitSummary({ total: counts(7, 5) }),
       }),
     ]
@@ -200,7 +200,7 @@ describe('stopGeoAggregateCsv', () => {
       census_geographies: [
         { id: 1, geoid: '100', layer_name: 'tract', name: 'Tract 100' },
         { id: 2, geoid: '100-1', layer_name: 'bg', name: 'BG 100-1' },
-      ] as unknown as Stop['census_geographies'],
+      ],
       visits: makeVisitSummary({ total: counts(5, 1) }),
     })
 
@@ -222,7 +222,7 @@ describe('stopGeoAggregateCsv', () => {
     const stop = makeStop({
       id: 1,
       route_stops: makeRouteStops(ROUTE_10),
-      census_geographies: [tract('100')] as unknown as Stop['census_geographies'],
+      census_geographies: [tract('100')],
     })
     const result = stopGeoAggregateCsv([stop], 'tract', makeRouteLookup(ROUTE_10))
     expect(result[0]?.visit_count_total).toBe(0)

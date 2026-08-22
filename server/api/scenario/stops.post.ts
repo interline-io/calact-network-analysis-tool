@@ -15,10 +15,6 @@ export default defineEventHandler(async (event) => {
   if (!hasSearchArea(config)) {
     throw createError({ statusCode: 400, statusMessage: 'Either bbox or geographyIds must be provided' })
   }
-  if (!config.geoDatasetName) {
-    throw createError({ statusCode: 400, statusMessage: 'geoDatasetName is required' })
-  }
-
   return streamPhaseResponse(event, 'stops', 'Starting stops phase', (client, emit, onError) =>
     runStopsPhase(config, client, emit, { onError }))
 })

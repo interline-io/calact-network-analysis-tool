@@ -70,6 +70,12 @@ export async function runAnalysis (
         if (batch) {
           stops.add(batch)
         }
+        // Arrives after the stops it describes; the collector keys by stop id
+        // so the names land on records already folded.
+        const census = progress.partialData?.stopCensusGeographies
+        if (census) {
+          stops.setStateNames(census)
+        }
         // Returned so the phases pace themselves against the client.
         return emit(progress)
       },
