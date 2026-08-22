@@ -40,7 +40,7 @@ describe('processServiceLevel night segments', () => {
   it('counts an overnight trip stated in GTFS 24+ hour time', () => {
     // 23:30 belongs to the analyzed weekday; 25:30, 26:30 and 27:30 are the same
     // service day continuing past midnight, so they are filed on the next date.
-    const weekday = stopAt(1, [23.5 * 3600, ...night.peak.hours.map(h => h * 3600)])
+    const weekday = stopAt(1, [23.5 * 3600, ...night.peak!.hours.map(h => h * 3600)])
     const routes = routeServingAllHours(1, 1)
     const overnight = stopAt(1, [25.5 * 3600, 26.5 * 3600, 27.5 * 3600])
     const qualifying = processServiceLevel(
@@ -55,7 +55,7 @@ describe('processServiceLevel night segments', () => {
   it('counts the same trips stated as early hours of the next day', () => {
     // A feed that codes owl service as 01:30 on the following service day rather
     // than 25:30 on the preceding one must reach the same conclusion.
-    const weekday = stopAt(1, [23.5 * 3600, ...night.peak.hours.map(h => h * 3600)])
+    const weekday = stopAt(1, [23.5 * 3600, ...night.peak!.hours.map(h => h * 3600)])
     const routes = routeServingAllHours(1, 1)
     const overnight = stopAt(1, [1.5 * 3600, 2.5 * 3600, 3.5 * 3600])
     const qualifying = processServiceLevel(
@@ -77,7 +77,7 @@ describe('processServiceLevel night segments', () => {
   })
 
   it('does not count a stop with no overnight service', () => {
-    const weekday = stopAt(1, [23.5 * 3600, ...night.peak.hours.map(h => h * 3600)])
+    const weekday = stopAt(1, [23.5 * 3600, ...night.peak!.hours.map(h => h * 3600)])
     const routes = routeServingAllHours(1, 1)
     const qualifying = processServiceLevel(
       night,

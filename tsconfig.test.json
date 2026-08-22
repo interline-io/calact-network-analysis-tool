@@ -1,0 +1,16 @@
+{
+  // Covers the code Nuxt's generated tsconfigs never reach: everything under
+  // src/ (the CLI and the *.test.ts files, which nothing in app/ or server/
+  // imports) plus the Playwright suite in test/. All of it runs on Node, so
+  // unlike the app project it gets the node globals.
+  "extends": "./.nuxt/tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}
