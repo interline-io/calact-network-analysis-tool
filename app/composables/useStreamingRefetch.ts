@@ -109,6 +109,10 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       currentStage: 'ready',
       currentStageMessage: opts.loadingMessage,
     }
+    // Cleared now rather than when the endpoint's plan announcement arrives,
+    // so the bar doesn't show the previous run's fractions in the meantime.
+    deps.phasePlan.value = undefined
+    deps.phaseFractions.value = {}
 
     try {
       const response = await fetch(opts.endpoint, {
