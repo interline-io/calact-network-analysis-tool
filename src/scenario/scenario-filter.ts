@@ -82,7 +82,7 @@ import type {
   BufferGeographyIntersection,
 } from '~~/src/tl'
 import { routesById } from '~~/src/tl'
-import { getFlexAgencyNames } from '~~/src/tl/flex'
+import { getFlexAgencyIds } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
 
@@ -109,7 +109,7 @@ function routeSetDerived (
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
+  selectedAgencies?: number[],
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
@@ -198,7 +198,7 @@ function routeMarked (
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
+  selectedAgencies?: number[],
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
@@ -237,8 +237,8 @@ function routeMarked (
   }
 
   // Check agencies
-  if (selectedAgencies != null && !selectedAgencies.includes(route.agency.agency_name)) {
-    // console.debug('routeMarked:', route.id, 'unmarked: agency', route.agency.agency_name, 'not in', selectedAgencies)
+  if (selectedAgencies != null && !selectedAgencies.includes(route.agency.id)) {
+    // console.debug('routeMarked:', route.id, 'unmarked: agency', route.agency.id, 'not in', selectedAgencies)
     return false
   }
 
@@ -274,7 +274,7 @@ function stopSetDerived (
   selectedStartTime?: string,
   selectedEndTime?: string,
   selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
+  selectedAgencies?: number[],
   frequencyUnder?: number,
   frequencyOver?: number,
   markedRoutes?: Set<number>,
@@ -309,7 +309,7 @@ function stopMarked (
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
   selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
+  selectedAgencies?: number[],
   frequencyUnder?: number,
   frequencyOver?: number,
   markedRoutes?: Set<number>,
@@ -389,15 +389,15 @@ function flexAreaMarked (
   feature: FlexAreaFeature,
   flexDepartureCache: FlexDepartureCache,
   dateRange: Date[],
-  selectedAgencies?: string[],
+  selectedAgencies?: number[],
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
 ): boolean {
   // Agency filter
   if (selectedAgencies != null) {
     if (selectedAgencies.length === 0) { return false }
-    const featureAgencyNames = getFlexAgencyNames(feature)
-    const hasMatchingAgency = featureAgencyNames.some(name => selectedAgencies.includes(name))
+    const featureAgencyIds = getFlexAgencyIds(feature)
+    const hasMatchingAgency = featureAgencyIds.some(id => selectedAgencies.includes(id))
     if (!hasMatchingAgency) {
       return false
     }
@@ -549,17 +549,18 @@ export function applyScenarioResultFilter (
   const routeLookup = routesById(routeFeatures)
 
   // Agencies come off the routes phase, so this rolls up empty until it lands.
+  // Keyed by the Transitland numeric id: GTFS agency_id is unique only within
+  // a feed, and a statewide run covers a hundred-odd feeds where ids like "1"
+  // recur, which merged unrelated agencies into one row with summed counts.
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
       const route = routeLookup.get(rstop.route_id)
-      if (!route?.agency.agency_id) {
+      if (!route?.agency) {
         continue // route not fetched yet, or no agency listed
       }
       const agency = route.agency
-      const aid = agency.agency_id
-      const adata = agencyData.get(aid) || {
-        id: aid,
+      const adata = agencyData.get(agency.id) || {
         routes: new Set(),
         routes_modes: new Set(),
         stops: new Set(),
@@ -568,7 +569,7 @@ export function applyScenarioResultFilter (
       adata.routes.add(rstop.route_id)
       adata.routes_modes.add(route.route_type)
       adata.stops.add(stop.id)
-      agencyData.set(aid, adata)
+      agencyData.set(agency.id, adata)
     }
   }
   const markedAgencies: Set<number> = new Set()

@@ -139,7 +139,10 @@
         aria-labelledby="cal-filter-tab-agencies"
         tabindex="0"
       >
-        <cal-filter-agencies :agency-filter-items="props.agencyFilterItems" />
+        <cal-filter-agencies
+          :agency-filter-items="props.agencyFilterItems"
+          :unresolved-agency-count="props.unresolvedAgencyCount"
+        />
       </div>
 
       <!-- DATA DISPLAY -->
@@ -193,6 +196,7 @@ const menuItems = [
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
+  unresolvedAgencyCount?: number
   censusGeographiesSelected?: CensusGeography[]
   censusGeographyLayerOptions?: { label: string, value: string }[]
   aggregateGeoCount?: number

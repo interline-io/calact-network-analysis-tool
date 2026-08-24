@@ -51,6 +51,7 @@
           <cal-filter
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
+            :unresolved-agency-count="unresolvedAgencyCount"
             :census-geographies-selected="censusGeographiesSelected"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :aggregate-geo-count="aggregateGeoCount"
@@ -351,29 +352,33 @@ const runQuery = async () => {
 // without enabling anything.
 const scenarioData = shallowRef<ScenarioData>()
 
-// Agency filter items with metadata about service types
-// Uses raw scenarioData (not filtered scenarioFilterResult) so ALL agencies appear
-// in the filter list, even if their routes are currently filtered out
+// Agency filter items with metadata about service types, keyed by Transitland
+// numeric id — two feeds routinely publish agencies with the same name, which
+// collapsed them into one checkbox that selected both.
+//
+// Reads raw scenarioData (not filtered scenarioFilterResult) so ALL agencies
+// appear in the list, even if their routes are currently filtered out.
 const agencyFilterItems = computed((): AgencyFilterItem[] => {
-  const agencyMap = new Map<string, AgencyFilterItem>()
+  const agencyMap = new Map<number, AgencyFilterItem>()
 
   // Collect from fixed-route data (raw, unfiltered)
   for (const route of scenarioData.value?.routes || []) {
-    const name = route.agency?.agency_name
-    if (!name) { continue }
-    const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+    const agency = route.agency
+    if (!agency?.agency_name) { continue }
+    const item = agencyMap.get(agency.id)
+      || { id: agency.id, name: agency.agency_name, hasFixedRoute: false, hasFlex: false }
     item.hasFixedRoute = true
-    agencyMap.set(name, item)
+    agencyMap.set(agency.id, item)
   }
 
   // Collect from flex data (raw, unfiltered)
   for (const feature of scenarioData.value?.flexAreas || []) {
     for (const agency of feature.properties.agencies || []) {
-      const name = agency.agency_name
-      if (!name) { continue }
-      const item = agencyMap.get(name) || { name, hasFixedRoute: false, hasFlex: false }
+      if (!agency.agency_name) { continue }
+      const item = agencyMap.get(agency.id)
+        || { id: agency.id, name: agency.agency_name, hasFixedRoute: false, hasFlex: false }
       item.hasFlex = true
-      agencyMap.set(name, item)
+      agencyMap.set(agency.id, item)
     }
   }
 
@@ -882,6 +887,18 @@ const {
   runQuery: runScenarioQuery,
 } = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
 
+// Selected agency ids the current results do not contain — a link shared across
+// a feed update, since Transitland agency ids are per-feed-version. Held back
+// while a run streams, when every id is legitimately still missing.
+const unresolvedAgencyCount = computed((): number => {
+  const selected = selectedAgencies.value
+  if (!selected?.length || runInFlight.value > 0 || agencyFilterItems.value.length === 0) {
+    return 0
+  }
+  const known = new Set(agencyFilterItems.value.map(a => a.id))
+  return selected.filter(id => !known.has(id)).length
+})
+
 // Debounced standalone recomputes that stream into the same receiver without
 // re-running the whole scenario.
 useBufferRefetch({
@@ -1019,8 +1036,9 @@ const filterTags = computed((): FilterTag[] => {
   if (agencies == null || agencies.length === 0) {
     tags.push({ label: 'Agencies', value: 'All', active: false })
   } else {
+    const names = new Map(agencyFilterItems.value.map(a => [a.id, a.name]))
     for (const agency of agencies) {
-      tags.push({ label: 'Agency', value: agency, active: true })
+      tags.push({ label: 'Agency', value: names.get(agency) ?? `Not in results (#${agency})`, active: true })
     }
   }
 

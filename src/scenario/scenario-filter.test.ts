@@ -28,8 +28,8 @@ function makeFlexFeature (id: number, agencyName = 'Test Agency'): FlexAreaFeatu
     properties: {
       internal_id: id,
       location_id: `loc-${id}`,
-      agencies: [{ agency_id: `agency-${id}`, agency_name: agencyName }],
-      agency_ids: [`agency-${id}`],
+      agencies: [{ id, agency_id: `agency-${id}`, agency_name: agencyName }],
+      agency_ids: [id],
       routes: [],
       route_ids: [],
       route_types: [],
@@ -76,7 +76,7 @@ describe('flexAreaMarked — agency filter', () => {
 
   it('marks only matching agency when agency filter is active', () => {
     const data = makeData([makeFlexFeature(1, 'Agency A'), makeFlexFeature(2, 'Agency B')])
-    const filter: ScenarioFilter = { selectedAgencies: ['Agency A'] }
+    const filter: ScenarioFilter = { selectedAgencies: [1] }
     const result = applyScenarioResultFilter(data, baseConfig, filter)
     const [a, b] = result.flexAreas
     expect(a?.properties.marked).toBe(true)

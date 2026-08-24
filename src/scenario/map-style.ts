@@ -21,8 +21,7 @@ export interface Matcher {
 // The subset of agency data the styling needs (Agency mode). A wider shape like
 // the map's AgencyData is structurally assignable.
 export interface StyleAgency {
-  id: string // GTFS agency_id — matched against stops/routes
-  numericId: number // Transitland numeric id — color key
+  numericId: number // Transitland numeric id — color key and match key
   name: string
 }
 

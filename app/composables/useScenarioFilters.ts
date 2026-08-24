@@ -14,7 +14,7 @@ interface ScenarioFilters {
   selectedWeekdayMode: WritableComputedRef<WeekdayMode | undefined>
   selectedRouteTypes: WritableComputedRef<RouteType[] | undefined>
   selectedWeekdays: WritableComputedRef<Weekday[] | undefined>
-  selectedAgencies: WritableComputedRef<string[] | undefined>
+  selectedAgencies: WritableComputedRef<number[] | undefined>
   frequencyUnder: WritableComputedRef<number | undefined>
   frequencyOver: WritableComputedRef<number | undefined>
   calculateFrequencyMode: WritableComputedRef<boolean | undefined>
@@ -58,8 +58,13 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ selectedRouteTypes: v ? v.join(',') : undefined }) }
   })
 
-  const selectedAgencies = computed<string[] | undefined>({
-    get: () => getArrayParam('selectedAgencies'),
+  // Transitland numeric agency ids. They are per-feed-version, so a link
+  // shared across a feed update can name agencies the new run does not have;
+  // the filter panel reports the ones it could not resolve.
+  const selectedAgencies = computed<number[] | undefined>({
+    get: () => getArrayParam('selectedAgencies')
+      ?.map(s => Number.parseInt(s))
+      .filter(n => Number.isInteger(n)),
     set: (v) => { setQuery({ selectedAgencies: v ? v.join(',') : undefined }) }
   })
 

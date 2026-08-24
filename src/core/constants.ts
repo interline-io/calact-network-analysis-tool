@@ -65,6 +65,8 @@ export const routeTypeIcons = new Map<RouteType, string>([
  * Agency filter item with metadata about service types
  */
 export interface AgencyFilterItem {
+  // Transitland numeric id, which is what the agency filter selects on.
+  id: number
   name: string
   hasFixedRoute: boolean
   hasFlex: boolean

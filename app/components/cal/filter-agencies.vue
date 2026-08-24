@@ -71,6 +71,19 @@
       </cat-button>
     </div>
 
+    <!-- Agency ids are per-feed-version, so a link shared across a feed update
+         can select agencies these results do not contain. -->
+    <cat-msg
+      v-if="props.unresolvedAgencyCount"
+      variant="warning"
+      :title="`${props.unresolvedAgencyCount} selected ${props.unresolvedAgencyCount === 1 ? 'agency is' : 'agencies are'} not in these results`"
+      class="mb-3"
+    >
+      Agency identifiers change when a feed is updated, so a shared or bookmarked
+      link can name agencies this query no longer covers. Use Select All to clear
+      the selection.
+    </cat-msg>
+
     <p
       v-if="!fixedRouteEnabled || !flexServicesEnabled"
       class="filter-legend mb-3"
@@ -129,6 +142,8 @@ import {
 
 const props = defineProps<{
   agencyFilterItems?: AgencyFilterItem[]
+  // Selections the current results could not resolve; see the notice above the list.
+  unresolvedAgencyCount?: number
 }>()
 
 const { fixedRouteEnabled } = useScenarioInputs()
@@ -151,34 +166,34 @@ const agencyFilterOptions = computed(() => {
       return !sv || a.name.toLowerCase().includes(sv)
     })
     .map(a => ({
-      value: a.name,
+      value: a.id,
       name: a.name,
       hasFixedRoute: a.hasFixedRoute,
       hasFlex: a.hasFlex,
     }))
 })
 
-// All available agency names (for checking if all are selected)
-const allAgencyNames = computed(() => {
-  return (props.agencyFilterItems || []).map(a => a.name)
+// All available agency ids (for checking if all are selected)
+const allAgencyIds = computed(() => {
+  return (props.agencyFilterItems || []).map(a => a.id)
 })
 
 // Local wrapper around selectedAgencies that handles undefined = "all selected"
 // When undefined, treat as all agencies selected (no filter applied)
 // When all are selected, store as undefined to maintain semantic meaning
-const localSelectedAgencies = computed<string[]>({
+const localSelectedAgencies = computed<number[]>({
   get () {
-    // If undefined, return all agency names (all are selected)
+    // If undefined, return all agency ids (all are selected)
     if (selectedAgencies.value === undefined) {
-      return allAgencyNames.value
+      return allAgencyIds.value
     }
     return selectedAgencies.value
   },
-  set (newValue: string[]) {
+  set (newValue: number[]) {
     // If all agencies are selected, set to undefined (no filter)
-    const allSelected = allAgencyNames.value.length > 0
-      && newValue.length === allAgencyNames.value.length
-      && allAgencyNames.value.every(name => newValue.includes(name))
+    const allSelected = allAgencyIds.value.length > 0
+      && newValue.length === allAgencyIds.value.length
+      && allAgencyIds.value.every(id => newValue.includes(id))
 
     if (allSelected) {
       selectedAgencies.value = undefined
@@ -191,8 +206,8 @@ const localSelectedAgencies = computed<string[]>({
 // Check if all agencies are currently selected
 const allAgenciesSelected = computed(() => {
   return selectedAgencies.value === undefined
-    || (selectedAgencies.value.length === allAgencyNames.value.length
-      && allAgencyNames.value.every(name => selectedAgencies.value!.includes(name)))
+    || (selectedAgencies.value.length === allAgencyIds.value.length
+      && allAgencyIds.value.every(id => selectedAgencies.value!.includes(id)))
 })
 
 // Check if no agencies are currently selected

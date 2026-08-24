@@ -138,7 +138,9 @@ export interface ScenarioFilter {
   selectedRouteTypes?: RouteType[]
   selectedWeekdays?: Weekday[]
   selectedWeekdayMode?: WeekdayMode
-  selectedAgencies?: string[]
+  // Transitland numeric agency ids, not GTFS agency_id or name: both of
+  // those repeat across the feeds a multi-feed scenario covers.
+  selectedAgencies?: number[]
   frequencyUnder?: number
   frequencyOver?: number
   // max transfer time (minutes) for the client-side temporal cluster
