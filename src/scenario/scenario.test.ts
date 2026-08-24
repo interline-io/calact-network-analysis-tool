@@ -134,7 +134,7 @@ describe('ScenarioFetcher', () => {
             route: {
               route_id: 'route-1',
               route_type: 3,
-              agency: { agency_id: 'agency-1', agency_name: 'Test Agency' }
+              agency: { id: 1, agency_id: 'agency-1', agency_name: 'Test Agency' }
             }
           }
         }]

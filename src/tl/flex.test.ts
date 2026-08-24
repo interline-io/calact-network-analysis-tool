@@ -4,7 +4,7 @@ import {
   getFlexAdvanceNotice,
   bookingTypeToAdvanceNotice,
   getFlexAgencyName,
-  getFlexAgencyNames,
+  getFlexAgencyIds,
   flexAreaMatchesFilters,
   isBookingAvailableOnDay,
   isBookingAvailableToday,
@@ -193,8 +193,8 @@ describe('getFlexAgencyName', () => {
   it('returns first agency name', () => {
     const feature = createFlexFeature({
       agencies: [
-        { agency_id: 'a1', agency_name: 'Agency One' },
-        { agency_id: 'a2', agency_name: 'Agency Two' },
+        { id: 1, agency_id: 'a1', agency_name: 'Agency One' },
+        { id: 2, agency_id: 'a2', agency_name: 'Agency Two' },
       ],
     })
     expect(getFlexAgencyName(feature)).toBe('Agency One')
@@ -213,20 +213,15 @@ describe('getFlexAgencyName', () => {
   })
 })
 
-describe('getFlexAgencyNames', () => {
-  it('returns all agency names', () => {
-    const feature = createFlexFeature({
-      agencies: [
-        { agency_id: 'a1', agency_name: 'Agency One' },
-        { agency_id: 'a2', agency_name: 'Agency Two' },
-      ],
-    })
-    expect(getFlexAgencyNames(feature)).toEqual(['Agency One', 'Agency Two'])
+describe('getFlexAgencyIds', () => {
+  it('returns all numeric agency ids', () => {
+    const feature = createFlexFeature({ agency_ids: [1, 2] })
+    expect(getFlexAgencyIds(feature)).toEqual([1, 2])
   })
 
   it('returns empty array when no agencies', () => {
-    const feature = createFlexFeature({ agencies: [] })
-    expect(getFlexAgencyNames(feature)).toEqual([])
+    const feature = createFlexFeature({ agency_ids: [] })
+    expect(getFlexAgencyIds(feature)).toEqual([])
   })
 })
 

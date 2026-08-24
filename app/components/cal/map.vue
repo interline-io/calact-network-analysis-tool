@@ -308,10 +308,9 @@ const clusterLineFeatures = computed((): Feature[] => {
 // Calculate top agencies in result set
 // (we will order them by the most to least stops)
 interface AgencyData {
-  id: string // GTFS agency_id — used to match stops/routes
   numericId: number // Transitland numeric agency id — used for color keying + clusters
   name: string
-  stops: Set<string>
+  stops: Set<number>
 }
 const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
 
@@ -337,29 +336,27 @@ const agencyData = computed((): AgencyData[] => {
   const data = new Map()
   const lookup = routeLookup.value
   for (const stop of props.scenarioFilterResult?.stops || []) {
-    const props = stop
-    const route_stops = props.route_stops || []
-
-    for (const rstop of route_stops) {
+    for (const rstop of stop.route_stops || []) {
       const agency = lookup.get(rstop.route_id)?.agency
-      const aid = agency?.agency_id
       const anumeric = agency?.id
       const aname = agency?.agency_name
-      if (!aid || !aname || anumeric == null) {
+      if (!aname || anumeric == null) {
         continue // no valid agency listed for this stop?
       }
 
-      let adata = data.get(aid)
+      // Keyed by numeric id, and counting numeric stop ids: GTFS agency_id and
+      // stop_id both repeat across feeds, so either as a key merged unrelated
+      // records and skewed the ordering this legend is built from.
+      let adata = data.get(anumeric)
       if (!adata) { // first time seeing this agency
         adata = {
-          id: aid,
           numericId: anumeric,
           name: aname,
           stops: new Set()
         }
-        data.set(aid, adata)
+        data.set(anumeric, adata)
       }
-      adata.stops.add(props.stop_id)
+      adata.stops.add(stop.id)
     }
   }
 

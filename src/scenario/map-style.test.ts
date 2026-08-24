@@ -52,8 +52,8 @@ describe('buildStyleData', () => {
   describe('Agency mode', () => {
     it('builds a rule per agency and matches by numeric agency id', () => {
       const agencies = [
-        { id: 'AC', numericId: 1, name: 'AC Transit' },
-        { id: 'BART', numericId: 2, name: 'BART' },
+        { numericId: 1, name: 'AC Transit' },
+        { numericId: 2, name: 'BART' },
       ]
       const rules = buildStyleData({
         scenarioFilterResult: undefined,

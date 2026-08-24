@@ -82,7 +82,11 @@ function dailyCounts (routeId: string): { dir0: number[], dir1: number[] } {
 // Recorded from this implementation against the fixture dumps. They move when
 // the dumps are rebuilt; re-record deliberately, by reading what changed in
 // the feeds, rather than pasting what a run printed.
-const GOLDEN_COUNTS = { routes: 56, stops: 177, agencies: 10, dates: 7 }
+// agencies is 11, not the 10 a same-named pair reads as: Columbia County Rider
+// appears in two feeds, both publishing GTFS agency_id "57". The rollup keys on
+// the Transitland numeric id, so they stay two rows of 1 stop / 1 route each
+// rather than merging into one row of 2 and 2.
+const GOLDEN_COUNTS = { routes: 56, stops: 177, agencies: 11, dates: 7 }
 
 // Departures per day for the three busiest routes, Monday through Sunday. The
 // weekday/weekend structure is visible in the numbers, so a date range that

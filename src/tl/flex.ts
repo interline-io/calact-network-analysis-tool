@@ -42,6 +42,9 @@ import turfArea from '@turf/area'
  * Agency information embedded in flex area features
  */
 export interface FlexAgency {
+  // Transitland numeric id. GTFS agency_id is unique only within a feed, so
+  // this is what identifies an agency across a multi-feed scenario.
+  id: number
   agency_id: string
   agency_name: string
   agency_timezone?: string
@@ -107,9 +110,9 @@ export interface FlexAreaProperties {
   location_id: string
   location_name?: string
 
-  // Agency information
+  // Agency information. Ids are Transitland numeric ids, unique across feeds.
   agencies: FlexAgency[]
-  agency_ids: string[]
+  agency_ids: number[]
 
   // Route information
   routes: FlexRoute[]
@@ -318,13 +321,10 @@ export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: Flex
   return true
 }
 
-/**
- * Get all unique agency names from a flex area
- * @param feature - Flex area feature
- * @returns Array of agency names
- */
-export function getFlexAgencyNames (feature: FlexAreaFeature): string[] {
-  return feature.properties.agencies?.map(a => a.agency_name) || []
+// Transitland numeric ids of every agency serving a flex area, for filters
+// that must tell same-named agencies in different feeds apart.
+export function getFlexAgencyIds (feature: FlexAreaFeature): number[] {
+  return feature.properties.agency_ids || []
 }
 
 /**
@@ -486,6 +486,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
             route_type
             route_url
             agency {
+              id
               agency_id
               agency_name
               agency_timezone
@@ -588,6 +589,7 @@ export interface FlexStopTimeGql {
       route_type: number
       route_url?: string
       agency: {
+        id: number
         agency_id: string
         agency_name: string
         agency_timezone?: string
@@ -709,11 +711,12 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
   const stopTimes = location.stop_times || []
 
   // Collect unique agencies
-  const agencyMap = new Map<string, FlexAgency>()
+  const agencyMap = new Map<number, FlexAgency>()
   for (const st of stopTimes) {
     const agency = st.trip.route.agency
-    if (!agencyMap.has(agency.agency_id)) {
-      agencyMap.set(agency.agency_id, {
+    if (!agencyMap.has(agency.id)) {
+      agencyMap.set(agency.id, {
+        id: agency.id,
         agency_id: agency.agency_id,
         agency_name: agency.agency_name,
         agency_timezone: agency.agency_timezone,
