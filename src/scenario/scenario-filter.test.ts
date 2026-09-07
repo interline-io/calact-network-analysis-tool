@@ -464,3 +464,175 @@ describe('applyScenarioResultFilter — weekday-scoped frequency (#222)', () => 
     expect(route.average_trips_per_day).toBeCloseTo(25 / 5, 5)
   })
 })
+
+describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', () => {
+  // Two routes: FAST runs every 15 minutes, SLOW every 60. Four stops: one on
+  // each route alone, one shared, and one on FAST with no departures at all.
+  const FAST = 501
+  const SLOW = 502
+  const AGENCY_FAST = 11
+  const AGENCY_SLOW = 12
+  const S_FAST = 601
+  const S_SLOW = 602
+  const S_BOTH = 603
+  const S_NONE = 604
+  // Mon–Fri of baseConfig
+  const DATES = ['2024-01-15', '2024-01-16', '2024-01-17', '2024-01-18', '2024-01-19']
+  const FAST_TIMES = ['07:00:00', '07:15:00', '07:30:00', '07:45:00', '08:00:00', '08:15:00', '08:30:00', '08:45:00']
+  const SLOW_TIMES = ['07:00:00', '08:00:00']
+
+  function makeRoute (id: number, agencyId: number): RouteGql {
+    return {
+      id,
+      route_id: `route-${id}`,
+      route_short_name: `R${id}`,
+      route_long_name: `Route ${id}`,
+      route_type: 3,
+      geometry: { type: 'MultiLineString', coordinates: [] },
+      agency: { id: agencyId, agency_id: `agency-${agencyId}`, agency_name: `Agency ${agencyId}` },
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+      __typename: 'Route',
+    }
+  }
+
+  function makeStop (id: number, routes: Array<[routeId: number, agencyId: number]>): StopGql {
+    return {
+      id,
+      geometry: { type: 'Point', coordinates: [-122.68, 45.52] },
+      location_type: 0,
+      stop_id: `stop-${id}`,
+      stop_name: `Stop ${id}`,
+      feed_version: { sha1: 'sha1', feed: { onestop_id: 'feed' } },
+      route_stops: routes.map(([route_id, agency_id]) => ({ route_id, agency_id })),
+      __typename: 'Stop',
+    }
+  }
+
+  // One trip per departure time, visiting every listed stop, so the same trip
+  // ids appear at each stop as on a real route.
+  let nextTripId = 5000
+  function addRouteTrips (cache: StopDepartureCache, routeId: number, stopIds: number[], date: string, times: string[]) {
+    for (const t of times) {
+      const tripId = nextTripId++
+      for (const stopId of stopIds) {
+        const st: StopTime = {
+          departure_time: t,
+          trip: { id: tripId, direction_id: 0, trip_id: `trip-${tripId}`, route: { id: routeId } },
+        }
+        cache.add(stopId, date, [st])
+      }
+    }
+  }
+
+  // Totals over the five days: S_FAST 40, S_SLOW 10, S_BOTH 50, S_NONE 0.
+  function buildData (opts: { includeShared?: boolean } = {}): ScenarioData {
+    const includeShared = opts.includeShared ?? true
+    const cache = new StopDepartureCache()
+    for (const date of DATES) {
+      addRouteTrips(cache, FAST, includeShared ? [S_FAST, S_BOTH] : [S_FAST], date, FAST_TIMES)
+      addRouteTrips(cache, SLOW, includeShared ? [S_SLOW, S_BOTH] : [S_SLOW], date, SLOW_TIMES)
+    }
+    const stops = [
+      makeStop(S_FAST, [[FAST, AGENCY_FAST]]),
+      makeStop(S_SLOW, [[SLOW, AGENCY_SLOW]]),
+      makeStop(S_NONE, [[FAST, AGENCY_FAST]]),
+    ]
+    if (includeShared) {
+      stops.push(makeStop(S_BOTH, [[FAST, AGENCY_FAST], [SLOW, AGENCY_SLOW]]))
+    }
+    return {
+      stops,
+      routes: [makeRoute(FAST, AGENCY_FAST), makeRoute(SLOW, AGENCY_SLOW)],
+      feedVersions: [],
+      stopDepartureCache: cache,
+      flexDepartureCache: new FlexDepartureCache(),
+      flexAreas: [],
+    }
+  }
+
+  function markedIds (items: Array<{ id: number, marked: boolean }>): number[] {
+    return items.filter(i => i.marked).map(i => i.id).sort((a, b) => a - b)
+  }
+
+  function run (filter: ScenarioFilter, data = buildData()) {
+    const result = applyScenarioResultFilter(data, baseConfig, filter)
+    return { result, routes: markedIds(result.routes), stops: markedIds(result.stops) }
+  }
+
+  it('fixture sanity: frequencies and visit totals are as designed', () => {
+    const { result } = run({})
+    const byRoute = new Map(result.routes.map(r => [r.id, r]))
+    expect(byRoute.get(FAST)?.average_frequency).toBe(15 * 60)
+    expect(byRoute.get(SLOW)?.average_frequency).toBe(60 * 60)
+    const visits = new Map(result.stops.map(s => [s.id, s.visits?.total.visit_count]))
+    expect(visits.get(S_FAST)).toBe(40)
+    expect(visits.get(S_SLOW)).toBe(10)
+    expect(visits.get(S_BOTH)).toBe(50)
+    expect(visits.get(S_NONE)).toBe(0)
+  })
+
+  it('marks everything when neither threshold is set', () => {
+    const { routes, stops } = run({})
+    expect(routes).toEqual([FAST, SLOW])
+    expect(stops).toEqual([S_FAST, S_SLOW, S_BOTH, S_NONE])
+  })
+
+  it('route frequency alone selects routes and carries their stops along', () => {
+    const { routes, stops } = run({ frequencyUnder: 20 })
+    expect(routes).toEqual([FAST])
+    // S_SLOW is out because its only route failed; S_NONE stays because FAST passed.
+    expect(stops).toEqual([S_FAST, S_BOTH, S_NONE])
+  })
+
+  it('stop visits alone selects stops and keeps every route attached to a passing stop', () => {
+    const { routes, stops } = run({ stopVisitsOver: 30 })
+    expect(stops).toEqual([S_FAST, S_BOTH])
+    // SLOW stays in via the shared stop even though S_SLOW itself failed.
+    expect(routes).toEqual([FAST, SLOW])
+  })
+
+  it('stop visits alone drops a route none of whose stops pass', () => {
+    const { routes, stops } = run({ stopVisitsUnder: 5 })
+    expect(stops).toEqual([S_NONE])
+    expect(routes).toEqual([FAST])
+  })
+
+  it('applies both thresholds: frequency narrows routes, visits narrows their stops', () => {
+    const { routes, stops } = run({ frequencyUnder: 20, stopVisitsOver: 45 })
+    expect(routes).toEqual([FAST])
+    expect(stops).toEqual([S_BOTH])
+  })
+
+  it('applies both thresholds when they favor different routes', () => {
+    const { routes, stops } = run({ frequencyOver: 30, stopVisitsOver: 45 })
+    expect(routes).toEqual([SLOW])
+    expect(stops).toEqual([S_BOTH])
+  })
+
+  it('treats a stop with no visits in the window as 0', () => {
+    expect(run({ stopVisitsUnder: 0 }).stops).toEqual([S_NONE])
+    expect(run({ stopVisitsOver: 0 }).stops).toEqual([S_FAST, S_SLOW, S_BOTH])
+  })
+
+  it('derives agency marks after the visits filter has pruned routes', () => {
+    // Without the shared stop, SLOW has no passing stop and its agency drops out.
+    const { result, routes } = run({ stopVisitsOver: 30 }, buildData({ includeShared: false }))
+    expect(routes).toEqual([FAST])
+    const byAgency = new Map(result.agencies.map(a => [a.id, a.marked]))
+    expect(byAgency.get(AGENCY_FAST)).toBe(true)
+    expect(byAgency.get(AGENCY_SLOW)).toBe(false)
+  })
+
+  it('compares visit totals scoped to the selected weekdays', () => {
+    const filter: ScenarioFilter = {
+      stopVisitsOver: 15,
+      selectedWeekdays: ['monday', 'tuesday'] as Weekday[],
+      selectedWeekdayMode: 'Any',
+    }
+    const { result, routes, stops } = run(filter)
+    // Two days: S_FAST 16, S_BOTH 20 pass; S_SLOW 4 and S_NONE 0 do not.
+    expect(result.stops.find(s => s.id === S_FAST)?.visits?.total.visit_count).toBe(16)
+    expect(stops).toEqual([S_FAST, S_BOTH])
+    expect(routes).toEqual([FAST, SLOW])
+  })
+})

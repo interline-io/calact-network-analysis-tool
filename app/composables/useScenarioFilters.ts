@@ -17,7 +17,9 @@ interface ScenarioFilters {
   selectedAgencies: WritableComputedRef<string[] | undefined>
   frequencyUnder: WritableComputedRef<number | undefined>
   frequencyOver: WritableComputedRef<number | undefined>
-  calculateFrequencyMode: WritableComputedRef<boolean | undefined>
+  // total visits at a stop during the filtered period; undefined = filter off
+  stopVisitsUnder: WritableComputedRef<number | undefined>
+  stopVisitsOver: WritableComputedRef<number | undefined>
   maxFareEnabled: WritableComputedRef<boolean | undefined>
   maxFare: WritableComputedRef<number>
   minFareEnabled: WritableComputedRef<boolean | undefined>
@@ -84,9 +86,20 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ frequencyOver: v != null ? v.toString() : undefined }) }
   })
 
-  const calculateFrequencyMode = computed<boolean | undefined>({
-    get: () => route.query.calculateFrequencyMode?.toString() === 'true',
-    set: (v) => { setQuery({ calculateFrequencyMode: v ? 'true' : undefined }) }
+  const stopVisitsUnder = computed<number | undefined>({
+    get: () => {
+      const val = route.query.stopVisitsUnder?.toString()
+      return val ? Number.parseInt(val) : undefined
+    },
+    set: (v) => { setQuery({ stopVisitsUnder: v != null ? v.toString() : undefined }) }
+  })
+
+  const stopVisitsOver = computed<number | undefined>({
+    get: () => {
+      const val = route.query.stopVisitsOver?.toString()
+      return val ? Number.parseInt(val) : undefined
+    },
+    set: (v) => { setQuery({ stopVisitsOver: v != null ? v.toString() : undefined }) }
   })
 
   const maxFareEnabled = computed<boolean | undefined>({
@@ -160,7 +173,8 @@ export function useScenarioFilters (): ScenarioFilters {
     selectedWeekdays,
     frequencyUnder,
     frequencyOver,
-    calculateFrequencyMode,
+    stopVisitsUnder,
+    stopVisitsOver,
     maxFareEnabled,
     maxFare,
     minFareEnabled,

@@ -141,6 +141,10 @@ export interface ScenarioFilter {
   selectedAgencies?: string[]
   frequencyUnder?: number
   frequencyOver?: number
+  // Stop-level thresholds on total visits during the filtered period (the
+  // Stops report's "Total Visits During Time Period", issue #243).
+  stopVisitsUnder?: number
+  stopVisitsOver?: number
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. 0/undefined leaves the proximity clusters unfiltered.
   clusterMaxTransferMinutes?: number

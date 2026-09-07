@@ -275,6 +275,8 @@ const {
   selectedWeekdayMode,
   frequencyUnder,
   frequencyOver,
+  stopVisitsUnder,
+  stopVisitsOver,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -757,6 +759,8 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
+  stopVisitsUnder: stopVisitsUnder.value,
+  stopVisitsOver: stopVisitsOver.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
@@ -999,19 +1003,34 @@ const filterTags = computed((): FilterTag[] => {
     tags.push({ label: 'Time of Day', value: 'All', active: false })
   }
 
-  // frequencies
+  // route frequency (frequencyOver is "Avg. Frequency >", frequencyUnder is "≦")
   const minFreq = scenarioFilter.value.frequencyOver
   const maxFreq = scenarioFilter.value.frequencyUnder
   if (minFreq != null && maxFreq != null && minFreq !== maxFreq) {
-    tags.push({ label: 'Frequencies', value: `${minFreq}–${maxFreq} min`, active: true })
+    tags.push({ label: 'Route frequency', value: `${minFreq}–${maxFreq} min`, active: true })
   } else if (minFreq != null && maxFreq != null && minFreq === maxFreq) {
-    tags.push({ label: 'Frequencies', value: `${minFreq} min`, active: true })
+    tags.push({ label: 'Route frequency', value: `${minFreq} min`, active: true })
   } else if (minFreq != null) {
-    tags.push({ label: 'Frequencies', value: `≥${minFreq} min`, active: true })
+    tags.push({ label: 'Route frequency', value: `>${minFreq} min`, active: true })
   } else if (maxFreq != null) {
-    tags.push({ label: 'Frequencies', value: `<${maxFreq} min`, active: true })
+    tags.push({ label: 'Route frequency', value: `≤${maxFreq} min`, active: true })
   } else {
-    tags.push({ label: 'Frequencies', value: 'All', active: false })
+    tags.push({ label: 'Route frequency', value: 'All', active: false })
+  }
+
+  // stop visits (total during the filtered period)
+  const minVisits = scenarioFilter.value.stopVisitsOver
+  const maxVisits = scenarioFilter.value.stopVisitsUnder
+  if (minVisits != null && maxVisits != null && minVisits !== maxVisits) {
+    tags.push({ label: 'Stop visits', value: `${minVisits}–${maxVisits} visits`, active: true })
+  } else if (minVisits != null && maxVisits != null && minVisits === maxVisits) {
+    tags.push({ label: 'Stop visits', value: `${minVisits} visits`, active: true })
+  } else if (minVisits != null) {
+    tags.push({ label: 'Stop visits', value: `>${minVisits} visits`, active: true })
+  } else if (maxVisits != null) {
+    tags.push({ label: 'Stop visits', value: `≤${maxVisits} visits`, active: true })
+  } else {
+    tags.push({ label: 'Stop visits', value: 'All', active: false })
   }
 
   // agencies
@@ -1041,7 +1060,8 @@ async function resetFilters () {
     selectedRouteTypes: undefined,
     frequencyUnder: undefined,
     frequencyOver: undefined,
-    calculateFrequencyMode: undefined,
+    stopVisitsUnder: undefined,
+    stopVisitsOver: undefined,
     maxFareEnabled: undefined,
     maxFare: undefined,
     minFareEnabled: undefined,
