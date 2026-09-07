@@ -70,37 +70,21 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ selectedWeekdays: v ? v.join(',') : undefined }) }
   })
 
-  const frequencyUnder = computed<number | undefined>({
-    get: () => {
-      const val = route.query.frequencyUnder?.toString()
-      return val ? Number.parseInt(val) : undefined
-    },
-    set: (v) => { setQuery({ frequencyUnder: v != null ? v.toString() : undefined }) }
-  })
+  // Optional integer threshold: absent/empty param = filter off (undefined).
+  function numberParam (key: string): WritableComputedRef<number | undefined> {
+    return computed<number | undefined>({
+      get: () => {
+        const val = route.query[key]?.toString()
+        return val ? Number.parseInt(val) : undefined
+      },
+      set: (v) => { setQuery({ [key]: v != null ? v.toString() : undefined }) }
+    })
+  }
 
-  const frequencyOver = computed<number | undefined>({
-    get: () => {
-      const val = route.query.frequencyOver?.toString()
-      return val ? Number.parseInt(val) : undefined
-    },
-    set: (v) => { setQuery({ frequencyOver: v != null ? v.toString() : undefined }) }
-  })
-
-  const stopVisitsUnder = computed<number | undefined>({
-    get: () => {
-      const val = route.query.stopVisitsUnder?.toString()
-      return val ? Number.parseInt(val) : undefined
-    },
-    set: (v) => { setQuery({ stopVisitsUnder: v != null ? v.toString() : undefined }) }
-  })
-
-  const stopVisitsOver = computed<number | undefined>({
-    get: () => {
-      const val = route.query.stopVisitsOver?.toString()
-      return val ? Number.parseInt(val) : undefined
-    },
-    set: (v) => { setQuery({ stopVisitsOver: v != null ? v.toString() : undefined }) }
-  })
+  const frequencyUnder = numberParam('frequencyUnder')
+  const frequencyOver = numberParam('frequencyOver')
+  const stopVisitsUnder = numberParam('stopVisitsUnder')
+  const stopVisitsOver = numberParam('stopVisitsOver')
 
   const maxFareEnabled = computed<boolean | undefined>({
     get: () => route.query.maxFareEnabled?.toString() === 'true',

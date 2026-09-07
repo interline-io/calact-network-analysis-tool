@@ -37,14 +37,10 @@
  *      filtered period (counting every route that serves it) must be within
  *      thresholds
  *    - Marked routes: if route-level filters are active, stop must serve at least
- *      one marked route. So a stop connected to a marked route is in unless a
- *      stop-visits threshold excludes it.
+ *      one marked route
  *
- * 3. If a stop-visits threshold is active, a route stays marked only while at
- *    least one of its stops is marked. So a route attached to a marked stop is in
- *    unless a route-level filter excludes it (issue #243). This mirrors step 2's
- *    marked-routes rule in the other direction; it is not applied for the
- *    weekday gate, which routes evaluate on their own in step 1.
+ * 3. If a stop-level threshold is active, routes with no marked stop are
+ *    unmarked (issue #243) — the mirror of step 2's marked-routes rule.
  *
  * 4. Agencies are derived from the filtered stops and routes
  */
@@ -373,19 +369,16 @@ function stopMarked (
   // Check stop visits (issue #243). Total visits during the filtered period,
   // counting departures from every route that serves the stop, not only marked
   // ones (#239 glossary). A stop with no visits in the window counts as 0.
-  const visitCount = stop.visits?.total.visit_count
-  if (visitCount != null) {
-    if (stopVisitsOver != null && !(visitCount > stopVisitsOver)) {
-      return false
-    }
-    if (stopVisitsUnder != null && !(visitCount <= stopVisitsUnder)) {
-      return false
-    }
+  const visitCount = stop.visits?.total.visit_count ?? 0
+  if (stopVisitsOver != null && visitCount <= stopVisitsOver) {
+    return false
+  }
+  if (stopVisitsUnder != null && visitCount > stopVisitsUnder) {
+    return false
   }
 
   // Check marked routes
-  // Must match at least one marked route if any route-level filters are applied.
-  // The stop-visits thresholds are stop-level and deliberately do not arm this.
+  // Must match at least one marked route if any route-level filters are applied
   if (markedRoutes && routeFiltersActive) {
     const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route_id))
     if (!hasMarkedRoute) {
@@ -399,12 +392,11 @@ function stopMarked (
   return true
 }
 
-// Unmark routes that no longer have any marked stop. Applied only when a
-// stop-visits threshold is active: it makes the visits filter reach routes the
-// same way route-level filters reach stops via the marked-routes check above.
-// One pass suffices: a stop marked via route R passed its own stop-level gates,
-// so R has a passing stop and is never unmarked here.
-function applyStopVisitsRouteGate (routes: Route[], stops: Stop[]) {
+// Unmark routes that have no marked stop: the stop-side mirror of the
+// marked-routes check above. One pass suffices, because a stop marked via
+// route R passed its own stop-level gates, so R has a passing stop and is
+// never unmarked here.
+function unmarkRoutesWithoutMarkedStop (routes: Route[], stops: Stop[]) {
   const routesWithMarkedStop = new Set<number>()
   for (const stop of stops) {
     if (!stop.marked) {
@@ -523,13 +515,15 @@ export function applyScenarioResultFilter (
   const frequencyOverValue = filter.frequencyOver
   const stopVisitsUnderValue = filter.stopVisitsUnder
   const stopVisitsOverValue = filter.stopVisitsOver
-  // Route-level filters gate stops (a stop must serve a marked route); the
-  // stop-visits thresholds are stop-level and do not.
+  // Cross-entity gates are armed only by filters the other side cannot evaluate
+  // itself: route-level filters gate stops (a stop must serve a marked route)
+  // and stop-level thresholds gate routes (a route must serve a marked stop).
+  // Weekday/time filters are evaluated by both sides and arm neither.
   const routeFiltersActive = selectedAgenciesValue != null
     || selectedRouteTypesValue != null
     || frequencyUnderValue != null
     || frequencyOverValue != null
-  const stopVisitsFilterActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
+  const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {
@@ -597,11 +591,9 @@ export function applyScenarioResultFilter (
     return stop
   })
 
-  // A stop-visits threshold reaches routes through their stops (issue #243):
-  // once stops are marked, a route stays marked only if one of its stops did.
-  // Runs before agencies are derived below so they follow the final route marks.
-  if (stopVisitsFilterActive) {
-    applyStopVisitsRouteGate(routeFeatures, stopFeatures)
+  // Before agencies are derived below, so they follow the final route marks.
+  if (stopFiltersActive) {
+    unmarkRoutesWithoutMarkedStop(routeFeatures, stopFeatures)
   }
 
   const routeLookup = routesById(routeFeatures)

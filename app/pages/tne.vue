@@ -1003,35 +1003,11 @@ const filterTags = computed((): FilterTag[] => {
     tags.push({ label: 'Time of Day', value: 'All', active: false })
   }
 
-  // route frequency (frequencyOver is "Avg. Frequency >", frequencyUnder is "≦")
-  const minFreq = scenarioFilter.value.frequencyOver
-  const maxFreq = scenarioFilter.value.frequencyUnder
-  if (minFreq != null && maxFreq != null && minFreq !== maxFreq) {
-    tags.push({ label: 'Route frequency', value: `${minFreq}–${maxFreq} min`, active: true })
-  } else if (minFreq != null && maxFreq != null && minFreq === maxFreq) {
-    tags.push({ label: 'Route frequency', value: `${minFreq} min`, active: true })
-  } else if (minFreq != null) {
-    tags.push({ label: 'Route frequency', value: `>${minFreq} min`, active: true })
-  } else if (maxFreq != null) {
-    tags.push({ label: 'Route frequency', value: `≤${maxFreq} min`, active: true })
-  } else {
-    tags.push({ label: 'Route frequency', value: 'All', active: false })
-  }
-
-  // stop visits (total during the filtered period)
-  const minVisits = scenarioFilter.value.stopVisitsOver
-  const maxVisits = scenarioFilter.value.stopVisitsUnder
-  if (minVisits != null && maxVisits != null && minVisits !== maxVisits) {
-    tags.push({ label: 'Stop visits', value: `${minVisits}–${maxVisits} visits`, active: true })
-  } else if (minVisits != null && maxVisits != null && minVisits === maxVisits) {
-    tags.push({ label: 'Stop visits', value: `${minVisits} visits`, active: true })
-  } else if (minVisits != null) {
-    tags.push({ label: 'Stop visits', value: `>${minVisits} visits`, active: true })
-  } else if (maxVisits != null) {
-    tags.push({ label: 'Stop visits', value: `≤${maxVisits} visits`, active: true })
-  } else {
-    tags.push({ label: 'Stop visits', value: 'All', active: false })
-  }
+  // route frequency and stop visits thresholds. The "Over" filters are the
+  // panel's ">" rows and the "Under" filters its "≦" rows, so Over is the
+  // range minimum and Under the maximum.
+  tags.push(rangeTag('Route frequency', scenarioFilter.value.frequencyOver, scenarioFilter.value.frequencyUnder, 'min'))
+  tags.push(rangeTag('Stop visits', scenarioFilter.value.stopVisitsOver, scenarioFilter.value.stopVisitsUnder, 'visits'))
 
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
@@ -1049,6 +1025,20 @@ const filterTags = computed((): FilterTag[] => {
 //////////////////////
 // Helpers
 //////////////////////
+
+// Tag for a min/max numeric threshold pair; inactive "All" when neither is set.
+function rangeTag (label: string, min: number | undefined, max: number | undefined, unit: string): FilterTag {
+  if (min != null && max != null) {
+    return { label, value: min === max ? `${min} ${unit}` : `${min}–${max} ${unit}`, active: true }
+  }
+  if (min != null) {
+    return { label, value: `>${min} ${unit}`, active: true }
+  }
+  if (max != null) {
+    return { label, value: `≤${max} ${unit}`, active: true }
+  }
+  return { label, value: 'All', active: false }
+}
 
 async function resetFilters () {
   await setQuery({
