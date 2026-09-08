@@ -18,7 +18,7 @@
  *   that routes/stops without service every day are correctly filtered out.
  *   See resolveEffectiveWeekdays() below.
  *
- * - Numeric filters (frequencyOver, frequencyUnder):
+ * - Numeric filters (frequencyOver, frequencyUnder, stopVisitsOver, stopVisitsUnder):
  *   - undefined/null = filter not applied, all items pass
  *   - number = filter applied, items must meet the threshold
  *
@@ -27,15 +27,24 @@
  *    - selectedWeekdays: route must have service (headways) on selected days (Any/All mode)
  *    - selectedRouteTypes: route must have matching route_type
  *    - selectedAgencies: route must belong to matching agency
- *    - frequencyOver/frequencyUnder: route's average frequency must be within thresholds
+ *    - frequencyOver/frequencyUnder: route's average frequency (minutes between
+ *      trips) must be within thresholds
  *
  * 2. Stops are then filtered based on:
  *    - Service availability: stop must have departures on selected days (Any/All mode)
  *      within the selected time window (startTime/endTime)
+ *    - stopVisitsOver/stopVisitsUnder: the stop's total visits during the
+ *      filtered period (counting every route that serves it) must be within
+ *      thresholds
  *    - Marked routes: if route-level filters are active, stop must serve at least
  *      one marked route
  *
- * 3. Agencies are derived from the filtered stops and routes
+ * 3. If a stop-level threshold is active, routes with no stop meeting that
+ *    threshold are unmarked (issue #243) — the mirror of step 2's marked-routes
+ *    rule. It tests the thresholds alone and not the weekday gate, so a
+ *    threshold that excludes no stop leaves the route set unchanged.
+ *
+ * 4. Agencies are derived from the filtered stops and routes
  */
 
 import { format } from 'date-fns'
@@ -273,10 +282,9 @@ function stopSetDerived (
   selectedDateRange?: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
-  selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
-  frequencyUnder?: number,
-  frequencyOver?: number,
+  routeFiltersActive?: boolean,
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
@@ -294,13 +302,30 @@ function stopSetDerived (
     stop,
     effectiveWeekdays,
     selectedWeekdayMode,
-    selectedRouteTypes,
-    selectedAgencies,
-    frequencyUnder,
-    frequencyOver,
+    routeFiltersActive,
+    stopVisitsUnder,
+    stopVisitsOver,
     markedRoutes,
     sdCache,
   )
+}
+
+// True when the stop meets the stop-level visit thresholds. Split out of
+// stopMarked so the route gate below can ask about the thresholds on their own,
+// without inheriting the weekday/service verdict — routes judge weekday service
+// for themselves in routeMarked, on laxer terms than stops do.
+function passesStopVisitThresholds (stop: Stop, stopVisitsUnder?: number, stopVisitsOver?: number): boolean {
+  // Total visits during the filtered period, counting departures from every
+  // route that serves the stop, not only marked ones (#239 glossary). A stop
+  // with no visits in the window counts as 0.
+  const visitCount = stop.visits?.total.visit_count ?? 0
+  if (stopVisitsOver != null && visitCount <= stopVisitsOver) {
+    return false
+  }
+  if (stopVisitsUnder != null && visitCount > stopVisitsUnder) {
+    return false
+  }
+  return true
 }
 
 // Filter stops
@@ -308,10 +333,9 @@ function stopMarked (
   stop: Stop,
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
-  selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
-  frequencyUnder?: number,
-  frequencyOver?: number,
+  routeFiltersActive?: boolean,
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache,
 ): boolean {
@@ -362,9 +386,16 @@ function stopMarked (
     }
   }
 
+  // Check stop visits (issue #243). Note the weekday gate above has already
+  // dropped stops with no service on the selected days, so a zero-visit stop
+  // only reaches an "under" threshold when no weekday filter is active.
+  if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
+    return false
+  }
+
   // Check marked routes
   // Must match at least one marked route if any route-level filters are applied
-  if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
+  if (markedRoutes && routeFiltersActive) {
     const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route_id))
     if (!hasMarkedRoute) {
       // console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
@@ -375,6 +406,33 @@ function stopMarked (
   // Default is to return true
   // console.debug('stopMarked:', stop.id, 'marked: passed all filters')
   return true
+}
+
+// Unmark routes with no stop meeting the visit thresholds: the stop-side mirror
+// of the marked-routes check above. It asks about the thresholds rather than
+// stop.marked so that a stop excluded for weekday reasons cannot drag its route
+// down — routes apply their own, laxer weekday rule in routeMarked, and a
+// threshold that excludes no stop must leave the route set untouched.
+function unmarkRoutesWithoutPassingStop (
+  routes: Route[],
+  stops: Stop[],
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
+) {
+  const routesWithPassingStop = new Set<number>()
+  for (const stop of stops) {
+    if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
+      continue
+    }
+    for (const rs of stop.route_stops || []) {
+      routesWithPassingStop.add(rs.route_id)
+    }
+  }
+  for (const route of routes) {
+    if (route.marked && !routesWithPassingStop.has(route.id)) {
+      route.marked = false
+    }
+  }
 }
 
 //////////////////////////////////////
@@ -477,6 +535,17 @@ export function applyScenarioResultFilter (
   const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = filter.frequencyUnder
   const frequencyOverValue = filter.frequencyOver
+  const stopVisitsUnderValue = filter.stopVisitsUnder
+  const stopVisitsOverValue = filter.stopVisitsOver
+  // Cross-entity gates are armed only by filters the other side cannot evaluate
+  // itself: route-level filters gate stops (a stop must serve a marked route)
+  // and stop-level thresholds gate routes (a route must serve a marked stop).
+  // Weekday/time filters are evaluated by both sides and arm neither.
+  const routeFiltersActive = selectedAgenciesValue != null
+    || selectedRouteTypesValue != null
+    || frequencyUnderValue != null
+    || frequencyOverValue != null
+  const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {
@@ -535,16 +604,19 @@ export function applyScenarioResultFilter (
       selectedDateRangeValue,
       startTimeValue,
       endTimeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
-      frequencyUnderValue,
-      frequencyOverValue,
+      routeFiltersActive,
+      stopVisitsUnderValue,
+      stopVisitsOverValue,
       markedRoutes,
       sdCache
     )
     return stop
   })
-  const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
+
+  // Before agencies are derived below, so they follow the final route marks.
+  if (stopFiltersActive) {
+    unmarkRoutesWithoutPassingStop(routeFeatures, stopFeatures, stopVisitsUnderValue, stopVisitsOverValue)
+  }
 
   const routeLookup = routesById(routeFeatures)
 
@@ -588,7 +660,7 @@ export function applyScenarioResultFilter (
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
-      stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
+      stops_count: adata.stops.size,
       __typename: 'Agency', // backwards compat
     }
   })

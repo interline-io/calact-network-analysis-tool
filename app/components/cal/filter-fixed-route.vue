@@ -1,7 +1,7 @@
 <template>
   <aside class="cal-service-levels menu">
     <p class="menu-label">
-      Frequency
+      Route frequency
     </p>
 
     <cat-field grouped>
@@ -40,12 +40,47 @@
       </div>
     </cat-field>
 
-    <cat-field>
+    <p class="menu-label">
+      <cat-tooltip text="Sum of all visits at the stop by any route across the days and times in the current filters — the same number as the Stops report's 'Total Visits During Time Period' column. Routes stay included only if at least one of their stops passes.">
+        Stop visits
+        <cat-icon icon="information" />
+      </cat-tooltip>
+    </p>
+
+    <cat-field grouped>
       <cat-checkbox
-        v-model="calculateFrequencyMode"
-        label="Calculate frequency based on single routes"
-        :disabled="true"
+        v-model="stopVisitsUnderEnabled"
+        label="Total visits ≦"
       />
+      <div class="cal-input-width-80">
+        <cat-input
+          v-model="stopVisitsUnder"
+          type="number"
+          min="0"
+          :disabled="!stopVisitsUnderEnabled"
+        />
+      </div>
+      <div>
+        visits
+      </div>
+    </cat-field>
+
+    <cat-field grouped>
+      <cat-checkbox
+        v-model="stopVisitsOverEnabled"
+        label="Total visits >"
+      />
+      <div class="cal-input-width-80">
+        <cat-input
+          v-model="stopVisitsOver"
+          type="number"
+          min="0"
+          :disabled="!stopVisitsOverEnabled"
+        />
+      </div>
+      <div>
+        visits
+      </div>
     </cat-field>
 
     <p class="menu-label">
@@ -241,8 +276,10 @@
 import {
   dataDisplayModes,
   HIERARCHICAL_TIGER_LAYERS,
+  ROUTE_FREQUENCY_DEFAULT_MINUTES,
   STOP_CLUSTER_DEFAULT_DISTANCE,
   STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES,
+  STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 
@@ -260,7 +297,8 @@ const {
 const {
   frequencyUnder,
   frequencyOver,
-  calculateFrequencyMode,
+  stopVisitsUnder,
+  stopVisitsOver,
   maxFareEnabled,
   maxFare,
   minFareEnabled,
@@ -271,11 +309,19 @@ const {
 // Derived checkbox state: checked when value is defined, unchecked sets to undefined
 const frequencyUnderEnabled = computed({
   get: () => frequencyUnder.value != null,
-  set: (checked: boolean) => { frequencyUnder.value = checked ? 15 : undefined }
+  set: (checked: boolean) => { frequencyUnder.value = checked ? ROUTE_FREQUENCY_DEFAULT_MINUTES : undefined }
 })
 const frequencyOverEnabled = computed({
   get: () => frequencyOver.value != null,
-  set: (checked: boolean) => { frequencyOver.value = checked ? 15 : undefined }
+  set: (checked: boolean) => { frequencyOver.value = checked ? ROUTE_FREQUENCY_DEFAULT_MINUTES : undefined }
+})
+const stopVisitsUnderEnabled = computed({
+  get: () => stopVisitsUnder.value != null,
+  set: (checked: boolean) => { stopVisitsUnder.value = checked ? STOP_VISITS_DEFAULT_TOTAL : undefined }
+})
+const stopVisitsOverEnabled = computed({
+  get: () => stopVisitsOver.value != null,
+  set: (checked: boolean) => { stopVisitsOver.value = checked ? STOP_VISITS_DEFAULT_TOTAL : undefined }
 })
 // clustering enable derives from distance (0 = off); checking seeds the default.
 const clusterEnabled = computed({
