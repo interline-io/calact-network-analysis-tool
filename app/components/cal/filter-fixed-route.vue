@@ -60,6 +60,9 @@
           :disabled="!stopVisitsUnderEnabled"
         />
       </div>
+      <div>
+        visits
+      </div>
     </cat-field>
 
     <cat-field grouped>
@@ -74,6 +77,9 @@
           min="0"
           :disabled="!stopVisitsOverEnabled"
         />
+      </div>
+      <div>
+        visits
       </div>
     </cat-field>
 

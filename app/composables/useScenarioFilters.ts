@@ -75,7 +75,14 @@ export function useScenarioFilters (): ScenarioFilters {
     return computed<number | undefined>({
       get: () => {
         const val = route.query[key]?.toString()
-        return val ? Number.parseInt(val) : undefined
+        if (!val) {
+          return undefined
+        }
+        // A malformed or negative param reads as "filter off" rather than an
+        // active NaN threshold, which would arm the gates, match nothing, and
+        // render "NaN" in the filter tag.
+        const n = Number.parseInt(val)
+        return Number.isFinite(n) && n >= 0 ? n : undefined
       },
       set: (v) => { setQuery({ [key]: v != null ? v.toString() : undefined }) }
     })

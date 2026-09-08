@@ -622,4 +622,40 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(stops).toEqual([S_FAST, S_BOTH])
     expect(routes).toEqual([FAST, SLOW])
   })
+
+  it('drops a zero-visit stop under an "under" threshold once a weekday filter is active', () => {
+    // The weekday gate runs before the thresholds and excludes stops with no
+    // service on the selected days, so S_NONE never reaches a threshold it
+    // would otherwise satisfy. Without a weekday filter it counts as 0 and stays.
+    const weekday = run({
+      stopVisitsUnder: 5,
+      selectedWeekdays: ['monday'] as Weekday[],
+      selectedWeekdayMode: 'Any',
+    })
+    expect(weekday.stops).not.toContain(S_NONE)
+    expect(run({ stopVisitsUnder: 5 }).stops).toContain(S_NONE)
+  })
+
+  it('leaves the route set unchanged for a threshold that excludes no stop', () => {
+    // Two Mondays, with service on the first only. In 'All' mode the stop needs
+    // service on every Monday and is unmarked, while the route needs service on
+    // any Monday and stays marked. A threshold no stop violates must not
+    // disturb that: the route gate tests the thresholds, not stop.marked.
+    const twoMondays: ScenarioConfig = { ...baseConfig, endDate: new Date('2024-01-22T00:00:00') }
+    const cache = new StopDepartureCache()
+    addRouteTrips(cache, FAST, [S_FAST], '2024-01-15', FAST_TIMES)
+    const data: ScenarioData = {
+      ...makeData([]),
+      stops: [makeStop(S_FAST, [[FAST, AGENCY_FAST]])],
+      routes: [makeRoute(FAST, AGENCY_FAST)],
+      stopDepartureCache: cache,
+    }
+    const weekday = { selectedWeekdays: ['monday'] as Weekday[], selectedWeekdayMode: 'All' as const }
+    const before = applyScenarioResultFilter(data, twoMondays, weekday)
+    const after = applyScenarioResultFilter(data, twoMondays, { ...weekday, stopVisitsUnder: 1000000 })
+    expect(markedIds(before.routes)).toEqual([FAST])
+    expect(markedIds(before.stops)).toEqual([])
+    expect(markedIds(after.routes)).toEqual([FAST])
+    expect(markedIds(after.stops)).toEqual([])
+  })
 })

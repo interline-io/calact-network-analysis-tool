@@ -39,8 +39,10 @@
  *    - Marked routes: if route-level filters are active, stop must serve at least
  *      one marked route
  *
- * 3. If a stop-level threshold is active, routes with no marked stop are
- *    unmarked (issue #243) — the mirror of step 2's marked-routes rule.
+ * 3. If a stop-level threshold is active, routes with no stop meeting that
+ *    threshold are unmarked (issue #243) — the mirror of step 2's marked-routes
+ *    rule. It tests the thresholds alone and not the weekday gate, so a
+ *    threshold that excludes no stop leaves the route set unchanged.
  *
  * 4. Agencies are derived from the filtered stops and routes
  */
@@ -308,6 +310,24 @@ function stopSetDerived (
   )
 }
 
+// True when the stop meets the stop-level visit thresholds. Split out of
+// stopMarked so the route gate below can ask about the thresholds on their own,
+// without inheriting the weekday/service verdict — routes judge weekday service
+// for themselves in routeMarked, on laxer terms than stops do.
+function passesStopVisitThresholds (stop: Stop, stopVisitsUnder?: number, stopVisitsOver?: number): boolean {
+  // Total visits during the filtered period, counting departures from every
+  // route that serves the stop, not only marked ones (#239 glossary). A stop
+  // with no visits in the window counts as 0.
+  const visitCount = stop.visits?.total.visit_count ?? 0
+  if (stopVisitsOver != null && visitCount <= stopVisitsOver) {
+    return false
+  }
+  if (stopVisitsUnder != null && visitCount > stopVisitsUnder) {
+    return false
+  }
+  return true
+}
+
 // Filter stops
 function stopMarked (
   stop: Stop,
@@ -366,14 +386,10 @@ function stopMarked (
     }
   }
 
-  // Check stop visits (issue #243). Total visits during the filtered period,
-  // counting departures from every route that serves the stop, not only marked
-  // ones (#239 glossary). A stop with no visits in the window counts as 0.
-  const visitCount = stop.visits?.total.visit_count ?? 0
-  if (stopVisitsOver != null && visitCount <= stopVisitsOver) {
-    return false
-  }
-  if (stopVisitsUnder != null && visitCount > stopVisitsUnder) {
+  // Check stop visits (issue #243). Note the weekday gate above has already
+  // dropped stops with no service on the selected days, so a zero-visit stop
+  // only reaches an "under" threshold when no weekday filter is active.
+  if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
     return false
   }
 
@@ -392,22 +408,28 @@ function stopMarked (
   return true
 }
 
-// Unmark routes that have no marked stop: the stop-side mirror of the
-// marked-routes check above. One pass suffices, because a stop marked via
-// route R passed its own stop-level gates, so R has a passing stop and is
-// never unmarked here.
-function unmarkRoutesWithoutMarkedStop (routes: Route[], stops: Stop[]) {
-  const routesWithMarkedStop = new Set<number>()
+// Unmark routes with no stop meeting the visit thresholds: the stop-side mirror
+// of the marked-routes check above. It asks about the thresholds rather than
+// stop.marked so that a stop excluded for weekday reasons cannot drag its route
+// down — routes apply their own, laxer weekday rule in routeMarked, and a
+// threshold that excludes no stop must leave the route set untouched.
+function unmarkRoutesWithoutPassingStop (
+  routes: Route[],
+  stops: Stop[],
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
+) {
+  const routesWithPassingStop = new Set<number>()
   for (const stop of stops) {
-    if (!stop.marked) {
+    if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
       continue
     }
     for (const rs of stop.route_stops || []) {
-      routesWithMarkedStop.add(rs.route_id)
+      routesWithPassingStop.add(rs.route_id)
     }
   }
   for (const route of routes) {
-    if (route.marked && !routesWithMarkedStop.has(route.id)) {
+    if (route.marked && !routesWithPassingStop.has(route.id)) {
       route.marked = false
     }
   }
@@ -593,7 +615,7 @@ export function applyScenarioResultFilter (
 
   // Before agencies are derived below, so they follow the final route marks.
   if (stopFiltersActive) {
-    unmarkRoutesWithoutMarkedStop(routeFeatures, stopFeatures)
+    unmarkRoutesWithoutPassingStop(routeFeatures, stopFeatures, stopVisitsUnderValue, stopVisitsOverValue)
   }
 
   const routeLookup = routesById(routeFeatures)
@@ -638,7 +660,7 @@ export function applyScenarioResultFilter (
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
-      stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
+      stops_count: adata.stops.size,
       __typename: 'Agency', // backwards compat
     }
   })
