@@ -584,6 +584,18 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(routes).toEqual([FAST, SLOW])
   })
 
+  it('unmarks an agency whose routes were all filtered out, even when it shares a stop with a marked route', () => {
+    // Issue #473. S_BOTH stays marked because FAST passed, and it also lists
+    // SLOW's agency in its route_stops, so deriving agency marks from the stop
+    // would keep AGENCY_SLOW even though SLOW itself is unmarked.
+    const { result, routes, stops } = run({ frequencyUnder: 20 })
+    expect(routes).toEqual([FAST])
+    expect(stops).toContain(S_BOTH)
+    const byAgency = new Map(result.agencies.map(a => [a.id, a.marked]))
+    expect(byAgency.get(AGENCY_FAST)).toBe(true)
+    expect(byAgency.get(AGENCY_SLOW)).toBe(false)
+  })
+
   it('stop visits alone drops a route none of whose stops pass, and its agency with it', () => {
     const { result, routes, stops } = run({ stopVisitsUnder: 5 })
     expect(stops).toEqual([S_NONE])
