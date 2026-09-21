@@ -3,8 +3,6 @@ import {
   DEFAULT_BUILD_REPO,
   buildCommitUrl,
   buildGithubUrl,
-  buildSummary,
-  buildVersionLabel,
   formatBuildTime,
   isBuildEnvironment,
   resolveBuildInfo,
@@ -120,12 +118,6 @@ describe('build labels and links', () => {
     repo: DEFAULT_BUILD_REPO,
   }
 
-  it('labels a release build with its tag and other builds with the commit', () => {
-    expect(buildVersionLabel(release)).toBe('v11')
-    expect(buildVersionLabel(staging)).toBe('1ffbe57')
-    expect(buildVersionLabel(unknown)).toBe('')
-  })
-
   it('links to the release, the commit, or the repo', () => {
     expect(buildGithubUrl(release)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/releases/tag/v11`)
     expect(buildGithubUrl(staging)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
@@ -136,12 +128,6 @@ describe('build labels and links', () => {
     expect(buildCommitUrl(release)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
     expect(buildCommitUrl(staging)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
     expect(buildCommitUrl(unknown)).toBe('')
-  })
-
-  it('summarizes a build in one line', () => {
-    expect(buildSummary(release)).toBe('Production build — v11, commit 1ffbe57, built 2026-09-10 23:33 UTC')
-    expect(buildSummary(staging)).toBe('Staging build — main@1ffbe57, built 2026-09-21 10:00 UTC')
-    expect(buildSummary(unknown)).toBe('Development build')
   })
 
   it('shortens shas and drops unusable timestamps', () => {

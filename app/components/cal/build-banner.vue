@@ -11,7 +11,7 @@
     <cat-icon icon="alert-outline" />
     You are using the <strong>{{ environmentLabel }}</strong> build of the Network Analysis Tool, not production.
     It may include changes that have not been released yet.
-    <a :href="githubUrl" target="_blank" rel="noopener noreferrer">{{ summary }}</a>
+    <nuxt-link :to="{ name: 'help' }" target="_blank" rel="noopener noreferrer">About this build</nuxt-link>
   </cat-notification>
 </template>
 
@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 
-const { info, isProduction, environmentLabel, summary, githubUrl } = useBuildInfo()
+const { info, isProduction, environmentLabel } = useBuildInfo()
 
 // Dismissal is remembered per build, so the notice comes back after the
 // environment is redeployed from a different commit.

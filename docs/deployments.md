@@ -47,8 +47,8 @@ The app surfaces this in two places (`useBuildInfo`):
   environment, release tag, commit, and build time, linking to that release and
   commit on github.com.
 - `cal-build-banner` — a dismissible warning shown only on non-production
-  builds, across every page. Dismissal is remembered per commit, so it returns
-  after a redeploy.
+  builds, across every page, linking to `/help` for the detail. Dismissal is
+  remembered per commit, so it returns after a redeploy.
 
 ## One-time setup
 

@@ -32,13 +32,6 @@ export interface BuildInfoFallback {
   builtAt?: string
 }
 
-export const BUILD_ENVIRONMENT_LABELS: Record<BuildEnvironment, { short: string, long: string }> = {
-  production: { short: 'prod', long: 'production' },
-  staging: { short: 'staging', long: 'staging' },
-  preview: { short: 'preview', long: 'preview' },
-  development: { short: 'dev', long: 'development' },
-}
-
 export function isBuildEnvironment (value: string | undefined): value is BuildEnvironment {
   return value === 'production' || value === 'staging' || value === 'preview' || value === 'development'
 }
@@ -75,18 +68,6 @@ export function shortSha (sha: string): string {
   return sha.slice(0, 7)
 }
 
-// Short identifier for the build: the release tag when there is one, otherwise
-// the commit it was built from.
-export function buildVersionLabel (info: BuildInfo): string {
-  if (info.version) {
-    return info.version
-  }
-  if (info.sha) {
-    return shortSha(info.sha)
-  }
-  return ''
-}
-
 // Link back to whatever best identifies this build on github.com.
 export function buildGithubUrl (info: BuildInfo): string {
   const base = `https://github.com/${info.repo || DEFAULT_BUILD_REPO}`
@@ -116,28 +97,4 @@ export function formatBuildTime (builtAt: string): string {
     return ''
   }
   return `${parsed.toISOString().slice(0, 16).replace('T', ' ')} UTC`
-}
-
-// One-line description used for the sidebar tooltip and the non-production
-// banner, e.g. "Staging build — main@1ffbe57, built 2026-09-10 23:33 UTC".
-export function buildSummary (info: BuildInfo): string {
-  const { long } = BUILD_ENVIRONMENT_LABELS[info.environment]
-  const environment = `${long.charAt(0).toUpperCase()}${long.slice(1)} build`
-  const parts: string[] = []
-  if (info.version) {
-    parts.push(info.version)
-    if (info.sha) {
-      parts.push(`commit ${shortSha(info.sha)}`)
-    }
-  } else if (info.sha) {
-    parts.push(info.branch ? `${info.branch}@${shortSha(info.sha)}` : shortSha(info.sha))
-  }
-  const builtAt = formatBuildTime(info.builtAt)
-  if (builtAt) {
-    parts.push(`built ${builtAt}`)
-  }
-  if (parts.length === 0) {
-    return environment
-  }
-  return `${environment} — ${parts.join(', ')}`
 }

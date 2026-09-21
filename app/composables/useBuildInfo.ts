@@ -1,9 +1,6 @@
 import {
-  BUILD_ENVIRONMENT_LABELS,
   buildCommitUrl,
   buildGithubUrl,
-  buildSummary,
-  buildVersionLabel,
   formatBuildTime,
   shortSha,
   type BuildInfo,
@@ -14,16 +11,12 @@ import {
 // rather than refs.
 export const useBuildInfo = () => {
   const info = useRuntimeConfig().public.build as BuildInfo
-  const labels = BUILD_ENVIRONMENT_LABELS[info.environment] ?? BUILD_ENVIRONMENT_LABELS.development
   return {
     info,
     isProduction: info.environment === 'production',
-    environmentLabel: labels.long,
-    environmentShortLabel: labels.short,
-    versionLabel: buildVersionLabel(info),
+    environmentLabel: info.environment,
     shortSha: shortSha(info.sha),
     builtAtLabel: formatBuildTime(info.builtAt),
-    summary: buildSummary(info),
     githubUrl: buildGithubUrl(info),
     commitUrl: buildCommitUrl(info),
   }
