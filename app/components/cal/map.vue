@@ -198,15 +198,14 @@ const markedAgencyIds = computed((): Set<number> => {
 // agencies behind those stops keep their colors and legend rows while it is up.
 const clusterFocused = computed(() => selectedMemberSet.value.size > 0)
 
-// Agency ids still worth drawing a color for. Falls back to the full list when
-// nothing is marked, or when a cluster's agencies have all been filtered out —
-// a beach-ball with no wedges would just vanish.
+// Agency ids still worth drawing a color for. Follows the legend: everything
+// while a cluster is focused, and everything until the routes phase lands and
+// marks exist at all.
 function visibleAgencyIds (ids: number[]): number[] {
-  if (!hideUnmarked.value || markedAgencyIds.value.size === 0) {
+  if (!hideUnmarked.value || clusterFocused.value || markedAgencyIds.value.size === 0) {
     return ids
   }
-  const kept = ids.filter(a => markedAgencyIds.value.has(a))
-  return kept.length > 0 ? kept : ids
+  return ids.filter(a => markedAgencyIds.value.has(a))
 }
 
 // Clear the selection if a refetch/refilter drops the selected cluster.
@@ -267,10 +266,18 @@ const clusterMarkers = computed((): { id: string, point: Point, colors: string[]
     if (!anchor) {
       continue
     }
+    // A hub none of whose agencies survived has no stops left on the map
+    // either, so it drops with them rather than drawing wedges in colors the
+    // legend no longer lists. Turning on "Show filtered routes/stops" brings
+    // both back.
+    const agencyIds = visibleAgencyIds(c.agencyIds)
+    if (agencyIds.length === 0) {
+      continue
+    }
     out.push({
       id: c.id,
       point: { lon: anchor[0], lat: anchor[1] },
-      colors: visibleAgencyIds(c.agencyIds).map(a => scale(String(a))),
+      colors: agencyIds.map(a => scale(String(a))),
     })
   }
   return out
