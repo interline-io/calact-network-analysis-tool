@@ -78,6 +78,10 @@
                 <cat-icon icon="account" size="large" class="is-fullwidth" variant="white" />
               </nuxt-link>
             </li>
+
+            <li>
+              <cal-build-chip />
+            </li>
           </ul>
         </div>
       </nav>
@@ -147,6 +151,28 @@ function itemHelper (p: string): string {
 
   .cal-jobs-link {
     position: relative;
+  }
+
+  // Rendered inside the rail's <a> rules, which set display/justify-content.
+  .cal-build-chip {
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    font-size: 0.65rem;
+    color: #ccc;
+
+    &.cal-build-chip-nonprod {
+      color: var(--bulma-warning);
+    }
+
+    .cal-build-chip-env {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .cal-build-chip-version {
+      font-family: monospace;
+    }
   }
 
   .cal-jobs-badge {

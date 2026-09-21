@@ -1,0 +1,69 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Staging always reflects the tip of main; superseded runs can be dropped.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    # Records a GitHub Deployment against this commit, the same way the
+    # production workflow does.
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093  # v6.0.8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@interline-io'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: pnpm build
+        env:
+          NITRO_PRESET: cloudflare_pages
+          NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY: ${{ secrets.NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY }}
+          # Required: tlv2-auth's build-time guard bakes a "disabled.invalid" placeholder into
+          # runtimeConfig.auth0 unless NUXT_AUTH0_CLIENT_ID is set during the build.
+          NUXT_AUTH0_CLIENT_ID: ${{ secrets.NUXT_AUTH0_CLIENT_ID }}
+          # Baked into the bundle and shown in the app's sidebar build chip.
+          NAT_BUILD_ENVIRONMENT: staging
+          NAT_BUILD_SHA: ${{ github.sha }}
+          NAT_BUILD_BRANCH: ${{ github.ref_name }}
+
+      # Deploys to the main branch of the same Cloudflare Pages project that
+      # serves per-branch previews, so the staging URL is unchanged:
+      # https://main.calact-network-analysis-tool.pages.dev
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist/ --project-name=calact-network-analysis-tool --branch=main
