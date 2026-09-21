@@ -1,4 +1,5 @@
 export * from './constants'
+export * from './build-info'
 export * from './colors'
 export * from './debug'
 export * from './geom'
