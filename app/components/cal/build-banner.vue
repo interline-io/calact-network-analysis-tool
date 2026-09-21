@@ -34,8 +34,19 @@ function dismiss (): void {
 
 <style scoped lang="scss">
 .cal-build-banner {
-  margin: 0.75rem 1.25rem 0 0;
-  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  // Flush with the top and right of the content column: this is a banner, not
+  // a card sitting inside the page.
+  margin: 0;
+  border-radius: 0;
+  padding: 0.5rem 2.75rem 0.5rem 1rem;
   font-size: 0.85rem;
+
+  // Bulma anchors .delete to the top right corner, which reads as floating on
+  // a banner this short. Center it against the right edge instead.
+  :deep(.delete) {
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+  }
 }
 </style>

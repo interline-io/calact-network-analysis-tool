@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_BUILD_REPO,
+  buildCommitUrl,
   buildGithubUrl,
   buildSummary,
   buildVersionLabel,
@@ -129,6 +130,12 @@ describe('build labels and links', () => {
     expect(buildGithubUrl(release)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/releases/tag/v11`)
     expect(buildGithubUrl(staging)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
     expect(buildGithubUrl(unknown)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}`)
+  })
+
+  it('always links the commit separately from the release', () => {
+    expect(buildCommitUrl(release)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
+    expect(buildCommitUrl(staging)).toBe(`https://github.com/${DEFAULT_BUILD_REPO}/commit/${sha}`)
+    expect(buildCommitUrl(unknown)).toBe('')
   })
 
   it('summarizes a build in one line', () => {

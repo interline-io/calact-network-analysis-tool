@@ -99,6 +99,15 @@ export function buildGithubUrl (info: BuildInfo): string {
   return base
 }
 
+// Link to the exact commit, when it is known. `buildGithubUrl` prefers the
+// release; this always points at the commit.
+export function buildCommitUrl (info: BuildInfo): string {
+  if (!info.sha) {
+    return ''
+  }
+  return `https://github.com/${info.repo || DEFAULT_BUILD_REPO}/commit/${info.sha}`
+}
+
 // "2026-09-10 23:33 UTC" — enough to tell two builds apart, without pulling in
 // a formatting dependency.
 export function formatBuildTime (builtAt: string): string {

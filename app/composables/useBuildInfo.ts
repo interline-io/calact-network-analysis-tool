@@ -1,14 +1,17 @@
 import {
   BUILD_ENVIRONMENT_LABELS,
+  buildCommitUrl,
   buildGithubUrl,
   buildSummary,
   buildVersionLabel,
+  formatBuildTime,
+  shortSha,
   type BuildInfo,
 } from '~~/src/core'
 
-// Build provenance captured at build time (see nuxt.config.ts).
-// These values never change while the app is running, so they are returned as
-// plain values rather than refs.
+// Build provenance captured at build time (see nuxt.config.ts). These values
+// never change while the app is running, so they are returned as plain values
+// rather than refs.
 export const useBuildInfo = () => {
   const info = useRuntimeConfig().public.build as BuildInfo
   const labels = BUILD_ENVIRONMENT_LABELS[info.environment] ?? BUILD_ENVIRONMENT_LABELS.development
@@ -18,7 +21,10 @@ export const useBuildInfo = () => {
     environmentLabel: labels.long,
     environmentShortLabel: labels.short,
     versionLabel: buildVersionLabel(info),
+    shortSha: shortSha(info.sha),
+    builtAtLabel: formatBuildTime(info.builtAt),
     summary: buildSummary(info),
     githubUrl: buildGithubUrl(info),
+    commitUrl: buildCommitUrl(info),
   }
 }

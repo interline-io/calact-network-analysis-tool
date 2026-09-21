@@ -43,11 +43,12 @@ Sources, in priority order:
 
 The app surfaces this in two places (`useBuildInfo`):
 
-- `cal-build-chip` — bottom of the left sidebar on every page, showing the
-  environment and release tag or short commit, linking to that release or
-  commit on github.com. Amber on anything that is not production.
+- `cal-build-info` — an "About this build" table on `/help`, listing the
+  environment, release tag, commit, and build time, linking to that release and
+  commit on github.com.
 - `cal-build-banner` — a dismissible warning shown only on non-production
-  builds. Dismissal is remembered per commit, so it returns after a redeploy.
+  builds, across every page. Dismissal is remembered per commit, so it returns
+  after a redeploy.
 
 ## One-time setup
 
