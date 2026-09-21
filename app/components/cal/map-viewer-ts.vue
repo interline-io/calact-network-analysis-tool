@@ -1228,7 +1228,8 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     height: 700px;
   }
   .tall {
-    height: 100vh;
+    /* cal-build-banner publishes its height; 0px when it is not shown. */
+    height: calc(100vh - var(--cal-build-banner-height, 0px));
   }
 
   /* MapLibre popup container styles (component styles are in map-popup.vue) */

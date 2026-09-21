@@ -15,6 +15,11 @@ jobs:
   deploy:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+    # workflow_dispatch can be launched against any ref. Staging mirrors main,
+    # so a manual run from anywhere else is skipped rather than publishing
+    # unmerged code to the main alias; feature branches have their own
+    # Cloudflare preview URLs.
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: read

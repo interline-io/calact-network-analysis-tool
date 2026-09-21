@@ -48,7 +48,10 @@ The app surfaces this in two places (`useBuildInfo`):
   commit on github.com.
 - `cal-build-banner` — a dismissible warning shown only on non-production
   builds, across every page, linking to `/help` for the detail. Dismissal is
-  remembered per commit, so it returns after a redeploy.
+  remembered per commit, so it returns after a redeploy. It publishes its own
+  height as `--cal-build-banner-height`, which the full-viewport rules on
+  `/tne` subtract so the banner does not push the page into a scroll; the
+  variable defaults to `0px` wherever the banner is absent.
 
 ## One-time setup
 
