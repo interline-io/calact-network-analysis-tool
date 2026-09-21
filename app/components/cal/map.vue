@@ -180,6 +180,35 @@ const selectedCluster = computed((): StopCluster | null =>
   selectedClusterId.value ? clusterById.value.get(selectedClusterId.value) ?? null : null)
 const selectedMemberSet = computed(() => new Set<number>(selectedCluster.value?.memberStopIds || []))
 
+// Agencies whose service survived the filters (an agency is marked when at
+// least one of its routes is). Drives which agencies the legend still lists,
+// and which wedges a cluster beach-ball draws. Empty until the routes phase
+// lands, which every consumer here reads as "no filtering information yet".
+const markedAgencyIds = computed((): Set<number> => {
+  const ids = new Set<number>()
+  for (const agency of props.scenarioFilterResult?.agencies || []) {
+    if (agency.marked) {
+      ids.add(agency.id)
+    }
+  }
+  return ids
+})
+
+// A focused cluster shows every member stop regardless of marked state, so the
+// agencies behind those stops keep their colors and legend rows while it is up.
+const clusterFocused = computed(() => selectedMemberSet.value.size > 0)
+
+// Agency ids still worth drawing a color for. Falls back to the full list when
+// nothing is marked, or when a cluster's agencies have all been filtered out —
+// a beach-ball with no wedges would just vanish.
+function visibleAgencyIds (ids: number[]): number[] {
+  if (!hideUnmarked.value || markedAgencyIds.value.size === 0) {
+    return ids
+  }
+  const kept = ids.filter(a => markedAgencyIds.value.has(a))
+  return kept.length > 0 ? kept : ids
+}
+
 // Clear the selection if a refetch/refilter drops the selected cluster.
 watch(stopClusters, () => {
   if (selectedClusterId.value && !clusterById.value.has(selectedClusterId.value)) {
@@ -241,7 +270,7 @@ const clusterMarkers = computed((): { id: string, point: Point, colors: string[]
     out.push({
       id: c.id,
       point: { lon: anchor[0], lat: anchor[1] },
-      colors: c.agencyIds.map(a => scale(String(a))),
+      colors: visibleAgencyIds(c.agencyIds).map(a => scale(String(a))),
     })
   }
   return out
@@ -373,18 +402,6 @@ const agencyData = computed((): AgencyData[] => {
 const agencyColorScale = computed(() =>
   createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
 
-// Agencies whose service survived the filters (an agency is marked when at
-// least one of its routes is). Drives which agencies the legend still lists.
-const markedAgencyIds = computed((): Set<number> => {
-  const ids = new Set<number>()
-  for (const agency of props.scenarioFilterResult?.agencies || []) {
-    if (agency.marked) {
-      ids.add(agency.id)
-    }
-  }
-  return ids
-})
-
 // Matcher rules color stops/routes by the active data-display mode. The pure
 // builder (and the Matcher type) live in src/scenario/map-style.ts.
 const styleData = computed((): Matcher[] => buildStyleData({
@@ -393,7 +410,19 @@ const styleData = computed((): Matcher[] => buildStyleData({
   agencies: agencyData.value,
   agencyColorScale: agencyColorScale.value,
   markedAgencyIds: markedAgencyIds.value,
-  hideUnmarked: hideUnmarked.value,
+  hideUnmarked: hideUnmarked.value && !clusterFocused.value,
+}))
+
+// Exports carry only marked features, so they color by the agencies that
+// survived, whatever the display toggle says. Sharing the map's rules would let
+// a pure-display setting change the colors baked into a download.
+const exportStyleData = computed((): Matcher[] => buildStyleData({
+  scenarioFilterResult: props.scenarioFilterResult,
+  dataDisplayMode: dataDisplayMode.value,
+  agencies: agencyData.value,
+  agencyColorScale: agencyColorScale.value,
+  markedAgencyIds: markedAgencyIds.value,
+  hideUnmarked: true,
 }))
 
 // Selectable geography features for click-to-select in adminBoundary mode.
@@ -631,7 +660,7 @@ const displayFeatures = computed((): Feature[] => {
 const exportFeatures = computed((): Feature[] => {
   const bgColor = '#aaa'
   const bgOpacity = 0.4
-  const styleRules = styleData.value || []
+  const styleRules = exportStyleData.value || []
   const forExport: Feature[] = []
   const routeBufferGeographies = props.scenarioFilterResult?.routeBufferGeographies
   const stopBufferGeographies = props.scenarioFilterResult?.stopBufferGeographies
