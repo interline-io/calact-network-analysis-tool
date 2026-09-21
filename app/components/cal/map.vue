@@ -373,6 +373,18 @@ const agencyData = computed((): AgencyData[] => {
 const agencyColorScale = computed(() =>
   createCategoryColorScale(agencyData.value.map(a => String(a.numericId)), categoricalColors))
 
+// Agencies whose service survived the filters (an agency is marked when at
+// least one of its routes is). Drives which agencies the legend still lists.
+const markedAgencyIds = computed((): Set<number> => {
+  const ids = new Set<number>()
+  for (const agency of props.scenarioFilterResult?.agencies || []) {
+    if (agency.marked) {
+      ids.add(agency.id)
+    }
+  }
+  return ids
+})
+
 // Matcher rules color stops/routes by the active data-display mode. The pure
 // builder (and the Matcher type) live in src/scenario/map-style.ts.
 const styleData = computed((): Matcher[] => buildStyleData({
@@ -380,6 +392,8 @@ const styleData = computed((): Matcher[] => buildStyleData({
   dataDisplayMode: dataDisplayMode.value,
   agencies: agencyData.value,
   agencyColorScale: agencyColorScale.value,
+  markedAgencyIds: markedAgencyIds.value,
+  hideUnmarked: hideUnmarked.value,
 }))
 
 // Selectable geography features for click-to-select in adminBoundary mode.

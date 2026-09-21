@@ -72,5 +72,57 @@ describe('buildStyleData', () => {
       const otherRoute = route({ agency: { id: 99 } })
       expect(rules.find(r => r.match(otherRoute))).toBeUndefined()
     })
+
+    // Issue #473: an agency with no marked route has nothing left on the map
+    // once filtered features are hidden, so it should not hold a legend row.
+    const threeAgencies = [
+      { id: 'AC', numericId: 1, name: 'AC Transit' },
+      { id: 'BART', numericId: 2, name: 'BART' },
+      { id: 'SF', numericId: 3, name: 'Muni' },
+    ]
+    const build = (extra: Record<string, any>) => buildStyleData({
+      scenarioFilterResult: undefined,
+      dataDisplayMode: 'Agency',
+      agencies: threeAgencies,
+      agencyColorScale: key => `color-${key}`,
+      ...extra,
+    })
+
+    it('drops unmarked agencies while the survivors keep their colors', () => {
+      const all = build({})
+      const filtered = build({ hideUnmarked: true, markedAgencyIds: new Set([1, 3]) })
+      expect(filtered.map(r => r.label)).toEqual(['AC Transit', 'Muni'])
+      // Colors are handed out over the full agency list, so removing BART does
+      // not shift Muni onto BART's color.
+      for (const label of ['AC Transit', 'Muni']) {
+        expect(filtered.find(r => r.label === label)!.color)
+          .toBe(all.find(r => r.label === label)!.color)
+      }
+    })
+
+    it('keeps every agency when filtered features are still drawn', () => {
+      const rules = build({ hideUnmarked: false, markedAgencyIds: new Set([1]) })
+      expect(rules.map(r => r.label)).toEqual(['AC Transit', 'BART', 'Muni'])
+    })
+
+    it('keeps every agency when no marked set is supplied', () => {
+      const rules = build({ hideUnmarked: true })
+      expect(rules.map(r => r.label)).toEqual(['AC Transit', 'BART', 'Muni'])
+    })
+
+    it('adds the "Other" catchall based on the agency count, not the survivors', () => {
+      const many = Array.from({ length: 12 }, (_, i) => ({ id: `A${i}`, numericId: i, name: `Agency ${i}` }))
+      const rules = buildStyleData({
+        scenarioFilterResult: undefined,
+        dataDisplayMode: 'Agency',
+        agencies: many,
+        agencyColorScale: key => `color-${key}`,
+        hideUnmarked: true,
+        markedAgencyIds: new Set([0, 1]),
+      })
+      // Two survivors of the ten that hold palette slots, plus the catchall the
+      // full list earns — agencies 10 and 11 never had a rule of their own.
+      expect(rules.map(r => r.label)).toEqual(['Agency 0', 'Agency 1', 'Other'])
+    })
   })
 })
