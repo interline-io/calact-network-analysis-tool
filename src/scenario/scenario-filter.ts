@@ -621,15 +621,22 @@ export function applyScenarioResultFilter (
   const routeLookup = routesById(routeFeatures)
 
   // Agencies come off the routes phase, so this rolls up empty until it lands.
+  //
+  // Keyed by the Transitland numeric agency id, which is unique across feeds.
+  // GTFS agency_id is only unique within its feed — two feeds both numbering
+  // their agencies from "1" would collapse into one row — and it is optional
+  // for a single-agency feed, where an empty one dropped the agency entirely.
+  // The numeric id is also what route_stops, the color scale and the buffer
+  // geographies key on, so this is the identity the rest of the pipeline uses.
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
       const route = routeLookup.get(rstop.route_id)
-      if (!route?.agency.agency_id) {
+      if (route?.agency?.id == null) {
         continue // route not fetched yet, or no agency listed
       }
       const agency = route.agency
-      const aid = agency.agency_id
+      const aid = agency.id
       const adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),

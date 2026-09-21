@@ -584,6 +584,27 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(routes).toEqual([FAST, SLOW])
   })
 
+  it('keeps two agencies apart when their feeds reuse the same GTFS agency_id', () => {
+    // GTFS agency_id is unique only within a feed, so two feeds numbering their
+    // agencies from "1" used to collapse into a single row carrying the merged
+    // counts of both.
+    const collidingRoute = (id: number, agencyId: number, feed: string): RouteGql => ({
+      ...makeRoute(id, agencyId),
+      agency: { id: agencyId, agency_id: 'agency-1', agency_name: `Agency ${agencyId}` },
+      feed_version: { sha1: feed, feed: { onestop_id: feed } },
+    })
+    const data: ScenarioData = {
+      ...buildData(),
+      routes: [collidingRoute(FAST, AGENCY_FAST, 'feed-a'), collidingRoute(SLOW, AGENCY_SLOW, 'feed-b')],
+    }
+    const result = applyScenarioResultFilter(data, baseConfig, {})
+    const byAgency = new Map(result.agencies.map(a => [a.id, a]))
+    expect(byAgency.size).toBe(2)
+    // Each row counts only its own service, rather than the merged total.
+    expect(byAgency.get(AGENCY_FAST)?.routes_count).toBe(1)
+    expect(byAgency.get(AGENCY_SLOW)?.routes_count).toBe(1)
+  })
+
   it('stop visits alone drops a route none of whose stops pass, and its agency with it', () => {
     const { result, routes, stops } = run({ stopVisitsUnder: 5 })
     expect(stops).toEqual([S_NONE])
