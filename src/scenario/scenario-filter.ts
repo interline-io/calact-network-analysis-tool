@@ -643,15 +643,18 @@ export function applyScenarioResultFilter (
       agencyData.set(aid, adata)
     }
   }
+  // An agency is marked when at least one of its routes is (issue #473). This
+  // reads the routes directly rather than the agency ids on a marked stop's
+  // route_stops: a stop shared between agencies stays marked as long as any one
+  // of its routes passed, so reading ids off it also marked agencies whose own
+  // routes had all been filtered out. Routes are the only source here, so the
+  // set also reflects any route unmarked by the stop-visits gate above.
   const markedAgencies: Set<number> = new Set()
-  stopFeatures.filter(s => s.marked).forEach((s) => {
-    for (const rstop of s.route_stops || []) {
-      markedAgencies.add(rstop.agency_id)
+  for (const route of routeFeatures) {
+    if (route.marked && route.agency?.id != null) {
+      markedAgencies.add(route.agency.id)
     }
-  })
-  routeFeatures.filter(s => s.marked).forEach((s) => {
-    markedAgencies.add(s.agency?.id)
-  })
+  }
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
     const agency: AgencyGql = adata.agency
