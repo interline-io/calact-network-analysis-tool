@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildStyleData, type BuildStyleDataParams } from './map-style'
+import { buildStyleData, visibleAgencyIds, type BuildStyleDataParams } from './map-style'
 
 // Minimal Route-shaped object; the matchers read these fields off `v` directly
 // (Route inputs don't need the stop/route lookups), so a light cast is enough.
@@ -126,17 +126,19 @@ describe('buildStyleData', () => {
       expect(rules.map(r => r.label)).toEqual(['AC Transit', 'BART', 'Muni'])
     })
 
-    it('keeps every agency when no marked set is supplied', () => {
+    // The routes phase lands before the departures a frequency filter needs, so
+    // for that whole window the marks are unknown. The caller leaves the set out
+    // until they exist, or the legend empties out mid-load.
+    it('keeps every agency while the marks are unknown', () => {
       const rules = build({ hideUnmarked: true })
       expect(rules.map(r => r.label)).toEqual(['AC Transit', 'BART', 'Muni'])
     })
 
-    // The routes phase lands before the departures a frequency filter needs, so
-    // for that whole window nothing is marked. An empty set has to read as "no
-    // filtering information yet", or the legend empties out mid-load.
-    it('keeps every agency when nothing is marked yet', () => {
+    // A set that is present but empty is a different state: the filters ran and
+    // matched nothing, so nothing should be listed as drawn.
+    it('drops every agency when the filters matched nothing', () => {
       const rules = build({ hideUnmarked: true, markedAgencyIds: new Set<number>() })
-      expect(rules.map(r => r.label)).toEqual(['AC Transit', 'BART', 'Muni'])
+      expect(rules.map(r => r.label)).toEqual(['Other'])
     })
 
     it('adds the "Other" catchall based on the agency count, not the survivors', () => {
@@ -153,5 +155,27 @@ describe('buildStyleData', () => {
       // full list earns — agencies 10 and 11 never had a rule of their own.
       expect(rules.map(r => r.label)).toEqual(['Agency 0', 'Agency 1', 'Other'])
     })
+  })
+})
+
+describe('visibleAgencyIds', () => {
+  const ids = [1, 2, 3]
+
+  it('keeps every agency while the marks are unknown', () => {
+    expect(visibleAgencyIds(ids, undefined, true)).toEqual(ids)
+  })
+
+  it('keeps every agency when filtered features are still drawn', () => {
+    expect(visibleAgencyIds(ids, new Set([1]), false)).toEqual(ids)
+  })
+
+  it('keeps only the agencies that survived', () => {
+    expect(visibleAgencyIds(ids, new Set([1, 3]), true)).toEqual([1, 3])
+  })
+
+  // What hides a transfer hub: nothing it serves is left on the map.
+  it('returns nothing when the filters matched none of them', () => {
+    expect(visibleAgencyIds(ids, new Set<number>(), true)).toEqual([])
+    expect(visibleAgencyIds(ids, new Set([9]), true)).toEqual([])
   })
 })

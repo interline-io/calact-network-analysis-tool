@@ -21,9 +21,9 @@ export interface Matcher {
 // The subset of agency data the styling needs (Agency mode). A wider shape like
 // the map's AgencyData is structurally assignable.
 export interface StyleAgency {
-  id: string // GTFS agency_id — carried by callers; not read here
   numericId: number // Transitland numeric id — color key, and what matching uses
   name: string
+  id?: string // GTFS agency_id — carried by some callers; not read here
 }
 
 export interface BuildStyleDataParams {
@@ -33,13 +33,38 @@ export interface BuildStyleDataParams {
   // Per-agency color scale, keyed by the numeric agency id as a string.
   agencyColorScale: (key: string) => string
   // Numeric ids of the agencies that survived the filters, matched against
-  // StyleAgency.numericId. Only consulted when hideUnmarked is set; omitting it
-  // — or passing an empty set, which means nothing has been marked yet — keeps
-  // every agency.
+  // StyleAgency.numericId. Only consulted when hideUnmarked is set. Leave it
+  // out while the marks are unknown — the routes phase has not landed — which
+  // keeps every agency; an empty set means the filters matched nothing.
   markedAgencyIds?: Set<number>
   // The "Show filtered routes/stops" toggle, inverted: true when filtered-out
   // features are not drawn.
   hideUnmarked?: boolean
+}
+
+// Is an agency still worth drawing? `marked` left undefined means the marks are
+// not known yet — the routes phase has not landed — and keeps every agency,
+// which an empty set deliberately does not: that means the filters matched
+// nothing. Shared by the legend rules below and the map's cluster wedges, so
+// the two cannot drift apart.
+export function agencyVisible (
+  numericId: number,
+  marked: Set<number> | undefined,
+  hideUnmarked?: boolean
+): boolean {
+  if (!hideUnmarked || !marked) {
+    return true
+  }
+  return marked.has(numericId)
+}
+
+// The agencies of a cluster that are still worth drawing a wedge for.
+export function visibleAgencyIds (
+  ids: number[],
+  marked: Set<number> | undefined,
+  hideUnmarked?: boolean
+): number[] {
+  return ids.filter(id => agencyVisible(id, marked, hideUnmarked))
 }
 
 // Matchers run in the order they are added to the rules array.
@@ -143,17 +168,8 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   // keeps the same color no matter what the filters do. When filtered-out
   // features are not drawn, an agency with nothing left on the map drops out of
   // the rules — its slot is left empty rather than handed to the next agency,
-  // which would shift everyone else's color. `agencyRuleCount` is the count
-  // before that removal, so the "Other" catchall below still keys off how many
-  // agencies there are rather than how many survived.
-  //
-  // An empty marked set means nothing has been marked yet — routes land before
-  // the departures they need to answer a frequency filter — so it keeps every
-  // agency rather than emptying the legend for the length of that phase.
+  // which would shift everyone else's color.
   const agencySlots = Math.min(agencies.length, categoricalColors.length)
-  const keepOnlyMarked = hideUnmarked && markedAgencyIds && markedAgencyIds.size > 0
-    ? markedAgencyIds
-    : null
 
   function getAgencyMatchers (): Matcher[] {
     const rules: Matcher[] = []
@@ -162,7 +178,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
       if (!agency) {
         continue
       }
-      if (keepOnlyMarked && !keepOnlyMarked.has(agency.numericId)) {
+      if (!agencyVisible(agency.numericId, markedAgencyIds, hideUnmarked)) {
         continue
       }
       rules.push({ label: agency.name ?? '', color: agencyColorScale(String(agency.numericId)), match: getAgencyMatcher(agency.numericId) })
@@ -214,14 +230,9 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   const rules: Matcher[] = []
 
   let otherThreshold = maxColor
-  // Agency mode counts the palette slots the agency list earns, not the rules
-  // left after unmarked agencies are dropped, so "Other" appears in the same
-  // cases it would without any filtering.
-  let ruleCountForOther: number | undefined
   if (dataDisplayMode === 'Agency') {
     rules.push(...getAgencyMatchers())
     otherThreshold = categoricalColors.length
-    ruleCountForOther = agencySlots
   } else if (dataDisplayMode === 'Transit mode') {
     rules.push(...getModeMatchers())
   } else if (dataDisplayMode === 'Route frequency') {
@@ -233,8 +244,10 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   }
 
   // Once the rules reach the palette threshold (or none were produced), add a
-  // catchall "Other" rule.
-  const ruleCount = ruleCountForOther ?? rules.length
+  // catchall "Other" rule. Agency mode counts the palette slots the agency list
+  // earns, not the rules left after unmarked agencies are dropped, so "Other"
+  // appears in the same cases it would without any filtering.
+  const ruleCount = dataDisplayMode === 'Agency' ? agencySlots : rules.length
   if (ruleCount >= otherThreshold || rules.length === 0) {
     rules.push({ label: 'Other', color: '#000', match: _ => true })
   }

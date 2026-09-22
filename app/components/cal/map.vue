@@ -73,7 +73,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
+import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox]
@@ -167,7 +167,6 @@ const stopFeatureLookup = computed(() => {
 
 // Stop clusters. selectedClusterId drives the radius circle + grey-out.
 const stopClusters = computed((): StopCluster[] => props.scenarioFilterResult?.stopClusters || [])
-const hasClusterData = computed(() => stopClusters.value.length > 0)
 const clusterById = computed(() => {
   const m = new Map<string, StopCluster>()
   for (const c of stopClusters.value) {
@@ -180,33 +179,53 @@ const selectedCluster = computed((): StopCluster | null =>
   selectedClusterId.value ? clusterById.value.get(selectedClusterId.value) ?? null : null)
 const selectedMemberSet = computed(() => new Set<number>(selectedCluster.value?.memberStopIds || []))
 
-// Agencies whose service survived the filters (an agency is marked when at
-// least one of its routes is). Drives which agencies the legend still lists,
-// and which wedges a cluster beach-ball draws. Empty until the routes phase
-// lands, which every consumer here reads as "no filtering information yet".
-const markedAgencyIds = computed((): Set<number> => {
+// Agencies whose service survived the filters, as Transitland numeric ids.
+//
+// Read off the routes rather than `agencies`: those rows are collapsed by GTFS
+// agency_id, which is not unique across feeds (#469, #479), so two agencies can
+// share one row while route_stops and cluster wedges carry both numeric ids.
+//
+// Undefined while the marks are unknown — the routes phase lands before the
+// departures a frequency filter needs — which keeps every agency. An empty set
+// is different: the filters matched nothing.
+const markedAgencyIds = computed((): Set<number> | undefined => {
+  const routes = props.scenarioFilterResult?.routes
+  if (!routes?.length) {
+    return undefined
+  }
   const ids = new Set<number>()
-  for (const agency of props.scenarioFilterResult?.agencies || []) {
-    if (agency.marked) {
-      ids.add(agency.id)
+  for (const route of routes) {
+    if (route.marked && route.agency?.id != null) {
+      ids.add(route.agency.id)
     }
+  }
+  // A focused cluster draws every member stop regardless of marked state, so
+  // the agencies behind those stops need a color and a legend row while it is
+  // up. Adding just those keeps the rest of the legend honest, rather than
+  // re-listing agencies that still have nothing drawn.
+  for (const id of selectedCluster.value?.agencyIds || []) {
+    ids.add(id)
   }
   return ids
 })
 
-// A focused cluster shows every member stop regardless of marked state, so the
-// agencies behind those stops keep their colors and legend rows while it is up.
-const clusterFocused = computed(() => selectedMemberSet.value.size > 0)
-
-// Agency ids still worth drawing a color for. Follows the legend: everything
-// while a cluster is focused, and everything until the routes phase lands and
-// marks exist at all.
-function visibleAgencyIds (ids: number[]): number[] {
-  if (!hideUnmarked.value || clusterFocused.value || markedAgencyIds.value.size === 0) {
-    return ids
+// Clusters still worth drawing, with the agencies each one still shows. A hub
+// none of whose agencies survived has no stops left on the map either, so it
+// drops with them — from the beach-ball overlay, from the invisible circle that
+// catches clicks, and from the legend's cluster section. Turning on "Show
+// filtered routes/stops" brings them all back.
+const visibleClusters = computed((): { cluster: StopCluster, agencyIds: number[] }[] => {
+  const out: { cluster: StopCluster, agencyIds: number[] }[] = []
+  for (const cluster of stopClusters.value) {
+    const agencyIds = visibleAgencyIds(cluster.agencyIds, markedAgencyIds.value, hideUnmarked.value)
+    if (agencyIds.length === 0) {
+      continue
+    }
+    out.push({ cluster, agencyIds })
   }
-  return ids.filter(a => markedAgencyIds.value.has(a))
-}
+  return out
+})
+const hasClusterData = computed(() => visibleClusters.value.length > 0)
 
 // Clear the selection if a refetch/refilter drops the selected cluster.
 watch(stopClusters, () => {
@@ -238,7 +257,7 @@ const clusterAnchorPoints = computed(() => {
 // is a DOM overlay, so this circle is what queryRenderedFeatures clicks land on.
 const clusterFeatures = computed((): Feature[] => {
   const out: Feature[] = []
-  for (const c of stopClusters.value) {
+  for (const { cluster: c } of visibleClusters.value) {
     const anchor = clusterAnchorPoints.value.get(c.id)
     if (!anchor) {
       continue
@@ -261,17 +280,9 @@ const clusterFeatures = computed((): Feature[] => {
 const clusterMarkers = computed((): { id: string, point: Point, colors: string[] }[] => {
   const scale = agencyColorScale.value
   const out: { id: string, point: Point, colors: string[] }[] = []
-  for (const c of stopClusters.value) {
+  for (const { cluster: c, agencyIds } of visibleClusters.value) {
     const anchor = clusterAnchorPoints.value.get(c.id)
     if (!anchor) {
-      continue
-    }
-    // A hub none of whose agencies survived has no stops left on the map
-    // either, so it drops with them rather than drawing wedges in colors the
-    // legend no longer lists. Turning on "Show filtered routes/stops" brings
-    // both back.
-    const agencyIds = visibleAgencyIds(c.agencyIds)
-    if (agencyIds.length === 0) {
       continue
     }
     out.push({
@@ -417,20 +428,27 @@ const styleData = computed((): Matcher[] => buildStyleData({
   agencies: agencyData.value,
   agencyColorScale: agencyColorScale.value,
   markedAgencyIds: markedAgencyIds.value,
-  hideUnmarked: hideUnmarked.value && !clusterFocused.value,
+  hideUnmarked: hideUnmarked.value,
 }))
 
 // Exports carry only marked features, so they color by the agencies that
 // survived, whatever the display toggle says. Sharing the map's rules would let
-// a pure-display setting change the colors baked into a download.
-const exportStyleData = computed((): Matcher[] => buildStyleData({
-  scenarioFilterResult: props.scenarioFilterResult,
-  dataDisplayMode: dataDisplayMode.value,
-  agencies: agencyData.value,
-  agencyColorScale: agencyColorScale.value,
-  markedAgencyIds: markedAgencyIds.value,
-  hideUnmarked: true,
-}))
+// a pure-display setting change the colors baked into a download. Only Agency
+// mode reads the marks, and only when the map is not already filtering, so
+// every other case reuses the rules above rather than rebuilding the indexes.
+const exportStyleData = computed((): Matcher[] => {
+  if (dataDisplayMode.value !== 'Agency' || hideUnmarked.value) {
+    return styleData.value
+  }
+  return buildStyleData({
+    scenarioFilterResult: props.scenarioFilterResult,
+    dataDisplayMode: dataDisplayMode.value,
+    agencies: agencyData.value,
+    agencyColorScale: agencyColorScale.value,
+    markedAgencyIds: markedAgencyIds.value,
+    hideUnmarked: true,
+  })
+})
 
 // Selectable geography features for click-to-select in adminBoundary mode.
 // Three visual states:
