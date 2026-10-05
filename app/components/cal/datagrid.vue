@@ -38,6 +38,12 @@
       </cat-field>
     </div>
 
+    <!-- Announces sort changes. JAWS reads the aria-sort flip on the header,
+         but NVDA and TalkBack stay silent without a live region (same approach
+         as cat-table). Rendered from mount, and empty until the user sorts,
+         since live regions inserted at announcement time are unreliable. -->
+    <span class="is-sr-only" role="status">{{ sortStatus }}</span>
+
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <caption v-if="props.caption" class="is-sr-only">
@@ -230,9 +236,7 @@ function cycleSort (column: TableColumn) {
   if (sortKey.value !== column.key) {
     sortKey.value = column.key
     sortDir.value = 'asc'
-    return
-  }
-  if (sortDir.value === 'asc') {
+  } else if (sortDir.value === 'asc') {
     sortDir.value = 'desc'
   } else if (sortDir.value === 'desc') {
     sortKey.value = null
@@ -240,6 +244,18 @@ function cycleSort (column: TableColumn) {
   } else {
     sortDir.value = 'asc'
   }
+  announceSort(sortDir.value
+    ? `Sorted by ${column.label}, ${sortDir.value === 'asc' ? 'ascending' : 'descending'}`
+    : `Sort by ${column.label} removed`)
+}
+
+const sortStatus = ref('')
+function announceSort (message: string) {
+  // Clear first so repeating the same message still triggers an announcement.
+  sortStatus.value = ''
+  nextTick(() => {
+    sortStatus.value = message
+  })
 }
 
 const filteredData = computed(() => {
