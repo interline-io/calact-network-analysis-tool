@@ -6,6 +6,7 @@ import {
   getFlexAgencyName,
   getFlexAgencyNames,
   flexAreaMatchesFilters,
+  markFlexAreas,
   isBookingAvailableOnDay,
   isBookingAvailableToday,
   formatBookingDays,
@@ -405,5 +406,27 @@ describe('flexAreaMatchesFilters', () => {
 
   it('matches when the area declares no time window even if the user set one', () => {
     expect(flexAreaMatchesFilters(puOnDemand, { startSeconds: 500, endSeconds: 600 })).toBe(true)
+  })
+})
+
+describe('markFlexAreas', () => {
+  it('marks an area kept by the scenario filter that matches the display filters', () => {
+    const area = createFlexFeature({ marked: true })
+    expect(markFlexAreas([area], {})).toEqual([{ feature: area, marked: true }])
+  })
+
+  it('leaves an area unmarked when the scenario filter excluded it (e.g. by agency)', () => {
+    const area = createFlexFeature({ marked: false })
+    expect(markFlexAreas([area], {})[0]!.marked).toBe(false)
+  })
+
+  it('leaves an area unmarked when it fails the display filters', () => {
+    const area = createFlexFeature({ marked: true, time_window_start: 100, time_window_end: 200 })
+    expect(markFlexAreas([area], { startSeconds: 500, endSeconds: 600 })[0]!.marked).toBe(false)
+  })
+
+  it('treats an area with no scenario-filter verdict as kept', () => {
+    const area = createFlexFeature()
+    expect(markFlexAreas([area], {})[0]!.marked).toBe(true)
   })
 })
