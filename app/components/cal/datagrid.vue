@@ -46,7 +46,7 @@
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
-        <caption v-if="props.caption" class="is-sr-only">
+        <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
         <thead>
@@ -183,13 +183,13 @@ const props = defineProps<{
   freezeFirstColumn?: boolean
   // Accessible table caption. Rendered as a visually-hidden <caption> so screen
   // readers announce the table's purpose; sighted users still see surrounding
-  // heading/tab UI for context.
-  caption?: string
+  // heading/tab UI for context. Required so every grid is named (WCAG 1.3.1);
+  // match it to the visible heading or tab that names the table.
+  caption: string
   // Short name for what this grid holds ("Routes", "Stops"), used to
-  // distinguish this filter from others on the page. Deliberately not derived
-  // from `caption`: a caption describes the whole table and may carry a date
-  // range, which makes for a long name that is re-read on every focus and
-  // changes whenever the range does.
+  // distinguish this filter from others on the page. Defaults to `caption`;
+  // pass it when the caption is long or changes with the data (e.g. carries a
+  // date range), since the filter's name is re-read on every focus.
   filterLabel?: string
 }>()
 
@@ -207,7 +207,7 @@ const tableId = useId()
 // match (WCAG 2.5.3 Label in Name).
 const FILTER_PLACEHOLDER = 'Filter rows'
 const filterLabel = computed(() =>
-  props.filterLabel ? `${FILTER_PLACEHOLDER} in ${props.filterLabel}` : FILTER_PLACEHOLDER)
+  `${FILTER_PLACEHOLDER} in ${props.filterLabel || props.caption}`)
 
 // aria-sort for the <th> of the column that is currently sorted, so screen
 // readers announce the direction (WCAG 4.1.2). Set only on the active column,

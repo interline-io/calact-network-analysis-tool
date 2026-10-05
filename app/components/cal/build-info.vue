@@ -4,6 +4,9 @@
       About this build
     </h2>
     <table class="table is-narrow">
+      <caption class="is-sr-only">
+        Build details
+      </caption>
       <tbody>
         <tr>
           <th>Environment</th>

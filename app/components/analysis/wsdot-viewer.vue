@@ -83,6 +83,9 @@
             </cat-tooltip>
           </template>
           <table class="wsdot-level-details">
+            <caption class="is-sr-only">
+              Stops and population served at each frequency level
+            </caption>
             <tbody v-for="[levelKey, levelDetail] of Object.entries(levelDetails)" :key="levelKey">
               <tr>
                 <td :class="getFrequencyLevelClass(levelKey)" colspan="5">
@@ -145,6 +148,8 @@
 
     <cal-datagrid
       :table-report="stopDatagrid"
+      caption="Stops by frequency level"
+      filter-label="Stops"
     >
       <template #additional-downloads>
         <cat-field>

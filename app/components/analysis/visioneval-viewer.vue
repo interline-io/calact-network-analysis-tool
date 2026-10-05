@@ -48,6 +48,8 @@
             </h4>
             <cal-datagrid
               :table-report="mareaDatagrid"
+              caption="Vehicle Revenue Miles by Urbanized Area and VisionEval Mode"
+              filter-label="Transit Service by UZA"
               filename="marea_transit_service"
             >
               <template #column-DRRevMi="{ value }">
@@ -90,6 +92,8 @@
 
             <cal-datagrid
               :table-report="costDatagrid"
+              caption="Statewide Cost per Revenue Mile by Mode"
+              filter-label="Cost per Mile"
               filename="cost_per_revenue_mile"
             >
               <template #column-Mode="{ value }">
@@ -114,6 +118,7 @@
 
             <cal-datagrid
               :table-report="rawDatagrid"
+              caption="Raw NTD Records"
               filename="ntd_raw_records"
             >
               <template #column-vehicleRevenueMiles="{ value }">
