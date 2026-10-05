@@ -311,6 +311,9 @@ watch(() => tableReport.value?.columns, () => {
   searchQuery.value = ''
   sortKey.value = null
   sortDir.value = null
+  // Silently drop the last sort message so it isn't left describing a
+  // column the new table may not have.
+  sortStatus.value = ''
 })
 
 // Reset pagination when data changes (e.g. tab switch, filter update)
@@ -374,12 +377,13 @@ const rangeEnd = computed(() => {
 // polite live region (its #status slot) so filtering has audible feedback.
 //
 // Empty unless a filter is actually applied, for two reasons. The live region
-// must start empty: this component remounts on every tab switch, and a region
-// inserted with content already in it gets read out immediately. And a status
-// message reports the outcome of a user action (WCAG 4.1.3) — row counts that
-// move because the scenario re-ran or the user changed report sub-tabs are not
-// the outcome of a search, and announcing them from inside the search landmark
-// misattributes them to the filter.
+// must start empty: a region inserted with content already in it gets read out
+// immediately, and the filter is reset (not the component remounted) whenever
+// the report sub-tab changes the columns, so clearing to '' keeps that silent.
+// And a status message reports the outcome of a user action (WCAG 4.1.3) — row
+// counts that move because the scenario re-ran or the user changed report
+// sub-tabs are not the outcome of a search, and announcing them from inside the
+// search landmark misattributes them to the filter.
 const filterStatus = computed(() => {
   // Trimmed to match filteredData, so a whitespace-only query (which filters
   // nothing) stays silent rather than claiming "Showing N of N".
