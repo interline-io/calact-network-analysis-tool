@@ -2,7 +2,8 @@
   <div class="mb-6">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
-           labelled (via filterLabel) to distinguish it from other filters.
+           labelled (via filterLabel, from the caption) to distinguish it from
+           other filters.
            Landmarks of the same role must be uniquely labelled when more than
            one is exposed at once. Views with several datagrids only ever show
            one — cat-tabs uses v-show (display:none drops it from the
@@ -183,14 +184,13 @@ const props = defineProps<{
   freezeFirstColumn?: boolean
   // Accessible table caption. Rendered as a visually-hidden <caption> so screen
   // readers announce the table's purpose; sighted users still see surrounding
-  // heading/tab UI for context. Required so every grid is named (WCAG 1.3.1);
-  // match it to the visible heading or tab that names the table.
+  // heading/tab UI for context. Required so every grid is named (WCAG 1.3.1).
+  // Also names the filter ("Filter rows in <caption>"), so it is re-read on
+  // every focus: keep it to a few words naming what the grid holds ("Routes",
+  // "Census geographies"), consistent with the visible heading or tab, and
+  // leave out context the surrounding heading already gives (dates, the
+  // selected route or area).
   caption: string
-  // Short name for what this grid holds ("Routes", "Stops"), used to
-  // distinguish this filter from others on the page. Defaults to `caption`;
-  // pass it when the caption is long or changes with the data (e.g. carries a
-  // date range), since the filter's name is re-read on every focus.
-  filterLabel?: string
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
@@ -206,8 +206,7 @@ const tableId = useId()
 // verbatim — otherwise a speech-input user who says what they see gets no
 // match (WCAG 2.5.3 Label in Name).
 const FILTER_PLACEHOLDER = 'Filter rows'
-const filterLabel = computed(() =>
-  `${FILTER_PLACEHOLDER} in ${props.filterLabel || props.caption}`)
+const filterLabel = computed(() => `${FILTER_PLACEHOLDER} in ${props.caption}`)
 
 // aria-sort for the <th> of the column that is currently sorted, so screen
 // readers announce the direction (WCAG 4.1.2). Set only on the active column,

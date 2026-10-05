@@ -70,8 +70,7 @@
 
     <cal-datagrid
       :table-report="activeTableReport"
-      :caption="`${activeReportTabLabel} — ${reportHeading}`"
-      :filter-label="activeReportTabLabel"
+      :caption="activeReportTabLabel"
     >
       <!-- Custom rendering for URLs column (flex areas) -->
       <template #column-urls="{ row }">

@@ -83,8 +83,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="geographiesTableReport"
-        :caption="`Census geographies for ${captionSubject}`"
-        filter-label="Geographies"
+        caption="Census geographies"
         :filename="csvFilename('geographies')"
         freeze-first-column
       >
@@ -116,8 +115,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="rawTableReport"
-        :caption="`Raw ACS values for ${captionSubject}`"
-        filter-label="Raw ACS values"
+        caption="Raw ACS values"
         :filename="csvFilename('raw')"
         freeze-first-column
       >
@@ -214,8 +212,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="apportionmentTableReport"
-        :caption="`Apportioned census values for ${captionSubject}`"
-        filter-label="Apportionment"
+        caption="Apportioned values"
         :filename="csvFilename('apportionment')"
       />
     </div>
@@ -277,7 +274,7 @@
         </h4>
         <table class="table is-striped is-narrow">
           <caption class="is-sr-only">
-            Raw ACS input values for {{ inspectorSingle.column.label }} in {{ inspectorSingle.geoid }}
+            Raw ACS inputs
           </caption>
           <thead>
             <tr>
@@ -320,7 +317,6 @@
           <cal-datagrid
             v-model:table-report="inspectorApportioned.tableReport"
             :caption="`Per-geography contribution to ${inspectorApportioned.column.label}`"
-            filter-label="Per-geography contribution"
             :filename="csvFilename(`inspect-${inspectorColumnId}`)"
             freeze-first-column
           />
@@ -416,11 +412,6 @@ const filenamePrefix = computed(() => props.filenamePrefix || 'census')
 function csvFilename (suffix: string): string {
   return `${filenamePrefix.value}-${suffix}.csv`
 }
-
-// What these tables describe, for their screen-reader captions; mirrors the
-// header above the tabs.
-const captionSubject = computed(() =>
-  props.headerProps ? `${props.headerProps.kindLabel} ${props.headerProps.name}` : 'the current scenario')
 
 function nameFor (geoid: string): string {
   return props.entries.find(e => e.geoid === geoid)?.name || ''

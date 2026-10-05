@@ -36,7 +36,7 @@
 
       <table class="cal-census-panel-table">
         <caption class="is-sr-only">
-          Census statistics for {{ row.name || 'aggregation area' }}
+          Census statistics
         </caption>
         <thead>
           <tr>

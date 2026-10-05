@@ -147,7 +147,7 @@
         </h3>
         <table class="table is-fullwidth is-narrow cal-route-timetable-table cal-route-timetable-trips-table">
           <caption class="is-sr-only">
-            Trips in direction {{ section.directionId }}, by service date
+            Direction {{ section.directionId }} trips
           </caption>
           <thead>
             <tr>
@@ -419,7 +419,7 @@
 
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
           <caption class="is-sr-only">
-            Representative stop departures and gaps, by service date
+            Departures and gaps
           </caption>
           <thead>
             <tr>
@@ -540,7 +540,7 @@
 
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
           <caption class="is-sr-only">
-            Stops served and departures per direction, by service date
+            Stops served
           </caption>
           <thead>
             <tr>
