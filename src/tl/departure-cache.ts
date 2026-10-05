@@ -41,6 +41,12 @@ export class StopDepartureCache {
     return a.get(date) || []
   }
 
+  // False until departures have been loaded. Lets filters tell "no service"
+  // apart from "no departure data fetched".
+  hasDepartures (): boolean {
+    return this.cache.size > 0
+  }
+
   // Add stop times from a GraphQL response, converting to compact form.
   add (id: number, date: string, value: StopTime[]) {
     if (value.length === 0) {
@@ -111,6 +117,11 @@ export class RouteDepartureIndex {
     b.push(stopTime)
     a.set(stopId, b)
     cache.set(key, a)
+  }
+
+  // False when built from an empty StopDepartureCache.
+  hasDepartures (): boolean {
+    return this.cache0.size > 0 || this.cache1.size > 0
   }
 
   // All departures for a route on a calendar date, grouped by stop.
