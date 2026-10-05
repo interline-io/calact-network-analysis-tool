@@ -14,6 +14,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'Starting flex phase', (client, emit, onError) =>
+  return streamPhaseResponse(event, 'flex-areas', 'Starting flex phase', (client, emit, onError) =>
     runFlexPhase(config, client, emit, { onError }))
 })

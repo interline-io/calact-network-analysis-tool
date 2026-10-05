@@ -6,12 +6,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  release-notes:
+    name: Fill in release notes
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Releases are cut by hand in the GitHub UI, where it is easy to skip the
+      # "Generate release notes" button. Fill in the notes for any release that
+      # was published with an empty body; a hand-written body is left alone.
+      - name: Generate notes for an empty release body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          TAG: ${{ github.event.release.tag_name }}
+          TARGET: ${{ github.event.release.target_commitish }}
+        run: |
+          set -euo pipefail
+          body=$(gh api "repos/${REPO}/releases/${RELEASE_ID}" --jq '.body // ""')
+          if [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+            echo "Release ${TAG} already has notes; leaving them alone."
+            exit 0
+          fi
+          notes=$(gh api --method POST "repos/${REPO}/releases/generate-notes" \
+            -f tag_name="${TAG}" -f target_commitish="${TARGET}" --jq '.body')
+          gh api --method PATCH "repos/${REPO}/releases/${RELEASE_ID}" -f body="${notes}" --silent
+          echo "Filled in generated notes for ${TAG}."
+
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
+    # Records a GitHub Deployment against this commit, so the repo's
+    # Environments view answers "what is live in production right now".
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }}
 
     steps:
       - name: Checkout code
@@ -41,8 +76,14 @@ jobs:
           # Required: tlv2-auth's build-time guard bakes a "disabled.invalid" placeholder into
           # runtimeConfig.auth0 unless NUXT_AUTH0_CLIENT_ID is set during the build.
           NUXT_AUTH0_CLIENT_ID: ${{ secrets.NUXT_AUTH0_CLIENT_ID }}
+          # Baked into the bundle and shown in the app's sidebar build chip.
+          NAT_BUILD_ENVIRONMENT: production
+          NAT_BUILD_VERSION: ${{ github.event.release.tag_name }}
+          NAT_BUILD_SHA: ${{ github.sha }}
+          NAT_BUILD_BRANCH: ${{ github.event.release.target_commitish || github.ref_name }}
 
       - name: Deploy to Cloudflare Pages
+        id: deploy
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

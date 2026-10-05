@@ -3,6 +3,8 @@ import {
   CENSUS_COLUMNS,
   CHOROPLETH_ELEMENT_OPTIONS,
   buildChoroplethClassification,
+  censusApportionGeometry,
+  censusApportionRatio,
   densityPerArea,
   deriveApportionedColumn,
   getChoroplethColor,
@@ -25,7 +27,7 @@ interface UseChoroplethClassificationInput {
 
 // Wires the pure choropleth math from `src/core/choropleth.ts` to Vue refs.
 export function useChoroplethClassification (input: UseChoroplethClassificationInput) {
-  const { showAggAreas, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
+  const { showAggAreas, aggClipMode, choroplethElement, shadeByDensity, unitSystem } = useScenarioDisplay()
 
   const isDensityEligible = computed(() => isElementDensityEligible(choroplethElement.value))
 
@@ -36,10 +38,11 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     const isDensity = shadeByDensity.value && isDensityEligible.value
     const geos = input.censusGeographies.value
     const unit = unitSystem.value
+    const mode = aggClipMode.value
     const out = new Map<string, number | null>()
     for (const a of aggData) {
       const row = a as Record<string, any>
-      out.set(row.geoid as string, pickChoroplethValue(row, element, isDensity, geos, unit))
+      out.set(row.geoid as string, pickChoroplethValue(row, element, isDensity, geos, unit, mode))
     }
     return out
   })
@@ -72,6 +75,7 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
   // looks up the full row by geoid on click instead of bloating each feature.
   const choroplethFeatures = computed((): Feature[] => {
     if (!showAggAreas.value) { return [] }
+    const mode = aggClipMode.value
 
     const aggData = input.choroplethAggregateData.value
     if (aggData.length === 0) { return [] }
@@ -88,7 +92,15 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
     for (const agg of aggData) {
       const aggRow = agg as Record<string, any>
       const geo = geoLookup.get(aggRow.geoid as string)
-      if (!geo || !geo.geometry) { continue }
+      const censusGeo = censusGeos?.get(aggRow.geoid as string)
+
+      // The clipped outline when the scenario fetched one, so the polygon
+      // covers the footprint its value was computed over. Falls back to the
+      // full geography — which is all `unclipped` ever wants, and what a
+      // geography outside every stop buffer is drawn as.
+      const geometry = (censusGeo && censusApportionGeometry(censusGeo, mode)) || geo?.geometry
+      const featureId = censusGeo?.id ?? geo?.id
+      if (!geometry || featureId == null) { continue }
 
       const isSelected = aggRow.geoid === selectedGeoid
       const pickedValue = picked.get(aggRow.geoid as string) ?? null
@@ -99,9 +111,12 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
       // null for non-census shading elements.
       let scaledValue: number | null = null
       let densityValue: number | null = null
-      const censusGeo = elementCol ? censusGeos?.get(aggRow.geoid as string) : undefined
       if (elementCol && censusGeo) {
-        scaledValue = deriveApportionedColumn(censusGeo.values, censusGeo.intersectionRatio, element)
+        scaledValue = deriveApportionedColumn(
+          censusGeo.values,
+          censusApportionRatio(censusGeo, mode),
+          element,
+        )
         if (elementIsDensityEligible) {
           densityValue = densityPerArea(fullValue, censusGeo.geometryArea, unitSystem.value)
         }
@@ -109,8 +124,8 @@ export function useChoroplethClassification (input: UseChoroplethClassificationI
 
       features.push({
         type: 'Feature',
-        id: geo.id.toString(),
-        geometry: geo.geometry,
+        id: featureId.toString(),
+        geometry,
         properties: {
           'geoid': aggRow.geoid,
           'name': aggRow.name,

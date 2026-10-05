@@ -1,5 +1,5 @@
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
-import { CENSUS_COLUMNS, sqMetersPerLargeUnit, toFiniteNumber, type CensusFormat, type UnitSystem, type CensusGeographyData } from './census-columns'
+import { CENSUS_COLUMNS, censusApportionRatio, deriveApportionedColumn, sqMetersPerLargeUnit, toFiniteNumber, type AggClipMode, type CensusFormat, type UnitSystem, type CensusGeographyData } from './census-columns'
 
 // Pure choropleth math. Convention: `null` means insufficient data (excluded
 // from breaks, painted with CHOROPLETH_INSUFFICIENT_COLOR); `0` is a real
@@ -56,17 +56,28 @@ export interface ChoroplethClassification {
   isDensity: boolean
 }
 
+// The number a geography is shaded by: the aggregation row's value for
+// `element`, apportioned to the clip `mode` selects.
 export function pickChoroplethValue (
   agg: Record<string, unknown>,
   element: string,
   isDensity: boolean,
   geographies: Map<string, CensusGeographyData> | undefined,
   unitSystem: UnitSystem,
+  mode: AggClipMode,
 ): number | null {
   const n = toFiniteNumber(agg[element])
   if (n === null) { return null }
-  if (!isDensity) { return n }
-  return densityPerArea(n, geographies?.get(agg.geoid as string)?.geometryArea, unitSystem)
+  const geo = geographies?.get(agg.geoid as string)
+  // Density is clip-invariant — a clip scales the value and the area it covers
+  // by the same ratio — so it always reports over the full geography.
+  if (isDensity) { return densityPerArea(n, geo?.geometryArea, unitSystem) }
+  if (!geo) { return n }
+  const ratio = censusApportionRatio(geo, mode)
+  // Stop-aggregation elements count what the query actually returned, so
+  // there's nothing to apportion.
+  if (ratio === 1 || !CENSUS_COLUMNS.some(c => c.id === element)) { return n }
+  return deriveApportionedColumn(geo.values, ratio, element)
 }
 
 // Counts per km² (eu) or per mi² (us). Returns null when value/area missing.

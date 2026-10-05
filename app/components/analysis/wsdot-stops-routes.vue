@@ -33,12 +33,6 @@
     <cat-msg v-if="error" variant="danger" class="mt-4" style="width:400px" :title="error.message">
       An error occurred while running the WSDOT analysis.
     </cat-msg>
-    <div v-else-if="loading" class="has-text-centered">
-      <cat-loading :active="true" :full-page="false" />
-      <p class="mt-4">
-        Running WSDOT Transit Stops and Routes Analysis...
-      </p>
-    </div>
     <div v-else-if="wsdotReport && wsdotStopsRoutesReport">
       <analysis-wsdot-stops-routes-viewer
         v-model:report="wsdotStopsRoutesReport"
@@ -106,12 +100,15 @@
     <cat-modal
       v-model="showLoadingModal"
       title="Loading"
-      :closable="false"
+      :closable="!!error || requestErrors.length > 0"
     >
       <cal-scenario-loading
         :progress="loadingProgress"
         :error="error"
+        :request-errors="requestErrors"
         :stop-departure-count="stopDepartureCount"
+        :phase-plan="scenarioPhasePlan"
+        :phase-fractions="scenarioPhaseFractions"
         :scenario-data="scenarioData"
       />
     </cat-modal>
@@ -119,45 +116,44 @@
 </template>
 
 <script lang="ts" setup>
-import type {
-  WSDOTReport,
-  WSDOTReportConfig
-} from '~~/src/analysis/wsdot'
-import {
-  WSDOTReportDataReceiver
-} from '~~/src/analysis/wsdot'
 import {
   processWsdotStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
 import type {
   WSDOTStopsRoutesReport,
 } from '~~/src/analysis/wsdot-stops-routes'
-import {
-  ScenarioStreamReceiver,
-} from '~~/src/scenario'
 import type {
   ScenarioData,
   ScenarioConfig,
-  ScenarioProgress,
 } from '~~/src/scenario'
 
-const error = ref<Error>()
-const loading = ref(false)
-const showLoadingModal = ref(false)
-const loadingProgress = ref<ScenarioProgress>()
-const stopDepartureCount = ref<number>(0)
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = defineModel<ScenarioData>('scenarioData')
-const wsdotReport = ref<WSDOTReport>()
-const wsdotStopsRoutesReport = ref<WSDOTStopsRoutesReport>()
-const wsdotReportConfig = ref<WSDOTReportConfig>({
-  // WSDOT-specific required properties (not in ScenarioConfig)
-  ...SCENARIO_DEFAULTS,
-  ...scenarioConfig.value,
-  reportName: 'wsdot-report',
-  weekdayDate: scenarioConfig.value!.startDate!,
-  weekendDate: scenarioConfig.value!.endDate!,
+// shallowRef: replaced wholesale on completion, never mutated, and large
+// enough statewide that deep proxying every row would be real overhead.
+const wsdotStopsRoutesReport = shallowRef<WSDOTStopsRoutesReport>()
+
+// Report scaffolding shared with the frequency report: config, stream state,
+// receiver, and the run lifecycle around the loading modal. This report is
+// derived on top of the base WSDOT report once it completes.
+const {
+  loadingProgress,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  stopDepartureCount,
+  showLoadingModal,
+  wsdotReport,
+  wsdotReportConfig,
+  runQuery,
+} = useWsdotReport({
+  scenarioConfig,
+  scenarioData,
+  successToast: 'WSDOT stops and routes analysis completed successfully!',
+  onComplete: (data, report) => {
+    wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(data, report)
+  },
 })
 
 const emit = defineEmits<{
@@ -180,89 +176,4 @@ const handleCancel = () => {
 defineExpose({
   hasResults
 })
-
-// Runs on explore event from query (when user clicks "Run Query")
-const runQuery = async () => {
-  showLoadingModal.value = true
-  try {
-    await fetchScenario('')
-  } catch (err: any) {
-    error.value = err
-  }
-  if (!error.value) {
-    useToastNotification().showToast('WSDOT stops and routes analysis completed successfully!')
-    showLoadingModal.value = false
-  }
-  loadingProgress.value = undefined
-}
-
-// Based on components/analysis/wsdot.vue fetchScenario
-const fetchScenario = async (loadExample: string) => {
-  const config = scenarioConfig.value!
-  if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-    // Need either bbox or geography IDs, unless loading example
-    useToastNotification().showToast('Please provide a bounding box or geography IDs.')
-    return
-  }
-  loadingProgress.value = undefined
-  stopDepartureCount.value = 0
-
-  // Create receiver to accumulate scenario data and WSDOT report
-  const receiver = new WSDOTReportDataReceiver({
-    onProgress: (progress: ScenarioProgress) => {
-      loadingProgress.value = progress
-      stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
-      if ((progress.partialData?.routes?.length ?? 0) === 0 && (progress.partialData?.stops?.length ?? 0) === 0) {
-        return
-      }
-      // Update both scenario data and WSDOT report from the receiver
-      scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
-      if (scenarioData.value && wsdotReport.value) {
-        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
-      }
-    },
-    onComplete: () => {
-      loadingProgress.value = undefined
-      // Get final data from receiver
-      scenarioData.value = receiver.getCurrentData()
-      wsdotReport.value = receiver.getCurrentWSDOTReport()
-      if (scenarioData.value && wsdotReport.value) {
-        wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(scenarioData.value, wsdotReport.value)
-      }
-    },
-    onError: (err: any) => {
-      loadingProgress.value = undefined
-      error.value = err
-    }
-  })
-
-  let response: Response
-  if (loadExample) {
-    // Load example data from public JSON file
-    response = await fetch(`/examples/${loadExample}.json`)
-  } else {
-    // Make request to streaming scenario endpoint
-    response = await fetch('/api/wsdot', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config: wsdotReportConfig.value }),
-    })
-  }
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-
-  if (!response.body) {
-    throw new Error('No response body received')
-  }
-
-  // Process the streaming response
-  const streamer = new ScenarioStreamReceiver()
-  const { success } = await streamer.processStream(response.body, receiver)
-  if (!success) {
-    error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
-  }
-}
 </script>

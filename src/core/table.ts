@@ -10,6 +10,10 @@ export interface TableColumn {
   tooltip?: string
   // When set, the default cell renderer routes the value through formatCensusValue.
   format?: CensusFormat
+  // Sort this column numerically. Implied by `format`; set explicitly for
+  // numeric columns rendered through a slot rather than formatCensusValue,
+  // where string collation would order negative values incorrectly.
+  numeric?: boolean
 }
 
 export interface TableReport {

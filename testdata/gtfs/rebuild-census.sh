@@ -1,7 +1,9 @@
 #!/bin/bash
 # (Re)loads, scopes, and dumps the census/NTD tables (calact_tlserver-census.dump) via the
 # tlv2 refdata loader — self-contained, independent of rebuild.sh (the base GTFS dump).
-# Scoped to WA/OR/CA for the test fixture; FULL_NATIONAL=true loads every state.
+# Scoped to WA/OR for the test fixture; FULL_NATIONAL=true loads every state.
+# California is deliberately excluded: it was ~76% of the fixture (9129 of 11914
+# tracts, 25607 of 33888 block groups) and no test exercises it.
 #
 # Needs `tlv2` on PATH and TL_DATABASE_URL (externally-created DB; schema applied below).
 # Loading is incremental (per-source SHA1 skip); truncate first for a clean reload:
@@ -46,12 +48,12 @@ tlv2 refdata-load \
   --input-dir "census-data/ntd-annual-${NTD_YEAR}" \
   --fetch
 
-# -------- 4. Scope to WA (53), OR (41), CA (06) --------
+# -------- 4. Scope to WA (53), OR (41) --------
 # Census geoids carry the state FIPS as US<ff>; NTD (ntd:%) is national and kept whole.
 # CBSA/CSA geoids have no state FIPS and are dropped. Skipped when FULL_NATIONAL=true.
 if [ "${FULL_NATIONAL:-false}" != "true" ]; then
-  psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_values      WHERE geoid NOT LIKE 'ntd:%' AND geoid !~ '.*US(06|41|53).*';"
-  psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_geographies WHERE geoid !~ '.*US(06|41|53).*';"
+  psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_values      WHERE geoid NOT LIKE 'ntd:%' AND geoid !~ '.*US(41|53).*';"
+  psql "$TL_DATABASE_URL" -c "DELETE FROM tl_census_geographies WHERE geoid !~ '.*US(41|53).*';"
 fi
 
 # -------- 5. Dump --------

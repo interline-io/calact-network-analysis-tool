@@ -1,3 +1,5 @@
+import type { Geometry } from './geom'
+
 // ACS demographic columns surfaced in aggregation tables and the map view (#302).
 // Column ID format: lowercase `<table>_<col>` (e.g. `b01001_001`). Derivations
 // return null when inputs are missing or denominators are zero so the UI can
@@ -68,8 +70,22 @@ export interface CensusGeographyData {
   intersectionRatio: number
   /** Full geography area in m². */
   geometryArea: number
-  /** Intersection (geography ∩ query area) in m². */
+  /** Geography ∩ query area in m². */
   intersectionArea: number
+  /**
+   * Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
+   * radius is set, or when the backend can't compose the two clips.
+   */
+  bufferIntersectionArea?: number
+  /** Fraction of the geography inside both clips, in [0, 1]. */
+  bufferIntersectionRatio?: number
+  /**
+   * Clipped outlines matching the two areas above, present only when the
+   * phase was asked for them — they cost roughly as much as the full
+   * geometry. The choropleth draws the full geography without them.
+   */
+  intersectionGeometry?: Geometry
+  bufferIntersectionGeometry?: Geometry
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,
@@ -77,6 +93,57 @@ export interface CensusGeographyData {
    * without parsing GEOID length.
    */
   layer?: string
+}
+
+/** Which clip the aggregation overlay shades and reports by. */
+export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer'
+
+export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
+  { value: 'unclipped', label: 'None (full geographies)' },
+  { value: 'queryArea', label: 'Query area' },
+  // The backend composes both clips, so this is the query area narrowed to
+  // the stop buffers — never the buffers on their own.
+  { value: 'buffer', label: 'Query area + stop buffers' },
+]
+
+// Fraction of a geography attributed to the analysis area under the selected
+// clip. `buffer` falls back to the query-area clip when the scenario carries
+// no buffer intersection.
+export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
+  if (mode === 'unclipped') {
+    return 1
+  }
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
+    return geo.bufferIntersectionRatio
+  }
+  return geo.intersectionRatio
+}
+
+// The clipped area in m² matching `censusApportionRatio`.
+export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode): number {
+  if (mode === 'unclipped') {
+    return geo.geometryArea
+  }
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
+    return geo.bufferIntersectionArea ?? 0
+  }
+  return geo.intersectionArea
+}
+
+// The clipped outline matching `censusApportionArea`, or undefined when the
+// scenario didn't fetch one — callers fall back to the full geography.
+export function censusApportionGeometry (
+  geo: CensusGeographyData,
+  mode: AggClipMode,
+): Geometry | undefined {
+  if (mode === 'unclipped') {
+    return undefined
+  }
+  // Same guard as the ratio and area, so all three fall back together.
+  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
+    return geo.bufferIntersectionGeometry
+  }
+  return geo.intersectionGeometry
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -427,9 +494,10 @@ export function deriveApportionedColumn (
 // Sum apportioned raw ACS values across geographies, then run derivations.
 // Non-additive columns (medians) come out as nonsense — callers must render
 // `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
-export function summarizeBbox (
+export function summarizeApportioned (
   geoids: Iterable<string>,
-  geographies: Map<string, { values: CensusValues, intersectionRatio: number }> | undefined,
+  geographies: Map<string, CensusGeographyData> | undefined,
+  mode: AggClipMode,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {
@@ -440,7 +508,7 @@ export function summarizeBbox (
     if (!geo) {
       continue
     }
-    const ratio = geo.intersectionRatio
+    const ratio = censusApportionRatio(geo, mode)
     for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue

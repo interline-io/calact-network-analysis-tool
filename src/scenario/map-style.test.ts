@@ -50,7 +50,7 @@ describe('buildStyleData', () => {
   })
 
   describe('Agency mode', () => {
-    it('builds a rule per agency and matches a route by agency_id', () => {
+    it('builds a rule per agency and matches by numeric agency id', () => {
       const agencies = [
         { id: 'AC', numericId: 1, name: 'AC Transit' },
         { id: 'BART', numericId: 2, name: 'BART' },
@@ -62,11 +62,14 @@ describe('buildStyleData', () => {
         agencyColorScale: key => `color-${key}`,
       })
       expect(rules.find(r => r.label === 'AC Transit')!.color).toBe('color-1')
-      const acRoute = route({ agency: { agency_id: 'AC' } })
+      const acRoute = route({ agency: { id: 1 } })
       expect(rules.find(r => r.match(acRoute))!.label).toBe('AC Transit')
+      // A stop answers from its route_stops rows, with no routes phase needed.
+      const acStop = stop({ route_stops: [{ route_id: 10, agency_id: 2 }] })
+      expect(rules.find(r => r.match(acStop))!.label).toBe('BART')
       // Below the categorical-palette size there is no "Other" catchall, so an
       // unknown agency matches nothing.
-      const otherRoute = route({ agency: { agency_id: 'UNKNOWN' } })
+      const otherRoute = route({ agency: { id: 99 } })
       expect(rules.find(r => r.match(otherRoute))).toBeUndefined()
     })
   })

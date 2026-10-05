@@ -39,6 +39,7 @@
       :zoom="14"
       :initial-bounds="bbox"
       :overlay-features="overlayFeatures"
+      :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
@@ -69,8 +70,8 @@
 <script setup lang="ts">
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
-import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv } from '~~/src/tl'
-import type { Bbox, Feature, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
+import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
+import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
 
@@ -94,9 +95,11 @@ const props = defineProps<{
   // Choropleth aggregation overlay
   choroplethFeatures?: Feature[]
   choroplethClassification?: ChoroplethClassification
+  // Stop buffer overlay
+  stopBufferFeatures?: Feature[]
   // Flex display features (pre-filtered and styled from useFlexAreas composable)
   flexDisplayFeatures?: Feature[]
-  // Loading stage - allow map updates during geometry stages, skip during schedules
+  // Loading stage - allow map updates during geometry stages, skip during departures
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
@@ -310,18 +313,38 @@ interface AgencyData {
   name: string
   stops: Set<string>
 }
+const routeLookup = computed(() => routesById(props.scenarioFilterResult?.routes || []))
+
+// Distinct names for a popup, skipping routes the routes phase has not delivered.
+function stopPopupNames (stop: Stop, name: (route: Route) => string | undefined): string[] {
+  const lookup = routeLookup.value
+  const names = new Set<string>()
+  for (const rs of stop.route_stops || []) {
+    const route = lookup.get(rs.route_id)
+    const n = route && name(route)
+    if (n) {
+      names.add(n)
+    }
+  }
+  return [...names]
+}
+
+const routeName = (route: Route): string | undefined => route.route_short_name || route.route_long_name
+const agencyName = (route: Route): string | undefined => route.agency.agency_name
+
 const agencyData = computed((): AgencyData[] => {
   // Collect agency data from the stop data.
   const data = new Map()
+  const lookup = routeLookup.value
   for (const stop of props.scenarioFilterResult?.stops || []) {
     const props = stop
     const route_stops = props.route_stops || []
 
     for (const rstop of route_stops) {
-      // const rid = rstop.route.route_id
-      const aid = rstop.route.agency?.agency_id
-      const anumeric = rstop.route.agency?.id
-      const aname = rstop.route.agency?.agency_name
+      const agency = lookup.get(rstop.route_id)?.agency
+      const aid = agency?.agency_id
+      const anumeric = agency?.id
+      const aname = agency?.agency_name
       if (!aid || !aname || anumeric == null) {
         continue // no valid agency listed for this stop?
       }
@@ -523,6 +546,11 @@ const displayFeatures = computed((): Feature[] => {
     if (hideUnmarked.value && !rp.marked) {
       continue
     }
+    // Absent when the scenario ran with includeRouteGeometry off, which the
+    // mapless analysis reports do. There is no shape to draw.
+    if (!rp.geometry) {
+      continue
+    }
 
     const style = styleRules.find(rule => rule.match(rp))
     const feature = {
@@ -605,7 +633,10 @@ const exportFeatures = computed((): Feature[] => {
       const feature = {
         type: 'Feature',
         id: rp.id.toString(),
-        geometry: rp.geometry,
+        // Null for a feed with no shapes.txt. The routes table and CSV list
+        // the route either way, so skipping it here would make the GeoJSON
+        // disagree with them; RFC 7946 allows a null geometry.
+        geometry: (rp.geometry ?? null) as Geometry,
         properties: {
           'id': rp.id,
           'stroke': style?.color || bgColor,
@@ -637,7 +668,7 @@ const exportFeatures = computed((): Feature[] => {
           'marker-opacity': sp.marked ? 1 : bgOpacity
         }
       }
-      Object.assign(feature.properties, stopToStopCsv(sp, stopBufferGeographies?.get(sp.id)))
+      Object.assign(feature.properties, stopToStopCsv(sp, routeLookup.value, stopBufferGeographies?.get(sp.id)))
       forExport.push(feature)
     }
   }
@@ -791,8 +822,8 @@ function mapClickFeatures (pt: any, features: Feature[]) {
         data: {
           stop_id: sp.stop_id,
           stop_name: sp.stop_name,
-          routes: sp.route_stops.map((rs: any) => rs.route.route_short_name),
-          agencies: sp.route_stops.map((rs: any) => rs.route.agency.agency_name),
+          routes: stopPopupNames(sp, routeName),
+          agencies: stopPopupNames(sp, agencyName),
         }
       }
       sortKey = [0, 0]
@@ -877,24 +908,16 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     if (!stop) {
       continue
     }
-    const agencies = new Set<string>()
-    const routes = new Set<string>()
-    for (const rs of stop.route_stops || []) {
-      const an = rs.route.agency?.agency_name
-      if (an) {
-        agencies.add(an)
-        allAgencies.add(an)
-      }
-      const rn = rs.route.route_short_name || rs.route.route_long_name
-      if (rn) {
-        routes.add(rn)
-      }
+    const agencies = stopPopupNames(stop, agencyName)
+    const routes = stopPopupNames(stop, routeName)
+    for (const an of agencies) {
+      allAgencies.add(an)
     }
     members.push({
       stop_id: stop.stop_id,
       stop_name: stop.stop_name,
-      agency_names: [...agencies],
-      route_names: [...routes],
+      agency_names: agencies,
+      route_names: routes,
     })
   }
   return {

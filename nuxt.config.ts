@@ -1,8 +1,30 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import 'dotenv/config'
+import { execFileSync } from 'node:child_process'
 import { defineNuxtConfig } from 'nuxt/config'
+import { resolveBuildInfo, type BuildInfoFallback } from './src/core/build-info'
 
 const isDev = process.env.NODE_ENV === 'development'
+
+// Git state of the working copy, for builds that run outside CI. Any failure
+// here (no git, shallow clone, no commits) just leaves the fields empty.
+function localGitInfo (): BuildInfoFallback {
+  const git = (...args: string[]): string | undefined => {
+    try {
+      return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    } catch {
+      return undefined
+    }
+  }
+  return { sha: git('rev-parse', 'HEAD'), branch: git('rev-parse', '--abbrev-ref', 'HEAD') }
+}
+
+// Resolved once, at build time, and handed to the client in public runtime
+// config. Each environment gets its own build.
+const buildInfo = resolveBuildInfo(process.env, {
+  ...localGitInfo(),
+  builtAt: new Date().toISOString(),
+})
 
 export default defineNuxtConfig({
   modules: [
@@ -41,6 +63,7 @@ export default defineNuxtConfig({
       tlv2: {
         protomapsApikey: ''
       },
+      build: buildInfo,
     },
   },
 

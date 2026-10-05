@@ -1,5 +1,10 @@
-import type { CensusValues, CensusGeographyData } from './census-columns'
-import { CENSUS_COLUMNS, NON_ADDITIVE_CENSUS_COLUMNS } from './census-columns'
+import type { AggClipMode, CensusValues, CensusGeographyData } from './census-columns'
+import {
+  CENSUS_COLUMNS,
+  NON_ADDITIVE_CENSUS_COLUMNS,
+  censusApportionArea,
+  censusApportionRatio,
+} from './census-columns'
 
 // FIPS-prefix-rollup-safe layers, coarse→fine: a finer geoid's FIPS digits start with
 // its parent's (block group nests in tract, tract in county, county in state), so
@@ -23,8 +28,11 @@ export interface CensusGeographyEntry {
   intersectionGeometry?: GeoJSON.Geometry
 }
 
+// Entries carry the intersection selected by `mode`, so the details tables
+// report the same clip the map is shaded by.
 export function censusGeographyMapToEntries (
   m: Map<string, CensusGeographyData> | undefined,
+  mode: AggClipMode,
   nameFor?: (geoid: string) => string | undefined,
 ): CensusGeographyEntry[] {
   if (!m) {
@@ -37,8 +45,8 @@ export function censusGeographyMapToEntries (
       name: nameFor?.(geoid) ?? data.name ?? undefined,
       layer: data.layer,
       geometryArea: data.geometryArea,
-      intersectionArea: data.intersectionArea,
-      intersectionRatio: data.intersectionRatio,
+      intersectionArea: censusApportionArea(data, mode),
+      intersectionRatio: censusApportionRatio(data, mode),
       values: data.values,
     })
   }

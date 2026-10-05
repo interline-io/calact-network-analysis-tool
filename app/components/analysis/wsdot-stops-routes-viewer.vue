@@ -2,10 +2,7 @@
   <div>
     <!-- Tabbed Interface -->
     <div class="mt-4">
-      <cat-tabs
-        v-model="activeTab"
-        expanded
-      >
+      <cat-tabs v-model="activeTab" expanded>
         <cat-tab-item
           :value="0"
           :label="`Agencies (${computedAgencies.length})`"
@@ -72,6 +69,12 @@
                   :url="`https://www.transit.land/feed-versions/${value}`"
                   max-width="100px"
                 />
+              </template>
+              <template #column-stopLat="{ value }">
+                {{ formatCoordinate(value) }}
+              </template>
+              <template #column-stopLon="{ value }">
+                {{ formatCoordinate(value) }}
               </template>
               <template #column-highestLevel="{ value }">
                 <span
@@ -268,42 +271,6 @@ const stopFeatures = computed((): Feature[] => {
   }))
 })
 
-// Convert stops to table data for CSV download
-const _stopTableData = computed(() => {
-  return report.value.stops.map(stop => ({
-    // GTFS stop fields (using existing camelCase convention)
-    stopId: stop.stopId,
-    stopCode: stop.stopCode,
-    platformCode: stop.platformCode,
-    stopName: stop.stopName,
-    stopDesc: stop.stopDesc,
-    stopLat: stop.stopLat,
-    stopLon: stop.stopLon,
-    zoneId: stop.zoneId,
-    stopUrl: stop.stopUrl,
-    locationType: stop.locationType,
-    parentStation: stop.parentStation,
-    wheelchairBoarding: stop.wheelchairBoarding,
-    ttsStopName: stop.ttsStopName,
-    stopTimezone: stop.stopTimezone,
-
-    // Service level columns
-    level6: stop.level6,
-    level5: stop.level5,
-    level4: stop.level4,
-    level3: stop.level3,
-    level2: stop.level2,
-    level1: stop.level1,
-    levelNights: stop.levelNights,
-
-    // Additional fields for our internal use
-    agencyId: stop.agencyId,
-    agencyName: agencyLookup.value.get(stop.agencyId) || 'Unknown',
-    feedOnestopId: stop.feedOnestopId,
-    feedVersionSha1: stop.feedVersionSha1,
-  }))
-})
-
 // Convert routes to GeoJSON features for download
 const routeFeatures = computed((): Feature[] => {
   return report.value.routes.map(route => ({
@@ -333,29 +300,13 @@ const routeFeatures = computed((): Feature[] => {
   }))
 })
 
-// Convert routes to table data for CSV download
-const _routeTableData = computed(() => {
-  return report.value.routes.map(route => ({
-    // GTFS route fields (using existing camelCase convention)
-    routeId: route.routeId,
-    routeShortName: route.routeShortName,
-    routeLongName: route.routeLongName,
-    routeDesc: route.routeDesc,
-    routeType: route.routeType,
-    routeUrl: route.routeUrl,
-    routeColor: route.routeColor,
-    routeTextColor: route.routeTextColor,
-    routeSortOrder: route.routeSortOrder,
-    continuousPickup: route.continuousPickup,
-    continuousDropOff: route.continuousDropOff,
-
-    // Additional fields for our internal use
-    agencyId: route.agencyId,
-    agencyName: agencyLookup.value.get(route.agencyId) || 'Unknown',
-    feedOnestopId: route.feedOnestopId,
-    feedVersionSha1: route.feedVersionSha1,
-  }))
-})
+// Coordinates are shown at 6 decimal places (~0.1 m) so the table stays
+// readable. The underlying row values (and therefore the CSV and GeoJSON
+// exports) keep the full precision returned by the API.
+const formatCoordinate = (value: unknown): string => {
+  const n = Number(value)
+  return Number.isFinite(n) ? n.toFixed(6) : ''
+}
 
 // Helper function to determine the highest service level for a stop (matching WSDOT viewer)
 const getHighestServiceLevel = (stop: any): string => {
@@ -387,6 +338,10 @@ const stopDatagrid = computed((): TableReport => {
     id: stop.stopId,
     stopId: stop.stopId,
     stopName: stop.stopName,
+    // Full precision here so the CSV export matches the GeoJSON export; the
+    // table cells round for display.
+    stopLat: stop.stopLat,
+    stopLon: stop.stopLon,
     stopCode: stop.stopCode,
     platformCode: stop.platformCode,
     stopDesc: stop.stopDesc,
@@ -416,6 +371,8 @@ const stopDatagrid = computed((): TableReport => {
   const columns: TableColumn[] = [
     { key: 'stopId', label: 'Stop ID', sortable: true },
     { key: 'stopName', label: 'Stop Name', sortable: true },
+    { key: 'stopLat', label: 'Stop Latitude', sortable: true, numeric: true },
+    { key: 'stopLon', label: 'Stop Longitude', sortable: true, numeric: true },
     { key: 'highestLevel', label: 'Highest Level', sortable: true },
     { key: 'level1', label: 'Level 1', sortable: true },
     { key: 'level2', label: 'Level 2', sortable: true },

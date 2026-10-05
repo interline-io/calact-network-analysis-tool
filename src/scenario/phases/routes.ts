@@ -1,10 +1,9 @@
 // Phase 3: fetch route details for the route ids discovered by the stops
 // phase. Returns the agency ids the buffer passes roll up to.
 
-import { chunkArray, TaskQueue, type GraphQLClient } from '~~/src/core'
+import { chunkArray, type GraphQLClient } from '~~/src/core'
 import { routeQuery, type RouteGql } from '~~/src/tl'
-import { PHASE_MAX_CONCURRENT_REQUESTS, phaseDone, type PhaseEmit, type PhaseOpts } from './common'
-import type { ScenarioProgress } from '../scenario'
+import { phaseQueue, type PhaseEmit, type PhaseOpts } from './common'
 
 // Emission batch size for streamed routes.
 const PROGRESS_LIMIT_ROUTES = 10
@@ -15,6 +14,9 @@ const ROUTE_FETCH_BATCH_SIZE = 100
 export interface RoutesPhaseConfig {
   routeIds: number[]
   batchSize?: number
+  // Fetch each route's shape. Defaults to true; the map needs it. Off for
+  // consumers that only classify routes, since it is 98% of the response.
+  includeGeometry?: boolean
 }
 
 export interface RoutesPhaseResult {
@@ -29,35 +31,21 @@ export async function runRoutesPhase (
 ): Promise<RoutesPhaseResult> {
   const agencyIds: Set<number> = new Set()
 
-  const queue: TaskQueue<number[]> = new TaskQueue<number[]>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    ids => fetchRouteBatch(ids),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    }
-  )
-
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      isLoading: true,
-      currentStage: 'routes',
-      feedVersionProgress: p,
-      phaseProgress: { phase: 'routes', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue, progressEvent, done } = phaseQueue<number[]>('routes', emit, ids => fetchRouteBatch(ids), opts)
 
   async function fetchRouteBatch (ids: number[]): Promise<void> {
     if (ids.length === 0) {
       return
     }
-    const response = await client.query<{ routes: RouteGql[] }>(routeQuery, { ids })
+    const response = await client.query<{ routes: RouteGql[] }>(routeQuery, {
+      ids,
+      include_geometry: config.includeGeometry !== false,
+    })
     const routeData = response.data?.routes || []
 
     // Send progress updates in batches using the generic helper function
     for (const routeBatch of chunkArray(routeData, PROGRESS_LIMIT_ROUTES)) {
-      emit({ ...progressEvent(), partialData: { routes: routeBatch } })
+      await emit({ ...progressEvent(), partialData: { routes: routeBatch } })
     }
 
     for (const r of routeData) {
@@ -74,7 +62,7 @@ export async function runRoutesPhase (
     queue.enqueueOne(chunk)
   }
   await queue.run()
-  emit({ ...progressEvent(), phaseProgress: phaseDone('routes') })
+  done()
 
   return { agencyIds: [...agencyIds] }
 }

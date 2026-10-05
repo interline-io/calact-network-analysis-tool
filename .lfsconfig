@@ -1,0 +1,5 @@
+# The test-fixture dumps are large (252 MB) and only needed to run the docker
+# test rig. Excluded by default so ordinary clones and the Cloudflare Pages build
+# get pointer files; docker/reset-test-services.sh and CI fetch them explicitly.
+[lfs]
+	fetchexclude = "testdata/gtfs/*.dump"

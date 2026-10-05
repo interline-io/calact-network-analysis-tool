@@ -388,8 +388,10 @@ export async function runVisionEvalAnalysisStreaming (
     const records = processNTDValues(filteredValues, config)
     const report = generateVisionEvalReport(records, config)
 
-    // Send complete with report
-    sender.onProgress({
+    // Send complete with report. Awaited: writes are queued behind one
+    // another, so closing first drops whatever has not been flushed, and this
+    // event carries the entire report.
+    await sender.onProgress({
       isLoading: false,
       currentStage: 'complete',
       message: 'Analysis complete!',
@@ -399,7 +401,7 @@ export async function runVisionEvalAnalysisStreaming (
     await writer.close()
     return report
   } catch (error) {
-    sender.onError(error)
+    await sender.onError(error)
     await writer.close()
     throw error
   }

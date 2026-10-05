@@ -20,4 +20,10 @@ export class FlexDepartureCache {
   hasService (locationId: number, date: string): boolean {
     return this.cache.get(locationId)?.has(date) ?? false
   }
+
+  // False until flex service dates have been loaded. Lets filters tell "no
+  // service" apart from "no service data fetched".
+  hasDepartures (): boolean {
+    return this.cache.size > 0
+  }
 }

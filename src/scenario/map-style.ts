@@ -7,7 +7,7 @@
 // Pure: every input is passed in, so it can be unit-tested without the map.
 
 import { colors, categoricalColors, routeTypeNames, type DataDisplayMode } from '~~/src/core'
-import type { Stop, Route } from '~~/src/tl'
+import { routesById, type Stop, type Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from './scenario-filter'
 
 export type MatchFunction = (x: Stop | Route) => boolean
@@ -38,33 +38,44 @@ export interface BuildStyleDataParams {
 export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   const { scenarioFilterResult, dataDisplayMode, agencies, agencyColorScale } = params
 
-  const routeLookup = new Map<number, Route>()
-  for (const route of scenarioFilterResult?.routes || []) {
-    routeLookup.set(route.id, route)
-  }
+  const routeLookup = routesById(scenarioFilterResult?.routes || [])
 
   const stopLookup = new Map<number, Stop>()
-  for (const stop of scenarioFilterResult?.stops || []) {
-    stopLookup.set(stop.id, stop)
-  }
-
   const routeStopLookup = new Map<number, number[]>()
   for (const stop of scenarioFilterResult?.stops || []) {
+    stopLookup.set(stop.id, stop)
     for (const rs of stop.route_stops) {
-      const rid = rs.route.id
-      const stops = routeStopLookup.get(rid) || []
+      const stops = routeStopLookup.get(rs.route_id) || []
       stops.push(stop.id)
-      routeStopLookup.set(rid, stops)
+      routeStopLookup.set(rs.route_id, stops)
     }
   }
 
-  // Style based on AGENCY
-  function getAgencyMatcher (val: string): MatchFunction {
+  // route_type is the one styling input not on the association row, so it is
+  // indexed per stop rather than re-joined once per style rule. Only mode
+  // styling reads it.
+  const stopModes = new Map<number, Set<number>>()
+  if (dataDisplayMode === 'Transit mode') {
+    for (const stop of scenarioFilterResult?.stops || []) {
+      const modes = new Set<number>()
+      for (const rs of stop.route_stops) {
+        const route = routeLookup.get(rs.route_id)
+        if (route) {
+          modes.add(route.route_type)
+        }
+      }
+      stopModes.set(stop.id, modes)
+    }
+  }
+
+  // Style based on AGENCY. The numeric id is on every route_stop, so this needs
+  // no index and works before the routes phase lands.
+  function getAgencyMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.some((rs: any) => rs.route.agency?.agency_id === val)
+        return (v as Stop).route_stops.some(rs => rs.agency_id === val)
       } else if (v.__typename === 'Route') {
-        return (v as Route).agency?.agency_id === val
+        return (v as Route).agency.id === val
       }
       return false
     }
@@ -74,21 +85,9 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getModeMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        // Filter out routes with null/undefined route_type to avoid false matches
-        // Also check that route data exists (may still be loading)
-        const validRoutes = (v as Stop).route_stops.filter((rs: any) => rs.route && rs.route.route_type != null)
-        // If no valid routes, don't match any mode (routes may still be loading)
-        if (validRoutes.length === 0) {
-          return false
-        }
-        // Match if ANY route at this stop has this mode (not every)
-        // This allows multi-modal stops to match their highest-priority mode
-        return validRoutes.some((rs: any) => rs.route.route_type === val)
+        // Empty until the routes phase lands.
+        return stopModes.get((v as Stop).id)?.has(val) ?? false
       } else if (v.__typename === 'Route') {
-        // For routes, also check for null/undefined
-        if ((v as Route).route_type == null || (v as Route).route_type == undefined) {
-          return false
-        }
         return (v as Route).route_type === val
       }
       return false
@@ -99,8 +98,8 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
   function getRouteFrequencyMatcher (val: number): MatchFunction {
     return (v: any) => {
       if (v.__typename === 'Stop') {
-        return (v as Stop).route_stops.some((rs: any) => {
-          const route = routeLookup.get(rs.route.id)
+        return (v as Stop).route_stops.some((rs) => {
+          const route = routeLookup.get(rs.route_id)
           const headway = route?.average_frequency || -1
           return headway >= val * 60
         })
@@ -136,7 +135,7 @@ export function buildStyleData (params: BuildStyleDataParams): Matcher[] {
     for (let i = 0; i < Math.min(agencies.length, categoricalColors.length); i++) {
       const agency = agencies[i]
       if (agency) {
-        rules.push({ label: agency.name ?? '', color: agencyColorScale(String(agency.numericId)), match: getAgencyMatcher(agency.id ?? '') })
+        rules.push({ label: agency.name ?? '', color: agencyColorScale(String(agency.numericId)), match: getAgencyMatcher(agency.numericId) })
       }
     }
     return rules

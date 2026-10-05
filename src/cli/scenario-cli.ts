@@ -1,12 +1,13 @@
 import type { Command } from 'commander'
 import { format, nextMonday, nextSunday } from 'date-fns'
-import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS } from '~~/src/core'
+import { cannedBboxes, parseBbox, parseDate, BasicGraphQLClient, apiFetch, SCENARIO_DEFAULTS, STOP_BUFFER_DEFAULT_LAYER } from '~~/src/core'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 import { runScenarioFetcher } from '~~/src/scenario'
 
 export function scenarioOptionsAdd (program: Command): Command {
   return program
     .option('--bbox <bbox>', 'Bounding box in format "min_lon,min_lat,max_lon,max_lat"')
+    .option('--geography-ids <ids>', 'Comma-separated census geography ids to clip to, instead of a bbox')
     .option('--start-date <date>', 'Start date (YYYY-MM-DD)')
     .option('--end-date <date>', 'End date (YYYY-MM-DD)')
     .option('--start-time <time>', 'Start time (HH:MM)', '06:00')
@@ -15,7 +16,8 @@ export function scenarioOptionsAdd (program: Command): Command {
     .option('--save-scenario-data <filename>', 'Save scenario data and config to file')
     .option('--aggregate-layer <layer>', 'Census geography layer for aggregation (e.g., tract, bg)', 'tract')
     .option('--bbox-name <name>', 'Use canned bounding box', 'portland')
-    .option('--no-schedule', 'Disable schedule fetching')
+    .option('--stop-buffer-radius <meters>', 'Stop buffer radius in meters; > 0 enables the per-stop/route/agency buffer passes', Number.parseFloat, SCENARIO_DEFAULTS.stopBufferRadius)
+    .option('--stop-buffer-layer <layer>', 'Census geography layer the buffer passes intersect against', STOP_BUFFER_DEFAULT_LAYER)
 }
 
 export function configureScenarioCli (program: Command) {
@@ -30,10 +32,16 @@ export function configureScenarioCli (program: Command) {
       const config: ScenarioConfig = {
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         aggregateLayer: opts.aggregateLayer,
         geoDatasetName: SCENARIO_DEFAULTS.geoDatasetName,
+        // The buffer and census-values phases both gate on this, so the CLI
+        // only reaches them once it is set.
+        tableDatasetName: SCENARIO_DEFAULTS.tableDatasetName,
+        stopBufferRadius: opts.stopBufferRadius || 0,
+        stopBufferLayer: opts.stopBufferLayer,
       }
 
       const client = new BasicGraphQLClient(
@@ -69,14 +77,18 @@ export function configureScenarioCli (program: Command) {
  * Utilities
  */
 export function scenarioOptionsCheck (options: ScenarioCliOptions) {
-  if (options.bboxName) {
-    const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
-    options.bbox = b?.bboxString
-    options.reportName = options.reportName || b?.label || ''
-  }
-  if (!options.bbox) {
-    console.error('❌ Error: Must provide --bbox')
-    process.exit(1)
+  // --bbox-name defaults to a canned box, so the assignment below would
+  // otherwise overwrite an explicit geography with Portland.
+  if (!options.geographyIds) {
+    if (options.bboxName) {
+      const b = cannedBboxes[options.bboxName as keyof typeof cannedBboxes]
+      options.bbox = b?.bboxString
+      options.reportName = options.reportName || b?.label || ''
+    }
+    if (!options.bbox) {
+      console.error('❌ Error: Must provide --bbox or --geography-ids')
+      process.exit(1)
+    }
   }
 
   // Check for required environment variables
@@ -102,9 +114,26 @@ export function scenarioOptionsCheck (options: ScenarioCliOptions) {
 /**
  * CLI options interface for scenario commands
  */
+// Census geography ids as the UI carries them. Exits on a non-integer rather
+// than dropping it, since a silently narrowed region reads as a real result.
+export function parseGeographyIds (ids?: string): number[] | undefined {
+  if (!ids) {
+    return undefined
+  }
+  return ids.split(',').map((s) => {
+    const n = Number(s.trim())
+    if (!Number.isInteger(n)) {
+      console.error(`❌ Error: --geography-ids expects integers, got "${s.trim()}"`)
+      process.exit(1)
+    }
+    return n
+  })
+}
+
 export interface ScenarioCliOptions {
   reportName: string
   bbox?: string
+  geographyIds?: string
   bboxName: string
   startDate: string
   endDate: string
@@ -112,8 +141,9 @@ export interface ScenarioCliOptions {
   endTime: string
   output: string
   aggregateLayer: string
+  stopBufferRadius: number
+  stopBufferLayer: string
   saveScenarioData?: string
-  schedule?: boolean
 }
 
 /**
@@ -178,6 +208,15 @@ export function checkTransitlandEnv () {
   }
 }
 
+/**
+ * A stream controller standing in for the HTTP response the server writes to.
+ *
+ * The stream is always drained, whether or not anything is being saved. An
+ * unread ReadableStream queues every chunk that is enqueued into it, so a CLI
+ * run that left it unread held the whole NDJSON payload in memory and reported
+ * memory numbers the server would never see. Draining keeps `DEBUG_MEMORY=1`
+ * runs an honest proxy for the request path.
+ */
 export function createStreamController (saveToFile?: string): ReadableStreamDefaultController {
   let controller: ReadableStreamDefaultController
 
@@ -187,34 +226,34 @@ export function createStreamController (saveToFile?: string): ReadableStreamDefa
     }
   })
 
-  if (saveToFile) {
-    // Set up file writing in the background
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
 
-    // Import fs dynamically to handle Node.js environment
-    import('node:fs').then(async (fs) => {
-      const writeStream = fs.createWriteStream(saveToFile)
+  // Import fs dynamically to handle Node.js environment
+  import('node:fs').then(async (fs) => {
+    const writeStream = saveToFile ? fs.createWriteStream(saveToFile) : undefined
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) { break }
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) { break }
 
-          const text = decoder.decode(value)
-          writeStream.write(text)
-        }
-      } catch (error) {
-        console.error('Error writing to file:', error)
-      } finally {
-        writeStream.end()
-        reader.releaseLock()
+        // `stream: true`, because chunks are sized by the writer rather than
+        // by character boundaries: a stop name's multi-byte sequence split
+        // across two reads would otherwise decode as two replacement
+        // characters and be saved as mojibake in otherwise valid JSON.
+        writeStream?.write(decoder.decode(value, { stream: true }))
       }
-    }).catch((error) => {
-      console.error('Error importing fs module:', error)
-    })
-  }
-  // If saveToFile is not provided, the stream just acts as a dummy
-  // The controller will still work but data won't be written anywhere
+      writeStream?.write(decoder.decode())
+    } catch (error) {
+      console.error('Error reading scenario stream:', error)
+    } finally {
+      writeStream?.end()
+      reader.releaseLock()
+    }
+  }).catch((error) => {
+    console.error('Error importing fs module:', error)
+  })
+
   return controller!
 }

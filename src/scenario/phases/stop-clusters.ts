@@ -23,21 +23,19 @@ import {
   convertBbox,
   parseHMS,
   routeTypeNames,
-  TaskQueue,
   WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
   type Weekday,
 } from '~~/src/core'
-import { stopClusterQuery, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
+import { stopClusterQuery, type RouteGql, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
 import {
-  PHASE_MAX_CONCURRENT_REQUESTS,
   phaseDone,
+  phaseQueue,
   type FeedVersionRef,
   type PhaseEmit,
   type PhaseOpts,
-} from './phases/common'
-import type { ScenarioProgress } from './scenario'
+} from './common'
 
 /** Minimal per-stop input for clustering, decoupled from GraphQL types. */
 export interface ClusterInputStop {
@@ -382,27 +380,21 @@ export function deriveFilteredStopClusters (
     }
     // dayBase * 86400 + secs-since-midnight: a same-day departure keeps its
     // ordering, while different days land >= 86400s apart (always > maxGap).
+    //
+    // A departure is filed under the date it falls on but keeps the feed's
+    // seconds, so an after-midnight one reads 24:00:00 or later and has to be
+    // folded into the day before it is added, or it lands a day late.
     const times: number[] = []
     for (const { dateKey, dayOffset } of eligibleDates) {
       const dayBase = dayOffset * 86_400
       for (const st of sdCache.get(id, dateKey)) {
         if (st.departureTime >= startSeconds && st.departureTime <= endSeconds) {
-          times.push(dayBase + st.departureTime)
+          times.push(dayBase + (st.departureTime % 86_400))
         }
       }
     }
     departureSecondsByStop.set(id, times)
-    const agencyIds = new Set<number>()
-    const routeIds = new Set<number>()
-    for (const rs of stop.route_stops || []) {
-      if (rs.route?.id != null) {
-        routeIds.add(rs.route.id)
-      }
-      if (rs.route?.agency?.id != null) {
-        agencyIds.add(rs.route.agency.id)
-      }
-    }
-    stopMeta.set(id, { agencyIds: [...agencyIds], routeIds: [...routeIds] })
+    stopMeta.set(id, stopRouteAgencyIds(stop.route_stops))
   }
   return applyClusterTransferTime(clusters, maxTransferMinutes, departureSecondsByStop, stopMeta)
 }
@@ -435,23 +427,23 @@ interface StopClusterFetchTask {
   feedVersionSha1: string
 }
 
-// Map a raw GraphQL stop into the minimal ClusterInputStop the algorithm needs.
-function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
+// Distinct route and agency ids serving a stop, both carried on the association
+// row. Shared by the client-side prune and the server-side cluster phase.
+function stopRouteAgencyIds (routeStops?: { route_id: number, agency_id: number }[]): StopClusterMeta {
   const agencyIds = new Set<number>()
   const routeIds = new Set<number>()
-  for (const rs of stop.route_stops || []) {
-    const route = rs.route
-    if (route?.id != null) {
-      routeIds.add(route.id)
-    }
-    if (route?.agency?.id != null) {
-      agencyIds.add(route.agency.id)
-    }
+  for (const rs of routeStops || []) {
+    routeIds.add(rs.route_id)
+    agencyIds.add(rs.agency_id)
   }
+  return { agencyIds: [...agencyIds], routeIds: [...routeIds] }
+}
+
+// Map a raw GraphQL stop into the minimal ClusterInputStop the algorithm needs.
+function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
   return {
+    ...stopRouteAgencyIds(stop.route_stops),
     id: stop.id,
-    agencyIds: [...agencyIds],
-    routeIds: [...routeIds],
     neighborIds: (stop.nearby_stops || []).map(n => n.id),
   }
 }
@@ -467,14 +459,7 @@ async function fetchStopClusterInputs (
   const stopLimit = config.stopLimit ?? 1000
   const inputs: ClusterInputStop[] = []
 
-  function progressEvent (): ScenarioProgress {
-    const p = queue.getProgress()
-    return {
-      isLoading: true,
-      currentStage: 'stop-clusters',
-      phaseProgress: { phase: 'stop-clusters', completed: p.completed, total: p.total },
-    }
-  }
+  const { queue } = phaseQueue<StopClusterFetchTask>('stop-clusters', emit, task => fetchPage(task), opts)
 
   async function fetchPage (task: StopClusterFetchTask): Promise<void> {
     const geoIds = config.geographyIds || []
@@ -508,15 +493,6 @@ async function fetchStopClusterInputs (
     }
   }
 
-  const queue: TaskQueue<StopClusterFetchTask> = new TaskQueue<StopClusterFetchTask>(
-    PHASE_MAX_CONCURRENT_REQUESTS,
-    task => fetchPage(task),
-    {
-      onProgress: () => { emit(progressEvent()) },
-      onError: error => opts.onError?.(error),
-    },
-  )
-
   for (const fv of config.feedVersions) {
     queue.enqueueOne({
       after: 0,
@@ -541,8 +517,7 @@ export async function runStopClustersPhase (
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
   const clusters = deriveStopClusters(inputs, config.maxDistanceMeters)
-  emit({
-    isLoading: true,
+  await emit({
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
     phaseProgress: phaseDone('stop-clusters'),
@@ -572,9 +547,11 @@ export interface StopClusterCsv {
 export function stopClusterCsv (
   clusters: StopCluster[],
   stopById: Map<number, Stop>,
+  routeLookup: Map<number, RouteGql>,
 ): StopClusterCsv[] {
   return clusters.map((cluster, idx): StopClusterCsv => {
     const agencies = new Set<string>()
+    const agencyIds = new Set<number>()
     const modes = new Set<number>()
     const routeIds = new Set<number>()
     const memberStops: string[] = []
@@ -585,18 +562,22 @@ export function stopClusterCsv (
       }
       memberStops.push(stop.stop_name ? `${stop.stop_name} (${stop.stop_id})` : stop.stop_id)
       for (const rs of stop.route_stops || []) {
-        if (rs.route.agency?.agency_name) {
-          agencies.add(rs.route.agency.agency_name)
+        routeIds.add(rs.route_id)
+        // Counted by id: two feeds can name different agencies the same thing.
+        agencyIds.add(rs.agency_id)
+        const route = routeLookup.get(rs.route_id)
+        if (!route) {
+          continue
         }
-        if (rs.route.id != null) {
-          routeIds.add(rs.route.id)
+        if (route.agency.agency_name) {
+          agencies.add(route.agency.agency_name)
         }
-        modes.add(rs.route.route_type)
+        modes.add(route.route_type)
       }
     }
     return {
       cluster: `Cluster ${idx + 1}`,
-      agencies_count: agencies.size,
+      agencies_count: agencyIds.size,
       agencies: [...agencies].join(', '),
       stops_count: cluster.memberStopIds.length,
       routes_count: routeIds.size,

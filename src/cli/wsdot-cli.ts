@@ -8,6 +8,7 @@ import {
   scenarioOptionsCheck,
   createStreamController,
   type ScenarioCliOptions,
+  parseGeographyIds,
 } from './scenario-cli'
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS } from '~~/src/core'
@@ -15,7 +16,6 @@ import { apiFetch, BasicGraphQLClient, parseBbox, parseDate, SCENARIO_DEFAULTS }
 export interface WSDOTReportOptions extends ScenarioCliOptions {
   weekdayDate: string
   weekendDate: string
-  stopBufferRadius: number
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -34,7 +34,6 @@ export function configureWsdotReportCli (program: Command) {
     .option('--table-dataset-table-col <column>', 'Name of the Census table column to use', SCENARIO_DEFAULTS.tableDatasetTableCol)
     .option('--geo-dataset-name <name>', 'Name of the Census geographic dataset to use', SCENARIO_DEFAULTS.geoDatasetName)
     .option('--geo-dataset-layer <layer>', 'Name of the Census geographic layer to use', SCENARIO_DEFAULTS.geoDatasetLayer)
-    .option('--stop-buffer-radius <meters>', 'Buffer radius around stops in meters', Number.parseFloat, SCENARIO_DEFAULTS.stopBufferRadius)
     .allowUnknownOption(false)
     .action(async (opts: WSDOTReportOptions) => {
       scenarioOptionsCheck(opts)
@@ -55,11 +54,15 @@ export function configureWsdotReportCli (program: Command) {
         ...SCENARIO_DEFAULTS,
         reportName: opts.reportName || '',
         bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geographyIds: parseGeographyIds(opts.geographyIds),
         startDate: parseDate(opts.startDate)!,
         endDate: parseDate(opts.endDate)!,
         weekdayDate: parseDate(opts.weekdayDate)!,
         weekendDate: parseDate(opts.weekendDate)!,
         stopBufferRadius: opts.stopBufferRadius,
+        // Route shapes are 98% of the routes query and this report never
+        // reads them; wsdot-stops-routes, which exports them, does not set it.
+        includeRouteGeometry: false,
         aggregateLayer: opts.aggregateLayer || SCENARIO_DEFAULTS.aggregateLayer,
         tableDatasetName: opts.tableDatasetName,
         tableDatasetTable: opts.tableDatasetTable,

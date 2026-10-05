@@ -35,7 +35,7 @@ export function parseAcsValues (
 }
 
 export const geographyLayerQuery = gql`
-query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_name: String) {
+query GeographyLayer($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_name: String) {
   census_datasets(where: {name: $dataset_name}) {
     id
     name
@@ -62,7 +62,7 @@ query($geography_ids: [Int!], $include_geographies: Boolean = false, $dataset_na
 }`
 
 export const geographySearchQuery = gql`
-query($search: String, $layer: String, $focus: FocusPoint, $limit: Int, $dataset_name: String){
+query GeographySearch($search: String, $layer: String, $focus: FocusPoint, $limit: Int, $dataset_name: String){
   census_datasets(where: {name: $dataset_name}) {
     id
     name
@@ -84,7 +84,7 @@ query($search: String, $layer: String, $focus: FocusPoint, $limit: Int, $dataset
 }`
 
 export const geographyBboxQuery = gql`
-query($layer: String, $limit: Int, $dataset_name: String, $bbox: BoundingBox){
+query GeographyBbox($layer: String, $limit: Int, $dataset_name: String, $bbox: BoundingBox){
   census_datasets(where: {name: $dataset_name}) {
     id
     name
@@ -106,7 +106,7 @@ query($layer: String, $limit: Int, $dataset_name: String, $bbox: BoundingBox){
 }`
 
 export const censusDatasetListQuery = gql`
-query {
+query CensusDatasetList {
   census_datasets {
     id
     name

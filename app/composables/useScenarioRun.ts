@@ -1,21 +1,21 @@
-// The main scenario run lifecycle: streams a scenario from /api/scenario (or a
-// canned example JSON) into a ScenarioDataReceiver, tracks loading/progress
-// state for the modal, and derives the filtered result whenever the raw data or
-// filters change. Owns the run/loading state (and the shared receiver that the
-// buffer/cluster/aggregate refetch composables reuse); receives the data and
-// config refs from the container, which owns the scenario data graph.
+// The main scenario run lifecycle: streams a scenario from /api/scenario into
+// a ScenarioDataReceiver and derives the filtered result whenever the raw data
+// or filters change. Stream consumption and progress state live in
+// useScenarioStream; this owns the receiver (shared with the
+// buffer/cluster/aggregate refetch composables) and the data-graph wiring.
+// Receives the data and config refs from the container, which owns the
+// scenario data graph.
 
-import { ref, shallowRef, watch, markRaw, type Ref, type ShallowRef } from 'vue'
-import { useToastNotification } from './useToastNotification'
+import { shallowRef, ref, watch, markRaw, type Ref, type ShallowRef } from 'vue'
+import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import {
-  ScenarioStreamReceiver,
   ScenarioDataReceiver,
   applyScenarioResultFilter,
+  hasSearchArea,
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioFilter,
   type ScenarioFilterResult,
-  type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
 
@@ -29,74 +29,39 @@ interface UseScenarioRunDeps {
   scenarioFilter: Ref<ScenarioFilter>
 }
 
-export interface UseScenarioRunReturn {
+// The stream state passes through under its own names; renames happen at the
+// consumer's destructure, as the WSDOT components already do.
+export interface UseScenarioRunReturn extends Pick<UseScenarioStreamReturn,
+  'loadingProgress' | 'showLoadingModal' | 'error' | 'requestErrors'
+  | 'phasePlan' | 'phaseFractions' | 'stopDepartureCount'> {
   // Live accumulator, shared with the refetch composables so incremental
   // recomputes land in the same data. Reassigned on each fetch.
   scenarioReceiver: ShallowRef<ScenarioDataReceiver | undefined>
-  loadingProgress: Ref<ScenarioProgress | undefined>
-  showLoadingModal: Ref<boolean>
-  error: Ref<Error | string | undefined>
-  // Weighted progress-bar state shared with the loading modal and refetches.
-  scenarioPhasePlan: Ref<ScenarioPhaseName[] | undefined>
-  scenarioPhaseFractions: Ref<Partial<Record<ScenarioPhaseName, number>>>
   // Ref-counts concurrent refetches so the modal closes only when the last settles.
   refetchInFlight: Ref<number>
-  stopDepartureCount: Ref<number>
-  // Streams a scenario; pass an example name to load canned JSON, '' for a live query.
-  fetchScenario: (loadExample: string) => Promise<void>
+  // Non-zero while a run is streaming. The refetch composables hold off while
+  // it is, so their writes cannot interleave with the run's own phases.
+  runInFlight: Ref<number>
+  // Streams a scenario inside the shared modal/toast lifecycle.
+  runQuery: (successToast: string) => Promise<void>
 }
 
 export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn {
-  const loadingProgress = ref<ScenarioProgress>()
-  const stopDepartureCount = ref<number>(0)
-  // Weighted progress-bar state, accumulated inside the receiver callback so no
-  // events are missed (template-level watchers only sample the latest).
-  const scenarioPhasePlan = ref<ScenarioPhaseName[] | undefined>()
-  const scenarioPhaseFractions = ref<Partial<Record<ScenarioPhaseName, number>>>({})
-  const showLoadingModal = ref(false)
+  const stream = useScenarioStream()
   const refetchInFlight = ref(0)
-  const error = ref(undefined as Error | string | undefined)
+  const runInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
 
-  const fetchScenario = async (loadExample: string): Promise<void> => {
+  const fetchScenario = async (): Promise<boolean> => {
     const config = deps.scenarioConfig.value
-    if (!loadExample && !config.bbox && (!config.geographyIds || config.geographyIds.length === 0)) {
-      return // Need either bbox or geography IDs, unless loading example
+    if (!hasSearchArea(config)) {
+      return false
     }
-    loadingProgress.value = undefined
-    // Clear any error left by a prior run/refetch so a fresh run starts clean —
-    // otherwise the success path (gated on !error) stays suppressed.
-    error.value = undefined
-    stopDepartureCount.value = 0
-    scenarioPhasePlan.value = undefined
-    scenarioPhaseFractions.value = {}
 
     // Create receiver to accumulate scenario data
     const receiver = new ScenarioDataReceiver({
       onProgress: (progress: ScenarioProgress) => {
-        // Update progress for modal
-        loadingProgress.value = progress
-        stopDepartureCount.value += progress.partialData?.stopDepartures?.length || 0
-
-        // Weighted progress bar: plan announcement + per-phase fractions
-        // (clamped max-so-far; stop pagination grows its denominator mid-phase)
-        if (progress.phasePlan) {
-          scenarioPhasePlan.value = progress.phasePlan
-          scenarioPhaseFractions.value = {}
-        }
-        const pp = progress.phaseProgress
-        if (pp) {
-          const fraction = pp.total > 0 ? Math.min(pp.completed / pp.total, 1) : 0
-          if (fraction > (scenarioPhaseFractions.value[pp.phase] ?? 0)) {
-            scenarioPhaseFractions.value = { ...scenarioPhaseFractions.value, [pp.phase]: fraction }
-          }
-        }
-
-        if (progress.warnings && progress.warnings.length > 0) {
-          for (const msg of progress.warnings) {
-            useToastNotification().showToast(msg)
-          }
-        }
+        stream.foldProgress(progress)
 
         // Apply filters to partial data and emit (without schedule-dependent features)
         // Skip if no route/stop/flex data in this progress update
@@ -110,43 +75,22 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
       },
       onComplete: () => {
         // Get final accumulated data and apply filters
-        loadingProgress.value = undefined
+        stream.loadingProgress.value = undefined
         deps.scenarioData.value = markRaw(receiver.getCurrentData())
       },
       onError: (err: any) => {
-        error.value = err
+        stream.error.value = err
       }
     })
     scenarioReceiver.value = receiver
 
-    let response: Response
-
-    if (loadExample) {
-      // Load example data from public JSON file
-      response = await fetch(`/examples/${loadExample}.json`)
-    } else {
-      // Make request to streaming scenario endpoint
-      response = await fetch('/api/scenario', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(config),
-      })
+    runInFlight.value++
+    try {
+      await stream.run(receiver, '/api/scenario', config)
+    } finally {
+      runInFlight.value = Math.max(0, runInFlight.value - 1)
     }
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    if (!response.body) {
-      throw new Error('No response body received')
-    }
-
-    // Process the streaming response
-    const streamer = new ScenarioStreamReceiver()
-    const { success } = await streamer.processStream(response.body, receiver)
-    if (!success) {
-      error.value = new Error('Stream ended unexpectedly. The server may have run out of memory. Try a smaller region.')
-    }
+    return true
   }
 
   // Apply filters and emit results when data or filters change
@@ -164,13 +108,15 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
 
   return {
     scenarioReceiver,
-    loadingProgress,
-    showLoadingModal,
-    error,
-    scenarioPhasePlan,
-    scenarioPhaseFractions,
+    loadingProgress: stream.loadingProgress,
+    showLoadingModal: stream.showLoadingModal,
+    error: stream.error,
+    requestErrors: stream.requestErrors,
+    phasePlan: stream.phasePlan,
+    phaseFractions: stream.phaseFractions,
     refetchInFlight,
-    stopDepartureCount,
-    fetchScenario,
+    runInFlight,
+    stopDepartureCount: stream.stopDepartureCount,
+    runQuery: successToast => stream.runQuery(fetchScenario, successToast),
   }
 }

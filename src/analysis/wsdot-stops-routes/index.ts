@@ -2,7 +2,11 @@ import type { WSDOTReport, WSDOTReportConfig } from '~~/src/analysis/wsdot'
 import type { GraphQLClient } from '~~/src/core'
 import type { ScenarioData } from '~~/src/scenario'
 
+import { routesById } from '~~/src/tl'
 import { runAnalysis as runWsdotAnalysis } from '~~/src/analysis/wsdot'
+
+// An agency key with no GTFS agency_id behind it, either numeric-only or absent.
+const UNRESOLVED_AGENCY = /:(null|#\d+)$/
 
 export interface WSDOTStopsRoutesReport {
   stops: WSDOTStopResult[]
@@ -75,7 +79,10 @@ export interface WSDOTAgencyResult {
 export type WSDOTStopsRoutesReportConfig = WSDOTReportConfig
 
 export async function runAnalysis (controller: ReadableStreamDefaultController, config: WSDOTReportConfig, client: GraphQLClient): Promise<{ scenarioData: ScenarioData, wsdotReport: WSDOTReport, stopsRoutesReport: WSDOTStopsRoutesReport }> {
-  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client)
+  // This report is built from the returned ScenarioData rather than from the
+  // stream, and exports whole stops and route shapes, so it is the one caller
+  // that needs the entities kept rather than only relayed.
+  const { scenarioData, wsdotResult } = await runWsdotAnalysis(controller, config, client, { retainScenarioEntities: true })
   const stopsRoutesReport = processWsdotStopsRoutesReport(scenarioData, wsdotResult)
   return { scenarioData, wsdotReport: wsdotResult, stopsRoutesReport }
 }
@@ -85,11 +92,21 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
   // Build agency map to avoid duplicates and get proper names
   const agencyMap = new Map<string, { agencyId: string, agencyName: string, feedOnestopId: string, stopsCount: number, routesCount: number }>()
 
+  // Lookup key for a stop's service levels.
+  //
+  // GTFS stop_id is unique within a feed, not across them, and a statewide run
+  // covers a hundred-odd feeds where ids like "1" recur constantly. Keying on
+  // the id alone let one feed's levels overwrite another's, so a busy urban
+  // stop reported whichever rural feed happened to be processed last, which
+  // statewide read as almost nothing having any service at all.
+  const levelKey = (feedVersionSha1: string | undefined, stopId: string): string =>
+    `${feedVersionSha1 || 'unknown'}|${stopId}`
+
   // Create a lookup map for WSDOT service levels by stop ID
   const wsdotServiceLevels = new Map<string, { level6: boolean, level5: boolean, level4: boolean, level3: boolean, level2: boolean, level1: boolean, levelNights: boolean }>()
   if (wsdotReport.stops) {
     for (const wsdotStop of wsdotReport.stops) {
-      wsdotServiceLevels.set(wsdotStop.stopId, {
+      wsdotServiceLevels.set(levelKey(wsdotStop.feedVersionSha1, wsdotStop.stopId), {
         level6: wsdotStop.level6,
         level5: wsdotStop.level5,
         level4: wsdotStop.level4,
@@ -101,29 +118,33 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     }
   }
 
+  const routeLookup = routesById(currentData.routes)
+
+  // GTFS agency_id is unique only within a feed, hence the composite. A blank
+  // agency_id is legal, so an agency known only by its numeric id is kept
+  // distinct from one whose id is genuinely absent.
+  const agencyKey = (feedOnestopId: string, agencyId?: string, numericId?: number): string => {
+    if (agencyId) {
+      return `${feedOnestopId}:${agencyId}`
+    }
+    return `${feedOnestopId}:${numericId != null ? `#${numericId}` : 'null'}`
+  }
+
   // Process stops to build agency map - filter out stops with no routes
   const stops = currentData.stops
     .filter(stop => stop.route_stops?.length > 0)
     .map((stop) => {
-      const agencyId = stop.route_stops?.[0]?.route?.agency?.agency_id
-      const agencyName = stop.route_stops?.[0]?.route?.agency?.agency_name
+      const firstRouteStop = stop.route_stops[0]!
+      const firstRoute = routeLookup.get(firstRouteStop.route_id)
+      const agencyId = firstRoute?.agency.agency_id
+      const agencyName = firstRoute?.agency.agency_name
       const feedOnestopId = stop.feed_version?.feed?.onestop_id || 'unknown'
       const feedVersionSha1 = stop.feed_version?.sha1 || 'unknown'
 
-      // Handle null agency_id (allowed in GTFS)
-      const effectiveAgencyId = agencyId || 'null'
-      const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
-      const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
-
-      // Debug logging for agency extraction
-      if (!agencyName && !agencyId) {
-        console.log('Stop with no agency info:', {
-          stopId: stop.stop_id,
-          routeStops: stop.route_stops?.length || 0,
-          firstRoute: stop.route_stops?.[0]?.route?.route_id,
-          agency: stop.route_stops?.[0]?.route?.agency
-        })
-      }
+      // Stops still group by their real agency when the route has not loaded;
+      // only the label falls back.
+      const effectiveAgencyName = agencyName || agencyId || 'No Agency Info'
+      const uniqueAgencyId = agencyKey(feedOnestopId, agencyId, firstRouteStop.agency_id)
 
       // Add to agency map
       if (!agencyMap.has(uniqueAgencyId)) {
@@ -138,7 +159,7 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
       agencyMap.get(uniqueAgencyId)!.stopsCount++
 
       // Look up service levels for this stop
-      const serviceLevels = wsdotServiceLevels.get(stop.stop_id)
+      const serviceLevels = wsdotServiceLevels.get(levelKey(stop.feed_version?.sha1, stop.stop_id))
 
       return {
         // GTFS stop fields (using existing camelCase convention)
@@ -181,18 +202,8 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     const feedOnestopId = route.feed_version?.feed?.onestop_id || 'unknown'
     const feedVersionSha1 = route.feed_version?.sha1 || 'unknown'
 
-    // Handle null agency_id (allowed in GTFS)
-    const effectiveAgencyId = agencyId || 'null'
-    const effectiveAgencyName = agencyName || (agencyId ? agencyId : 'No Agency Info')
-    const uniqueAgencyId = `${feedOnestopId}:${effectiveAgencyId}`
-
-    // Debug logging for agency extraction
-    if (!agencyName && !agencyId) {
-      console.log('Route with no agency info:', {
-        routeId: route.route_id,
-        agency: route.agency
-      })
-    }
+    const effectiveAgencyName = agencyName || agencyId || 'No Agency Info'
+    const uniqueAgencyId = agencyKey(feedOnestopId, agencyId ?? undefined, route.agency?.id)
 
     // Add to agency map
     if (!agencyMap.has(uniqueAgencyId)) {
@@ -236,9 +247,9 @@ export function processWsdotStopsRoutesReport (currentData: ScenarioData, wsdotR
     totalAgencies: agencies.length,
     agencies: agencies.map(a => ({ id: a.agencyId, name: a.agencyName, stops: a.stopsCount, routes: a.routesCount })),
     totalStops: stops.length,
-    stopsWithoutAgency: stops.filter(s => s.agencyId.includes(':null')).length,
+    stopsWithoutAgency: stops.filter(s => UNRESOLVED_AGENCY.test(s.agencyId)).length,
     totalRoutes: routes.length,
-    routesWithoutAgency: routes.filter(r => r.agencyId.includes(':null')).length,
+    routesWithoutAgency: routes.filter(r => UNRESOLVED_AGENCY.test(r.agencyId)).length,
     originalStopsCount: currentData.stops.length,
     filteredOutStops: currentData.stops.length - stops.length
   })

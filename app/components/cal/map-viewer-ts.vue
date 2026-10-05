@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
-import maplibre from 'maplibre-gl'
+import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
@@ -30,26 +30,27 @@ const emit = defineEmits([
   'openTimetable',
 ])
 
-const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: [] })
-const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: [] })
-const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: [] })
-const features = defineModel<Feature[]>('features', { default: [] })
-const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: [] })
+const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
+const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: () => [] })
+const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: () => [] })
+const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: () => [] })
+const features = defineModel<Feature[]>('features', { default: () => [] })
+const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: () => [] })
 // stop cluster markers + the selected cluster's radius circle.
-const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: [] })
-const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: [] })
+const clusterFeatures = defineModel<Feature[]>('clusterFeatures', { default: () => [] })
+const clusterCircleFeatures = defineModel<Feature[]>('clusterCircleFeatures', { default: () => [] })
 // connector lines from the selected cluster's anchor stop to its member stops.
-const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: [] })
+const clusterLineFeatures = defineModel<Feature[]>('clusterLineFeatures', { default: () => [] })
 // multi-colored "beach ball" markers, one per cluster, drawn at its anchor stop.
-const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: [] })
-const markers = defineModel<MarkerFeature[]>('markers', { default: [] })
-const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: [] })
+const clusterMarkers = defineModel<{ id: string, point: Point, colors: string[] }[]>('clusterMarkers', { default: () => [] })
+const markers = defineModel<MarkerFeature[]>('markers', { default: () => [] })
+const popupFeatures = defineModel<PopupFeature[]>('popupFeatures', { default: () => [] })
 const mapClass = defineModel<string>('mapClass', { default: 'short' })
-const center = defineModel<Point>('center', { default: { lon: -122.4194, lat: 37.7749 } })
+const center = defineModel<Point>('center', { default: () => ({ lon: -122.4194, lat: 37.7749 }) })
 const zoom = defineModel<number>('zoom', { default: 12 })
 
 const props = defineProps<{
-  // Current loading stage - skip map updates during 'schedules' stage to prevent browser crashes
+  // Current loading stage - skip map updates during 'departures' stage to prevent browser crashes
   loadingStage?: string
   // Left padding in pixels to account for overlay panels covering the map
   panelWidth?: number
@@ -66,7 +67,7 @@ const props = defineProps<{
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
 
 // Stages during which we should skip expensive map updates
-const skipUpdateStages = new Set(['schedules'])
+const skipUpdateStages = new Set(['departures'])
 
 let map: (maplibre.Map | undefined) = undefined
 const markerLayer = ref<maplibre.Marker[]>([])
@@ -78,6 +79,12 @@ let choroplethTooltip: HTMLDivElement | undefined
 
 //////////////////////
 // Watchers
+
+watch(() => stopBufferFeatures.value, (v) => {
+  nextTick(() => {
+    updateStopBufferFeatures(v)
+  })
+})
 
 watch(() => overlayFeatures.value, (v) => {
   nextTick(() => {
@@ -105,7 +112,7 @@ watch(() => popupFeatures.value, (v) => {
   drawPopupFeatures(v)
 })
 
-// Skip feature updates during heavy loading stages (schedules) to prevent browser crashes
+// Skip feature updates during heavy loading stages (departures) to prevent browser crashes
 // Allow updates during geometry stages (feed-versions, stops, routes, flex-areas)
 watch(() => features.value, (v) => {
   if (!props.loadingStage || !skipUpdateStages.has(props.loadingStage)) {
@@ -135,7 +142,7 @@ watch(() => clusterMarkers.value, (v) => {
   drawClusterMarkers(v)
 })
 
-// When exiting a skip stage (e.g., schedules -> complete), render all features
+// When exiting a skip stage (e.g., departures -> complete), render all features
 watch(() => props.loadingStage, (newStage, oldStage) => {
   if (oldStage && skipUpdateStages.has(oldStage) && (!newStage || !skipUpdateStages.has(newStage))) {
     // Exited a skip stage - render the features
@@ -272,6 +279,7 @@ function initMap () {
     createSources()
     createLayers()
     updateOverlayFeatures(overlayFeatures.value)
+    updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
@@ -453,6 +461,10 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   })
+  map?.addSource('stopBufferPolygons', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
   map?.addSource('choropleth', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
@@ -560,6 +572,8 @@ function createLayers () {
       'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0],
     }
   })
+  // Kept at zero opacity rather than dropped: it's the hit target for
+  // dragging the bbox by its interior in edit mode.
   map?.addLayer({
     id: 'overlay-polygons',
     type: 'fill',
@@ -567,7 +581,7 @@ function createLayers () {
     layout: {},
     paint: {
       'fill-color': '#ccc',
-      'fill-opacity': 0.3
+      'fill-opacity': 0
     }
   })
   map?.addLayer({
@@ -578,7 +592,23 @@ function createLayers () {
     paint: {
       'line-width': 2,
       'line-color': '#ff0000',
-      'line-opacity': 0.6
+      'line-opacity': 0.6,
+      'line-dasharray': [6, 3]
+    }
+  })
+  // Outline only: one polygon per route, so a fill would stack opacity
+  // wherever routes overlap. Shorter dashes than the query-area outline it
+  // shares a red with.
+  map?.addLayer({
+    id: 'stop-buffer-outline',
+    type: 'line',
+    source: 'stopBufferPolygons',
+    layout: {},
+    paint: {
+      'line-width': 2,
+      'line-color': '#ff0000',
+      'line-opacity': 0.6,
+      'line-dasharray': [3, 2]
     }
   })
 
@@ -812,6 +842,10 @@ function updateChoroplethFeatures (features: Feature[]) {
 
 function updateOverlayFeatures (features: Feature[]) {
   setSourceData('overlayPolygons', features, isPolygon)
+}
+
+function updateStopBufferFeatures (features: Feature[]) {
+  setSourceData('stopBufferPolygons', features, isPolygon)
 }
 
 function updateSelectableGeographies (features: Feature[]) {
@@ -1194,7 +1228,8 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     height: 700px;
   }
   .tall {
-    height: 100vh;
+    /* cal-build-banner publishes its height; 0px when it is not shown. */
+    height: calc(100vh - var(--cal-build-banner-height, 0px));
   }
 
   /* MapLibre popup container styles (component styles are in map-popup.vue) */

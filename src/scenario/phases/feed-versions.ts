@@ -189,8 +189,7 @@ export async function runFeedVersionsPhase (
     console.log(`    ${fv.feed?.onestop_id} ${fv.sha1}`)
   }
 
-  emit({
-    isLoading: true,
+  await emit({
     currentStage: 'feed-versions',
     partialData: { feedVersions },
     warnings: warnings.length > 0 ? warnings : undefined,

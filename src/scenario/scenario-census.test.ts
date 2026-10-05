@@ -13,7 +13,7 @@ import {
   applyScenarioResultFilter,
   type ScenarioConfig,
 } from '~~/src/scenario'
-import { stopGeoAggregateCsv } from '~~/src/tl'
+import { routesById, stopGeoAggregateCsv } from '~~/src/tl'
 
 // End-to-end tests of the census branch of the scenario pipeline. Both suites drive
 // runScenarioFetcher and assert the same census numbers (tract and block group) — the
@@ -48,8 +48,14 @@ function censusConfig (aggregateLayer: string): ScenarioConfig {
     aggregateLayer,
     includeFixedRoute: false,
     includeFlexAreas: false,
-    includeDepartures: false,
   }
+}
+
+function integrationClient (): BasicGraphQLClient {
+  return new BasicGraphQLClient(
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
+  )
 }
 
 // runScenarioFetcher streams progress to this controller while also accumulating
@@ -127,7 +133,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 1) Raw pipeline output: the geography + ACS value landed in ScenarioData, tagged
       //    with the requested layer and the area-derived intersection ratio (500/1000).
-      const geo = data.censusGeographies.get(c.geoid)
+      const geo = data.censusGeographies!.get(c.geoid)
       expect(geo).toBeDefined()
       expect(geo!.values['b01003_001']).toBe(c.pop)
       expect(geo!.layer).toBe(c.layer)
@@ -140,7 +146,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 3) The aggregation table the report renders: a stop-less row is seeded per
       //    geography and carries the full (un-apportioned) demographic value.
-      const rows = stopGeoAggregateCsv([], c.layer, filtered.censusGeographies)
+      const rows = stopGeoAggregateCsv([], c.layer, new Map(), filtered.censusGeographies)
       const row = rows.find(r => r.geoid === c.geoid)
       expect(row).toBeDefined()
       expect(row!.layer_name).toBe(c.layer)
@@ -148,7 +154,7 @@ describe('scenario census pipeline (hermetic)', () => {
 
       // 4) Buffer apportionment (the stopBufferRadius>0 report path): the additive value
       //    scales by the intersection ratio, while median income is non-additive => null.
-      const apportioned = apportionBuffer(censusGeographyMapToEntries(data.censusGeographies))
+      const apportioned = apportionBuffer(censusGeographyMapToEntries(data.censusGeographies, 'queryArea'))
       expect(apportioned.values.total_population).toBeCloseTo(c.pop * 0.5, 6)
       expect(apportioned.pctCoverage).toBeCloseTo(0.5, 6)
       expect(apportioned.values.median_household_income).toBeNull()
@@ -159,33 +165,82 @@ describe('scenario census pipeline (hermetic)', () => {
 // --- Integration suite ----------------------------------------------------------
 //
 // Hits a live transitland-server backed by the rebuild-census.sh test DB (states
-// WA/OR/CA, datasets acsdt5y2021 + tiger2021). Opt-in so an environment without a
-// server doesn't fail; enable with:
-//   TEST_CENSUS=true TRANSITLAND_API_BASE=http://localhost:8080 pnpm test
+// WA/OR, datasets acsdt5y2021 + tiger2021). Bring one up with
+// `./docker/reset-test-services.sh`, or testdata/gtfs/restore.sh. No API key —
+// we only ever test against a local server.
 //
 // The raw b01003_001 total population is bbox-clip-invariant (the server returns the
 // full-geography ACS value and reports clipping separately), so the pinned values are
 // deterministic against the rebuild-census.sh test DB.
-describe.skipIf(process.env.TEST_CENSUS !== 'true')('scenario census pipeline (integration)', () => {
-  const client = new BasicGraphQLClient(
-    (process.env.TRANSITLAND_API_BASE || '') + '/query',
-    apiFetch(process.env.TRANSITLAND_API_KEY || ''),
-  )
+describe('scenario census pipeline (integration)', () => {
+  const client = integrationClient()
 
   for (const c of CASES) {
     it(`fetches real ${c.layer} census values from the server`, async () => {
       const data = await runScenarioFetcher(noopController(), censusConfig(c.layer), client)
 
       // The census-values query returned geographies for the requested layer.
-      expect(data.censusGeographies.size).toBeGreaterThan(0)
-      for (const geo of data.censusGeographies.values()) {
+      expect(data.censusGeographies!.size).toBeGreaterThan(0)
+      for (const geo of data.censusGeographies!.values()) {
         expect(geo.layer).toBe(c.layer)
       }
 
       // The specific known geography carries its pinned ACS total population.
-      const known = data.censusGeographies.get(c.geoid)
+      const known = data.censusGeographies!.get(c.geoid)
       expect(known, `expected ${c.geoid} in the downtown-Portland ${c.layer} results`).toBeDefined()
       expect(known!.values['b01003_001']).toBe(c.pop)
     }, 120000)
   }
+})
+
+// --- Per-stop census suite ------------------------------------------------------
+//
+// The other suites run with includeFixedRoute:false, so nothing there covers the
+// stop-census phase or the join that puts its results on each Stop. That path
+// fails silently when it breaks: the aggregation table keeps rendering, with
+// every stop count at zero.
+describe('per-stop census pipeline (integration)', () => {
+  const client = integrationClient()
+
+  const LAYER = 'tract'
+  // The census config with fixed-route back on — the one difference that
+  // brings the stops, and with them this phase.
+  const stopCensusConfig: ScenarioConfig = {
+    ...censusConfig(LAYER),
+    reportName: 'stop-census-test',
+    includeFixedRoute: true,
+  }
+
+  it('carries the aggregation layer from the phase through to the aggregation table', async () => {
+    const data = await runScenarioFetcher(noopController(), stopCensusConfig, client)
+    expect(data.stops.length).toBeGreaterThan(0)
+
+    // 1) The phase answered for every stop the run discovered, at one layer.
+    expect(data.stopCensusGeographies?.size).toBe(data.stops.length)
+    for (const geographies of data.stopCensusGeographies!.values()) {
+      for (const g of geographies) {
+        expect(g.layer_name).toBe(LAYER)
+      }
+    }
+
+    // 2) The result filter joins them onto each Stop, which is where every
+    //    consumer reads them from.
+    const filtered = applyScenarioResultFilter(data, stopCensusConfig, {})
+    const withGeographies = filtered.stops.filter(s => (s.census_geographies?.length ?? 0) > 0)
+    expect(withGeographies.length).toBeGreaterThan(0)
+
+    // 3) The Stops (Aggregated) table: rows the stops actually landed in, not
+    //    just the stop-less rows census-values seeds.
+    const rows = stopGeoAggregateCsv(
+      filtered.stops.filter(s => s.marked),
+      LAYER,
+      routesById(filtered.routes),
+      filtered.censusGeographies,
+    )
+    // The table counts marked stops only, and stops with no service in the
+    // period are unmarked (#433), so compare against the marked ones.
+    const withStops = rows.filter(r => r.stops_count > 0)
+    expect(withStops.length).toBeGreaterThan(0)
+    expect(withStops.reduce((n, r) => n + r.stops_count, 0)).toBe(withGeographies.filter(s => s.marked).length)
+  }, 300000)
 })

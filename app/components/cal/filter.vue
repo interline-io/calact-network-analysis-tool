@@ -150,7 +150,10 @@
         aria-labelledby="cal-filter-tab-data-display"
         tabindex="0"
       >
-        <cal-filter-map-display :census-geography-layer-options="props.censusGeographyLayerOptions" />
+        <cal-filter-map-display
+          :census-geography-layer-options="props.censusGeographyLayerOptions"
+          @refresh-census="emit('refreshCensus')"
+        />
       </div>
 
       <!-- SETTINGS -->
@@ -232,6 +235,7 @@ const panelPaddingPx = `${PANEL_PADDING}px`
 const emit = defineEmits([
   'resetFilters',
   'showQuery',
+  'refreshCensus',
 ])
 const activeTab = defineModel<string>('activeTab')
 
@@ -374,6 +378,19 @@ function isMenuItemDisabled (item: { tab: string, requiresFixedRoute?: boolean, 
   overflow-y: auto;
   overflow-x: hidden;
   height: 100%;
+
+  // Bulma paints a disabled field in scheme-main-ter, the same token this panel
+  // uses for its own background, so a disabled input vanishes into it and leaves
+  // any trailing unit label sitting beside nothing. It is worst on Timeframes,
+  // where the Starting/Ending pickers are disabled by default under "All Day".
+  // Repaint them a shade darker with a real border so they read as present but
+  // inactive. Applied here rather than in a single panel so every subtab agrees;
+  // :deep because the fields are rendered inside child components.
+  :deep(input[disabled]),
+  :deep(select[disabled]) {
+    background-color: var(--bulma-border-weak);
+    border-color: var(--bulma-border);
+  }
 }
 
 .menu-list {

@@ -7,7 +7,7 @@ import {
   type StopCluster,
   type StopClusterMeta,
 } from './stop-clusters'
-import type { Stop } from '~~/src/tl'
+import { routesById, type RouteGql, type Stop } from '~~/src/tl'
 
 /**
  * Build a ClusterInputStop. Neighbors are listed one-directionally in the tests;
@@ -198,15 +198,24 @@ describe('applyClusterTransferTime', () => {
 })
 
 describe('stopClusterCsv', () => {
-  function makeStop (id: number, name: string, agency: string, route: string): Stop {
+  function makeStop (id: number, name: string): Stop {
     return {
       id,
       stop_id: `S${id}`,
       stop_name: name,
-      route_stops: [
-        { route: { id: id * 10, route_id: route, route_type: 3, route_short_name: route, route_long_name: '', agency: { id: 1, agency_id: agency, agency_name: agency } } },
-      ],
+      route_stops: [{ route_id: id * 10, agency_id: id }],
     } as unknown as Stop
+  }
+
+  function makeRoute (stopId: number, agency: string): RouteGql {
+    return {
+      id: stopId * 10,
+      route_id: agency,
+      route_type: 3,
+      route_short_name: agency,
+      route_long_name: '',
+      agency: { id: stopId, agency_id: agency, agency_name: agency },
+    } as unknown as RouteGql
   }
 
   it('flattens a cluster into a report row with agency/stop/route counts', () => {
@@ -219,10 +228,11 @@ describe('stopClusterCsv', () => {
       maxDistanceMeters: 200,
     }
     const stopById = new Map<number, Stop>([
-      [1, makeStop(1, 'First & Main', 'TriMet', '10')],
-      [2, makeStop(2, 'First & Oak', 'C-Tran', '4')],
+      [1, makeStop(1, 'First & Main')],
+      [2, makeStop(2, 'First & Oak')],
     ])
-    const rows = stopClusterCsv([cluster], stopById)
+    const routeLookup = routesById([makeRoute(1, 'TriMet'), makeRoute(2, 'C-Tran')])
+    const rows = stopClusterCsv([cluster], stopById, routeLookup)
     expect(rows).toHaveLength(1)
     expect(rows[0]?.cluster).toBe('Cluster 1')
     expect(rows[0]?.agencies_count).toBe(2)

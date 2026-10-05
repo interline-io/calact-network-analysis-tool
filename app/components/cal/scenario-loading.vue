@@ -24,15 +24,30 @@
       {{ typeof error === 'string' ? error : error?.message }}
     </cat-msg>
 
+    <!-- Requests that failed after every retry: the results are missing whatever
+         they would have returned. -->
+    <cat-msg
+      v-if="requestErrors && requestErrors.length > 0"
+      variant="warning"
+      :title="`${requestErrors.length} request${requestErrors.length === 1 ? '' : 's'} failed — results are incomplete`"
+    >
+      <ul class="cal-request-error-list">
+        <li v-for="(failure, idx) in requestErrors" :key="idx">
+          <strong>{{ failure.operation }}</strong> ({{ failure.attempts }} attempts): {{ failure.message }}
+        </li>
+      </ul>
+    </cat-msg>
+
     <!-- Completion Status -->
-    <div v-if="progress?.currentStage === 'complete' && !error" class="completion-status">
+    <div v-if="progress?.currentStage === 'complete' && !error && !requestErrors?.length" class="completion-status">
       <cat-icon icon="check-circle" class="mr-2" />
       Scenario data loading completed successfully!
     </div>
 
-    <!-- Results Display -->
+    <!-- Results Display. Only the phases this run executes: a report that
+         never fetches flex areas should not show a flex counter stuck at 0. -->
     <div class="columns is-multiline">
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('stops')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Stops">
           <p><strong>{{ scenarioData?.stops.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.stops.length" class="stop-list">
@@ -45,7 +60,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('routes')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Routes">
           <p><strong>{{ scenarioData?.routes.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.routes.length" class="route-list">
@@ -58,7 +73,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('departures')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Departures">
           <p><strong>{{ stopsWithDepartures }}</strong> / {{ totalStops }} stops</p>
           <div class="more-label">
@@ -66,7 +81,7 @@
           </div>
         </cat-msg>
       </div>
-      <div class="column is-one-quarter">
+      <div v-if="runsPhase('flex-areas')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
           <div v-if="scenarioData?.flexAreas?.length" class="flex-list">
@@ -84,50 +99,42 @@
 </template>
 
 <script lang="ts" setup>
-import { SCENARIO_PHASE_WEIGHTS, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
+import { phaseProgressPercent, planRunsPhase, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
+import type { RequestFailure } from '~~/src/core'
 
-// Props. Phase plan/fractions are accumulated by the parent inside the
-// stream receiver callback — every event is seen there. (A `watch` on the
-// latest-event prop samples: multiple NDJSON lines decoded from one network
-// chunk collapse into a single watcher invocation, dropping events like the
-// phase plan announcement.)
+// Phase plan/fractions are accumulated by the parent inside the receiver
+// callback, where every event is seen — a watch on the latest-event prop
+// would sample and drop one-off events like the plan announcement.
 const props = withDefaults(defineProps<{
   progress?: ScenarioProgress
   error?: Error | string
+  requestErrors?: RequestFailure[]
   scenarioData?: ScenarioData
   stopDepartureCount?: number
   phasePlan?: ScenarioPhaseName[]
   phaseFractions?: Partial<Record<ScenarioPhaseName, number>>
 }>(), {})
 
-// Computed values
+// Which result cards this run can fill.
+const runsPhase = (phase: ScenarioPhaseName) => planRunsPhase(props.phasePlan, phase)
+
+// Four cards no longer always fit; spread whatever is shown across the row.
+const cardColumnClass = computed(() => {
+  const shown = (['stops', 'routes', 'departures', 'flex-areas'] as ScenarioPhaseName[])
+    .filter(runsPhase).length
+  if (shown <= 1) { return 'is-full' }
+  if (shown === 2) { return 'is-half' }
+  if (shown === 3) { return 'is-one-third' }
+  return 'is-one-quarter'
+})
+
+// Weighted across the run's announced phase plan, which every stream carries
+// on its opening event; 0 only in the moment before that event arrives.
 const progressPercentage = computed(() => {
-  // Phase-weighted progress when the stream announced a plan
-  const plan = props.phasePlan
-  if (plan && plan.length > 0) {
-    let weightTotal = 0
-    let weighted = 0
-    for (const phase of plan) {
-      const weight = SCENARIO_PHASE_WEIGHTS[phase] ?? 1
-      weightTotal += weight
-      weighted += weight * (props.phaseFractions?.[phase] ?? 0)
-    }
-    return weightTotal > 0 ? Math.round((weighted / weightTotal) * 100) : 0
-  }
-  // Legacy fallback: streams without a phase plan (old saved examples,
-  // WSDOT analyses)
-  if (!props.progress) { return 0 }
-  let total = 0
-  let completed = 0
-  if (props.progress.feedVersionProgress) {
-    total += props.progress.feedVersionProgress.total
-    completed += props.progress.feedVersionProgress.completed
-  }
-  if (props.progress.stopDepartureProgress) {
-    total += props.progress.stopDepartureProgress.total
-    completed += props.progress.stopDepartureProgress.completed
-  }
-  return total > 0 ? Math.round((completed / total) * 100) : 0
+  return phaseProgressPercent({
+    plan: props.phasePlan,
+    fractions: props.phaseFractions ?? {},
+  }) ?? 0
 })
 
 // Total number of stops loaded
@@ -135,9 +142,10 @@ const totalStops = computed(() => {
   return props.scenarioData?.stops?.length || 0
 })
 
-// Number of stops that have departures loaded (stops in the departure cache)
+// Number of stops that have departures loaded, from the accumulated cache.
 const stopsWithDepartures = computed(() => {
-  return props.scenarioData?.stopDepartureCache?.cache?.size || 0
+  return props.scenarioData?.stopDepartureCache?.cache?.size
+    ?? 0
 })
 
 // Helper functions
@@ -145,25 +153,34 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   if (stageText) {
     return stageText
   }
-  const stageLabels: Record<string, string> = {
+  // Exhaustive over currentStage, so a new phase without a label is a build
+  // error rather than a silent 'Loading...'.
+  const stageLabels: Record<ScenarioProgress['currentStage'], string> = {
     'feed-versions': 'Loading feed versions...',
     'stops': 'Loading stops...',
+    'stop-census': 'Loading stop census areas...',
     'routes': 'Loading routes...',
-    'schedules': 'Loading schedules...',
+    'departures': 'Loading departure schedules...',
     'flex-areas': 'Loading flex service areas...',
     'census-values': 'Loading census data...',
-    'stop-buffer-geographies': 'Loading per-stop buffer demographics...',
-    'route-buffer-geographies': 'Loading per-route buffer demographics...',
-    'agency-buffer-geographies': 'Loading per-agency buffer demographics...',
-    'aggregation-buffer-geographies': 'Loading aggregation buffer demographics...',
+    'buffers': 'Loading buffer demographics...',
+    'stop-clusters': 'Loading stop clusters...',
+    'wsdot-levels': 'Computing WSDOT service levels...',
+    'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',
     'ready': 'Ready',
+    'error': 'Error',
   }
   return stageLabels[stage] || 'Loading...'
 }
 </script>
 
 <style scoped>
+.cal-request-error-list {
+  list-style: disc outside;
+  margin-left: 1.5rem;
+}
+
 .progress-section {
   margin-bottom: 1.5rem;
 }

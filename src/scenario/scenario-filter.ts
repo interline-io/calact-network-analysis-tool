@@ -11,14 +11,15 @@
  *   - [] (empty array) = filter applied with nothing selected, no items pass
  *   - [values...] = filter applied, only matching items pass
  *
- * - selectedWeekdays follows the same convention, with one exception:
- *   The t-checkbox-group UI control normalizes "all items selected" to
- *   undefined. For 'Any' mode this is fine (no filter = all pass). But for
- *   'All' mode, undefined must be treated as "all 7 days are required" so
- *   that routes/stops without service every day are correctly filtered out.
- *   See resolveEffectiveWeekdays() below.
+ * - selectedWeekdays is the exception: the t-checkbox-group UI control
+ *   normalizes "all items selected" to undefined, but all days ticked is still
+ *   an active filter. In 'All' mode undefined means "all 7 days are required"
+ *   (resolveEffectiveWeekdays). In 'Any' mode it means "service on any day in
+ *   the date range, within the time window" (serviceGateWeekdays), so routes,
+ *   stops, and flex areas with no service in the selected period are
+ *   unmarked and ticking another day can only add to the result (#433).
  *
- * - Numeric filters (frequencyOver, frequencyUnder):
+ * - Numeric filters (frequencyOver, frequencyUnder, stopVisitsOver, stopVisitsUnder):
  *   - undefined/null = filter not applied, all items pass
  *   - number = filter applied, items must meet the threshold
  *
@@ -27,15 +28,24 @@
  *    - selectedWeekdays: route must have service (headways) on selected days (Any/All mode)
  *    - selectedRouteTypes: route must have matching route_type
  *    - selectedAgencies: route must belong to matching agency
- *    - frequencyOver/frequencyUnder: route's average frequency must be within thresholds
+ *    - frequencyOver/frequencyUnder: route's average frequency (minutes between
+ *      trips) must be within thresholds
  *
  * 2. Stops are then filtered based on:
  *    - Service availability: stop must have departures on selected days (Any/All mode)
  *      within the selected time window (startTime/endTime)
+ *    - stopVisitsOver/stopVisitsUnder: the stop's total visits during the
+ *      filtered period (counting every route that serves it) must be within
+ *      thresholds
  *    - Marked routes: if route-level filters are active, stop must serve at least
  *      one marked route
  *
- * 3. Agencies are derived from the filtered stops and routes
+ * 3. If a stop-level threshold is active, routes with no stop meeting that
+ *    threshold are unmarked (issue #243) — the mirror of step 2's marked-routes
+ *    rule. It tests the thresholds alone and not the weekday gate, so a
+ *    threshold that excludes no stop leaves the route set unchanged.
+ *
+ * 4. Agencies are derived from the filtered stops and routes
  */
 
 import { format } from 'date-fns'
@@ -58,7 +68,7 @@ import {
 import {
   deriveFilteredStopClusters,
   type StopCluster,
-} from './stop-clusters'
+} from './phases/stop-clusters'
 import { stopVisits } from './stop-visits'
 import {
   type Weekday,
@@ -71,6 +81,7 @@ import {
 } from '~~/src/core'
 import type {
   Agency,
+  AgencyGql,
   FeedVersion,
   Route,
   Stop,
@@ -80,6 +91,7 @@ import type {
   RouteDepartureIndex,
   BufferGeographyIntersection,
 } from '~~/src/tl'
+import { routesById } from '~~/src/tl'
 import { getFlexAgencyNames } from '~~/src/tl/flex'
 import { RouteDepartureIndex as RouteDepartureIndexClass } from '~~/src/tl/departure-cache'
 import type { FlexDepartureCache } from '~~/src/tl/flex-departure-cache'
@@ -93,6 +105,18 @@ export function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selected
     return [...dowValues] as Weekday[]
   }
   return selectedWeekdays
+}
+
+// The days and mode the route/stop service gate checks. That gate is also
+// where the time window applies, so it must run even with no weekday subset
+// (nothing ticked, or all seven ticked in 'Any' mode): it then asks for service
+// on any day in the date range. Otherwise ticking the seventh day switched the
+// time window off and brought back routes the other six had excluded (#433).
+function serviceGateWeekdays (effectiveWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): { weekdays: Weekday[], mode?: WeekdayMode } {
+  if (effectiveWeekdays != null) {
+    return { weekdays: effectiveWeekdays, mode: selectedWeekdayMode }
+  }
+  return { weekdays: [...dowValues] as Weekday[], mode: 'Any' }
 }
 
 ////////////////////
@@ -201,15 +225,18 @@ function routeMarked (
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
 ): boolean {
-  // Check selected days - route must have service on selected days
+  // Check selected days - route must have service on selected days. deps only
+  // holds departures inside the time window, so this is also the time-of-day
+  // check. Skipped without departure data, which would read as no service.
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (effectiveWeekdays != null) {
-    if (effectiveWeekdays.length === 0) {
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null || routeIndex?.hasDepartures()) {
+    if (gate.weekdays.length === 0) {
       return false
     }
     let hasAny = false
     let hasAll = true
-    for (const sd of effectiveWeekdays) {
+    for (const sd of gate.weekdays) {
       if (hasServiceOnWeekday(deps, selectedDateRange, sd)) {
         hasAny = true
       } else {
@@ -218,9 +245,9 @@ function routeMarked (
     }
     // Check mode
     let found = false
-    if (selectedWeekdayMode === 'Any') {
+    if (gate.mode === 'Any') {
       found = hasAny
-    } else if (selectedWeekdayMode === 'All') {
+    } else if (gate.mode === 'All') {
       found = hasAll
     }
     if (!found) {
@@ -271,10 +298,9 @@ function stopSetDerived (
   selectedDateRange?: Date[],
   selectedStartTime?: string,
   selectedEndTime?: string,
-  selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
-  frequencyUnder?: number,
-  frequencyOver?: number,
+  routeFiltersActive?: boolean,
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache) {
   // Apply filters
@@ -292,13 +318,30 @@ function stopSetDerived (
     stop,
     effectiveWeekdays,
     selectedWeekdayMode,
-    selectedRouteTypes,
-    selectedAgencies,
-    frequencyUnder,
-    frequencyOver,
+    routeFiltersActive,
+    stopVisitsUnder,
+    stopVisitsOver,
     markedRoutes,
     sdCache,
   )
+}
+
+// True when the stop meets the stop-level visit thresholds. Split out of
+// stopMarked so the route gate below can ask about the thresholds on their own,
+// without inheriting the weekday/service verdict — routes judge weekday service
+// for themselves in routeMarked, on laxer terms than stops do.
+function passesStopVisitThresholds (stop: Stop, stopVisitsUnder?: number, stopVisitsOver?: number): boolean {
+  // Total visits during the filtered period, counting departures from every
+  // route that serves the stop, not only marked ones (#239 glossary). A stop
+  // with no visits in the window counts as 0.
+  const visitCount = stop.visits?.total.visit_count ?? 0
+  if (stopVisitsOver != null && visitCount <= stopVisitsOver) {
+    return false
+  }
+  if (stopVisitsUnder != null && visitCount > stopVisitsUnder) {
+    return false
+  }
+  return true
 }
 
 // Filter stops
@@ -306,21 +349,22 @@ function stopMarked (
   stop: Stop,
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
-  selectedRouteTypes?: RouteType[],
-  selectedAgencies?: string[],
-  frequencyUnder?: number,
-  frequencyOver?: number,
+  routeFiltersActive?: boolean,
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache,
 ): boolean {
-  // Check departure days - only apply if selectedWeekdays is defined
+  // Check departure days. stop.visits only counts departures inside the time
+  // window, so this is also the time-of-day check (see serviceGateWeekdays).
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (sdCache && effectiveWeekdays != null) {
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (sdCache && (effectiveWeekdays != null || sdCache.hasDepartures())) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of effectiveWeekdays) {
+    for (const sd of gate.weekdays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
@@ -348,9 +392,9 @@ function stopMarked (
     }
     // Check mode
     let found = false
-    if (selectedWeekdayMode === 'Any') {
+    if (gate.mode === 'Any') {
       found = hasAny
-    } else if (selectedWeekdayMode === 'All') {
+    } else if (gate.mode === 'All') {
       found = hasAll
     }
     // Not found, no further processing
@@ -360,10 +404,17 @@ function stopMarked (
     }
   }
 
+  // Check stop visits (issue #243). Note the weekday gate above has already
+  // dropped stops with no service on the selected days, so a zero-visit stop
+  // only reaches an "under" threshold when no weekday filter is active.
+  if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
+    return false
+  }
+
   // Check marked routes
   // Must match at least one marked route if any route-level filters are applied
-  if (markedRoutes && (selectedAgencies != null || selectedRouteTypes != null || frequencyUnder != null || frequencyOver != null)) {
-    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route.id))
+  if (markedRoutes && routeFiltersActive) {
+    const hasMarkedRoute = stop.route_stops.some(rs => markedRoutes.has(rs.route_id))
     if (!hasMarkedRoute) {
       // console.debug('stopMarked:', stop.id, 'unmarked: no marked routes')
       return false
@@ -373,6 +424,33 @@ function stopMarked (
   // Default is to return true
   // console.debug('stopMarked:', stop.id, 'marked: passed all filters')
   return true
+}
+
+// Unmark routes with no stop meeting the visit thresholds: the stop-side mirror
+// of the marked-routes check above. It asks about the thresholds rather than
+// stop.marked so that a stop excluded for weekday reasons cannot drag its route
+// down — routes apply their own, laxer weekday rule in routeMarked, and a
+// threshold that excludes no stop must leave the route set untouched.
+function unmarkRoutesWithoutPassingStop (
+  routes: Route[],
+  stops: Stop[],
+  stopVisitsUnder?: number,
+  stopVisitsOver?: number,
+) {
+  const routesWithPassingStop = new Set<number>()
+  for (const stop of stops) {
+    if (!passesStopVisitThresholds(stop, stopVisitsUnder, stopVisitsOver)) {
+      continue
+    }
+    for (const rs of stop.route_stops || []) {
+      routesWithPassingStop.add(rs.route_id)
+    }
+  }
+  for (const route of routes) {
+    if (route.marked && !routesWithPassingStop.has(route.id)) {
+      route.marked = false
+    }
+  }
 }
 
 //////////////////////////////////////
@@ -401,17 +479,20 @@ function flexAreaMarked (
     }
   }
 
-  // Day-of-week filter
+  // Day-of-week filter. With no weekday subset the area still needs service on
+  // some day in the date range (see serviceGateWeekdays). Skipped without flex
+  // service data, which would read as no service anywhere.
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (effectiveWeekdays != null) {
-    if (effectiveWeekdays.length === 0) { return false }
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null || flexDepartureCache.hasDepartures()) {
+    if (gate.weekdays.length === 0) { return false }
     const locationId = feature.properties.internal_id
     if (locationId == null) { return false }
 
     let hasAny = false
     let hasAll = true
 
-    for (const weekday of effectiveWeekdays) {
+    for (const weekday of gate.weekdays) {
       let hasServiceOnWeekday = false
       for (const date of dateRange) {
         if (WEEKDAY_BY_GETDAY[date.getDay()] === weekday) {
@@ -424,7 +505,7 @@ function flexAreaMarked (
       if (hasServiceOnWeekday) { hasAny = true } else { hasAll = false }
     }
 
-    if (selectedWeekdayMode === 'All' ? !hasAll : !hasAny) {
+    if (gate.mode === 'All' ? !hasAll : !hasAny) {
       return false
     }
   }
@@ -475,6 +556,17 @@ export function applyScenarioResultFilter (
   const endTimeValue = filter.endTime ? format(filter.endTime, 'HH:mm:ss') : '24:00:00'
   const frequencyUnderValue = filter.frequencyUnder
   const frequencyOverValue = filter.frequencyOver
+  const stopVisitsUnderValue = filter.stopVisitsUnder
+  const stopVisitsOverValue = filter.stopVisitsOver
+  // Cross-entity gates are armed only by filters the other side cannot evaluate
+  // itself: route-level filters gate stops (a stop must serve a marked route)
+  // and stop-level thresholds gate routes (a route must serve a marked stop).
+  // Weekday/time filters are evaluated by both sides and arm neither.
+  const routeFiltersActive = selectedAgenciesValue != null
+    || selectedRouteTypesValue != null
+    || frequencyUnderValue != null
+    || frequencyOverValue != null
+  const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {
@@ -520,6 +612,10 @@ export function applyScenarioResultFilter (
       ...stopGql,
       marked: true,
       visits: undefined,
+      // Joined on here rather than merged into the accumulated stops: the
+      // stop-census phase finishes after the stops it describes have already
+      // streamed past, and the WSDOT path retains no stops to write onto.
+      census_geographies: data.stopCensusGeographies?.get(stopGql.id),
       __typename: 'Stop', // backwards compat
     }
     stopSetDerived(
@@ -529,26 +625,32 @@ export function applyScenarioResultFilter (
       selectedDateRangeValue,
       startTimeValue,
       endTimeValue,
-      selectedRouteTypesValue,
-      selectedAgenciesValue,
-      frequencyUnderValue,
-      frequencyOverValue,
+      routeFiltersActive,
+      stopVisitsUnderValue,
+      stopVisitsOverValue,
       markedRoutes,
       sdCache
     )
     return stop
   })
-  const _markedStops = new Set(stopFeatures.filter(s => s.marked).map(s => s.id))
 
-  // Apply agency filters
+  // Before agencies are derived below, so they follow the final route marks.
+  if (stopFiltersActive) {
+    unmarkRoutesWithoutPassingStop(routeFeatures, stopFeatures, stopVisitsUnderValue, stopVisitsOverValue)
+  }
+
+  const routeLookup = routesById(routeFeatures)
+
+  // Agencies come off the routes phase, so this rolls up empty until it lands.
   const agencyData = new Map()
   for (const stop of stopFeatures) {
     for (const rstop of stop.route_stops || []) {
-      const agency = rstop.route.agency
-      const aid = agency?.agency_id
-      if (!aid) {
-        continue // no valid agency listed for this stop?
+      const route = routeLookup.get(rstop.route_id)
+      if (!route?.agency.agency_id) {
+        continue // route not fetched yet, or no agency listed
       }
+      const agency = route.agency
+      const aid = agency.agency_id
       const adata = agencyData.get(aid) || {
         id: aid,
         routes: new Set(),
@@ -556,8 +658,8 @@ export function applyScenarioResultFilter (
         stops: new Set(),
         agency: agency,
       }
-      adata.routes.add(rstop.route.id)
-      adata.routes_modes.add(rstop.route.route_type)
+      adata.routes.add(rstop.route_id)
+      adata.routes_modes.add(route.route_type)
       adata.stops.add(stop.id)
       agencyData.set(aid, adata)
     }
@@ -565,7 +667,7 @@ export function applyScenarioResultFilter (
   const markedAgencies: Set<number> = new Set()
   stopFeatures.filter(s => s.marked).forEach((s) => {
     for (const rstop of s.route_stops || []) {
-      markedAgencies.add(rstop.route.agency?.id)
+      markedAgencies.add(rstop.agency_id)
     }
   })
   routeFeatures.filter(s => s.marked).forEach((s) => {
@@ -573,20 +675,13 @@ export function applyScenarioResultFilter (
   })
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
-    const agency = adata.agency as Agency
+    const agency: AgencyGql = adata.agency
     return {
+      ...agency,
       marked: markedAgencies.has(agency.id),
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
-      stops_count: adata.stops.size, // adata.stops.intersection(markedStops).size,
-      id: agency.id,
-      agency_id: agency.agency_id,
-      agency_name: agency.agency_name,
-      agency_email: agency.agency_email,
-      agency_fare_url: agency.agency_fare_url,
-      agency_lang: agency.agency_lang,
-      agency_phone: agency.agency_phone,
-      agency_timezone: agency.agency_timezone,
+      stops_count: adata.stops.size,
       __typename: 'Agency', // backwards compat
     }
   })

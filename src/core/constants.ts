@@ -294,6 +294,12 @@ export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
 export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
 
+// Seeded when the user ticks a Fixed-Route Services threshold: route frequency
+// (minutes between trips) and stop visits (total visits during the filtered
+// period). Starting points only; the user edits the number in place.
+export const ROUTE_FREQUENCY_DEFAULT_MINUTES = 15
+export const STOP_VISITS_DEFAULT_TOTAL = 10
+
 // Accent color for cluster markers and the selected-cluster radius circle, kept
 // distinct from the agency/mode palette. Single source of truth: map layers read
 // it directly; legend.vue / map-popup.vue bind it into CSS via v-bind (no manual sync).

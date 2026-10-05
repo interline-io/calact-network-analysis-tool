@@ -37,7 +37,6 @@
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
             @explore="runQuery"
-            @load-example-data="loadExampleData"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="clearScenario"
             @fit-to-geographies="fitToGeographies"
@@ -59,6 +58,7 @@
             :active-tab="activeTab.sub"
             @reset-filters="resetFilters"
             @show-query="activeTab = { tab: 'query', sub: '' }"
+            @refresh-census="refreshCensusClip"
           />
         </div>
 
@@ -90,6 +90,7 @@
           :display-edit-bbox-mode="displayEditBboxMode"
           :show-bbox="showBboxOnMap"
           :choropleth-features="choroplethFeatures"
+          :stop-buffer-features="stopBufferFeatures"
           :choropleth-classification="choroplethClassification"
           :flex-display-features="flexDisplayFeatures"
           :loading-stage="loadingProgress?.currentStage"
@@ -124,11 +125,12 @@
       <cat-modal
         v-model="showLoadingModal"
         title="Loading"
-        :closable="false"
+        :closable="!!error || requestErrors.length > 0"
       >
         <cal-scenario-loading
           :progress="loadingProgress"
           :error="error"
+          :request-errors="requestErrors"
           :stop-departure-count="stopDepartureCount"
           :scenario-data="scenarioData"
           :phase-plan="scenarioPhasePlan"
@@ -197,11 +199,13 @@ import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
+import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
   stopGeoAggregateCsv,
+  routesById,
   parseFvids,
 } from '~~/src/tl'
 import type {
@@ -221,7 +225,10 @@ import {
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   formatAcsDatasetLabel,
-  summarizeBbox,
+  summarizeApportioned,
+  censusApportionArea,
+  censusApportionGeometry,
+  censusApportionRatio,
   deriveApportionedRow,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
@@ -230,13 +237,14 @@ import {
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
-import { useToastNotification, useRouter } from '#imports'
+import { useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
 
 // Initialize composables
 const { setQuery } = useUrlQuery()
 const {
   showAggAreas,
+  aggClipMode,
   aggregateLayer,
   onlyWithStops,
   showBbox,
@@ -252,7 +260,6 @@ const {
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
-  includeDepartures,
   includeCensus,
   fvids,
   stopBufferRadius,
@@ -268,6 +275,8 @@ const {
   selectedWeekdayMode,
   frequencyUnder,
   frequencyOver,
+  stopVisitsUnder,
+  stopVisitsOver,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -328,21 +337,12 @@ const querySubmitted = ref(false)
 // new bbox value takes effect rather than the stale explicit bbox.
 watch(cannedBbox, () => { querySubmitted.value = false })
 
-// Runs on explore event from query (when user clicks "Run Query")
+// Runs on explore event from query (when user clicks "Run Query"). The
+// modal/toast lifecycle is the shared one in useScenarioStream.
 const runQuery = async () => {
   querySubmitted.value = true
-  showLoadingModal.value = true
   activeTab.value = { tab: 'map', sub: '' }
-  try {
-    await fetchScenario('')
-  } catch (err: any) {
-    error.value = err
-  }
-  if (!error.value) {
-    useToastNotification().showToast('Browsing query data loaded successfully!')
-    showLoadingModal.value = false
-  }
-  loadingProgress.value = undefined
+  await runScenarioQuery('Browsing query data loaded successfully!')
 }
 
 // Scenario data ref - the central scenario data graph, populated by fetchScenario.
@@ -408,27 +408,32 @@ const selectedPanelData = computed(() => {
   const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
+  if (!geo) {
+    return { row, apportionedDerived: null, areaStats: null }
+  }
+  const mode = aggClipMode.value
+  const ratio = censusApportionRatio(geo, mode)
   return {
     row,
-    apportionedDerived: geo ? deriveApportionedRow(geo.values, geo.intersectionRatio) : null,
-    areaStats: geo
-      ? {
-          geometryArea: geo.geometryArea,
-          intersectionArea: geo.intersectionArea,
-          intersectionRatio: geo.intersectionRatio,
-        }
-      : null,
+    apportionedDerived: deriveApportionedRow(geo.values, ratio),
+    areaStats: {
+      geometryArea: geo.geometryArea,
+      // Unclipped mode has no intersection to report — the panel hides the
+      // row rather than restating the full area at 100%.
+      intersectionArea: mode === 'unclipped' ? null : censusApportionArea(geo, mode),
+      intersectionRatio: mode === 'unclipped' ? null : ratio,
+    },
   }
 })
 
-// Bbox-wide aggregate, fed to the panel's "Query Area Total" column.
-// Independent of the selection so it doesn't recompute on every click.
+// Aggregate across every geography, fed to the panel's total column. Independent
+// of the selection so it doesn't recompute on every click.
 const allGeographiesDerived = computed((): Record<string, number | null> | null => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeBbox(geos.keys(), geos).derived
+  return summarizeApportioned(geos.keys(), geos, aggClipMode.value).derived
 })
 
 /////////////////////////
@@ -685,7 +690,7 @@ const censusDetailsEntries = computed<CensusGeographyEntry[]>(() => {
       }
     }
   }
-  return censusGeographyMapToEntries(result.censusGeographies, geoid => nameMap.get(geoid))
+  return censusGeographyMapToEntries(result.censusGeographies, aggClipMode.value, geoid => nameMap.get(geoid))
 })
 
 const {
@@ -701,7 +706,8 @@ const {
   loadGeometry: loadBufferGeometry,
 } = useBufferDetails()
 
-// Force the overlay on so the selection actually renders on the map.
+// Force the overlay on so the selection actually renders on the map, leaving
+// an already-chosen clip alone.
 function onSelectGeographyFromDetails (geoid: string) {
   showCensusDetails.value = false
   showAggAreas.value = true
@@ -734,12 +740,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,
-  // the transfer-time prune needs departures, so clustering + a transfer time
-  // forces them on; proximity-only clustering (transfer 0) doesn't need them.
-  includeDepartures: (clusterDistance.value > 0 && clusterMaxTransferMinutes.value > 0)
-    ? true
-    : includeDepartures.value,
   includeCensus: includeCensus.value,
+  includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
@@ -757,6 +759,8 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   selectedAgencies: selectedAgencies.value,
   frequencyUnder: frequencyUnder.value,
   frequencyOver: frequencyOver.value,
+  stopVisitsUnder: stopVisitsUnder.value,
+  stopVisitsOver: stopVisitsOver.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
@@ -798,13 +802,18 @@ const aggregateLayerLabel = computed((): string => {
 // Choropleth aggregation overlay
 /////////////////
 
-// All census geographies in the query area, used to fetch geometry for the
-// choropleth. Empty when the overlay is off.
+// Geographies the choropleth still needs a full outline for. In a clipped mode
+// that's only the ones the census phase returned no clipped outline for — a
+// geography outside every stop buffer, or the window before those outlines
+// have streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
+  const mode = aggClipMode.value
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos) { return [] }
-  return [...geos.values()].map(g => g.id)
+  return [...geos.values()]
+    .filter(g => !censusApportionGeometry(g, mode))
+    .map(g => g.id)
 })
 
 // Fetch geometry for the choropleth geographies
@@ -823,18 +832,36 @@ const {
 )
 
 // Compute aggregate stats per geography
+// The stop set the census clip is computed against, so buffer coverage tracks
+// the filter rather than the whole query area.
+const markedStopIds = computed((): number[] =>
+  (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
+
 const choroplethAggregateData = computed(() => {
   if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  return stopGeoAggregateCsv(
+  const rows = stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
+    routesById(scenarioFilterResult.value.routes),
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
+  // A clipped mode measures nothing for a geography the clip doesn't reach, so
+  // drop it rather than paint an empty polygon at zero. Filtered here so the
+  // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
+  // census entry are stop-derived and unaffected.
+  const mode = aggClipMode.value
+  const geos = scenarioFilterResult.value.censusGeographies
+  return rows.filter((r) => {
+    const geo = geos?.get(r.geoid)
+    return !geo || censusApportionRatio(geo, mode) > 0
+  })
 })
+
+const { stopBufferFeatures } = useStopBufferFeatures({ scenarioFilterResult })
 
 const { choroplethClassification, choroplethFeatures } = useChoroplethClassification({
   choroplethAggregateData,
@@ -850,11 +877,13 @@ const {
   loadingProgress,
   showLoadingModal,
   error,
-  scenarioPhasePlan,
-  scenarioPhaseFractions,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
   stopDepartureCount,
-  fetchScenario,
+  runQuery: runScenarioQuery,
 } = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
 
 // Debounced standalone recomputes that stream into the same receiver without
@@ -866,9 +895,11 @@ useBufferRefetch({
   loadingProgress,
   showLoadingModal,
   error,
+  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
 })
 
 // recompute clusters when the distance changes, reusing the same receiver.
@@ -879,29 +910,45 @@ useClusterRefetch({
   loadingProgress,
   showLoadingModal,
   error,
+  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
 })
 
-// recompute census values when the Aggregate-by layer changes, reusing the same receiver.
-useAggregateRefetch({
+// reload each stop's census geography when the Aggregate-by layer changes —
+// the phase fetches one layer, so the previous one's entries no longer match.
+useStopCensusRefetch({
   scenarioReceiver,
   scenarioData,
   scenarioConfig,
   loadingProgress,
   showLoadingModal,
   error,
+  requestErrors,
   phasePlan: scenarioPhasePlan,
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
+  runInFlight,
 })
 
-const loadExampleData = async (exampleName: string) => {
-  console.log('loading example data:', exampleName)
-  activeTab.value = { tab: 'map', sub: '' }
-  fetchScenario(exampleName)
-}
+// recompute census values when the Aggregate-by layer or the stop buffer radius
+// changes, and on demand from the Map Display refresh, reusing the same receiver.
+const { refresh: refreshCensusClip } = useAggregateRefetch({
+  scenarioReceiver,
+  scenarioData,
+  scenarioConfig,
+  loadingProgress,
+  showLoadingModal,
+  error,
+  requestErrors,
+  phasePlan: scenarioPhasePlan,
+  phaseFractions: scenarioPhaseFractions,
+  refetchInFlight,
+  runInFlight,
+  markedStopIds,
+})
 
 /////////////////
 // Filter tags
@@ -956,20 +1003,11 @@ const filterTags = computed((): FilterTag[] => {
     tags.push({ label: 'Time of Day', value: 'All', active: false })
   }
 
-  // frequencies
-  const minFreq = scenarioFilter.value.frequencyOver
-  const maxFreq = scenarioFilter.value.frequencyUnder
-  if (minFreq != null && maxFreq != null && minFreq !== maxFreq) {
-    tags.push({ label: 'Frequencies', value: `${minFreq}–${maxFreq} min`, active: true })
-  } else if (minFreq != null && maxFreq != null && minFreq === maxFreq) {
-    tags.push({ label: 'Frequencies', value: `${minFreq} min`, active: true })
-  } else if (minFreq != null) {
-    tags.push({ label: 'Frequencies', value: `≥${minFreq} min`, active: true })
-  } else if (maxFreq != null) {
-    tags.push({ label: 'Frequencies', value: `<${maxFreq} min`, active: true })
-  } else {
-    tags.push({ label: 'Frequencies', value: 'All', active: false })
-  }
+  // route frequency and stop visits thresholds. The "Over" filters are the
+  // panel's ">" rows and the "Under" filters its "≦" rows, so Over is the
+  // range minimum and Under the maximum.
+  tags.push(rangeTag('Route frequency', scenarioFilter.value.frequencyOver, scenarioFilter.value.frequencyUnder, 'min', '≥'))
+  tags.push(rangeTag('Stop visits', scenarioFilter.value.stopVisitsOver, scenarioFilter.value.stopVisitsUnder, 'visits', '>'))
 
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
@@ -988,6 +1026,25 @@ const filterTags = computed((): FilterTag[] => {
 // Helpers
 //////////////////////
 
+// Tag for a min/max threshold pair; inactive "All" when neither is set. The
+// lower-bound operator is passed in because the two filters differ: routeMarked
+// rejects a route only below the bound, so frequency admits equality (≥), while
+// the stop-visits gate is strictly greater (>). Both bounds render both
+// operators rather than an "N unit" range, since an equal pair is an exact
+// match under ≥ but matches nothing under >.
+function rangeTag (label: string, min: number | undefined, max: number | undefined, unit: string, minOp: '≥' | '>'): FilterTag {
+  if (min != null && max != null) {
+    return { label, value: `${minOp}${min}, ≤${max} ${unit}`, active: true }
+  }
+  if (min != null) {
+    return { label, value: `${minOp}${min} ${unit}`, active: true }
+  }
+  if (max != null) {
+    return { label, value: `≤${max} ${unit}`, active: true }
+  }
+  return { label, value: 'All', active: false }
+}
+
 async function resetFilters () {
   await setQuery({
     selectedAgencies: undefined,
@@ -998,6 +1055,10 @@ async function resetFilters () {
     selectedRouteTypes: undefined,
     frequencyUnder: undefined,
     frequencyOver: undefined,
+    stopVisitsUnder: undefined,
+    stopVisitsOver: undefined,
+    // Retired with the "single routes" toggle; cleared so it does not linger
+    // in bookmarked or shared URLs.
     calculateFrequencyMode: undefined,
     maxFareEnabled: undefined,
     maxFare: undefined,
@@ -1013,6 +1074,17 @@ async function resetFilters () {
     flexColorBy: undefined,
     stopBufferRadius: undefined,
     stopBufferLayer: undefined,
+    // Map Display panel — every key useScenarioDisplay owns, so a cleared
+    // scenario doesn't inherit an overlay configured for the last one.
+    showAggAreas: undefined,
+    aggClip: undefined,
+    aggregateLayer: undefined,
+    choroplethElement: undefined,
+    shadeByDensity: undefined,
+    onlyWithStops: undefined,
+    showStopBuffer: undefined,
+    showBbox: undefined,
+    dataDisplayMode: undefined,
   })
 }
 
@@ -1048,7 +1120,8 @@ function toTitleCase (str: string): string {
   position: absolute;
   top: 0;
   left: 0;
-  height: 100vh;
+  // cal-build-banner publishes its height; 0px when it is not shown.
+  height: calc(100vh - var(--cal-build-banner-height, 0px));
   z-index: 1000;
   background: white;
 }

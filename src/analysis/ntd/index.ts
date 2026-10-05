@@ -12,7 +12,7 @@ import type { GraphQLClient } from '~~/src/core'
 
 // GraphQL query to fetch NTD census values with cursor pagination
 const ntdValuesQuery = gql`
-query($first: Int, $after: String, $dataset: String!, $table: String) {
+query NtdValues($first: Int, $after: String, $dataset: String!, $table: String) {
   census_datasets(where: {name: $dataset}) {
     values: values_relay(first: $first, after: $after, where: {
       table: $table
@@ -266,7 +266,7 @@ export async function getNTDDatasetInfo (
   datasetName: string = 'ntd-annual-2024'
 ): Promise<{ yearMin: number | null, yearMax: number | null }> {
   const query = gql`
-    query($name: String!) {
+    query NtdDatasetYears($name: String!) {
       census_datasets(where: {name: $name}) {
         year_min
         year_max

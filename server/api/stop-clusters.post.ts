@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'Recomputing stop clusters', async (client, emit) => {
+  return streamPhaseResponse(event, 'stop-clusters', 'Recomputing stop clusters', async (client, emit) => {
     await runStopClustersPhase(config, client, emit)
     logMemory('stop-clusters-stream-complete')
   })
