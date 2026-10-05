@@ -237,8 +237,10 @@ describe('per-stop census pipeline (integration)', () => {
       routesById(filtered.routes),
       filtered.censusGeographies,
     )
+    // The table counts marked stops only, and stops with no service in the
+    // period are unmarked (#433), so compare against the marked ones.
     const withStops = rows.filter(r => r.stops_count > 0)
     expect(withStops.length).toBeGreaterThan(0)
-    expect(withStops.reduce((n, r) => n + r.stops_count, 0)).toBe(withGeographies.length)
+    expect(withStops.reduce((n, r) => n + r.stops_count, 0)).toBe(withGeographies.filter(s => s.marked).length)
   }, 300000)
 })
