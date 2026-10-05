@@ -319,6 +319,22 @@ export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: Flex
 }
 
 /**
+ * Pair each flex area with its marked status: marked when the scenario filter
+ * (agency, day of week) kept it and it matches the display-level filters. The
+ * map and the Flex Areas report both read this, so they agree on which areas
+ * satisfy the current filters.
+ */
+export function markFlexAreas (
+  features: readonly FlexAreaFeature[],
+  criteria: FlexAreaFilterCriteria,
+): { feature: FlexAreaFeature, marked: boolean }[] {
+  return features.map(feature => ({
+    feature,
+    marked: (feature.properties.marked !== false) && flexAreaMatchesFilters(feature, criteria),
+  }))
+}
+
+/**
  * Get all unique agency names from a flex area
  * @param feature - Flex area feature
  * @returns Array of agency names
