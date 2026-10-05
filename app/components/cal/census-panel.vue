@@ -35,6 +35,9 @@
       </div>
 
       <table class="cal-census-panel-table">
+        <caption class="is-sr-only">
+          Census statistics
+        </caption>
         <thead>
           <tr>
             <th>Statistic</th>

@@ -146,6 +146,9 @@
           Direction {{ section.directionId }}
         </h3>
         <table class="table is-fullwidth is-narrow cal-route-timetable-table cal-route-timetable-trips-table">
+          <caption class="is-sr-only">
+            Direction {{ section.directionId }} trips
+          </caption>
           <thead>
             <tr>
               <th>Trip ID</th>
@@ -344,6 +347,9 @@
               By day of week
             </p>
             <table class="table is-narrow cal-route-timetable-dow-table">
+              <caption class="is-sr-only">
+                Frequency by day of week
+              </caption>
               <thead>
                 <tr>
                   <th>Day</th>
@@ -412,6 +418,9 @@
         />
 
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
+          <caption class="is-sr-only">
+            Departures and gaps
+          </caption>
           <thead>
             <tr>
               <th>Trip ID</th>
@@ -530,6 +539,9 @@
         />
 
         <table class="table is-fullwidth is-narrow cal-route-timetable-table">
+          <caption class="is-sr-only">
+            Stops served
+          </caption>
           <thead>
             <tr>
               <th>Stop ID</th>

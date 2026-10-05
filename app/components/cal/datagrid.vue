@@ -2,7 +2,8 @@
   <div class="mb-6">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
-           labelled (via filterLabel) to distinguish it from other filters.
+           labelled (via filterLabel, from the caption) to distinguish it from
+           other filters.
            Landmarks of the same role must be uniquely labelled when more than
            one is exposed at once. Views with several datagrids only ever show
            one — cat-tabs uses v-show (display:none drops it from the
@@ -46,7 +47,7 @@
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
-        <caption v-if="props.caption" class="is-sr-only">
+        <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
         <thead>
@@ -183,14 +184,13 @@ const props = defineProps<{
   freezeFirstColumn?: boolean
   // Accessible table caption. Rendered as a visually-hidden <caption> so screen
   // readers announce the table's purpose; sighted users still see surrounding
-  // heading/tab UI for context.
-  caption?: string
-  // Short name for what this grid holds ("Routes", "Stops"), used to
-  // distinguish this filter from others on the page. Deliberately not derived
-  // from `caption`: a caption describes the whole table and may carry a date
-  // range, which makes for a long name that is re-read on every focus and
-  // changes whenever the range does.
-  filterLabel?: string
+  // heading/tab UI for context. Required so every grid is named (WCAG 1.3.1).
+  // Also names the filter ("Filter rows in <caption>"), so it is re-read on
+  // every focus: keep it to a few words naming what the grid holds ("Routes",
+  // "Census geographies"), consistent with the visible heading or tab, and
+  // leave out context the surrounding heading already gives (dates, the
+  // selected route or area).
+  caption: string
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
@@ -206,8 +206,7 @@ const tableId = useId()
 // verbatim — otherwise a speech-input user who says what they see gets no
 // match (WCAG 2.5.3 Label in Name).
 const FILTER_PLACEHOLDER = 'Filter rows'
-const filterLabel = computed(() =>
-  props.filterLabel ? `${FILTER_PLACEHOLDER} in ${props.filterLabel}` : FILTER_PLACEHOLDER)
+const filterLabel = computed(() => `${FILTER_PLACEHOLDER} in ${props.caption}`)
 
 // aria-sort for the <th> of the column that is currently sorted, so screen
 // readers announce the direction (WCAG 4.1.2). Set only on the active column,

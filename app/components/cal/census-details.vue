@@ -83,6 +83,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="geographiesTableReport"
+        caption="Census geographies"
         :filename="csvFilename('geographies')"
         freeze-first-column
       >
@@ -114,6 +115,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="rawTableReport"
+        caption="Raw ACS values"
         :filename="csvFilename('raw')"
         freeze-first-column
       >
@@ -148,6 +150,9 @@
         Display columns
       </h3>
       <table class="table is-striped is-narrow is-fullwidth">
+        <caption class="is-sr-only">
+          Coverage by display column
+        </caption>
         <thead>
           <tr>
             <th>Column</th>
@@ -172,6 +177,9 @@
         ACS source tables
       </h3>
       <table class="table is-striped is-narrow is-fullwidth">
+        <caption class="is-sr-only">
+          Coverage by ACS source table
+        </caption>
         <thead>
           <tr>
             <th>Table</th>
@@ -204,6 +212,7 @@
       </cat-msg>
       <cal-datagrid
         v-model:table-report="apportionmentTableReport"
+        caption="Apportioned values"
         :filename="csvFilename('apportionment')"
       />
     </div>
@@ -264,6 +273,9 @@
           Input values for {{ inspectorSingle.geoid }}
         </h4>
         <table class="table is-striped is-narrow">
+          <caption class="is-sr-only">
+            Raw ACS inputs
+          </caption>
           <thead>
             <tr>
               <th>Raw column</th>
@@ -304,6 +316,7 @@
           </h4>
           <cal-datagrid
             v-model:table-report="inspectorApportioned.tableReport"
+            :caption="`Per-geography contribution to ${inspectorApportioned.column.label}`"
             :filename="csvFilename(`inspect-${inspectorColumnId}`)"
             freeze-first-column
           />
