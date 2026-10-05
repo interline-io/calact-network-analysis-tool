@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
-import maplibre from 'maplibre-gl'
+import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
