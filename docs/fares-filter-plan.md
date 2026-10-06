@@ -93,11 +93,20 @@ Files to touch for each type (about the same for all six):
 these fields their own max (100,000, like trips and shapes) so calact can fetch
 a feed version's fares in one request.
 
-**Not needed:** areas, stop_areas, timeframes, fare_media, networks,
-fare_transfer_rules, fare_leg_join_rules, and REST endpoints. Area- and
-timeframe-based leg rules only widen a route's range, so the summary doesn't
-need to resolve them. timeframes may be needed later for the C-TRAN case (see
-Open questions).
+**Decision: expose all of Fares v2, not only the tables above.** The spec's
+matching rules (see Per-route fare summary) need `networks` and `areas` to
+apply the empty-field fallbacks correctly, `timeframes` is the basis for
+resolving the C-TRAN case, and the remaining tables (fare_media,
+fare_transfer_rules, fare_leg_join_rules, stop_areas) are the same small
+amount of work each and make the API complete for other clients. Interline
+extension columns (`fare_leg_rules.transfer_only`, fare product durations,
+`fare_transfer_rules.filter_fare_product_id`, area geometry) are left out. In
+the schema, `fare_rules.fare_id` is `fare_attribute`, `fare_products.fare_media_id`
+is `fare_media`, and the route, network, area, stop, and service references are
+objects, because the importer stores those columns as internal row ids. REST
+endpoints are still not needed.
+
+Implementation: transitland-lib branch `fares-graphql`.
 
 ### tlv2
 
@@ -142,9 +151,17 @@ type RouteFareFlag =
 
 **Fares v2** (used when the feed version has fare_leg_rules)
 
-- A route's networks are its `route_networks` rows, or else `routes.network_id`.
-- Matching leg rules are those whose `network_id` is one of the route's networks,
-  or is empty (applies to all routes).
+- A route's network is its `route_networks` row, or else `routes.network_id`
+  (the spec allows only one network per route).
+- Matching leg rules follow the spec's two modes for empty fields:
+  - Without a `rule_priority` column: a route uses the rules that name its
+    network. Only if there are none does it fall back to rules with an empty
+    `network_id`, which mean "every network not named by another rule". The
+    same fallback applies to `from_area_id` / `to_area_id` for each pair of
+    areas the route serves (from `stop_areas`).
+  - With a `rule_priority` column: empty fields match anything, and only the
+    matching rules with the highest `rule_priority` apply.
+- A route with no matching rule has an unknown fare (spec step 5).
 - Eligible products: those for the rider category with
   `is_default_fare_category = 1`, and products with an empty
   `rider_category_id` (the spec makes those eligible for every category).
