@@ -52,26 +52,60 @@ mtc-regional-feed.
 
 ## Part 1: transitland-lib GraphQL
 
-All of these tables are already populated by the importer. None are exposed in
-`schema/graphql/schema.graphqls` today. Add read-only types and fields
-following `server/gql/RESOLVER_GUIDE.md` (schema, model, finder, loader,
-resolver, tests):
+All of these tables are already populated by the importer, but none are exposed
+in `schema/graphql/schema.graphqls` today. Add read-only types and child fields
+on `FeedVersion` (plus one field on `Route`), following
+`server/gql/RESOLVER_GUIDE.md`.
 
-| GraphQL field | Table | Notes |
+| GraphQL field | Table | Columns the summary needs |
 |---|---|---|
-| `FeedVersion.fare_attributes` | `gtfs_fare_attributes` | v1; include `agency` |
-| `FeedVersion.fare_rules` | `gtfs_fare_rules` | v1; `route_id` resolves to Route, zone ids as text |
-| `FeedVersion.fare_products` | `gtfs_fare_products` | v2 |
-| `FeedVersion.fare_leg_rules` | `gtfs_fare_leg_rules` | v2; ids stored as text |
-| `FeedVersion.rider_categories` | `gtfs_rider_categories` | v2; includes `is_default_fare_category` |
-| `FeedVersion.route_networks` | `gtfs_route_networks` | v2 |
-| `FeedVersion.networks` | `gtfs_networks` | v2 |
-| `Route.network_id` | `gtfs_routes.network_id` | v2 alternative to route_networks; already selected by the finder |
+| `FeedVersion.fare_attributes` | `gtfs_fare_attributes` | `fare_id`, `price`, `currency_type`, `agency { agency_id }` |
+| `FeedVersion.fare_rules` | `gtfs_fare_rules` | `fare_id` (the GTFS string, not the FK), `route { route_id }`, `origin_id`, `destination_id`, `contains_id` |
+| `FeedVersion.fare_leg_rules` | `gtfs_fare_leg_rules` | `leg_group_id`, `network_id`, `from_area_id`, `to_area_id`, `from_timeframe_group_id`, `to_timeframe_group_id`, `fare_product_id` (all stored as text) |
+| `FeedVersion.fare_products` | `gtfs_fare_products` | `fare_product_id`, `rider_category_id`, `fare_media_id`, `amount`, `currency` |
+| `FeedVersion.rider_categories` | `gtfs_rider_categories` | `rider_category_id`, `is_default_fare_category` |
+| `FeedVersion.route_networks` | `gtfs_route_networks` | `network_id`, `route { route_id }` |
+| `Route.network_id` | `gtfs_routes.network_id` | already selected by the route finder, only the schema field is missing |
 
-Deferred unless the data review shows they are needed for the summary: areas,
-stop_areas, timeframes, fare_media, fare_transfer_rules, fare_leg_join_rules.
-Area- and timeframe-based leg rules only widen a route's min/max range, so the
-summary can be computed without resolving them.
+Expose the other spec columns on each type too (names, `fare_media_id`,
+rider category names and ages), since the types are meant for general API
+use, not just this summary. Leave out `transfer_only`: it is an Interline
+extension, not part of the spec, so the derivation does not use it.
+
+Files to touch for each type (about the same for all six):
+
+- `schema/graphql/schema.graphqls`: the type and the `FeedVersion` child field.
+- `server/model/models.go`: a wrapper struct embedding the `gtfs.*` entity.
+- `server/model/finders.go`: a `XByFeedVersionIDs` method.
+- `server/model/unimplemented_finder.go`: a stub for it.
+- `server/finders/dbfinder/`: a select filtered by `feed_version_id`, ordered by `id`,
+  through the usual feed permission filter.
+- `server/gql/loader_params.go` and `server/gql/loaders.go`: the loader and its param.
+- A resolver file, registered in `server/gql/resolver.go`, plus the parent field in
+  `feed_version_resolver.go`. `fare_rules.route` and `route_networks.route` reuse the
+  existing route loader.
+- Regenerate `internal/generated/gqlout`.
+- Resolver tests on a test feed that has both v1 and v2 fares, such as one of the
+  fare fixtures in `testdata/gtfs-validator-layers`.
+
+**Limits.** Child fields default to `RESOLVER_MAXLIMIT` (1,000). The RG feed has
+11,346 fare products and 3,514 leg rules, and MTS has 400 fare rules. Give
+these fields their own max (100,000, like trips and shapes) so calact can fetch
+a feed version's fares in one request.
+
+**Not needed:** areas, stop_areas, timeframes, fare_media, networks,
+fare_transfer_rules, fare_leg_join_rules, and REST endpoints. Area- and
+timeframe-based leg rules only widen a route's range, so the summary doesn't
+need to resolve them. timeframes may be needed later for the C-TRAN case (see
+Open questions).
+
+### tlv2
+
+No new code. tlv2 picks up the schema through a transitland-lib version bump and a
+deploy, as in its recent "Update transitland-lib to ..." PRs. Its in-memory
+`memfinder` embeds `model.UnimplementedFinder` and drops fare entities on
+load, so the new fields return nothing there. That is fine as long as the
+production API serves from the Postgres finder.
 
 ## Part 2: calact
 
@@ -110,7 +144,7 @@ type RouteFareFlag =
 
 - A route's networks are its `route_networks` rows, or else `routes.network_id`.
 - Matching leg rules are those whose `network_id` is one of the route's networks,
-  or is empty (applies to all routes). Exclude `transfer_only` rules.
+  or is empty (applies to all routes).
 - Eligible products: those for the rider category with
   `is_default_fare_category = 1`, and products with an empty
   `rider_category_id` (the spec makes those eligible for every category).
