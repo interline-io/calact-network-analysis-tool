@@ -371,6 +371,34 @@ the derivation is implemented.
 
 ## Open questions
 
+Interpretation questions from code review, to settle before implementing the
+derivation:
+
+- **$0 alternatives.** A $0 product with no rider category on the same rule as a
+  paid default-category product (Sound Transit youth) makes the cheapest-per-group
+  step report "free". Ignore such products when a paid default-category product
+  exists for the same group?
+- **`rule_priority` scope.** Priority should be resolved per leg (same areas and
+  timeframes), not across the whole route, or a higher-priority holiday or
+  single-area rule hides the regular fare.
+- **v1 fallback.** When v2 leaves a route unknown (MTS: 103 of 105 routes), fall
+  back to the same feed's v1 fares? The spec says to prefer v2 but does not
+  forbid this.
+- **No default rider category.** The spec only requires a default when several
+  categories share a product. Treat a spec-valid feed with one category per
+  product and no default as unknown, and do not report it upstream as an error.
+- **Area matching scope.** Area pairs need every stop a route serves, but the
+  scenario only has stops inside the bbox. Fetch each route's full stop list, or
+  accept bbox-relative ranges? `stop_areas` rows that name a station also apply
+  to its platforms.
+- **v1 zone rules.** Zone-only rules currently apply to every route of the
+  agency whether or not it serves those zones, and a fare with no rules in a
+  feed that has other rules is dropped.
+- **Loading and errors.** Routes whose fares have not loaded yet, or whose fares
+  query failed, need a state distinct from "unknown".
+- **Negative amounts.** Spec-valid transfer discounts can make `minAmount`
+  negative, which fits none of the four categories.
+
 - Other rider categories: start with the default category only and show
   `has-other-categories`. A category picker only makes sense for v2 feeds, and
   most feeds lack a stable category vocabulary across agencies.
