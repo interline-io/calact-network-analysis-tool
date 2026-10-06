@@ -4,17 +4,34 @@ Status: draft plan, not yet implemented.
 
 ## Goal
 
-Let users filter the Transit Network Explorer by fare:
+Let users filter the Transit Network Explorer by fare, using data from both
+GTFS Fares v1 and Fares v2, for the standard fare only: the spec's default
+rider category in v2, or the published fare in v1, which has no rider
+categories (other categories deferred, see Open questions).
 
-- free vs paid service
-- cost of a single trip (minimum / maximum fare thresholds)
-- the standard fare only for the first version: the spec's default rider category in v2, or the
-  published fare in v1, which has no rider categories (other categories deferred, see Open questions)
-- data from both GTFS Fares v1 and Fares v2
+Neither phase needs a journey fare calculator. Both are answered by a
+**per-route fare summary**: the range of standard single-ride fares that can
+apply to a trip on the route, plus where that range came from.
 
-None of these needs a journey fare calculator. Each one is answered by a
-**per-route fare summary**: the range of standard single-ride fares that can apply
-to a trip on the route, plus where that range came from.
+### Phases
+
+1. **Phase 1 (this plan):** filter routes by fare category:
+   - **Free:** every fare that can apply is $0.
+   - **Sometimes paid:** the range spans $0 and a paid fare.
+   - **Always paid:** every fare that can apply is above $0.
+   - **Unknown:** no usable fare data.
+
+   The route and agency reports show the fare range and data-quality flags
+   as information only.
+2. **Phase 2 (later):** minimum / maximum fare thresholds (the "cost of a
+   single trip" part of #454). Deferred until the reports have shown how far
+   the published amounts can be trusted, and until time-limited fares
+   (see Open questions) are handled.
+
+The fare category is robust to most of the problems found in the data review.
+Passes, cash vs card prices, zone and area ranges, and time-limited fares change
+the amounts, but they either leave a route's category alone or move it into
+"sometimes paid". They never make it look free.
 
 ## Approach ("small")
 
@@ -123,46 +140,65 @@ type RouteFareFlag =
 
 ### Filter semantics
 
-Thresholds use containment, so a route matches only if **every** fare it can
-charge satisfies the filter. Wide or ambiguous ranges then never pass a
-"cheap" filter by accident. For example, VCTC's $0 to $1.75 range comes from
-its free youth fare published as a plain v1 fare, and it fails "max fare $1".
+Phase 1: each route gets one category from its summary.
 
-- Free: `maxAmount === 0`.
-- Paid: `minAmount > 0`. Routes whose range spans $0 match neither.
-- Max fare $X: `maxAmount <= X`.
-- Min fare $X: `minAmount >= X`.
-- Unknown-fare routes: a separate "Include routes without fare data" toggle,
-  defaulting to on, so turning on a fare filter does not silently hide
-  much of the network.
-- Fare filters count as route filters for `routeFiltersActive`, so stops and
-  agencies follow the marked routes as they do for frequency.
+| Category | Rule |
+|---|---|
+| `free` | `maxAmount === 0` |
+| `sometimes-paid` | `minAmount === 0 && maxAmount > 0` |
+| `always-paid` | `minAmount > 0` |
+| `unknown` | no summary (`source: 'none'`, or unknown because of a flag) |
+
+- The filter is a multi-select over the four categories, with all four selected
+  by default, which means no filtering. Unknown is a category like the others, so
+  turning off "free" does not silently hide the ~40% of agencies with no fare data.
+- `sometimes-paid` covers both real cases (free zones or free directions, such as
+  Washington State Ferries) and data problems (VCTC's free youth fare published as
+  a plain v1 fare, C-TRAN's New Year's Eve fare). The flags in the report tell them
+  apart. The filter doesn't try to.
+- Narrowing the selection counts as a route filter for `routeFiltersActive`, so
+  stops and agencies follow the marked routes as they do for frequency.
+
+Phase 2 (deferred): thresholds use containment, so a route matches only if
+**every** fare it can charge satisfies the filter (max fare $X:
+`maxAmount <= X`; min fare $X: `minAmount >= X`). Wide or ambiguous ranges then
+never pass a "cheap" filter by accident.
 
 ### UI and URL state
 
-- Enable the existing stubs in `app/components/cal/filter-fixed-route.vue`
-  (Fares section) and add a free/paid choice and the unknown toggle.
-- `useScenarioFilters.ts`: switch `maxFare` / `minFare` from `parseInt` to
-  `parseFloat` (cents), add the new params.
-- Add fare fields to `ScenarioFilter` (`src/scenario/scenario.ts`) and pass
-  them in `tne.vue`.
+- `app/components/cal/filter-fixed-route.vue`: replace the disabled max/min fare
+  stubs in the Fares section with four checkboxes (Free, Sometimes paid,
+  Always paid, Unknown fare), following the route-type checkbox pattern in
+  `filter-agencies.vue`. Each one gets a tooltip with its definition.
+- `useScenarioFilters.ts`: replace the unused `maxFareEnabled` / `maxFare` /
+  `minFareEnabled` / `minFare` params with `fareCategories` (comma-joined;
+  absent means all, matching `selectedRouteTypes`). Phase 2 reintroduces
+  thresholds, parsed with `parseFloat` so cents are kept.
+- Add `selectedFareCategories` to `ScenarioFilter` (`src/scenario/scenario.ts`),
+  pass it in `tne.vue`, and add it to the reset block.
 - Apply in `routeMarked` in `src/scenario/scenario-filter.ts`, next to the
-  frequency checks.
+  route type check.
 
 ### Reports and export
 
-- Route report and CSV: `Fare` (formatted range, "Free", or blank) and
-  `Fare source` columns (`src/scenario/report/tables.ts`, `src/tl/route.ts`).
-- Agency report and CSV: min and max fare across the agency's marked routes
-  (rollup in `scenario-filter.ts`).
-- Optional follow-up: "Color by Fare" map mode (`routeColorModes` already lists it).
+- Route report and CSV (`src/scenario/report/tables.ts`, `src/tl/route.ts`):
+  - `Fare category`.
+  - `Fare` (formatted range such as "$1.50" or "$0.00 to $3.25", blank if unknown).
+  - `Fare source` (v1 / v2).
+  - `Fare notes` (flags, in plain language).
+- Agency report and CSV: count of marked routes in each fare category, plus the
+  overall min and max fare (rollup in `scenario-filter.ts`).
+- Optional follow-up: "Color by Fare" map mode (`routeColorModes` already lists
+  it), coloring by category.
 
 ### Tests
 
 - Unit tests for the derivation using small fixture feeds covering: v1 route
   rule, v1 catch-all, v1 no rules, v1 zone range, v2 network rule, v2 empty
   network, v2 default category, v2 no default category, free routes, both v1 and v2.
-- Filter tests in `scenario-filter.test.ts` for each threshold and the unknown toggle.
+- Category assignment tests for each boundary ($0 only, $0 to N, all above $0, unknown).
+- Filter tests in `scenario-filter.test.ts` for each category selection, including
+  stop and agency follow-through.
 
 ## Data review
 
@@ -249,10 +285,10 @@ v2 sample (30 feed versions, 1401 routes, 204 unknown):
 - **Direction-dependent fares.** Washington State Ferries publishes $0 for the
   free direction of several routes (v1). This is faithful to the data.
 
-With containment semantics, every one of these problems shows up as a wider
-range or as unknown, never as a false "cheap" or "free" match. The
-exceptions are Sound Transit's two shuttle routes and other routes whose
-uncategorized products are all $0, which the data literally says are free.
+In phase 1, every one of these problems shows up as "sometimes paid" or as
+unknown, never as a false "free". The exceptions are Sound Transit's two
+shuttle routes and other routes whose uncategorized products are all $0, which
+the data literally says are free.
 
 ### Decision on v1
 
@@ -279,8 +315,8 @@ and the Trillium-style `fare_rider_categories.txt` (6 feeds).
   most feeds lack a stable category vocabulary across agencies.
 - Time-limited fares (C-TRAN). The spec-faithful fix is to expose timeframes
   and drop rules whose timeframe `service_id` is not active in the scenario
-  date range. That needs calendar data for those service ids. Until then the
-  range just widens, and containment keeps it from producing false matches.
+  date range. That needs calendar data for those service ids. In phase 1 these
+  routes land in "sometimes paid". Resolve this before phase 2's thresholds.
 - Surface the flags in the route report as a "Fare notes" column, or keep them
   in the CSV export only?
 - Currency: every sampled amount is USD. Ignore non-USD products.
