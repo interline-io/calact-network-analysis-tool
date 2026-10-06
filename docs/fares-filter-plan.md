@@ -8,11 +8,12 @@ Let users filter the Transit Network Explorer by fare:
 
 - free vs paid service
 - cost of a single trip (minimum / maximum fare thresholds)
-- standard adult fare only for the first version (other rider categories deferred, see Open questions)
+- the standard fare only for the first version: the spec's default rider category in v2, or the
+  published fare in v1, which has no rider categories (other categories deferred, see Open questions)
 - data from both GTFS Fares v1 and Fares v2
 
 None of these needs a journey fare calculator. Each one is answered by a
-**per-route fare summary**: the range of adult single-ride fares that can apply
+**per-route fare summary**: the range of standard single-ride fares that can apply
 to a trip on the route, plus where that range came from.
 
 ## Approach ("small")
@@ -21,6 +22,9 @@ to a trip on the route, plus where that range came from.
 2. **calact:** fetch them per feed version in a new server-side scenario
    phase, derive the per-route summary in a pure, tested module, and filter and
    report on it client-side like the existing route filters.
+
+All derivation rules use only GTFS spec semantics. No inference from names
+or other strings in the data.
 
 The derivation lives in calact so the rules are cheap to iterate on. It is
 written as a self-contained module so it can later move into transitland-lib
@@ -52,9 +56,6 @@ stop_areas, timeframes, fare_media, fare_transfer_rules, fare_leg_join_rules.
 Area- and timeframe-based leg rules only widen a route's min/max range, so the
 summary can be computed without resolving them.
 
-Also verify the `FeedVersion.files` row counts cover the new tables so that
-coverage can be checked without the new resolvers.
-
 ## Part 2: calact
 
 ### Fetch
@@ -67,29 +68,44 @@ coverage can be checked without the new resolvers.
 
 ### Per-route fare summary
 
+Rules use only what the GTFS spec defines. No matching on ids, names, or
+other strings: a feed's names are not reliable signals of meaning.
+
 ```ts
 interface RouteFareSummary {
   source: 'fares-v2' | 'fares-v1' | 'none'
-  minAmount?: number      // adult / default category, in currency units
+  minAmount?: number      // default rider category, in currency units
   maxAmount?: number
   currency?: string
-  hasReducedFares: boolean // v2 products exist for non-default rider categories
+  // Structural data-quality flags, derived from the spec, shown in the report
+  flags: RouteFareFlag[]
 }
-```
 
-Derivation rules (to be confirmed against real feeds in the data review):
+type RouteFareFlag =
+  | 'v1-indistinct-fares'     // several prices apply with no zone fields to tell them apart
+  | 'v2-networks-unlinked'    // leg rules name networks that no route belongs to
+  | 'v2-no-default-category'  // rider categories exist, none is the default
+  | 'v2-uncategorized-products' // feed defines rider categories, but some products have none
+  | 'has-other-categories'    // v2 products exist for non-default rider categories
+```
 
 **Fares v2** (used when the feed version has fare_leg_rules)
 
 - A route's networks are its `route_networks` rows, or else `routes.network_id`.
 - Matching leg rules are those whose `network_id` is one of the route's networks,
   or is empty (applies to all routes). Exclude `transfer_only` rules.
-- Products for those rules, keeping only the adult fare: the rider category with
-  `is_default_fare_category = 1`, or products with no rider category.
-  If a feed marks no default category, fall back to a category whose id or name
-  matches "adult" or "regular". Otherwise treat it as unknown.
-- min/max of `amount` across the remaining products (across areas,
-  timeframes, and fare media).
+- Eligible products: those for the rider category with
+  `is_default_fare_category = 1`, and products with an empty
+  `rider_category_id` (the spec makes those eligible for every category).
+- Group the matching rules by (leg_group_id, network_id, from/to area, from/to
+  timeframe). Within a group, the spec offers the products as alternatives for
+  the same leg, so take the cheapest eligible product. This leaves out
+  passes sold on the same rule and picks the cheapest fare media.
+- min/max across groups.
+- No route matches any leg rule and the networks are not linked: unknown,
+  flag `v2-networks-unlinked`.
+- Feed has rider categories but none is default and no uncategorized product
+  matches: unknown, flag `v2-no-default-category`.
 
 **Fares v1** (used when there are no leg rules but there are fare_attributes)
 
@@ -98,21 +114,27 @@ Derivation rules (to be confirmed against real feeds in the data review):
   fare's agency.
 - If the feed has fare_attributes but no fare_rules, every fare applies to all
   routes of its agency (`fare_attributes.agency_id`, or the only agency).
-- min/max of `price` across contributing fares. v1 has no rider categories, so
-  its prices are treated as the adult fare.
+- min/max of `price` across contributing fares. v1 has no rider categories.
+- If more than one distinct price applies through rules with no
+  origin/destination/contains zone (or through no rules at all), flag
+  `v1-indistinct-fares`: the data gives no way to say which applies.
 
 **Neither:** `source: 'none'`, meaning unknown. It is never treated as free.
 
 ### Filter semantics
 
+Thresholds use containment, so a route matches only if **every** fare it can
+charge satisfies the filter. Wide or ambiguous ranges then never pass a
+"cheap" filter by accident. For example, VCTC's $0 to $1.75 range comes from
+its free youth fare published as a plain v1 fare, and it fails "max fare $1".
+
 - Free: `maxAmount === 0`.
-- Paid: `minAmount > 0`. Routes with a 0 to N range (for example free zones)
-  match neither "free only" nor "paid only". Confirm this choice in review.
-- Max fare $X: `minAmount <= X` (some trip on the route costs at most X).
-- Min fare $X: `maxAmount >= X`.
+- Paid: `minAmount > 0`. Routes whose range spans $0 match neither.
+- Max fare $X: `maxAmount <= X`.
+- Min fare $X: `minAmount >= X`.
 - Unknown-fare routes: a separate "Include routes without fare data" toggle,
   defaulting to on, so turning on a fare filter does not silently hide
-  most of the network.
+  much of the network.
 - Fare filters count as route filters for `routeFiltersActive`, so stops and
   agencies follow the marked routes as they do for frequency.
 
@@ -144,16 +166,123 @@ Derivation rules (to be confirmed against real feeds in the data review):
 
 ## Data review
 
-Survey of current active feed versions in CA, OR, and WA: which publish fares,
-v1 vs v2, and representative edge cases. Results to be added here before
-implementation.
+Survey of active feed versions on Transitland for agencies in US-CA, US-OR,
+and US-WA (`agencies(where: {adm1_iso})`, then `FeedVersion.files` row and
+value counts), run 2026-10-05. The derivation rules above were prototyped in
+Python against 90 downloaded feed versions: all 30 with Fares v2 plus a random
+60 of the v1-only feeds.
+
+### Coverage
+
+Agencies in each state, by the fare data in their active feed version:
+
+| State | Agencies | v1 only | v2 only | v1 + v2 | No fares |
+|---|---|---|---|---|---|
+| CA | 267 | 77 | 48 | 18 | 124 (46%) |
+| OR | 89 | 51 | 1 | 3 | 34 (38%) |
+| WA | 103 | 59 | 1 | 5 | 38 (37%) |
+
+Across the 353 distinct feed versions: 168 v1 only, 9 v2 only, 21 both, 155 none.
+
+- **v1 must be supported.** It is the only fare data for most agencies with
+  fares in OR and WA, and for many rural CA agencies.
+- **v2 matters mostly in CA**, where the Bay Area regional feed (RG) alone
+  covers 40+ agencies. Other v2 feeds include TriMet, C-TRAN, King County Metro,
+  Sound Transit, Spokane, MTS, NCTD, and Santa Barbara MTD.
+- **Unknown is the common case.** About 40% of agencies publish no fares,
+  so the "include routes without fare data" toggle must default to on.
+
+### v1 shapes (v1-only feed versions)
+
+| fare_rules shape | Feed versions |
+|---|---|
+| route_id only | 75 |
+| no fare_rules (catch-all fares) | 47 |
+| route + origin/destination zones | 21 |
+| zones, some rules without route | 12 |
+| route + zones, some rules without route | 9 |
+| route + zones + contains | 5 |
+
+89 feeds have exactly one fare_attributes row. The prototype assigned a fare to
+90% of routes in the sampled v1 feeds (534 routes, 52 unknown). The unknown
+routes are those not named in any rule of a route-based feed, for example
+Nevada County Gold Country Stage, which has a rule for only one of its routes.
+
+### Results with spec-only rules
+
+v1 sample (60 feed versions, 534 routes):
+
+| Per-route result | Routes |
+|---|---|
+| single price | 395 (74%) |
+| range explained by zone fields | 56 (10%) |
+| unknown (route not named by any rule) | 52 (10%) |
+| `v1-indistinct-fares` | 31 (6%), from 4 feeds |
+
+The indistinct cases are feeds that publish rider categories as separate v1
+fares (VCTC: Adult $1.75, Free Youth $0, Free College $0, Reduced $0.80;
+Seattle Monorail: Adult $4, Senior $2, and others), plus Torrance Transit and
+one Redwood Coast route. Unknown routes are mostly routes left out of rules in
+route-based feeds (Nevada County Gold Country Stage has a rule for one route).
+
+v2 sample (30 feed versions, 1401 routes, 204 unknown):
+
+- **Passes and alternative media.** Several feeds attach day, monthly, and
+  annual passes to the same leg rule as the single ride (Unitrans $1.50 to
+  $270, SCMTD $2 to $145, Omnitrans, Auburn, Pasadena). Taking the cheapest
+  product per rule group resolves all of them without looking at names.
+  King County Metro's max drops from $7.00 (cash) to $6.00 (ORCA).
+- **Unlinked networks.** NCTD and San Joaquin RTD key every leg rule by
+  `network_id` but have neither `route_networks.txt` nor `routes.network_id`, so
+  none of their 88 routes match. Neither has v1 fares.
+- **No default rider category.** MTS has 9 categories, all with
+  `is_default_fare_category = 0`, so 103 of 105 routes are unknown. Auburn,
+  Guadalupe Flyer, and Unitrans have no default either, but they also have
+  uncategorized products that supply a fare.
+- **Uncategorized reduced products.** Sound Transit defines youth, LIFT, and
+  RRFP categories but attaches none to its products. Its $0 youth product is
+  therefore eligible for everyone, and two routes come out free. Huntington
+  Park, Yurok, Glendora, and West Covina have the same pattern on a smaller
+  scale.
+- **Time-limited free fares.** C-TRAN has a $0 leg rule limited to a New Year's
+  Eve timeframe, so all 31 routes span $0 to $3.25.
+- **Direction-dependent fares.** Washington State Ferries publishes $0 for the
+  free direction of several routes (v1). This is faithful to the data.
+
+With containment semantics, every one of these problems shows up as a wider
+range or as unknown, never as a false "cheap" or "free" match. The
+exceptions are Sound Transit's two shuttle routes and other routes whose
+uncategorized products are all $0, which the data literally says are free.
+
+### Decision on v1
+
+Keep v1. Under spec-only rules, v1 is no messier than v2: 84% of sampled v1
+routes get a single price or a zone-explained range. The main v2 feeds lose
+more routes to structural problems (unlinked networks, no default category).
+It is also the only source for most agencies with fares in OR and WA. Dropping
+v1 would leave the filter almost empty outside California.
+
+### Data-quality follow-ups
+
+The flags double as a list of feed fixes to report upstream: NCTD and SJRTD
+(link networks to routes), MTS (mark adult as default), Sound Transit
+(assign rider categories to products), VCTC and Seattle Monorail (publish
+rider categories in v2 instead of v1 fare ids).
+
+Not needed for the summary: areas, stop_areas, fare_media, fare_transfer_rules,
+and the Trillium-style `fare_rider_categories.txt` (6 feeds).
 
 ## Open questions
 
-- Other rider categories: is adult-only enough for v1 of this feature, with a
-  "reduced fares available" indicator? A rider-category picker only makes
-  sense for v2 feeds.
-- Currency: assume USD across the three states. Hide the filter for non-USD products?
-- Free vs paid for routes whose range spans 0.
-- Should flex services get fares later? Flex fares in v2 use areas, so they
-  would need areas and stop_areas exposed.
+- Other rider categories: start with the default category only and show
+  `has-other-categories`. A category picker only makes sense for v2 feeds, and
+  most feeds lack a stable category vocabulary across agencies.
+- Time-limited fares (C-TRAN). The spec-faithful fix is to expose timeframes
+  and drop rules whose timeframe `service_id` is not active in the scenario
+  date range. That needs calendar data for those service ids. Until then the
+  range just widens, and containment keeps it from producing false matches.
+- Surface the flags in the route report as a "Fare notes" column, or keep them
+  in the CSV export only?
+- Currency: every sampled amount is USD. Ignore non-USD products.
+- Flex: flex fares in v2 use areas, so they would need areas and stop_areas
+  exposed. Out of scope for now.
