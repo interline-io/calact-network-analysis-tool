@@ -1,8 +1,11 @@
 <template>
+  <!-- initial-focus skips the "Start date" label's tooltip: its trigger is the
+       first focusable element, so default focus would open the bubble. -->
   <cat-modal
     v-model="modelOpen"
     title="Feed Archive: dates & feed versions"
     full-screen
+    initial-focus=".cat-datepicker-field input"
   >
     <div class="cal-fv-modal-dates">
       <cat-field>

@@ -48,6 +48,7 @@
             </h4>
             <cal-datagrid
               :table-report="mareaDatagrid"
+              caption="Revenue miles by urbanized area"
               filename="marea_transit_service"
             >
               <template #column-DRRevMi="{ value }">
@@ -90,6 +91,7 @@
 
             <cal-datagrid
               :table-report="costDatagrid"
+              caption="Cost per revenue mile"
               filename="cost_per_revenue_mile"
             >
               <template #column-Mode="{ value }">
@@ -114,6 +116,7 @@
 
             <cal-datagrid
               :table-report="rawDatagrid"
+              caption="Raw NTD Records"
               filename="ntd_raw_records"
             >
               <template #column-vehicleRevenueMiles="{ value }">

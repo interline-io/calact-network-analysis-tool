@@ -1,6 +1,6 @@
 // Derives the GeoJSON feature collections for flex (demand-responsive) service
 // areas — both the map-display set (styled, respects the map toggles) and the
-// Reports-tab set (always available when data exists). All inputs are plain
+// Reports-tab set (the areas satisfying the filters). All inputs are plain
 // data: the raw/filtered scenario results are passed in by the container, and
 // the URL-backed filter/display state is read from the useScenario* composables
 // (callable anywhere). No fetching or Apollo access happens here.
@@ -9,7 +9,7 @@ import { computed, type Ref, type ComputedRef } from 'vue'
 import { useScenarioFilters } from './useScenarioFilters'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useFlexAreaFormatting } from './useFlexAreaFormatting'
-import { getFlexAdvanceNotice, getFlexAgencyName, flexAreaMatchesFilters } from '~~/src/tl'
+import { getFlexAdvanceNotice, getFlexAgencyName, markFlexAreas } from '~~/src/tl'
 import { type Feature, createCategoryColorScale, flexColors, dateToSeconds } from '~~/src/core'
 import type { ScenarioData, ScenarioFilterResult } from '~~/src/scenario'
 
@@ -23,7 +23,8 @@ interface UseFlexDisplayFeaturesDeps {
 export interface UseFlexDisplayFeaturesReturn {
   // Styled features for the map; empty when flex display is toggled off.
   flexDisplayFeatures: ComputedRef<Feature[]>
-  // Features for the Reports tab; available whenever flex data exists.
+  // Features for the Reports tab: only areas satisfying the filters,
+  // independent of the map toggles.
   flexFeaturesForReport: ComputedRef<Feature[]>
 }
 
@@ -64,10 +65,7 @@ export function useFlexDisplayFeatures (deps: UseFlexDisplayFeaturesDeps): UseFl
       startSeconds: dateToSeconds(startTime.value),
       endSeconds: dateToSeconds(endTime.value),
     }
-    return (deps.scenarioFilterResult.value?.flexAreas || []).map(feature => ({
-      feature,
-      marked: (feature.properties.marked !== false) && flexAreaMatchesFilters(feature, criteria),
-    }))
+    return markFlexAreas(deps.scenarioFilterResult.value?.flexAreas || [], criteria)
   })
 
   const flexDisplayFeatures = computed((): Feature[] => {
@@ -110,8 +108,10 @@ export function useFlexDisplayFeatures (deps: UseFlexDisplayFeaturesDeps): UseFl
       })
   })
 
+  // Only areas that satisfy the filters, matching the Routes and Stops tabs,
+  // which list only marked rows (#452).
   const flexFeaturesForReport = computed((): Feature[] => {
-    return flexAreasWithMarked.value.map(({ feature, marked }) => ({
+    return flexAreasWithMarked.value.filter(({ marked }) => marked).map(({ feature, marked }) => ({
       type: 'Feature',
       id: feature.id,
       geometry: feature.geometry,

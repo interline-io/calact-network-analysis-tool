@@ -11,12 +11,13 @@
  *   - [] (empty array) = filter applied with nothing selected, no items pass
  *   - [values...] = filter applied, only matching items pass
  *
- * - selectedWeekdays follows the same convention, with one exception:
- *   The t-checkbox-group UI control normalizes "all items selected" to
- *   undefined. For 'Any' mode this is fine (no filter = all pass). But for
- *   'All' mode, undefined must be treated as "all 7 days are required" so
- *   that routes/stops without service every day are correctly filtered out.
- *   See resolveEffectiveWeekdays() below.
+ * - selectedWeekdays is the exception: the t-checkbox-group UI control
+ *   normalizes "all items selected" to undefined, but all days ticked is still
+ *   an active filter. In 'All' mode undefined means "all 7 days are required"
+ *   (resolveEffectiveWeekdays). In 'Any' mode it means "service on any day in
+ *   the date range, within the time window" (serviceGateWeekdays), so routes,
+ *   stops, and flex areas with no service in the selected period are
+ *   unmarked and ticking another day can only add to the result (#433).
  *
  * - Numeric filters (frequencyOver, frequencyUnder, stopVisitsOver, stopVisitsUnder):
  *   - undefined/null = filter not applied, all items pass
@@ -104,6 +105,18 @@ export function resolveEffectiveWeekdays (selectedWeekdays?: Weekday[], selected
     return [...dowValues] as Weekday[]
   }
   return selectedWeekdays
+}
+
+// The days and mode the route/stop service gate checks. That gate is also
+// where the time window applies, so it must run even with no weekday subset
+// (nothing ticked, or all seven ticked in 'Any' mode): it then asks for service
+// on any day in the date range. Otherwise ticking the seventh day switched the
+// time window off and brought back routes the other six had excluded (#433).
+function serviceGateWeekdays (effectiveWeekdays?: Weekday[], selectedWeekdayMode?: WeekdayMode): { weekdays: Weekday[], mode?: WeekdayMode } {
+  if (effectiveWeekdays != null) {
+    return { weekdays: effectiveWeekdays, mode: selectedWeekdayMode }
+  }
+  return { weekdays: [...dowValues] as Weekday[], mode: 'Any' }
 }
 
 ////////////////////
@@ -212,15 +225,18 @@ function routeMarked (
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
 ): boolean {
-  // Check selected days - route must have service on selected days
+  // Check selected days - route must have service on selected days. deps only
+  // holds departures inside the time window, so this is also the time-of-day
+  // check. Skipped without departure data, which would read as no service.
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (effectiveWeekdays != null) {
-    if (effectiveWeekdays.length === 0) {
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null || routeIndex?.hasDepartures()) {
+    if (gate.weekdays.length === 0) {
       return false
     }
     let hasAny = false
     let hasAll = true
-    for (const sd of effectiveWeekdays) {
+    for (const sd of gate.weekdays) {
       if (hasServiceOnWeekday(deps, selectedDateRange, sd)) {
         hasAny = true
       } else {
@@ -229,9 +245,9 @@ function routeMarked (
     }
     // Check mode
     let found = false
-    if (selectedWeekdayMode === 'Any') {
+    if (gate.mode === 'Any') {
       found = hasAny
-    } else if (selectedWeekdayMode === 'All') {
+    } else if (gate.mode === 'All') {
       found = hasAll
     }
     if (!found) {
@@ -339,14 +355,16 @@ function stopMarked (
   markedRoutes?: Set<number>,
   sdCache?: StopDepartureCache,
 ): boolean {
-  // Check departure days - only apply if selectedWeekdays is defined
+  // Check departure days. stop.visits only counts departures inside the time
+  // window, so this is also the time-of-day check (see serviceGateWeekdays).
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (sdCache && effectiveWeekdays != null) {
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (sdCache && (effectiveWeekdays != null || sdCache.hasDepartures())) {
     // hasAny: stop has service on at least one selected day of week
     // hasAll: stop has service on all selected days of week
     let hasAny = false
     let hasAll = true
-    for (const sd of effectiveWeekdays) {
+    for (const sd of gate.weekdays) {
       // if-else tree required to avoid arbitrary index into type
       let r: StopVisitCounts | undefined
       if (sd === 'sunday') {
@@ -374,9 +392,9 @@ function stopMarked (
     }
     // Check mode
     let found = false
-    if (selectedWeekdayMode === 'Any') {
+    if (gate.mode === 'Any') {
       found = hasAny
-    } else if (selectedWeekdayMode === 'All') {
+    } else if (gate.mode === 'All') {
       found = hasAll
     }
     // Not found, no further processing
@@ -461,17 +479,20 @@ function flexAreaMarked (
     }
   }
 
-  // Day-of-week filter
+  // Day-of-week filter. With no weekday subset the area still needs service on
+  // some day in the date range (see serviceGateWeekdays). Skipped without flex
+  // service data, which would read as no service anywhere.
   const effectiveWeekdays = resolveEffectiveWeekdays(selectedWeekdays, selectedWeekdayMode)
-  if (effectiveWeekdays != null) {
-    if (effectiveWeekdays.length === 0) { return false }
+  const gate = serviceGateWeekdays(effectiveWeekdays, selectedWeekdayMode)
+  if (effectiveWeekdays != null || flexDepartureCache.hasDepartures()) {
+    if (gate.weekdays.length === 0) { return false }
     const locationId = feature.properties.internal_id
     if (locationId == null) { return false }
 
     let hasAny = false
     let hasAll = true
 
-    for (const weekday of effectiveWeekdays) {
+    for (const weekday of gate.weekdays) {
       let hasServiceOnWeekday = false
       for (const date of dateRange) {
         if (WEEKDAY_BY_GETDAY[date.getDay()] === weekday) {
@@ -484,7 +505,7 @@ function flexAreaMarked (
       if (hasServiceOnWeekday) { hasAny = true } else { hasAll = false }
     }
 
-    if (selectedWeekdayMode === 'All' ? !hasAll : !hasAny) {
+    if (gate.mode === 'All' ? !hasAll : !hasAny) {
       return false
     }
   }

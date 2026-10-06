@@ -28,7 +28,7 @@
         <cat-tab-item v-if="fixedRouteEnabled && hasAggregateLayer" value="stops-aggregated" label="Stops (Aggregated)" />
         <cat-tab-item v-if="fixedRouteEnabled && hasClusterData" value="stop-clusters" label="Stop Clusters" />
         <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
-        <cat-tab-item v-if="props.flexDisplayFeatures && props.flexDisplayFeatures.length > 0" value="flex" label="Flex Areas" />
+        <cat-tab-item v-if="hasFlexData" value="flex" label="Flex Areas" />
       </cat-tabs>
     </div>
 
@@ -70,7 +70,7 @@
 
     <cal-datagrid
       :table-report="activeTableReport"
-      :caption="`${activeReportTabLabel} — ${reportHeading}`"
+      :caption="activeReportTabLabel"
     >
       <!-- Custom rendering for URLs column (flex areas) -->
       <template #column-urls="{ row }">
@@ -303,6 +303,9 @@ const hasAggregateLayer = computed(() => {
 
 // the Stop Clusters tab only appears when the scenario produced clusters.
 const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?.length ?? 0) > 0)
+// Keyed on all flex areas, not the filtered rows, so a filter that matches no
+// areas shows an empty table instead of hiding the tab.
+const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
 // Sync dataDisplayMode when user switches tabs
 const modeMap: Record<ReportTab, DataDisplayMode> = {

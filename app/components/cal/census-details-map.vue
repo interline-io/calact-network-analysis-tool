@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import maplibre from 'maplibre-gl'
+import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 import type { CensusGeographyEntry } from '~~/src/core'

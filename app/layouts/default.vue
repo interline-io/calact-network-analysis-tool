@@ -9,6 +9,9 @@
       </main-header>
     </div>
     <main id="main" class="main" tabindex="-1">
+      <!-- Outside the `main` slot so pages that replace it (tne.vue) still
+           show which build they are running. -->
+      <cal-build-banner />
       <slot name="main">
         <div class="container is-fluid">
           <cal-login-gate role="tl_calact_nat">

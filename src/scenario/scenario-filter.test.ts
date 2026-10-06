@@ -102,6 +102,19 @@ describe('flexAreaMarked — day-of-week filter', () => {
     expect(result.flexAreas[0]?.properties.marked).toBe(true)
   })
 
+  it('does not mark an area with no service in the date range when no weekday subset is selected (#433)', () => {
+    const cache = makeFlexCache([[1, '2024-01-15']]) // area 2 has no service at all
+    const data = makeData([makeFlexFeature(1), makeFlexFeature(2)], cache)
+    const result = applyScenarioResultFilter(data, baseConfig, {})
+    expect(result.flexAreas.map(a => a.properties.marked)).toEqual([true, false])
+  })
+
+  it('leaves areas marked when no flex service data was loaded', () => {
+    const data = makeData([makeFlexFeature(1)], new FlexDepartureCache())
+    const result = applyScenarioResultFilter(data, baseConfig, {})
+    expect(result.flexAreas[0]?.properties.marked).toBe(true)
+  })
+
   it('marks area that has service on a selected weekday (Any mode)', () => {
     const cache = makeFlexCache([[1, '2024-01-15']]) // Monday
     const data = makeData([makeFlexFeature(1)], cache)
@@ -564,17 +577,19 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(visits.get(S_NONE)).toBe(0)
   })
 
-  it('marks everything when neither threshold is set', () => {
+  it('marks everything with service when neither threshold is set', () => {
     const { routes, stops } = run({})
     expect(routes).toEqual([FAST, SLOW])
-    expect(stops).toEqual([S_FAST, S_SLOW, S_BOTH, S_NONE])
+    // S_NONE has no departures in the period, so it is unmarked even with no
+    // weekday subset selected (#433).
+    expect(stops).toEqual([S_FAST, S_SLOW, S_BOTH])
   })
 
   it('route frequency alone selects routes and carries their stops along', () => {
     const { routes, stops } = run({ frequencyUnder: 20 })
     expect(routes).toEqual([FAST])
-    // S_SLOW is out because its only route failed; S_NONE stays because FAST passed.
-    expect(stops).toEqual([S_FAST, S_BOTH, S_NONE])
+    // S_SLOW is out because its only route failed.
+    expect(stops).toEqual([S_FAST, S_BOTH])
   })
 
   it('stop visits alone selects stops and keeps every route attached to a passing stop', () => {
@@ -598,7 +613,10 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
 
   it('stop visits alone drops a route none of whose stops pass, and its agency with it', () => {
     const { result, routes, stops } = run({ stopVisitsUnder: 5 })
-    expect(stops).toEqual([S_NONE])
+    // No stop with service is at or under 5. S_NONE is unmarked by the service
+    // gate (#433), but the route gate tests thresholds alone, so its 0 visits
+    // still keep FAST in. SLOW has no stop under the threshold and drops out.
+    expect(stops).toEqual([])
     expect(routes).toEqual([FAST])
     const byAgency = new Map(result.agencies.map(a => [a.id, a.marked]))
     expect(byAgency.get(AGENCY_FAST)).toBe(true)
@@ -617,8 +635,9 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(stops).toEqual([S_BOTH])
   })
 
-  it('treats a stop with no visits in the window as 0', () => {
-    expect(run({ stopVisitsUnder: 0 }).stops).toEqual([S_NONE])
+  it('excludes a stop with no visits in the period before thresholds apply', () => {
+    // The service gate drops S_NONE, so an "under" threshold never reaches it.
+    expect(run({ stopVisitsUnder: 0 }).stops).toEqual([])
     expect(run({ stopVisitsOver: 0 }).stops).toEqual([S_FAST, S_SLOW, S_BOTH])
   })
 
@@ -635,17 +654,46 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(routes).toEqual([FAST, SLOW])
   })
 
-  it('drops a zero-visit stop under an "under" threshold once a weekday filter is active', () => {
-    // The weekday gate runs before the thresholds and excludes stops with no
-    // service on the selected days, so S_NONE never reaches a threshold it
-    // would otherwise satisfy. Without a weekday filter it counts as 0 and stays.
+  it('drops a zero-visit stop under an "under" threshold with or without a weekday filter', () => {
+    // The service gate runs before the thresholds and excludes stops with no
+    // service in the selected period, so S_NONE never reaches a threshold it
+    // would otherwise satisfy. No weekday subset gates the same way (#433).
     const weekday = run({
       stopVisitsUnder: 5,
       selectedWeekdays: ['monday'] as Weekday[],
       selectedWeekdayMode: 'Any',
     })
     expect(weekday.stops).not.toContain(S_NONE)
-    expect(run({ stopVisitsUnder: 5 }).stops).toContain(S_NONE)
+    expect(run({ stopVisitsUnder: 5 }).stops).not.toContain(S_NONE)
+  })
+
+  describe('time window with every weekday selected (#433)', () => {
+    // 08:30-09:00: FAST departs at 08:30 and 08:45; SLOW has nothing in window.
+    const window = {
+      startTime: new Date('2024-01-15T08:30:00'),
+      endTime: new Date('2024-01-15T09:00:00'),
+    }
+    const ALL_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as Weekday[]
+
+    it('applies the time window when no weekday subset is selected', () => {
+      const { routes, stops } = run({ ...window })
+      expect(routes).toEqual([FAST])
+      expect(stops).toEqual([S_FAST, S_BOTH])
+    })
+
+    it('gives the same result whether all seven days are ticked or none are', () => {
+      const none = run({ ...window, selectedWeekdayMode: 'Any' })
+      const all = run({ ...window, selectedWeekdays: ALL_DAYS, selectedWeekdayMode: 'Any' })
+      expect(none.routes).toEqual(all.routes)
+      expect(none.stops).toEqual(all.stops)
+    })
+
+    it('never adds routes or stops when a day is unticked', () => {
+      const six = run({ ...window, selectedWeekdays: ALL_DAYS.filter(d => d !== 'wednesday'), selectedWeekdayMode: 'Any' })
+      const seven = run({ ...window, selectedWeekdayMode: 'Any' })
+      for (const id of six.routes) { expect(seven.routes).toContain(id) }
+      for (const id of six.stops) { expect(seven.stops).toContain(id) }
+    })
   })
 
   it('leaves the route set unchanged for a threshold that excludes no stop', () => {
