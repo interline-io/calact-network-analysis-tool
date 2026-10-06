@@ -60,7 +60,7 @@ on `FeedVersion` (plus one field on `Route`), following
 | GraphQL field | Table | Columns the summary needs |
 |---|---|---|
 | `FeedVersion.fare_attributes` | `gtfs_fare_attributes` | `fare_id`, `price`, `currency_type`, `agency { agency_id }` |
-| `FeedVersion.fare_rules` | `gtfs_fare_rules` | `fare_id` (the GTFS string, not the FK), `route { route_id }`, `origin_id`, `destination_id`, `contains_id` |
+| `FeedVersion.fare_rules` | `gtfs_fare_rules` | `fare_attribute { fare_id }` (the column is a foreign key to `gtfs_fare_attributes`), `route { route_id }`, `origin_id`, `destination_id`, `contains_id` |
 | `FeedVersion.fare_leg_rules` | `gtfs_fare_leg_rules` | `leg_group_id`, `network_id`, `from_area_id`, `to_area_id`, `from_timeframe_group_id`, `to_timeframe_group_id`, `fare_product_id` (all stored as text) |
 | `FeedVersion.fare_products` | `gtfs_fare_products` | `fare_product_id`, `rider_category_id`, `fare_media_id`, `amount`, `currency` |
 | `FeedVersion.rider_categories` | `gtfs_rider_categories` | `rider_category_id`, `is_default_fare_category` |
@@ -72,7 +72,7 @@ rider category names and ages), since the types are meant for general API
 use, not just this summary. Leave out `transfer_only`: it is an Interline
 extension, not part of the spec, so the derivation does not use it.
 
-Files to touch for each type (about the same for all six):
+Files to touch for each type (the same for every type):
 
 - `schema/graphql/schema.graphqls`: the type and the `FeedVersion` child field.
 - `server/model/models.go`: a wrapper struct embedding the `gtfs.*` entity.
@@ -88,10 +88,13 @@ Files to touch for each type (about the same for all six):
 - Resolver tests on a test feed that has both v1 and v2 fares, such as one of the
   fare fixtures in `testdata/gtfs-validator-layers`.
 
-**Limits.** Child fields default to `RESOLVER_MAXLIMIT` (1,000). The RG feed has
-11,346 fare products and 3,514 leg rules, and MTS has 400 fare rules. Give
-these fields their own max (100,000, like trips and shapes) so calact can fetch
-a feed version's fares in one request.
+**Limits.** Child fields return `RESOLVER_DEFAULT_LIMIT` (100) rows unless the
+query passes `limit`, and cap it at `RESOLVER_MAXLIMIT` (1,000). The RG feed has
+11,346 fare products and 3,514 leg rules, and MTS has 400 fare rules. The fares
+fields get their own max (`RESOLVER_FARE_MAXLIMIT`, 100,000, like shapes and
+segments), but the default stays 100, so **calact must pass an explicit limit**
+on every fares field (and on `Area.stop_areas`), and should treat a result whose
+length equals the limit as truncated rather than complete.
 
 **Decision: expose all of Fares v2, not only the tables above.** The spec's
 matching rules (see Per-route fare summary) need `networks` and `areas` to
@@ -113,16 +116,18 @@ Implementation: transitland-lib branch `fares-graphql`.
 No new code. tlv2 picks up the schema through a transitland-lib version bump and a
 deploy, as in its recent "Update transitland-lib to ..." PRs. Its in-memory
 `memfinder` embeds `model.UnimplementedFinder` and drops fare entities on
-load, so the new fields return nothing there. That is fine as long as the
-production API serves from the Postgres finder.
+load, so the new fields return a "not implemented" GraphQL error there. That is
+fine as long as the production API serves from the Postgres finder; calact
+should treat a fares error as "fare data unavailable", not as unknown fares.
 
 ## Part 2: calact
 
 ### Fetch
 
-- New scenario phase `src/scenario/phases/fares.ts`, run after `routes`, keyed by
-  the distinct feed version sha1s of the fetched routes (one query per feed
-  version, not per route batch).
+- New scenario phase `src/scenario/phases/fares.ts`, keyed by the feed versions
+  from the feed-versions phase (one query per feed version, not per route batch).
+  It only needs those, so it can start right after the feed-versions phase and
+  run in parallel with stops and departures, as the flex and census phases do.
 - New `src/tl/fare.ts` with the GraphQL query, types, and the derivation.
 - Results added to `ScenarioData` and streamed like the other phases.
 
@@ -165,8 +170,9 @@ type RouteFareFlag =
 - Eligible products: those for the rider category with
   `is_default_fare_category = 1`, and products with an empty
   `rider_category_id` (the spec makes those eligible for every category).
-- Group the matching rules by (leg_group_id, network_id, from/to area, from/to
-  timeframe). Within a group, the spec offers the products as alternatives for
+- Group the matching rules by (network_id, from/to area, from/to timeframe), the
+  fields the spec uses to match a leg. `leg_group_id` only links rules to
+  `fare_transfer_rules`, so it is not part of the key. Within a group, the spec offers the products as alternatives for
   the same leg, so take the cheapest eligible product. This leaves out
   passes sold on the same rule and picks the cheapest fare media.
 - min/max across groups.
@@ -277,7 +283,7 @@ Across the 353 distinct feed versions: 168 v1 only, 9 v2 only, 21 both, 155 none
   covers 40+ agencies. Other v2 feeds include TriMet, C-TRAN, King County Metro,
   Sound Transit, Spokane, MTS, NCTD, and Santa Barbara MTD.
 - **Unknown is the common case.** About 40% of agencies publish no fares,
-  so the "include routes without fare data" toggle must default to on.
+  so the Unknown category must be selected by default.
 
 ### v1 shapes (v1-only feed versions)
 
@@ -356,8 +362,12 @@ The flags double as a list of feed fixes to report upstream: NCTD and SJRTD
 (assign rider categories to products), VCTC and Seattle Monorail (publish
 rider categories in v2 instead of v1 fare ids).
 
-Not needed for the summary: areas, stop_areas, fare_media, fare_transfer_rules,
-and the Trillium-style `fare_rider_categories.txt` (6 feeds).
+Not needed for the summary: fare_media (only the `fare_media` reference on
+products), fare_transfer_rules, fare_leg_join_rules, and the Trillium-style
+`fare_rider_categories.txt` (6 feeds). Areas and stop_areas are needed for the
+empty-area fallback (see Per-route fare summary). The numbers above come from a
+prototype that did not apply the network and area fallbacks, so rerun them once
+the derivation is implemented.
 
 ## Open questions
 
@@ -366,10 +376,11 @@ and the Trillium-style `fare_rider_categories.txt` (6 feeds).
   most feeds lack a stable category vocabulary across agencies.
 - Time-limited fares (C-TRAN). The spec-faithful fix is to expose timeframes
   and drop rules whose timeframe `service_id` is not active in the scenario
-  date range. That needs calendar data for those service ids. In phase 1 these
+  date range. Timeframes are now exposed (with `service`), so this needs only
+  the calendar data for those service ids. In phase 1 these
   routes land in "sometimes paid". Resolve this before phase 2's thresholds.
 - Surface the flags in the route report as a "Fare notes" column, or keep them
   in the CSV export only?
 - Currency: every sampled amount is USD. Ignore non-USD products.
-- Flex: flex fares in v2 use areas, so they would need areas and stop_areas
-  exposed. Out of scope for now.
+- Flex: flex fares in v2 use areas. Areas and stop_areas are now exposed, but
+  matching flex legs is out of scope for now.
