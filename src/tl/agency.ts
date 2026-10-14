@@ -21,14 +21,24 @@ export type AgencyGql = {
   id: number
 } & AgencyGtfs
 
-export interface AgencyDerived {
+// Marked routes per fare category, and the fare range across them (#454).
+export interface AgencyFareRollup {
+  fare_free_routes: number
+  fare_sometimes_paid_routes: number
+  fare_always_paid_routes: number
+  fare_unknown_routes: number
+  fare_min?: number
+  fare_max?: number
+}
+
+export interface AgencyDerived extends AgencyFareRollup {
   marked: boolean
   routes_count: number
   routes_modes: string
   stops_count: number
 }
 
-export type AgencyCsv = AgencyGtfs & {
+export type AgencyCsv = AgencyGtfs & AgencyFareRollup & {
   id: number
   marked: boolean
   routes_count: number
@@ -44,6 +54,12 @@ export function agencyToAgencyCsv (agency: Agency, bufferGeographies?: BufferGeo
     routes_count: agency.routes_count,
     routes_modes: agency.routes_modes,
     stops_count: agency.stops_count,
+    fare_free_routes: agency.fare_free_routes,
+    fare_sometimes_paid_routes: agency.fare_sometimes_paid_routes,
+    fare_always_paid_routes: agency.fare_always_paid_routes,
+    fare_unknown_routes: agency.fare_unknown_routes,
+    fare_min: agency.fare_min,
+    fare_max: agency.fare_max,
     // GTFS properties
     id: agency.id,
     agency_id: agency.agency_id,

@@ -215,45 +215,6 @@
       </div>
     </cat-field>
 
-    <p class="menu-label">
-      Fares <cat-tooltip text="Fare filtering is planned for future implementation">
-        <i class="mdi mdi-information-outline" />
-      </cat-tooltip>
-    </p>
-
-    <cat-field grouped>
-      <cat-checkbox
-        v-model="maxFareEnabled"
-        label="Maximum fare $"
-        :disabled="true"
-      />
-      <div class="cal-input-width-100">
-        <cat-input
-          v-model="maxFare"
-          type="number"
-          min="0"
-          step="0.01"
-          :disabled="true"
-        />
-      </div>
-    </cat-field>
-
-    <cat-field grouped>
-      <cat-checkbox
-        v-model="minFareEnabled"
-        label="Minimum fare $"
-        :disabled="true"
-      />
-      <div class="cal-input-width-100">
-        <cat-input
-          v-model="minFare"
-          type="number"
-          min="0"
-          step="0.01"
-          :disabled="true"
-        />
-      </div>
-    </cat-field>
     <cat-fieldset label="Color by">
       <ul>
         <li
@@ -299,10 +260,6 @@ const {
   frequencyOver,
   stopVisitsUnder,
   stopVisitsOver,
-  maxFareEnabled,
-  maxFare,
-  minFareEnabled,
-  minFare,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 

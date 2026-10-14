@@ -2,13 +2,15 @@ import {
   getFlexAreaType,
   getFlexAdvanceNotice,
   getFlexAgencyName,
+  fareReportFields,
+  type FareReportFields,
   type FlexAreaFeature,
 } from '~~/src/tl'
 
 /**
  * Properties object for a flex area feature ready for display in map or report
  */
-export interface FlexAreaDisplayProperties {
+export interface FlexAreaDisplayProperties extends FareReportFields {
   location_id: string
   location_name?: string
   agency_name: string
@@ -74,6 +76,7 @@ export function useFlexAreaFormatting () {
       booking_instructions: bookingRule?.message,
       marked: marked,
       area_m2: feature.properties.area_m2,
+      ...fareReportFields(feature.properties.fare),
     }
   }
 

@@ -81,6 +81,17 @@
           </div>
         </cat-msg>
       </div>
+      <div v-if="runsPhase('fares')" :class="['column', cardColumnClass]">
+        <cat-msg variant="info" title="Fares">
+          <!-- Counts flex routes too, so it is not a share of the Routes card. -->
+          <p><strong>{{ fareCounts.loaded }}</strong> routes</p>
+          <div v-if="fareCounts.loaded" class="cal-fare-list">
+            <div v-for="category of FARE_CATEGORIES" :key="category" class="cal-fare-item">
+              {{ fareCategoryLabels[category] }}: {{ fareCounts.byCategory[category] }}
+            </div>
+          </div>
+        </cat-msg>
+      </div>
       <div v-if="runsPhase('flex-areas')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Flex Areas">
           <p><strong>{{ scenarioData?.flexAreas?.length || 0 }}</strong> loaded</p>
@@ -101,6 +112,7 @@
 <script lang="ts" setup>
 import { phaseProgressPercent, planRunsPhase, type ScenarioPhaseName, type ScenarioProgress, type ScenarioData } from '~~/src/scenario'
 import type { RequestFailure } from '~~/src/core'
+import { FARE_CATEGORIES, fareCategory, fareCategoryLabels, type FareCategory } from '~~/src/tl'
 
 // Phase plan/fractions are accumulated by the parent inside the receiver
 // callback, where every event is seen — a watch on the latest-event prop
@@ -118,14 +130,25 @@ const props = withDefaults(defineProps<{
 // Which result cards this run can fill.
 const runsPhase = (phase: ScenarioPhaseName) => planRunsPhase(props.phasePlan, phase)
 
-// Four cards no longer always fit; spread whatever is shown across the row.
+// Up to five cards, at most three to a row so each stays readable; the
+// multiline columns wrap the rest. Four cards go two by two rather than
+// leaving one alone on the second row.
 const cardColumnClass = computed(() => {
-  const shown = (['stops', 'routes', 'departures', 'flex-areas'] as ScenarioPhaseName[])
+  const shown = (['stops', 'routes', 'departures', 'fares', 'flex-areas'] as ScenarioPhaseName[])
     .filter(runsPhase).length
   if (shown <= 1) { return 'is-full' }
-  if (shown === 2) { return 'is-half' }
-  if (shown === 3) { return 'is-one-third' }
-  return 'is-one-quarter'
+  if (shown === 2 || shown === 4) { return 'is-half' }
+  return 'is-one-third'
+})
+
+// Routes with a fare summary so far, and how they split across categories.
+const fareCounts = computed(() => {
+  const byCategory = Object.fromEntries(FARE_CATEGORIES.map(c => [c, 0])) as Record<FareCategory, number>
+  const fares = props.scenarioData?.routeFares
+  for (const summary of fares?.values() ?? []) {
+    byCategory[fareCategory(summary)]++
+  }
+  return { loaded: fares?.size ?? 0, byCategory }
 })
 
 // Weighted across the run's announced phase plan, which every stream carries
@@ -165,6 +188,7 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
     'census-values': 'Loading census data...',
     'buffers': 'Loading buffer demographics...',
     'stop-clusters': 'Loading stop clusters...',
+    'fares': 'Loading fares...',
     'wsdot-levels': 'Computing WSDOT service levels...',
     'wsdot-geographies': 'Loading WSDOT geography rollups...',
     'complete': 'Complete',
@@ -212,11 +236,11 @@ function formatStage (stage: ScenarioProgress['currentStage'], stageText: string
   margin: 0;
 }
 
-.stop-list, .route-list, .flex-list {
+.stop-list, .route-list, .cal-fare-list, .flex-list {
   margin-top: 0.5rem;
 }
 
-.stop-item, .route-item, .flex-item {
+.stop-item, .route-item, .cal-fare-item, .flex-item {
   font-size: 0.85rem;
   color: #6c757d;
   margin-bottom: 0.2rem;

@@ -131,6 +131,17 @@
         <cal-filter-flex />
       </div>
 
+      <!-- FARES (fixed-route and flex) -->
+      <div
+        v-if="activeTab === 'fares'"
+        id="cal-filter-panel-fares"
+        role="tabpanel"
+        aria-labelledby="cal-filter-tab-fares"
+        tabindex="0"
+      >
+        <cal-filter-fares />
+      </div>
+
       <!-- MODES & AGENCIES -->
       <div
         v-if="activeTab === 'agencies'"
@@ -186,6 +197,7 @@ const menuItems = [
   { icon: 'domain', label: 'Modes & Agencies', tab: 'agencies' },
   { icon: 'bus', label: 'Fixed-Route Services', tab: 'transit-layers', requiresFixedRoute: true },
   { icon: 'bus-marker', label: 'Flex Services', tab: 'flex-services', requiresFlex: true },
+  { icon: 'cash', label: 'Fares', tab: 'fares' },
   { icon: 'layers-outline', label: 'Map Display', tab: 'data-display' },
   { icon: 'cog', label: 'Settings', tab: 'settings' },
 ]

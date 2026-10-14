@@ -6,6 +6,7 @@ import {
   type Weekday,
   type WeekdayMode,
 } from '~~/src/core'
+import { FARE_CATEGORIES, type FareCategory } from '~~/src/tl'
 import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioFilters {
@@ -20,10 +21,11 @@ interface ScenarioFilters {
   // total visits at a stop during the filtered period; undefined = filter off
   stopVisitsUnder: WritableComputedRef<number | undefined>
   stopVisitsOver: WritableComputedRef<number | undefined>
-  maxFareEnabled: WritableComputedRef<boolean | undefined>
-  maxFare: WritableComputedRef<number>
-  minFareEnabled: WritableComputedRef<boolean | undefined>
-  minFare: WritableComputedRef<number>
+  // standard-fare categories to keep (#454); undefined = all, filter off
+  selectedFareCategories: WritableComputedRef<FareCategory[] | undefined>
+  // dollar thresholds on every standard fare; undefined = filter off
+  fareMax: WritableComputedRef<number | undefined>
+  fareMin: WritableComputedRef<number | undefined>
   flexServicesEnabled: WritableComputedRef<boolean | undefined>
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
@@ -70,8 +72,10 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ selectedWeekdays: v ? v.join(',') : undefined }) }
   })
 
-  // Optional integer threshold: absent/empty param = filter off (undefined).
-  function numberParam (key: string): WritableComputedRef<number | undefined> {
+  // Optional non-negative threshold: absent/empty param = filter off
+  // (undefined). Integers by default; fare amounts parse floats to keep cents.
+  function numberParam (key: string, parse: (s: string) => number = Number.parseInt): WritableComputedRef<number | undefined> {
+    const valid = (n: number) => Number.isFinite(n) && n >= 0
     return computed<number | undefined>({
       get: () => {
         const val = route.query[key]?.toString()
@@ -81,10 +85,13 @@ export function useScenarioFilters (): ScenarioFilters {
         // A malformed or negative param reads as "filter off" rather than an
         // active NaN threshold, which would arm the gates, match nothing, and
         // render "NaN" in the filter tag.
-        const n = Number.parseInt(val)
-        return Number.isFinite(n) && n >= 0 ? n : undefined
+        const n = parse(val)
+        return valid(n) ? n : undefined
       },
-      set: (v) => { setQuery({ [key]: v != null ? v.toString() : undefined }) }
+      set: (v) => {
+        const n = v == null ? Number.NaN : Number(v)
+        setQuery({ [key]: valid(n) ? n.toString() : undefined })
+      }
     })
   }
 
@@ -93,24 +100,20 @@ export function useScenarioFilters (): ScenarioFilters {
   const stopVisitsUnder = numberParam('stopVisitsUnder')
   const stopVisitsOver = numberParam('stopVisitsOver')
 
-  const maxFareEnabled = computed<boolean | undefined>({
-    get: () => route.query.maxFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ maxFareEnabled: v ? 'true' : undefined }) }
-  })
+  const fareMax = numberParam('fareMax', Number.parseFloat)
+  const fareMin = numberParam('fareMin', Number.parseFloat)
 
-  const maxFare = computed<number>({
-    get: () => Number.parseInt(route.query.maxFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ maxFare: v.toString() }) }
-  })
-
-  const minFareEnabled = computed<boolean | undefined>({
-    get: () => route.query.minFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ minFareEnabled: v ? 'true' : undefined }) }
-  })
-
-  const minFare = computed<number>({
-    get: () => Number.parseInt(route.query.minFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ minFare: v.toString() }) }
+  // Same convention as selectedRouteTypes: absent = all categories (no
+  // filter), empty = none. Unrecognized values are dropped, and a param with
+  // nothing recognized reads as filter off, like a malformed number param,
+  // rather than as "none", which would hide every route.
+  const selectedFareCategories = computed<FareCategory[] | undefined>({
+    get: () => {
+      const raw = getArrayParam('fareCategories')
+      const known = raw?.filter((c): c is FareCategory => (FARE_CATEGORIES as readonly string[]).includes(c))
+      return raw && raw.length > 0 && known?.length === 0 ? undefined : known
+    },
+    set: (v) => { setArrayParam('fareCategories', v) }
   })
 
   // Off by default. Independent of includeFixedRoute — both fetch toggles
@@ -166,10 +169,9 @@ export function useScenarioFilters (): ScenarioFilters {
     frequencyOver,
     stopVisitsUnder,
     stopVisitsOver,
-    maxFareEnabled,
-    maxFare,
-    minFareEnabled,
-    minFare,
+    selectedFareCategories,
+    fareMax,
+    fareMin,
     flexServicesEnabled,
     flexAdvanceNotice,
     flexAreaTypesSelected,

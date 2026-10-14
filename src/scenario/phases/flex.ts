@@ -104,6 +104,12 @@ export interface FlexPhaseConfig {
   endDate?: Date
 }
 
+export interface FlexPhaseResult {
+  // Feed version sha1 -> the ids of the routes serving its flex areas, for
+  // the fares phase.
+  feedVersionRouteIds: Record<string, number[]>
+}
+
 /**
  * Fetch flex service areas (GTFS-Flex / DRT) via GraphQL
  *
@@ -115,13 +121,14 @@ export async function runFlexPhase (
   client: GraphQLClient,
   emit: PhaseEmit,
   opts: PhaseOpts = {},
-): Promise<void> {
+): Promise<FlexPhaseResult> {
   const { queue, done } = phaseQueue<FeedVersionRef>('flex-areas', emit, fv => fetchFlexArea(fv), opts)
+  const feedVersionRouteIds: Record<string, number[]> = {}
 
   if (config.feedVersions.length === 0) {
     console.log('[FlexAreas] No feed versions available, skipping flex area fetch')
     done()
-    return
+    return { feedVersionRouteIds }
   }
 
   emit({ currentStage: 'flex-areas' })
@@ -155,6 +162,15 @@ export async function runFlexPhase (
     if (flexAreas.length === 0) {
       return
     }
+    const routeIds = new Set<number>()
+    for (const area of flexAreas) {
+      for (const route of area.properties.routes) {
+        if (route.id != null) {
+          routeIds.add(route.id)
+        }
+      }
+    }
+    feedVersionRouteIds[fv.feedVersionSha1] = [...routeIds]
 
     console.log(`[FlexAreas] Found ${flexAreas.length} flex areas in ${fv.feedOnestopId}`)
     await emit({ currentStage: 'flex-areas', partialData: { flexAreas } })
@@ -196,4 +212,5 @@ export async function runFlexPhase (
   done()
 
   console.log(`[FlexAreas] Complete`)
+  return { feedVersionRouteIds }
 }

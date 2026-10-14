@@ -207,6 +207,8 @@ import {
   stopGeoAggregateCsv,
   routesById,
   parseFvids,
+  fareCategoryLabels,
+  formatFareAmount,
 } from '~~/src/tl'
 import type {
   CensusDataset,
@@ -277,6 +279,9 @@ const {
   frequencyOver,
   stopVisitsUnder,
   stopVisitsOver,
+  selectedFareCategories,
+  fareMax,
+  fareMin,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -761,6 +766,9 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   frequencyOver: frequencyOver.value,
   stopVisitsUnder: stopVisitsUnder.value,
   stopVisitsOver: stopVisitsOver.value,
+  selectedFareCategories: selectedFareCategories.value,
+  fareMax: fareMax.value,
+  fareMin: fareMin.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
@@ -1009,6 +1017,16 @@ const filterTags = computed((): FilterTag[] => {
   tags.push(rangeTag('Route frequency', scenarioFilter.value.frequencyOver, scenarioFilter.value.frequencyUnder, 'min', '≥'))
   tags.push(rangeTag('Stop visits', scenarioFilter.value.stopVisitsOver, scenarioFilter.value.stopVisitsUnder, 'visits', '>'))
 
+  // fare categories
+  const fareCategories = scenarioFilter.value.selectedFareCategories
+  if (fareCategories == null) {
+    tags.push({ label: 'Fares', value: 'All', active: false })
+  } else {
+    const value = fareCategories.length === 0 ? 'None' : fareCategories.map(c => fareCategoryLabels[c]).join(', ')
+    tags.push({ label: 'Fares', value, active: true })
+  }
+  tags.push(fareAmountTag(scenarioFilter.value.fareMin, scenarioFilter.value.fareMax))
+
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
   if (agencies == null || agencies.length === 0) {
@@ -1045,6 +1063,21 @@ function rangeTag (label: string, min: number | undefined, max: number | undefin
   return { label, value: 'All', active: false }
 }
 
+// "$1.00 to $2.50", "At most $2.50", or "At least $1.00".
+function fareAmountTag (min: number | undefined, max: number | undefined): FilterTag {
+  const label = 'Fare amount'
+  if (min != null && max != null) {
+    return { label, value: `${formatFareAmount(min)} to ${formatFareAmount(max)}`, active: true }
+  }
+  if (max != null) {
+    return { label, value: `At most ${formatFareAmount(max)}`, active: true }
+  }
+  if (min != null) {
+    return { label, value: `At least ${formatFareAmount(min)}`, active: true }
+  }
+  return { label, value: 'All', active: false }
+}
+
 async function resetFilters () {
   await setQuery({
     selectedAgencies: undefined,
@@ -1060,6 +1093,10 @@ async function resetFilters () {
     // Retired with the "single routes" toggle; cleared so it does not linger
     // in bookmarked or shared URLs.
     calculateFrequencyMode: undefined,
+    fareCategories: undefined,
+    fareMax: undefined,
+    fareMin: undefined,
+    // Retired with the disabled fare threshold stubs (#454).
     maxFareEnabled: undefined,
     maxFare: undefined,
     minFareEnabled: undefined,

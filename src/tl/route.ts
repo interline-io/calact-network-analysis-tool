@@ -2,6 +2,7 @@ import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
 import type { BufferGeographyIntersection } from './stop-buffer'
 import type { AgencyGql } from './agency'
+import { fareReportFields, type FareReportFields, type RouteFareSummary } from './fare'
 
 //////////
 // Routes
@@ -94,6 +95,8 @@ export interface RouteDerived {
   // Issue #368 frequency caveats (set in routeSetDerived).
   frequency_irregular?: boolean
   frequency_directions_differ?: boolean
+  // Standard-fare summary from the fares phase (#454); absent until it loads.
+  fare?: RouteFareSummary
 }
 
 export type RouteCsv = RouteGtfs & {
@@ -117,7 +120,7 @@ export type RouteCsv = RouteGtfs & {
   latest_trip_end_time?: string
   frequency_irregular?: boolean
   frequency_directions_differ?: boolean
-}
+} & FareReportFields
 
 // Routes keyed by id. Stops carry only route ids, so consumers join through this.
 export function routesById<T extends RouteGql> (routes: T[]): Map<number, T> {
@@ -149,6 +152,7 @@ export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeograp
     latest_trip_end_time: formatGtfsTimeFull(route.latest_trip_end) || undefined,
     frequency_irregular: route.frequency_irregular,
     frequency_directions_differ: route.frequency_directions_differ,
+    ...fareReportFields(route.fare),
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,

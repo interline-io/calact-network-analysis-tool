@@ -4,6 +4,7 @@ import { StopDepartureCache } from '../tl/departure-cache'
 import { FlexDepartureCache } from '../tl/flex-departure-cache'
 import { stopToStopCsv } from '../tl/stop'
 import { routesById } from '../tl/route'
+import { fareCategory } from '../tl/fare'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import type { FlexAreaFeature } from '../tl/flex'
 import type { RouteGql } from '../tl/route'
@@ -88,6 +89,46 @@ describe('flexAreaMarked — agency filter', () => {
     const filter: ScenarioFilter = { selectedAgencies: [] }
     const result = applyScenarioResultFilter(data, baseConfig, filter)
     expect(result.flexAreas.every(a => !a.properties.marked)).toBe(true)
+  })
+})
+
+describe('flex area fares (#454)', () => {
+  function withRoutes (feature: FlexAreaFeature, routeIds: number[]): FlexAreaFeature {
+    return {
+      ...feature,
+      properties: { ...feature.properties, routes: routeIds.map(id => ({ id, route_id: `r${id}`, route_type: 3 })) },
+    }
+  }
+
+  function run (filter: ScenarioFilter) {
+    const data = makeData([withRoutes(makeFlexFeature(1), [10]), withRoutes(makeFlexFeature(2), [20, 21]), withRoutes(makeFlexFeature(3), [30])])
+    data.routeFares = new Map([
+      [10, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+      [20, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+      [21, { source: 'fares-v1', minAmount: 2, maxAmount: 2, flags: [] }],
+    ])
+    return applyScenarioResultFilter(data, baseConfig, filter).flexAreas
+  }
+
+  it('takes each area\'s fare from the routes serving it', () => {
+    const [a, b, c] = run({})
+    expect(fareCategory(a!.properties.fare!)).toBe('free')
+    expect(fareCategory(b!.properties.fare!)).toBe('sometimes-paid')
+    expect(b?.properties.fare).toMatchObject({ minAmount: 0, maxAmount: 2 })
+    // Route 30 has no summary yet.
+    expect(c?.properties.fare).toBeUndefined()
+    expect([a, b, c].every(f => f?.properties.marked)).toBe(true)
+  })
+
+  it('leaves an area not loaded until every route serving it has a fare', () => {
+    const data = makeData([withRoutes(makeFlexFeature(1), [10, 30])])
+    data.routeFares = new Map([[10, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }]])
+    expect(applyScenarioResultFilter(data, baseConfig, {}).flexAreas[0]?.properties.fare).toBeUndefined()
+  })
+
+  it('applies the fare filter to flex areas, hiding areas whose fares have not loaded', () => {
+    const marked = run({ selectedFareCategories: ['free', 'unknown'] }).map(f => f.properties.marked)
+    expect(marked).toEqual([true, false, false])
   })
 })
 
@@ -583,6 +624,87 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     // S_NONE has no departures in the period, so it is unmarked even with no
     // weekday subset selected (#433).
     expect(stops).toEqual([S_FAST, S_SLOW, S_BOTH])
+  })
+
+  describe('fare categories (#454)', () => {
+    // FAST is free, SLOW always paid. A third route with no summary stands in
+    // for one whose fares have not loaded.
+    function runWithFares (filter: ScenarioFilter, withSlowFare = true) {
+      const data = buildData()
+      data.routeFares = new Map([[FAST, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }]])
+      if (withSlowFare) {
+        data.routeFares.set(SLOW, { source: 'fares-v2', minAmount: 2, maxAmount: 3, flags: [] })
+      }
+      const result = applyScenarioResultFilter(data, baseConfig, filter)
+      return { result, routes: markedIds(result.routes), stops: markedIds(result.stops) }
+    }
+
+    it('derives each route\'s category and leaves routes marked with no fare filter', () => {
+      const { result, routes } = runWithFares({})
+      expect(routes).toEqual([FAST, SLOW])
+      const byRoute = new Map(result.routes.map(r => [r.id, r.fare && fareCategory(r.fare)]))
+      expect(byRoute.get(FAST)).toBe('free')
+      expect(byRoute.get(SLOW)).toBe('always-paid')
+    })
+
+    it('keeps only routes in the selected categories, and their stops and agencies', () => {
+      const { result, routes, stops } = runWithFares({ selectedFareCategories: ['free'] })
+      expect(routes).toEqual([FAST])
+      expect(stops).toEqual([S_FAST, S_BOTH])
+      const byAgency = new Map(result.agencies.map(a => [a.id, a.marked]))
+      expect(byAgency.get(AGENCY_FAST)).toBe(true)
+      expect(byAgency.get(AGENCY_SLOW)).toBe(false)
+    })
+
+    it('unmarks routes with no fare summary under an active fare filter, even with Unknown selected', () => {
+      const { result, routes } = runWithFares({ selectedFareCategories: ['always-paid', 'unknown'] }, false)
+      expect(routes).toEqual([])
+      expect(result.routes.find(r => r.id === SLOW)?.fare).toBeUndefined()
+    })
+
+    it('keeps a route only if its whole fare range meets the amount thresholds', () => {
+      // FAST $0 only, SLOW $2 to $3.
+      expect(runWithFares({ fareMax: 2.5 }).routes).toEqual([FAST])
+      expect(runWithFares({ fareMax: 3 }).routes).toEqual([FAST, SLOW])
+      expect(runWithFares({ fareMin: 2 }).routes).toEqual([SLOW])
+      expect(runWithFares({ fareMin: 2.5 }).routes).toEqual([])
+      expect(runWithFares({ fareMin: 0, fareMax: 0 }).routes).toEqual([FAST])
+    })
+
+    it('leaves unknown fares to the categories under amount thresholds, and drops unloaded ones', () => {
+      const data = buildData()
+      data.routeFares = new Map([
+        [FAST, { source: 'none', flags: [] }],
+        [SLOW, { source: 'fares-v1', minAmount: 5, maxAmount: 5, flags: [] }],
+      ])
+      const marked = (filter: ScenarioFilter) => markedIds(applyScenarioResultFilter(data, baseConfig, filter).routes)
+      expect(marked({ fareMax: 2 })).toEqual([FAST])
+      expect(marked({ fareMax: 2, selectedFareCategories: ['free', 'sometimes-paid', 'always-paid'] })).toEqual([])
+      data.routeFares.delete(FAST)
+      expect(marked({ fareMax: 10 })).toEqual([SLOW])
+    })
+
+    it('rolls up routes of same-id agencies from different feeds into their shared row', () => {
+      const data = buildData()
+      // SLOW's agency shares FAST's GTFS agency_id but has its own row id,
+      // as when two feeds publish the same agency.
+      data.routes = data.routes.map(r => r.id === SLOW ? { ...r, agency: { ...r.agency, agency_id: `agency-${AGENCY_FAST}` } } : r)
+      data.routeFares = new Map([
+        [FAST, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+        [SLOW, { source: 'fares-v1', minAmount: 2, maxAmount: 2, flags: [] }],
+      ])
+      const result = applyScenarioResultFilter(data, baseConfig, {})
+      expect(result.agencies).toHaveLength(1)
+      expect(result.agencies[0]).toMatchObject({ fare_free_routes: 1, fare_always_paid_routes: 1, fare_min: 0, fare_max: 2 })
+    })
+
+    it('rolls marked routes up into agency fare counts and range', () => {
+      const { result } = runWithFares({})
+      const slow = result.agencies.find(a => a.id === AGENCY_SLOW)
+      expect(slow).toMatchObject({ fare_always_paid_routes: 1, fare_free_routes: 0, fare_min: 2, fare_max: 3 })
+      const fast = result.agencies.find(a => a.id === AGENCY_FAST)
+      expect(fast).toMatchObject({ fare_free_routes: 1, fare_min: 0, fare_max: 0 })
+    })
   })
 
   it('route frequency alone selects routes and carries their stops along', () => {
