@@ -23,7 +23,7 @@ apply to a trip on the route, plus where that range came from.
 
    The route and agency reports show the fare range and data-quality flags
    as information only.
-2. **Phase 2:** "Fare at most $" / "Fare at least $" thresholds (the "cost
+2. **Phase 2:** "Fare at most" / "Fare at least" dollar thresholds (the "cost
    of a single trip" part of #454, and the PMs' original Maximum / Minimum
    fare design), alongside the categories. Time-limited fares are handled
    first, so a holiday fare doesn't put a route outside every minimum.
@@ -438,8 +438,9 @@ Settled before implementing the derivation (2026-10-14):
   always paid ($1.50 to $3.25) for a range in October and sometimes paid for
   one that includes New Year's Eve. A feed whose every rule is inactive still
   counts as Fares v2 (unknown, not "no fares").
-- **Fare amount thresholds.** "Fare at most $" and "Fare at least $" in the
-  Fares filter section, in the URL as `fareMax` / `fareMin` with cents kept.
+- **Fare amount thresholds.** "Fare at most" and "Fare at least" dollar
+  fields in the Fares filter section, shown with a "$" prefix and two
+  decimal places, and in the URL as `fareMax` / `fareMin` with cents kept.
   Containment semantics: every fare a route or flex area can charge must meet
   the amount, so `maxAmount <= fareMax` and `minAmount >= fareMin`. An
   unknown fare has no amount to test, so the Unknown fare checkbox alone

@@ -9,16 +9,15 @@
         v-model="frequencyUnderEnabled"
         label="Avg. Frequency ≦"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
           v-model="frequencyUnder"
           type="number"
           min="0"
+          suffix="minutes"
+          v-bind="{ ariaLabel: 'Average frequency at most, in minutes' }"
           :disabled="!frequencyUnderEnabled"
         />
-      </div>
-      <div>
-        minutes
       </div>
     </cat-field>
 
@@ -27,16 +26,15 @@
         v-model="frequencyOverEnabled"
         label="Avg. Frequency >"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
           v-model="frequencyOver"
           type="number"
           min="0"
+          suffix="minutes"
+          v-bind="{ ariaLabel: 'Average frequency over, in minutes' }"
           :disabled="!frequencyOverEnabled"
         />
-      </div>
-      <div>
-        minutes
       </div>
     </cat-field>
 
@@ -52,16 +50,15 @@
         v-model="stopVisitsUnderEnabled"
         label="Total visits ≦"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
           v-model="stopVisitsUnder"
           type="number"
           min="0"
+          suffix="visits"
+          v-bind="{ ariaLabel: 'Total visits at most' }"
           :disabled="!stopVisitsUnderEnabled"
         />
-      </div>
-      <div>
-        visits
       </div>
     </cat-field>
 
@@ -70,16 +67,15 @@
         v-model="stopVisitsOverEnabled"
         label="Total visits >"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
           v-model="stopVisitsOver"
           type="number"
           min="0"
+          suffix="visits"
+          v-bind="{ ariaLabel: 'Total visits over' }"
           :disabled="!stopVisitsOverEnabled"
         />
-      </div>
-      <div>
-        visits
       </div>
     </cat-field>
 
@@ -100,16 +96,15 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
                 v-model="stopBufferRadius"
                 type="number"
                 min="0"
                 max="1600"
+                suffix="m"
+                v-bind="{ ariaLabel: 'Stop statistical radius in meters' }"
               />
-            </div>
-            <div class="ml-2">
-              m
             </div>
           </div>
         </div>
@@ -162,16 +157,15 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
                 v-model="clusterDistance"
                 type="number"
                 min="0"
                 :disabled="!clusterEnabled"
+                suffix="m"
+                v-bind="{ ariaLabel: 'Max distance between clustered stops in meters' }"
               />
-            </div>
-            <div class="ml-2">
-              m
             </div>
           </div>
         </div>
@@ -199,16 +193,15 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
                 v-model="clusterMaxTransferMinutes"
                 type="number"
                 min="0"
+                suffix="min"
+                v-bind="{ ariaLabel: 'Max transfer time in minutes' }"
                 :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
               />
-            </div>
-            <div class="ml-2">
-              min
             </div>
           </div>
         </div>
@@ -300,11 +293,10 @@ const departuresLoaded = computed(() => {
 
 <style scoped lang="scss">
 .cal-service-levels {
-  .cal-input-width-80 {
-    max-width: 80px;
-  }
-  .cal-input-width-100 {
-    max-width: 100px;
+  // An input with its unit attached as a suffix addon; the input takes the
+  // width the unit leaves.
+  .cal-input-width-unit {
+    max-width: 150px;
   }
 }
 

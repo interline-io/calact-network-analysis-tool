@@ -32,7 +32,7 @@
       <cat-field grouped>
         <cat-checkbox
           v-model="fareMaxEnabled"
-          label="Fare at most $"
+          label="Fare at most"
         />
         <div class="cal-filter-fares-input">
           <cat-input
@@ -40,6 +40,8 @@
             type="number"
             min="0"
             step="0.25"
+            prefix="$"
+            :decimals="2"
             v-bind="{ ariaLabel: 'Maximum fare in dollars' }"
             :disabled="!fareMaxEnabled"
           />
@@ -49,7 +51,7 @@
       <cat-field grouped>
         <cat-checkbox
           v-model="fareMinEnabled"
-          label="Fare at least $"
+          label="Fare at least"
         />
         <div class="cal-filter-fares-input">
           <cat-input
@@ -57,6 +59,8 @@
             type="number"
             min="0"
             step="0.25"
+            prefix="$"
+            :decimals="2"
             v-bind="{ ariaLabel: 'Minimum fare in dollars' }"
             :disabled="!fareMinEnabled"
           />
@@ -98,8 +102,9 @@ const localSelectedFareCategories = computed<FareCategory[]>({
 </script>
 
 <style scoped lang="scss">
+// The input with its "$" prefix addon.
 .cal-filter-fares-input {
-  max-width: 100px;
+  max-width: 120px;
 }
 
 .cal-filter-fares-note {
