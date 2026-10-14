@@ -1,6 +1,6 @@
 # Fare filtering plan (#454)
 
-Status: phase 1 implemented (`src/tl/fare.ts`, `src/scenario/phases/fares.ts`). transitland-lib#786 is deployed. See Decisions for how the open questions were settled.
+Status: phases 1 and 2 implemented (`src/tl/fare.ts`, `src/scenario/phases/fares.ts`). transitland-lib#786 is deployed. See Decisions for how the open questions were settled.
 
 ## Goal
 
@@ -23,10 +23,10 @@ apply to a trip on the route, plus where that range came from.
 
    The route and agency reports show the fare range and data-quality flags
    as information only.
-2. **Phase 2 (later):** minimum / maximum fare thresholds (the "cost of a
-   single trip" part of #454). Deferred until the reports have shown how far
-   the published amounts can be trusted, and until time-limited fares
-   (see Open questions) are handled.
+2. **Phase 2:** "Fare at most $" / "Fare at least $" thresholds (the "cost
+   of a single trip" part of #454, and the PMs' original Maximum / Minimum
+   fare design), alongside the categories. Time-limited fares are handled
+   first, so a holiday fare doesn't put a route outside every minimum.
 
 The fare category is robust to most of the problems found in the data review.
 Passes, cash vs card prices, zone and area ranges, and time-limited fares change
@@ -421,6 +421,20 @@ Settled before implementing the derivation (2026-10-14):
   have no scenario stops, so zone and area rules are not matched for them,
   flagged `zones-not-matched`. In a greater Portland run on 2026-10-20, all
   533 flex areas got a summary: 227 free, 139 always paid, 167 unknown.
+- **Time-limited fares.** A leg rule whose from or to timeframe group has no
+  timeframe whose service runs on a date in the scenario's range is dropped
+  before matching (`dropInactiveTimeframeRules`). C-TRAN's 31 routes are
+  always paid ($1.50 to $3.25) for a range in October and sometimes paid for
+  one that includes New Year's Eve. A feed whose every rule is dropped still
+  counts as Fares v2 (unknown, not "no fares").
+- **Fare amount thresholds.** "Fare at most $" and "Fare at least $" in the
+  Fares filter section, in the URL as `fareMax` / `fareMin` with cents kept.
+  Containment semantics: every fare a route or flex area can charge must meet
+  the amount, so `maxAmount <= fareMax` and `minAmount >= fareMin`. An
+  unknown fare has no amount to test, so the Unknown fare checkbox alone
+  decides whether it is kept. A route with no summary fails any active fare
+  filter. The filter tag reads "$1.00 to $2.50", "At most $2.50", or
+  "At least $1.00".
 - **Filter placement.** The fare filter has its own Fares section in the
   filter sidebar, since it applies to fixed-route and flex service alike. The
   Flex Areas report gets the same fare columns as Routes.
@@ -430,11 +444,10 @@ Settled before implementing the derivation (2026-10-14):
 - Other rider categories: start with the default category only and show
   `has-other-categories`. A category picker only makes sense for v2 feeds, and
   most feeds lack a stable category vocabulary across agencies.
-- Time-limited fares (C-TRAN). The spec-faithful fix is to expose timeframes
-  and drop rules whose timeframe `service_id` is not active in the scenario
-  date range. Timeframes are now exposed (with `service`), so this needs only
-  the calendar data for those service ids. In phase 1 these
-  routes land in "sometimes paid". Resolve this before phase 2's thresholds.
+- Time of day for timeframes. Only a timeframe's service dates are checked,
+  not its start and end times against the Timeframes filter's time window.
+  The fares phase runs before the client-side time filter, so this would
+  need the timeframes on the client.
 - Flex zones and areas: zone (v1) and area (v2) fares for flex trips are not
   matched, since flex areas are polygons rather than stops. Matching them
   would need the backend to relate locations to fare zones or areas.

@@ -23,6 +23,9 @@ interface ScenarioFilters {
   stopVisitsOver: WritableComputedRef<number | undefined>
   // standard-fare categories to keep (#454); undefined = all, filter off
   selectedFareCategories: WritableComputedRef<FareCategory[] | undefined>
+  // dollar thresholds on every standard fare; undefined = filter off
+  fareMax: WritableComputedRef<number | undefined>
+  fareMin: WritableComputedRef<number | undefined>
   flexServicesEnabled: WritableComputedRef<boolean | undefined>
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
@@ -92,6 +95,27 @@ export function useScenarioFilters (): ScenarioFilters {
   const stopVisitsUnder = numberParam('stopVisitsUnder')
   const stopVisitsOver = numberParam('stopVisitsOver')
 
+  // Dollar amounts keep their cents, unlike numberParam's integers.
+  function amountParam (key: string): WritableComputedRef<number | undefined> {
+    return computed<number | undefined>({
+      get: () => {
+        const val = route.query[key]?.toString()
+        if (!val) {
+          return undefined
+        }
+        const n = Number.parseFloat(val)
+        return Number.isFinite(n) && n >= 0 ? n : undefined
+      },
+      set: (v) => {
+        const n = v == null ? Number.NaN : Number(v)
+        setQuery({ [key]: Number.isFinite(n) && n >= 0 ? n.toString() : undefined })
+      }
+    })
+  }
+
+  const fareMax = amountParam('fareMax')
+  const fareMin = amountParam('fareMin')
+
   // Same convention as selectedRouteTypes: absent = all categories (no
   // filter), empty = none. Unrecognized values are dropped.
   const selectedFareCategories = computed<FareCategory[] | undefined>({
@@ -153,6 +177,8 @@ export function useScenarioFilters (): ScenarioFilters {
     stopVisitsUnder,
     stopVisitsOver,
     selectedFareCategories,
+    fareMax,
+    fareMin,
     flexServicesEnabled,
     flexAdvanceNotice,
     flexAreaTypesSelected,

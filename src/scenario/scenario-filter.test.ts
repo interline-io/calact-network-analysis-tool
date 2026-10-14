@@ -655,6 +655,28 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
       expect(result.routes.find(r => r.id === SLOW)?.fare_category).toBeUndefined()
     })
 
+    it('keeps a route only if its whole fare range meets the amount thresholds', () => {
+      // FAST $0 only, SLOW $2 to $3.
+      expect(runWithFares({ fareMax: 2.5 }).routes).toEqual([FAST])
+      expect(runWithFares({ fareMax: 3 }).routes).toEqual([FAST, SLOW])
+      expect(runWithFares({ fareMin: 2 }).routes).toEqual([SLOW])
+      expect(runWithFares({ fareMin: 2.5 }).routes).toEqual([])
+      expect(runWithFares({ fareMin: 0, fareMax: 0 }).routes).toEqual([FAST])
+    })
+
+    it('leaves unknown fares to the categories under amount thresholds, and drops unloaded ones', () => {
+      const data = buildData()
+      data.routeFares = new Map([
+        [FAST, { source: 'none', flags: [] }],
+        [SLOW, { source: 'fares-v1', minAmount: 5, maxAmount: 5, flags: [] }],
+      ])
+      const marked = (filter: ScenarioFilter) => markedIds(applyScenarioResultFilter(data, baseConfig, filter).routes)
+      expect(marked({ fareMax: 2 })).toEqual([FAST])
+      expect(marked({ fareMax: 2, selectedFareCategories: ['free', 'sometimes-paid', 'always-paid'] })).toEqual([])
+      data.routeFares.delete(FAST)
+      expect(marked({ fareMax: 10 })).toEqual([SLOW])
+    })
+
     it('rolls up routes of same-id agencies from different feeds into their shared row', () => {
       const data = buildData()
       // SLOW's agency shares FAST's GTFS agency_id but has its own row id,

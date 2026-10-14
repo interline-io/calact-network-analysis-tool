@@ -18,5 +18,7 @@ export default defineEventHandler(async (event) => {
       feedVersions: config.feedVersions,
       feedVersionRouteIds: config.feedVersionRouteIds || {},
       routeStopIds: config.routeStopIds || {},
+      startDate: config.startDate,
+      endDate: config.endDate,
     }, client, emit, { onError }))
 })

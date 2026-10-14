@@ -34,6 +34,9 @@
  *      A route with no fare summary (not loaded, or its fare query failed) is
  *      in no category, so an active fare filter unmarks it. Flex areas take
  *      the combined fare of the routes serving them and filter the same way
+ *    - fareMax/fareMin: every standard fare the route can charge must be at
+ *      most / at least the amount. Routes with an unknown fare skip this test
+ *      and are kept or dropped by selectedFareCategories alone
  *
  * 2. Stops are then filtered based on:
  *    - Service availability: stop must have departures on selected days (Any/All mode)
@@ -141,7 +144,7 @@ function routeSetDerived (
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
-  selectedFareCategories?: FareCategory[],
+  fareFilter?: FareFilter,
 ) {
   // Scope the date range to the selected weekdays so frequency and trip stats
   // reflect the current weekday selection (issue #222). Without this, the stats
@@ -216,7 +219,7 @@ function routeSetDerived (
     frequencyUnder,
     frequencyOver,
     routeIndex,
-    selectedFareCategories,
+    fareFilter,
   )
 }
 
@@ -232,7 +235,7 @@ function routeMarked (
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
-  selectedFareCategories?: FareCategory[],
+  fareFilter?: FareFilter,
 ): boolean {
   // Check selected days - route must have service on selected days. deps only
   // holds departures inside the time window, so this is also the time-of-day
@@ -290,14 +293,52 @@ function routeMarked (
     }
   }
 
-  if (selectedFareCategories != null) {
-    if (!route.fare_category || !selectedFareCategories.includes(route.fare_category)) {
-      return false
-    }
+  if (fareFilter && !passesFareFilter(fareFilter, route.fare, route.fare_category)) {
+    return false
   }
 
   // Default is to return true
   // console.debug('routeMarked:', route.id, 'marked: passed all filters')
+  return true
+}
+
+// The fare filters of a ScenarioFilter, or undefined when none is active.
+interface FareFilter {
+  categories?: FareCategory[]
+  max?: number
+  min?: number
+}
+
+function activeFareFilter (filter: ScenarioFilter): FareFilter | undefined {
+  const { selectedFareCategories: categories, fareMax: max, fareMin: min } = filter
+  if (categories == null && max == null && min == null) {
+    return undefined
+  }
+  return { categories, max, min }
+}
+
+// Shared by routes and flex areas. With no summary (fares not loaded, or the
+// query failed) nothing can be said about the fare, so any active fare filter
+// fails. The amount thresholds use containment: every fare that can apply
+// must meet them, so a wide or unclear range never passes a "cheap" filter by
+// accident. An unknown fare has no amounts to test and is kept or dropped by
+// the categories alone.
+function passesFareFilter (f: FareFilter, fare?: RouteFareSummary, category?: FareCategory): boolean {
+  if (!fare || !category) {
+    return false
+  }
+  if (f.categories != null && !f.categories.includes(category)) {
+    return false
+  }
+  if (category === 'unknown') {
+    return true
+  }
+  if (f.max != null && fare.maxAmount! > f.max) {
+    return false
+  }
+  if (f.min != null && fare.minAmount! < f.min) {
+    return false
+  }
   return true
 }
 
@@ -483,15 +524,14 @@ function flexAreaMarked (
   selectedAgencies?: string[],
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
-  selectedFareCategories?: FareCategory[],
+  fareFilter?: FareFilter,
+  fare?: RouteFareSummary,
   fareCategoryValue?: FareCategory,
 ): boolean {
   // Fare filter: same rule as routes, so an area whose fares have not loaded
-  // is in no category.
-  if (selectedFareCategories != null) {
-    if (!fareCategoryValue || !selectedFareCategories.includes(fareCategoryValue)) {
-      return false
-    }
+  // fails it.
+  if (fareFilter && !passesFareFilter(fareFilter, fare, fareCategoryValue)) {
+    return false
   }
 
   // Agency filter
@@ -608,7 +648,7 @@ export function applyScenarioResultFilter (
   const frequencyOverValue = filter.frequencyOver
   const stopVisitsUnderValue = filter.stopVisitsUnder
   const stopVisitsOverValue = filter.stopVisitsOver
-  const selectedFareCategoriesValue = filter.selectedFareCategories
+  const fareFilterValue = activeFareFilter(filter)
   // Cross-entity gates are armed only by filters the other side cannot evaluate
   // itself: route-level filters gate stops (a stop must serve a marked route)
   // and stop-level thresholds gate routes (a route must serve a marked stop).
@@ -617,7 +657,7 @@ export function applyScenarioResultFilter (
     || selectedRouteTypesValue != null
     || frequencyUnderValue != null
     || frequencyOverValue != null
-    || selectedFareCategoriesValue != null
+    || fareFilterValue != null
   const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
@@ -656,7 +696,7 @@ export function applyScenarioResultFilter (
       frequencyUnderValue,
       frequencyOverValue,
       routeIndex,
-      selectedFareCategoriesValue,
+      fareFilterValue,
     )
     return route
   })
@@ -773,7 +813,8 @@ export function applyScenarioResultFilter (
       selectedAgenciesValue,
       filter.selectedWeekdays,
       filter.selectedWeekdayMode,
-      selectedFareCategoriesValue,
+      fareFilterValue,
+      fare,
       fareCategoryValue,
     )
     return {

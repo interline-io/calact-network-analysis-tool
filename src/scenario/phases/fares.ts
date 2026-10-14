@@ -6,10 +6,11 @@
 // regional feed run to tens of thousands of rows, while the summaries are a
 // few fields per route.
 
-import { chunkArray, type GraphQLClient } from '~~/src/core'
+import { chunkArray, fmtDate, type GraphQLClient } from '~~/src/core'
 import {
   FARE_TABLE_LIMIT,
   deriveRouteFareSummary,
+  dropInactiveTimeframeRules,
   fareRoutesQuery,
   fareRouteFromGql,
   fareStopsQuery,
@@ -21,7 +22,7 @@ import {
   type FeedVersionFaresGql,
   type RouteFareSummary,
 } from '~~/src/tl'
-import { phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
+import { getSelectedDateRange, phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
 // Ids per route/stop lookup; the server's maximum page size.
 const FARE_ID_BATCH_SIZE = 1000
@@ -32,6 +33,10 @@ export interface FaresPhaseConfig {
   feedVersionRouteIds: Record<string, number[]>
   // Route id -> the scenario's stops on that route.
   routeStopIds: Record<number, number[]>
+  // The scenario's date range. A time-limited fare (a fare_leg_rules
+  // timeframe) counts only if its service runs on one of these dates.
+  startDate?: Date
+  endDate?: Date
 }
 
 export async function runFaresPhase (
@@ -41,6 +46,8 @@ export async function runFaresPhase (
   opts: PhaseOpts = {},
 ): Promise<void> {
   const { queue, progressEvent, done } = phaseQueue<FeedVersionRef>('fares', emit, fv => fetchFeedVersionFares(fv), opts)
+  // Without a date range every timeframe counts.
+  const dates = config.startDate || config.endDate ? getSelectedDateRange(config).map(d => fmtDate(d)) : []
 
   async function fetchFeedVersionFares (fv: FeedVersionRef): Promise<void> {
     const routeIds = config.feedVersionRouteIds[fv.feedVersionSha1] || []
@@ -55,10 +62,10 @@ export async function runFaresPhase (
     if (!fvData) {
       return
     }
-    const fares = feedFaresFromGql(fvData)
+    const fares = dropInactiveTimeframeRules(feedFaresFromGql(fvData), dates)
 
     // A feed version with no fares needs no route or stop lookups.
-    if (fares.legRules.length === 0 && fares.fareAttributes.length === 0) {
+    if (fares.legRules.length === 0 && !fares.droppedLegRules && fares.fareAttributes.length === 0) {
       const none: RouteFareSummary = { source: 'none', flags: [] }
       await emit({ ...progressEvent(), partialData: { routeFares: routeIds.map(id => [id, none]) } })
       return

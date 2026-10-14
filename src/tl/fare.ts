@@ -59,6 +59,24 @@ query FeedVersionFares($sha1: String!, $limit: Int!) {
       rider_category_id
       is_default_fare_category
     }
+    # Their service calendars say when a time-limited fare applies. A
+    # calendar_dates-only service lists every date, so the date limit is high.
+    timeframes(limit: $limit) {
+      timeframe_group_id
+      service {
+        start_date
+        end_date
+        monday
+        tuesday
+        wednesday
+        thursday
+        friday
+        saturday
+        sunday
+        added_dates(limit: 10000)
+        removed_dates(limit: 10000)
+      }
+    }
   }
 }`
 
@@ -131,6 +149,24 @@ export interface FeedVersionFaresGql {
     rider_category_id: string
     is_default_fare_category: number | null
   }[]
+  timeframes?: {
+    timeframe_group_id: string
+    service: FareServiceGql | null
+  }[]
+}
+
+export interface FareServiceGql {
+  start_date: string | null
+  end_date: string | null
+  monday: number
+  tuesday: number
+  wednesday: number
+  thursday: number
+  friday: number
+  saturday: number
+  sunday: number
+  added_dates: string[] | null
+  removed_dates: string[] | null
 }
 
 export interface FareRouteGql {
@@ -185,8 +221,16 @@ export interface FeedFares {
     riderCategoryId: string
     isDefault: boolean
   }[]
+  // Each timeframe's service calendar, by timeframe_group_id.
+  timeframes: {
+    timeframeGroupId: string
+    service?: FareServiceGql
+  }[]
   // Some table hit FARE_TABLE_LIMIT, so the data may be incomplete.
   truncated: boolean
+  // Leg rules dropped by dropInactiveTimeframeRules. The feed still has
+  // Fares v2 data even if every rule was dropped.
+  droppedLegRules?: number
 }
 
 // What the summary needs to know about one route.
@@ -240,6 +284,10 @@ export function feedFaresFromGql (fv: FeedVersionFaresGql, limit = FARE_TABLE_LI
       riderCategoryId: c.rider_category_id,
       isDefault: c.is_default_fare_category === 1,
     })),
+    timeframes: (fv.timeframes || []).map(t => ({
+      timeframeGroupId: t.timeframe_group_id,
+      service: t.service ?? undefined,
+    })),
     truncated: lists.some(l => (l?.length ?? 0) >= limit),
   }
 }
@@ -259,6 +307,44 @@ export function fareStopFromGql (stop: FareStopGql): FareStop {
     areaIds.add(a.area_id)
   }
   return { zoneId: stop.zone_id || '', areaIds: [...areaIds] }
+}
+
+// Drops the leg rules whose timeframes never apply on the given dates
+// (`yyyy-MM-dd`), so a fare limited to a holiday drops out of a scenario that
+// doesn't include it. Only dates are checked, not times of day. A rule whose
+// timeframe group has no timeframes in the data is kept.
+export function dropInactiveTimeframeRules (fares: FeedFares, dates: string[]): FeedFares {
+  if (fares.timeframes.length === 0 || dates.length === 0) {
+    return fares
+  }
+  const groups = new Map<string, boolean>()
+  for (const t of fares.timeframes) {
+    const active = !!t.service && dates.some(d => serviceRunsOn(t.service!, d))
+    groups.set(t.timeframeGroupId, (groups.get(t.timeframeGroupId) ?? false) || active)
+  }
+  const applies = (group: string) => group === '' || groups.get(group) !== false
+  const legRules = fares.legRules.filter(r => applies(r.fromTimeframeGroupId) && applies(r.toTimeframeGroupId))
+  const dropped = fares.legRules.length - legRules.length
+  return dropped === 0 ? fares : { ...fares, legRules, droppedLegRules: dropped }
+}
+
+const SERVICE_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+
+// GTFS calendar semantics: added dates always run, removed dates never do,
+// and otherwise the weekday flags apply between the start and end dates.
+export function serviceRunsOn (service: FareServiceGql, date: string): boolean {
+  if (service.added_dates?.includes(date)) {
+    return true
+  }
+  if (service.removed_dates?.includes(date)) {
+    return false
+  }
+  if (!service.start_date || !service.end_date || date < service.start_date || date > service.end_date) {
+    return false
+  }
+  const [y, m, d] = date.split('-').map(Number)
+  const weekday = SERVICE_WEEKDAYS[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()]!
+  return service[weekday] === 1
 }
 
 // Whether matching any rule depends on the stops' zones or areas, so the phase
@@ -368,7 +454,7 @@ export function formatFareAmount (amount: number): string {
 const FARE_CURRENCY = 'USD'
 
 export function deriveRouteFareSummary (fares: FeedFares, route: FareRoute): RouteFareSummary {
-  const hasV2 = fares.legRules.length > 0
+  const hasV2 = fares.legRules.length > 0 || (fares.droppedLegRules ?? 0) > 0
   const hasV1 = fares.fareAttributes.length > 0
   if (!hasV2 && !hasV1) {
     return { source: 'none', flags: [] }
@@ -385,7 +471,7 @@ export function deriveRouteFareSummary (fares: FeedFares, route: FareRoute): Rou
 }
 
 function deriveWithFallback (fares: FeedFares, route: FareRoute, hasV1: boolean): RouteFareSummary {
-  if (fares.legRules.length === 0) {
+  if (fares.legRules.length === 0 && !fares.droppedLegRules) {
     return summarize('fares-v1', deriveV1(fares, route))
   }
   const v2 = deriveV2(fares, route)

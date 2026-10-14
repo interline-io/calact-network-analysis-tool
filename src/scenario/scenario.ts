@@ -154,6 +154,11 @@ export interface ScenarioFilter {
   stopVisitsOver?: number
   // Fare categories to keep (#454); undefined = filter off.
   selectedFareCategories?: FareCategory[]
+  // Dollar thresholds that every standard fare of a route or flex area must
+  // meet; undefined = off. Routes with an unknown fare are left to
+  // selectedFareCategories.
+  fareMax?: number
+  fareMin?: number
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. 0/undefined leaves the proximity clusters unfiltered.
   clusterMaxTransferMinutes?: number
@@ -377,6 +382,8 @@ export class ScenarioFetcher {
           feedVersions: fvRefs,
           feedVersionRouteIds: mergeRouteIds(stops?.feedVersionRouteIds ?? {}, flex.feedVersionRouteIds),
           routeStopIds: stops?.routeStopIds ?? {},
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
         }, this.client, emit, { onError }))
       : Promise.resolve()
 

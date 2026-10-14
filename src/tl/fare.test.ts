@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   combineFareSummaries,
   deriveRouteFareSummary,
+  dropInactiveTimeframeRules,
+  serviceRunsOn,
+  type FareServiceGql,
   fareCategory,
   feedFaresFromGql,
   feedFaresUseStops,
@@ -19,6 +22,7 @@ function feed (partial: Partial<FeedFares>): FeedFares {
     legRules: [],
     products: [],
     riderCategories: [],
+    timeframes: [],
     truncated: false,
     ...partial,
   }
@@ -352,5 +356,58 @@ describe('flex service', () => {
     expect(both).toMatchObject({ source: 'fares-v2', minAmount: 0, maxAmount: 3, flags: ['has-other-categories'] })
     expect(fareCategory(both)).toBe('sometimes-paid')
     expect(fareCategory(combineFareSummaries([unknown, { source: 'fares-v1', flags: ['no-matching-rule'] }])!)).toBe('unknown')
+  })
+})
+
+describe('timeframes', () => {
+  const service = (partial: Partial<FareServiceGql>): FareServiceGql => ({
+    start_date: '2026-09-13',
+    end_date: '2027-01-09',
+    monday: 0,
+    tuesday: 0,
+    wednesday: 0,
+    thursday: 0,
+    friday: 0,
+    saturday: 0,
+    sunday: 0,
+    added_dates: [],
+    removed_dates: [],
+    ...partial,
+  })
+
+  it('reads a service calendar like GTFS does', () => {
+    const weekdays = service({ monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, removed_dates: ['2026-11-26'], added_dates: ['2026-11-28'] })
+    expect(serviceRunsOn(weekdays, '2026-10-20')).toBe(true) // Tuesday
+    expect(serviceRunsOn(weekdays, '2026-10-24')).toBe(false) // Saturday
+    expect(serviceRunsOn(weekdays, '2026-11-26')).toBe(false) // removed
+    expect(serviceRunsOn(weekdays, '2026-11-28')).toBe(true) // added Saturday
+    expect(serviceRunsOn(weekdays, '2027-02-02')).toBe(false) // after end_date
+  })
+
+  // C-TRAN: a $0 New Year's Eve timeframe beside the regular fare.
+  const ctran = feed({
+    legRules: [leg('regular', { fromTimeframeGroupId: 'REGULAR' }), leg('free', { fromTimeframeGroupId: 'NYE' }), leg('anytime')],
+    products: [product('regular', 3.25), product('free', 0), product('anytime', 3.25)],
+    timeframes: [
+      { timeframeGroupId: 'REGULAR', service: service({ monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 1, sunday: 1 }) },
+      { timeframeGroupId: 'NYE', service: service({ start_date: '2026-12-31', end_date: '2026-12-31', added_dates: ['2026-12-31'] }) },
+    ],
+  })
+
+  it('drops rules whose timeframes never run in the scenario', () => {
+    const october = dropInactiveTimeframeRules(ctran, ['2026-10-19', '2026-10-20'])
+    expect(october.legRules.map(r => r.fareProductId)).toEqual(['regular', 'anytime'])
+    expect(fareCategory(deriveRouteFareSummary(october, route()))).toBe('always-paid')
+    const newYear = dropInactiveTimeframeRules(ctran, ['2026-12-31'])
+    expect(newYear.legRules).toHaveLength(3)
+    expect(fareCategory(deriveRouteFareSummary(newYear, route()))).toBe('sometimes-paid')
+    expect(dropInactiveTimeframeRules(ctran, [])).toBe(ctran)
+  })
+
+  it('still treats a feed as Fares v2 when every rule is dropped', () => {
+    const onlyNye = feed({ legRules: [leg('free', { fromTimeframeGroupId: 'NYE' })], products: [product('free', 0)], timeframes: ctran.timeframes })
+    const s = deriveRouteFareSummary(dropInactiveTimeframeRules(onlyNye, ['2026-10-20']), route())
+    expect(s.source).toBe('fares-v2')
+    expect(fareCategory(s)).toBe('unknown')
   })
 })

@@ -299,6 +299,9 @@ export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
 // period). Starting points only; the user edits the number in place.
 export const ROUTE_FREQUENCY_DEFAULT_MINUTES = 15
 export const STOP_VISITS_DEFAULT_TOTAL = 10
+// Dollar amounts seeded when the fare amount checkboxes are ticked (#454).
+export const FARE_MAX_DEFAULT = 2.5
+export const FARE_MIN_DEFAULT = 1
 
 // Accent color for cluster markers and the selected-cluster radius circle, kept
 // distinct from the agency/mode palette. Single source of truth: map layers read

@@ -208,6 +208,7 @@ import {
   routesById,
   parseFvids,
   fareCategoryLabels,
+  formatFareAmount,
 } from '~~/src/tl'
 import type {
   CensusDataset,
@@ -279,6 +280,8 @@ const {
   stopVisitsUnder,
   stopVisitsOver,
   selectedFareCategories,
+  fareMax,
+  fareMin,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -764,6 +767,8 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   stopVisitsUnder: stopVisitsUnder.value,
   stopVisitsOver: stopVisitsOver.value,
   selectedFareCategories: selectedFareCategories.value,
+  fareMax: fareMax.value,
+  fareMin: fareMin.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
@@ -1020,6 +1025,7 @@ const filterTags = computed((): FilterTag[] => {
     const value = fareCategories.length === 0 ? 'None' : fareCategories.map(c => fareCategoryLabels[c]).join(', ')
     tags.push({ label: 'Fares', value, active: true })
   }
+  tags.push(fareAmountTag(scenarioFilter.value.fareMin, scenarioFilter.value.fareMax))
 
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
@@ -1057,6 +1063,21 @@ function rangeTag (label: string, min: number | undefined, max: number | undefin
   return { label, value: 'All', active: false }
 }
 
+// "$1.00 to $2.50", "At most $2.50", or "At least $1.00".
+function fareAmountTag (min: number | undefined, max: number | undefined): FilterTag {
+  const label = 'Fare amount'
+  if (min != null && max != null) {
+    return { label, value: `${formatFareAmount(min)} to ${formatFareAmount(max)}`, active: true }
+  }
+  if (max != null) {
+    return { label, value: `At most ${formatFareAmount(max)}`, active: true }
+  }
+  if (min != null) {
+    return { label, value: `At least ${formatFareAmount(min)}`, active: true }
+  }
+  return { label, value: 'All', active: false }
+}
+
 async function resetFilters () {
   await setQuery({
     selectedAgencies: undefined,
@@ -1073,6 +1094,8 @@ async function resetFilters () {
     // in bookmarked or shared URLs.
     calculateFrequencyMode: undefined,
     fareCategories: undefined,
+    fareMax: undefined,
+    fareMin: undefined,
     // Retired with the disabled fare threshold stubs (#454).
     maxFareEnabled: undefined,
     maxFare: undefined,
