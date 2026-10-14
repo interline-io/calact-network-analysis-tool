@@ -274,25 +274,18 @@ export function feedFaresUseStops (fares: FeedFares): boolean {
 
 export type RouteFareSource = 'fares-v2' | 'fares-v1' | 'none'
 
+// Data-quality notes on a summary; fareFlagDescriptions explains each one.
 export type RouteFareFlag
-  // Several prices apply through rules with no zone fields to tell them apart.
-  = | 'v1-indistinct-fares'
-  // The v2 leg rules are keyed by network, but the route belongs to none.
+  = 'v1-indistinct-fares'
     | 'v2-route-without-network'
-  // Rider categories exist, none is the default, and no uncategorized product applies.
     | 'v2-no-default-category'
-  // The feed defines rider categories, but an applied product has none.
     | 'v2-uncategorized-products'
-  // The matched rules also offer products for non-default rider categories.
     | 'has-other-categories'
-  // v2 could not price the route, so its v1 fares were used.
     | 'v2-fallback-to-v1'
-  // The feed has fares, but no rule gives this route a standard fare.
     | 'no-matching-rule'
-  // A matched fare is negative (a spec-valid discount), which fits no category.
     | 'negative-amount'
-  // A fare table hit the query limit, so the data may be incomplete.
     | 'fare-data-truncated'
+    | 'zones-not-matched'
 
 export interface RouteFareSummary {
   source: RouteFareSource
@@ -338,6 +331,7 @@ export const fareFlagDescriptions: Record<RouteFareFlag, string> = {
   'no-matching-rule': 'The feed publishes fares, but none of its rules gives this route a standard fare.',
   'negative-amount': 'A matched fare is negative (a discount), so the route has no fare category.',
   'fare-data-truncated': 'The feed\'s fare data is too large to load in full.',
+  'zones-not-matched': 'Some of the feed\'s fares depend on fare zones or areas, which are not matched for service with no stops in the study area, such as flex service areas.',
 }
 
 export function fareCategory (summary: RouteFareSummary): FareCategory {
@@ -382,7 +376,16 @@ export function deriveRouteFareSummary (fares: FeedFares, route: FareRoute): Rou
   if (fares.truncated) {
     return { source: hasV2 ? 'fares-v2' : 'fares-v1', flags: ['fare-data-truncated'] }
   }
-  if (!hasV2) {
+  const summary = deriveWithFallback(fares, route, hasV1)
+  // Flex service has no stops to match zones and areas against.
+  if (route.stops.length === 0 && feedFaresUseStops(fares)) {
+    summary.flags.push('zones-not-matched')
+  }
+  return summary
+}
+
+function deriveWithFallback (fares: FeedFares, route: FareRoute, hasV1: boolean): RouteFareSummary {
+  if (fares.legRules.length === 0) {
     return summarize('fares-v1', deriveV1(fares, route))
   }
   const v2 = deriveV2(fares, route)
@@ -425,6 +428,53 @@ function summarize (source: RouteFareSource, d: Derived): RouteFareSummary {
     maxAmount: Math.max(...d.amounts),
     currency: FARE_CURRENCY,
     flags: [...flags],
+  }
+}
+
+// The fare columns of a route or flex area row, shared by the report tables
+// and CSV export. A row with no summary yet reads "Not loaded".
+export interface FareReportFields {
+  fare_category: string
+  fare_min?: number
+  fare_max?: number
+  fare_source?: string
+  fare_notes?: string
+}
+
+export function fareReportFields (fare?: RouteFareSummary): FareReportFields {
+  if (!fare) {
+    return { fare_category: 'Not loaded' }
+  }
+  return {
+    fare_category: fareCategoryLabels[fareCategory(fare)],
+    fare_min: fare.minAmount,
+    fare_max: fare.maxAmount,
+    fare_source: fare.source !== 'none' ? fareSourceLabels[fare.source] : undefined,
+    fare_notes: fare.flags.map(f => fareFlagDescriptions[f]).join(' ') || undefined,
+  }
+}
+
+// One summary for a flex area served by several routes: the range across
+// the routes with a known fare. Undefined when none of the routes has a
+// summary yet; unknown when none of them has a known fare.
+export function combineFareSummaries (summaries: RouteFareSummary[]): RouteFareSummary | undefined {
+  if (summaries.length <= 1) {
+    return summaries[0]
+  }
+  const known = summaries.filter(s => s.minAmount != null && s.maxAmount != null)
+  const sources = new Set(summaries.map(s => s.source))
+  // A mix of v1 and v2 is reported as v2, the spec's preferred source.
+  const source: RouteFareSource = sources.has('fares-v2') ? 'fares-v2' : sources.has('fares-v1') ? 'fares-v1' : 'none'
+  const flags = [...new Set(summaries.flatMap(s => s.flags))]
+  if (known.length === 0) {
+    return { source, flags }
+  }
+  return {
+    source,
+    minAmount: Math.min(...known.map(s => s.minAmount!)),
+    maxAmount: Math.max(...known.map(s => s.maxAmount!)),
+    currency: FARE_CURRENCY,
+    flags,
   }
 }
 

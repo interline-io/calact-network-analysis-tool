@@ -27,7 +27,7 @@ export type ScenarioPhaseName = 'feed-versions' | 'stops' | 'stop-census' | 'rou
 // Pipeline ordering for phase plans and progress display. Report phases come
 // after the fetch phases they consume.
 export const SCENARIO_PHASE_ORDER: ScenarioPhaseName[] = [
-  'feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'stop-clusters', 'fares', 'flex-areas', 'census-values',
+  'feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'stop-clusters', 'flex-areas', 'fares', 'census-values',
   'wsdot-levels', 'wsdot-geographies',
 ]
 

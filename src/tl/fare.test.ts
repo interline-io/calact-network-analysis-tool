@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  combineFareSummaries,
   deriveRouteFareSummary,
   fareCategory,
   feedFaresFromGql,
@@ -325,5 +326,31 @@ describe('GraphQL conversion', () => {
     )
     expect(r).toEqual({ id: 1, agencyId: 10, networkId: 'N1', stops: [{ zoneId: '', areaIds: ['A', 'S'] }] })
     expect(fareRouteFromGql({ id: 1, network_id: 'N2', networks: [], agency: null }, []).networkId).toBe('N2')
+  })
+})
+
+describe('flex service', () => {
+  it('notes that zone fares are not matched for a route with no stops', () => {
+    const fares = feed({
+      fareAttributes: [usd(1, 2), usd(2, 4)],
+      fareRules: [{ fareAttributeId: 1, routeId: 1, ...noZones }, { fareAttributeId: 2, routeId: 1, originId: 'Z', destinationId: '', containsId: '' }],
+    })
+    const s = deriveRouteFareSummary(fares, route({ stops: [] }))
+    expect(range(s)).toEqual([2, 2])
+    expect(s.flags).toEqual(['zones-not-matched'])
+    // A feed without zone rules has nothing to note.
+    expect(deriveRouteFareSummary(feed({ fareAttributes: [usd(1, 0)] }), route()).flags).toEqual([])
+  })
+
+  it('combines the fares of the routes serving an area', () => {
+    const free: RouteFareSummary = { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }
+    const paid: RouteFareSummary = { source: 'fares-v2', minAmount: 2, maxAmount: 3, flags: ['has-other-categories'] }
+    const unknown: RouteFareSummary = { source: 'none', flags: [] }
+    expect(combineFareSummaries([])).toBeUndefined()
+    expect(combineFareSummaries([free])).toBe(free)
+    const both = combineFareSummaries([free, paid, unknown])!
+    expect(both).toMatchObject({ source: 'fares-v2', minAmount: 0, maxAmount: 3, flags: ['has-other-categories'] })
+    expect(fareCategory(both)).toBe('sometimes-paid')
+    expect(fareCategory(combineFareSummaries([unknown, { source: 'fares-v1', flags: ['no-matching-rule'] }])!)).toBe('unknown')
   })
 })

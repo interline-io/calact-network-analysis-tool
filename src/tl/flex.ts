@@ -1,6 +1,7 @@
 import { gql } from 'graphql-tag'
 import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, WEEKDAY_BY_GETDAY } from '~~/src/core'
 import turfArea from '@turf/area'
+import type { FareCategory, RouteFareSummary } from './fare'
 
 //////////
 // Flex Services (DRT/Demand-Responsive Transit) Types
@@ -52,6 +53,8 @@ export interface FlexAgency {
  * Route information embedded in flex area features
  */
 export interface FlexRoute {
+  // Internal Transitland id, the key for the route's fare summary.
+  id?: number
   route_id: string
   route_long_name?: string
   route_short_name?: string
@@ -155,6 +158,11 @@ export interface FlexAreaProperties {
 
   // Filtering state (set by scenario-filter.ts)
   marked?: boolean
+
+  // Standard-fare summary across the area's routes (#454), set by
+  // scenario-filter.ts; absent until its routes' fares load.
+  fare?: RouteFareSummary
+  fare_category?: FareCategory
 }
 
 /**
@@ -496,6 +504,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
         trip {
           trip_id
           route {
+            id
             route_id
             route_short_name
             route_long_name
@@ -598,6 +607,7 @@ export interface FlexStopTimeGql {
   trip: {
     trip_id: string
     route: {
+      id: number
       route_id: string
       route_short_name?: string
       route_long_name?: string
@@ -744,6 +754,7 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     const route = st.trip.route
     if (!routeMap.has(route.route_id)) {
       routeMap.set(route.route_id, {
+        id: route.id,
         route_id: route.route_id,
         route_short_name: route.route_short_name,
         route_long_name: route.route_long_name,

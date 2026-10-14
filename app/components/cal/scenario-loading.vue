@@ -83,7 +83,8 @@
       </div>
       <div v-if="runsPhase('fares')" :class="['column', cardColumnClass]">
         <cat-msg variant="info" title="Fares">
-          <p><strong>{{ fareCounts.loaded }}</strong> / {{ scenarioData?.routes.length || 0 }} routes</p>
+          <!-- Counts flex routes too, so it is not a share of the Routes card. -->
+          <p><strong>{{ fareCounts.loaded }}</strong> routes</p>
           <div v-if="fareCounts.loaded" class="cal-fare-list">
             <div v-for="category of FARE_CATEGORIES" :key="category" class="cal-fare-item">
               {{ fareCategoryLabels[category] }}: {{ fareCounts.byCategory[category] }}

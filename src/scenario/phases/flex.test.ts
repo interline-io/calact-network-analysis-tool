@@ -50,3 +50,32 @@ describe('runFlexPhase service date', () => {
     }
   })
 })
+
+describe('runFlexPhase route ids', () => {
+  it('returns the routes serving each feed version\'s flex areas, for the fares phase', async () => {
+    const stopTime = (routeId: number) => ({
+      pickup_type: 2,
+      drop_off_type: 2,
+      trip: {
+        trip_id: `t${routeId}`,
+        route: { id: routeId, route_id: `r${routeId}`, route_type: 3, agency: { agency_id: 'a', agency_name: 'A' } },
+      },
+    })
+    const location = (id: number, routeIds: number[]) => ({
+      id,
+      location_id: `loc-${id}`,
+      geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] },
+      stop_times: routeIds.map(stopTime),
+    })
+    const client = new MockGraphQLClient()
+    client.mockQuery.mockImplementation(async (_q: any, vars: any) => vars?.serviceDate
+      ? { data: { feed_versions: [{ id: 1, sha1: 'sha1', locations: [location(1, [10, 11]), location(2, [11])] }] } }
+      : { data: { feed_versions: [] } })
+    const result = await runFlexPhase({
+      feedVersions: [{ feedOnestopId: 'f-1', feedVersionSha1: 'sha1' }],
+      startDate: '2026-08-24',
+      endDate: '2026-08-24',
+    } as unknown as FlexPhaseConfig, client, () => {})
+    expect(result.feedVersionRouteIds).toEqual({ sha1: [10, 11] })
+  })
+})

@@ -32,7 +32,8 @@
  *      trips) must be within thresholds
  *    - selectedFareCategories: route's standard-fare category must be selected.
  *      A route with no fare summary (not loaded, or its fare query failed) is
- *      in no category, so an active fare filter unmarks it
+ *      in no category, so an active fare filter unmarks it. Flex areas take
+ *      the combined fare of the routes serving them and filter the same way
  *
  * 2. Stops are then filtered based on:
  *    - Service availability: stop must have departures on selected days (Any/All mode)
@@ -82,7 +83,7 @@ import {
   routeTypeNames,
   WEEKDAY_BY_GETDAY,
 } from '~~/src/core'
-import { fareCategory, type FareCategory } from '~~/src/tl/fare'
+import { combineFareSummaries, fareCategory, type FareCategory, type RouteFareSummary } from '~~/src/tl/fare'
 import type {
   Agency,
   AgencyFareRollup,
@@ -482,7 +483,17 @@ function flexAreaMarked (
   selectedAgencies?: string[],
   selectedWeekdays?: Weekday[],
   selectedWeekdayMode?: WeekdayMode,
+  selectedFareCategories?: FareCategory[],
+  fareCategoryValue?: FareCategory,
 ): boolean {
+  // Fare filter: same rule as routes, so an area whose fares have not loaded
+  // is in no category.
+  if (selectedFareCategories != null) {
+    if (!fareCategoryValue || !selectedFareCategories.includes(fareCategoryValue)) {
+      return false
+    }
+  }
+
   // Agency filter
   if (selectedAgencies != null) {
     if (selectedAgencies.length === 0) { return false }
@@ -750,6 +761,11 @@ export function applyScenarioResultFilter (
 
   // Apply flex area filters
   const flexAreaFeatures = (data.flexAreas || []).map((flexArea): FlexAreaFeature => {
+    // The area's fare is the range across the routes serving it.
+    const fare = combineFareSummaries((flexArea.properties.routes || [])
+      .map(r => r.id != null ? data.routeFares?.get(r.id) : undefined)
+      .filter((s): s is RouteFareSummary => s != null))
+    const fareCategoryValue = fare ? fareCategory(fare) : undefined
     const marked = flexAreaMarked(
       flexArea,
       data.flexDepartureCache,
@@ -757,12 +773,16 @@ export function applyScenarioResultFilter (
       selectedAgenciesValue,
       filter.selectedWeekdays,
       filter.selectedWeekdayMode,
+      selectedFareCategoriesValue,
+      fareCategoryValue,
     )
     return {
       ...flexArea,
       properties: {
         ...flexArea.properties,
         marked,
+        fare,
+        fare_category: fareCategoryValue,
       }
     }
   })

@@ -82,6 +82,21 @@ describe('runFaresPhase', () => {
     expect(summaries.get(1)).toMatchObject({ minAmount: 2, maxAmount: 2 })
   })
 
+  it('prices flex routes, which have no scenario stops, without fetching stops for them', async () => {
+    const { client, query } = mockClient({
+      a: fvFares({
+        fare_attributes: [{ id: 1, fare_id: 'dar', price: 1, currency_type: 'USD', agency: null }],
+        fare_rules: [
+          { fare_attribute: { id: 1 }, route: { id: 7 }, origin_id: null, destination_id: null, contains_id: null },
+          { fare_attribute: { id: 1 }, route: null, origin_id: 'Z', destination_id: null, contains_id: null },
+        ],
+      }),
+    })
+    const { summaries } = await run(client, { a: [7] })
+    expect(summaries.get(7)).toMatchObject({ minAmount: 1, maxAmount: 1, flags: ['zones-not-matched'] })
+    expect(query.mock.calls.find(([q]) => q === fareStopsQuery)).toBeUndefined()
+  })
+
   it('leaves a feed version\'s routes without summaries when its query fails', async () => {
     const query = vi.fn(async () => { throw new Error('boom') })
     const onError = vi.fn()

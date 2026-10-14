@@ -83,7 +83,7 @@ export function buildRouteColumns (allDay: boolean, includeCensus: boolean): Tab
       sortable: true,
       tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
-    ...fareRouteColumns,
+    ...buildFareColumns('a trip on the route'),
   ]
   if (includeCensus) {
     cols.push(...buildCensusColumns(true))
@@ -95,27 +95,34 @@ export function buildRouteColumns (allDay: boolean, includeCensus: boolean): Tab
 // report.vue renders them as currency.
 const STANDARD_FARE_NOTE = 'Standard fare: the feed\'s default rider category in GTFS Fares v2, or the published fare in Fares v1. Only stops inside the study area are used to match zones and areas.'
 
-const fareRouteColumns: TableColumn[] = [
-  {
-    key: 'fare_category',
-    label: 'Fare Category',
-    sortable: true,
-    tooltip: `Free, Sometimes paid, Always paid, or Unknown fare, from the range of standard single-ride fares that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
-  },
-  {
-    key: 'fare_min',
-    label: 'Min Fare',
-    sortable: true,
-    numeric: true,
-    tooltip: `Lowest standard single-ride fare that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
-  },
-  {
-    key: 'fare_max',
-    label: 'Max Fare',
-    sortable: true,
-    numeric: true,
-    tooltip: `Highest standard single-ride fare that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
-  },
+// `trip` names what the fare is for, e.g. "a trip on the route".
+function buildFareColumns (trip: string): TableColumn[] {
+  return [
+    {
+      key: 'fare_category',
+      label: 'Fare Category',
+      sortable: true,
+      tooltip: `Free, Sometimes paid, Always paid, or Unknown fare, from the range of standard single-ride fares that can apply to ${trip}. ${STANDARD_FARE_NOTE}`,
+    },
+    {
+      key: 'fare_min',
+      label: 'Min Fare',
+      sortable: true,
+      numeric: true,
+      tooltip: `Lowest standard single-ride fare that can apply to ${trip}. ${STANDARD_FARE_NOTE}`,
+    },
+    {
+      key: 'fare_max',
+      label: 'Max Fare',
+      sortable: true,
+      numeric: true,
+      tooltip: `Highest standard single-ride fare that can apply to ${trip}. ${STANDARD_FARE_NOTE}`,
+    },
+    ...fareSourceColumns,
+  ]
+}
+
+const fareSourceColumns: TableColumn[] = [
   {
     key: 'fare_source',
     label: 'Fare Source',
@@ -250,6 +257,7 @@ export const flexAreaColumns: TableColumn[] = [
   { key: 'phone_number', label: 'Phone', sortable: true },
   { key: 'urls', label: 'Links', sortable: false },
   { key: 'trip_count', label: 'Trips', sortable: true },
+  ...buildFareColumns('a trip in the area, across the routes serving it'),
 ]
 
 // Convert a flex feature to CSV row data (also drives the flex table display).
@@ -286,5 +294,10 @@ export function flexFeatureToCsv (feature: Feature): Record<string, string | num
     prior_notice_last_day: props.prior_notice_last_day ?? '',
     prior_notice_last_time: props.prior_notice_last_time || '',
     booking_instructions: props.booking_instructions || '',
+    fare_category: props.fare_category,
+    fare_min: props.fare_min,
+    fare_max: props.fare_max,
+    fare_source: props.fare_source,
+    fare_notes: props.fare_notes,
   }
 }

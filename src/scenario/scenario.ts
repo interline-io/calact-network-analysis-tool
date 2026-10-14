@@ -41,6 +41,8 @@ import {
   FlexDepartureTuple,
   SCENARIO_PHASE_ORDER,
   type FeedVersionRef,
+  type FlexPhaseResult,
+  type StopsPhaseResult,
   type ResolvedGeographyContext,
   type ScenarioPhaseName,
 } from './phases'
@@ -109,8 +111,8 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
     && !!config.tableDatasetName,
   'stop-clusters': config => config.includeFixedRoute !== false
     && (config.stopClusterDistance ?? 0) > 0,
-  // Executes inside the stops block, so the predicate implies stops.
-  'fares': config => config.includeFixedRoute !== false,
+  // Covers fixed routes and the routes serving flex areas.
+  'fares': config => config.includeFixedRoute !== false || config.includeFlexAreas !== false,
   'flex-areas': config => config.includeFlexAreas !== false,
   'census-values': config => config.includeCensus !== false
     && !!config.tableDatasetName
@@ -297,10 +299,9 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
 //
 //   feed-versions ─┬─ stops ─┬─ departures ───┐
 //                  │         ├─ stop-census ──┤
-//                  │         ├─ fares ────────┤
-//                  │         └─ routes ───────┴─ buffer passes
-//                  ├─ flex
-//                  └─ census-values
+//                  │         └─ routes ───────┴─ buffer passes ── census-values
+//                  ├─ stops + flex ── fares
+//                  └─ flex
 //
 // Follows the same contract as a phase — emit plus non-fatal onError — and
 // runs inside a stream envelope that owns the run's framing.
@@ -351,79 +352,44 @@ export class ScenarioFetcher {
       feedVersionSha1: fv.sha1,
     }))
 
-    // Hoisted out of the stops block: the census-values phase clips against
-    // these when a stop buffer radius is set.
-    let scenarioStopIds: number[] = []
+    // Flex depends only on the feed versions, so it starts now, alongside
+    // stops. The fares phase needs the routes of both.
+    const flexPromise: Promise<FlexPhaseResult> = enabled.has('flex-areas')
+      ? runFlexPhase({
+          feedVersions: fvRefs,
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
+        }, this.client, emit, { onError })
+      : Promise.resolve({ feedVersionRouteIds: {} })
+    const stopsPromise: Promise<StopsPhaseResult | undefined> = enabled.has('stops')
+      ? runStopsPhase({
+          feedVersions: fvRefs,
+          bbox: this.config.bbox,
+          geographyIds: this.config.geographyIds,
+          stopLimit: this.config.stopLimit,
+        }, this.client, emit, { onError })
+      : Promise.resolve(undefined)
 
-    if (enabled.has('stops')) {
-      const { stopIds, routeIds, routeStopIds, feedVersionRouteIds } = await runStopsPhase({
-        feedVersions: fvRefs,
-        bbox: this.config.bbox,
-        geographyIds: this.config.geographyIds,
-        stopLimit: this.config.stopLimit,
-      }, this.client, emit, { onError })
-      scenarioStopIds = stopIds
-      logMemory('after-stops')
+    // Fares for the fixed routes found through stops and the routes serving
+    // flex areas. Only fixed routes have stops to match zones and areas.
+    const faresPromise = enabled.has('fares')
+      ? Promise.all([stopsPromise, flexPromise]).then(([stops, flex]) => runFaresPhase({
+          feedVersions: fvRefs,
+          feedVersionRouteIds: mergeRouteIds(stops?.feedVersionRouteIds ?? {}, flex.feedVersionRouteIds),
+          routeStopIds: stops?.routeStopIds ?? {},
+        }, this.client, emit, { onError }))
+      : Promise.resolve()
 
-      // Departures, the per-stop census, fares, and routes all consume only
-      // the stop ids, so all four run together. Awaited as one group rather than in
-      // sequence: an `await` between them strands whichever is still running
-      // when an earlier one rejects, and its rejection surfaces later with no
-      // handler attached.
-      const departuresPromise = enabled.has('departures')
-        ? runDeparturesPhase({
-            stopIds,
-            startDate: this.config.startDate,
-            endDate: this.config.endDate,
-            dates: this.config.departureDates,
-            routeIds,
-            routeStopIds,
-          }, this.client, emit, { onError })
-        : Promise.resolve()
-      const stopCensusPromise = enabled.has('stop-census')
-        ? this.fetchStopCensus(stopIds, onError)
-        : Promise.resolve()
-      const faresPromise = enabled.has('fares')
-        ? runFaresPhase({
-            feedVersions: fvRefs,
-            feedVersionRouteIds,
-            routeStopIds,
-          }, this.client, emit, { onError })
-        : Promise.resolve()
-      const routesPromise = enabled.has('routes')
-        ? runRoutesPhase({
-            routeIds,
-            includeGeometry: this.config.includeRouteGeometry,
-          }, this.client, emit, { onError })
-        : Promise.resolve({ agencyIds: [] as number[] })
-      const [, , , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, faresPromise, routesPromise])
-      logMemory('after-departures')
+    // Resolves to the scenario's stop ids, which the census-values phase
+    // clips against when a stop buffer radius is set.
+    const fixedRoutePromise = stopsPromise.then(stops => stops ? this.fetchFixedRoute(stops, fvRefs, enabled) : [])
+    const censusPromise = fixedRoutePromise.then(stopIds => enabled.has('census-values')
+      ? this.fetchCensusValues(resolved, stopIds)
+      : undefined)
 
-      if (enabled.has('buffers')) {
-        await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
-      }
-      logMemory('after-buffer-passes')
-
-      // Clusters re-query the same stop set (with nearby_stops neighbors) rather
-      // than reusing stopIds, so they only need the feed-version refs + bbox.
-      if (enabled.has('stop-clusters')) {
-        await this.fetchStopClusters(fvRefs)
-      }
-      logMemory('after-stop-clusters')
-    }
-
-    // Flex areas and census values both only depend on feed versions / the
-    // resolved bbox (set during feed-versions) so they can run concurrently.
-    await Promise.all([
-      enabled.has('flex-areas')
-        ? runFlexPhase({
-            feedVersions: fvRefs,
-            startDate: this.config.startDate,
-            endDate: this.config.endDate,
-          }, this.client, emit, { onError })
-        : Promise.resolve(),
-      enabled.has('census-values') ? this.fetchCensusValues(resolved, scenarioStopIds) : Promise.resolve(),
-    ])
+    // Awaited as one group: an `await` on one branch strands the others if it
+    // rejects, and their rejections surface later with no handler attached.
+    await Promise.all([flexPromise, faresPromise, fixedRoutePromise, censusPromise])
     logMemory('after-flex-and-census')
 
     // No completion event here: 'complete' is the envelope's, emitted once
@@ -433,6 +399,51 @@ export class ScenarioFetcher {
 
     // Returned so report stages don't re-resolve the geography context.
     return { resolvedGeography: resolved }
+  }
+
+  // The phases that consume the stops phase's ids: departures, the per-stop
+  // census, and routes together, then the buffer passes and stop clusters.
+  private async fetchFixedRoute (stops: StopsPhaseResult, fvRefs: FeedVersionRef[], enabled: Set<ScenarioPhaseName>): Promise<number[]> {
+    const onError = this.onError
+    const { stopIds, routeIds, routeStopIds } = stops
+    logMemory('after-stops')
+
+    // Awaited as one group rather than in sequence, for the same reason as
+    // the fetch() branches.
+    const departuresPromise = enabled.has('departures')
+      ? runDeparturesPhase({
+          stopIds,
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
+          dates: this.config.departureDates,
+          routeIds,
+          routeStopIds,
+        }, this.client, this.emit, { onError })
+      : Promise.resolve()
+    const stopCensusPromise = enabled.has('stop-census')
+      ? this.fetchStopCensus(stopIds, onError)
+      : Promise.resolve()
+    const routesPromise = enabled.has('routes')
+      ? runRoutesPhase({
+          routeIds,
+          includeGeometry: this.config.includeRouteGeometry,
+        }, this.client, this.emit, { onError })
+      : Promise.resolve({ agencyIds: [] as number[] })
+    const [, , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, routesPromise])
+    logMemory('after-departures')
+
+    if (enabled.has('buffers')) {
+      await this.fetchBufferData(stopIds, routeIds, agencyIds, onError)
+    }
+    logMemory('after-buffer-passes')
+
+    // Clusters re-query the same stop set (with nearby_stops neighbors) rather
+    // than reusing stopIds, so they only need the feed-version refs + bbox.
+    if (enabled.has('stop-clusters')) {
+      await this.fetchStopClusters(fvRefs)
+    }
+    logMemory('after-stop-clusters')
+    return stopIds
   }
 
   // Config projection around the stop-census phase. Unlike its siblings the
@@ -519,6 +530,15 @@ export class ScenarioFetcher {
       this.emit,
     )
   }
+}
+
+// Per-feed-version route ids from two phases, deduplicated.
+function mergeRouteIds (a: Record<string, number[]>, b: Record<string, number[]>): Record<string, number[]> {
+  const merged: Record<string, number[]> = {}
+  for (const [sha1, ids] of [...Object.entries(a), ...Object.entries(b)]) {
+    merged[sha1] = [...new Set([...(merged[sha1] ?? []), ...ids])]
+  }
+  return merged
 }
 
 function mergeIntoMap<K, V> (

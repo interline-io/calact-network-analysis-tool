@@ -215,27 +215,6 @@
       </div>
     </cat-field>
 
-    <cat-fieldset class="mb-4">
-      <template #label>
-        <cat-tooltip text="Keeps routes by their standard single-ride fare: the feed's default rider category in GTFS Fares v2, or the published fare in Fares v1. Many agencies publish no fares, so keep Unknown fare selected to avoid hiding them.">
-          Fares
-          <cat-icon icon="information" />
-        </cat-tooltip>
-      </template>
-      <cat-field
-        v-for="category of FARE_CATEGORIES"
-        :key="category"
-      >
-        <cat-checkbox
-          v-model="localSelectedFareCategories"
-          :native-value="category"
-        >
-          <cat-tooltip :text="fareCategoryDescriptions[category]" position="right">
-            {{ fareCategoryLabels[category] }}
-          </cat-tooltip>
-        </cat-checkbox>
-      </cat-field>
-    </cat-fieldset>
     <cat-fieldset label="Color by">
       <ul>
         <li
@@ -264,7 +243,6 @@ import {
   STOP_VISITS_DEFAULT_TOTAL,
 } from '~~/src/core'
 import type { ScenarioFilterResult } from '~~/src/scenario'
-import { FARE_CATEGORIES, fareCategoryDescriptions, fareCategoryLabels, type FareCategory } from '~~/src/tl'
 
 const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
@@ -282,19 +260,8 @@ const {
   frequencyOver,
   stopVisitsUnder,
   stopVisitsOver,
-  selectedFareCategories,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
-
-// Checkbox binding: undefined (no filter) shows every category ticked, and
-// ticking all four goes back to undefined.
-const localSelectedFareCategories = computed<FareCategory[]>({
-  get: () => selectedFareCategories.value ?? [...FARE_CATEGORIES],
-  set: (v: FareCategory[]) => {
-    const all = FARE_CATEGORIES.every(c => v.includes(c))
-    selectedFareCategories.value = all ? undefined : FARE_CATEGORIES.filter(c => v.includes(c))
-  }
-})
 
 // Derived checkbox state: checked when value is defined, unchecked sets to undefined
 const frequencyUnderEnabled = computed({

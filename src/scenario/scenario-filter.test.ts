@@ -91,6 +91,40 @@ describe('flexAreaMarked — agency filter', () => {
   })
 })
 
+describe('flex area fares (#454)', () => {
+  function withRoutes (feature: FlexAreaFeature, routeIds: number[]): FlexAreaFeature {
+    return {
+      ...feature,
+      properties: { ...feature.properties, routes: routeIds.map(id => ({ id, route_id: `r${id}`, route_type: 3 })) },
+    }
+  }
+
+  function run (filter: ScenarioFilter) {
+    const data = makeData([withRoutes(makeFlexFeature(1), [10]), withRoutes(makeFlexFeature(2), [20, 21]), withRoutes(makeFlexFeature(3), [30])])
+    data.routeFares = new Map([
+      [10, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+      [20, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+      [21, { source: 'fares-v1', minAmount: 2, maxAmount: 2, flags: [] }],
+    ])
+    return applyScenarioResultFilter(data, baseConfig, filter).flexAreas
+  }
+
+  it('takes each area\'s fare from the routes serving it', () => {
+    const [a, b, c] = run({})
+    expect(a?.properties.fare_category).toBe('free')
+    expect(b?.properties.fare_category).toBe('sometimes-paid')
+    expect(b?.properties.fare).toMatchObject({ minAmount: 0, maxAmount: 2 })
+    // Route 30 has no summary yet.
+    expect(c?.properties.fare_category).toBeUndefined()
+    expect([a, b, c].every(f => f?.properties.marked)).toBe(true)
+  })
+
+  it('applies the fare filter to flex areas, hiding areas whose fares have not loaded', () => {
+    const marked = run({ selectedFareCategories: ['free', 'unknown'] }).map(f => f.properties.marked)
+    expect(marked).toEqual([true, false, false])
+  })
+})
+
 describe('flexAreaMarked — day-of-week filter', () => {
   // 2024-01-15 = Monday, 2024-01-16 = Tuesday, 2024-01-19 = Friday
 

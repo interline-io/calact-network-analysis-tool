@@ -413,6 +413,18 @@ Settled before implementing the derivation (2026-10-14):
 - **Truncation.** A fare table that returns `FARE_TABLE_LIMIT` (100,000) rows
   makes the feed version's routes unknown, flagged `fare-data-truncated`.
 
+- **Flex service.** Fares apply to flex service areas too. The flex phase
+  returns the routes serving each feed version's flex areas, and the fares
+  phase summarizes them with the fixed routes, so it now waits for both the
+  stops and flex phases (flex starts alongside stops instead of after
+  departures). A flex area's fare is the range across its routes. Flex routes
+  have no scenario stops, so zone and area rules are not matched for them,
+  flagged `zones-not-matched`. In a greater Portland run on 2026-10-20, all
+  533 flex areas got a summary: 227 free, 139 always paid, 167 unknown.
+- **Filter placement.** The fare filter has its own Fares section in the
+  filter sidebar, since it applies to fixed-route and flex service alike. The
+  Flex Areas report gets the same fare columns as Routes.
+
 ## Open questions
 
 - Other rider categories: start with the default category only and show
@@ -423,5 +435,6 @@ Settled before implementing the derivation (2026-10-14):
   date range. Timeframes are now exposed (with `service`), so this needs only
   the calendar data for those service ids. In phase 1 these
   routes land in "sometimes paid". Resolve this before phase 2's thresholds.
-- Flex: flex fares in v2 use areas. Areas and stop_areas are now exposed, but
-  matching flex legs is out of scope for now.
+- Flex zones and areas: zone (v1) and area (v2) fares for flex trips are not
+  matched, since flex areas are polygons rather than stops. Matching them
+  would need the backend to relate locations to fare zones or areas.
