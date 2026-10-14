@@ -36,7 +36,8 @@
         />
         <div class="cal-filter-fares-input">
           <cat-input
-            v-model="fareMax"
+            :model-value="fareMax"
+            optional
             type="number"
             min="0"
             step="0.25"
@@ -44,6 +45,7 @@
             :decimals="2"
             v-bind="{ ariaLabel: 'Maximum fare in dollars' }"
             :disabled="!fareMaxEnabled"
+            @update:model-value="setFareMax"
           />
         </div>
       </cat-field>
@@ -55,7 +57,8 @@
         />
         <div class="cal-filter-fares-input">
           <cat-input
-            v-model="fareMin"
+            :model-value="fareMin"
+            optional
             type="number"
             min="0"
             step="0.25"
@@ -63,6 +66,7 @@
             :decimals="2"
             v-bind="{ ariaLabel: 'Minimum fare in dollars' }"
             :disabled="!fareMinEnabled"
+            @update:model-value="setFareMin"
           />
         </div>
       </cat-field>
@@ -79,6 +83,8 @@ import { FARE_MAX_DEFAULT, FARE_MIN_DEFAULT } from '~~/src/core'
 import { FARE_CATEGORIES, fareCategoryDescriptions, fareCategoryLabels, type FareCategory } from '~~/src/tl'
 
 const { selectedFareCategories, fareMax, fareMin } = useScenarioFilters()
+const setFareMax = keepValueWhenEmptied(fareMax)
+const setFareMin = keepValueWhenEmptied(fareMin)
 
 // Checked when the amount is set; checking seeds a default, unchecking clears it.
 const fareMaxEnabled = computed({

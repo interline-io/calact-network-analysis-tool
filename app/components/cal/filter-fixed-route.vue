@@ -11,12 +11,14 @@
       />
       <div class="cal-input-width-unit">
         <cat-input
-          v-model="frequencyUnder"
+          :model-value="frequencyUnder"
+          optional
           type="number"
           min="0"
           suffix="minutes"
           v-bind="{ ariaLabel: 'Average frequency at most, in minutes' }"
           :disabled="!frequencyUnderEnabled"
+          @update:model-value="setFrequencyUnder"
         />
       </div>
     </cat-field>
@@ -28,12 +30,14 @@
       />
       <div class="cal-input-width-unit">
         <cat-input
-          v-model="frequencyOver"
+          :model-value="frequencyOver"
+          optional
           type="number"
           min="0"
           suffix="minutes"
           v-bind="{ ariaLabel: 'Average frequency over, in minutes' }"
           :disabled="!frequencyOverEnabled"
+          @update:model-value="setFrequencyOver"
         />
       </div>
     </cat-field>
@@ -52,12 +56,14 @@
       />
       <div class="cal-input-width-unit">
         <cat-input
-          v-model="stopVisitsUnder"
+          :model-value="stopVisitsUnder"
+          optional
           type="number"
           min="0"
           suffix="visits"
           v-bind="{ ariaLabel: 'Total visits at most' }"
           :disabled="!stopVisitsUnderEnabled"
+          @update:model-value="setStopVisitsUnder"
         />
       </div>
     </cat-field>
@@ -69,12 +75,14 @@
       />
       <div class="cal-input-width-unit">
         <cat-input
-          v-model="stopVisitsOver"
+          :model-value="stopVisitsOver"
+          optional
           type="number"
           min="0"
           suffix="visits"
           v-bind="{ ariaLabel: 'Total visits over' }"
           :disabled="!stopVisitsOverEnabled"
+          @update:model-value="setStopVisitsOver"
         />
       </div>
     </cat-field>
@@ -98,12 +106,14 @@
           <div class="ml-4 level-item">
             <div class="cal-input-width-unit">
               <cat-input
-                v-model="stopBufferRadius"
+                :model-value="stopBufferRadius"
+                optional
                 type="number"
                 min="0"
                 max="1600"
                 suffix="m"
                 v-bind="{ ariaLabel: 'Stop statistical radius in meters' }"
+                @update:model-value="setStopBufferRadius"
               />
             </div>
           </div>
@@ -159,12 +169,14 @@
           <div class="ml-4 level-item">
             <div class="cal-input-width-unit">
               <cat-input
-                v-model="clusterDistance"
+                :model-value="clusterDistance"
+                optional
                 type="number"
                 min="0"
                 :disabled="!clusterEnabled"
                 suffix="m"
                 v-bind="{ ariaLabel: 'Max distance between clustered stops in meters' }"
+                @update:model-value="setClusterDistance"
               />
             </div>
           </div>
@@ -195,12 +207,14 @@
           <div class="ml-4 level-item">
             <div class="cal-input-width-unit">
               <cat-input
-                v-model="clusterMaxTransferMinutes"
+                :model-value="clusterMaxTransferMinutes"
+                optional
                 type="number"
                 min="0"
-                suffix="min"
+                suffix="minutes"
                 v-bind="{ ariaLabel: 'Max transfer time in minutes' }"
                 :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
+                @update:model-value="setClusterMaxTransferMinutes"
               />
             </div>
           </div>
@@ -255,6 +269,15 @@ const {
   stopVisitsOver,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
+
+// Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
+const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)
+const setFrequencyOver = keepValueWhenEmptied(frequencyOver)
+const setStopVisitsUnder = keepValueWhenEmptied(stopVisitsUnder)
+const setStopVisitsOver = keepValueWhenEmptied(stopVisitsOver)
+const setStopBufferRadius = keepValueWhenEmptied(stopBufferRadius)
+const setClusterDistance = keepValueWhenEmptied(clusterDistance)
+const setClusterMaxTransferMinutes = keepValueWhenEmptied(clusterMaxTransferMinutes)
 
 // Derived checkbox state: checked when value is defined, unchecked sets to undefined
 const frequencyUnderEnabled = computed({
