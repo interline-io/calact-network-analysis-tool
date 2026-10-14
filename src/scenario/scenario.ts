@@ -302,11 +302,11 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
 
 // Composes the scenario pipeline out of the standalone phases in ./phases:
 //
-//   feed-versions ─┬─ stops ─┬─ departures ───┐
-//                  │         ├─ stop-census ──┤
-//                  │         └─ routes ───────┴─ buffer passes ── census-values
-//                  ├─ stops + flex ── fares
-//                  └─ flex
+//   feed-versions ── stops ─┬─ departures ───┐
+//                           ├─ stop-census ──┤
+//                           ├─ routes ───────┴─ buffer passes ─┬─ flex
+//                           │                                  └─ census-values
+//                           └─ fares (fixed routes, then the flex routes)
 //
 // Follows the same contract as a phase — emit plus non-fatal onError — and
 // runs inside a stream envelope that owns the run's framing.
@@ -357,15 +357,6 @@ export class ScenarioFetcher {
       feedVersionSha1: fv.sha1,
     }))
 
-    // Flex depends only on the feed versions, so it starts now, alongside
-    // stops. The fares phase needs the routes of both.
-    const flexPromise: Promise<FlexPhaseResult> = enabled.has('flex-areas')
-      ? runFlexPhase({
-          feedVersions: fvRefs,
-          startDate: this.config.startDate,
-          endDate: this.config.endDate,
-        }, this.client, emit, { onError })
-      : Promise.resolve({ feedVersionRouteIds: {} })
     const stopsPromise: Promise<StopsPhaseResult | undefined> = enabled.has('stops')
       ? runStopsPhase({
           feedVersions: fvRefs,
@@ -375,24 +366,41 @@ export class ScenarioFetcher {
         }, this.client, emit, { onError })
       : Promise.resolve(undefined)
 
-    // Fares for the fixed routes found through stops and the routes serving
-    // flex areas. Only fixed routes have stops to match zones and areas.
-    const faresPromise = enabled.has('fares')
-      ? Promise.all([stopsPromise, flexPromise]).then(([stops, flex]) => runFaresPhase({
-          feedVersions: fvRefs,
-          feedVersionRouteIds: mergeRouteIds(stops?.feedVersionRouteIds ?? {}, flex.feedVersionRouteIds),
-          routeStopIds: stops?.routeStopIds ?? {},
-          startDate: this.config.startDate,
-          endDate: this.config.endDate,
-        }, this.client, emit, { onError }))
-      : Promise.resolve()
-
     // Resolves to the scenario's stop ids, which the census-values phase
     // clips against when a stop buffer radius is set.
     const fixedRoutePromise = stopsPromise.then(stops => stops ? this.fetchFixedRoute(stops, fvRefs, enabled) : [])
+
+    // Flex areas and census values depend only on the feed versions and the
+    // resolved geography, so they run together once the fixed-route phases
+    // are done.
+    const flexPromise: Promise<FlexPhaseResult> = enabled.has('flex-areas')
+      ? fixedRoutePromise.then(() => runFlexPhase({
+          feedVersions: fvRefs,
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
+        }, this.client, emit, { onError }))
+      : Promise.resolve({ feedVersionRouteIds: {} })
     const censusPromise = fixedRoutePromise.then(stopIds => enabled.has('census-values')
       ? this.fetchCensusValues(resolved, stopIds)
       : undefined)
+
+    // Fares for the fixed routes start with the stops phase's ids, alongside
+    // departures; the routes serving flex areas join once flex has found
+    // them. A failed flex phase reports itself, and leaves no flex fares.
+    const faresPromise = enabled.has('fares')
+      ? stopsPromise.then(stops => runFaresPhase({
+          feedVersions: fvRefs,
+          feedVersionRouteIds: stops?.feedVersionRouteIds ?? {},
+          routeStopIds: stops?.routeStopIds ?? {},
+          startDate: this.config.startDate,
+          endDate: this.config.endDate,
+        }, this.client, emit, {
+          onError,
+          laterRouteIds: enabled.has('flex-areas')
+            ? flexPromise.then(flex => flex.feedVersionRouteIds, () => ({}))
+            : undefined,
+        }))
+      : Promise.resolve()
 
     // Awaited as one group: an `await` on one branch strands the others if it
     // rejects, and their rejections surface later with no handler attached.
@@ -537,15 +545,6 @@ export class ScenarioFetcher {
       this.emit,
     )
   }
-}
-
-// Per-feed-version route ids from two phases, deduplicated.
-function mergeRouteIds (a: Record<string, number[]>, b: Record<string, number[]>): Record<string, number[]> {
-  const merged: Record<string, number[]> = {}
-  for (const [sha1, ids] of [...Object.entries(a), ...Object.entries(b)]) {
-    merged[sha1] = [...new Set([...(merged[sha1] ?? []), ...ids])]
-  }
-  return merged
 }
 
 function mergeIntoMap<K, V> (

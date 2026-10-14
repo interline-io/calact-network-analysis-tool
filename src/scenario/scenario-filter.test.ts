@@ -120,6 +120,12 @@ describe('flex area fares (#454)', () => {
     expect([a, b, c].every(f => f?.properties.marked)).toBe(true)
   })
 
+  it('leaves an area not loaded until every route serving it has a fare', () => {
+    const data = makeData([withRoutes(makeFlexFeature(1), [10, 30])])
+    data.routeFares = new Map([[10, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }]])
+    expect(applyScenarioResultFilter(data, baseConfig, {}).flexAreas[0]?.properties.fare).toBeUndefined()
+  })
+
   it('applies the fare filter to flex areas, hiding areas whose fares have not loaded', () => {
     const marked = run({ selectedFareCategories: ['free', 'unknown'] }).map(f => f.properties.marked)
     expect(marked).toEqual([true, false, false])

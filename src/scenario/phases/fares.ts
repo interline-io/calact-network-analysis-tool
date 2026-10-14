@@ -1,6 +1,7 @@
 // Fares phase: a standard-fare summary for each route in the scenario, from
-// the feed versions' GTFS Fares v1 and v2 tables (#454). Needs only the route
-// and stop ids from the stops phase, so it runs alongside departures.
+// the feed versions' GTFS Fares v1 and v2 tables (#454). Fixed routes need
+// only the stops phase, so their fares load alongside departures; the routes
+// serving flex areas follow once the flex phase has found them.
 //
 // The summary is derived here rather than on the client: the fare tables of a
 // regional feed run to tens of thousands of rows, while the summaries are a
@@ -10,9 +11,8 @@ import type { DocumentNode } from 'graphql'
 import { chunkArray, type GraphQLClient } from '~~/src/core'
 import {
   FARE_TABLE_LIMIT,
-  NO_FARES_SUMMARY,
   deriveRouteFareSummary,
-  dropInactiveTimeframeRules,
+  markInactiveTimeframeRules,
   fareRoutesQuery,
   fareRouteFromGql,
   fareStopFromGql,
@@ -44,25 +44,45 @@ export interface FaresPhaseConfig {
   endDate?: Date
 }
 
+export interface FaresPhaseOpts extends PhaseOpts {
+  // More route ids that arrive while the phase runs (the routes serving flex
+  // areas), by feed version. Not part of the config, which must stay
+  // JSON-serializable for the standalone endpoint.
+  laterRouteIds?: Promise<Record<string, number[]>>
+}
+
+// One batch of routes to price: a feed version's fixed routes, or the routes
+// serving its flex areas once they are known.
+interface FareTask {
+  fv: FeedVersionRef
+  later: boolean
+}
+
 export async function runFaresPhase (
   config: FaresPhaseConfig,
   client: GraphQLClient,
   emit: PhaseEmit,
-  opts: PhaseOpts = {},
+  opts: FaresPhaseOpts = {},
 ): Promise<void> {
-  const { queue, progressEvent, done } = phaseQueue<FeedVersionRef>('fares', emit, fv => fetchFeedVersionFares(fv), opts)
+  const { queue, progressEvent, done } = phaseQueue<FareTask>('fares', emit, task => runTask(task), opts)
   // Without a date range every timeframe counts.
   const dates = config.startDate || config.endDate ? getSelectedDateRange(config) : []
 
-  // Kept separate so only the flattened tables outlive the request; the raw
-  // response of a regional feed is several MB.
-  async function fetchFeedFares (sha1: string): Promise<FeedFares | undefined> {
-    const response = await client.query<{ feed_versions: FeedVersionFaresGql[] }>(feedVersionFaresQuery, {
-      sha1,
-      limit: FARE_TABLE_LIMIT,
-    })
-    const fvData = response.data?.feed_versions?.[0]
-    return fvData ? dropInactiveTimeframeRules(feedFaresFromGql(fvData), dates) : undefined
+  // A feed version's fare tables, shared by its two tasks and released by the
+  // later one. Only the flattened tables are kept; the raw response of a
+  // regional feed is several MB.
+  const faresBySha1 = new Map<string, Promise<FeedFares | undefined>>()
+  function feedFares (sha1: string): Promise<FeedFares | undefined> {
+    let fares = faresBySha1.get(sha1)
+    if (!fares) {
+      fares = client.query<{ feed_versions: FeedVersionFaresGql[] }>(feedVersionFaresQuery, { sha1, limit: FARE_TABLE_LIMIT })
+        .then((response) => {
+          const fvData = response.data?.feed_versions?.[0]
+          return fvData ? markInactiveTimeframeRules(feedFaresFromGql(fvData), dates) : undefined
+        })
+      faresBySha1.set(sha1, fares)
+    }
+    return fares
   }
 
   // Each id batch in its own request, all at once: a feed version needs only
@@ -73,20 +93,40 @@ export async function runFaresPhase (
     return pages.flatMap(r => r.data?.[field] || [])
   }
 
-  async function fetchFeedVersionFares (fv: FeedVersionRef): Promise<void> {
-    const routeIds = config.feedVersionRouteIds[fv.feedVersionSha1] || []
-    if (routeIds.length === 0) {
-      return
+  async function runTask ({ fv, later }: FareTask): Promise<void> {
+    const sha1 = fv.feedVersionSha1
+    try {
+      const fixedIds = config.feedVersionRouteIds[sha1] || []
+      let routeIds = fixedIds
+      if (later) {
+        const fixed = new Set(fixedIds)
+        routeIds = ((await opts.laterRouteIds)?.[sha1] || []).filter(id => !fixed.has(id))
+      }
+      if (routeIds.length === 0) {
+        return
+      }
+      const summaries = await priceRoutes(sha1, routeIds)
+      console.log(`[Fares] ${summaries.length} route fare summaries from ${fv.feedOnestopId}`)
+      await emit({ ...progressEvent(), partialData: { routeFares: summaries } })
+    } finally {
+      // The fixed task started first, so it already holds the tables it needs.
+      if (later) {
+        faresBySha1.delete(sha1)
+      }
     }
-    const fares = await fetchFeedFares(fv.feedVersionSha1)
-    if (!fares) {
-      return
-    }
+  }
 
+  // A summary for every requested id, so none is left "not loaded" for good:
+  // an id the lookups leave out gets an unknown fare that says so.
+  async function priceRoutes (sha1: string, routeIds: number[]): Promise<[number, RouteFareSummary][]> {
+    const unavailable = (id: number): [number, RouteFareSummary] => [id, { source: 'none', flags: ['fare-data-unavailable'] }]
+    const fares = await feedFares(sha1)
+    if (!fares) {
+      return routeIds.map(unavailable)
+    }
     // A feed version with no fares needs no route or stop lookups.
     if (!fares.hasV1 && !fares.hasV2) {
-      await emit({ ...progressEvent(), partialData: { routeFares: routeIds.map(id => [id, { ...NO_FARES_SUMMARY, flags: [] }]) } })
-      return
+      return routeIds.map(id => [id, { source: 'none', flags: [] }])
     }
 
     const stopIds = feedFaresUseStops(fares)
@@ -98,19 +138,29 @@ export async function runFaresPhase (
     ])
     // Converted once; a stop served by several routes is shared.
     const stopsById = new Map(stops.map(stop => [stop.id, fareStopFromGql(stop)]))
+    const routesById = new Map(routes.map(route => [route.id, route]))
 
-    const routeFares: [number, RouteFareSummary][] = routes.map((route) => {
-      const routeStops = (config.routeStopIds[route.id] || [])
-        .map(id => stopsById.get(id))
+    return routeIds.map((id) => {
+      const route = routesById.get(id)
+      if (!route) {
+        return unavailable(id)
+      }
+      const routeStops = (config.routeStopIds[id] || [])
+        .map(stopId => stopsById.get(stopId))
         .filter((s): s is FareStop => s != null)
-      return [route.id, deriveRouteFareSummary(fares, fareRouteFromGql(route, routeStops))]
+      return [id, deriveRouteFareSummary(fares, fareRouteFromGql(route, routeStops))]
     })
-    console.log(`[Fares] ${routeFares.length} route fare summaries from ${fv.feedOnestopId}`)
-    await emit({ ...progressEvent(), partialData: { routeFares } })
   }
 
+  // Fixed-route tasks first, so they take the queue's slots before the later
+  // tasks start waiting for their route ids.
   for (const fv of config.feedVersions) {
-    queue.enqueueOne(fv)
+    queue.enqueueOne({ fv, later: false })
+  }
+  if (opts.laterRouteIds) {
+    for (const fv of config.feedVersions) {
+      queue.enqueueOne({ fv, later: true })
+    }
   }
   await queue.run()
   done()

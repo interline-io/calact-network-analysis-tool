@@ -801,10 +801,10 @@ export function applyScenarioResultFilter (
 
   // Apply flex area filters
   const flexAreaFeatures = (data.flexAreas || []).map((flexArea): FlexAreaFeature => {
-    // The area's fare is the range across the routes serving it.
-    const fare = combineFareSummaries((flexArea.properties.routes || [])
-      .map(r => r.id != null ? data.routeFares?.get(r.id) : undefined)
-      .filter((s): s is RouteFareSummary => s != null))
+    // The area's fare is the range across the routes serving it, and not
+    // loaded until every one of them is.
+    const routeFares = (flexArea.properties.routes || []).map(r => r.id != null ? data.routeFares?.get(r.id) : undefined)
+    const fare = routeFares.every(s => s != null) ? combineFareSummaries(routeFares as RouteFareSummary[]) : undefined
     const marked = flexAreaMarked(
       flexArea,
       data.flexDepartureCache,

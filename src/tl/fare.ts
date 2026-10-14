@@ -223,8 +223,12 @@ export interface FeedFares {
     timeframeGroupId: string
     service?: FareServiceGql
   }[]
-  // Which fare versions the feed publishes, from the tables as loaded. They
-  // stay set when dropInactiveTimeframeRules narrows legRules.
+  // Leg rules whose timeframes never apply in the scenario's dates, set by
+  // markInactiveTimeframeRules. They are kept in legRules: without a
+  // rule_priority column an empty field means "everything not named by
+  // another rule", and an inactive rule still names its network and areas.
+  inactiveLegRules?: ReadonlySet<FeedFares['legRules'][number]>
+  // Which fare versions the feed publishes, from the tables as loaded.
   hasV1: boolean
   hasV2: boolean
   // Some table hit FARE_TABLE_LIMIT, so the data may be incomplete.
@@ -309,23 +313,24 @@ export function fareStopFromGql (stop: FareStopGql): FareStop {
   return { zoneId: stop.zone_id || '', areaIds: [...areaIds] }
 }
 
-// Drops the leg rules whose timeframes never apply on the given dates, so a
+// Marks the leg rules whose timeframes never apply on the given dates, so a
 // fare limited to a holiday drops out of a scenario that doesn't include it.
-// Only dates are checked, not times of day. A rule whose timeframe group has
-// no timeframes in the data is kept.
-export function dropInactiveTimeframeRules (fares: FeedFares, dates: Date[]): FeedFares {
+// Only dates are checked, not times of day. A timeframe with no service
+// calendar in the data counts as active, and so does a rule whose timeframe
+// group has no timeframes at all.
+export function markInactiveTimeframeRules (fares: FeedFares, dates: Date[]): FeedFares {
   if (fares.timeframes.length === 0 || dates.length === 0) {
     return fares
   }
   const days = dates.map(serviceDay)
   const groups = new Map<string, boolean>()
   for (const t of fares.timeframes) {
-    const active = !!t.service && runsOnAny(t.service, days)
+    const active = !t.service || runsOnAny(t.service, days)
     groups.set(t.timeframeGroupId, (groups.get(t.timeframeGroupId) ?? false) || active)
   }
   const applies = (group: string) => group === '' || groups.get(group) !== false
-  const legRules = fares.legRules.filter(r => applies(r.fromTimeframeGroupId) && applies(r.toTimeframeGroupId))
-  return legRules.length === fares.legRules.length ? fares : { ...fares, legRules }
+  const inactive = new Set(fares.legRules.filter(r => !applies(r.fromTimeframeGroupId) || !applies(r.toTimeframeGroupId)))
+  return inactive.size === 0 ? fares : { ...fares, inactiveLegRules: inactive }
 }
 
 // GTFS calendar semantics: added dates always run, removed dates never do,
@@ -376,6 +381,8 @@ export type RouteFareFlag
     | 'negative-amount'
     | 'fare-data-truncated'
     | 'zones-not-matched'
+    | 'fare-data-unavailable'
+    | 'some-routes-unknown'
 
 export interface RouteFareSummary {
   source: RouteFareSource
@@ -421,11 +428,15 @@ export const fareFlagDescriptions: Record<RouteFareFlag, string> = {
   'negative-amount': 'A matched fare is negative (a discount), so the route has no fare category.',
   'fare-data-truncated': 'The feed\'s fare data is too large to load in full.',
   'zones-not-matched': 'Some of the feed\'s fares depend on fare zones or areas, which are not matched for service with no stops in the study area, such as flex service areas.',
+  'fare-data-unavailable': 'The feed\'s fare data for this route could not be loaded.',
+  'some-routes-unknown': 'Some of the routes serving this area have no known fare, so the range shown may be incomplete.',
 }
 
 export function fareCategory (summary: RouteFareSummary): FareCategory {
   const { minAmount, maxAmount } = summary
-  if (minAmount == null || maxAmount == null || minAmount < 0) {
+  // A flex area whose routes are only partly known keeps its known range for
+  // the report, but no category: an unknown route may charge anything.
+  if (minAmount == null || maxAmount == null || minAmount < 0 || summary.flags.includes('some-routes-unknown')) {
     return 'unknown'
   }
   if (maxAmount === 0) {
@@ -445,11 +456,9 @@ export function formatFareAmount (amount: number): string {
 // mixing currencies would make the range meaningless.
 const FARE_CURRENCY = 'USD'
 
-export const NO_FARES_SUMMARY: Readonly<RouteFareSummary> = Object.freeze({ source: 'none', flags: [] })
-
 export function deriveRouteFareSummary (fares: FeedFares, route: FareRoute): RouteFareSummary {
   if (!fares.hasV2 && !fares.hasV1) {
-    return { ...NO_FARES_SUMMARY, flags: [] }
+    return { source: 'none', flags: [] }
   }
   if (fares.truncated) {
     return { source: fares.hasV2 ? 'fares-v2' : 'fares-v1', flags: ['fare-data-truncated'] }
@@ -535,25 +544,29 @@ export function fareReportFields (fare?: RouteFareSummary): FareReportFields {
 }
 
 // One summary for a flex area served by several routes: the range across
-// the routes with a known fare. Undefined when none of the routes has a
-// summary yet; unknown when none of them has a known fare.
+// the routes with a known fare, flagged when some routes have none. Always a
+// new object, so an area never shares its route's summary. Undefined for no
+// summaries.
 export function combineFareSummaries (summaries: RouteFareSummary[]): RouteFareSummary | undefined {
   if (summaries.length <= 1) {
-    return summaries[0]
+    return summaries[0] && { ...summaries[0], flags: [...summaries[0].flags] }
   }
-  const known = summaries.filter(s => s.minAmount != null && s.maxAmount != null)
+  const known = summaries.filter(s => fareCategory(s) !== 'unknown')
   const sources = new Set(summaries.map(s => s.source))
   // A mix of v1 and v2 is reported as v2, the spec's preferred source.
   const source: RouteFareSource = sources.has('fares-v2') ? 'fares-v2' : sources.has('fares-v1') ? 'fares-v1' : 'none'
-  const flags = [...new Set(summaries.flatMap(s => s.flags))]
+  const flags = new Set(summaries.flatMap(s => s.flags))
   if (known.length === 0) {
-    return { source, flags }
+    return { source, flags: [...flags] }
+  }
+  if (known.length < summaries.length) {
+    flags.add('some-routes-unknown')
   }
   return {
     source,
     minAmount: Math.min(...known.map(s => s.minAmount!)),
     maxAmount: Math.max(...known.map(s => s.maxAmount!)),
-    flags,
+    flags: [...flags],
   }
 }
 
@@ -688,6 +701,7 @@ function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
   const flags = new Set<RouteFareFlag>()
   const amounts = new Set<number>()
   const { priorityMode, legRulesByNetwork, productsById, defaultCategories, hasCategories } = index
+  const inactive = index.fares.inactiveLegRules
 
   const network = route.networkId ?? ''
   const named = network !== '' ? legRulesByNetwork.get(network) || [] : []
@@ -728,7 +742,7 @@ function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
   // Rules that match the same leg at the same time are alternatives; rules
   // that differ in area or timeframe price different legs or times.
   const addGroups = (matched: LegRule[]) => {
-    const groups = groupBy(matched, r => [r.fromAreaId, r.toAreaId, r.fromTimeframeGroupId, r.toTimeframeGroupId].join('\u0000'))
+    const groups = groupBy(matched.filter(r => !inactive?.has(r)), r => [r.fromAreaId, r.toAreaId, r.fromTimeframeGroupId, r.toTimeframeGroupId].join('\u0000'))
     for (const group of groups.values()) {
       const amount = groupAmount(group)
       if (amount != null) {
@@ -739,7 +753,9 @@ function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
 
   for (const leg of routeLegs(rules, route)) {
     if (priorityMode) {
-      const matched = rules.filter(r => (r.fromAreaId === '' || leg.from.includes(r.fromAreaId))
+      // An inactive rule cannot apply, so it does not compete on priority.
+      const matched = rules.filter(r => !inactive?.has(r)
+        && (r.fromAreaId === '' || leg.from.includes(r.fromAreaId))
         && (r.toAreaId === '' || leg.to.includes(r.toAreaId)))
       // Priority is resolved per leg and per time, so a higher-priority
       // holiday rule does not hide the regular fare at other times.

@@ -104,9 +104,15 @@ export function useScenarioFilters (): ScenarioFilters {
   const fareMin = numberParam('fareMin', Number.parseFloat)
 
   // Same convention as selectedRouteTypes: absent = all categories (no
-  // filter), empty = none. Unrecognized values are dropped.
+  // filter), empty = none. Unrecognized values are dropped, and a param with
+  // nothing recognized reads as filter off, like a malformed number param,
+  // rather than as "none", which would hide every route.
   const selectedFareCategories = computed<FareCategory[] | undefined>({
-    get: () => getArrayParam('fareCategories')?.filter((c): c is FareCategory => (FARE_CATEGORIES as readonly string[]).includes(c)),
+    get: () => {
+      const raw = getArrayParam('fareCategories')
+      const known = raw?.filter((c): c is FareCategory => (FARE_CATEGORIES as readonly string[]).includes(c))
+      return raw && raw.length > 0 && known?.length === 0 ? undefined : known
+    },
     set: (v) => { setArrayParam('fareCategories', v) }
   })
 

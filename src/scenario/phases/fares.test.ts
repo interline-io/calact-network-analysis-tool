@@ -96,6 +96,38 @@ describe('runFaresPhase', () => {
     expect(query.mock.calls.find(([q]) => q === fareStopsQuery)).toBeUndefined()
   })
 
+  it('gives routes the lookups leave out an unknown fare instead of none', async () => {
+    const { client } = mockClient({
+      a: fvFares({ fare_attributes: [{ id: 1, price: 2, currency_type: 'USD', agency: null }] }),
+    })
+    // The mock routes query returns every id, so ask about a feed version
+    // the fares query does not know: b.
+    const { summaries } = await run(client, { a: [1], b: [2] })
+    expect(summaries.get(1)).toMatchObject({ minAmount: 2 })
+    expect(summaries.get(2)).toEqual({ source: 'none', flags: ['fare-data-unavailable'] })
+  })
+
+  it('prices the routes serving flex areas once they arrive, after the fixed routes', async () => {
+    const { client, query } = mockClient({
+      a: fvFares({ fare_attributes: [{ id: 1, price: 2, currency_type: 'USD', agency: null }] }),
+    })
+    const events: ScenarioProgress[] = []
+    let resolveLater: (ids: Record<string, number[]>) => void = () => {}
+    const laterRouteIds = new Promise<Record<string, number[]>>((resolve) => { resolveLater = resolve })
+    const phase = runFaresPhase({
+      feedVersions: [{ feedOnestopId: 'f-a', feedVersionSha1: 'a' }],
+      feedVersionRouteIds: { a: [1] },
+      routeStopIds: {},
+    }, client, (e) => { events.push(e) }, { laterRouteIds })
+    await vi.waitFor(() => expect(events.some(e => e.partialData?.routeFares)).toBe(true))
+    resolveLater({ a: [1, 7] })
+    await phase
+    const batches = events.flatMap(e => e.partialData?.routeFares ? [e.partialData.routeFares.map(([id]) => id)] : [])
+    // Route 1 is not priced twice, and the fare tables are fetched once.
+    expect(batches).toEqual([[1], [7]])
+    expect(query.mock.calls.filter(([q]) => q === feedVersionFaresQuery)).toHaveLength(1)
+  })
+
   it('leaves a feed version\'s routes without summaries when its query fails', async () => {
     const query = vi.fn(async () => { throw new Error('boom') })
     const onError = vi.fn()

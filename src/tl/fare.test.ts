@@ -3,7 +3,7 @@ import { parseDate } from '~~/src/core'
 import {
   combineFareSummaries,
   deriveRouteFareSummary,
-  dropInactiveTimeframeRules,
+  markInactiveTimeframeRules,
   serviceRunsOn,
   type FareServiceGql,
   fareCategory,
@@ -345,10 +345,16 @@ describe('flex service', () => {
     const paid: RouteFareSummary = { source: 'fares-v2', minAmount: 2, maxAmount: 3, flags: ['has-other-categories'] }
     const unknown: RouteFareSummary = { source: 'none', flags: [] }
     expect(combineFareSummaries([])).toBeUndefined()
-    expect(combineFareSummaries([free])).toBe(free)
-    const both = combineFareSummaries([free, paid, unknown])!
+    // A copy, so the area never shares its route's summary.
+    expect(combineFareSummaries([free])).toEqual(free)
+    expect(combineFareSummaries([free])).not.toBe(free)
+    const both = combineFareSummaries([free, paid])!
     expect(both).toMatchObject({ source: 'fares-v2', minAmount: 0, maxAmount: 3, flags: ['has-other-categories'] })
     expect(fareCategory(both)).toBe('sometimes-paid')
+    // A free route beside an unknown one is not a free area.
+    const partly = combineFareSummaries([free, unknown])!
+    expect(partly).toMatchObject({ minAmount: 0, maxAmount: 0, flags: ['some-routes-unknown'] })
+    expect(fareCategory(partly)).toBe('unknown')
     expect(fareCategory(combineFareSummaries([unknown, { source: 'fares-v1', flags: ['no-matching-rule'] }])!)).toBe('unknown')
   })
 })
@@ -389,20 +395,54 @@ describe('timeframes', () => {
     ],
   })
 
-  it('drops rules whose timeframes never run in the scenario', () => {
-    const october = dropInactiveTimeframeRules(ctran, days('2026-10-19', '2026-10-20'))
-    expect(october.legRules.map(r => r.fareProductId)).toEqual(['regular', 'anytime'])
+  it('leaves out rules whose timeframes never run in the scenario', () => {
+    const october = markInactiveTimeframeRules(ctran, days('2026-10-19', '2026-10-20'))
+    expect([...october.inactiveLegRules!].map(r => r.fareProductId)).toEqual(['free'])
+    expect(october.legRules).toHaveLength(3)
     expect(fareCategory(deriveRouteFareSummary(october, route()))).toBe('always-paid')
-    const newYear = dropInactiveTimeframeRules(ctran, days('2026-12-31'))
-    expect(newYear.legRules).toHaveLength(3)
+    const newYear = markInactiveTimeframeRules(ctran, days('2026-12-31'))
+    expect(newYear).toBe(ctran)
     expect(fareCategory(deriveRouteFareSummary(newYear, route()))).toBe('sometimes-paid')
-    expect(dropInactiveTimeframeRules(ctran, [])).toBe(ctran)
+    expect(markInactiveTimeframeRules(ctran, [])).toBe(ctran)
   })
 
-  it('still treats a feed as Fares v2 when every rule is dropped', () => {
+  it('keeps a network named by an inactive rule out of the empty-network fallback', () => {
+    // Without rule_priority, an empty network_id means "networks no other rule
+    // names". HOLIDAY names network N, so the $2 catch-all never applied to N,
+    // and leaving out the holiday rule must not change that.
+    const fares = markInactiveTimeframeRules(feed({
+      legRules: [leg('holiday', { networkId: 'N', fromTimeframeGroupId: 'NYE' }), leg('other')],
+      products: [product('holiday', 0), product('other', 2)],
+      timeframes: ctran.timeframes,
+    }), days('2026-10-20'))
+    const onN = deriveRouteFareSummary(fares, route({ networkId: 'N' }))
+    expect(fareCategory(onN)).toBe('unknown')
+    expect(range(deriveRouteFareSummary(fares, route({ networkId: 'M' })))).toEqual([2, 2])
+  })
+
+  it('keeps a named area out of the empty-area fallback when its rule is inactive', () => {
+    const A = { zoneId: '', areaIds: ['A'] }
+    const fares = markInactiveTimeframeRules(feed({
+      legRules: [leg('a', { fromAreaId: 'A', fromTimeframeGroupId: 'NYE' }), leg('other')],
+      products: [product('a', 0), product('other', 2)],
+      timeframes: ctran.timeframes,
+    }), days('2026-10-20'))
+    expect(fareCategory(deriveRouteFareSummary(fares, route({ stops: [A, A] })))).toBe('unknown')
+  })
+
+  it('counts a timeframe with no service calendar as active', () => {
+    const fares = markInactiveTimeframeRules(feed({
+      legRules: [leg('free', { fromTimeframeGroupId: 'X' })],
+      products: [product('free', 0)],
+      timeframes: [{ timeframeGroupId: 'X', service: undefined }],
+    }), days('2026-10-20'))
+    expect(fares.inactiveLegRules).toBeUndefined()
+    expect(fareCategory(deriveRouteFareSummary(fares, route()))).toBe('free')
+  })
+
+  it('still treats a feed as Fares v2 when every rule is inactive', () => {
     const onlyNye = feed({ legRules: [leg('free', { fromTimeframeGroupId: 'NYE' })], products: [product('free', 0)], timeframes: ctran.timeframes })
-    expect(dropInactiveTimeframeRules(onlyNye, days('2026-10-20')).legRules).toEqual([])
-    const s = deriveRouteFareSummary(dropInactiveTimeframeRules(onlyNye, days('2026-10-20')), route())
+    const s = deriveRouteFareSummary(markInactiveTimeframeRules(onlyNye, days('2026-10-20')), route())
     expect(s.source).toBe('fares-v2')
     expect(fareCategory(s)).toBe('unknown')
   })
