@@ -414,18 +414,29 @@ Settled before implementing the derivation (2026-10-14):
   makes the feed version's routes unknown, flagged `fare-data-truncated`.
 
 - **Flex service.** Fares apply to flex service areas too. The flex phase
-  returns the routes serving each feed version's flex areas, and the fares
-  phase summarizes them with the fixed routes, so it now waits for both the
-  stops and flex phases (flex starts alongside stops instead of after
-  departures). A flex area's fare is the range across its routes. Flex routes
+  returns the routes serving each feed version's flex areas. The fares phase
+  prices the fixed routes as soon as the stops phase has found them, then
+  the flex routes once flex finishes; flex keeps its place after the
+  fixed-route phases. A flex area's fare is the range across its routes, and
+  not loaded until all of them are. If some of its routes have no known fare,
+  the area keeps the known range in the report but its category is Unknown,
+  flagged `some-routes-unknown`: a free shuttle beside an unpriced route is
+  not a free area. Flex routes
   have no scenario stops, so zone and area rules are not matched for them,
-  flagged `zones-not-matched`. In a greater Portland run on 2026-10-20, all
-  533 flex areas got a summary: 227 free, 139 always paid, 167 unknown.
+  flagged `zones-not-matched`. In a greater Portland run on 2026-10-14, all
+  533 flex areas got a summary: 220 free, 139 always paid, 174 unknown.
+- **Routes the lookups leave out.** Every route id the fares phase is asked
+  about gets a summary. One the route lookup or the fare tables query leaves
+  out gets an unknown fare flagged `fare-data-unavailable`, rather than
+  staying "Not loaded".
 - **Time-limited fares.** A leg rule whose from or to timeframe group has no
-  timeframe whose service runs on a date in the scenario's range is dropped
-  before matching (`dropInactiveTimeframeRules`). C-TRAN's 31 routes are
+  timeframe whose service runs on a date in the scenario's range is marked
+  inactive (`markInactiveTimeframeRules`) and left out when choosing a fare.
+  It still counts as naming its network and areas, so in a feed without
+  `rule_priority` it keeps the empty-field fallback rules off them. A
+  timeframe with no service calendar counts as active. C-TRAN's 31 routes are
   always paid ($1.50 to $3.25) for a range in October and sometimes paid for
-  one that includes New Year's Eve. A feed whose every rule is dropped still
+  one that includes New Year's Eve. A feed whose every rule is inactive still
   counts as Fares v2 (unknown, not "no fares").
 - **Fare amount thresholds.** "Fare at most $" and "Fare at least $" in the
   Fares filter section, in the URL as `fareMax` / `fareMin` with cents kept.
@@ -444,10 +455,11 @@ Settled before implementing the derivation (2026-10-14):
 - Other rider categories: start with the default category only and show
   `has-other-categories`. A category picker only makes sense for v2 feeds, and
   most feeds lack a stable category vocabulary across agencies.
-- Time of day for timeframes. Only a timeframe's service dates are checked,
-  not its start and end times against the Timeframes filter's time window.
-  The fares phase runs before the client-side time filter, so this would
-  need the timeframes on the client.
+- Time of day and weekdays for timeframes. Only a timeframe's service dates
+  across the whole date range are checked, not its start and end times
+  against the Timeframes filter's time window, nor the selected weekdays. The
+  fares phase runs before those client-side filters, so this would need the
+  timeframes on the client.
 - Flex zones and areas: zone (v1) and area (v2) fares for flex trips are not
   matched, since flex areas are polygons rather than stops. Matching them
   would need the backend to relate locations to fare zones or areas.
