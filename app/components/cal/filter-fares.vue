@@ -21,46 +21,48 @@
         </cat-checkbox>
       </cat-field>
     </cat-fieldset>
-    <p class="menu-label">
-      <cat-tooltip text="Keeps routes and flex areas whose every standard single-ride fare is within the amount, so a route with a range of fares (zones, free directions) passes only if the whole range does. Routes with an unknown fare are not tested here; the Unknown fare checkbox decides whether they are kept.">
-        Fare amount
-        <cat-icon icon="information" />
-      </cat-tooltip>
-    </p>
+    <cat-fieldset class="mb-4">
+      <template #label>
+        <cat-tooltip text="Keeps routes and flex areas whose every standard single-ride fare is within the amount, so a route with a range of fares (zones, free directions) passes only if the whole range does. Routes with an unknown fare are not tested here; the Unknown fare checkbox decides whether they are kept.">
+          Fare amount
+          <cat-icon icon="information" />
+        </cat-tooltip>
+      </template>
 
-    <cat-field grouped>
-      <cat-checkbox
-        v-model="fareMaxEnabled"
-        label="Fare at most $"
-      />
-      <div class="cal-filter-fares-input">
-        <cat-input
-          v-model="fareMax"
-          type="number"
-          min="0"
-          step="0.25"
-          v-bind="{ ariaLabel: 'Maximum fare in dollars' }"
-          :disabled="!fareMaxEnabled"
+      <cat-field grouped>
+        <cat-checkbox
+          v-model="fareMaxEnabled"
+          label="Fare at most $"
         />
-      </div>
-    </cat-field>
+        <div class="cal-filter-fares-input">
+          <cat-input
+            v-model="fareMax"
+            type="number"
+            min="0"
+            step="0.25"
+            v-bind="{ ariaLabel: 'Maximum fare in dollars' }"
+            :disabled="!fareMaxEnabled"
+          />
+        </div>
+      </cat-field>
 
-    <cat-field grouped>
-      <cat-checkbox
-        v-model="fareMinEnabled"
-        label="Fare at least $"
-      />
-      <div class="cal-filter-fares-input">
-        <cat-input
-          v-model="fareMin"
-          type="number"
-          min="0"
-          step="0.25"
-          v-bind="{ ariaLabel: 'Minimum fare in dollars' }"
-          :disabled="!fareMinEnabled"
+      <cat-field grouped>
+        <cat-checkbox
+          v-model="fareMinEnabled"
+          label="Fare at least $"
         />
-      </div>
-    </cat-field>
+        <div class="cal-filter-fares-input">
+          <cat-input
+            v-model="fareMin"
+            type="number"
+            min="0"
+            step="0.25"
+            v-bind="{ ariaLabel: 'Minimum fare in dollars' }"
+            :disabled="!fareMinEnabled"
+          />
+        </div>
+      </cat-field>
+    </cat-fieldset>
 
     <p class="cal-filter-fares-note">
       Routes and areas whose fares have not loaded are hidden while any fare filter is set.
