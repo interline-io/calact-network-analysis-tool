@@ -207,6 +207,7 @@ import {
   stopGeoAggregateCsv,
   routesById,
   parseFvids,
+  fareCategoryLabels,
 } from '~~/src/tl'
 import type {
   CensusDataset,
@@ -277,6 +278,7 @@ const {
   frequencyOver,
   stopVisitsUnder,
   stopVisitsOver,
+  selectedFareCategories,
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
@@ -761,6 +763,7 @@ const scenarioFilter = computed((): ScenarioFilter => ({
   frequencyOver: frequencyOver.value,
   stopVisitsUnder: stopVisitsUnder.value,
   stopVisitsOver: stopVisitsOver.value,
+  selectedFareCategories: selectedFareCategories.value,
   clusterMaxTransferMinutes: clusterMaxTransferMinutes.value,
 }))
 
@@ -1009,6 +1012,15 @@ const filterTags = computed((): FilterTag[] => {
   tags.push(rangeTag('Route frequency', scenarioFilter.value.frequencyOver, scenarioFilter.value.frequencyUnder, 'min', '≥'))
   tags.push(rangeTag('Stop visits', scenarioFilter.value.stopVisitsOver, scenarioFilter.value.stopVisitsUnder, 'visits', '>'))
 
+  // fare categories
+  const fareCategories = scenarioFilter.value.selectedFareCategories
+  if (fareCategories == null) {
+    tags.push({ label: 'Fares', value: 'All', active: false })
+  } else {
+    const value = fareCategories.length === 0 ? 'None' : fareCategories.map(c => fareCategoryLabels[c]).join(', ')
+    tags.push({ label: 'Fares', value, active: true })
+  }
+
   // agencies
   const agencies = scenarioFilter.value.selectedAgencies
   if (agencies == null || agencies.length === 0) {
@@ -1060,6 +1072,8 @@ async function resetFilters () {
     // Retired with the "single routes" toggle; cleared so it does not linger
     // in bookmarked or shared URLs.
     calculateFrequencyMode: undefined,
+    fareCategories: undefined,
+    // Retired with the disabled fare threshold stubs (#454).
     maxFareEnabled: undefined,
     maxFare: undefined,
     minFareEnabled: undefined,

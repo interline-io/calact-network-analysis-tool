@@ -6,6 +6,7 @@ import {
   type Weekday,
   type WeekdayMode,
 } from '~~/src/core'
+import { FARE_CATEGORIES, type FareCategory } from '~~/src/tl'
 import { useUrlQuery } from './useUrlQuery'
 
 interface ScenarioFilters {
@@ -20,10 +21,8 @@ interface ScenarioFilters {
   // total visits at a stop during the filtered period; undefined = filter off
   stopVisitsUnder: WritableComputedRef<number | undefined>
   stopVisitsOver: WritableComputedRef<number | undefined>
-  maxFareEnabled: WritableComputedRef<boolean | undefined>
-  maxFare: WritableComputedRef<number>
-  minFareEnabled: WritableComputedRef<boolean | undefined>
-  minFare: WritableComputedRef<number>
+  // standard-fare categories to keep (#454); undefined = all, filter off
+  selectedFareCategories: WritableComputedRef<FareCategory[] | undefined>
   flexServicesEnabled: WritableComputedRef<boolean | undefined>
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
@@ -93,24 +92,11 @@ export function useScenarioFilters (): ScenarioFilters {
   const stopVisitsUnder = numberParam('stopVisitsUnder')
   const stopVisitsOver = numberParam('stopVisitsOver')
 
-  const maxFareEnabled = computed<boolean | undefined>({
-    get: () => route.query.maxFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ maxFareEnabled: v ? 'true' : undefined }) }
-  })
-
-  const maxFare = computed<number>({
-    get: () => Number.parseInt(route.query.maxFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ maxFare: v.toString() }) }
-  })
-
-  const minFareEnabled = computed<boolean | undefined>({
-    get: () => route.query.minFareEnabled?.toString() === 'true',
-    set: (v) => { setQuery({ minFareEnabled: v ? 'true' : undefined }) }
-  })
-
-  const minFare = computed<number>({
-    get: () => Number.parseInt(route.query.minFare?.toString() || '') || 0,
-    set: (v) => { setQuery({ minFare: v.toString() }) }
+  // Same convention as selectedRouteTypes: absent = all categories (no
+  // filter), empty = none. Unrecognized values are dropped.
+  const selectedFareCategories = computed<FareCategory[] | undefined>({
+    get: () => getArrayParam('fareCategories')?.filter((c): c is FareCategory => (FARE_CATEGORIES as readonly string[]).includes(c)),
+    set: (v) => { setArrayParam('fareCategories', v) }
   })
 
   // Off by default. Independent of includeFixedRoute — both fetch toggles
@@ -166,10 +152,7 @@ export function useScenarioFilters (): ScenarioFilters {
     frequencyOver,
     stopVisitsUnder,
     stopVisitsOver,
-    maxFareEnabled,
-    maxFare,
-    minFareEnabled,
-    minFare,
+    selectedFareCategories,
     flexServicesEnabled,
     flexAdvanceNotice,
     flexAreaTypesSelected,

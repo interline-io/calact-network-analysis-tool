@@ -83,12 +83,52 @@ export function buildRouteColumns (allDay: boolean, includeCensus: boolean): Tab
       sortable: true,
       tooltip: `The time at which the latest trip on this route ends, ${timeScope} included within the current filters.`,
     },
+    ...fareRouteColumns,
   ]
   if (includeCensus) {
     cols.push(...buildCensusColumns(true))
   }
   return cols
 }
+
+// Standard-fare columns (#454). The amounts are numeric so they sort by value;
+// report.vue renders them as currency.
+const STANDARD_FARE_NOTE = 'Standard fare: the feed\'s default rider category in GTFS Fares v2, or the published fare in Fares v1. Only stops inside the study area are used to match zones and areas.'
+
+const fareRouteColumns: TableColumn[] = [
+  {
+    key: 'fare_category',
+    label: 'Fare Category',
+    sortable: true,
+    tooltip: `Free, Sometimes paid, Always paid, or Unknown fare, from the range of standard single-ride fares that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
+  },
+  {
+    key: 'fare_min',
+    label: 'Min Fare',
+    sortable: true,
+    numeric: true,
+    tooltip: `Lowest standard single-ride fare that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
+  },
+  {
+    key: 'fare_max',
+    label: 'Max Fare',
+    sortable: true,
+    numeric: true,
+    tooltip: `Highest standard single-ride fare that can apply to a trip on the route. ${STANDARD_FARE_NOTE}`,
+  },
+  {
+    key: 'fare_source',
+    label: 'Fare Source',
+    sortable: true,
+    tooltip: 'The GTFS fare data the fare comes from.',
+  },
+  {
+    key: 'fare_notes',
+    label: 'Fare Notes',
+    sortable: false,
+    tooltip: 'Notes on the fare data, such as several unexplained fares or no default rider category.',
+  },
+]
 
 export function buildStopColumns (allDay: boolean, includeCensus: boolean): TableColumn[] {
   const acrossDays = allDay ? 'across all calendar days' : 'across all calendar days and hours'
@@ -187,6 +227,12 @@ export function buildAgencyColumns (includeCensus: boolean): TableColumn[] {
     { key: 'routes_count', label: 'Number of Routes', sortable: true },
     { key: 'routes_modes', label: 'Modes', sortable: true },
     { key: 'stops_count', label: 'Number of Stops', sortable: true },
+    { key: 'fare_free_routes', label: 'Free Routes', sortable: true, tooltip: 'Routes of this agency, within the current filters, whose standard fares are all $0.' },
+    { key: 'fare_sometimes_paid_routes', label: 'Sometimes Paid Routes', sortable: true, tooltip: 'Routes of this agency, within the current filters, whose standard fares range from $0 to a paid fare.' },
+    { key: 'fare_always_paid_routes', label: 'Always Paid Routes', sortable: true, tooltip: 'Routes of this agency, within the current filters, whose standard fares are all above $0.' },
+    { key: 'fare_unknown_routes', label: 'Unknown Fare Routes', sortable: true, tooltip: 'Routes of this agency, within the current filters, with no standard fare in the feed\'s fare data.' },
+    { key: 'fare_min', label: 'Min Fare', sortable: true, numeric: true, tooltip: 'Lowest standard single-ride fare across the agency\'s routes within the current filters.' },
+    { key: 'fare_max', label: 'Max Fare', sortable: true, numeric: true, tooltip: 'Highest standard single-ride fare across the agency\'s routes within the current filters.' },
   ]
   if (includeCensus) {
     cols.push(...buildCensusColumns(true))

@@ -585,6 +585,51 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     expect(stops).toEqual([S_FAST, S_SLOW, S_BOTH])
   })
 
+  describe('fare categories (#454)', () => {
+    // FAST is free, SLOW always paid. A third route with no summary stands in
+    // for one whose fares have not loaded.
+    function runWithFares (filter: ScenarioFilter, withSlowFare = true) {
+      const data = buildData()
+      data.routeFares = new Map([[FAST, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }]])
+      if (withSlowFare) {
+        data.routeFares.set(SLOW, { source: 'fares-v2', minAmount: 2, maxAmount: 3, currency: 'USD', flags: [] })
+      }
+      const result = applyScenarioResultFilter(data, baseConfig, filter)
+      return { result, routes: markedIds(result.routes), stops: markedIds(result.stops) }
+    }
+
+    it('derives each route\'s category and leaves routes marked with no fare filter', () => {
+      const { result, routes } = runWithFares({})
+      expect(routes).toEqual([FAST, SLOW])
+      const byRoute = new Map(result.routes.map(r => [r.id, r.fare_category]))
+      expect(byRoute.get(FAST)).toBe('free')
+      expect(byRoute.get(SLOW)).toBe('always-paid')
+    })
+
+    it('keeps only routes in the selected categories, and their stops and agencies', () => {
+      const { result, routes, stops } = runWithFares({ selectedFareCategories: ['free'] })
+      expect(routes).toEqual([FAST])
+      expect(stops).toEqual([S_FAST, S_BOTH])
+      const byAgency = new Map(result.agencies.map(a => [a.id, a.marked]))
+      expect(byAgency.get(AGENCY_FAST)).toBe(true)
+      expect(byAgency.get(AGENCY_SLOW)).toBe(false)
+    })
+
+    it('unmarks routes with no fare summary under an active fare filter, even with Unknown selected', () => {
+      const { result, routes } = runWithFares({ selectedFareCategories: ['always-paid', 'unknown'] }, false)
+      expect(routes).toEqual([])
+      expect(result.routes.find(r => r.id === SLOW)?.fare_category).toBeUndefined()
+    })
+
+    it('rolls marked routes up into agency fare counts and range', () => {
+      const { result } = runWithFares({})
+      const slow = result.agencies.find(a => a.id === AGENCY_SLOW)
+      expect(slow).toMatchObject({ fare_always_paid_routes: 1, fare_free_routes: 0, fare_min: 2, fare_max: 3 })
+      const fast = result.agencies.find(a => a.id === AGENCY_FAST)
+      expect(fast).toMatchObject({ fare_free_routes: 1, fare_min: 0, fare_max: 0 })
+    })
+  })
+
   it('route frequency alone selects routes and carries their stops along', () => {
     const { routes, stops } = run({ frequencyUnder: 20 })
     expect(routes).toEqual([FAST])

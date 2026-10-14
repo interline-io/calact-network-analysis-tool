@@ -68,7 +68,8 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
         const hasRoutes = (progress.partialData?.routes?.length || 0) > 0
         const hasStops = (progress.partialData?.stops?.length || 0) > 0
         const hasFlexAreas = (progress.partialData?.flexAreas?.length || 0) > 0
-        if (!hasRoutes && !hasStops && !hasFlexAreas) {
+        const hasRouteFares = (progress.partialData?.routeFares?.length || 0) > 0
+        if (!hasRoutes && !hasStops && !hasFlexAreas && !hasRouteFares) {
           return
         }
         deps.scenarioData.value = markRaw(receiver.getCurrentData())

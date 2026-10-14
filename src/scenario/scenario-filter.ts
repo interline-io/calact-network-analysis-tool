@@ -30,6 +30,9 @@
  *    - selectedAgencies: route must belong to matching agency
  *    - frequencyOver/frequencyUnder: route's average frequency (minutes between
  *      trips) must be within thresholds
+ *    - selectedFareCategories: route's standard-fare category must be selected.
+ *      A route with no fare summary (not loaded, or its fare query failed) is
+ *      in no category, so an active fare filter unmarks it
  *
  * 2. Stops are then filtered based on:
  *    - Service availability: stop must have departures on selected days (Any/All mode)
@@ -79,8 +82,10 @@ import {
   routeTypeNames,
   WEEKDAY_BY_GETDAY,
 } from '~~/src/core'
+import { fareCategory, type FareCategory } from '~~/src/tl/fare'
 import type {
   Agency,
+  AgencyFareRollup,
   AgencyGql,
   FeedVersion,
   Route,
@@ -135,6 +140,7 @@ function routeSetDerived (
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
+  selectedFareCategories?: FareCategory[],
 ) {
   // Scope the date range to the selected weekdays so frequency and trip stats
   // reflect the current weekday selection (issue #222). Without this, the stats
@@ -209,6 +215,7 @@ function routeSetDerived (
     frequencyUnder,
     frequencyOver,
     routeIndex,
+    selectedFareCategories,
   )
 }
 
@@ -224,6 +231,7 @@ function routeMarked (
   frequencyUnder?: number,
   frequencyOver?: number,
   routeIndex?: RouteDepartureIndex,
+  selectedFareCategories?: FareCategory[],
 ): boolean {
   // Check selected days - route must have service on selected days. deps only
   // holds departures inside the time window, so this is also the time-of-day
@@ -277,6 +285,12 @@ function routeMarked (
   if (routeIndex && frequencyUnder != null) {
     if (!route.average_frequency || route.average_frequency > frequencyUnder * 60) {
       // console.debug('routeMarked:', route.id, 'unmarked: average_frequency', route.average_frequency, '> frequencyUnder', frequencyUnder * 60)
+      return false
+    }
+  }
+
+  if (selectedFareCategories != null) {
+    if (!route.fare_category || !selectedFareCategories.includes(route.fare_category)) {
       return false
     }
   }
@@ -513,6 +527,31 @@ function flexAreaMarked (
   return true
 }
 
+function emptyAgencyFareRollup (): AgencyFareRollup {
+  return {
+    fare_free_routes: 0,
+    fare_sometimes_paid_routes: 0,
+    fare_always_paid_routes: 0,
+    fare_unknown_routes: 0,
+  }
+}
+
+// Counts a marked route by fare category and widens the agency's fare range.
+// Routes with no fare summary yet are counted nowhere.
+function addRouteToFareRollup (rollup: AgencyFareRollup, route: Route): void {
+  switch (route.fare_category) {
+    case 'free': rollup.fare_free_routes++; break
+    case 'sometimes-paid': rollup.fare_sometimes_paid_routes++; break
+    case 'always-paid': rollup.fare_always_paid_routes++; break
+    case 'unknown': rollup.fare_unknown_routes++; break
+  }
+  if (route.fare_category && route.fare_category !== 'unknown') {
+    const { minAmount, maxAmount } = route.fare!
+    rollup.fare_min = Math.min(rollup.fare_min ?? Infinity, minAmount!)
+    rollup.fare_max = Math.max(rollup.fare_max ?? -Infinity, maxAmount!)
+  }
+}
+
 export interface ScenarioFilterResult {
   routes: Route[]
   stops: Stop[]
@@ -558,6 +597,7 @@ export function applyScenarioResultFilter (
   const frequencyOverValue = filter.frequencyOver
   const stopVisitsUnderValue = filter.stopVisitsUnder
   const stopVisitsOverValue = filter.stopVisitsOver
+  const selectedFareCategoriesValue = filter.selectedFareCategories
   // Cross-entity gates are armed only by filters the other side cannot evaluate
   // itself: route-level filters gate stops (a stop must serve a marked route)
   // and stop-level thresholds gate routes (a route must serve a marked stop).
@@ -566,10 +606,12 @@ export function applyScenarioResultFilter (
     || selectedRouteTypesValue != null
     || frequencyUnderValue != null
     || frequencyOverValue != null
+    || selectedFareCategoriesValue != null
   const stopFiltersActive = stopVisitsUnderValue != null || stopVisitsOverValue != null
 
   // Apply route filters
   const routeFeatures = data.routes.map((routeGql): Route => {
+    const fare = data.routeFares?.get(routeGql.id)
     const route: Route = {
       ...routeGql,
       route_name: routeGql.route_long_name || routeGql.route_short_name || routeGql.route_id,
@@ -587,6 +629,8 @@ export function applyScenarioResultFilter (
       latest_trip_end: undefined,
       frequency_irregular: undefined,
       frequency_directions_differ: undefined,
+      fare,
+      fare_category: fare ? fareCategory(fare) : undefined,
       __typename: 'Route', // backwards compat
     }
     routeSetDerived(
@@ -601,6 +645,7 @@ export function applyScenarioResultFilter (
       frequencyUnderValue,
       frequencyOverValue,
       routeIndex,
+      selectedFareCategoriesValue,
     )
     return route
   })
@@ -676,6 +721,17 @@ export function applyScenarioResultFilter (
       markedAgencies.add(route.agency.id)
     }
   }
+  // Fare rollup over each agency's marked routes (#454).
+  const agencyFares = new Map<number, AgencyFareRollup>()
+  for (const route of routeFeatures) {
+    const aid = route.agency?.id
+    if (!route.marked || aid == null) {
+      continue
+    }
+    const rollup = agencyFares.get(aid) || emptyAgencyFareRollup()
+    addRouteToFareRollup(rollup, route)
+    agencyFares.set(aid, rollup)
+  }
   const agencyDataValues = [...agencyData.values()]
   const agencyFeatures: Agency[] = agencyDataValues.map((adata): Agency => {
     const agency: AgencyGql = adata.agency
@@ -685,6 +741,7 @@ export function applyScenarioResultFilter (
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
       stops_count: adata.stops.size,
+      ...(agencyFares.get(agency.id) || emptyAgencyFareRollup()),
       __typename: 'Agency', // backwards compat
     }
   })

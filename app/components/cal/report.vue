@@ -110,6 +110,13 @@
         </cat-tooltip>
       </template>
       <template
+        v-for="key of fareAmountColumns"
+        :key="key"
+        #[`column-${key}`]="{ value }"
+      >
+        {{ typeof value === 'number' ? formatFareAmount(value) : '' }}
+      </template>
+      <template
         v-for="col of CENSUS_COLUMNS"
         :key="col.id"
         #[`column-${col.id}`]="{ value, row }"
@@ -133,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, type Route, type Stop, type Agency } from '~~/src/tl'
+import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, formatFareAmount, type Route, type Stop, type Agency } from '~~/src/tl'
 import { stopClusterCsv, type ScenarioFilterResult, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
 
@@ -181,6 +188,9 @@ const timetableDrillColumns: {
   { id: 'latest_trip_start', tab: 'trips', format: formatGtfsTime },
   { id: 'latest_trip_end', tab: 'trips', format: formatGtfsTime },
 ]
+
+// Fare amounts (#454), numeric in the data so they sort by value.
+const fareAmountColumns = ['fare_min', 'fare_max']
 
 // Issue #368: explain the frequency caveat flags in the routes table, where
 // analysts compare the derived frequency against agencies' own classifications.

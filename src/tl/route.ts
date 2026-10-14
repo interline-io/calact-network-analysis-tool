@@ -2,6 +2,7 @@ import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
 import type { BufferGeographyIntersection } from './stop-buffer'
 import type { AgencyGql } from './agency'
+import { fareCategoryLabels, fareFlagDescriptions, fareSourceLabels, type FareCategory, type RouteFareSummary } from './fare'
 
 //////////
 // Routes
@@ -94,6 +95,9 @@ export interface RouteDerived {
   // Issue #368 frequency caveats (set in routeSetDerived).
   frequency_irregular?: boolean
   frequency_directions_differ?: boolean
+  // Standard-fare summary from the fares phase (#454); absent until it loads.
+  fare?: RouteFareSummary
+  fare_category?: FareCategory
 }
 
 export type RouteCsv = RouteGtfs & {
@@ -117,6 +121,12 @@ export type RouteCsv = RouteGtfs & {
   latest_trip_end_time?: string
   frequency_irregular?: boolean
   frequency_directions_differ?: boolean
+  // A category label, or 'Not loaded' when the route has no fare summary.
+  fare_category?: string
+  fare_min?: number
+  fare_max?: number
+  fare_source?: string
+  fare_notes?: string
 }
 
 // Routes keyed by id. Stops carry only route ids, so consumers join through this.
@@ -149,6 +159,11 @@ export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeograp
     latest_trip_end_time: formatGtfsTimeFull(route.latest_trip_end) || undefined,
     frequency_irregular: route.frequency_irregular,
     frequency_directions_differ: route.frequency_directions_differ,
+    fare_category: route.fare_category ? fareCategoryLabels[route.fare_category] : 'Not loaded',
+    fare_min: route.fare?.minAmount,
+    fare_max: route.fare?.maxAmount,
+    fare_source: route.fare && route.fare.source !== 'none' ? fareSourceLabels[route.fare.source] : undefined,
+    fare_notes: route.fare ? routeFareNotes(route.fare) : undefined,
     agency_name: route.agency_name,
     route_mode: route.route_mode,
     route_name: route.route_name,
@@ -168,4 +183,9 @@ export function routeToRouteCsv (route: Route, bufferGeographies?: BufferGeograp
   return bufferGeographies?.length
     ? { ...row, ...apportionBuffer(bufferGeographies).values }
     : row
+}
+
+// The summary's data-quality flags in plain language, for the report and CSV.
+export function routeFareNotes (fare: RouteFareSummary): string {
+  return fare.flags.map(f => fareFlagDescriptions[f]).join(' ')
 }

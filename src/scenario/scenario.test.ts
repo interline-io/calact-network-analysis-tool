@@ -338,7 +338,7 @@ describe('ScenarioFetcher', () => {
 
     it('includes every phase for a fully-enabled config', () => {
       expect(scenarioPhasePlan(fullConfig)).toEqual(
-        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'flex-areas', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'fares', 'flex-areas', 'census-values'])
     })
 
     it('drops all fixed-route phases when includeFixedRoute is false', () => {
@@ -348,22 +348,22 @@ describe('ScenarioFetcher', () => {
 
     it('drops buffers and census-values when includeCensus is false', () => {
       expect(scenarioPhasePlan({ ...fullConfig, includeCensus: false })).toEqual(
-        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'flex-areas'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'fares', 'flex-areas'])
     })
 
     it('drops buffers but keeps census-values when radius is 0', () => {
       expect(scenarioPhasePlan({ ...fullConfig, stopBufferRadius: 0 })).toEqual(
-        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'flex-areas', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'fares', 'flex-areas', 'census-values'])
     })
 
     it('drops the aggregation-layer phases but keeps buffers without an aggregateLayer', () => {
       expect(scenarioPhasePlan({ ...fullConfig, aggregateLayer: undefined })).toEqual(
-        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'flex-areas'])
+        ['feed-versions', 'stops', 'routes', 'departures', 'buffers', 'fares', 'flex-areas'])
     })
 
     it('drops flex when includeFlexAreas is false', () => {
       expect(scenarioPhasePlan({ ...fullConfig, includeFlexAreas: false })).toEqual(
-        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'census-values'])
+        ['feed-versions', 'stops', 'stop-census', 'routes', 'departures', 'buffers', 'fares', 'census-values'])
     })
   })
 
@@ -377,7 +377,7 @@ describe('ScenarioFetcher', () => {
     // Announcing the plan is the stream envelope's job; the fetcher's is
     // executing it, with the derived plan as the default.
     const plan = scenarioPhasePlan({ ...config, includeFlexAreas: false })
-    expect(plan).toEqual(['feed-versions', 'stops', 'routes', 'departures'])
+    expect(plan).toEqual(['feed-versions', 'stops', 'routes', 'departures', 'fares'])
 
     const progressCb = vi.fn()
     const fetcher = new ScenarioFetcher({ ...config, includeFlexAreas: false }, client, progressCb)

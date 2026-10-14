@@ -19,6 +19,8 @@ import type {
   StopGql,
   StopCensusGeography,
   BufferGeographyIntersection,
+  RouteFareSummary,
+  FareCategory,
 } from '~~/src/tl'
 import { StopDepartureCache, FlexDepartureCache } from '~~/src/tl'
 import { runProgressStream, type ProgressEmit } from './progress-stream'
@@ -33,6 +35,7 @@ import {
   runRoutesPhase,
   runDeparturesPhase,
   runFlexPhase,
+  runFaresPhase,
   runCensusValuesPhase,
   StopDepartureTuple,
   FlexDepartureTuple,
@@ -106,6 +109,8 @@ const PHASE_ENABLED: Record<ScenarioPhaseName, (config: ScenarioConfig) => boole
     && !!config.tableDatasetName,
   'stop-clusters': config => config.includeFixedRoute !== false
     && (config.stopClusterDistance ?? 0) > 0,
+  // Executes inside the stops block, so the predicate implies stops.
+  'fares': config => config.includeFixedRoute !== false,
   'flex-areas': config => config.includeFlexAreas !== false,
   'census-values': config => config.includeCensus !== false
     && !!config.tableDatasetName
@@ -145,6 +150,8 @@ export interface ScenarioFilter {
   // Stops report's "Total Visits During Time Period", issue #243).
   stopVisitsUnder?: number
   stopVisitsOver?: number
+  // Fare categories to keep (#454); undefined = filter off.
+  selectedFareCategories?: FareCategory[]
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. 0/undefined leaves the proximity clusters unfiltered.
   clusterMaxTransferMinutes?: number
@@ -179,6 +186,9 @@ export interface ScenarioData {
   // cross-agency transfer-hub clusters (proximity + assignment). The
   // max-transfer-time filter is applied later, client-side, in scenario-filter.
   stopClusters?: StopCluster[]
+  // Standard-fare summary per route id, from the fares phase. A route with no
+  // entry has not loaded yet, or its feed version's fare query failed.
+  routeFares?: Map<number, RouteFareSummary>
 }
 
 // Callback interface for scenario stream receivers.
@@ -228,6 +238,8 @@ export interface ScenarioProgress {
     aggregationBufferGeographies?: BufferGeographyIntersection[]
     // the full set of derived clusters (recomputed each time, not merged).
     stopClusters?: StopCluster[]
+    // Route id -> standard-fare summary, one batch per feed version.
+    routeFares?: [number, RouteFareSummary][]
   }
   config?: any
 }
@@ -285,6 +297,7 @@ export interface ScenarioFetcherOpts extends PhaseOpts {
 //
 //   feed-versions ─┬─ stops ─┬─ departures ───┐
 //                  │         ├─ stop-census ──┤
+//                  │         ├─ fares ────────┤
 //                  │         └─ routes ───────┴─ buffer passes
 //                  ├─ flex
 //                  └─ census-values
@@ -343,7 +356,7 @@ export class ScenarioFetcher {
     let scenarioStopIds: number[] = []
 
     if (enabled.has('stops')) {
-      const { stopIds, routeIds, routeStopIds } = await runStopsPhase({
+      const { stopIds, routeIds, routeStopIds, feedVersionRouteIds } = await runStopsPhase({
         feedVersions: fvRefs,
         bbox: this.config.bbox,
         geographyIds: this.config.geographyIds,
@@ -352,8 +365,8 @@ export class ScenarioFetcher {
       scenarioStopIds = stopIds
       logMemory('after-stops')
 
-      // Departures, the per-stop census, and routes all consume only the stop
-      // ids, so all three run together. Awaited as one group rather than in
+      // Departures, the per-stop census, fares, and routes all consume only
+      // the stop ids, so all four run together. Awaited as one group rather than in
       // sequence: an `await` between them strands whichever is still running
       // when an earlier one rejects, and its rejection surfaces later with no
       // handler attached.
@@ -370,13 +383,20 @@ export class ScenarioFetcher {
       const stopCensusPromise = enabled.has('stop-census')
         ? this.fetchStopCensus(stopIds, onError)
         : Promise.resolve()
+      const faresPromise = enabled.has('fares')
+        ? runFaresPhase({
+            feedVersions: fvRefs,
+            feedVersionRouteIds,
+            routeStopIds,
+          }, this.client, emit, { onError })
+        : Promise.resolve()
       const routesPromise = enabled.has('routes')
         ? runRoutesPhase({
             routeIds,
             includeGeometry: this.config.includeRouteGeometry,
           }, this.client, emit, { onError })
         : Promise.resolve({ agencyIds: [] as number[] })
-      const [, , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, routesPromise])
+      const [, , , { agencyIds }] = await Promise.all([departuresPromise, stopCensusPromise, faresPromise, routesPromise])
       logMemory('after-departures')
 
       if (enabled.has('buffers')) {
@@ -559,6 +579,7 @@ export class ScenarioDataReceiver {
       agencyBufferGeographies: new Map<number, BufferGeographyIntersection[]>(),
       aggregationBufferGeographies: [],
       stopClusters: [],
+      routeFares: new Map<number, RouteFareSummary>(),
     }
   }
 
@@ -620,6 +641,7 @@ export class ScenarioDataReceiver {
       mergeIntoMap(p.stopBufferGeographies, this.accumulatedData.stopBufferGeographies)
       mergeIntoMap(p.routeBufferGeographies, this.accumulatedData.routeBufferGeographies)
       mergeIntoMap(p.agencyBufferGeographies, this.accumulatedData.agencyBufferGeographies)
+      mergeIntoMap(p.routeFares, this.accumulatedData.routeFares)
       if (p.aggregationBufferGeographies && this.accumulatedData.aggregationBufferGeographies) {
         this.accumulatedData.aggregationBufferGeographies.push(...p.aggregationBufferGeographies)
       }

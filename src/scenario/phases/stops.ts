@@ -23,6 +23,9 @@ export interface StopsPhaseResult {
   // Route id -> the stops in this scenario that route serves. Lets the
   // departures phase filter stop times per route instead of by the whole set.
   routeStopIds: Record<number, number[]>
+  // Feed version sha1 -> the route ids found in it. Lets the fares phase
+  // fetch each feed version's fare tables once for its own routes.
+  feedVersionRouteIds: Record<string, number[]>
 }
 
 interface StopFetchTask {
@@ -41,6 +44,7 @@ export async function runStopsPhase (
   const stopIds: number[] = []
   const routeIds: Set<number> = new Set()
   const routeStopIds: Record<number, number[]> = {}
+  const feedVersionRouteIds: Record<string, Set<number>> = {}
 
   const { queue, progressEvent, done } = phaseQueue<StopFetchTask>('stops', emit, task => fetchStopPage(task), opts)
 
@@ -76,6 +80,7 @@ export async function runStopsPhase (
       stopIds.push(stop.id)
       for (const rs of stop.route_stops || []) {
         routeIds.add(rs.route_id)
+        ;(feedVersionRouteIds[task.feedVersionSha1] ??= new Set()).add(rs.route_id)
         ;(routeStopIds[rs.route_id] ??= []).push(stop.id)
       }
     }
@@ -102,5 +107,10 @@ export async function runStopsPhase (
   await queue.run()
   done()
 
-  return { stopIds, routeIds: [...routeIds], routeStopIds }
+  return {
+    stopIds,
+    routeIds: [...routeIds],
+    routeStopIds,
+    feedVersionRouteIds: Object.fromEntries(Object.entries(feedVersionRouteIds).map(([sha1, ids]) => [sha1, [...ids]])),
+  }
 }

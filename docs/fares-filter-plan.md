@@ -1,6 +1,6 @@
 # Fare filtering plan (#454)
 
-Status: draft plan, not yet implemented.
+Status: phase 1 implemented (`src/tl/fare.ts`, `src/scenario/phases/fares.ts`). transitland-lib#786 is deployed. See Decisions for how the open questions were settled.
 
 ## Goal
 
@@ -369,35 +369,51 @@ empty-area fallback (see Per-route fare summary). The numbers above come from a
 prototype that did not apply the network and area fallbacks, so rerun them once
 the derivation is implemented.
 
+## Decisions
+
+Settled before implementing the derivation (2026-10-14):
+
+- **Load timing.** Fares load with every fixed-route scenario, as a `fares`
+  phase that runs alongside departures, not only when a fare filter is
+  applied. The route and agency reports show fare columns either way. The
+  summary is derived server-side in the phase, so only a few fields per route
+  cross the stream, not the fare tables.
+- **$0 alternatives.** Within a rule group, default-category products are
+  preferred. Products with no rider category are used only when the group has
+  no default-category product. Sound Transit's $0 uncategorized youth product
+  no longer makes its routes free.
+- **`rule_priority` scope.** Resolved per leg and per timeframe combination,
+  so a higher-priority holiday or single-area rule doesn't hide the regular
+  fare. GraphQL can't tell an absent column from an empty one, so any non-null
+  `rule_priority` turns on priority mode.
+- **v1 fallback.** When v2 gives a route no standard fare and the feed has v1
+  fares, v1 is used, with `source: 'fares-v1'` and the flag
+  `v2-fallback-to-v1`, plus the v2 reason flag.
+- **No default rider category.** Unknown, flagged `v2-no-default-category`,
+  and not reported upstream as an error, since the spec only requires a
+  default when categories share a product. `has-other-categories` is raised
+  only when a default exists.
+- **Stop scope.** Areas (v2) and zones (v1) are matched against the route's
+  stops in the scenario only. The range describes trips inside the study
+  area. A v1 zone rule applies only to routes that serve its zones in the
+  scenario. Areas that name a parent station apply to its platforms. A route
+  with one stop in the scenario pairs that stop with itself. Side effect: an
+  area-priced route with one stop in a small bbox (Golden Gate Ferry in a
+  downtown San Francisco bbox) can come out unknown.
+- **v1 fares with no rules.** In a feed that has fare_rules, a fare with no
+  rules applies to nothing.
+- **Loading and errors.** A route with no summary (still loading, or its feed
+  version's fares query failed) is in no category. The report shows its
+  category as "Not loaded". An active fare filter unmarks it, even with
+  Unknown selected. A failed query surfaces through the usual request-error
+  toast.
+- **Negative amounts.** Unknown, flagged `negative-amount`.
+- **Fare notes.** Shown in the route report and in the CSV.
+- **Currency.** Non-USD fares are ignored.
+- **Truncation.** A fare table that returns `FARE_TABLE_LIMIT` (100,000) rows
+  makes the feed version's routes unknown, flagged `fare-data-truncated`.
+
 ## Open questions
-
-Interpretation questions from code review, to settle before implementing the
-derivation:
-
-- **$0 alternatives.** A $0 product with no rider category on the same rule as a
-  paid default-category product (Sound Transit youth) makes the cheapest-per-group
-  step report "free". Ignore such products when a paid default-category product
-  exists for the same group?
-- **`rule_priority` scope.** Priority should be resolved per leg (same areas and
-  timeframes), not across the whole route, or a higher-priority holiday or
-  single-area rule hides the regular fare.
-- **v1 fallback.** When v2 leaves a route unknown (MTS: 103 of 105 routes), fall
-  back to the same feed's v1 fares? The spec says to prefer v2 but does not
-  forbid this.
-- **No default rider category.** The spec only requires a default when several
-  categories share a product. Treat a spec-valid feed with one category per
-  product and no default as unknown, and do not report it upstream as an error.
-- **Area matching scope.** Area pairs need every stop a route serves, but the
-  scenario only has stops inside the bbox. Fetch each route's full stop list, or
-  accept bbox-relative ranges? `stop_areas` rows that name a station also apply
-  to its platforms.
-- **v1 zone rules.** Zone-only rules currently apply to every route of the
-  agency whether or not it serves those zones, and a fare with no rules in a
-  feed that has other rules is dropped.
-- **Loading and errors.** Routes whose fares have not loaded yet, or whose fares
-  query failed, need a state distinct from "unknown".
-- **Negative amounts.** Spec-valid transfer discounts can make `minAmount`
-  negative, which fits none of the four categories.
 
 - Other rider categories: start with the default category only and show
   `has-other-categories`. A category picker only makes sense for v2 feeds, and
@@ -407,8 +423,5 @@ derivation:
   date range. Timeframes are now exposed (with `service`), so this needs only
   the calendar data for those service ids. In phase 1 these
   routes land in "sometimes paid". Resolve this before phase 2's thresholds.
-- Surface the flags in the route report as a "Fare notes" column, or keep them
-  in the CSV export only?
-- Currency: every sampled amount is USD. Ignore non-USD products.
 - Flex: flex fares in v2 use areas. Areas and stop_areas are now exposed, but
   matching flex legs is out of scope for now.
