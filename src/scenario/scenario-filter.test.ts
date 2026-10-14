@@ -621,6 +621,20 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
       expect(result.routes.find(r => r.id === SLOW)?.fare_category).toBeUndefined()
     })
 
+    it('rolls up routes of same-id agencies from different feeds into their shared row', () => {
+      const data = buildData()
+      // SLOW's agency shares FAST's GTFS agency_id but has its own row id,
+      // as when two feeds publish the same agency.
+      data.routes = data.routes.map(r => r.id === SLOW ? { ...r, agency: { ...r.agency, agency_id: `agency-${AGENCY_FAST}` } } : r)
+      data.routeFares = new Map([
+        [FAST, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }],
+        [SLOW, { source: 'fares-v1', minAmount: 2, maxAmount: 2, flags: [] }],
+      ])
+      const result = applyScenarioResultFilter(data, baseConfig, {})
+      expect(result.agencies).toHaveLength(1)
+      expect(result.agencies[0]).toMatchObject({ fare_free_routes: 1, fare_always_paid_routes: 1, fare_min: 0, fare_max: 2 })
+    })
+
     it('rolls marked routes up into agency fare counts and range', () => {
       const { result } = runWithFares({})
       const slow = result.agencies.find(a => a.id === AGENCY_SLOW)

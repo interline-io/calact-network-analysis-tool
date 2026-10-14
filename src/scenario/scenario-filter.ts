@@ -721,11 +721,13 @@ export function applyScenarioResultFilter (
       markedAgencies.add(route.agency.id)
     }
   }
-  // Fare rollup over each agency's marked routes (#454).
-  const agencyFares = new Map<number, AgencyFareRollup>()
+  // Fare rollup over each agency's marked routes (#454). Keyed by GTFS
+  // agency_id like agencyData above, which merges same-id agencies from
+  // different feeds into one row.
+  const agencyFares = new Map<string, AgencyFareRollup>()
   for (const route of routeFeatures) {
-    const aid = route.agency?.id
-    if (!route.marked || aid == null) {
+    const aid = route.agency?.agency_id
+    if (!route.marked || !aid) {
       continue
     }
     const rollup = agencyFares.get(aid) || emptyAgencyFareRollup()
@@ -741,7 +743,7 @@ export function applyScenarioResultFilter (
       routes_count: adata.routes.size, // adata.routes.intersection(markedRoutes).size,
       routes_modes: [...adata.routes_modes].map(r => (routeTypeNames.get(r) || 'Unknown')).join(', '),
       stops_count: adata.stops.size,
-      ...(agencyFares.get(agency.id) || emptyAgencyFareRollup()),
+      ...(agencyFares.get(agency.agency_id) || emptyAgencyFareRollup()),
       __typename: 'Agency', // backwards compat
     }
   })
