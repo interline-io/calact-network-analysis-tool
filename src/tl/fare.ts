@@ -724,11 +724,9 @@ function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
       flags.add('has-other-categories')
     }
     let eligible = products.filter(p => defaultCategories.has(p.riderCategoryId))
-    if (eligible.length === 0) {
+    const uncategorized = eligible.length === 0
+    if (uncategorized) {
       eligible = products.filter(p => p.riderCategoryId === '')
-      if (eligible.length > 0 && hasCategories) {
-        flags.add('v2-uncategorized-products')
-      }
     }
     if (eligible.length === 0) {
       if (products.length > 0 && hasCategories && defaultCategories.size === 0) {
@@ -736,7 +734,14 @@ function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
       }
       return undefined
     }
-    return Math.min(...eligible.map(p => p.amount))
+    const amount = Math.min(...eligible.map(p => p.amount))
+    // Worth a note when an uncategorized product sets a paid fare, since it
+    // may stand in for a category the feed forgot to assign. A $0 one is a
+    // free service, and the note would only be noise there.
+    if (uncategorized && hasCategories && amount > 0) {
+      flags.add('v2-uncategorized-products')
+    }
+    return amount
   }
 
   // Rules that match the same leg at the same time are alternatives; rules

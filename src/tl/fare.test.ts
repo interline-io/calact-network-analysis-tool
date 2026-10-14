@@ -188,13 +188,18 @@ describe('deriveRouteFareSummary: Fares v2', () => {
   })
 
   it('uses uncategorized products when a rule has no default-category product', () => {
-    const s = deriveRouteFareSummary(feed({
+    const fares = (amount: number) => feed({
       legRules: [leg('shuttle')],
-      products: [product('shuttle', 0)],
+      products: [product('shuttle', amount)],
       riderCategories: adultDefault,
-    }), route())
-    expect(fareCategory(s)).toBe('free')
-    expect(s.flags).toEqual(['v2-uncategorized-products'])
+    })
+    // A free shuttle needs no note.
+    const free = deriveRouteFareSummary(fares(0), route())
+    expect(fareCategory(free)).toBe('free')
+    expect(free.flags).toEqual([])
+    const paid = deriveRouteFareSummary(fares(2), route())
+    expect(range(paid)).toEqual([2, 2])
+    expect(paid.flags).toEqual(['v2-uncategorized-products'])
   })
 
   it('is unknown with no default rider category and no uncategorized product', () => {
