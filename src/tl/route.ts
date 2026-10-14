@@ -2,7 +2,7 @@ import { gql } from 'graphql-tag'
 import { formatGtfsTimeFull, apportionBuffer } from '../core'
 import type { BufferGeographyIntersection } from './stop-buffer'
 import type { AgencyGql } from './agency'
-import { fareReportFields, type FareCategory, type FareReportFields, type RouteFareSummary } from './fare'
+import { fareReportFields, type FareReportFields, type RouteFareSummary } from './fare'
 
 //////////
 // Routes
@@ -97,7 +97,6 @@ export interface RouteDerived {
   frequency_directions_differ?: boolean
   // Standard-fare summary from the fares phase (#454); absent until it loads.
   fare?: RouteFareSummary
-  fare_category?: FareCategory
 }
 
 export type RouteCsv = RouteGtfs & {

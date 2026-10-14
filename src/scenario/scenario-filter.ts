@@ -293,7 +293,7 @@ function routeMarked (
     }
   }
 
-  if (fareFilter && !passesFareFilter(fareFilter, route.fare, route.fare_category)) {
+  if (fareFilter && !passesFareFilter(fareFilter, route.fare)) {
     return false
   }
 
@@ -323,10 +323,11 @@ function activeFareFilter (filter: ScenarioFilter): FareFilter | undefined {
 // must meet them, so a wide or unclear range never passes a "cheap" filter by
 // accident. An unknown fare has no amounts to test and is kept or dropped by
 // the categories alone.
-function passesFareFilter (f: FareFilter, fare?: RouteFareSummary, category?: FareCategory): boolean {
-  if (!fare || !category) {
+function passesFareFilter (f: FareFilter, fare?: RouteFareSummary): boolean {
+  if (!fare) {
     return false
   }
+  const category = fareCategory(fare)
   if (f.categories != null && !f.categories.includes(category)) {
     return false
   }
@@ -526,11 +527,10 @@ function flexAreaMarked (
   selectedWeekdayMode?: WeekdayMode,
   fareFilter?: FareFilter,
   fare?: RouteFareSummary,
-  fareCategoryValue?: FareCategory,
 ): boolean {
   // Fare filter: same rule as routes, so an area whose fares have not loaded
   // fails it.
-  if (fareFilter && !passesFareFilter(fareFilter, fare, fareCategoryValue)) {
+  if (fareFilter && !passesFareFilter(fareFilter, fare)) {
     return false
   }
 
@@ -578,28 +578,29 @@ function flexAreaMarked (
   return true
 }
 
+// The agency row field that counts each fare category.
+const FARE_ROLLUP_KEYS: Record<FareCategory, 'fare_free_routes' | 'fare_sometimes_paid_routes' | 'fare_always_paid_routes' | 'fare_unknown_routes'> = {
+  'free': 'fare_free_routes',
+  'sometimes-paid': 'fare_sometimes_paid_routes',
+  'always-paid': 'fare_always_paid_routes',
+  'unknown': 'fare_unknown_routes',
+}
+
 function emptyAgencyFareRollup (): AgencyFareRollup {
-  return {
-    fare_free_routes: 0,
-    fare_sometimes_paid_routes: 0,
-    fare_always_paid_routes: 0,
-    fare_unknown_routes: 0,
-  }
+  return { fare_free_routes: 0, fare_sometimes_paid_routes: 0, fare_always_paid_routes: 0, fare_unknown_routes: 0 }
 }
 
 // Counts a marked route by fare category and widens the agency's fare range.
 // Routes with no fare summary yet are counted nowhere.
 function addRouteToFareRollup (rollup: AgencyFareRollup, route: Route): void {
-  switch (route.fare_category) {
-    case 'free': rollup.fare_free_routes++; break
-    case 'sometimes-paid': rollup.fare_sometimes_paid_routes++; break
-    case 'always-paid': rollup.fare_always_paid_routes++; break
-    case 'unknown': rollup.fare_unknown_routes++; break
+  if (!route.fare) {
+    return
   }
-  if (route.fare_category && route.fare_category !== 'unknown') {
-    const { minAmount, maxAmount } = route.fare!
-    rollup.fare_min = Math.min(rollup.fare_min ?? Infinity, minAmount!)
-    rollup.fare_max = Math.max(rollup.fare_max ?? -Infinity, maxAmount!)
+  const category = fareCategory(route.fare)
+  rollup[FARE_ROLLUP_KEYS[category]]++
+  if (category !== 'unknown') {
+    rollup.fare_min = Math.min(rollup.fare_min ?? Infinity, route.fare.minAmount!)
+    rollup.fare_max = Math.max(rollup.fare_max ?? -Infinity, route.fare.maxAmount!)
   }
 }
 
@@ -681,7 +682,6 @@ export function applyScenarioResultFilter (
       frequency_irregular: undefined,
       frequency_directions_differ: undefined,
       fare,
-      fare_category: fare ? fareCategory(fare) : undefined,
       __typename: 'Route', // backwards compat
     }
     routeSetDerived(
@@ -805,7 +805,6 @@ export function applyScenarioResultFilter (
     const fare = combineFareSummaries((flexArea.properties.routes || [])
       .map(r => r.id != null ? data.routeFares?.get(r.id) : undefined)
       .filter((s): s is RouteFareSummary => s != null))
-    const fareCategoryValue = fare ? fareCategory(fare) : undefined
     const marked = flexAreaMarked(
       flexArea,
       data.flexDepartureCache,
@@ -815,7 +814,6 @@ export function applyScenarioResultFilter (
       filter.selectedWeekdayMode,
       fareFilterValue,
       fare,
-      fareCategoryValue,
     )
     return {
       ...flexArea,
@@ -823,7 +821,6 @@ export function applyScenarioResultFilter (
         ...flexArea.properties,
         marked,
         fare,
-        fare_category: fareCategoryValue,
       }
     }
   })

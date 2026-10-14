@@ -6,19 +6,24 @@
 // regional feed run to tens of thousands of rows, while the summaries are a
 // few fields per route.
 
-import { chunkArray, fmtDate, type GraphQLClient } from '~~/src/core'
+import type { DocumentNode } from 'graphql'
+import { chunkArray, type GraphQLClient } from '~~/src/core'
 import {
   FARE_TABLE_LIMIT,
+  NO_FARES_SUMMARY,
   deriveRouteFareSummary,
   dropInactiveTimeframeRules,
   fareRoutesQuery,
   fareRouteFromGql,
+  fareStopFromGql,
   fareStopsQuery,
   feedFaresFromGql,
   feedFaresUseStops,
   feedVersionFaresQuery,
   type FareRouteGql,
+  type FareStop,
   type FareStopGql,
+  type FeedFares,
   type FeedVersionFaresGql,
   type RouteFareSummary,
 } from '~~/src/tl'
@@ -47,52 +52,58 @@ export async function runFaresPhase (
 ): Promise<void> {
   const { queue, progressEvent, done } = phaseQueue<FeedVersionRef>('fares', emit, fv => fetchFeedVersionFares(fv), opts)
   // Without a date range every timeframe counts.
-  const dates = config.startDate || config.endDate ? getSelectedDateRange(config).map(d => fmtDate(d)) : []
+  const dates = config.startDate || config.endDate ? getSelectedDateRange(config) : []
+
+  // Kept separate so only the flattened tables outlive the request; the raw
+  // response of a regional feed is several MB.
+  async function fetchFeedFares (sha1: string): Promise<FeedFares | undefined> {
+    const response = await client.query<{ feed_versions: FeedVersionFaresGql[] }>(feedVersionFaresQuery, {
+      sha1,
+      limit: FARE_TABLE_LIMIT,
+    })
+    const fvData = response.data?.feed_versions?.[0]
+    return fvData ? dropInactiveTimeframeRules(feedFaresFromGql(fvData), dates) : undefined
+  }
+
+  // Each id batch in its own request, all at once: a feed version needs only
+  // a few, and the phase queue already bounds feed versions in flight.
+  async function fetchByIds<T> (query: DocumentNode, field: 'routes' | 'stops', ids: number[]): Promise<T[]> {
+    const pages = await Promise.all(chunkArray(ids, FARE_ID_BATCH_SIZE).map(batch =>
+      client.query<Record<string, T[]>>(query, { ids: batch, limit: FARE_ID_BATCH_SIZE })))
+    return pages.flatMap(r => r.data?.[field] || [])
+  }
 
   async function fetchFeedVersionFares (fv: FeedVersionRef): Promise<void> {
     const routeIds = config.feedVersionRouteIds[fv.feedVersionSha1] || []
     if (routeIds.length === 0) {
       return
     }
-    const response = await client.query<{ feed_versions: FeedVersionFaresGql[] }>(feedVersionFaresQuery, {
-      sha1: fv.feedVersionSha1,
-      limit: FARE_TABLE_LIMIT,
-    })
-    const fvData = response.data?.feed_versions?.[0]
-    if (!fvData) {
+    const fares = await fetchFeedFares(fv.feedVersionSha1)
+    if (!fares) {
       return
     }
-    const fares = dropInactiveTimeframeRules(feedFaresFromGql(fvData), dates)
 
     // A feed version with no fares needs no route or stop lookups.
-    if (fares.legRules.length === 0 && !fares.droppedLegRules && fares.fareAttributes.length === 0) {
-      const none: RouteFareSummary = { source: 'none', flags: [] }
-      await emit({ ...progressEvent(), partialData: { routeFares: routeIds.map(id => [id, none]) } })
+    if (!fares.hasV1 && !fares.hasV2) {
+      await emit({ ...progressEvent(), partialData: { routeFares: routeIds.map(id => [id, { ...NO_FARES_SUMMARY, flags: [] }]) } })
       return
     }
 
-    const routes: FareRouteGql[] = []
-    for (const ids of chunkArray(routeIds, FARE_ID_BATCH_SIZE)) {
-      const r = await client.query<{ routes: FareRouteGql[] }>(fareRoutesQuery, { ids, limit: FARE_ID_BATCH_SIZE })
-      routes.push(...(r.data?.routes || []))
-    }
-
-    const stopsById = new Map<number, FareStopGql>()
-    if (feedFaresUseStops(fares)) {
-      const stopIds = [...new Set(routeIds.flatMap(id => config.routeStopIds[id] || []))]
-      for (const ids of chunkArray(stopIds, FARE_ID_BATCH_SIZE)) {
-        const r = await client.query<{ stops: FareStopGql[] }>(fareStopsQuery, { ids, limit: FARE_ID_BATCH_SIZE })
-        for (const stop of r.data?.stops || []) {
-          stopsById.set(stop.id, stop)
-        }
-      }
-    }
+    const stopIds = feedFaresUseStops(fares)
+      ? [...new Set(routeIds.flatMap(id => config.routeStopIds[id] || []))]
+      : []
+    const [routes, stops] = await Promise.all([
+      fetchByIds<FareRouteGql>(fareRoutesQuery, 'routes', routeIds),
+      fetchByIds<FareStopGql>(fareStopsQuery, 'stops', stopIds),
+    ])
+    // Converted once; a stop served by several routes is shared.
+    const stopsById = new Map(stops.map(stop => [stop.id, fareStopFromGql(stop)]))
 
     const routeFares: [number, RouteFareSummary][] = routes.map((route) => {
-      const stops = (config.routeStopIds[route.id] || [])
+      const routeStops = (config.routeStopIds[route.id] || [])
         .map(id => stopsById.get(id))
-        .filter((s): s is FareStopGql => s != null)
-      return [route.id, deriveRouteFareSummary(fares, fareRouteFromGql(route, stops))]
+        .filter((s): s is FareStop => s != null)
+      return [route.id, deriveRouteFareSummary(fares, fareRouteFromGql(route, routeStops))]
     })
     console.log(`[Fares] ${routeFares.length} route fare summaries from ${fv.feedOnestopId}`)
     await emit({ ...progressEvent(), partialData: { routeFares } })

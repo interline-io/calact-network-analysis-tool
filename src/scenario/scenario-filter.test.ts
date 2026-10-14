@@ -4,6 +4,7 @@ import { StopDepartureCache } from '../tl/departure-cache'
 import { FlexDepartureCache } from '../tl/flex-departure-cache'
 import { stopToStopCsv } from '../tl/stop'
 import { routesById } from '../tl/route'
+import { fareCategory } from '../tl/fare'
 import type { ScenarioData, ScenarioConfig, ScenarioFilter } from './scenario'
 import type { FlexAreaFeature } from '../tl/flex'
 import type { RouteGql } from '../tl/route'
@@ -111,11 +112,11 @@ describe('flex area fares (#454)', () => {
 
   it('takes each area\'s fare from the routes serving it', () => {
     const [a, b, c] = run({})
-    expect(a?.properties.fare_category).toBe('free')
-    expect(b?.properties.fare_category).toBe('sometimes-paid')
+    expect(fareCategory(a!.properties.fare!)).toBe('free')
+    expect(fareCategory(b!.properties.fare!)).toBe('sometimes-paid')
     expect(b?.properties.fare).toMatchObject({ minAmount: 0, maxAmount: 2 })
     // Route 30 has no summary yet.
-    expect(c?.properties.fare_category).toBeUndefined()
+    expect(c?.properties.fare).toBeUndefined()
     expect([a, b, c].every(f => f?.properties.marked)).toBe(true)
   })
 
@@ -626,7 +627,7 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
       const data = buildData()
       data.routeFares = new Map([[FAST, { source: 'fares-v1', minAmount: 0, maxAmount: 0, flags: [] }]])
       if (withSlowFare) {
-        data.routeFares.set(SLOW, { source: 'fares-v2', minAmount: 2, maxAmount: 3, currency: 'USD', flags: [] })
+        data.routeFares.set(SLOW, { source: 'fares-v2', minAmount: 2, maxAmount: 3, flags: [] })
       }
       const result = applyScenarioResultFilter(data, baseConfig, filter)
       return { result, routes: markedIds(result.routes), stops: markedIds(result.stops) }
@@ -635,7 +636,7 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     it('derives each route\'s category and leaves routes marked with no fare filter', () => {
       const { result, routes } = runWithFares({})
       expect(routes).toEqual([FAST, SLOW])
-      const byRoute = new Map(result.routes.map(r => [r.id, r.fare_category]))
+      const byRoute = new Map(result.routes.map(r => [r.id, r.fare && fareCategory(r.fare)]))
       expect(byRoute.get(FAST)).toBe('free')
       expect(byRoute.get(SLOW)).toBe('always-paid')
     })
@@ -652,7 +653,7 @@ describe('applyScenarioResultFilter — route frequency vs stop visits (#243)', 
     it('unmarks routes with no fare summary under an active fare filter, even with Unknown selected', () => {
       const { result, routes } = runWithFares({ selectedFareCategories: ['always-paid', 'unknown'] }, false)
       expect(routes).toEqual([])
-      expect(result.routes.find(r => r.id === SLOW)?.fare_category).toBeUndefined()
+      expect(result.routes.find(r => r.id === SLOW)?.fare).toBeUndefined()
     })
 
     it('keeps a route only if its whole fare range meets the amount thresholds', () => {

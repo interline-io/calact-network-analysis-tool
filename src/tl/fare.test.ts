@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { parseDate } from '~~/src/core'
 import {
   combineFareSummaries,
   deriveRouteFareSummary,
@@ -9,7 +10,7 @@ import {
   feedFaresFromGql,
   feedFaresUseStops,
   fareRouteFromGql,
-  formatFareRange,
+  fareStopFromGql,
   type FeedFares,
   type FareRoute,
   type RouteFareSummary,
@@ -23,6 +24,8 @@ function feed (partial: Partial<FeedFares>): FeedFares {
     products: [],
     riderCategories: [],
     timeframes: [],
+    hasV1: (partial.fareAttributes?.length ?? 0) > 0,
+    hasV2: (partial.legRules?.length ?? 0) > 0,
     truncated: false,
     ...partial,
   }
@@ -300,19 +303,10 @@ describe('fareCategory', () => {
   })
 })
 
-describe('formatFareRange', () => {
-  it('formats a single fare and a range', () => {
-    expect(formatFareRange({ source: 'fares-v1', minAmount: 1.5, maxAmount: 1.5, flags: [] })).toBe('$1.50')
-    expect(formatFareRange({ source: 'fares-v1', minAmount: 0, maxAmount: 3.25, flags: [] })).toBe('$0.00 to $3.25')
-    expect(formatFareRange({ source: 'none', flags: [] })).toBe('')
-  })
-})
-
 describe('GraphQL conversion', () => {
   it('flattens nulls and detects truncation', () => {
     const fares = feedFaresFromGql({
-      id: 1,
-      fare_attributes: [{ id: 1, fare_id: 'a', price: 2, currency_type: 'USD', agency: null }],
+      fare_attributes: [{ id: 1, price: 2, currency_type: 'USD', agency: null }],
       fare_rules: [{ fare_attribute: { id: 1 }, route: null, origin_id: 'Z1', destination_id: null, contains_id: null }],
       fare_leg_rules: [],
       fare_products: [],
@@ -326,7 +320,7 @@ describe('GraphQL conversion', () => {
   it('takes a route\'s network from route_networks, else routes.network_id, and stop areas from the parent too', () => {
     const r = fareRouteFromGql(
       { id: 1, network_id: 'N2', networks: [{ network_id: 'N1' }], agency: { id: 10 } },
-      [{ id: 5, zone_id: null, areas: [{ area_id: 'A' }], parent: { areas: [{ area_id: 'S' }] } }],
+      [fareStopFromGql({ id: 5, zone_id: null, areas: [{ area_id: 'A' }], parent: { areas: [{ area_id: 'S' }] } })],
     )
     expect(r).toEqual({ id: 1, agencyId: 10, networkId: 'N1', stops: [{ zoneId: '', areaIds: ['A', 'S'] }] })
     expect(fareRouteFromGql({ id: 1, network_id: 'N2', networks: [], agency: null }, []).networkId).toBe('N2')
@@ -360,6 +354,7 @@ describe('flex service', () => {
 })
 
 describe('timeframes', () => {
+  const days = (...ymd: string[]) => ymd.map(d => parseDate(d)!)
   const service = (partial: Partial<FareServiceGql>): FareServiceGql => ({
     start_date: '2026-09-13',
     end_date: '2027-01-09',
@@ -377,11 +372,11 @@ describe('timeframes', () => {
 
   it('reads a service calendar like GTFS does', () => {
     const weekdays = service({ monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, removed_dates: ['2026-11-26'], added_dates: ['2026-11-28'] })
-    expect(serviceRunsOn(weekdays, '2026-10-20')).toBe(true) // Tuesday
-    expect(serviceRunsOn(weekdays, '2026-10-24')).toBe(false) // Saturday
-    expect(serviceRunsOn(weekdays, '2026-11-26')).toBe(false) // removed
-    expect(serviceRunsOn(weekdays, '2026-11-28')).toBe(true) // added Saturday
-    expect(serviceRunsOn(weekdays, '2027-02-02')).toBe(false) // after end_date
+    expect(serviceRunsOn(weekdays, parseDate('2026-10-20')!)).toBe(true) // Tuesday
+    expect(serviceRunsOn(weekdays, parseDate('2026-10-24')!)).toBe(false) // Saturday
+    expect(serviceRunsOn(weekdays, parseDate('2026-11-26')!)).toBe(false) // removed
+    expect(serviceRunsOn(weekdays, parseDate('2026-11-28')!)).toBe(true) // added Saturday
+    expect(serviceRunsOn(weekdays, parseDate('2027-02-02')!)).toBe(false) // after end_date
   })
 
   // C-TRAN: a $0 New Year's Eve timeframe beside the regular fare.
@@ -395,10 +390,10 @@ describe('timeframes', () => {
   })
 
   it('drops rules whose timeframes never run in the scenario', () => {
-    const october = dropInactiveTimeframeRules(ctran, ['2026-10-19', '2026-10-20'])
+    const october = dropInactiveTimeframeRules(ctran, days('2026-10-19', '2026-10-20'))
     expect(october.legRules.map(r => r.fareProductId)).toEqual(['regular', 'anytime'])
     expect(fareCategory(deriveRouteFareSummary(october, route()))).toBe('always-paid')
-    const newYear = dropInactiveTimeframeRules(ctran, ['2026-12-31'])
+    const newYear = dropInactiveTimeframeRules(ctran, days('2026-12-31'))
     expect(newYear.legRules).toHaveLength(3)
     expect(fareCategory(deriveRouteFareSummary(newYear, route()))).toBe('sometimes-paid')
     expect(dropInactiveTimeframeRules(ctran, [])).toBe(ctran)
@@ -406,7 +401,8 @@ describe('timeframes', () => {
 
   it('still treats a feed as Fares v2 when every rule is dropped', () => {
     const onlyNye = feed({ legRules: [leg('free', { fromTimeframeGroupId: 'NYE' })], products: [product('free', 0)], timeframes: ctran.timeframes })
-    const s = deriveRouteFareSummary(dropInactiveTimeframeRules(onlyNye, ['2026-10-20']), route())
+    expect(dropInactiveTimeframeRules(onlyNye, days('2026-10-20')).legRules).toEqual([])
+    const s = deriveRouteFareSummary(dropInactiveTimeframeRules(onlyNye, days('2026-10-20')), route())
     expect(s.source).toBe('fares-v2')
     expect(fareCategory(s)).toBe('unknown')
   })

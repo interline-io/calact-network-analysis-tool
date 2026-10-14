@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag'
 import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, WEEKDAY_BY_GETDAY } from '~~/src/core'
 import turfArea from '@turf/area'
-import type { FareCategory, RouteFareSummary } from './fare'
+import type { RouteFareSummary } from './fare'
 
 //////////
 // Flex Services (DRT/Demand-Responsive Transit) Types
@@ -162,7 +162,6 @@ export interface FlexAreaProperties {
   // Standard-fare summary across the area's routes (#454), set by
   // scenario-filter.ts; absent until its routes' fares load.
   fare?: RouteFareSummary
-  fare_category?: FareCategory
 }
 
 /**

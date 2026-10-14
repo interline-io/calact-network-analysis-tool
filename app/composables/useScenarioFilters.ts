@@ -72,8 +72,10 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setQuery({ selectedWeekdays: v ? v.join(',') : undefined }) }
   })
 
-  // Optional integer threshold: absent/empty param = filter off (undefined).
-  function numberParam (key: string): WritableComputedRef<number | undefined> {
+  // Optional non-negative threshold: absent/empty param = filter off
+  // (undefined). Integers by default; fare amounts parse floats to keep cents.
+  function numberParam (key: string, parse: (s: string) => number = Number.parseInt): WritableComputedRef<number | undefined> {
+    const valid = (n: number) => Number.isFinite(n) && n >= 0
     return computed<number | undefined>({
       get: () => {
         const val = route.query[key]?.toString()
@@ -83,10 +85,13 @@ export function useScenarioFilters (): ScenarioFilters {
         // A malformed or negative param reads as "filter off" rather than an
         // active NaN threshold, which would arm the gates, match nothing, and
         // render "NaN" in the filter tag.
-        const n = Number.parseInt(val)
-        return Number.isFinite(n) && n >= 0 ? n : undefined
+        const n = parse(val)
+        return valid(n) ? n : undefined
       },
-      set: (v) => { setQuery({ [key]: v != null ? v.toString() : undefined }) }
+      set: (v) => {
+        const n = v == null ? Number.NaN : Number(v)
+        setQuery({ [key]: valid(n) ? n.toString() : undefined })
+      }
     })
   }
 
@@ -95,26 +100,8 @@ export function useScenarioFilters (): ScenarioFilters {
   const stopVisitsUnder = numberParam('stopVisitsUnder')
   const stopVisitsOver = numberParam('stopVisitsOver')
 
-  // Dollar amounts keep their cents, unlike numberParam's integers.
-  function amountParam (key: string): WritableComputedRef<number | undefined> {
-    return computed<number | undefined>({
-      get: () => {
-        const val = route.query[key]?.toString()
-        if (!val) {
-          return undefined
-        }
-        const n = Number.parseFloat(val)
-        return Number.isFinite(n) && n >= 0 ? n : undefined
-      },
-      set: (v) => {
-        const n = v == null ? Number.NaN : Number(v)
-        setQuery({ [key]: Number.isFinite(n) && n >= 0 ? n.toString() : undefined })
-      }
-    })
-  }
-
-  const fareMax = amountParam('fareMax')
-  const fareMin = amountParam('fareMin')
+  const fareMax = numberParam('fareMax', Number.parseFloat)
+  const fareMin = numberParam('fareMin', Number.parseFloat)
 
   // Same convention as selectedRouteTypes: absent = all categories (no
   // filter), empty = none. Unrecognized values are dropped.

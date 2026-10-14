@@ -1,4 +1,5 @@
 import { gql } from 'graphql-tag'
+import { fmtDate, WEEKDAY_BY_GETDAY } from '~~/src/core'
 
 // Per-route fare summary from GTFS Fares v1 and v2 (#454). The rules use only
 // GTFS spec semantics, never names or other strings in the data. See
@@ -15,10 +16,8 @@ export const FARE_TABLE_LIMIT = 100_000
 export const feedVersionFaresQuery = gql`
 query FeedVersionFares($sha1: String!, $limit: Int!) {
   feed_versions(where: {sha1: $sha1}) {
-    id
     fare_attributes(limit: $limit) {
       id
-      fare_id
       price
       currency_type
       agency {
@@ -115,10 +114,8 @@ query FareStops($ids: [Int!], $limit: Int!) {
 }`
 
 export interface FeedVersionFaresGql {
-  id: number
   fare_attributes: {
     id: number
-    fare_id: string
     price: number | null
     currency_type: string | null
     agency: { id: number } | null
@@ -226,11 +223,12 @@ export interface FeedFares {
     timeframeGroupId: string
     service?: FareServiceGql
   }[]
+  // Which fare versions the feed publishes, from the tables as loaded. They
+  // stay set when dropInactiveTimeframeRules narrows legRules.
+  hasV1: boolean
+  hasV2: boolean
   // Some table hit FARE_TABLE_LIMIT, so the data may be incomplete.
   truncated: boolean
-  // Leg rules dropped by dropInactiveTimeframeRules. The feed still has
-  // Fares v2 data even if every rule was dropped.
-  droppedLegRules?: number
 }
 
 // What the summary needs to know about one route.
@@ -252,6 +250,8 @@ export interface FareStop {
 export function feedFaresFromGql (fv: FeedVersionFaresGql, limit = FARE_TABLE_LIMIT): FeedFares {
   const lists = [fv.fare_attributes, fv.fare_rules, fv.fare_leg_rules, fv.fare_products, fv.rider_categories]
   return {
+    hasV1: (fv.fare_attributes?.length ?? 0) > 0,
+    hasV2: (fv.fare_leg_rules?.length ?? 0) > 0,
     fareAttributes: (fv.fare_attributes || []).filter(a => a.price != null).map(a => ({
       id: a.id,
       price: a.price!,
@@ -292,12 +292,12 @@ export function feedFaresFromGql (fv: FeedVersionFaresGql, limit = FARE_TABLE_LI
   }
 }
 
-export function fareRouteFromGql (route: FareRouteGql, stops: FareStopGql[]): FareRoute {
+export function fareRouteFromGql (route: FareRouteGql, stops: FareStop[]): FareRoute {
   return {
     id: route.id,
     agencyId: route.agency?.id,
     networkId: route.networks?.[0]?.network_id || route.network_id || undefined,
-    stops: stops.map(fareStopFromGql),
+    stops,
   }
 }
 
@@ -309,42 +309,46 @@ export function fareStopFromGql (stop: FareStopGql): FareStop {
   return { zoneId: stop.zone_id || '', areaIds: [...areaIds] }
 }
 
-// Drops the leg rules whose timeframes never apply on the given dates
-// (`yyyy-MM-dd`), so a fare limited to a holiday drops out of a scenario that
-// doesn't include it. Only dates are checked, not times of day. A rule whose
-// timeframe group has no timeframes in the data is kept.
-export function dropInactiveTimeframeRules (fares: FeedFares, dates: string[]): FeedFares {
+// Drops the leg rules whose timeframes never apply on the given dates, so a
+// fare limited to a holiday drops out of a scenario that doesn't include it.
+// Only dates are checked, not times of day. A rule whose timeframe group has
+// no timeframes in the data is kept.
+export function dropInactiveTimeframeRules (fares: FeedFares, dates: Date[]): FeedFares {
   if (fares.timeframes.length === 0 || dates.length === 0) {
     return fares
   }
+  const days = dates.map(serviceDay)
   const groups = new Map<string, boolean>()
   for (const t of fares.timeframes) {
-    const active = !!t.service && dates.some(d => serviceRunsOn(t.service!, d))
+    const active = !!t.service && runsOnAny(t.service, days)
     groups.set(t.timeframeGroupId, (groups.get(t.timeframeGroupId) ?? false) || active)
   }
   const applies = (group: string) => group === '' || groups.get(group) !== false
   const legRules = fares.legRules.filter(r => applies(r.fromTimeframeGroupId) && applies(r.toTimeframeGroupId))
-  const dropped = fares.legRules.length - legRules.length
-  return dropped === 0 ? fares : { ...fares, legRules, droppedLegRules: dropped }
+  return legRules.length === fares.legRules.length ? fares : { ...fares, legRules }
 }
-
-const SERVICE_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 
 // GTFS calendar semantics: added dates always run, removed dates never do,
 // and otherwise the weekday flags apply between the start and end dates.
-export function serviceRunsOn (service: FareServiceGql, date: string): boolean {
-  if (service.added_dates?.includes(date)) {
-    return true
-  }
-  if (service.removed_dates?.includes(date)) {
-    return false
-  }
-  if (!service.start_date || !service.end_date || date < service.start_date || date > service.end_date) {
-    return false
-  }
-  const [y, m, d] = date.split('-').map(Number)
-  const weekday = SERVICE_WEEKDAYS[new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay()]!
-  return service[weekday] === 1
+export function serviceRunsOn (service: FareServiceGql, date: Date): boolean {
+  return runsOnAny(service, [serviceDay(date)])
+}
+
+interface ServiceDay {
+  ymd: string
+  weekday: typeof WEEKDAY_BY_GETDAY[number]
+}
+
+function serviceDay (date: Date): ServiceDay {
+  return { ymd: fmtDate(date), weekday: WEEKDAY_BY_GETDAY[date.getDay()]! }
+}
+
+function runsOnAny (service: FareServiceGql, days: ServiceDay[]): boolean {
+  const added = new Set(service.added_dates)
+  const removed = new Set(service.removed_dates)
+  const { start_date: start, end_date: end } = service
+  return days.some(({ ymd, weekday }) => added.has(ymd)
+    || (!removed.has(ymd) && !!start && !!end && ymd >= start && ymd <= end && service[weekday] === 1))
 }
 
 // Whether matching any rule depends on the stops' zones or areas, so the phase
@@ -379,7 +383,6 @@ export interface RouteFareSummary {
   // trip on the route, in currency units. Absent when the fare is unknown.
   minAmount?: number
   maxAmount?: number
-  currency?: string
   flags: RouteFareFlag[]
 }
 
@@ -434,17 +437,6 @@ export function fareCategory (summary: RouteFareSummary): FareCategory {
   return 'always-paid'
 }
 
-// "$1.50" or "$0.00 to $3.25"; '' when unknown.
-export function formatFareRange (summary: RouteFareSummary): string {
-  const { minAmount, maxAmount } = summary
-  if (minAmount == null || maxAmount == null) {
-    return ''
-  }
-  return minAmount === maxAmount
-    ? formatFareAmount(minAmount)
-    : `${formatFareAmount(minAmount)} to ${formatFareAmount(maxAmount)}`
-}
-
 export function formatFareAmount (amount: number): string {
   return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
@@ -453,35 +445,36 @@ export function formatFareAmount (amount: number): string {
 // mixing currencies would make the range meaningless.
 const FARE_CURRENCY = 'USD'
 
+export const NO_FARES_SUMMARY: Readonly<RouteFareSummary> = Object.freeze({ source: 'none', flags: [] })
+
 export function deriveRouteFareSummary (fares: FeedFares, route: FareRoute): RouteFareSummary {
-  const hasV2 = fares.legRules.length > 0 || (fares.droppedLegRules ?? 0) > 0
-  const hasV1 = fares.fareAttributes.length > 0
-  if (!hasV2 && !hasV1) {
-    return { source: 'none', flags: [] }
+  if (!fares.hasV2 && !fares.hasV1) {
+    return { ...NO_FARES_SUMMARY, flags: [] }
   }
   if (fares.truncated) {
-    return { source: hasV2 ? 'fares-v2' : 'fares-v1', flags: ['fare-data-truncated'] }
+    return { source: fares.hasV2 ? 'fares-v2' : 'fares-v1', flags: ['fare-data-truncated'] }
   }
-  const summary = deriveWithFallback(fares, route, hasV1)
+  const index = feedIndex(fares)
+  const summary = deriveWithFallback(index, route)
   // Flex service has no stops to match zones and areas against.
-  if (route.stops.length === 0 && feedFaresUseStops(fares)) {
+  if (route.stops.length === 0 && index.usesStops) {
     summary.flags.push('zones-not-matched')
   }
   return summary
 }
 
-function deriveWithFallback (fares: FeedFares, route: FareRoute, hasV1: boolean): RouteFareSummary {
-  if (fares.legRules.length === 0 && !fares.droppedLegRules) {
-    return summarize('fares-v1', deriveV1(fares, route))
+function deriveWithFallback (index: FeedIndex, route: FareRoute): RouteFareSummary {
+  if (!index.fares.hasV2) {
+    return summarize('fares-v1', deriveV1(index, route))
   }
-  const v2 = deriveV2(fares, route)
-  if (v2.amounts.length > 0 || !hasV1) {
+  const v2 = deriveV2(index, route)
+  if (v2.amounts.size > 0 || !index.fares.hasV1) {
     return summarize('fares-v2', v2)
   }
   // The spec prefers v2 when a feed has both, but does not forbid using v1
   // for a route v2 cannot price (MTS: no default rider category).
-  const v1 = deriveV1(fares, route)
-  if (v1.amounts.length === 0) {
+  const v1 = deriveV1(index, route)
+  if (v1.amounts.size === 0) {
     return summarize('fares-v2', v2)
   }
   // Keep only the v2 flags that say why v2 failed; its products went unused.
@@ -490,18 +483,20 @@ function deriveWithFallback (fares: FeedFares, route: FareRoute, hasV1: boolean)
   return summarize('fares-v1', { amounts: v1.amounts, flags })
 }
 
+// Distinct amounts, so a route with many legs at the same few prices stays small.
 interface Derived {
-  amounts: number[]
+  amounts: Set<number>
   flags: Set<RouteFareFlag>
 }
 
 function summarize (source: RouteFareSource, d: Derived): RouteFareSummary {
   const flags = new Set(d.flags)
-  if (d.amounts.some(a => a < 0)) {
+  const amounts = [...d.amounts]
+  if (amounts.some(a => a < 0)) {
     flags.add('negative-amount')
     return { source, flags: [...flags] }
   }
-  if (d.amounts.length === 0) {
+  if (amounts.length === 0) {
     const explained = flags.has('v2-route-without-network') || flags.has('v2-no-default-category')
     if (!explained) {
       flags.add('no-matching-rule')
@@ -510,9 +505,8 @@ function summarize (source: RouteFareSource, d: Derived): RouteFareSummary {
   }
   return {
     source,
-    minAmount: Math.min(...d.amounts),
-    maxAmount: Math.max(...d.amounts),
-    currency: FARE_CURRENCY,
+    minAmount: Math.min(...amounts),
+    maxAmount: Math.max(...amounts),
     flags: [...flags],
   }
 }
@@ -559,45 +553,108 @@ export function combineFareSummaries (summaries: RouteFareSummary[]): RouteFareS
     source,
     minAmount: Math.min(...known.map(s => s.minAmount!)),
     maxAmount: Math.max(...known.map(s => s.maxAmount!)),
-    currency: FARE_CURRENCY,
     flags,
   }
+}
+
+//////////
+// Per-feed index
+//////////
+
+type LegRule = FeedFares['legRules'][number]
+type FareRule = FeedFares['fareRules'][number]
+
+// Lookups the derivation needs for every route of a feed version, built once
+// per FeedFares rather than per route. A regional feed has thousands of
+// products and leg rules and a hundred or more routes.
+interface FeedIndex {
+  fares: FeedFares
+  usesStops: boolean
+  // v1: USD fares by id, and fare rules by route (undefined = no route_id).
+  usdAttrs: FeedFares['fareAttributes']
+  usdAttrsById: Map<number, FeedFares['fareAttributes'][number]>
+  fareRulesByRoute: Map<number | undefined, FareRule[]>
+  // v2
+  priorityMode: boolean
+  legRulesByNetwork: Map<string, LegRule[]>
+  productsById: Map<string, FeedFares['products']>
+  defaultCategories: Set<string>
+  hasCategories: boolean
+}
+
+const feedIndexes = new WeakMap<FeedFares, FeedIndex>()
+
+function feedIndex (fares: FeedFares): FeedIndex {
+  let index = feedIndexes.get(fares)
+  if (!index) {
+    const usdAttrs = fares.fareAttributes.filter(a => a.currency === FARE_CURRENCY)
+    index = {
+      fares,
+      usesStops: feedFaresUseStops(fares),
+      usdAttrs,
+      usdAttrsById: new Map(usdAttrs.map(a => [a.id, a])),
+      fareRulesByRoute: groupBy(fares.fareRules, r => r.routeId),
+      // The spec has two matching modes. With a rule_priority column, empty
+      // fields match anything and the highest-priority matches win. Without
+      // one, an empty field means "everything not named by another rule".
+      // GraphQL can't tell an absent column from an empty one, so any value
+      // turns on priority mode.
+      priorityMode: fares.legRules.some(r => r.rulePriority != null),
+      legRulesByNetwork: groupBy(fares.legRules, r => r.networkId),
+      productsById: groupBy(fares.products.filter(p => p.currency === FARE_CURRENCY), p => p.fareProductId),
+      defaultCategories: new Set(fares.riderCategories.filter(c => c.isDefault).map(c => c.riderCategoryId)),
+      hasCategories: fares.riderCategories.length > 0,
+    }
+    feedIndexes.set(fares, index)
+  }
+  return index
+}
+
+function groupBy<T, K> (items: T[], key: (item: T) => K): Map<K, T[]> {
+  const groups = new Map<K, T[]>()
+  for (const item of items) {
+    const k = key(item)
+    const list = groups.get(k)
+    if (list) {
+      list.push(item)
+    } else {
+      groups.set(k, [item])
+    }
+  }
+  return groups
 }
 
 //////////
 // Fares v1
 //////////
 
-function deriveV1 (fares: FeedFares, route: FareRoute): Derived {
+function deriveV1 (index: FeedIndex, route: FareRoute): Derived {
   const flags = new Set<RouteFareFlag>()
-  const amounts: number[] = []
+  const amounts = new Set<number>()
   // Prices reached through rules with no zone fields, or through no rules.
   // Zones explain a range; without them several prices are indistinct.
   const zonelessPrices = new Set<number>()
   const zones = new Set(route.stops.map(s => s.zoneId).filter(Boolean))
-  const attrs = fares.fareAttributes.filter(a => a.currency === FARE_CURRENCY)
   // fare_attributes.agency_id is required only when a feed has several
   // agencies, so an empty one means the feed's only agency.
   const agencyMatches = (agencyId?: number) => agencyId == null || agencyId === route.agencyId
 
-  if (fares.fareRules.length === 0) {
+  if (index.fares.fareRules.length === 0) {
     // No fare_rules.txt: every fare applies to all routes of its agency.
-    for (const a of attrs) {
+    for (const a of index.usdAttrs) {
       if (agencyMatches(a.agencyId)) {
-        amounts.push(a.price)
+        amounts.add(a.price)
         zonelessPrices.add(a.price)
       }
     }
   } else {
-    // A fare with no rules in a feed that has rules applies to nothing.
-    const byId = new Map(attrs.map(a => [a.id, a]))
-    for (const rule of fares.fareRules) {
-      const attr = byId.get(rule.fareAttributeId)
-      if (!attr) {
-        continue
-      }
-      const routeOk = rule.routeId != null ? rule.routeId === route.id : agencyMatches(attr.agencyId)
-      if (!routeOk) {
+    // Rules naming this route, and rules naming no route (which apply to
+    // every route of the fare's agency). A fare with no rules in a feed that
+    // has rules applies to nothing.
+    const rules = [...(index.fareRulesByRoute.get(route.id) || []), ...(index.fareRulesByRoute.get(undefined) || [])]
+    for (const rule of rules) {
+      const attr = index.usdAttrsById.get(rule.fareAttributeId)
+      if (!attr || (rule.routeId == null && !agencyMatches(attr.agencyId))) {
         continue
       }
       // A zone rule applies only when the route serves that zone in the scenario.
@@ -605,7 +662,7 @@ function deriveV1 (fares: FeedFares, route: FareRoute): Derived {
       if (!ruleZones.every(z => z === '' || zones.has(z))) {
         continue
       }
-      amounts.push(attr.price)
+      amounts.add(attr.price)
       if (ruleZones.every(z => z === '')) {
         zonelessPrices.add(attr.price)
       }
@@ -621,46 +678,25 @@ function deriveV1 (fares: FeedFares, route: FareRoute): Derived {
 // Fares v2
 //////////
 
-type LegRule = FeedFares['legRules'][number]
-
 // One leg's stop areas, restricted to the areas the rules name.
 interface Leg {
   from: string[]
   to: string[]
 }
 
-function deriveV2 (fares: FeedFares, route: FareRoute): Derived {
+function deriveV2 (index: FeedIndex, route: FareRoute): Derived {
   const flags = new Set<RouteFareFlag>()
-  const amounts: number[] = []
+  const amounts = new Set<number>()
+  const { priorityMode, legRulesByNetwork, productsById, defaultCategories, hasCategories } = index
 
-  // The spec has two matching modes. With a rule_priority column, empty
-  // fields match anything and the highest-priority matches win. Without one,
-  // an empty field means "everything not named by another rule". GraphQL
-  // can't tell an absent column from an empty one, so any value turns on
-  // priority mode.
-  const priorityMode = fares.legRules.some(r => r.rulePriority != null)
   const network = route.networkId ?? ''
-  let rules: LegRule[]
-  if (priorityMode) {
-    rules = fares.legRules.filter(r => r.networkId === '' || (network !== '' && r.networkId === network))
-  } else {
-    const named = network !== '' && fares.legRules.some(r => r.networkId === network)
-    const want = named ? network : ''
-    rules = fares.legRules.filter(r => r.networkId === want)
-  }
+  const named = network !== '' ? legRulesByNetwork.get(network) || [] : []
+  const unnamed = legRulesByNetwork.get('') || []
+  const rules = priorityMode ? [...unnamed, ...named] : (named.length > 0 ? named : unnamed)
   if (rules.length === 0) {
     flags.add(network ? 'no-matching-rule' : 'v2-route-without-network')
     return { amounts, flags }
   }
-
-  const productsById = new Map<string, FeedFares['products']>()
-  for (const p of fares.products) {
-    const list = productsById.get(p.fareProductId) || []
-    list.push(p)
-    productsById.set(p.fareProductId, list)
-  }
-  const defaultCategories = new Set(fares.riderCategories.filter(c => c.isDefault).map(c => c.riderCategoryId))
-  const hasCategories = fares.riderCategories.length > 0
 
   // The standard fare for a group of rules the spec offers as alternatives for
   // the same leg: the cheapest eligible product. Default-category products are
@@ -669,7 +705,6 @@ function deriveV2 (fares: FeedFares, route: FareRoute): Derived {
   // out passes sold on the same rule and picks the cheapest fare media.
   const groupAmount = (group: LegRule[]): number | undefined => {
     const products = group.flatMap(r => productsById.get(r.fareProductId) || [])
-      .filter(p => p.currency === FARE_CURRENCY)
     // Only meaningful against a default: without one, every category is "other".
     if (defaultCategories.size > 0 && products.some(p => p.riderCategoryId !== '' && !defaultCategories.has(p.riderCategoryId))) {
       flags.add('has-other-categories')
@@ -693,17 +728,11 @@ function deriveV2 (fares: FeedFares, route: FareRoute): Derived {
   // Rules that match the same leg at the same time are alternatives; rules
   // that differ in area or timeframe price different legs or times.
   const addGroups = (matched: LegRule[]) => {
-    const groups = new Map<string, LegRule[]>()
-    for (const r of matched) {
-      const key = [r.fromAreaId, r.toAreaId, r.fromTimeframeGroupId, r.toTimeframeGroupId].join('\u0000')
-      const list = groups.get(key) || []
-      list.push(r)
-      groups.set(key, list)
-    }
+    const groups = groupBy(matched, r => [r.fromAreaId, r.toAreaId, r.fromTimeframeGroupId, r.toTimeframeGroupId].join('\u0000'))
     for (const group of groups.values()) {
       const amount = groupAmount(group)
       if (amount != null) {
-        amounts.push(amount)
+        amounts.add(amount)
       }
     }
   }
@@ -744,25 +773,27 @@ function routeLegs (rules: LegRule[], route: FareRoute): Leg[] {
   }
   // Stops with the same named areas make the same legs, so pair signatures
   // rather than stops. A signature pairs with itself only if two stops share it.
-  const sigs = new Map<string, { leg: Leg, count: number }>()
+  const sigs = new Map<string, { from: string[], to: string[], count: number }>()
   for (const stop of route.stops) {
     const from = stop.areaIds.filter(a => fromNamed.has(a)).sort()
     const to = stop.areaIds.filter(a => toNamed.has(a)).sort()
     const key = from.join(',') + '|' + to.join(',')
-    const entry = sigs.get(key) || { leg: { from, to }, count: 0 }
+    const entry = sigs.get(key) || { from, to, count: 0 }
     entry.count++
     sigs.set(key, entry)
   }
   // A route with one stop in the scenario has no leg inside it; pair the stop
   // with itself rather than leave the route unpriced.
   const single = route.stops.length < 2
-  const legs: Leg[] = []
+  // Only a leg's from and to areas matter, so different signature pairs often
+  // make the same leg; keep each once.
+  const legs = new Map<string, Leg>()
   for (const [ka, a] of sigs) {
     for (const [kb, b] of sigs) {
       if (ka !== kb || a.count >= 2 || single) {
-        legs.push({ from: a.leg.from, to: b.leg.to })
+        legs.set(a.from.join(',') + '|' + b.to.join(','), { from: a.from, to: b.to })
       }
     }
   }
-  return legs
+  return [...legs.values()]
 }

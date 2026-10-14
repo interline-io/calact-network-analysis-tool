@@ -15,10 +15,8 @@ export default defineEventHandler(async (event) => {
 
   return streamPhaseResponse(event, 'fares', 'Starting fares phase', (client, emit, onError) =>
     runFaresPhase({
-      feedVersions: config.feedVersions,
+      ...config,
       feedVersionRouteIds: config.feedVersionRouteIds || {},
       routeStopIds: config.routeStopIds || {},
-      startDate: config.startDate,
-      endDate: config.endDate,
     }, client, emit, { onError }))
 })

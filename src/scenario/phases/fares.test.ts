@@ -6,7 +6,6 @@ import type { ScenarioProgress } from '../scenario'
 
 function fvFares (partial: Partial<FeedVersionFaresGql>): FeedVersionFaresGql {
   return {
-    id: 1,
     fare_attributes: [],
     fare_rules: [],
     fare_leg_rules: [],
@@ -48,7 +47,7 @@ async function run (client: GraphQLClient, feedVersionRouteIds: Record<string, n
 describe('runFaresPhase', () => {
   it('emits a summary for each route of each feed version', async () => {
     const { client, query } = mockClient({
-      a: fvFares({ fare_attributes: [{ id: 1, fare_id: 'f', price: 2, currency_type: 'USD', agency: null }] }),
+      a: fvFares({ fare_attributes: [{ id: 1, price: 2, currency_type: 'USD', agency: null }] }),
       b: fvFares({}),
     })
     const { events, summaries } = await run(client, { a: [1, 2], b: [3] })
@@ -65,8 +64,8 @@ describe('runFaresPhase', () => {
     const { client, query } = mockClient({
       a: fvFares({
         fare_attributes: [
-          { id: 1, fare_id: 'inner', price: 2, currency_type: 'USD', agency: null },
-          { id: 2, fare_id: 'outer', price: 4, currency_type: 'USD', agency: null },
+          { id: 1, price: 2, currency_type: 'USD', agency: null },
+          { id: 2, price: 4, currency_type: 'USD', agency: null },
         ],
         fare_rules: [
           { fare_attribute: { id: 1 }, route: null, origin_id: '1', destination_id: null, contains_id: null },
@@ -85,7 +84,7 @@ describe('runFaresPhase', () => {
   it('prices flex routes, which have no scenario stops, without fetching stops for them', async () => {
     const { client, query } = mockClient({
       a: fvFares({
-        fare_attributes: [{ id: 1, fare_id: 'dar', price: 1, currency_type: 'USD', agency: null }],
+        fare_attributes: [{ id: 1, price: 1, currency_type: 'USD', agency: null }],
         fare_rules: [
           { fare_attribute: { id: 1 }, route: { id: 7 }, origin_id: null, destination_id: null, contains_id: null },
           { fare_attribute: { id: 1 }, route: null, origin_id: 'Z', destination_id: null, contains_id: null },
