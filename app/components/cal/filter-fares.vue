@@ -2,7 +2,7 @@
   <aside class="menu">
     <cat-fieldset class="mb-4">
       <template #label>
-        <cat-tooltip text="Keeps routes and flex service areas by their standard single-ride fare: the feed's default rider category in GTFS Fares v2, or the published fare in Fares v1. A flex area takes the fares of the routes serving it. Many agencies publish no fares, so keep Unknown fare selected to avoid hiding them.">
+        <cat-tooltip text="Keeps routes and flex service areas by their standard single-ride fare: the feed's default rider category in GTFS Fares v2, or the published fare in Fares v1. A flex area takes the fares of the routes serving it. A fare offered only on certain dates, such as a holiday fare, counts only if it applies in the query's date range. Many agencies publish no fares, so keep Unknown fare selected to avoid hiding them.">
           Fare category
           <cat-icon icon="information" />
         </cat-tooltip>
