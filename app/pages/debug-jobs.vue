@@ -117,7 +117,7 @@ async function callProxy (url: string, init: RequestInit = {}) {
 
 async function fetchJobs () {
   // jobApiPath hits the tlv2-auth proxy: /proxy/{backend}/{...upstreamPath}.
-  // Backend "default" → runtimeConfig.tlv2.proxyBase.default (the tlv2 base).
+  // Backend "default" → runtimeConfig.tlv2proxy.backends.default (the tlv2 base).
   const qs = states.value ? `?states=${encodeURIComponent(states.value)}` : ''
   await callProxy(`${jobApiPath(queue.value)}${qs}`)
 }
