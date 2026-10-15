@@ -1,28 +1,33 @@
-import { navigateTo } from '#imports'
+import type { Router } from 'vue-router'
+import { PendingQuery } from './pendingQuery'
 
-// Shared URL plumbing for the URL-backed composables. setQuery merges new
-// params over the current route query and strips null/undefined so removed
-// values disappear from the URL — one navigation per call so multiple keys
-// set together don't race each other.
+const pendingQueries = new WeakMap<Router, PendingQuery>()
+
+// Shared URL plumbing for the URL-backed composables: read through `query`,
+// write through setQuery. setQuery takes several keys at once, and writes in
+// the same tick share one navigation, so keys set together can't race.
 export function useUrlQuery () {
   const route = useRoute()
+  const router = useRouter()
+  let pendingQuery = pendingQueries.get(router)
+  if (!pendingQuery) {
+    pendingQuery = new PendingQuery(() => route.query, query => router.replace({ query }))
+    pendingQueries.set(router, pendingQuery)
+  }
+  const pq = pendingQuery
+  const query = pq.query
 
-  function setQuery (params: Record<string, any>) {
-    const merged: Record<string, any> = {}
-    const source = { ...route.query, ...params }
-    for (const k in source) {
-      if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-    }
-    return navigateTo({ replace: true, query: merged })
+  function setQuery (params: Record<string, any>): Promise<void> {
+    return pq.set(params)
   }
 
   // CSV array param convention: missing → undefined (filter not applied),
   // explicitly empty → [] (all unchecked), otherwise → split comma list.
   function getArrayParam (key: string): string[] | undefined {
-    if (!Object.prototype.hasOwnProperty.call(route.query, key)) {
+    if (!Object.prototype.hasOwnProperty.call(query.value, key)) {
       return undefined
     }
-    const param = route.query[key]
+    const param = query.value[key]
     if (!param) {
       return []
     }
@@ -39,5 +44,5 @@ export function useUrlQuery () {
     }
   }
 
-  return { setQuery, getArrayParam, setArrayParam }
+  return { query, setQuery, getArrayParam, setArrayParam }
 }

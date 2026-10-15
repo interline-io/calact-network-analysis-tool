@@ -13,6 +13,7 @@
         <cat-input
           :model-value="frequencyUnder"
           optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
           suffix="minutes"
@@ -32,6 +33,7 @@
         <cat-input
           :model-value="frequencyOver"
           optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
           suffix="minutes"
@@ -58,6 +60,7 @@
         <cat-input
           :model-value="stopVisitsUnder"
           optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
           suffix="visits"
@@ -77,6 +80,7 @@
         <cat-input
           :model-value="stopVisitsOver"
           optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
           suffix="visits"
@@ -108,6 +112,7 @@
               <cat-input
                 :model-value="stopBufferRadius"
                 optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
                 max="1600"
@@ -171,6 +176,7 @@
               <cat-input
                 :model-value="clusterDistance"
                 optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
                 :disabled="!clusterEnabled"
@@ -209,6 +215,7 @@
               <cat-input
                 :model-value="clusterMaxTransferMinutes"
                 optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
                 suffix="minutes"

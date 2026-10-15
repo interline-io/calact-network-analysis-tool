@@ -38,6 +38,7 @@
           <cat-input
             :model-value="fareMax"
             optional
+            :model-modifiers="{ lazy: true }"
             type="number"
             min="0"
             step="0.25"
@@ -59,6 +60,7 @@
           <cat-input
             :model-value="fareMin"
             optional
+            :model-modifiers="{ lazy: true }"
             type="number"
             min="0"
             step="0.25"

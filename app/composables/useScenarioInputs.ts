@@ -43,11 +43,10 @@ interface ScenarioInputs {
 
 // URL-backed inputs that drive scenario fetching.
 export function useScenarioInputs (): ScenarioInputs {
-  const route = useRoute()
-  const { setQuery, getArrayParam } = useUrlQuery()
+  const { query, setQuery, getArrayParam } = useUrlQuery()
 
   const cannedBbox = computed<string>({
-    get: () => route.query.example?.toString() || 'downtown-portland',
+    get: () => query.value.example?.toString() || 'downtown-portland',
     // Clear explicit bbox so the canned bbox value takes effect.
     set: (v) => { setQuery({ example: v || undefined, bbox: undefined }) }
   })
@@ -55,18 +54,18 @@ export function useScenarioInputs (): ScenarioInputs {
   const bbox = computed<Bbox>({
     get: () => {
       const defaultBbox = cannedBboxes[cannedBbox.value as keyof typeof cannedBboxes]?.bboxString || ''
-      return parseBbox(route.query.bbox?.toString() ?? defaultBbox)
+      return parseBbox(query.value.bbox?.toString() ?? defaultBbox)
     },
     set: (v) => { setQuery({ bbox: bboxString(v) }) }
   })
 
   const startDate = computed<Date>({
-    get: () => parseDate(route.query.startDate?.toString()) || defaultStartDate(),
+    get: () => parseDate(query.value.startDate?.toString()) || defaultStartDate(),
     set: (v) => { setQuery({ startDate: asDateString(v) }) }
   })
 
   const endDate = computed<Date>({
-    get: () => parseDate(route.query.endDate?.toString()) || defaultEndDate(startDate.value),
+    get: () => parseDate(query.value.endDate?.toString()) || defaultEndDate(startDate.value),
     set: (v) => { setQuery({ endDate: asDateString(v) }) }
   })
 
@@ -76,51 +75,51 @@ export function useScenarioInputs (): ScenarioInputs {
   })
 
   const geomSource = computed<string>({
-    get: () => route.query.geomSource?.toString() || 'bbox',
+    get: () => query.value.geomSource?.toString() || 'bbox',
     set: (v) => { setQuery({ geomSource: v }) }
   })
 
   const geomLayer = computed<string>({
-    get: () => route.query.geomLayer?.toString() || 'place',
+    get: () => query.value.geomLayer?.toString() || 'place',
     set: (v) => { setQuery({ geomLayer: v || undefined }) }
   })
 
   const geoDatasetName = computed<string>({
-    get: () => route.query.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName,
+    get: () => query.value.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName,
     set: (v) => { setQuery({ geoDatasetName: v === SCENARIO_DEFAULTS.geoDatasetName ? undefined : v }) }
   })
 
   const includeFixedRoute = computed<boolean | undefined>({
-    get: () => route.query.includeFixedRoute?.toString() !== 'false',
+    get: () => query.value.includeFixedRoute?.toString() !== 'false',
     set: (v) => { setQuery({ includeFixedRoute: v ? undefined : 'false' }) }
   })
 
   const includeFlexAreas = computed<boolean | undefined>({
-    get: () => route.query.includeFlexAreas?.toString() !== 'false',
+    get: () => query.value.includeFlexAreas?.toString() !== 'false',
     set: (v) => { setQuery({ includeFlexAreas: v ? undefined : 'false' }) }
   })
 
   // Census demographics: aggregation-layer ACS values + stop-buffer passes.
   const includeCensus = computed<boolean | undefined>({
-    get: () => route.query.includeCensus?.toString() !== 'false',
+    get: () => query.value.includeCensus?.toString() !== 'false',
     set: (v) => { setQuery({ includeCensus: v ? undefined : 'false' }) }
   })
 
   // Display toggle that filters fixed-route features out of the map; on by default.
   const fixedRouteEnabled = computed<boolean | undefined>({
-    get: () => route.query.fixedRouteEnabled?.toString() !== 'false',
+    get: () => query.value.fixedRouteEnabled?.toString() !== 'false',
     set: (v) => { setQuery({ fixedRouteEnabled: v ? undefined : 'false' }) }
   })
 
   const fvids = computed<string>({
-    get: () => route.query.fvids?.toString() || '',
+    get: () => query.value.fvids?.toString() || '',
     set: (v) => { setQuery({ fvids: v || undefined }) }
   })
 
   // Omit URL param when at default to keep shared links short.
   const stopBufferRadius = computed<number>({
     get: () => {
-      const raw = route.query.stopBufferRadius?.toString()
+      const raw = query.value.stopBufferRadius?.toString()
       if (raw == null || raw === '') {
         return STOP_BUFFER_DEFAULT_RADIUS
       }
@@ -137,11 +136,11 @@ export function useScenarioInputs (): ScenarioInputs {
   // elides against that same effective default so picking the default keeps tracking
   // aggregateLayer rather than pinning a stale value into the URL.
   const stopBufferLayer = computed<string>({
-    get: () => route.query.stopBufferLayer?.toString()
-      || route.query.aggregateLayer?.toString()
+    get: () => query.value.stopBufferLayer?.toString()
+      || query.value.aggregateLayer?.toString()
       || STOP_BUFFER_DEFAULT_LAYER,
     set: (v) => {
-      const fallback = route.query.aggregateLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER
+      const fallback = query.value.aggregateLayer?.toString() || STOP_BUFFER_DEFAULT_LAYER
       setQuery({ stopBufferLayer: v === fallback ? undefined : v })
     }
   })
@@ -149,7 +148,7 @@ export function useScenarioInputs (): ScenarioInputs {
   // meters. 0 (default/elided) disables clustering. Mirrors stopBufferRadius.
   const clusterDistance = computed<number>({
     get: () => {
-      const raw = route.query.clusterDistance?.toString()
+      const raw = query.value.clusterDistance?.toString()
       if (raw == null || raw === '') {
         return 0
       }

@@ -243,7 +243,7 @@ import { useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
 
 // Initialize composables
-const { setQuery } = useUrlQuery()
+const { query, setQuery } = useUrlQuery()
 const {
   showAggAreas,
   aggClipMode,
@@ -289,7 +289,6 @@ definePageMeta({
   layout: false
 })
 
-const route = useRoute()
 const router = useRouter()
 
 // Clears all loaded scenario and analysis result state
@@ -463,7 +462,7 @@ const activeTabPanelWidth = computed(() => {
 // Advanced report query parameter support
 const advancedReport = computed({
   get () {
-    return route.query.advancedReport?.toString() || ''
+    return query.value.advancedReport?.toString() || ''
   },
   set (v: string) {
     setQuery({ advancedReport: v || undefined })
@@ -478,7 +477,7 @@ watch([activeTab, geomSource, querySubmitted], () => {
   displayEditBboxMode.value = activeTab.value.tab === 'query' && geomSource.value === 'bbox' && !querySubmitted.value
 })
 
-const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (route.query.geomSource?.toString() || 'bbox') === 'bbox')
+const displayEditBboxMode = ref(activeTab.value.tab === 'query' && (query.value.geomSource?.toString() || 'bbox') === 'bbox')
 
 // Initialize active tab based on advancedReport query parameter
 onMounted(() => {

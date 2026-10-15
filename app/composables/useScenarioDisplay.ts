@@ -33,11 +33,10 @@ interface ScenarioDisplay {
 // their descendants. Each consumer calls this directly instead of receiving
 // values as props, so adding a new flag is a one-file change.
 export function useScenarioDisplay (): ScenarioDisplay {
-  const route = useRoute()
-  const { setQuery } = useUrlQuery()
+  const { query, setQuery } = useUrlQuery()
 
   const showAggAreas = computed<boolean>({
-    get: () => route.query.showAggAreas?.toString() === 'true',
+    get: () => query.value.showAggAreas?.toString() === 'true',
     set: (v) => { setQuery({ showAggAreas: v ? 'true' : undefined }) }
   })
 
@@ -46,67 +45,67 @@ export function useScenarioDisplay (): ScenarioDisplay {
   // off state of each is worth a URL parameter.
   const aggClipMode = computed<AggClipMode>({
     get: () => {
-      const v = route.query.aggClip?.toString()
+      const v = query.value.aggClip?.toString()
       return AGG_CLIP_MODE_OPTIONS.find(o => o.value === v)?.value || AGG_CLIP_MODE_DEFAULT
     },
     set: (v) => { setQuery({ aggClip: v === AGG_CLIP_MODE_DEFAULT ? undefined : v }) }
   })
 
   const showStopBuffer = computed<boolean>({
-    get: () => route.query.showStopBuffer?.toString() === 'true',
+    get: () => query.value.showStopBuffer?.toString() === 'true',
     set: (v) => { setQuery({ showStopBuffer: v ? 'true' : undefined }) }
   })
 
   const aggregateLayer = computed<string>({
-    get: () => route.query.aggregateLayer?.toString() || 'tract',
+    get: () => query.value.aggregateLayer?.toString() || 'tract',
     set: (v) => { setQuery({ aggregateLayer: v }) }
   })
 
   const choroplethElement = computed<string>({
-    get: () => route.query.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT,
+    get: () => query.value.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT,
     set: (v) => { setQuery({ choroplethElement: v === CHOROPLETH_DEFAULT_ELEMENT ? undefined : v }) }
   })
 
   // Default true; only the off state is persisted to the URL.
   const shadeByDensity = computed<boolean>({
-    get: () => route.query.shadeByDensity !== 'false',
+    get: () => query.value.shadeByDensity !== 'false',
     set: (v) => { setQuery({ shadeByDensity: v ? undefined : 'false' }) }
   })
 
   const onlyWithStops = computed<boolean>({
-    get: () => route.query.onlyWithStops === 'true',
+    get: () => query.value.onlyWithStops === 'true',
     set: (v) => { setQuery({ onlyWithStops: v ? 'true' : undefined }) }
   })
 
   const dataDisplayMode = computed<DataDisplayMode>({
-    get: () => (route.query.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode,
+    get: () => (query.value.dataDisplayMode?.toString() || 'Transit mode') as DataDisplayMode,
     set: (v) => { setQuery({ dataDisplayMode: v === 'Transit mode' ? undefined : v }) }
   })
 
   // Default true; only the off state is persisted to the URL.
   const hideUnmarked = computed<boolean>({
-    get: () => route.query.hideUnmarked?.toString() !== 'false',
+    get: () => query.value.hideUnmarked?.toString() !== 'false',
     set: (v) => { setQuery({ hideUnmarked: v ? undefined : 'false' }) }
   })
 
   const baseMap = computed<string>({
-    get: () => route.query.baseMap?.toString() || 'Streets',
+    get: () => query.value.baseMap?.toString() || 'Streets',
     set: (v) => { setQuery({ baseMap: v === 'Streets' ? undefined : v }) }
   })
 
   const unitSystem = computed<UnitSystem>({
-    get: () => route.query.unitSystem === 'eu' ? 'eu' : 'us',
+    get: () => query.value.unitSystem === 'eu' ? 'eu' : 'us',
     set: (v) => { setQuery({ unitSystem: v === 'us' ? undefined : v }) }
   })
 
   // Default true; only the off state is persisted to the URL.
   const showBbox = computed<boolean>({
-    get: () => route.query.showBbox?.toString() !== 'false',
+    get: () => query.value.showBbox?.toString() !== 'false',
     set: (v) => { setQuery({ showBbox: v ? undefined : 'false' }) }
   })
 
   // Derived from filter state; read-only.
-  const isAllDayMode = computed(() => !route.query.startTime && !route.query.endTime)
+  const isAllDayMode = computed(() => !query.value.startTime && !query.value.endTime)
 
   return {
     showAggAreas,
