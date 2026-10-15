@@ -1,4 +1,4 @@
-// The main scenario run lifecycle: streams a scenario from /api/scenario into
+// The main scenario run lifecycle: streams the 'scenario' run into
 // a ScenarioDataReceiver and derives the filtered result whenever the raw data
 // or filters change. Stream consumption and progress state live in
 // useScenarioStream; this owns the receiver (shared with the
@@ -6,8 +6,9 @@
 // Receives the data and config refs from the container, which owns the
 // scenario data graph.
 
-import { shallowRef, ref, watch, markRaw, type Ref, type ShallowRef } from 'vue'
+import { shallowRef, ref, watch, markRaw, type MaybeRefOrGetter, type Ref, type ShallowRef } from 'vue'
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
+import type { FetchMode } from './useOpenStream'
 import { useScenarioInputs } from './useScenarioInputs'
 import {
   ScenarioDataReceiver,
@@ -28,6 +29,7 @@ interface UseScenarioRunDeps {
   // Read-only inputs to the request body and the result filter.
   scenarioConfig: Ref<ScenarioConfig>
   scenarioFilter: Ref<ScenarioFilter>
+  fetchMode: MaybeRefOrGetter<FetchMode>
 }
 
 // The stream state passes through under its own names; renames happen at the
@@ -48,7 +50,7 @@ export interface UseScenarioRunReturn extends Pick<UseScenarioStreamReturn,
 }
 
 export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn {
-  const stream = useScenarioStream()
+  const stream = useScenarioStream(deps.fetchMode)
   const refetchInFlight = ref(0)
   const runInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
@@ -91,7 +93,7 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
 
     runInFlight.value++
     try {
-      await stream.run(receiver, '/api/scenario', config)
+      await stream.run(receiver, 'scenario', config)
     } finally {
       runInFlight.value = Math.max(0, runInFlight.value - 1)
     }

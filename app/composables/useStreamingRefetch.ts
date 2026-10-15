@@ -4,6 +4,7 @@
 // wiring. Each feature supplies its inputs/endpoint/body.
 
 import { markRaw, toValue, watch, onScopeDispose, type MaybeRefOrGetter, type Ref, type ShallowRef, type WatchSource } from 'vue'
+import { useOpenStream, type FetchMode } from './useOpenStream'
 import {
   ScenarioStreamReceiver,
   type ScenarioConfig,
@@ -12,8 +13,8 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import { withCalendarDates } from '~~/src/core'
-import type { RequestFailure } from '~~/src/core'
+import { gateReceiver, type RequestFailure } from '~~/src/core'
+import type { StreamEndpoint } from '~~/src/stream-runs'
 
 export interface StreamingRefetchDeps {
   // Shared with the main fetch path so refetched slices land in the same
@@ -41,10 +42,11 @@ export interface StreamingRefetchDeps {
   // would interleave with the run's own phases in the shared accumulator, so
   // it waits for the run to finish instead — see the deferral below.
   runInFlight: Ref<number>
+  fetchMode: MaybeRefOrGetter<FetchMode>
 }
 
 // What a single refetch should do given the current inputs:
-//  - an object → POST it as the request body and stream the result in
+//  - an object → the endpoint's request body; its run's result streams into the receiver
 //  - 'clear'   → drop this feature's accumulated slice (it's now disabled); no call
 //  - 'skip'    → do nothing (prerequisites for the feature aren't met)
 export type RefetchPlan = object | 'clear' | 'skip'
@@ -52,7 +54,7 @@ export type RefetchPlan = object | 'clear' | 'skip'
 export interface StreamingRefetchOptions {
   // Reactive inputs whose change triggers a debounced refetch.
   watchSources: WatchSource[]
-  endpoint: string
+  endpoint: StreamEndpoint
   loadingMessage: string
   // Decide what this run should do (see RefetchPlan).
   plan: (data: ScenarioData, config: ScenarioConfig) => RefetchPlan
@@ -71,6 +73,7 @@ export interface StreamingRefetchOptions {
 const DEBOUNCE_MS = 500
 
 export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: StreamingRefetchOptions): void {
+  const openStream = useOpenStream(deps.fetchMode)
   let abort: AbortController | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -122,9 +125,11 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
 
     deps.refetchInFlight.value++
-    // Only the first refetch of a burst clears; a later one must not discard
-    // failures a sibling still in flight has already reported.
-    if (deps.refetchInFlight.value === 1) {
+    // Failures stay until the user closes the modal. A closed modal means any
+    // failures have been seen, so a new refetch starts clean; an open one may
+    // still be showing a failed run's or a sibling refetch's report.
+    if (!deps.showLoadingModal.value) {
+      deps.error.value = undefined
       deps.requestErrors.value = []
     }
     deps.showLoadingModal.value = true
@@ -137,24 +142,20 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     deps.phasePlan.value = undefined
     deps.phaseFractions.value = {}
 
+    const errorBefore = deps.error.value
     try {
-      const response = await fetch(opts.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(withCalendarDates(plan)),
-        signal: localAbort.signal,
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} from ${opts.endpoint}`)
-      }
-      if (!response.body) {
-        throw new Error(`No response body from ${opts.endpoint}`)
-      }
+      const stream = await openStream(opts.endpoint, plan, localAbort.signal)
       const streamer = new ScenarioStreamReceiver()
-      const { success } = await streamer.processStream(response.body, receiver)
+      // Gated like a run's receiver: a superseded or disposed refetch's abort
+      // error and abnormal end would otherwise land in the shared modal state.
+      const { success } = await streamer.processStream(stream, gateReceiver(receiver, localAbort.signal))
       if (!success) {
-        // Rethrow a server-reported cause rather than overwrite it.
-        throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
+        // Keep a cause the stream reported; only a silent end gets the generic
+        // error. An error already there before this refetch began came from an
+        // earlier failure.
+        throw deps.error.value !== errorBefore
+          ? deps.error.value
+          : new Error(`Refetch stream from /api/${opts.endpoint} ended unexpectedly`)
       }
       publish(receiver)
     } catch (err: any) {
@@ -175,10 +176,13 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
         abort = undefined
       }
       // Only the last refetch standing tears down the shared loading state, and
-      // only when nothing failed — a failure report has to stay on screen.
-      if (deps.refetchInFlight.value === 0 && deps.requestErrors.value.length === 0) {
-        deps.showLoadingModal.value = false
+      // the modal closes only when nothing failed: a failure report, fatal or
+      // per-request, has to stay on screen.
+      if (deps.refetchInFlight.value === 0) {
         deps.loadingProgress.value = undefined
+        if (!deps.error.value && deps.requestErrors.value.length === 0) {
+          deps.showLoadingModal.value = false
+        }
       }
     }
   }

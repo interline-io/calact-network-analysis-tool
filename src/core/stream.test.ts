@@ -1,9 +1,25 @@
-import { describe, it, expect } from 'vitest'
-import { GenericStreamSender, requestStream, type StreamableProgress } from './stream'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import {
+  GenericStreamReceiver,
+  GenericStreamSender,
+  gateReceiver,
+  postStream,
+  producerStream,
+  requestStream,
+  workerStream,
+  type StreamableProgress,
+  type StreamDataReceiver,
+  type StreamWorker,
+  type StreamWorkerMessage,
+} from './stream'
 
 interface Progress extends StreamableProgress {
   seq?: number
 }
+
+// One event as a sender writes it: a single NDJSON line in its own chunk.
+const encode = (p: Progress) => new TextEncoder().encode(JSON.stringify(p) + '\n')
+const decode = (chunk: Uint8Array | undefined) => JSON.parse(new TextDecoder().decode(chunk)) as Progress
 
 // Reads whatever a controller was given, the way a response consumer does.
 function collector () {
@@ -107,5 +123,146 @@ describe('requestStream backpressure', () => {
     const sender = new GenericStreamSender<Progress>(writer)
     await sender.onProgress({ currentStage: 'stops' })
     expect(enqueued).toHaveLength(1)
+  })
+})
+
+describe('producerStream', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('delivers what the run writes, then ends', async () => {
+    const stream = producerStream(async (controller) => {
+      const writer = requestStream(controller).getWriter()
+      const sender = new GenericStreamSender<Progress>(writer)
+      await sender.onProgress({ currentStage: 'stops', seq: 1 })
+      await writer.close()
+    })
+    const reader = stream.getReader()
+    expect(decode((await reader.read()).value).seq).toBe(1)
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('errors the stream when the run throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const stream = producerStream(async () => {
+      throw new Error('backend died')
+    })
+    await expect(stream.getReader().read()).rejects.toThrow('backend died')
+  })
+})
+
+describe('workerStream', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // A stand-in worker that records what the page posts. `reply` sends the
+  // page a message as the worker.
+  function fakeWorker () {
+    const posted: unknown[] = []
+    let terminated = false
+    const worker: StreamWorker = {
+      onmessage: null,
+      onerror: null,
+      postMessage: (message: unknown) => { posted.push(message) },
+      terminate: () => { terminated = true },
+    }
+    const reply = (message: StreamWorkerMessage) => {
+      worker.onmessage?.call(worker as Worker, { data: message } as MessageEvent)
+    }
+    return { worker, posted, reply, terminated: () => terminated }
+  }
+
+  it('posts the request, relays chunks, and terminates the worker when done', async () => {
+    const { worker, posted, reply, terminated } = fakeWorker()
+    const reader = workerStream(worker, { endpoint: 'scenario' }).getReader()
+    expect(posted).toEqual([{ endpoint: 'scenario' }])
+
+    reply({ type: 'chunk', chunk: encode({ currentStage: 'stops', seq: 1 }) })
+    reply({ type: 'done' })
+    expect(decode((await reader.read()).value).seq).toBe(1)
+    expect((await reader.read()).done).toBe(true)
+    expect(terminated()).toBe(true)
+  })
+
+  it('errors the stream when the worker reports a failure', async () => {
+    const { worker, reply, terminated } = fakeWorker()
+    const reader = workerStream(worker, {}).getReader()
+    reply({ type: 'error', message: 'backend died' })
+    await expect(reader.read()).rejects.toThrow('backend died')
+    expect(terminated()).toBe(true)
+  })
+
+  it('terminates the worker on abort, and ignores what it sent after', async () => {
+    const { worker, reply, terminated } = fakeWorker()
+    const abort = new AbortController()
+    const reader = workerStream(worker, {}, abort.signal).getReader()
+    reply({ type: 'chunk', chunk: encode({ currentStage: 'stops', seq: 1 }) })
+    expect(decode((await reader.read()).value).seq).toBe(1)
+
+    abort.abort()
+    expect(terminated()).toBe(true)
+    // A message already queued when the worker was terminated.
+    reply({ type: 'chunk', chunk: encode({ currentStage: 'stops', seq: 2 }) })
+    await expect(reader.read()).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('reads back what postStream relays from a run', async () => {
+    const { worker, reply } = fakeWorker()
+    const reader = workerStream(worker, {}).getReader()
+    await postStream(producerStream(async (controller) => {
+      const writer = requestStream(controller).getWriter()
+      const sender = new GenericStreamSender<Progress>(writer)
+      await sender.onProgress({ currentStage: 'stops', seq: 1 })
+      await sender.onComplete()
+      await writer.close()
+    }), reply)
+    expect(decode((await reader.read()).value).seq).toBe(1)
+    expect(decode((await reader.read()).value).currentStage).toBe('complete')
+    expect((await reader.read()).done).toBe(true)
+  })
+
+  it('relays a failed run as an error', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { worker, reply } = fakeWorker()
+    const reader = workerStream(worker, {}).getReader()
+    await postStream(producerStream(async () => {
+      throw new Error('backend died')
+    }), reply)
+    await expect(reader.read()).rejects.toThrow('backend died')
+  })
+})
+
+describe('gateReceiver', () => {
+  // Streams one event, then aborts the stream the way fetch and workerStream
+  // do, and returns the calls the receiver saw.
+  async function abortAfterOneEvent (gated: boolean): Promise<string[]> {
+    const calls: string[] = []
+    const receiver: StreamDataReceiver<Progress, null> = {
+      onProgress: (p) => { calls.push(`progress ${p.seq}`) },
+      onComplete: () => { calls.push('complete') },
+      onError: () => { calls.push('error') },
+      getCurrentData: () => null,
+    }
+    const abort = new AbortController()
+    const stream = new ReadableStream<Uint8Array>({
+      start (controller) {
+        controller.enqueue(encode({ currentStage: 'stops', seq: 1 }))
+        abort.signal.addEventListener('abort', () => controller.error(abort.signal.reason))
+      },
+    })
+    const target = gated ? gateReceiver(receiver, abort.signal) : receiver
+    const done = new GenericStreamReceiver<Progress, null>().processStream(stream, target)
+    await vi.waitFor(() => expect(calls).toEqual(['progress 1']))
+    abort.abort()
+    expect((await done).success).toBe(false)
+    return calls
+  }
+
+  it('passes what came before the abort, and drops the abort error and abnormal end', async () => {
+    // Baseline: without the gate, the abort reaches the receiver.
+    expect(await abortAfterOneEvent(false)).toEqual(['progress 1', 'error', 'complete'])
+    expect(await abortAfterOneEvent(true)).toEqual(['progress 1'])
   })
 })

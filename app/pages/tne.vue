@@ -78,6 +78,7 @@
           <analysis-picker
             :scenario-data="scenarioData"
             :scenario-config="scenarioConfig"
+            :fetch-mode="fetchMode"
             @cancel="setTab({ tab: 'query', sub: '' })"
           />
         </div>
@@ -201,6 +202,7 @@ import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
+import { useFetchMode } from '~/composables/useFetchMode'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
@@ -902,6 +904,9 @@ const { choroplethClassification, choroplethFeatures } = useChoroplethClassifica
   selectedAggregationGeoid,
 })
 
+// Whether runs fetch through the BFF or straight from the browser.
+const fetchMode = useFetchMode()
+
 // The scenario run lifecycle owns the loading/progress state, the streaming
 // fetch, and the shared receiver that the refetch composables reuse.
 const {
@@ -916,7 +921,7 @@ const {
   runInFlight,
   stopDepartureCount,
   runQuery: runScenarioQuery,
-} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter })
+} = useScenarioRun({ scenarioData, scenarioFilterResult, scenarioConfig, scenarioFilter, fetchMode })
 
 // Debounced standalone recomputes that stream into the same receiver without
 // re-running the whole scenario.
@@ -932,6 +937,7 @@ useBufferRefetch({
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
   runInFlight,
+  fetchMode,
 })
 
 // recompute clusters when the distance changes, reusing the same receiver.
@@ -947,6 +953,7 @@ useClusterRefetch({
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
   runInFlight,
+  fetchMode,
 })
 
 // reload each stop's census geography when the Aggregate-by layer changes —
@@ -963,6 +970,7 @@ useStopCensusRefetch({
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
   runInFlight,
+  fetchMode,
 })
 
 // recompute census values when the Aggregate-by layer or the stop buffer radius
@@ -979,6 +987,7 @@ const { refresh: refreshCensusClip } = useAggregateRefetch({
   phaseFractions: scenarioPhaseFractions,
   refetchInFlight,
   runInFlight,
+  fetchMode,
   markedStopIds,
 })
 

@@ -1,5 +1,5 @@
 // Debounced census-values refetch on Aggregate-by layer change: recomputes only
-// the ACS census geographies/values for the new layer (server-side) into the
+// the ACS census geographies/values for the new layer into the
 // existing receiver, leaving the rest of the scenario untouched. The per-stop
 // half of the same layer change is useStopCensusRefetch's; the two run
 // concurrently. Streaming/abort/debounce machinery lives in useStreamingRefetch.
@@ -49,8 +49,8 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
   useStreamingRefetch(deps, {
     watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
     // Reuse the standalone census-values phase endpoint (it re-resolves
-    // geographyIds or a plain bbox server-side) rather than a bespoke one.
-    endpoint: '/api/scenario/census-values',
+    // geographyIds or a plain bbox itself) rather than a bespoke one.
+    endpoint: 'scenario/census-values',
     loadingMessage: 'Recomputing aggregation demographics...',
     // Drop the previous layer's geographies up-front so a slow/failed refetch
     // can't leave the choropleth painting the old layer. Only for a layer

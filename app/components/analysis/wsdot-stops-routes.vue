@@ -126,7 +126,11 @@ import type {
   ScenarioData,
   ScenarioConfig,
 } from '~~/src/scenario'
+import type { FetchMode } from '~/composables/useOpenStream'
 
+const props = defineProps<{
+  fetchMode: FetchMode
+}>()
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = defineModel<ScenarioData>('scenarioData')
 // shallowRef: replaced wholesale on completion, never mutated, and large
@@ -150,6 +154,7 @@ const {
 } = useWsdotReport({
   scenarioConfig,
   scenarioData,
+  fetchMode: () => props.fetchMode,
   successToast: 'WSDOT stops and routes analysis completed successfully!',
   onComplete: (data, report) => {
     wsdotStopsRoutesReport.value = processWsdotStopsRoutesReport(data, report)

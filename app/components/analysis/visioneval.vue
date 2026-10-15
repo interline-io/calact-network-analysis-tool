@@ -112,6 +112,12 @@ import type {
   VisionEvalReport,
   VisionEvalProgress,
 } from '~~/src/analysis/visioneval'
+import { useOpenStream, type FetchMode } from '~/composables/useOpenStream'
+
+const props = defineProps<{
+  fetchMode: FetchMode
+}>()
+const openStream = useOpenStream(() => props.fetchMode)
 
 // US States for selection
 const US_STATES = [
@@ -208,7 +214,7 @@ defineExpose({
   hasResults
 })
 
-// Process the streaming response from the BFF endpoint
+// Read the analysis's progress stream
 const processStream = async (stream: ReadableStream<Uint8Array>): Promise<VisionEvalReport | null> => {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
@@ -262,29 +268,13 @@ const runQuery = async () => {
       year: parseInt(configYear.value, 10),
     }
 
-    // Call the BFF endpoint
-    const response = await fetch('/api/visioneval', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ config }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    if (!response.body) {
-      throw new Error('No response body')
-    }
-
-    // Process the streaming response
-    const result = await processStream(response.body)
+    const result = await processStream(await openStream('visioneval', { config }))
     if (result) {
       report.value = result
       showLoadingModal.value = false
       useToastNotification().showToast('VisionEval analysis completed successfully!')
     } else {
-      throw new Error('No report received from server. Try again or reduce query size.')
+      throw new Error('No report received. Try again or reduce query size.')
     }
   } catch (err: any) {
     console.error('VisionEval analysis error:', err)

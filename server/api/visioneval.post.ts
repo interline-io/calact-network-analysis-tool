@@ -1,6 +1,5 @@
 import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
-import { setStreamHeaders } from '~~/server/utils/phase-stream'
-import { buildServerGraphQLClient } from '~~/server/utils/graphql-client'
+import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
@@ -22,15 +21,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  setStreamHeaders(event)
-  const client = await buildServerGraphQLClient(event)
-
-  // Create a readable stream for the response
-  const stream = new ReadableStream({
-    async start (controller) {
-      await runVisionEvalAnalysisStreaming(controller, config, client)
-    }
-  })
-
-  return sendStream(event, stream)
+  return streamEnvelopeResponse(event, 'VisionEval run', (client, controller) =>
+    runVisionEvalAnalysisStreaming(controller, config, client))
 })
