@@ -3,8 +3,7 @@
 
 import { createError } from 'h3'
 import type { RoutesPhaseConfig } from '~~/src/scenario'
-import { runRoutesPhase } from '~~/src/scenario'
-import { streamPhaseResponse } from '~~/server/utils/phase-stream'
+import { serveStreamRun } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: RoutesPhaseConfig = await readBody(event)
@@ -13,6 +12,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'routeIds must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'routes', 'Starting routes phase', (client, emit, onError) =>
-    runRoutesPhase(config, client, emit, { onError }))
+  return serveStreamRun(event, 'scenario/routes', config)
 })

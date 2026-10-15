@@ -4,8 +4,7 @@
 
 import { createError } from 'h3'
 import type { WSDOTLevelGeometryConfig } from '~~/src/analysis/wsdot'
-import { runWsdotLevelGeometryPhase } from '~~/src/analysis/wsdot'
-import { streamPhaseResponse } from '~~/server/utils/phase-stream'
+import { serveStreamRun } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: WSDOTLevelGeometryConfig = await readBody(event)
@@ -20,6 +19,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'stopBufferRadius must be greater than zero' })
   }
 
-  return streamPhaseResponse(event, 'wsdot-geographies', 'Fetching stop buffer outlines', (client, emit) =>
-    runWsdotLevelGeometryPhase(config, client, emit))
+  return serveStreamRun(event, 'wsdot-level-geometry', config)
 })

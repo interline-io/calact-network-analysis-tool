@@ -193,6 +193,93 @@ export const requestStream = (controller: ReadableStreamDefaultController): Writ
   })
 }
 
+// A byte stream that `run` writes into. If `run` throws, the stream errors,
+// so a run that never settled the stream can't leave its reader waiting.
+export function producerStream (
+  run: (controller: ReadableStreamDefaultController) => Promise<unknown>,
+): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    async start (controller) {
+      try {
+        await run(controller)
+      } catch (e) {
+        console.error('Stream request failed:', e)
+        controller.error(e)
+      }
+    },
+  })
+}
+
+// What a worker posts while it relays a stream with postStream: each chunk,
+// then one 'done' or 'error'.
+export type StreamWorkerMessage
+  = | { type: 'chunk', chunk: Uint8Array }
+    | { type: 'done' }
+    | { type: 'error', message: string }
+
+// Relays a stream out of a worker, one message per chunk. Chunks are
+// transferred, not copied.
+export async function postStream (
+  stream: ReadableStream<Uint8Array>,
+  post: (message: StreamWorkerMessage, transfer: Transferable[]) => void,
+): Promise<void> {
+  const reader = stream.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+      post({ type: 'chunk', chunk: value }, [value.buffer])
+    }
+    post({ type: 'done' }, [])
+  } catch (err) {
+    post({ type: 'error', message: (err as Error)?.message || String(err) }, [])
+  }
+}
+
+// The parts of a Worker that workerStream uses.
+export type StreamWorker = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage' | 'onerror'>
+
+// The stream a worker relays with postStream, after posting it `request`.
+// The worker is terminated when the stream ends or `signal` aborts, which
+// stops its requests and its work at once.
+export function workerStream (worker: StreamWorker, request: unknown, signal?: AbortSignal): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start (controller) {
+      // Detached first, so a message already queued can't reach a settled stream.
+      const finish = (): void => {
+        worker.onmessage = null
+        worker.onerror = null
+        worker.terminate()
+      }
+      signal?.addEventListener('abort', () => {
+        finish()
+        controller.error(signal.reason)
+      }, { once: true })
+      worker.onmessage = (event: MessageEvent<StreamWorkerMessage>) => {
+        const message = event.data
+        if (message.type === 'chunk') {
+          controller.enqueue(message.chunk)
+          return
+        }
+        finish()
+        if (message.type === 'done') {
+          controller.close()
+        } else {
+          controller.error(new Error(message.message))
+        }
+      }
+      // A worker that failed to load, or threw outside postStream.
+      worker.onerror = (event) => {
+        finish()
+        controller.error(new Error(event.message || 'Stream worker failed'))
+      }
+      worker.postMessage(request)
+    },
+  })
+}
+
 export const multiplexStream = (originalStream: WritableStream): { inputStream: WritableStream, outputStream: ReadableStream } => {
   // Create a transform stream that splits data to two destinations
   const originalWriter = originalStream.getWriter()

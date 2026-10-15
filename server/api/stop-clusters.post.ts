@@ -3,9 +3,8 @@
 
 import { createError } from 'h3'
 import type { StopClusterFetchConfig } from '~~/src/scenario'
-import { runStopClustersPhase } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { streamPhaseResponse } from '~~/server/utils/phase-stream'
+import { serveStreamRun } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('stop-clusters-request-start')
@@ -22,8 +21,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'stop-clusters', 'Recomputing stop clusters', async (client, emit) => {
-    await runStopClustersPhase(config, client, emit)
-    logMemory('stop-clusters-stream-complete')
-  })
+  return serveStreamRun(event, 'stop-clusters', config)
 })

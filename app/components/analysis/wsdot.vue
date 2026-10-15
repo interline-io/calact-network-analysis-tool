@@ -154,7 +154,11 @@
 
 <script lang="ts" setup>
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
+import type { FetchMode } from '~/composables/useOpenStream'
 
+const props = defineProps<{
+  fetchMode: FetchMode
+}>()
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig', { required: true })
 const scenarioData = shallowRef<ScenarioData>()
 
@@ -175,6 +179,7 @@ const {
 } = useWsdotReport({
   scenarioConfig,
   scenarioData,
+  fetchMode: () => props.fetchMode,
   successToast: 'WSDOT analysis completed successfully!',
   configExtras: {
     // Route shapes are 98% of the routes query and this report's map draws

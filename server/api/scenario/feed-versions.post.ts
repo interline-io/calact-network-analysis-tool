@@ -3,8 +3,8 @@
 
 import { createError } from 'h3'
 import type { FeedVersionsPhaseConfig } from '~~/src/scenario'
-import { hasSearchArea, runFeedVersionsPhase } from '~~/src/scenario'
-import { streamPhaseResponse } from '~~/server/utils/phase-stream'
+import { hasSearchArea } from '~~/src/scenario'
+import { serveStreamRun } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: FeedVersionsPhaseConfig = await readBody(event)
@@ -16,6 +16,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName is required' })
   }
 
-  return streamPhaseResponse(event, 'feed-versions', 'Starting feed-versions phase', (client, emit) =>
-    runFeedVersionsPhase(config, client, emit))
+  return serveStreamRun(event, 'scenario/feed-versions', config)
 })

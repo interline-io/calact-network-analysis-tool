@@ -267,6 +267,16 @@
             </cat-select>
           </div>
         </cat-field>
+        <cat-field label="GraphQL requests">
+          <cat-select v-model="fetchMode">
+            <option value="bff">
+              From the server (BFF)
+            </option>
+            <option value="direct">
+              From the browser (direct)
+            </option>
+          </cat-select>
+        </cat-field>
       </cat-msg>
 
       <div class="field has-addons cal-query-actions">
@@ -322,6 +332,7 @@ import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFv
 import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
 import CalFeedVersionOverrideSummary from '~/components/cal/feed-version-override-summary.vue'
 import CalEndDateField from '~/components/cal/end-date-field.vue'
+import { useFetchMode } from '~/composables/useFetchMode'
 
 const emit = defineEmits([
   'fitToGeographies',
@@ -367,6 +378,7 @@ const fvOverrideCount = computed(() => {
 })
 const { aggregateLayer } = useScenarioDisplay()
 const debugMenu = useDebugMenu()
+const fetchMode = useFetchMode()
 const geomSearch = ref('')
 // Single-day mode is an explicit opt-in: derived from the committed dates on
 // load (a shared single-day link shows single-day mode), defaulting to the

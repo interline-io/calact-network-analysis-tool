@@ -4,6 +4,7 @@
 // wiring. Each feature supplies its inputs/endpoint/body.
 
 import { markRaw, toValue, watch, onScopeDispose, type MaybeRefOrGetter, type Ref, type ShallowRef, type WatchSource } from 'vue'
+import { useOpenStream, type FetchMode } from './useOpenStream'
 import {
   ScenarioStreamReceiver,
   type ScenarioConfig,
@@ -12,8 +13,8 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
+import type { StreamEndpoint } from '~~/src/stream-runs'
 
 export interface StreamingRefetchDeps {
   // Shared with the main fetch path so refetched slices land in the same
@@ -41,10 +42,11 @@ export interface StreamingRefetchDeps {
   // would interleave with the run's own phases in the shared accumulator, so
   // it waits for the run to finish instead — see the deferral below.
   runInFlight: Ref<number>
+  fetchMode: MaybeRefOrGetter<FetchMode>
 }
 
 // What a single refetch should do given the current inputs:
-//  - an object → POST it as the request body and stream the result in
+//  - an object → the endpoint's request body; stream its run's result in
 //  - 'clear'   → drop this feature's accumulated slice (it's now disabled); no call
 //  - 'skip'    → do nothing (prerequisites for the feature aren't met)
 export type RefetchPlan = object | 'clear' | 'skip'
@@ -52,7 +54,7 @@ export type RefetchPlan = object | 'clear' | 'skip'
 export interface StreamingRefetchOptions {
   // Reactive inputs whose change triggers a debounced refetch.
   watchSources: WatchSource[]
-  endpoint: string
+  endpoint: StreamEndpoint
   loadingMessage: string
   // Decide what this run should do (see RefetchPlan).
   plan: (data: ScenarioData, config: ScenarioConfig) => RefetchPlan
@@ -71,6 +73,7 @@ export interface StreamingRefetchOptions {
 const DEBOUNCE_MS = 500
 
 export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: StreamingRefetchOptions): void {
+  const openStream = useOpenStream(deps.fetchMode)
   let abort: AbortController | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -138,20 +141,9 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     deps.phaseFractions.value = {}
 
     try {
-      const response = await fetch(opts.endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(withCalendarDates(plan)),
-        signal: localAbort.signal,
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} from ${opts.endpoint}`)
-      }
-      if (!response.body) {
-        throw new Error(`No response body from ${opts.endpoint}`)
-      }
+      const stream = await openStream(opts.endpoint, plan, localAbort.signal)
       const streamer = new ScenarioStreamReceiver()
-      const { success } = await streamer.processStream(response.body, receiver)
+      const { success } = await streamer.processStream(stream, receiver)
       if (!success) {
         // Rethrow a server-reported cause rather than overwrite it.
         throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)

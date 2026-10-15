@@ -2,9 +2,8 @@
 
 import { createError } from 'h3'
 import type { BufferFetchConfig } from '~~/src/scenario'
-import { runBufferPasses } from '~~/src/scenario'
 import { logMemory } from '~~/src/core'
-import { streamPhaseResponse } from '~~/server/utils/phase-stream'
+import { serveStreamRun } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   logMemory('buffer-request-start')
@@ -25,8 +24,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'at least one of stopIds/routeIds/agencyIds must be non-empty' })
   }
 
-  return streamPhaseResponse(event, 'buffers', 'Starting buffer refetch', async (client, emit, onError) => {
-    await runBufferPasses(config, client, emit, { onError })
-    logMemory('buffer-stream-complete')
-  })
+  return serveStreamRun(event, 'buffer-geographies', config)
 })

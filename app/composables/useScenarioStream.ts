@@ -1,11 +1,12 @@
 // Shared client-side consumption of a scenario NDJSON stream, used by browse
 // and both WSDOT reports: the state refs the loading modal reads, foldProgress
 // for receiver callbacks (refetches into the shared receiver fold into the
-// same state), run() for one request's lifecycle, and runQuery() for the
+// same state), run() for one run's lifecycle, and runQuery() for the
 // modal/toast framing around it.
 
-import { ref, type Ref } from 'vue'
+import { ref, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useToastNotification } from './useToastNotification'
+import { useOpenStream, type FetchMode } from './useOpenStream'
 import {
   ScenarioStreamReceiver,
   trackPhaseProgress,
@@ -13,8 +14,8 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import { withCalendarDates } from '~~/src/core'
 import type { RequestFailure } from '~~/src/core'
+import type { StreamEndpoint } from '~~/src/stream-runs'
 
 // Stream state and lifecycle for one scenario run at a time.
 export interface UseScenarioStreamReturn {
@@ -33,16 +34,17 @@ export interface UseScenarioStreamReturn {
   // Fold one progress event into the state above; call from every receiver's
   // onProgress, whichever run or refetch the event came from.
   foldProgress: (progress: ScenarioProgress) => void
-  // Reset the state and stream one POST into the receiver. A new run
-  // supersedes any still-draining predecessor: its fetch aborts and its
+  // Reset the state and stream one endpoint's run into the receiver. A new
+  // run supersedes any still-draining predecessor: it aborts and its
   // remaining events are dropped, never merged.
-  run: (receiver: ScenarioDataReceiver, url: string, body: unknown) => Promise<void>
+  run: (receiver: ScenarioDataReceiver, endpoint: StreamEndpoint, body: unknown) => Promise<void>
   // The modal/toast lifecycle around `fetch`, which returns false when it
   // declined to run (failed validation) — the modal then closes with no toast.
   runQuery: (fetch: () => Promise<boolean>, successToast: string) => Promise<void>
 }
 
-export function useScenarioStream (): UseScenarioStreamReturn {
+export function useScenarioStream (fetchMode: MaybeRefOrGetter<FetchMode>): UseScenarioStreamReturn {
+  const openStream = useOpenStream(fetchMode)
   const loadingProgress = ref<ScenarioProgress>()
   const error = ref<Error>()
   const requestErrors = ref<RequestFailure[]>([])
@@ -79,7 +81,7 @@ export function useScenarioStream (): UseScenarioStreamReturn {
   // signal.
   let abort: AbortController | undefined
 
-  const run = async (receiver: ScenarioDataReceiver, url: string, body: unknown): Promise<void> => {
+  const run = async (receiver: ScenarioDataReceiver, endpoint: StreamEndpoint, body: unknown): Promise<void> => {
     abort?.abort()
     const controller = new AbortController()
     abort = controller
@@ -94,26 +96,15 @@ export function useScenarioStream (): UseScenarioStreamReturn {
     phasePlan.value = undefined
     phaseFractions.value = {}
 
-    let response: Response
+    let stream: ReadableStream<Uint8Array>
     try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(withCalendarDates(body)),
-        signal: controller.signal,
-      })
+      stream = await openStream(endpoint, body, controller.signal)
     } catch (err) {
       // Superseded runs abort their own fetch; that is not a failure.
       if (controller.signal.aborted) {
         return
       }
       throw err
-    }
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    if (!response.body) {
-      throw new Error('No response body received')
     }
 
     // The receiver is gated on run identity, so a superseded run's buffered
@@ -124,7 +115,7 @@ export function useScenarioStream (): UseScenarioStreamReturn {
       onError: (err: any) => { if (live()) { receiver.onError(err) } },
       getCurrentData: () => receiver.getCurrentData(),
     }
-    const { success } = await new ScenarioStreamReceiver().processStream(response.body, gated)
+    const { success } = await new ScenarioStreamReceiver().processStream(stream, gated)
     if (!live()) {
       return
     }

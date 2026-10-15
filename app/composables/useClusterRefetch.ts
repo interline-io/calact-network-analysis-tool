@@ -1,5 +1,5 @@
 // Debounced stop-cluster refetch on cluster-distance change: recomputes only the
-// proximity clusters (server-side) into the existing receiver, leaving the rest of
+// proximity clusters into the existing receiver, leaving the rest of
 // the scenario untouched. The transfer-time prune is client-side and needs no
 // refetch. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
@@ -16,7 +16,7 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
 
   useStreamingRefetch(deps, {
     watchSources: [clusterDistance],
-    endpoint: '/api/stop-clusters',
+    endpoint: 'stop-clusters',
     loadingMessage: 'Recomputing stop clusters...',
     // A failed recompute would otherwise strand hubs computed at the old distance.
     clearOnError: true,

@@ -6,6 +6,7 @@
       v-if="selectedReportType && analysisComponents && analysisComponents[selectedReportType]"
       :scenario-config="scenarioConfig"
       :scenario-data="scenarioData"
+      :fetch-mode="fetchMode"
       @cancel="handleCancel"
     />
     <!-- Analysis selection interface -->
@@ -60,7 +61,11 @@
 <script lang="ts" setup>
 import { defineAsyncComponent, computed } from 'vue'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
+import type { FetchMode } from '~/composables/useOpenStream'
 
+defineProps<{
+  fetchMode: FetchMode
+}>()
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData>('scenarioData')
 

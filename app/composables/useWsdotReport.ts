@@ -3,8 +3,9 @@
 // lifecycle. Each component keeps its viewer, its own config fields, and
 // whatever it derives from the finished report.
 
-import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
+import { ref, shallowRef, type MaybeRefOrGetter, type Ref, type ShallowRef } from 'vue'
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
+import type { FetchMode } from './useOpenStream'
 import { useToastNotification } from './useToastNotification'
 import {
   WSDOTReportDataReceiver,
@@ -25,6 +26,7 @@ export interface UseWsdotReportDeps {
   successToast: string
   // Runs once the report is rebuilt on completion, for reports derived on top.
   onComplete?: (data: ScenarioData, report: WSDOTReport) => void
+  fetchMode: MaybeRefOrGetter<FetchMode>
 }
 
 // The stream state plus the report refs and its run entry point.
@@ -41,7 +43,7 @@ export interface UseWsdotReportReturn extends Pick<UseScenarioStreamReturn,
 }
 
 export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn {
-  const stream = useScenarioStream()
+  const stream = useScenarioStream(deps.fetchMode)
   const wsdotReport = shallowRef<WSDOTReport>()
   // Kept past the run so the overlay's outlines stream into the report it
   // built rather than replacing it.
@@ -87,7 +89,7 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     })
     reportReceiver = receiver
 
-    await stream.run(receiver, '/api/wsdot', { config: wsdotReportConfig.value })
+    await stream.run(receiver, 'wsdot', { config: wsdotReportConfig.value })
     return true
   }
 
@@ -130,7 +132,7 @@ export function useWsdotReport (deps: UseWsdotReportDeps): UseWsdotReportReturn 
     }
     await stream.runQuery(async () => {
       receiver.clearLevelGeometry()
-      await stream.run(receiver, '/api/wsdot-level-geometry', body)
+      await stream.run(receiver, 'wsdot-level-geometry', body)
       // Reassigned rather than mutated: the viewer reads the report through a
       // shallowRef, which never sees a nested push.
       wsdotReport.value = receiver.getCurrentWSDOTReport()

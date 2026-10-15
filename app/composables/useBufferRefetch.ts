@@ -19,7 +19,7 @@ export function useBufferRefetch (deps: UseBufferRefetchDeps): void {
 
   useStreamingRefetch(deps, {
     watchSources: [stopBufferRadius, stopBufferLayer],
-    endpoint: '/api/buffer-geographies',
+    endpoint: 'buffer-geographies',
     loadingMessage: 'Recomputing buffer demographics...',
     clearBeforeFetch: true,
     clearStale: receiver => receiver.clearBufferGeographies(),

@@ -14,7 +14,7 @@ export function useStopCensusRefetch (deps: UseStopCensusRefetchDeps): void {
 
   useStreamingRefetch(deps, {
     watchSources: [aggregateLayer],
-    endpoint: '/api/scenario/stop-census',
+    endpoint: 'scenario/stop-census',
     loadingMessage: 'Reloading stop census areas...',
     // Every consumer filters on layer_name, so keeping the old layer's entries
     // would read as no stops in any geography rather than as stale ones.
