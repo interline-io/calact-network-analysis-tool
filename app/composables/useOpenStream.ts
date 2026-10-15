@@ -1,7 +1,7 @@
-// Opens the NDJSON stream of an endpoint's run. In 'bff' mode the BFF runs it
-// and the browser reads the response; in 'direct' mode a worker runs the same
-// code off the main thread and sends its GraphQL requests through the API
-// proxy.
+// Opens the NDJSON stream of an endpoint's run. In 'bff' mode the browser
+// reads the BFF endpoint's response; in 'direct' mode a worker runs the
+// endpoint's entry in src/stream-runs.ts off the main thread and sends its
+// GraphQL requests through the API proxy.
 
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { useApiEndpoint } from '#imports'

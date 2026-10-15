@@ -4,7 +4,8 @@
 
 import { createError } from 'h3'
 import type { StopCensusPhaseConfig } from '~~/src/scenario'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runStopCensusPhase } from '~~/src/scenario'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: StopCensusPhaseConfig = await readBody(event)
@@ -16,5 +17,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName and censusLayer are required' })
   }
 
-  return serveStreamRun(event, 'scenario/stop-census', config)
+  return streamPhaseResponse(event, 'stop-census', 'Starting stop census phase', (client, emit, onError) =>
+    runStopCensusPhase(config, client, emit, { onError }))
 })

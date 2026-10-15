@@ -5,7 +5,8 @@
 
 import { createError } from 'h3'
 import type { DeparturesPhaseConfig } from '~~/src/scenario'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runDeparturesPhase } from '~~/src/scenario'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: DeparturesPhaseConfig = await readBody(event)
@@ -19,5 +20,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'stopIds must be non-empty when routeStopIds is not given' })
   }
 
-  return serveStreamRun(event, 'scenario/departures', config)
+  return streamPhaseResponse(event, 'departures', 'Starting departures phase', (client, emit, onError) =>
+    runDeparturesPhase(config, client, emit, { onError }))
 })

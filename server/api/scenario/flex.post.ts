@@ -4,7 +4,8 @@
 
 import { createError } from 'h3'
 import type { FlexPhaseConfig } from '~~/src/scenario'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runFlexPhase } from '~~/src/scenario'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: FlexPhaseConfig = await readBody(event)
@@ -13,5 +14,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  return serveStreamRun(event, 'scenario/flex', config)
+  return streamPhaseResponse(event, 'flex-areas', 'Starting flex phase', (client, emit, onError) =>
+    runFlexPhase(config, client, emit, { onError }))
 })

@@ -4,7 +4,8 @@
 
 import { createError } from 'h3'
 import type { CensusValuesPhaseConfig } from '~~/src/scenario'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runCensusValuesPhase } from '~~/src/scenario'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: CensusValuesPhaseConfig = await readBody(event)
@@ -16,5 +17,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'geoDatasetName, tableDatasetName, and aggregateLayer are required' })
   }
 
-  return serveStreamRun(event, 'scenario/census-values', config)
+  return streamPhaseResponse(event, 'census-values', 'Starting census-values phase', (client, emit) =>
+    runCensusValuesPhase(config, client, emit))
 })

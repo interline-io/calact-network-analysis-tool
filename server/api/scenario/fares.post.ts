@@ -3,7 +3,8 @@
 
 import { createError } from 'h3'
 import type { FaresPhaseConfig } from '~~/src/scenario'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runFaresPhase } from '~~/src/scenario'
+import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   const config: FaresPhaseConfig = await readBody(event)
@@ -12,5 +13,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
 
-  return serveStreamRun(event, 'scenario/fares', config)
+  return streamPhaseResponse(event, 'fares', 'Starting fares phase', (client, emit, onError) =>
+    runFaresPhase({
+      ...config,
+      feedVersionRouteIds: config.feedVersionRouteIds || {},
+      routeStopIds: config.routeStopIds || {},
+    }, client, emit, { onError }))
 })

@@ -1,10 +1,10 @@
-import type { VisionEvalConfig } from '~~/src/analysis/visioneval'
-import { serveStreamRun } from '~~/server/utils/phase-stream'
+import { runVisionEvalAnalysisStreaming, type VisionEvalConfig } from '~~/src/analysis/visioneval'
+import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {
   // Parse the request body
-  const body: { config: VisionEvalConfig } = await readBody(event)
-  const config = body.config
+  const { config: configData } = await readBody(event)
+  const config: VisionEvalConfig = configData as VisionEvalConfig
 
   // Validate the config
   if (!config.state) {
@@ -21,5 +21,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return serveStreamRun(event, 'visioneval', body)
+  return streamEnvelopeResponse(event, 'VisionEval run', (client, controller) =>
+    runVisionEvalAnalysisStreaming(controller, config, client))
 })
