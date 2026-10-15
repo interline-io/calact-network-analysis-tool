@@ -1,28 +1,46 @@
-import { navigateTo } from '#imports'
+import type { Router } from 'vue-router'
+import { PendingQuery, type QueryValue } from './pendingQuery'
 
-// Shared URL plumbing for the URL-backed composables. setQuery merges new
-// params over the current route query and strips null/undefined so removed
-// values disappear from the URL — one navigation per call so multiple keys
-// set together don't race each other.
+const pendingQueries = new WeakMap<Router, PendingQuery>()
+
+// One PendingQuery per app, shared by every caller. It reads the router's
+// current route rather than useRoute(): inside a page, useRoute() is that
+// page's own route, which stops updating once the page unmounts, so a query
+// cached from it would read a stale URL after leaving and coming back.
+function pendingQueryFor (router: Router): PendingQuery {
+  let pq = pendingQueries.get(router)
+  if (!pq) {
+    const created = new PendingQuery(() => router.currentRoute.value.query, query => router.replace({ query }))
+    // Back and forward restore a history entry; writes that hadn't reached
+    // the URL yet must not be laid over it, or written into it.
+    window.addEventListener('popstate', () => created.discard())
+    pendingQueries.set(router, created)
+    pq = created
+  }
+  return pq
+}
+
+// Shared URL plumbing for the URL-backed composables: read through `query`,
+// write through setQuery. setQuery takes several keys at once, and writes in
+// the same tick share one navigation, so keys set together can't race.
 export function useUrlQuery () {
-  const route = useRoute()
+  const pq = pendingQueryFor(useRouter())
+  const query = pq.query
 
-  function setQuery (params: Record<string, any>) {
-    const merged: Record<string, any> = {}
-    const source = { ...route.query, ...params }
-    for (const k in source) {
-      if (source[k] !== null && source[k] !== undefined) { merged[k] = source[k] }
-    }
-    return navigateTo({ replace: true, query: merged })
+  // Values are strings (or string arrays), as the URL holds them, so a write
+  // reads back exactly as it will once it lands. null and undefined remove
+  // the key.
+  function setQuery (params: Record<string, QueryValue>): Promise<void> {
+    return pq.set(params)
   }
 
   // CSV array param convention: missing → undefined (filter not applied),
   // explicitly empty → [] (all unchecked), otherwise → split comma list.
   function getArrayParam (key: string): string[] | undefined {
-    if (!Object.prototype.hasOwnProperty.call(route.query, key)) {
+    if (!Object.prototype.hasOwnProperty.call(query.value, key)) {
       return undefined
     }
-    const param = route.query[key]
+    const param = query.value[key]
     if (!param) {
       return []
     }
@@ -39,5 +57,5 @@ export function useUrlQuery () {
     }
   }
 
-  return { setQuery, getArrayParam, setArrayParam }
+  return { query, setQuery, getArrayParam, setArrayParam }
 }

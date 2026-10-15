@@ -93,7 +93,7 @@ export function buildRouteColumns (allDay: boolean, includeCensus: boolean): Tab
 
 // Standard-fare columns (#454). The amounts are numeric so they sort by value;
 // report.vue renders them as currency.
-const STANDARD_FARE_NOTE = 'Standard fare: the feed\'s default rider category in GTFS Fares v2, or the published fare in Fares v1. Only stops inside the study area are used to match zones and areas.'
+const STANDARD_FARE_NOTE = 'Standard fare: the feed\'s default rider category in GTFS Fares v2, or the published fare in Fares v1. Only stops inside the study area are used to match zones and areas. A fare offered only on certain dates, such as a holiday fare, counts only if it applies in the query\'s date range.'
 
 // `trip` names what the fare is for, e.g. "a trip on the route".
 function buildFareColumns (trip: string): TableColumn[] {

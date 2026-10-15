@@ -39,21 +39,20 @@ interface ScenarioFilters {
 
 // URL-backed post-fetch filters.
 export function useScenarioFilters (): ScenarioFilters {
-  const route = useRoute()
-  const { setQuery, getArrayParam, setArrayParam } = useUrlQuery()
+  const { query, setQuery, getArrayParam, setArrayParam } = useUrlQuery()
 
   const startTime = computed<Date | undefined>({
-    get: () => parseTime(route.query.startTime?.toString()),
+    get: () => parseTime(query.value.startTime?.toString()),
     set: (v) => { setQuery({ startTime: asTimeString(v) }) }
   })
 
   const endTime = computed<Date | undefined>({
-    get: () => parseTime(route.query.endTime?.toString()),
+    get: () => parseTime(query.value.endTime?.toString()),
     set: (v) => { setQuery({ endTime: asTimeString(v) }) }
   })
 
   const selectedWeekdayMode = computed<WeekdayMode | undefined>({
-    get: () => (route.query.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode,
+    get: () => (query.value.selectedWeekdayMode?.toString() || 'Any') as WeekdayMode,
     set: (v) => { setQuery({ selectedWeekdayMode: v === 'Any' ? undefined : v }) }
   })
 
@@ -78,7 +77,7 @@ export function useScenarioFilters (): ScenarioFilters {
     const valid = (n: number) => Number.isFinite(n) && n >= 0
     return computed<number | undefined>({
       get: () => {
-        const val = route.query[key]?.toString()
+        const val = query.value[key]?.toString()
         if (!val) {
           return undefined
         }
@@ -89,7 +88,9 @@ export function useScenarioFilters (): ScenarioFilters {
         return valid(n) ? n : undefined
       },
       set: (v) => {
-        const n = v == null ? Number.NaN : Number(v)
+        // Written through the same parser, so an integer filter stores 2 for
+        // a typed 2.5 rather than a URL value it reads back differently.
+        const n = v == null ? Number.NaN : parse(String(v))
         setQuery({ [key]: valid(n) ? n.toString() : undefined })
       }
     })
@@ -119,7 +120,7 @@ export function useScenarioFilters (): ScenarioFilters {
   // Off by default. Independent of includeFixedRoute — both fetch toggles
   // can be off, leaving the map empty until the user enables one.
   const flexServicesEnabled = computed<boolean | undefined>({
-    get: () => route.query.flexServicesEnabled?.toString() === 'true',
+    get: () => query.value.flexServicesEnabled?.toString() === 'true',
     set: (v) => { setQuery({ flexServicesEnabled: v ? 'true' : undefined }) }
   })
 
@@ -134,7 +135,7 @@ export function useScenarioFilters (): ScenarioFilters {
   })
 
   const flexColorBy = computed<string | undefined>({
-    get: () => route.query.flexColorBy?.toString() || 'Agency',
+    get: () => query.value.flexColorBy?.toString() || 'Agency',
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
   })
 
@@ -142,7 +143,7 @@ export function useScenarioFilters (): ScenarioFilters {
   // STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES when the user turns the filter on.
   const clusterMaxTransferMinutes = computed<number>({
     get: () => {
-      const raw = route.query.clusterMaxTransferMinutes?.toString()
+      const raw = query.value.clusterMaxTransferMinutes?.toString()
       if (raw == null || raw === '') {
         return 0
       }

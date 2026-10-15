@@ -2,7 +2,7 @@
   <aside class="menu">
     <cat-fieldset class="mb-4">
       <template #label>
-        <cat-tooltip text="Keeps routes and flex service areas by their standard single-ride fare: the feed's default rider category in GTFS Fares v2, or the published fare in Fares v1. A flex area takes the fares of the routes serving it. Many agencies publish no fares, so keep Unknown fare selected to avoid hiding them.">
+        <cat-tooltip text="Keeps routes and flex service areas by their standard single-ride fare: the feed's default rider category in GTFS Fares v2, or the published fare in Fares v1. A flex area takes the fares of the routes serving it. A fare offered only on certain dates, such as a holiday fare, counts only if it applies in the query's date range. Many agencies publish no fares, so keep Unknown fare selected to avoid hiding them.">
           Fare category
           <cat-icon icon="information" />
         </cat-tooltip>
@@ -32,16 +32,21 @@
       <cat-field grouped>
         <cat-checkbox
           v-model="fareMaxEnabled"
-          label="Fare at most $"
+          label="Fare at most"
         />
         <div class="cal-filter-fares-input">
           <cat-input
-            v-model="fareMax"
+            :model-value="fareMax"
+            optional
+            :model-modifiers="{ lazy: true }"
             type="number"
             min="0"
             step="0.25"
+            prefix="$"
+            :decimals="2"
             v-bind="{ ariaLabel: 'Maximum fare in dollars' }"
             :disabled="!fareMaxEnabled"
+            @update:model-value="setFareMax"
           />
         </div>
       </cat-field>
@@ -49,24 +54,25 @@
       <cat-field grouped>
         <cat-checkbox
           v-model="fareMinEnabled"
-          label="Fare at least $"
+          label="Fare at least"
         />
         <div class="cal-filter-fares-input">
           <cat-input
-            v-model="fareMin"
+            :model-value="fareMin"
+            optional
+            :model-modifiers="{ lazy: true }"
             type="number"
             min="0"
             step="0.25"
+            prefix="$"
+            :decimals="2"
             v-bind="{ ariaLabel: 'Minimum fare in dollars' }"
             :disabled="!fareMinEnabled"
+            @update:model-value="setFareMin"
           />
         </div>
       </cat-field>
     </cat-fieldset>
-
-    <p class="cal-filter-fares-note">
-      Routes and areas whose fares have not loaded are hidden while any fare filter is set.
-    </p>
   </aside>
 </template>
 
@@ -75,6 +81,8 @@ import { FARE_MAX_DEFAULT, FARE_MIN_DEFAULT } from '~~/src/core'
 import { FARE_CATEGORIES, fareCategoryDescriptions, fareCategoryLabels, type FareCategory } from '~~/src/tl'
 
 const { selectedFareCategories, fareMax, fareMin } = useScenarioFilters()
+const setFareMax = keepValueWhenEmptied(fareMax)
+const setFareMin = keepValueWhenEmptied(fareMin)
 
 // Checked when the amount is set; checking seeds a default, unchecking clears it.
 const fareMaxEnabled = computed({
@@ -98,12 +106,8 @@ const localSelectedFareCategories = computed<FareCategory[]>({
 </script>
 
 <style scoped lang="scss">
+// The input with its "$" prefix addon.
 .cal-filter-fares-input {
-  max-width: 100px;
-}
-
-.cal-filter-fares-note {
-  font-size: 0.85rem;
-  color: var(--bulma-text-weak);
+  max-width: 120px;
 }
 </style>

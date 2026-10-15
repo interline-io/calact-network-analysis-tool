@@ -9,16 +9,18 @@
         v-model="frequencyUnderEnabled"
         label="Avg. Frequency ≦"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
-          v-model="frequencyUnder"
+          :model-value="frequencyUnder"
+          optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
+          suffix="minutes"
+          v-bind="{ ariaLabel: 'Average frequency at most, in minutes' }"
           :disabled="!frequencyUnderEnabled"
+          @update:model-value="setFrequencyUnder"
         />
-      </div>
-      <div>
-        minutes
       </div>
     </cat-field>
 
@@ -27,16 +29,18 @@
         v-model="frequencyOverEnabled"
         label="Avg. Frequency >"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
-          v-model="frequencyOver"
+          :model-value="frequencyOver"
+          optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
+          suffix="minutes"
+          v-bind="{ ariaLabel: 'Average frequency over, in minutes' }"
           :disabled="!frequencyOverEnabled"
+          @update:model-value="setFrequencyOver"
         />
-      </div>
-      <div>
-        minutes
       </div>
     </cat-field>
 
@@ -52,16 +56,18 @@
         v-model="stopVisitsUnderEnabled"
         label="Total visits ≦"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
-          v-model="stopVisitsUnder"
+          :model-value="stopVisitsUnder"
+          optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
+          suffix="visits"
+          v-bind="{ ariaLabel: 'Total visits at most' }"
           :disabled="!stopVisitsUnderEnabled"
+          @update:model-value="setStopVisitsUnder"
         />
-      </div>
-      <div>
-        visits
       </div>
     </cat-field>
 
@@ -70,16 +76,18 @@
         v-model="stopVisitsOverEnabled"
         label="Total visits >"
       />
-      <div class="cal-input-width-80">
+      <div class="cal-input-width-unit">
         <cat-input
-          v-model="stopVisitsOver"
+          :model-value="stopVisitsOver"
+          optional
+          :model-modifiers="{ lazy: true }"
           type="number"
           min="0"
+          suffix="visits"
+          v-bind="{ ariaLabel: 'Total visits over' }"
           :disabled="!stopVisitsOverEnabled"
+          @update:model-value="setStopVisitsOver"
         />
-      </div>
-      <div>
-        visits
       </div>
     </cat-field>
 
@@ -100,16 +108,18 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
-                v-model="stopBufferRadius"
+                :model-value="stopBufferRadius"
+                optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
                 max="1600"
+                suffix="m"
+                v-bind="{ ariaLabel: 'Stop statistical radius in meters' }"
+                @update:model-value="setStopBufferRadius"
               />
-            </div>
-            <div class="ml-2">
-              m
             </div>
           </div>
         </div>
@@ -162,16 +172,18 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
-                v-model="clusterDistance"
+                :model-value="clusterDistance"
+                optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
                 :disabled="!clusterEnabled"
+                suffix="m"
+                v-bind="{ ariaLabel: 'Max distance between clustered stops in meters' }"
+                @update:model-value="setClusterDistance"
               />
-            </div>
-            <div class="ml-2">
-              m
             </div>
           </div>
         </div>
@@ -199,16 +211,18 @@
         </div>
         <div class="level-right">
           <div class="ml-4 level-item">
-            <div class="cal-input-width-100">
+            <div class="cal-input-width-unit">
               <cat-input
-                v-model="clusterMaxTransferMinutes"
+                :model-value="clusterMaxTransferMinutes"
+                optional
+                :model-modifiers="{ lazy: true }"
                 type="number"
                 min="0"
+                suffix="minutes"
+                v-bind="{ ariaLabel: 'Max transfer time in minutes' }"
                 :disabled="!clusterEnabled || !clusterTransferEnabled || !departuresLoaded"
+                @update:model-value="setClusterMaxTransferMinutes"
               />
-            </div>
-            <div class="ml-2">
-              min
             </div>
           </div>
         </div>
@@ -263,6 +277,15 @@ const {
   clusterMaxTransferMinutes,
 } = useScenarioFilters()
 
+// Emptying a field to retype it keeps the current value (see keepValueWhenEmptied).
+const setFrequencyUnder = keepValueWhenEmptied(frequencyUnder)
+const setFrequencyOver = keepValueWhenEmptied(frequencyOver)
+const setStopVisitsUnder = keepValueWhenEmptied(stopVisitsUnder)
+const setStopVisitsOver = keepValueWhenEmptied(stopVisitsOver)
+const setStopBufferRadius = keepValueWhenEmptied(stopBufferRadius)
+const setClusterDistance = keepValueWhenEmptied(clusterDistance)
+const setClusterMaxTransferMinutes = keepValueWhenEmptied(clusterMaxTransferMinutes)
+
 // Derived checkbox state: checked when value is defined, unchecked sets to undefined
 const frequencyUnderEnabled = computed({
   get: () => frequencyUnder.value != null,
@@ -300,11 +323,10 @@ const departuresLoaded = computed(() => {
 
 <style scoped lang="scss">
 .cal-service-levels {
-  .cal-input-width-80 {
-    max-width: 80px;
-  }
-  .cal-input-width-100 {
-    max-width: 100px;
+  // An input with its unit attached as a suffix addon; the input takes the
+  // width the unit leaves.
+  .cal-input-width-unit {
+    max-width: 150px;
   }
 }
 

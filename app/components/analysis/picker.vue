@@ -58,11 +58,8 @@
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, computed, ref, watch } from 'vue'
+import { defineAsyncComponent, computed } from 'vue'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
-
-const route = useRoute()
-const router = useRouter()
 
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig')
 const scenarioData = defineModel<ScenarioData>('scenarioData')
@@ -86,26 +83,11 @@ const analysisComponents: Record<string, { component: any }> = {
   'visioneval': { component: defineAsyncComponent(() => import('./visioneval.vue')) },
 }
 
-// Initialize selectedReportType from query parameter
-const selectedReportType = ref<string>(String(route.query.advancedReport || ''))
-
-// Sync selectedReportType with URL query parameter
-watch(selectedReportType, (newValue) => {
-  const currentQuery = { ...route.query }
-  if (newValue) {
-    currentQuery.advancedReport = newValue
-  } else {
-    delete currentQuery.advancedReport
-  }
-  router.replace({ query: currentQuery })
-})
-
-// Watch for URL changes to update selectedReportType
-watch(() => route.query.advancedReport, (newValue) => {
-  const newSelectedReport = String(newValue || '')
-  if (selectedReportType.value !== newSelectedReport) {
-    selectedReportType.value = newSelectedReport
-  }
+// The selected report type, kept in the URL.
+const { query, setQuery } = useUrlQuery()
+const selectedReportType = computed<string>({
+  get: () => String(query.value.advancedReport || ''),
+  set: (v) => { setQuery({ advancedReport: v || undefined }) },
 })
 
 const { hasResultsState } = useAnalysisResults()
