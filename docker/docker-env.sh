@@ -10,7 +10,7 @@ export TRANSITLAND_API_BASE=http://localhost:28080
 
 # The dev server proxies the browser's API calls here, so `pnpm dev` reads the
 # local fixture data rather than production.
-export NUXT_TLV2_PROXY_BASE_DEFAULT=http://localhost:28080
+export NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE=http://localhost:28080
 
 # No Auth0 locally. requireLogin defaults to on when unset, so the server API
 # answers 401 without this.
