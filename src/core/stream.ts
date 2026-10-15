@@ -159,6 +159,20 @@ export class GenericStreamReceiver<T extends StreamableProgress, TData> {
   }
 }
 
+// Forwards events to `receiver` until `signal` aborts. A superseded run's
+// remaining events, its abort error included, never reach shared state.
+export function gateReceiver<T extends StreamableProgress, TData> (
+  receiver: StreamDataReceiver<T, TData>,
+  signal: AbortSignal,
+): StreamDataReceiver<T, TData> {
+  return {
+    onProgress: (progress) => { if (!signal.aborted) { receiver.onProgress(progress) } },
+    onComplete: () => { if (!signal.aborted) { receiver.onComplete() } },
+    onError: (error) => { if (!signal.aborted) { receiver.onError(error) } },
+    getCurrentData: () => receiver.getCurrentData(),
+  }
+}
+
 // ============================================================================
 // Utility functions to create and manage streams
 // ============================================================================
@@ -244,6 +258,10 @@ export type StreamWorker = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage
 // The stream a worker relays with postStream, after posting it `request`.
 // The worker is terminated when the stream ends or `signal` aborts, which
 // stops its requests and its work at once.
+//
+// TODO: before direct mode ships, terminate the worker when the consumer
+// cancels, error at once on an already-aborted signal, and remove the abort
+// listener when the stream ends.
 export function workerStream (worker: StreamWorker, request: unknown, signal?: AbortSignal): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start (controller) {

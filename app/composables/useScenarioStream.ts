@@ -14,7 +14,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import type { RequestFailure } from '~~/src/core'
+import { gateReceiver, type RequestFailure } from '~~/src/core'
 import type { StreamEndpoint } from '~~/src/stream-runs'
 
 // Stream state and lifecycle for one scenario run at a time.
@@ -79,13 +79,16 @@ export function useScenarioStream (fetchMode: MaybeRefOrGetter<FetchMode>): UseS
   // Run identity is the run's own AbortController: a new run aborts its
   // predecessor, and everything the old run might still do is gated on its
   // signal.
+  //
+  // TODO: before direct mode ships, also abort on scope dispose. Otherwise a
+  // run outlives its unmounted component, and in direct mode its worker keeps
+  // fetching until the run finishes.
   let abort: AbortController | undefined
 
   const run = async (receiver: ScenarioDataReceiver, endpoint: StreamEndpoint, body: unknown): Promise<void> => {
     abort?.abort()
     const controller = new AbortController()
     abort = controller
-    const live = () => !controller.signal.aborted
 
     // Clear state left by a prior run so a fresh run starts clean — a stale
     // error would keep the success path (gated on !error) suppressed.
@@ -109,14 +112,8 @@ export function useScenarioStream (fetchMode: MaybeRefOrGetter<FetchMode>): UseS
 
     // The receiver is gated on run identity, so a superseded run's buffered
     // tail cannot write into its successor's state.
-    const gated = {
-      onProgress: (progress: ScenarioProgress) => { if (live()) { receiver.onProgress(progress) } },
-      onComplete: () => { if (live()) { receiver.onComplete() } },
-      onError: (err: any) => { if (live()) { receiver.onError(err) } },
-      getCurrentData: () => receiver.getCurrentData(),
-    }
-    const { success } = await new ScenarioStreamReceiver().processStream(stream, gated)
-    if (!live()) {
+    const { success } = await new ScenarioStreamReceiver().processStream(stream, gateReceiver(receiver, controller.signal))
+    if (controller.signal.aborted) {
       return
     }
     // A server-reported failure is already in `error`; only a stream that

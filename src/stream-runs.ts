@@ -1,6 +1,9 @@
 // The streaming run behind each BFF endpoint, keyed by the endpoint's path
 // under /api. The BFF serves these over HTTP; in direct mode the browser runs
 // them itself. Request validation stays with the BFF endpoints.
+//
+// TODO: before direct mode ships, move each endpoint's validation into its
+// run. Direct mode bypasses the endpoints, so it runs on input the BFF rejects.
 
 import { logMemory, requestStream, type GraphQLClient } from '~~/src/core'
 import {

@@ -13,7 +13,7 @@ import {
   type ScenarioPhaseName,
   type ScenarioProgress,
 } from '~~/src/scenario'
-import type { RequestFailure } from '~~/src/core'
+import { gateReceiver, type RequestFailure } from '~~/src/core'
 import type { StreamEndpoint } from '~~/src/stream-runs'
 
 export interface StreamingRefetchDeps {
@@ -128,6 +128,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     // Only the first refetch of a burst clears; a later one must not discard
     // failures a sibling still in flight has already reported.
     if (deps.refetchInFlight.value === 1) {
+      deps.error.value = undefined
       deps.requestErrors.value = []
     }
     deps.showLoadingModal.value = true
@@ -143,7 +144,9 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     try {
       const stream = await openStream(opts.endpoint, plan, localAbort.signal)
       const streamer = new ScenarioStreamReceiver()
-      const { success } = await streamer.processStream(stream, receiver)
+      // Gated like a run's receiver: a superseded or disposed refetch's abort
+      // error and abnormal end would otherwise land in the shared modal state.
+      const { success } = await streamer.processStream(stream, gateReceiver(receiver, localAbort.signal))
       if (!success) {
         // Rethrow a server-reported cause rather than overwrite it.
         throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)

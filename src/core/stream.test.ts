@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
+  GenericStreamReceiver,
   GenericStreamSender,
+  gateReceiver,
   postStream,
   producerStream,
   requestStream,
   workerStream,
   type StreamableProgress,
+  type StreamDataReceiver,
   type StreamWorker,
   type StreamWorkerMessage,
 } from './stream'
@@ -227,5 +230,40 @@ describe('workerStream', () => {
     }), reply)
     await expect(reader.read()).rejects.toThrow('backend died')
     vi.restoreAllMocks()
+  })
+})
+
+describe('gateReceiver', () => {
+  const encode = (p: Progress) => new TextEncoder().encode(JSON.stringify(p) + '\n')
+
+  // Streams one event, then aborts the stream the way fetch and workerStream
+  // do, and returns the calls the receiver saw.
+  async function abortAfterOneEvent (gated: boolean): Promise<string[]> {
+    const calls: string[] = []
+    const receiver: StreamDataReceiver<Progress, null> = {
+      onProgress: (p) => { calls.push(`progress ${p.seq}`) },
+      onComplete: () => { calls.push('complete') },
+      onError: () => { calls.push('error') },
+      getCurrentData: () => null,
+    }
+    const abort = new AbortController()
+    const stream = new ReadableStream<Uint8Array>({
+      start (controller) {
+        controller.enqueue(encode({ currentStage: 'stops', seq: 1 }))
+        abort.signal.addEventListener('abort', () => controller.error(abort.signal.reason))
+      },
+    })
+    const target = gated ? gateReceiver(receiver, abort.signal) : receiver
+    const done = new GenericStreamReceiver<Progress, null>().processStream(stream, target)
+    await vi.waitFor(() => expect(calls).toEqual(['progress 1']))
+    abort.abort()
+    expect((await done).success).toBe(false)
+    return calls
+  }
+
+  it('passes what came before the abort, and drops the abort error and abnormal end', async () => {
+    // Baseline: without the gate, the abort reaches the receiver.
+    expect(await abortAfterOneEvent(false)).toEqual(['progress 1', 'error', 'complete'])
+    expect(await abortAfterOneEvent(true)).toEqual(['progress 1'])
   })
 })
