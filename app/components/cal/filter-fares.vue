@@ -71,10 +71,6 @@
         </div>
       </cat-field>
     </cat-fieldset>
-
-    <p class="cal-filter-fares-note">
-      Routes and areas whose fares have not loaded are hidden while any fare filter is set.
-    </p>
   </aside>
 </template>
 
@@ -111,10 +107,5 @@ const localSelectedFareCategories = computed<FareCategory[]>({
 // The input with its "$" prefix addon.
 .cal-filter-fares-input {
   max-width: 120px;
-}
-
-.cal-filter-fares-note {
-  font-size: 0.85rem;
-  color: var(--bulma-text-weak);
 }
 </style>
