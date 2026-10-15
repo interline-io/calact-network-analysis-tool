@@ -238,8 +238,6 @@ import {
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
-  asDateString,
-  bboxString,
 } from '~~/src/core'
 import { useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
@@ -269,6 +267,7 @@ const {
   stopBufferRadius,
   stopBufferLayer,
   clusterDistance,
+  pinScenarioInputs,
 } = useScenarioInputs()
 const {
   startTime,
@@ -347,15 +346,7 @@ watch(cannedBbox, () => { querySubmitted.value = false })
 // modal/toast lifecycle is the shared one in useScenarioStream.
 const runQuery = async () => {
   querySubmitted.value = true
-  // Record the scenario's inputs in the URL, defaults included, so a link to
-  // the results reruns the same scenario: the default dates are computed from
-  // today, and the default area could change. An admin-boundary query is
-  // already in the URL through its geographyIds.
-  setQuery({
-    ...(geomSource.value === 'adminBoundary' ? {} : { bbox: bboxString(bbox.value) }),
-    startDate: asDateString(startDate.value),
-    endDate: asDateString(endDate.value),
-  })
+  pinScenarioInputs()
   activeTab.value = { tab: 'map', sub: '' }
   await runScenarioQuery('Browsing query data loaded successfully!')
 }

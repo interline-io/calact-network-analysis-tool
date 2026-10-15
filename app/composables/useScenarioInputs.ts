@@ -39,6 +39,8 @@ interface ScenarioInputs {
   // setQuery is only race-safe within a single call, so the three params
   // must land in one navigation.
   applyDatesAndFvids: (v: { startDate: Date, endDate: Date, fvids: string }) => void
+  // Writes the area and dates a run uses to the URL, defaults included.
+  pinScenarioInputs: () => void
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -168,6 +170,21 @@ export function useScenarioInputs (): ScenarioInputs {
     })
   }
 
+  // Records the inputs a run uses in the URL, defaults included, so a link to
+  // the results reruns the same scenario: the default dates are computed from
+  // today, and the default area or geography dataset could change. An
+  // admin-boundary query's area is its geographyIds, already in the URL, read
+  // within its geography dataset.
+  function pinScenarioInputs () {
+    setQuery({
+      ...(geomSource.value === 'adminBoundary'
+        ? { geoDatasetName: geoDatasetName.value }
+        : { bbox: bboxString(bbox.value) }),
+      startDate: asDateString(startDate.value),
+      endDate: asDateString(endDate.value),
+    })
+  }
+
   return {
     bbox,
     cannedBbox,
@@ -186,5 +203,6 @@ export function useScenarioInputs (): ScenarioInputs {
     stopBufferLayer,
     clusterDistance,
     applyDatesAndFvids,
+    pinScenarioInputs,
   }
 }
