@@ -165,6 +165,7 @@
               placeholder="Search..."
               fullwidth
               :loading="geomResultLoading"
+              @select="emit('fitToGeographies')"
             >
               <template #header>
                 <strong>
