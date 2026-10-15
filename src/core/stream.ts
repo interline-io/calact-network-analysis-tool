@@ -207,7 +207,7 @@ export const requestStream = (controller: ReadableStreamDefaultController): Writ
   })
 }
 
-// A byte stream that `run` writes into. If `run` throws, the stream errors,
+// A byte stream that `run` fills. If `run` throws, the stream errors,
 // so a run that never settled the stream can't leave its reader waiting.
 export function producerStream (
   run: (controller: ReadableStreamDefaultController) => Promise<unknown>,

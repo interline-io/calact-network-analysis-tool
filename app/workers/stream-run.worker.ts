@@ -11,7 +11,7 @@ import { streamRuns, type StreamEndpoint } from '~~/src/stream-runs'
 // What the page posts to start a run.
 export interface StreamRunRequest {
   endpoint: StreamEndpoint
-  // The JSON request body, as the BFF would read it.
+  // The JSON request body, in the form the BFF reads.
   body: string
   graphqlUrl: string
 }

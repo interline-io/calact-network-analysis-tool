@@ -46,7 +46,7 @@ export interface StreamingRefetchDeps {
 }
 
 // What a single refetch should do given the current inputs:
-//  - an object → the endpoint's request body; stream its run's result in
+//  - an object → the endpoint's request body; its run's result streams into the receiver
 //  - 'clear'   → drop this feature's accumulated slice (it's now disabled); no call
 //  - 'skip'    → do nothing (prerequisites for the feature aren't met)
 export type RefetchPlan = object | 'clear' | 'skip'
@@ -125,9 +125,10 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     }
 
     deps.refetchInFlight.value++
-    // Only the first refetch of a burst clears; a later one must not discard
-    // failures a sibling still in flight has already reported.
-    if (deps.refetchInFlight.value === 1) {
+    // Failures stay until the user closes the modal. A closed modal means any
+    // failures have been seen, so a new refetch starts clean; an open one may
+    // still be showing a failed run's or a sibling refetch's report.
+    if (!deps.showLoadingModal.value) {
       deps.error.value = undefined
       deps.requestErrors.value = []
     }
@@ -141,6 +142,7 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
     deps.phasePlan.value = undefined
     deps.phaseFractions.value = {}
 
+    const errorBefore = deps.error.value
     try {
       const stream = await openStream(opts.endpoint, plan, localAbort.signal)
       const streamer = new ScenarioStreamReceiver()
@@ -148,8 +150,12 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
       // error and abnormal end would otherwise land in the shared modal state.
       const { success } = await streamer.processStream(stream, gateReceiver(receiver, localAbort.signal))
       if (!success) {
-        // Rethrow a server-reported cause rather than overwrite it.
-        throw deps.error.value ?? new Error(`Refetch stream from ${opts.endpoint} ended unexpectedly`)
+        // Keep a cause the stream reported; only a silent end gets the generic
+        // error. An error already there before this refetch began came from an
+        // earlier failure.
+        throw deps.error.value !== errorBefore
+          ? deps.error.value
+          : new Error(`Refetch stream from /api/${opts.endpoint} ended unexpectedly`)
       }
       publish(receiver)
     } catch (err: any) {
@@ -170,10 +176,13 @@ export function useStreamingRefetch (deps: StreamingRefetchDeps, opts: Streaming
         abort = undefined
       }
       // Only the last refetch standing tears down the shared loading state, and
-      // only when nothing failed — a failure report has to stay on screen.
-      if (deps.refetchInFlight.value === 0 && deps.requestErrors.value.length === 0) {
-        deps.showLoadingModal.value = false
+      // the modal closes only when nothing failed: a failure report, fatal or
+      // per-request, has to stay on screen.
+      if (deps.refetchInFlight.value === 0) {
         deps.loadingProgress.value = undefined
+        if (!deps.error.value && deps.requestErrors.value.length === 0) {
+          deps.showLoadingModal.value = false
+        }
       }
     }
   }

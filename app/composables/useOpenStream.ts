@@ -15,12 +15,13 @@ export type FetchMode = 'bff' | 'direct'
 // Opens one run's stream. Aborting `signal` cancels the run.
 export type OpenStream = (endpoint: StreamEndpoint, body: unknown, signal?: AbortSignal) => Promise<ReadableStream<Uint8Array>>
 
+// Returns an OpenStream that uses the fetch mode current at each call.
 export function useOpenStream (fetchMode: MaybeRefOrGetter<FetchMode>): OpenStream {
   // Resolved now: it reads runtime config, which needs the setup context.
   const graphqlUrl = useApiEndpoint('/query', 'default')
 
   return async (endpoint, body, signal) => {
-    // The body as the BFF reads it, so both modes run on the same input.
+    // The body in the form the BFF reads, so both modes run on the same input.
     const json = JSON.stringify(withCalendarDates(body))
 
     if (toValue(fetchMode) === 'direct') {

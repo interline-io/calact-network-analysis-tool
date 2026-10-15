@@ -17,6 +17,10 @@ interface Progress extends StreamableProgress {
   seq?: number
 }
 
+// One event as a sender writes it: a single NDJSON line in its own chunk.
+const encode = (p: Progress) => new TextEncoder().encode(JSON.stringify(p) + '\n')
+const decode = (chunk: Uint8Array | undefined) => JSON.parse(new TextDecoder().decode(chunk)) as Progress
+
 // Reads whatever a controller was given, the way a response consumer does.
 function collector () {
   const chunks: string[] = []
@@ -127,9 +131,6 @@ describe('producerStream', () => {
     vi.restoreAllMocks()
   })
 
-  // Decodes one chunk, which a sender writes as exactly one NDJSON event.
-  const decode = (chunk: Uint8Array | undefined) => JSON.parse(new TextDecoder().decode(chunk)) as Progress
-
   it('delivers what the run writes, then ends', async () => {
     const stream = producerStream(async (controller) => {
       const writer = requestStream(controller).getWriter()
@@ -152,11 +153,12 @@ describe('producerStream', () => {
 })
 
 describe('workerStream', () => {
-  // Decodes one chunk, which a sender writes as exactly one NDJSON event.
-  const decode = (chunk: Uint8Array | undefined) => JSON.parse(new TextDecoder().decode(chunk)) as Progress
-  const encode = (p: Progress) => new TextEncoder().encode(JSON.stringify(p) + '\n')
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
-  // A worker that records what the page posts, and replies when told to.
+  // A stand-in worker that records what the page posts. `reply` sends the
+  // page a message as the worker.
   function fakeWorker () {
     const posted: unknown[] = []
     let terminated = false
@@ -229,13 +231,10 @@ describe('workerStream', () => {
       throw new Error('backend died')
     }), reply)
     await expect(reader.read()).rejects.toThrow('backend died')
-    vi.restoreAllMocks()
   })
 })
 
 describe('gateReceiver', () => {
-  const encode = (p: Progress) => new TextEncoder().encode(JSON.stringify(p) + '\n')
-
   // Streams one event, then aborts the stream the way fetch and workerStream
   // do, and returns the calls the receiver saw.
   async function abortAfterOneEvent (gated: boolean): Promise<string[]> {

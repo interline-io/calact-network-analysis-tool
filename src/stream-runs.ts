@@ -68,6 +68,7 @@ function phase<B> (
       (emit, onError) => run(body, client, emit, onError)))
 }
 
+// Each endpoint's run, by the endpoint's path under /api.
 export const streamRuns = {
   'scenario': reported('Scenario run', async (config: ScenarioConfig, client, controller) => {
     await streamScenario(controller, config, client)
