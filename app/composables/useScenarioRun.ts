@@ -8,6 +8,7 @@
 
 import { shallowRef, ref, watch, markRaw, type Ref, type ShallowRef } from 'vue'
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
+import { useScenarioInputs } from './useScenarioInputs'
 import {
   ScenarioDataReceiver,
   applyScenarioResultFilter,
@@ -51,12 +52,15 @@ export function useScenarioRun (deps: UseScenarioRunDeps): UseScenarioRunReturn 
   const refetchInFlight = ref(0)
   const runInFlight = ref(0)
   const scenarioReceiver = shallowRef<ScenarioDataReceiver>()
+  const { pinScenarioInputs } = useScenarioInputs()
 
   const fetchScenario = async (): Promise<boolean> => {
     const config = deps.scenarioConfig.value
     if (!hasSearchArea(config)) {
       return false
     }
+    // Every run records its inputs in the URL, so a link to its results reruns it.
+    pinScenarioInputs()
 
     // Create receiver to accumulate scenario data
     const receiver = new ScenarioDataReceiver({

@@ -542,16 +542,26 @@ const mapExtentCenter = computed((): Point | undefined => {
   return undefined
 })
 
+// A map-extent link's bbox is the area it was run on. The map fits to it on
+// load, and that fit's padded viewport, like any resize before the user moves
+// the map, depends on the window and mustn't replace it. Once the user moves
+// the map, or switches to map-extent mode, the visible extent is the area.
+let holdLinkedExtent = geomSource.value === 'mapExtent' && !!query.value.bbox
+
 watch(geomSource, () => {
+  holdLinkedExtent = false
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
   }
 })
 
-async function setMapExtent (v: Bbox) {
+async function setMapExtent (v: Bbox, userInitiated: boolean) {
   mapExtent.value = v
+  if (userInitiated) {
+    holdLinkedExtent = false
+  }
   // Only update bbox from map extent before a query has been submitted
-  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value && !holdLinkedExtent) {
     bbox.value = mapExtent.value
   }
 }
