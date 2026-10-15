@@ -653,11 +653,26 @@ function clearGeographies () {
   geographyIds.value = []
 }
 
-// Fit map to selected geographies — only on explicit user request (button click)
+// Fit map to selected geographies — only on explicit user request: the "Show
+// on map" button, or picking a geography from the search.
 const fitOverlayKey = ref(0)
+const geographyFitPending = ref(false)
 function fitToGeographies () {
-  fitOverlayKey.value++
+  geographyFitPending.value = true
 }
+
+// A newly picked geography's geometry arrives after geographyIds changes, so
+// a fit request waits until censusGeographiesSelected matches the selection.
+const selectedGeographiesLoaded = computed(() => {
+  const loaded = new Set(censusGeographiesSelected.value.map(g => g.id))
+  return loaded.size === geographyIds.value.length && geographyIds.value.every(id => loaded.has(id))
+})
+watch([geographyFitPending, selectedGeographiesLoaded], ([pending, loaded]) => {
+  if (pending && loaded) {
+    geographyFitPending.value = false
+    fitOverlayKey.value++
+  }
+})
 
 ////////////////////////////
 // Scenario

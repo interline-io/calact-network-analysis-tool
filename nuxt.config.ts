@@ -53,10 +53,12 @@ export default defineNuxtConfig({
       appBaseUrl: '',
       audience: '',
     },
-    tlv2: {
-      graphqlApikey: '',
-      proxyBase: {
-        default: 'proxy',
+    // The Transitland API, set at runtime from NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE
+    // and NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY. The proxy sends the apikey along
+    // with a logged-in user's token, as the server API's GraphQL client does.
+    tlv2proxy: {
+      backends: {
+        default: { base: '', apikey: '', apikeyWithToken: true },
       },
     },
     public: {
