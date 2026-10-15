@@ -13,6 +13,7 @@ import {
   type Bbox,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
+import { scenarioInputsToPin } from './scenarioInputsToPin'
 
 interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>
@@ -39,6 +40,8 @@ interface ScenarioInputs {
   // setQuery is only race-safe within a single call, so the three params
   // must land in one navigation.
   applyDatesAndFvids: (v: { startDate: Date, endDate: Date, fvids: string }) => void
+  // Writes the area and dates a run uses to the URL, defaults included.
+  pinScenarioInputs: () => void
 }
 
 // URL-backed inputs that drive scenario fetching.
@@ -86,7 +89,8 @@ export function useScenarioInputs (): ScenarioInputs {
 
   const geoDatasetName = computed<string>({
     get: () => query.value.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName,
-    set: (v) => { setQuery({ geoDatasetName: v === SCENARIO_DEFAULTS.geoDatasetName ? undefined : v }) }
+    // Written even when it's the default, as a run records it (see scenarioInputsToPin).
+    set: (v) => { setQuery({ geoDatasetName: v }) }
   })
 
   const includeFixedRoute = computed<boolean | undefined>({
@@ -168,6 +172,18 @@ export function useScenarioInputs (): ScenarioInputs {
     })
   }
 
+  // Records the inputs a run uses in the URL (see scenarioInputsToPin).
+  function pinScenarioInputs () {
+    setQuery(scenarioInputsToPin({
+      geomSource: geomSource.value,
+      bboxParam: query.value.bbox?.toString(),
+      cannedBbox: cannedBbox.value,
+      startDate: startDate.value,
+      endDate: endDate.value,
+      geoDatasetName: geoDatasetName.value,
+    }))
+  }
+
   return {
     bbox,
     cannedBbox,
@@ -186,5 +202,6 @@ export function useScenarioInputs (): ScenarioInputs {
     stopBufferLayer,
     clusterDistance,
     applyDatesAndFvids,
+    pinScenarioInputs,
   }
 }

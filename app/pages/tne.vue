@@ -544,16 +544,26 @@ const mapExtentCenter = computed((): Point | undefined => {
   return undefined
 })
 
+// A map-extent link's bbox is the area it was run on. The map fits to it on
+// load, and that fit's padded viewport, like any resize before the user moves
+// the map, depends on the window and mustn't replace it. Once the user moves
+// the map, or switches to map-extent mode, the visible extent is the area.
+let holdLinkedExtent = geomSource.value === 'mapExtent' && !!query.value.bbox
+
 watch(geomSource, () => {
+  holdLinkedExtent = false
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
   }
 })
 
-async function setMapExtent (v: Bbox) {
+async function setMapExtent (v: Bbox, userInitiated: boolean) {
   mapExtent.value = v
+  if (userInitiated) {
+    holdLinkedExtent = false
+  }
   // Only update bbox from map extent before a query has been submitted
-  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value && !holdLinkedExtent) {
     bbox.value = mapExtent.value
   }
 }
@@ -643,11 +653,26 @@ function clearGeographies () {
   geographyIds.value = []
 }
 
-// Fit map to selected geographies — only on explicit user request (button click)
+// Fit map to selected geographies — only on explicit user request: the "Show
+// on map" button, or picking a geography from the search.
 const fitOverlayKey = ref(0)
+const geographyFitPending = ref(false)
 function fitToGeographies () {
-  fitOverlayKey.value++
+  geographyFitPending.value = true
 }
+
+// A newly picked geography's geometry arrives after geographyIds changes, so
+// a fit request waits until censusGeographiesSelected matches the selection.
+const selectedGeographiesLoaded = computed(() => {
+  const loaded = new Set(censusGeographiesSelected.value.map(g => g.id))
+  return loaded.size === geographyIds.value.length && geographyIds.value.every(id => loaded.has(id))
+})
+watch([geographyFitPending, selectedGeographiesLoaded], ([pending, loaded]) => {
+  if (pending && loaded) {
+    geographyFitPending.value = false
+    fitOverlayKey.value++
+  }
+})
 
 ////////////////////////////
 // Scenario

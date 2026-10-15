@@ -72,11 +72,11 @@ import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
-import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
+import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
-  setMapExtent: [value: Bbox]
+  setMapExtent: [value: Bbox, userInitiated: boolean]
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
@@ -123,9 +123,13 @@ const centerPoint: Point = {
   lat: (bbox.value.sw.lat + bbox.value.ne.lat) / 2
 }
 
-// Track fitBounds requests — only refit for external bbox changes, not map-originated drags
+// Track fitBounds requests — only refit for external bbox changes, not ones
+// the map made itself.
 const fitBoundsKey = ref(0)
-let bboxChangeFromMap = false
+
+// The map's own latest bbox: a drag of the bbox editor, or the extent after a
+// pan or zoom. Kept in URL form, since a write to `bbox` reads back that way.
+let mapBbox = ''
 
 watch(bbox, (newBbox, oldBbox) => {
   if (oldBbox
@@ -133,17 +137,16 @@ watch(bbox, (newBbox, oldBbox) => {
     && newBbox.ne.lon === oldBbox.ne.lon && newBbox.ne.lat === oldBbox.ne.lat) {
     return
   }
-  if (bboxChangeFromMap) {
-    bboxChangeFromMap = false
+  if (bboxString(newBbox) === mapBbox) {
     return
   }
   fitBoundsKey.value++
 }, { flush: 'sync' })
 
-// Persist a user-drawn bbox, flagged map-originated so the external-change
+// Persist a user-drawn bbox, recorded as the map's own so the external-change
 // watch above won't refit.
 function commitBbox (box: Bbox) {
-  bboxChangeFromMap = true
+  mapBbox = bboxString(box)
   bbox.value = box
 }
 
@@ -813,8 +816,12 @@ const flexStyleData = computed(() => {
 // Map events
 
 const extentBbox = ref(bbox.value)
+// Whether any move since the last extent sent came from the user; kept until
+// sent, so a programmatic move in the same tick doesn't clear it.
+let extentFromUser = false
 
 function mapMove (v: any) {
+  extentFromUser ||= !!v.userInitiated
   const b = v.bbox
   extentBbox.value = {
     valid: true,
@@ -824,8 +831,9 @@ function mapMove (v: any) {
 }
 
 watch(extentBbox, () => {
-  bboxChangeFromMap = true
-  emit('setMapExtent', extentBbox.value)
+  mapBbox = bboxString(extentBbox.value)
+  emit('setMapExtent', extentBbox.value, extentFromUser)
+  extentFromUser = false
 })
 
 const popupFeatures = ref<PopupFeature[]>([])
