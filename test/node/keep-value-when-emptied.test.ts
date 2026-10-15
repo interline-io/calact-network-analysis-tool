@@ -12,5 +12,8 @@ describe('keepValueWhenEmptied', () => {
     expect(fareMax.value).toBe(3)
     set(0)
     expect(fareMax.value).toBe(0)
+    // A negative is ignored like an emptied field.
+    set(-1)
+    expect(fareMax.value).toBe(0)
   })
 })

@@ -88,7 +88,9 @@ export function useScenarioFilters (): ScenarioFilters {
         return valid(n) ? n : undefined
       },
       set: (v) => {
-        const n = v == null ? Number.NaN : Number(v)
+        // Written through the same parser, so an integer filter stores 2 for
+        // a typed 2.5 rather than a URL value it reads back differently.
+        const n = v == null ? Number.NaN : parse(String(v))
         setQuery({ [key]: valid(n) ? n.toString() : undefined })
       }
     })

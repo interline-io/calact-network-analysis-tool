@@ -58,7 +58,7 @@
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, computed, ref, watch } from 'vue'
+import { defineAsyncComponent, computed } from 'vue'
 import type { ScenarioData, ScenarioConfig } from '~~/src/scenario'
 
 const scenarioConfig = defineModel<ScenarioConfig>('scenarioConfig')
@@ -83,22 +83,11 @@ const analysisComponents: Record<string, { component: any }> = {
   'visioneval': { component: defineAsyncComponent(() => import('./visioneval.vue')) },
 }
 
-// Initialize selectedReportType from query parameter
+// The selected report type, kept in the URL.
 const { query, setQuery } = useUrlQuery()
-const selectedReportType = ref<string>(String(query.value.advancedReport || ''))
-
-// Sync selectedReportType with URL query parameter, through the shared writer
-// so it can't race the other URL-backed state.
-watch(selectedReportType, (newValue) => {
-  setQuery({ advancedReport: newValue || undefined })
-})
-
-// Watch for URL changes to update selectedReportType
-watch(() => query.value.advancedReport, (newValue) => {
-  const newSelectedReport = String(newValue || '')
-  if (selectedReportType.value !== newSelectedReport) {
-    selectedReportType.value = newSelectedReport
-  }
+const selectedReportType = computed<string>({
+  get: () => String(query.value.advancedReport || ''),
+  set: (v) => { setQuery({ advancedReport: v || undefined }) },
 })
 
 const { hasResultsState } = useAnalysisResults()
