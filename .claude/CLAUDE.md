@@ -107,7 +107,7 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 
 See `.env.example`. Key variables:
 - `TRANSITLAND_API_BASE` — GraphQL API endpoint (used by CLI)
-- `NUXT_TLV2_PROXY_BASE_DEFAULT` — API proxy base URL
+- `NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE` / `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY` — Transitland API base URL and apikey, for the proxy and the server API
 - `NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY` — Map tiles API key
 - `NUXT_PUBLIC_TLV2_LOGIN_GATE` / `NUXT_PUBLIC_TLV2_REQUIRE_LOGIN` — Set to `true` to test production auth behavior
 

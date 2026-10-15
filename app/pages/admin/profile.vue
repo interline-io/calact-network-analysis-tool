@@ -40,16 +40,7 @@
 </template>
 
 <script setup lang="ts">
-// TODO: Replace with useUser() once it's reactive to session enrichment in tlv2-auth
-const auth0User = useState('auth0_user')
-const roles = useState<string[]>('tlv2_user_roles', () => [])
-
-const user = computed(() => ({
-  loggedIn: !!auth0User.value,
-  name: (auth0User.value as Record<string, string>)?.name || '',
-  email: (auth0User.value as Record<string, string>)?.email || '',
-  roles: roles.value,
-}))
+const user = useUser()
 
 function logout () {
   useLogout()

@@ -7,9 +7,9 @@ import { resolveAccessToken } from './auth'
 
 export async function buildServerGraphQLClient (event: H3Event): Promise<BasicGraphQLClient> {
   const token = await resolveAccessToken(event)
-  const runtimeConfig = useRuntimeConfig(event)
+  const backend = useRuntimeConfig(event).tlv2proxy.backends.default
   return new BasicGraphQLClient(
-    runtimeConfig.tlv2.proxyBase.default + '/query',
-    apiFetch(runtimeConfig.tlv2?.graphqlApikey || '', token),
+    backend.base + '/query',
+    apiFetch(backend.apikey, token),
   )
 }
