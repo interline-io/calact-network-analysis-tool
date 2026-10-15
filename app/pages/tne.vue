@@ -37,7 +37,7 @@
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
             @explore="runQuery"
-            @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
+            @switch-to-analysis-tab="runAdvancedAnalysis"
             @reset-scenario="clearScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
@@ -351,6 +351,13 @@ const runQuery = async () => {
   await runScenarioQuery('Browsing query data loaded successfully!')
 }
 
+// Runs on "Run Advanced Analysis": the analyses run from the inputs too, so
+// their links record them the same way.
+function runAdvancedAnalysis () {
+  pinScenarioInputs()
+  setTab({ tab: 'analysis', sub: '' })
+}
+
 // Scenario data ref - the central scenario data graph, populated by fetchScenario.
 // Defined early so it can be passed into the run / flex / refetch composables below.
 // shallowRef + markRaw: scenario data is huge and updated only by whole-shell
@@ -550,10 +557,13 @@ watch(geomSource, () => {
   }
 })
 
-async function setMapExtent (v: Bbox) {
+async function setMapExtent (v: Bbox, userInitiated: boolean) {
   mapExtent.value = v
-  // Only update bbox from map extent before a query has been submitted
-  if (geomSource.value === 'mapExtent' && !querySubmitted.value) {
+  // Only update bbox from map extent before a query has been submitted. A
+  // bbox already in the URL (a shared map-extent link) is what the map fit
+  // to on load; only the user moving the map replaces it, not the fit, whose
+  // padded viewport depends on the window.
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value && (userInitiated || !query.value.bbox)) {
     bbox.value = mapExtent.value
   }
 }

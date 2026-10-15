@@ -76,7 +76,7 @@ import { categoricalColors, routeTypeNames, flexColors, createCategoryColorScale
 import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
 
 const emit = defineEmits<{
-  setMapExtent: [value: Bbox]
+  setMapExtent: [value: Bbox, userInitiated: boolean]
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
@@ -813,8 +813,10 @@ const flexStyleData = computed(() => {
 // Map events
 
 const extentBbox = ref(bbox.value)
+let extentFromUser = false
 
 function mapMove (v: any) {
+  extentFromUser = !!v.userInitiated
   const b = v.bbox
   extentBbox.value = {
     valid: true,
@@ -825,7 +827,7 @@ function mapMove (v: any) {
 
 watch(extentBbox, () => {
   bboxChangeFromMap = true
-  emit('setMapExtent', extentBbox.value)
+  emit('setMapExtent', extentBbox.value, extentFromUser)
 })
 
 const popupFeatures = ref<PopupFeature[]>([])

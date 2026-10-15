@@ -13,6 +13,7 @@ import {
   type Bbox,
 } from '~~/src/core'
 import { useUrlQuery } from './useUrlQuery'
+import { scenarioInputsToPin } from './scenarioInputsToPin'
 
 interface ScenarioInputs {
   bbox: WritableComputedRef<Bbox>
@@ -170,19 +171,17 @@ export function useScenarioInputs (): ScenarioInputs {
     })
   }
 
-  // Records the inputs a run uses in the URL, defaults included, so a link to
-  // the results reruns the same scenario: the default dates are computed from
-  // today, and the default area or geography dataset could change. An
-  // admin-boundary query's area is its geographyIds, already in the URL, read
-  // within its geography dataset.
+  // Records the inputs a run uses in the URL (see scenarioInputsToPin).
   function pinScenarioInputs () {
-    setQuery({
-      ...(geomSource.value === 'adminBoundary'
-        ? { geoDatasetName: geoDatasetName.value }
-        : { bbox: bboxString(bbox.value) }),
-      startDate: asDateString(startDate.value),
-      endDate: asDateString(endDate.value),
-    })
+    setQuery(scenarioInputsToPin({
+      geomSource: geomSource.value,
+      bboxParam: query.value.bbox?.toString(),
+      cannedBbox: cannedBbox.value,
+      bbox: bbox.value,
+      startDate: startDate.value,
+      endDate: endDate.value,
+      geoDatasetName: geoDatasetName.value,
+    }))
   }
 
   return {
