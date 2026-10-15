@@ -37,7 +37,7 @@
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
             @explore="runQuery"
-            @switch-to-analysis-tab="runAdvancedAnalysis"
+            @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="clearScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
@@ -267,7 +267,6 @@ const {
   stopBufferRadius,
   stopBufferLayer,
   clusterDistance,
-  pinScenarioInputs,
 } = useScenarioInputs()
 const {
   startTime,
@@ -346,16 +345,8 @@ watch(cannedBbox, () => { querySubmitted.value = false })
 // modal/toast lifecycle is the shared one in useScenarioStream.
 const runQuery = async () => {
   querySubmitted.value = true
-  pinScenarioInputs()
   activeTab.value = { tab: 'map', sub: '' }
   await runScenarioQuery('Browsing query data loaded successfully!')
-}
-
-// Runs on "Run Advanced Analysis": the analyses run from the inputs too, so
-// their links record them the same way.
-function runAdvancedAnalysis () {
-  pinScenarioInputs()
-  setTab({ tab: 'analysis', sub: '' })
 }
 
 // Scenario data ref - the central scenario data graph, populated by fetchScenario.
@@ -551,7 +542,14 @@ const mapExtentCenter = computed((): Point | undefined => {
   return undefined
 })
 
+// A map-extent link's bbox is the area it was run on. The map fits to it on
+// load, and that fit's padded viewport, like any resize before the user moves
+// the map, depends on the window and mustn't replace it. Once the user moves
+// the map, or switches to map-extent mode, the visible extent is the area.
+let holdLinkedExtent = geomSource.value === 'mapExtent' && !!query.value.bbox
+
 watch(geomSource, () => {
+  holdLinkedExtent = false
   if (geomSource.value === 'mapExtent' && mapExtent.value) {
     bbox.value = mapExtent.value
   }
@@ -559,11 +557,11 @@ watch(geomSource, () => {
 
 async function setMapExtent (v: Bbox, userInitiated: boolean) {
   mapExtent.value = v
-  // Only update bbox from map extent before a query has been submitted. A
-  // bbox already in the URL (a shared map-extent link) is what the map fit
-  // to on load; only the user moving the map replaces it, not the fit, whose
-  // padded viewport depends on the window.
-  if (geomSource.value === 'mapExtent' && !querySubmitted.value && (userInitiated || !query.value.bbox)) {
+  if (userInitiated) {
+    holdLinkedExtent = false
+  }
+  // Only update bbox from map extent before a query has been submitted
+  if (geomSource.value === 'mapExtent' && !querySubmitted.value && !holdLinkedExtent) {
     bbox.value = mapExtent.value
   }
 }

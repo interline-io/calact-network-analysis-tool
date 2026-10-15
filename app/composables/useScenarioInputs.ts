@@ -89,7 +89,8 @@ export function useScenarioInputs (): ScenarioInputs {
 
   const geoDatasetName = computed<string>({
     get: () => query.value.geoDatasetName?.toString() || SCENARIO_DEFAULTS.geoDatasetName,
-    set: (v) => { setQuery({ geoDatasetName: v === SCENARIO_DEFAULTS.geoDatasetName ? undefined : v }) }
+    // Written even when it's the default, as a run records it (see scenarioInputsToPin).
+    set: (v) => { setQuery({ geoDatasetName: v }) }
   })
 
   const includeFixedRoute = computed<boolean | undefined>({
@@ -177,7 +178,6 @@ export function useScenarioInputs (): ScenarioInputs {
       geomSource: geomSource.value,
       bboxParam: query.value.bbox?.toString(),
       cannedBbox: cannedBbox.value,
-      bbox: bbox.value,
       startDate: startDate.value,
       endDate: endDate.value,
       geoDatasetName: geoDatasetName.value,

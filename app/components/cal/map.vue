@@ -816,10 +816,12 @@ const flexStyleData = computed(() => {
 // Map events
 
 const extentBbox = ref(bbox.value)
+// Whether any move since the last extent sent came from the user; kept until
+// sent, so a programmatic move in the same tick doesn't clear it.
 let extentFromUser = false
 
 function mapMove (v: any) {
-  extentFromUser = !!v.userInitiated
+  extentFromUser ||= !!v.userInitiated
   const b = v.bbox
   extentBbox.value = {
     valid: true,
@@ -831,6 +833,7 @@ function mapMove (v: any) {
 watch(extentBbox, () => {
   mapBbox = bboxString(extentBbox.value)
   emit('setMapExtent', extentBbox.value, extentFromUser)
+  extentFromUser = false
 })
 
 const popupFeatures = ref<PopupFeature[]>([])

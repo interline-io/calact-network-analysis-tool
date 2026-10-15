@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { parseBbox, parseDate } from '~~/src/core'
+import { parseDate } from '~~/src/core'
 import { scenarioInputsToPin, type ScenarioInputsForPin } from '../../app/composables/scenarioInputsToPin'
 
 const inputs = (partial: Partial<ScenarioInputsForPin>): ScenarioInputsForPin => ({
   geomSource: 'bbox',
   cannedBbox: 'downtown-portland',
-  bbox: parseBbox('-122.69075,45.51358,-122.66809,45.53306'),
   startDate: parseDate('2026-10-19')!,
   endDate: parseDate('2026-10-25')!,
   geoDatasetName: 'tiger2024',
@@ -27,11 +26,8 @@ describe('scenarioInputsToPin', () => {
     expect(scenarioInputsToPin(inputs({ geomSource: 'adminBoundary' }))).toEqual(dates)
   })
 
-  it('writes a map-extent area as its bbox when the URL has none yet', () => {
-    expect(scenarioInputsToPin(inputs({ geomSource: 'mapExtent' }))).toEqual({ ...dates, bbox: '-122.69075,45.51358,-122.66809,45.53306' })
-  })
-
-  it('never writes an invalid bbox', () => {
-    expect(scenarioInputsToPin(inputs({ geomSource: 'mapExtent', bbox: parseBbox('') }))).toEqual(dates)
+  it('records a map-extent area by its URL bbox, or by the canned key before the map reports one', () => {
+    expect(scenarioInputsToPin(inputs({ geomSource: 'mapExtent', bboxParam: '-121.3,44.0,-121.2,44.1' }))).toEqual(dates)
+    expect(scenarioInputsToPin(inputs({ geomSource: 'mapExtent' }))).toEqual({ ...dates, example: 'downtown-portland' })
   })
 })
