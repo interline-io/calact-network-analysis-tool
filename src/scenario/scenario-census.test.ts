@@ -13,7 +13,7 @@ import {
   applyScenarioResultFilter,
   type ScenarioConfig,
 } from '~~/src/scenario'
-import { routesById, stopGeoAggregateCsv } from '~~/src/tl'
+import { geographySearchQuery, routesById, stopGeoAggregateCsv } from '~~/src/tl'
 
 // End-to-end tests of the census branch of the scenario pipeline. Both suites drive
 // runScenarioFetcher and assert the same census numbers (tract and block group) — the
@@ -191,6 +191,57 @@ describe('scenario census pipeline (integration)', () => {
       expect(known!.values['b01003_001']).toBe(c.pop)
     }, 120000)
   }
+})
+
+// --- Admin-boundary query area suite --------------------------------------------
+//
+// A run scoped to several admin boundaries clips census to all of them. A client
+// that sends only one boundary drops every tract in the others.
+describe('admin-boundary query area (integration)', () => {
+  const client = integrationClient()
+  const COUNTIES = [
+    { name: 'Multnomah', geoid: '0500000US41051' },
+    { name: 'Washington', geoid: '0500000US41067' },
+  ]
+
+  // Ids depend on load order, so each county is looked up by geoid.
+  async function countyId (name: string, geoid: string): Promise<number> {
+    const resp = await client.query<{ census_datasets: { geographies: { id: number, geoid: string }[] }[] }>(
+      geographySearchQuery,
+      { search: name, layer: 'county', dataset_name: GEO_DATASET, limit: 100 },
+    )
+    const geo = resp.data?.census_datasets[0]?.geographies.find(g => g.geoid === geoid)
+    if (!geo) {
+      throw new Error(`could not find county ${geoid}`)
+    }
+    return geo.id
+  }
+
+  it('clips census to every selected county', async () => {
+    const geographyIds = []
+    for (const county of COUNTIES) {
+      geographyIds.push(await countyId(county.name, county.geoid))
+    }
+    const config: ScenarioConfig = { ...censusConfig('tract'), bbox: undefined, geographyIds }
+    const data = await runScenarioFetcher(noopController(), config, client)
+    const tracts = [...data.censusGeographies!.entries()]
+
+    // Every tract in each county is fully inside the query area.
+    const prefixes = COUNTIES.map(c => `1400000US${c.geoid.slice(-5)}`)
+    for (const prefix of prefixes) {
+      const inCounty = tracts.filter(([geoid]) => geoid.startsWith(prefix))
+      expect(inCounty.length, `expected tracts under ${prefix}`).toBeGreaterThan(0)
+      for (const [geoid, geo] of inCounty) {
+        expect(geo.intersectionRatio, `expected ${geoid} fully covered`).toBeGreaterThan(0.999)
+      }
+    }
+    // Tracts in neighboring counties only touch the boundary.
+    for (const [geoid, geo] of tracts) {
+      if (!prefixes.some(p => geoid.startsWith(p))) {
+        expect(geo.intersectionRatio, `expected no area for neighbor ${geoid}`).toBeLessThan(0.001)
+      }
+    }
+  }, 120000)
 })
 
 // --- Per-stop census suite ------------------------------------------------------

@@ -43,7 +43,6 @@ import {
   type FeedVersionRef,
   type FlexPhaseResult,
   type StopsPhaseResult,
-  type ResolvedGeographyContext,
   type ScenarioPhaseName,
 } from './phases'
 
@@ -343,8 +342,8 @@ export class ScenarioFetcher {
     const enabled = new Set(this.plan)
     console.log(`[Scenario] phase plan: ${this.plan.join(', ')}`)
 
-    // FIRST STAGE: resolve the geography and active feed versions in the area
-    const { feedVersions, resolved } = await runFeedVersionsPhase({
+    // FIRST STAGE: the active feed versions in the query area
+    const feedVersions = await runFeedVersionsPhase({
       bbox: this.config.bbox,
       geographyIds: this.config.geographyIds,
       geoDatasetName: this.config.geoDatasetName,
@@ -371,8 +370,7 @@ export class ScenarioFetcher {
     const fixedRoutePromise = stopsPromise.then(stops => stops ? this.fetchFixedRoute(stops, fvRefs, enabled) : [])
 
     // Flex areas and census values depend only on the feed versions and the
-    // resolved geography, so they run together once the fixed-route phases
-    // are done.
+    // query area, so they run together once the fixed-route phases are done.
     const flexPromise: Promise<FlexPhaseResult> = enabled.has('flex-areas')
       ? fixedRoutePromise.then(() => runFlexPhase({
           feedVersions: fvRefs,
@@ -381,7 +379,7 @@ export class ScenarioFetcher {
         }, this.client, emit, { onError }))
       : Promise.resolve({ feedVersionRouteIds: {} })
     const censusPromise = fixedRoutePromise.then(stopIds => enabled.has('census-values')
-      ? this.fetchCensusValues(resolved, stopIds)
+      ? this.fetchCensusValues(stopIds)
       : undefined)
 
     // Fares for the fixed routes start with the stops phase's ids, alongside
@@ -411,9 +409,6 @@ export class ScenarioFetcher {
     // the whole run — including any report phases after this — has finished.
     logMemory('fetchMain-complete')
     console.log(`🎉 Scenario fetch complete`)
-
-    // Returned so report stages don't re-resolve the geography context.
-    return { resolvedGeography: resolved }
   }
 
   // The phases that consume the stops phase's ids: departures, the per-stop
@@ -481,15 +476,15 @@ export class ScenarioFetcher {
 
   // Config projection around the census-values phase. Gating is the plan's
   // job; the guard is type narrowing that only fires on a plan/config bug.
-  private async fetchCensusValues (resolved: ResolvedGeographyContext, stopIds: number[]): Promise<void> {
+  private async fetchCensusValues (stopIds: number[]): Promise<void> {
     const { tableDatasetName, aggregateLayer, geoDatasetName } = this.config
     if (!tableDatasetName || !aggregateLayer) {
       console.warn('[CensusValues] Planned but tableDatasetName/aggregateLayer missing — skipping')
       return
     }
     await runCensusValuesPhase({
-      bbox: resolved.bbox,
-      within: resolved.within,
+      bbox: this.config.bbox,
+      geographyIds: this.config.geographyIds,
       geoDatasetName,
       tableDatasetName,
       aggregateLayer,

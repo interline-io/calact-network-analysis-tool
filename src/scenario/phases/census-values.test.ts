@@ -7,11 +7,6 @@ import { runCensusValuesPhase, type CensusValuesPhaseConfig } from './census-val
 // the stop buffers. Geographies the buffers don't reach must survive at zero —
 // the backend's composed clip is an inner join and drops them outright.
 
-const WITHIN: GeoJSON.Polygon = {
-  type: 'Polygon',
-  coordinates: [[[-122.7, 45.5], [-122.6, 45.5], [-122.6, 45.6], [-122.7, 45.6], [-122.7, 45.5]]],
-}
-
 const BBOX = { sw: { lon: -122.7, lat: 45.5 }, ne: { lon: -122.6, lat: 45.6 }, valid: true }
 
 // Two tracts, each 1000 m², both fully inside the query area.
@@ -54,7 +49,6 @@ function clipResponse () {
 
 function baseConfig (overrides: Partial<CensusValuesPhaseConfig> = {}): CensusValuesPhaseConfig {
   return {
-    within: WITHIN,
     bbox: BBOX,
     geoDatasetName: 'tiger2021',
     tableDatasetName: 'acsdt5y2021',
@@ -157,7 +151,7 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
   // returned geographies that don't touch the query at all.
   it('clips against the bbox as drawn, not one widened by the radius', async () => {
     const { query } = await runPhase(
-      baseConfig({ within: undefined, stopIds: [1, 2], stopBufferRadius: 400 }),
+      baseConfig({ stopIds: [1, 2], stopBufferRadius: 400 }),
       [queryAreaResponse(), clipResponse()],
     )
     const drawn = { min_lon: -122.7, min_lat: 45.5, max_lon: -122.6, max_lat: 45.6 }
@@ -165,16 +159,18 @@ describe('runCensusValuesPhase stop-buffer clipping', () => {
     expect(query.mock.calls[1]![1].bbox).toEqual(drawn)
   })
 
-  // The backend composes a bbox with a stop buffer, so a bbox-only scenario
-  // clips too — it does not need an admin boundary.
-  it('clips against a bbox when no within polygon is given', async () => {
+  // Admin boundaries reach both passes in place of the bbox, which the server
+  // would otherwise rank above them.
+  it('clips against the geography ids in place of the bbox', async () => {
     const { query, geographies } = await runPhase(
-      baseConfig({ within: undefined, stopIds: [1, 2], stopBufferRadius: 400 }),
+      baseConfig({ geographyIds: [11, 12], stopIds: [1, 2], stopBufferRadius: 400 }),
       [queryAreaResponse(), clipResponse()],
     )
     expect(query).toHaveBeenCalledTimes(2)
-    expect(query.mock.calls[1]![1].bbox).toBeDefined()
-    expect(query.mock.calls[1]![1].within).toBeUndefined()
+    for (const call of query.mock.calls) {
+      expect(call[1].geographyIds).toEqual([11, 12])
+      expect(call[1].bbox).toBeUndefined()
+    }
     expect(geographies.get('served')!.bufferIntersectionRatio).toBe(0.25)
     expect(geographies.get('unserved')!.bufferIntersectionRatio).toBe(0)
   })

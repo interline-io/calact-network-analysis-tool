@@ -198,7 +198,7 @@ describe('runAnalysis geography queries', () => {
     await runAnalysis(controller, { ...config, bbox: undefined, geographyIds: [363717] }, c)
     expect(geographyCalls(c).length).toBeGreaterThan(0)
     for (const [, v] of geographyCalls(c)) {
-      const bounded = v.bbox !== undefined || v.within !== undefined || (v.stopIds || []).length > 0
+      const bounded = v.bbox !== undefined || v.geographyIds !== undefined || (v.stopIds || []).length > 0
       expect(bounded, `unbounded geography query: ${JSON.stringify(v).slice(0, 200)}`).toBe(true)
     }
   })

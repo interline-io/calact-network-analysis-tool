@@ -48,8 +48,8 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
 
   useStreamingRefetch(deps, {
     watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
-    // Reuse the standalone census-values phase endpoint (it re-resolves
-    // geographyIds or a plain bbox itself) rather than a bespoke one.
+    // Reuse the standalone census-values phase endpoint (it takes
+    // geographyIds or a plain bbox) rather than a bespoke one.
     endpoint: 'scenario/census-values',
     loadingMessage: 'Recomputing aggregation demographics...',
     // Drop the previous layer's geographies up-front so a slow/failed refetch
