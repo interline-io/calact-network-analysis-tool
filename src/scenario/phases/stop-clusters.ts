@@ -20,8 +20,8 @@
 
 import { format } from 'date-fns'
 import {
-  convertBbox,
   parseHMS,
+  queryAreaVariables,
   routeTypeNames,
   WEEKDAY_BY_GETDAY,
   type Bbox,
@@ -462,8 +462,7 @@ async function fetchStopClusterInputs (
   const { queue } = phaseQueue<StopClusterFetchTask>('stop-clusters', emit, task => fetchPage(task), opts)
 
   async function fetchPage (task: StopClusterFetchTask): Promise<void> {
-    const geoIds = config.geographyIds || []
-    const b = geoIds.length > 0 ? null : convertBbox(config.bbox)
+    const area = queryAreaVariables(config)
     const variables = {
       after: task.after,
       limit: stopLimit,
@@ -473,8 +472,8 @@ async function fetchStopClusterInputs (
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
         location: {
-          bbox: geoIds.length > 0 ? null : b,
-          geography_ids: geoIds.length > 0 ? geoIds : null,
+          bbox: area.bbox,
+          geography_ids: area.geographyIds,
         },
       },
     }

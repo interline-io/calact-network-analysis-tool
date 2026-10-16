@@ -91,7 +91,7 @@ export async function runAnalysis (
       onError,
       plan: WSDOT_PHASE_PLAN,
     })
-    const { resolvedGeography } = await fetcher.fetch()
+    await fetcher.fetch()
     const scenarioData = receiver.getCurrentData()
 
     const levels = await runWsdotLevelsPhase(configCopy, {
@@ -101,7 +101,6 @@ export async function runAnalysis (
     }, emit)
     const { bboxIntersection } = await runWsdotGeographiesPhase(configCopy, {
       levelSets: levels.levelSets,
-      resolved: resolvedGeography,
     }, client, emit)
 
     // levelLayers is empty by design: the layers went out on the stream as

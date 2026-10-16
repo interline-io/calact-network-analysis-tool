@@ -1,9 +1,10 @@
-// Standalone feed-versions phase: resolves the geographic context and the
-// active feed versions within it. Output feeds the stops and flex phases.
+// Standalone feed-versions phase: the active feed versions in the query area.
+// Output feeds the stops and flex phases.
 
 import { createError } from 'h3'
 import type { FeedVersionsPhaseConfig } from '~~/src/scenario'
-import { hasSearchArea, runFeedVersionsPhase } from '~~/src/scenario'
+import { hasSearchArea } from '~~/src/core'
+import { runFeedVersionsPhase } from '~~/src/scenario'
 import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {

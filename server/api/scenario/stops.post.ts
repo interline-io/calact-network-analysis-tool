@@ -3,7 +3,8 @@
 
 import { createError } from 'h3'
 import type { StopsPhaseConfig } from '~~/src/scenario'
-import { hasSearchArea, runStopsPhase } from '~~/src/scenario'
+import { hasSearchArea } from '~~/src/core'
+import { runStopsPhase } from '~~/src/scenario'
 import { streamPhaseResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {

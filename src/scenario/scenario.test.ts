@@ -119,6 +119,23 @@ describe('ScenarioFetcher', () => {
     })
   })
 
+  describe('feed version search area', () => {
+    // Geography ids from another dataset resolve to no geometry, as when the
+    // WSDOT panel picks a different TIGER vintage than the query page.
+    it('falls back to the bbox when the geography ids resolve to no geometry', async () => {
+      const client = new MockGraphQLClient()
+      client.mockQuery
+        .mockResolvedValueOnce({ data: { census_datasets: [{ geographies: [] }] } })
+        .mockResolvedValueOnce({ data: { feeds: [] } })
+
+      const areaConfig: ScenarioConfig = { ...config, geographyIds: [11], includeFixedRoute: false, includeFlexAreas: false }
+      await new ScenarioFetcher(areaConfig, client).fetch()
+
+      expect(client.mockQuery).toHaveBeenCalledTimes(2)
+      expect(client.mockQuery.mock.calls[1]![1].where.bbox).toEqual({ min_lon: -122.8, min_lat: 45.4, max_lon: -122.5, max_lat: 45.7 })
+    })
+  })
+
   describe('concurrent flex fetching', () => {
     function makeFlexLocationGql (): FlexLocationGql {
       return {

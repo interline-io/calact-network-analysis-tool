@@ -9,13 +9,13 @@ import {
   fmtDate,
   parseCalendarDate,
   chunkArray,
+  hasSearchArea,
   type GraphQLClient,
   type Geometry,
   type Bbox,
 } from '~~/src/core'
 import {
   phaseDone,
-  type ResolvedGeographyContext,
   type ScenarioConfig,
   type ScenarioPhaseName,
   type ScenarioProgress,
@@ -270,12 +270,9 @@ function buildFrequencyData (frequency: WSDOTFrequencyAggregator, date: Date, la
   return freq
 }
 
-// Level classifications plus the run's search area.
+// Level classifications from the levels phase.
 export interface WSDOTGeographiesInput {
   levelSets: Record<string, Set<number>>
-  // From the feed-versions phase. The bbox tract query has no other spatial
-  // filter, so an unresolved context would ask for every tract nationwide.
-  resolved: ResolvedGeographyContext
 }
 
 // Fetch the report's census population rollups: search-area tract
@@ -308,9 +305,11 @@ export async function runWsdotGeographiesPhase (
   }
 
   // The task list up front, so progress counts the fetches honestly.
-  const fetchBbox = !!(input.resolved.bbox || input.resolved.within)
+  // The bbox tract query has no other spatial filter, so without a query area
+  // it would ask for every tract nationwide.
+  const fetchBbox = hasSearchArea(config)
   if (!fetchBbox) {
-    console.warn('No search area resolved — skipping the bbox tract population, which would otherwise be unbounded')
+    console.warn('No search area — skipping the bbox tract population, which would otherwise be unbounded')
   }
   const levelTasks: { level: string, layer: string, stopIds: Set<number> }[] = []
   // The state rollup (the viewer's population denominator) reads only
@@ -329,15 +328,15 @@ export async function runWsdotGeographiesPhase (
   let completed = 0
   const progress = () => ({ phase: 'wsdot-geographies' as const, completed, total })
 
-  // Bbox population (tract intersections), clipped to the resolved area.
+  // Bbox population (tract intersections), clipped to the query area.
   let bboxIntersection: GeographyDataFeature[] = []
   if (fetchBbox) {
     console.log(`Fetching tract populations for bbox...`)
     bboxIntersection = await getGeographyData({
       ...baseGeographyConfig,
       geoDatasetLayer: LEVEL_GEOGRAPHY_LAYER,
-      bbox: input.resolved.bbox,
-      within: input.resolved.within,
+      bbox: config.bbox,
+      geographyIds: config.geographyIds,
     })
     completed++
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
@@ -377,9 +376,9 @@ export async function runWsdotGeographiesPhase (
 
 interface getGeographyDataConfig {
   client: GraphQLClient
-  // Admin polygon for runs started from geography ids; takes precedence over
+  // Admin boundaries for runs started from geography ids; take precedence over
   // bbox in the query.
-  within?: GeoJSON.Polygon
+  geographyIds?: number[]
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -402,7 +401,7 @@ async function getGeographyData (
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
     bbox: config.bbox,
-    within: config.within,
+    geographyIds: config.geographyIds,
     stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
   })

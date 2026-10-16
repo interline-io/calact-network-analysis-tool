@@ -2,7 +2,7 @@
 // (via each stop's route_stops) the route ids that gate the downstream
 // routes/departures/buffer phases.
 
-import { convertBbox, chunkArray, type Bbox, type GraphQLClient } from '~~/src/core'
+import { chunkArray, queryAreaVariables, type Bbox, type GraphQLClient } from '~~/src/core'
 import { stopQuery, type StopGql } from '~~/src/tl'
 import { phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
@@ -49,10 +49,7 @@ export async function runStopsPhase (
   const { queue, progressEvent, done } = phaseQueue<StopFetchTask>('stops', emit, task => fetchStopPage(task), opts)
 
   async function fetchStopPage (task: StopFetchTask): Promise<void> {
-    // If we have geography IDs, use them and no bbox
-    // If we don't, use the bbox from the config
-    const geoIds = config.geographyIds || []
-    const b = geoIds.length > 0 ? null : convertBbox(config.bbox)
+    const area = queryAreaVariables(config)
     const variables = {
       after: task.after,
       limit: stopLimit,
@@ -60,8 +57,8 @@ export async function runStopsPhase (
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
         location: {
-          bbox: geoIds.length > 0 ? null : b,
-          geography_ids: geoIds.length > 0 ? geoIds : null,
+          bbox: area.bbox,
+          geography_ids: area.geographyIds,
         }
       }
     }

@@ -10,10 +10,10 @@ import { shallowRef, ref, watch, markRaw, type MaybeRefOrGetter, type Ref, type 
 import { useScenarioStream, type UseScenarioStreamReturn } from './useScenarioStream'
 import type { FetchMode } from './useOpenStream'
 import { useScenarioInputs } from './useScenarioInputs'
+import { hasSearchArea } from '~~/src/core'
 import {
   ScenarioDataReceiver,
   applyScenarioResultFilter,
-  hasSearchArea,
   type ScenarioConfig,
   type ScenarioData,
   type ScenarioFilter,

@@ -3,19 +3,17 @@ import type { GraphQLClient } from '~~/src/core'
 import { fetchCensusIntersection, fetchClipIntersections } from './census-intersection'
 
 // The GraphQL variables these two functions build are the whole contract with
-// the backend's filter-precedence chain: `bbox` outranks everything, and
-// `within` + `stop_buffer` only compose with a positive radius. Nothing else
-// in the suite asserts them, so a wire-shape regression is otherwise silent.
+// the backend's filter-precedence chain: `bbox` outranks `geography_ids`, an
+// empty id list is ignored, and the query area + `stop_buffer` only compose
+// with a positive radius. Nothing else in the suite asserts them, so a
+// wire-shape regression is otherwise silent.
 
 function mockClient (response: any) {
   const query = vi.fn().mockResolvedValue(response)
   return { client: { query } as unknown as GraphQLClient, query }
 }
 
-const WITHIN: GeoJSON.Polygon = {
-  type: 'Polygon',
-  coordinates: [[[-122.7, 45.5], [-122.6, 45.5], [-122.6, 45.6], [-122.7, 45.6], [-122.7, 45.5]]],
-}
+const GEOGRAPHY_IDS = [11, 12]
 
 const BBOX = { sw: { lon: -122.7, lat: 45.5 }, ne: { lon: -122.6, lat: 45.6 }, valid: true }
 
@@ -31,27 +29,37 @@ describe('fetchCensusIntersection variables', () => {
     tableNames: ['b01003'],
   }
 
-  it('omits bbox when a within polygon is supplied', async () => {
+  it('omits bbox when geography ids are supplied', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
-    await fetchCensusIntersection({ ...base, client, bbox: BBOX, within: WITHIN })
+    await fetchCensusIntersection({ ...base, client, bbox: BBOX, geographyIds: GEOGRAPHY_IDS })
     const vars = query.mock.calls[0]![1]
-    expect(vars.within).toBe(WITHIN)
+    expect(vars.geographyIds).toEqual(GEOGRAPHY_IDS)
     expect(vars.bbox).toBeUndefined()
   })
 
-  it('sends bbox when no within polygon is supplied', async () => {
+  it('sends bbox when no geography ids are supplied', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
     await fetchCensusIntersection({ ...base, client, bbox: BBOX })
     const vars = query.mock.calls[0]![1]
     expect(vars.bbox).toEqual({ min_lon: -122.7, min_lat: 45.5, max_lon: -122.6, max_lat: 45.6 })
-    expect(vars.within).toBeUndefined()
+    expect(vars.geographyIds).toBeUndefined()
   })
 
-  it('passes the stop buffer through alongside within', async () => {
+  // The backend ignores an empty list rather than matching nothing, so it must
+  // never stand in for the bbox.
+  it('sends bbox, not an empty id list', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
-    await fetchCensusIntersection({ ...base, client, within: WITHIN, stopIds: [7, 8], stopBufferRadius: 400 })
+    await fetchCensusIntersection({ ...base, client, bbox: BBOX, geographyIds: [] })
     const vars = query.mock.calls[0]![1]
-    expect(vars.within).toBe(WITHIN)
+    expect(vars.bbox).toEqual({ min_lon: -122.7, min_lat: 45.5, max_lon: -122.6, max_lat: 45.6 })
+    expect(vars.geographyIds).toBeUndefined()
+  })
+
+  it('passes the stop buffer through alongside geography ids', async () => {
+    const { client, query } = mockClient(geographiesResponse([]))
+    await fetchCensusIntersection({ ...base, client, geographyIds: GEOGRAPHY_IDS, stopIds: [7, 8], stopBufferRadius: 400 })
+    const vars = query.mock.calls[0]![1]
+    expect(vars.geographyIds).toEqual(GEOGRAPHY_IDS)
     expect(vars.stopIds).toEqual([7, 8])
     expect(vars.stopBufferRadius).toBe(400)
   })
@@ -61,10 +69,10 @@ describe('fetchClipIntersections', () => {
   const base = {
     geoDatasetName: 'tiger2021',
     geoDatasetLayer: 'tract',
-    within: WITHIN,
+    geographyIds: GEOGRAPHY_IDS,
   }
 
-  it('sends within and the stop buffer together', async () => {
+  it('sends geography ids and the stop buffer together', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
     await fetchClipIntersections({ ...base, client, stopIds: [1, 2, 3], stopBufferRadius: 400 })
     expect(query).toHaveBeenCalledTimes(1)
@@ -72,7 +80,7 @@ describe('fetchClipIntersections', () => {
     expect(vars).toMatchObject({
       geoDatasetName: 'tiger2021',
       layer: 'tract',
-      within: WITHIN,
+      geographyIds: GEOGRAPHY_IDS,
       stopIds: [1, 2, 3],
       stopBufferRadius: 400,
     })
@@ -83,6 +91,13 @@ describe('fetchClipIntersections', () => {
   it('makes no request at radius 0', async () => {
     const { client, query } = mockClient(geographiesResponse([]))
     const clips = await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 0 })
+    expect(query).not.toHaveBeenCalled()
+    expect(clips.size).toBe(0)
+  })
+
+  it('makes no request without a query area', async () => {
+    const { client, query } = mockClient(geographiesResponse([]))
+    const clips = await fetchClipIntersections({ ...base, client, geographyIds: [], stopIds: [1], stopBufferRadius: 400 })
     expect(query).not.toHaveBeenCalled()
     expect(clips.size).toBe(0)
   })

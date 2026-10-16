@@ -14,8 +14,8 @@ import {
   type WSDOTReport,
   type WSDOTReportConfig,
 } from '~~/src/analysis/wsdot'
-import { SCENARIO_DEFAULTS } from '~~/src/core'
-import { hasSearchArea, type ScenarioConfig, type ScenarioData, type ScenarioProgress } from '~~/src/scenario'
+import { SCENARIO_DEFAULTS, hasSearchArea } from '~~/src/core'
+import type { ScenarioConfig, ScenarioData, ScenarioProgress } from '~~/src/scenario'
 
 export interface UseWsdotReportDeps {
   // The browse config the report is built from.
