@@ -51,12 +51,12 @@ useAnalysisResults
 
 `fetchMain()` (`src/scenario/scenario.ts:549`) runs passes in this order:
 
-1. **`fetchFeedVersions()`** — sequential, must run first (sets `resolvedBbox` and `resolvedWithin` for every other pass that needs them).
+1. **`fetchFeedVersions()`** — sequential, must run first, since the stops and flex passes query by its feed versions.
 2. If `includeFixedRoute`:
    - Enqueue one `stopFetchQueue` task per feed version. **All three queues below run concurrently**: stop fetches enqueue route fetches and stop-departure fetches as they discover IDs, so the queues drain in parallel.
    - **Stops + Routes + Schedules** all run concurrently from there.
    - Awaited via `stopFetchQueue.wait()`, `routeFetchQueue.wait()`, `stopDepartureQueue.wait()`.
-3. **Flex-areas** and **census-values** run concurrently via `Promise.all([fetchFlexAreas(), fetchCensusValues()])` since both only depend on `resolvedBbox` (already set in step 1).
+3. **Flex-areas** and **census-values** run concurrently via `Promise.all([fetchFlexAreas(), fetchCensusValues()])`, since neither depends on the other.
 4. Final `updateProgress('complete', false)`.
 
 Concurrency: one `TaskQueue<T>` per queue-driven pass, each capped at `maxConcurrentRequests = 8`. Each queue has its own task type and its own dispatcher method.
@@ -65,13 +65,13 @@ Concurrency: one `TaskQueue<T>` per queue-driven pass, each capped at `maxConcur
 
 | # | Stage name | Method | Concurrency | What it does |
 |---|---|---|---|---|
-| 1 | `feed-versions` | `fetchFeedVersions()` | sequential, 1 query (or 2 if `geographyIds` is set — fetches admin polygons first, then bbox-derived feed versions) | Resolves the user's query into a concrete bbox + list of active `FeedVersion`s for that bbox + date range. Sets `resolvedBbox` and (for admin-boundary queries) `resolvedWithin`. Also sets `multiAdminWarning` for the multi-polygon case (#347). |
+| 1 | `feed-versions` | `fetchFeedVersions()` | sequential, 1 query (or 2 if `geographyIds` is set — fetches admin polygons first, then bbox-derived feed versions) | Finds the active `FeedVersion`s for the query area and date range. For admin-boundary queries it searches for feeds within a bbox computed around the boundaries; the stops and census passes send the `geographyIds` themselves. |
 | 2 | `stops` | `fetchStops(task)` via `stopFetchQueue` | up to 8 in flight | Per feed version, paginates `stops(limit, after, where: {feed_version_sha1, location: {bbox|geography_ids}})`. Each page batches `PROGRESS_LIMIT_STOPS = 1000` stops per progress event. Each stop carries nested `route_stops` so we discover route IDs without an extra hop. Census geographies used to ride along here too; they are now pass 3, so route IDs are not held up by them. |
 | 3 | `stop-census` | `runStopCensusPhase()` | up to 8 in flight, concurrent with routes and schedules | Only the aggregation layer's geography for each stop, via `stops(ids: [...])` batched at 1000 — the server's maximum, and its default is 100 whether or not ids are given. Depends only on the stop ids, so it overlaps routes and schedules rather than gating them. Skipped without an `aggregateLayer`; changing that layer re-runs this pass alone. |
 | 4 | `routes` | `fetchRoutes(task)` via `routeFetchQueue` | up to 8 in flight | One query per route ID batch (a single `routes(ids: [...])` per feed version). Routes-IDs come from the stops step's `route_stops`. `fetchedRouteIds` deduplicates pre-emptively so the same route isn't re-requested. |
 | 5 | `schedules` | `fetchRouteTrips(task)` via the departures queue | up to 8 in flight | One query per `(route batch, date-window)` task, entering via `route -> trips -> stop_times`. Routes are batched at `TRIP_ROUTE_BATCH_SIZE = 1`, dates chunked into 7-day windows, and each request filters stop times to just the stops that route serves in the scenario. Trips state their `service_dates` once; the client fans them back out into `StopDepartureTuple` (a memory-tight `[stop_id, date, time_seconds, trip_id, direction, route_id, pickup_type]` array) and accumulates them into `StopDepartureCache`. Trip-ID strings are stripped from the wire format and shipped separately in a sidecar `tripIdStrings` map (one entry per unique trip). |
 | 6 | `flex-areas` | `fetchFlexArea(fv)` via `flexFetchQueue` | up to 8 in flight, concurrent with census-values | One pass per feed version: fetches GTFS-Flex `Location` objects + slim multi-date `stop_times` to populate `FlexDepartureCache`. Same week-window chunking as schedules. |
-| 7 | `census-values` | `fetchCensusValues()` | one query, concurrent with flex-areas | When `tableDatasetName` + `aggregateLayer` are both set: calls `fetchCensusIntersection` at the user's `aggregateLayer`, returning per-geography `intersection_area` + raw ACS values for `REQUIRED_ACS_TABLES`. Skipped otherwise. Powers the choropleth, aggregation table, and census details panel. |
+| 7 | `census-values` | `fetchCensusValues()` | one query, concurrent with flex-areas | When `tableDatasetName` + `aggregateLayer` are both set: calls `fetchCensusIntersection` at the user's `aggregateLayer`, returning per-geography `intersection_area` + raw ACS values for `REQUIRED_ACS_TABLES`. The intersection is with the query area: the bbox, or for admin-boundary queries the union of the `geographyIds`, which the server computes. Skipped otherwise. Powers the choropleth, aggregation table, and census details panel. |
 
 Terminal stages on the wire: `complete` (final event), `ready` (initial event with `config`), `extra` (out-of-band debug payloads).
 
@@ -120,8 +120,8 @@ If you're adding a new pass:
 1. Define a new value for `ScenarioProgress['currentStage']` (the union literal in `src/scenario/scenario.ts`).
 2. Add a private async method on `ScenarioFetcher` that calls `this.updateProgress(stage, true, partialData?)` and emits its results.
 3. Decide where it fits in `fetchMain()`:
-   - Sequential after `fetchFeedVersions` if you need `resolvedBbox`/`resolvedWithin`.
-   - Concurrent in the existing `Promise.all([fetchFlexAreas, fetchCensusValues])` block if you only need the resolved bbox.
+   - Sequential after `fetchFeedVersions` if you need its feed versions.
+   - Concurrent in the existing `Promise.all([fetchFlexAreas, fetchCensusValues])` block if you need only the config's query area.
    - Inside the fixed-route block (after `stopFetchQueue.wait()`) if you need the full stop/route/agency set.
 4. If the pass dispatches many small queries, follow the `TaskQueue<T>` + `chunkArray` pattern used by stops/routes/schedules/flex.
 5. Extend `ScenarioData` and the receiver's merge logic for the new partial-data field. Keep the wire format slim (drop strings/geometries that aren't needed downstream).

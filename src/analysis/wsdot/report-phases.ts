@@ -9,6 +9,7 @@ import {
   fmtDate,
   parseCalendarDate,
   chunkArray,
+  hasSearchArea,
   type GraphQLClient,
   type Geometry,
   type Bbox,
@@ -306,7 +307,7 @@ export async function runWsdotGeographiesPhase (
   // The task list up front, so progress counts the fetches honestly.
   // The bbox tract query has no other spatial filter, so without a query area
   // it would ask for every tract nationwide.
-  const fetchBbox = !!config.bbox || (config.geographyIds?.length ?? 0) > 0
+  const fetchBbox = hasSearchArea(config)
   if (!fetchBbox) {
     console.warn('No search area — skipping the bbox tract population, which would otherwise be unbounded')
   }

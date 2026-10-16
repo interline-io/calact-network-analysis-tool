@@ -2,8 +2,8 @@
 
 import { createError } from 'h3'
 import type { ScenarioConfig } from '~~/src/scenario'
-import { hasSearchArea, streamScenario } from '~~/src/scenario'
-import { logMemory } from '~~/src/core'
+import { streamScenario } from '~~/src/scenario'
+import { hasSearchArea, logMemory } from '~~/src/core'
 import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {

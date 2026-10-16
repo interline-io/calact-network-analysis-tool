@@ -180,8 +180,8 @@ describe('runAnalysis geography queries', () => {
     // has no other filter, so an unbounded one asks for every tract in the
     // dataset, nationwide.
     const c = new MockGraphQLClient()
-    // The geography ids resolve to an admin polygon, which is what the bbox
-    // tract query should then be clipped against.
+    // The geography ids resolve to an admin polygon, whose bbox bounds the
+    // feeds query. The tract query sends the ids themselves.
     c.mockQuery.mockImplementation((q: any, v: any) => {
     // Dispatched on the document: the buffer queries take `ids` and `layer`
     // too, so variable names alone cannot tell this one apart.

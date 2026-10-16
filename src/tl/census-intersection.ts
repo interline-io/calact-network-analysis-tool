@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { convertBbox, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
+import { queryAreaVariables, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
@@ -34,7 +34,7 @@ export interface FetchCensusIntersectionConfig {
   tableDatasetName: string
   tableNames: string[]
   bbox?: Bbox
-  // Census geographies whose union the server clips against, rather than an
+  // Census geographies; the server clips to their union rather than to an
   // axis-aligned bbox. Takes precedence over `bbox`.
   geographyIds?: number[]
   stopIds?: Iterable<number>
@@ -177,16 +177,6 @@ query ClipIntersection(
   }
 }
 `
-
-// The query area as location variables: the geography ids when there are any,
-// otherwise the bbox. The server lets a bbox outrank geography ids and ignores
-// an empty id list, so exactly one is sent.
-function queryAreaVariables (config: { bbox?: Bbox, geographyIds?: number[] }) {
-  if (config.geographyIds && config.geographyIds.length > 0) {
-    return { bbox: undefined, geographyIds: config.geographyIds }
-  }
-  return { bbox: convertBbox(config.bbox), geographyIds: undefined }
-}
 
 // Intersection of each geography with the query area AND the stop buffers,
 // keyed by geoid. Geographies the buffers don't reach are omitted by the

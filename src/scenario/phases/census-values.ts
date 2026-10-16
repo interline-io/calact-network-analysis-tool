@@ -4,6 +4,7 @@
 
 import {
   REQUIRED_ACS_TABLES,
+  hasSearchArea,
   type Bbox,
   type CensusGeographyData,
   type GraphQLClient,
@@ -35,7 +36,7 @@ export async function runCensusValuesPhase (
   client: GraphQLClient,
   emit: PhaseEmit,
 ): Promise<void> {
-  if (!config.bbox && !(config.geographyIds && config.geographyIds.length > 0)) {
+  if (!hasSearchArea(config)) {
     console.warn('[CensusValues] No query area — skipping')
     emit({ currentStage: 'census-values', phaseProgress: phaseDone('census-values') })
     return

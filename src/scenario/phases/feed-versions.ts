@@ -26,7 +26,7 @@ export interface FeedVersionsPhaseConfig {
 }
 
 // The bbox to search for feeds: the user's, or one around the selected admin
-// boundaries.
+// boundaries when they resolve to geometry.
 async function resolveSearchBbox (
   config: { bbox?: Bbox, geographyIds?: number[], geoDatasetName: string },
   client: GraphQLClient,
@@ -54,7 +54,7 @@ async function resolveSearchBbox (
 
   if (features.length === 0) {
     console.warn('No features found in census datasets response')
-    return undefined
+    return config.bbox
   }
 
   // Calculate bbox that contains all administrative boundaries
