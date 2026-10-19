@@ -242,7 +242,10 @@ watch(
   },
 )
 
+// Each newly selected feature opens on its Overview. The component stays
+// mounted while the panel is closed, so its tab would otherwise carry over.
 watch(() => props.subject, () => {
+  activeTab.value = 'overview'
   showAll.value = false
 })
 
