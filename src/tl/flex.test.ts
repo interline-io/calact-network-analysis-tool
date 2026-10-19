@@ -102,15 +102,6 @@ describe('transformLocationToFlexArea', () => {
     const feature = transformLocationToFlexArea(location)
     expect(feature.properties.area_m2).toBeGreaterThan(0)
   })
-
-  it('records whether the feed restricts rider eligibility', () => {
-    const location = createFlexLocationGql({
-      type: 'Polygon',
-      coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
-    })
-    expect(transformLocationToFlexArea(location).properties.rider_eligibility_restricted).toBe(false)
-    expect(transformLocationToFlexArea(location, true).properties.rider_eligibility_restricted).toBe(true)
-  })
 })
 
 describe('feedTagsRestrictRiderEligibility', () => {

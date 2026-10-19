@@ -26,7 +26,7 @@
       />
 
       <p class="menu-label">
-        <cat-tooltip text="Eligibility restricted services carry only riders enrolled in or eligible for a specific program, such as ADA paratransit or Medicaid transportation. This comes from a feed tag in Transitland Atlas; areas from untagged feeds count as General public.">
+        <cat-tooltip :text="flexRiderEligibilityDescription">
           Rider eligibility
           <cat-icon icon="information" />
         </cat-tooltip>
@@ -61,6 +61,7 @@ import {
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   flexColorByModes,
+  flexRiderEligibilityDescription,
   flexRiderEligibilityTypes,
 } from '~~/src/core'
 

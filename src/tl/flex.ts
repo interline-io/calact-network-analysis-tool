@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, flexRiderEligibilityTypes, WEEKDAY_BY_GETDAY, type FlexRiderEligibilityType } from '~~/src/core'
+import { parseHMS, WEEKDAY_BY_GETDAY, type FlexRiderEligibilityType } from '~~/src/core'
 import turfArea from '@turf/area'
 import type { RouteFareSummary } from './fare'
 
@@ -311,31 +311,22 @@ export interface FlexAreaFilterCriteria {
   endSeconds?: number
 }
 
+// Whether `value` passes a category selection; undefined means no filter.
+// Invalid URL values never equal a category, so they match nothing.
+function selectionIncludes (selection: readonly string[] | undefined, value: string): boolean {
+  return selection === undefined || selection.includes(value)
+}
+
 /**
  * Whether a flex area matches the current advance-notice, area-type,
- * rider-eligibility, and time-of-day filters. Returns true when it matches (should be highlighted);
- * false when it should be downplayed. Agency filtering is handled upstream by
- * the scenario filter, not here.
+ * rider-eligibility, and time-of-day filters. Returns true when it matches
+ * (should be highlighted); false when it should be downplayed. Agency
+ * filtering is handled upstream by the scenario filter, not here.
  */
 export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: FlexAreaFilterCriteria): boolean {
-  // Drop invalid URL values; undefined stays undefined ("no filter").
-  const advanceNoticeFilter = criteria.advanceNotice?.filter(
-    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
-  )
-  const areaTypesFilter = criteria.areaTypes?.filter(
-    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
-  )
-  const riderEligibilityFilter = criteria.riderEligibility?.filter(
-    (v): v is FlexRiderEligibilityType => flexRiderEligibilityTypes.includes(v as FlexRiderEligibilityType)
-  )
-
-  const featureAreaType = getFlexAreaType(feature)
-  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
-
-  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
-
-  if (riderEligibilityFilter !== undefined && !riderEligibilityFilter.includes(getFlexRiderEligibility(feature))) { return false }
+  if (!selectionIncludes(criteria.areaTypes, getFlexAreaType(feature))) { return false }
+  if (!selectionIncludes(criteria.advanceNotice, getFlexAdvanceNotice(feature))) { return false }
+  if (!selectionIncludes(criteria.riderEligibility, getFlexRiderEligibility(feature))) { return false }
 
   // Time-of-day overlap: only applies when the user set a window and the area
   // declares one. Non-overlapping windows downplay the area.
@@ -758,7 +749,7 @@ function mergeBookingDays (days: (FlexBookingDays | undefined)[]): FlexBookingDa
  * - Collects booking rules
  * - Aggregates time windows
  */
-export function transformLocationToFlexArea (location: FlexLocationGql, riderEligibilityRestricted = false): FlexAreaFeature {
+export function transformLocationToFlexArea (location: FlexLocationGql): FlexAreaFeature {
   const stopTimes = location.stop_times || []
 
   // Collect unique agencies
@@ -895,7 +886,6 @@ export function transformLocationToFlexArea (location: FlexLocationGql, riderEli
     // Additional metadata (for CSV export)
     zone_id: location.zone_id,
     feed_onestop_id: location.feed_onestop_id,
-    rider_eligibility_restricted: riderEligibilityRestricted,
 
     // Area computed from full source geometry (used for sorting overlapping areas in identify tool popup)
     area_m2: turfArea(location.geometry as GeoJSON.Geometry),
@@ -916,8 +906,8 @@ export function transformLocationToFlexArea (location: FlexLocationGql, riderEli
  * Transform multiple GraphQL Locations into FlexAreaFeatures
  * Filters out locations with no stop_times (no service on the queried date)
  */
-export function transformLocationsToFlexAreas (locations: FlexLocationGql[], riderEligibilityRestricted = false): FlexAreaFeature[] {
+export function transformLocationsToFlexAreas (locations: FlexLocationGql[]): FlexAreaFeature[] {
   return locations
     .filter(loc => loc.stop_times && loc.stop_times.length > 0)
-    .map(loc => transformLocationToFlexArea(loc, riderEligibilityRestricted))
+    .map(transformLocationToFlexArea)
 }
