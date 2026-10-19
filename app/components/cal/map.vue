@@ -63,6 +63,7 @@
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
       @open-timetable="handleOpenTimetable"
+      @show-trips="handleShowTrips"
     />
   </div>
 </template>
@@ -73,7 +74,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
+import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -81,6 +82,7 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
+  showTrips: [subject: TripSubject]
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
 }>()
@@ -1007,6 +1009,20 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
       agency_names: [...allAgencies],
       cluster_members: members,
     },
+  }
+}
+
+function handleShowTrips (featureType: string, featureId: string | number) {
+  const id = Number(featureId)
+  if (featureType === 'stop' && Number.isFinite(id)) {
+    emit('showTrips', { kind: 'stop', stopId: id })
+  } else if (featureType === 'route' && Number.isFinite(id)) {
+    emit('showTrips', { kind: 'route', routeId: id })
+  } else if (featureType === 'cluster') {
+    const cluster = props.scenarioFilterResult?.stopClusters?.find(c => c.id === featureId)
+    if (cluster) {
+      emit('showTrips', { kind: 'cluster', clusterId: cluster.id, stopIds: cluster.memberStopIds })
+    }
   }
 }
 

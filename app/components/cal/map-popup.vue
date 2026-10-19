@@ -17,6 +17,9 @@
           <div><strong>{{ feature.data.stop_name }}</strong></div>
           <div>Routes: {{ feature.data.routes?.join(', ') }}</div>
           <div>Agencies: {{ feature.data.agencies?.join(', ') }}</div>
+          <button class="button is-small mt-2" @click="$emit('showTrips', feature.featureType, feature.featureId)">
+            Show trip information
+          </button>
         </template>
 
         <!-- Route popup -->
@@ -47,9 +50,14 @@
             </template>
             See timetable for details.
           </div>
-          <button class="button is-small is-info mt-2" @click="$emit('openTimetable', feature.featureId)">
-            View Timetable
-          </button>
+          <div class="cal-popup-buttons">
+            <button class="button is-small" @click="$emit('showTrips', feature.featureType, feature.featureId)">
+              Show trip information
+            </button>
+            <button class="button is-small is-info" @click="$emit('openTimetable', feature.featureId)">
+              View Timetable
+            </button>
+          </div>
         </template>
 
         <!-- Flex service area popup -->
@@ -100,6 +108,9 @@
               <div><strong>Routes:</strong> {{ member.route_names.join(', ') }}</div>
             </div>
           </div>
+          <button class="button is-small mt-2" @click="$emit('showTrips', feature.featureType, feature.featureId)">
+            Show trip information
+          </button>
         </template>
       </div>
 
@@ -180,6 +191,7 @@ defineEmits<{
   prev: []
   next: []
   openTimetable: [featureId: string | number]
+  showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
@@ -278,6 +290,13 @@ const hasMultiple = computed(() => props.total > 1)
 
 .popup-details div {
   font-size: 13px;
+}
+
+.cal-popup-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .cal-cluster-members {

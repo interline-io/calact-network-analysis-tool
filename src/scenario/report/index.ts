@@ -5,3 +5,4 @@
 export * from './tables'
 export * from './timetable'
 export * from './buffer-details'
+export * from './subject-trips'

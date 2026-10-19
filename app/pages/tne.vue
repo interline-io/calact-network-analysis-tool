@@ -103,8 +103,20 @@
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
+          @show-trips="openTripPanel"
         >
           <template #sidebar-top>
+            <cal-trip-panel
+              :subject="tripPanelSubject"
+              :trips="tripPanelTrips"
+              :scenario-filter-result="scenarioFilterResult"
+              :scoped-dates="tripPanelScopedDates"
+              :trip-details="tripPanelDetails"
+              :details-loading="tripPanelDetailsLoading"
+              :details-error="tripPanelDetailsError"
+              @close="closeTripPanel"
+              @load-details="loadTripPanelDetails"
+            />
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
               :layer-label="aggregateLayerLabel"
@@ -200,6 +212,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
+import { useTripPanel } from '~/composables/useTripPanel'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -300,6 +313,7 @@ function clearScenario () {
   scenarioFilterResult.value = undefined
   exportFeatures.value = []
   querySubmitted.value = false
+  closeTripPanel()
   clearAllResults()
 }
 
@@ -805,6 +819,26 @@ const exportFeatures = shallowRef<Feature[]>([])
 // Flex display features (map + Reports tab). Instantiated here because it
 // depends on scenarioFilterResult; consumed by the map and report components.
 const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
+
+// Trip information panel (#476), opened from a stop, route, or cluster popup.
+const {
+  subject: tripPanelSubject,
+  open: openTripPanel,
+  close: closeTripPanel,
+  trips: tripPanelTrips,
+  scopedDates: tripPanelScopedDates,
+  tripDetails: tripPanelDetails,
+  detailsLoading: tripPanelDetailsLoading,
+  detailsError: tripPanelDetailsError,
+  loadDetails: loadTripPanelDetails,
+} = useTripPanel({
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+})
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.
