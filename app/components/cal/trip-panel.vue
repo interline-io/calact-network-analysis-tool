@@ -447,24 +447,24 @@ function formatAverage (n: number): string {
   table-layout: fixed;
 
   td {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 }
 
 .cal-trip-panel-col-time {
-  width: 18%;
+  width: 17%;
 }
 
 .cal-trip-panel-col-route {
-  width: 19%;
+  width: 23%;
 }
 
 .cal-trip-panel-col-trip {
-  width: 24%;
+  width: 22%;
 }
 
 .cal-trip-panel-col-days {
-  width: 17%;
+  width: 15%;
 }
 
 .cal-trip-panel-scroll {
