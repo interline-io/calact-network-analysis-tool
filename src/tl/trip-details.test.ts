@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseTripDetails } from './trip-details'
+import { parseTripDetails, tripHeadsignAt } from './trip-details'
 
 describe('parseTripDetails', () => {
   it('spans a trip from its earliest departure to its latest arrival', () => {
@@ -15,7 +15,7 @@ describe('parseTripDetails', () => {
         ],
       }],
     })
-    expect(t).toEqual({ id: 1, tripId: 't1', headsign: 'Downtown', startTime: 8 * 3600, endTime: 8.5 * 3600, stopCount: 3 })
+    expect(t).toMatchObject({ id: 1, tripId: 't1', headsign: 'Downtown', startTime: 8 * 3600, endTime: 8.5 * 3600, stopCount: 3 })
   })
 
   it('falls back to the other time where the feed left one blank, and keeps after-midnight times', () => {
@@ -35,6 +35,24 @@ describe('parseTripDetails', () => {
     expect(t?.startTime).toBe(23 * 3600 + 50 * 60)
     expect(t?.endTime).toBe(24 * 3600 + 20 * 60)
     expect(t?.stopCount).toBe(3)
+  })
+
+  it('signs a trip by the stop\'s headsign, then the trip\'s, then its last stop', () => {
+    const [t] = parseTripDetails({
+      trips: [{
+        id: 3,
+        trip_id: 't3',
+        trip_headsign: null,
+        stop_times: [
+          { stop_sequence: 2, departure_time: '08:10:00', stop_headsign: null, stop: { id: 11, stop_name: 'Middle' } },
+          { stop_sequence: 1, departure_time: '08:00:00', stop_headsign: 'Gateway TC', stop: { id: 10, stop_name: 'Start' } },
+          { stop_sequence: 3, arrival_time: '08:20:00', stop_headsign: null, stop: { id: 12, stop_name: 'Gateway Transit Center' } },
+        ],
+      }],
+    })
+    expect(tripHeadsignAt(t!, 10)).toBe('Gateway TC')
+    expect(tripHeadsignAt(t!, 11)).toBe('Gateway Transit Center')
+    expect(tripHeadsignAt({ ...t!, headsign: 'Gateway' }, 11)).toBe('Gateway')
   })
 
   it('returns nothing for an empty response', () => {

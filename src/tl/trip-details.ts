@@ -14,8 +14,14 @@ query TripDetails($ids: [Int!], $limit: Int) {
     trip_id
     trip_headsign
     stop_times(limit: 1000) {
+      stop_sequence
       arrival_time
       departure_time
+      stop_headsign
+      stop {
+        id
+        stop_name
+      }
     }
   }
 }`
@@ -30,8 +36,11 @@ export interface TripDetailsResponse {
     trip_id: string
     trip_headsign?: string | null
     stop_times: {
+      stop_sequence?: number
       arrival_time?: number | string | null
       departure_time?: number | string | null
+      stop_headsign?: string | null
+      stop?: { id: number, stop_name?: string | null } | null
     }[]
   }[]
 }
@@ -40,6 +49,11 @@ export interface TripDetail {
   id: number
   tripId: string
   headsign?: string
+  // GTFS stop_headsign by stop, where the feed sets one; it overrides the trip
+  // headsign at that stop only. Feeds such as TriMet's leave the trip headsign
+  // blank and sign every stop instead.
+  stopHeadsigns: Map<number, string>
+  lastStopName?: string
   // Seconds since midnight; may run past 24:00 for after-midnight trips.
   startTime?: number
   endTime?: number
@@ -62,6 +76,14 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
     // one blank.
     let startTime: number | undefined
     let endTime: number | undefined
+    const stopTimes = [...t.stop_times].sort((a, b) => (a.stop_sequence ?? 0) - (b.stop_sequence ?? 0))
+    const stopHeadsigns = new Map<number, string>()
+    for (const st of stopTimes) {
+      // A stop called twice keeps the sign from its first call.
+      if (st.stop_headsign && st.stop && !stopHeadsigns.has(st.stop.id)) {
+        stopHeadsigns.set(st.stop.id, st.stop_headsign)
+      }
+    }
     for (const st of t.stop_times) {
       const dep = toSeconds(st.departure_time) ?? toSeconds(st.arrival_time)
       const arr = toSeconds(st.arrival_time) ?? toSeconds(st.departure_time)
@@ -76,9 +98,17 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       id: t.id,
       tripId: t.trip_id,
       headsign: t.trip_headsign || undefined,
+      stopHeadsigns,
+      lastStopName: stopTimes[stopTimes.length - 1]?.stop?.stop_name || undefined,
       startTime,
       endTime,
       stopCount: t.stop_times.length,
     }
   })
+}
+
+// What a rider sees signed on a trip leaving a stop: the stop's headsign, the
+// trip's, or failing both the stop it runs to.
+export function tripHeadsignAt (detail: TripDetail, stopId: number): string | undefined {
+  return detail.stopHeadsigns.get(stopId) || detail.headsign || detail.lastStopName
 }

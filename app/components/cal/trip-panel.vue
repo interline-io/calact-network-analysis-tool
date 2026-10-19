@@ -155,13 +155,14 @@
                     <td>
                       <span
                         v-if="routesById.get(row.routeId)"
-                        class="cal-trip-panel-route"
+                        class="cal-trip-panel-route cal-trip-panel-route-compact"
                         :style="routeBadgeStyle(routesById.get(row.routeId)!)"
+                        :title="routeLabel(routesById.get(row.routeId)!)"
                       >{{ routeLabel(routesById.get(row.routeId)!) }}</span>
                     </td>
                     <td>
                       <template v-if="tripDetails.get(row.tripId)">
-                        {{ tripDetails.get(row.tripId)!.headsign || `Direction ${row.directionId}` }}
+                        {{ tripHeadsignAt(tripDetails.get(row.tripId)!, row.stopId) || `Direction ${row.directionId}` }}
                       </template>
                       <span v-else class="cal-trip-panel-pending">{{ detailsPlaceholder }}</span>
                     </td>
@@ -201,7 +202,7 @@
 import { computed, ref, watch } from 'vue'
 import { describeRowDays, type ScenarioFilterResult, type SubjectTrips, type TripSubject } from '~~/src/scenario'
 import { formatDuration, formatGtfsTime } from '~~/src/core'
-import type { Route, TripDetail } from '~~/src/tl'
+import { tripHeadsignAt, type Route, type TripDetail } from '~~/src/tl'
 
 const props = defineProps<{
   subject?: TripSubject
@@ -375,7 +376,8 @@ const breakdown = computed<BreakdownRow[]>(() => {
 function directionLabel (dir: number): string {
   const counts = new Map<string, number>()
   for (const row of props.trips?.rows || []) {
-    const h = row.directionId === dir ? props.tripDetails.get(row.tripId)?.headsign : undefined
+    const detail = row.directionId === dir ? props.tripDetails.get(row.tripId) : undefined
+    const h = detail ? tripHeadsignAt(detail, row.stopId) : undefined
     if (h) {
       counts.set(h, (counts.get(h) || 0) + row.dates.length)
     }
@@ -471,6 +473,15 @@ function formatAverage (n: number): string {
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
+}
+
+// In the Trips table a long name (an intercity route with no short name)
+// would push the table past the panel's width.
+.cal-trip-panel-route-compact {
+  max-width: 6.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .cal-trip-panel-route-long {
