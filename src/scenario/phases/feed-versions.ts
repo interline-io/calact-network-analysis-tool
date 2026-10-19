@@ -1,9 +1,7 @@
-// Phase 1: resolve the geographic context and the active feed versions in it.
-// Everything downstream takes feed version sha1s (stops, flex) or the
-// resolved bbox/within polygon (census values) as input.
+// Phase 1: the active feed versions in the query area. Everything downstream
+// takes feed version sha1s (stops, flex) as input.
 
 import bbox from '@turf/bbox'
-import area from '@turf/area'
 import { convertBbox, type Bbox, type GraphQLClient } from '~~/src/core'
 import {
   applyFeedVersionOverrides,
@@ -27,24 +25,14 @@ export interface FeedVersionsPhaseConfig {
   excludedFeeds?: string[]
 }
 
-export interface ResolvedGeographyContext {
-  // User bbox, or computed around the selected admin boundaries.
-  bbox?: Bbox
-  // First admin polygon, used as `within` for census intersection so the
-  // server clips against the real polygon. Multi-boundary support is #347.
-  within?: GeoJSON.Polygon
-}
-
-// geographyIds → bounding box + `within` polygon. Shared with the standalone
-// census-values phase so its endpoint can re-resolve from ids without the
-// caller threading resolved context across requests.
-export async function resolveGeographyContext (
+// The bbox to search for feeds: the user's, or one around the selected admin
+// boundaries when they resolve to geometry.
+async function resolveSearchBbox (
   config: { bbox?: Bbox, geographyIds?: number[], geoDatasetName: string },
   client: GraphQLClient,
-): Promise<ResolvedGeographyContext> {
-  const resolved: ResolvedGeographyContext = { bbox: config.bbox }
+): Promise<Bbox | undefined> {
   if (!config.geographyIds || config.geographyIds.length === 0) {
-    return resolved
+    return config.bbox
   }
 
   // First get the geometry for the administrative boundaries
@@ -66,7 +54,7 @@ export async function resolveGeographyContext (
 
   if (features.length === 0) {
     console.warn('No features found in census datasets response')
-    return resolved
+    return config.bbox
   }
 
   // Calculate bbox that contains all administrative boundaries
@@ -74,34 +62,11 @@ export async function resolveGeographyContext (
     type: 'FeatureCollection' as const,
     features
   })
-  resolved.bbox = {
+  return {
     sw: { lon: minX, lat: minY },
     ne: { lon: maxX, lat: maxY },
     valid: true
   }
-
-  // Backend `within` is typed as Polygon, so for a MultiPolygon pick
-  // the largest part as a stand-in until #347 lands.
-  const firstGeom: GeoJSON.Geometry = features[0]!.geometry
-  if (firstGeom.type === 'MultiPolygon' && firstGeom.coordinates.length > 0) {
-    let bestCoords = firstGeom.coordinates[0]!
-    let bestArea = area({ type: 'Polygon', coordinates: bestCoords })
-    for (let i = 1; i < firstGeom.coordinates.length; i++) {
-      const coords = firstGeom.coordinates[i]!
-      const a = area({ type: 'Polygon', coordinates: coords })
-      if (a > bestArea) {
-        bestCoords = coords
-        bestArea = a
-      }
-    }
-    resolved.within = { type: 'Polygon', coordinates: bestCoords }
-    if (firstGeom.coordinates.length > 1) {
-      console.warn(`[Scenario] Admin boundary is a MultiPolygon with ${firstGeom.coordinates.length} parts; using the largest part for census intersection (#347).`)
-    }
-  } else if (firstGeom.type === 'Polygon') {
-    resolved.within = firstGeom
-  }
-  return resolved
 }
 
 // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
@@ -153,19 +118,19 @@ export async function runFeedVersionsPhase (
   config: FeedVersionsPhaseConfig,
   client: GraphQLClient,
   emit: PhaseEmit,
-): Promise<{ feedVersions: FeedVersion[], resolved: ResolvedGeographyContext }> {
-  const resolved = await resolveGeographyContext(config, client)
+): Promise<FeedVersion[]> {
+  const searchBbox = await resolveSearchBbox(config, client)
 
   // Fail fast rather than paginate the world: with no bbox the feeds query
   // is unbounded and would return every feed in the system.
-  if (!resolved.bbox) {
+  if (!searchBbox) {
     throw new Error('[FeedVersions] No search area — bbox missing and geographyIds resolved to no geometries')
   }
 
   // Use the bbox (either user-specified or computed around admin boundaries)
   // to query feed versions. Paginate to ensure we get all feeds (API default
   // limit is 100).
-  const bboxForQuery = convertBbox(resolved.bbox)
+  const bboxForQuery = convertBbox(searchBbox)
   const allFeeds: FeedGql[] = []
   let after = 0
   while (true) {
@@ -196,5 +161,5 @@ export async function runFeedVersionsPhase (
     phaseProgress: phaseDone('feed-versions'),
   })
 
-  return { feedVersions, resolved }
+  return feedVersions
 }

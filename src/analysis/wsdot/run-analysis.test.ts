@@ -180,8 +180,8 @@ describe('runAnalysis geography queries', () => {
     // has no other filter, so an unbounded one asks for every tract in the
     // dataset, nationwide.
     const c = new MockGraphQLClient()
-    // The geography ids resolve to an admin polygon, which is what the bbox
-    // tract query should then be clipped against.
+    // The geography ids resolve to an admin polygon, whose bbox bounds the
+    // feeds query. The tract query sends the ids themselves.
     c.mockQuery.mockImplementation((q: any, v: any) => {
     // Dispatched on the document: the buffer queries take `ids` and `layer`
     // too, so variable names alone cannot tell this one apart.
@@ -198,7 +198,7 @@ describe('runAnalysis geography queries', () => {
     await runAnalysis(controller, { ...config, bbox: undefined, geographyIds: [363717] }, c)
     expect(geographyCalls(c).length).toBeGreaterThan(0)
     for (const [, v] of geographyCalls(c)) {
-      const bounded = v.bbox !== undefined || v.within !== undefined || (v.stopIds || []).length > 0
+      const bounded = v.bbox !== undefined || v.geographyIds !== undefined || (v.stopIds || []).length > 0
       expect(bounded, `unbounded geography query: ${JSON.stringify(v).slice(0, 200)}`).toBe(true)
     }
   })

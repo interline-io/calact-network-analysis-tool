@@ -1,5 +1,5 @@
 import { runAnalysis, type WSDOTReportConfig } from '~~/src/analysis/wsdot'
-import { hasSearchArea } from '~~/src/scenario'
+import { hasSearchArea } from '~~/src/core'
 import { streamEnvelopeResponse } from '~~/server/utils/phase-stream'
 
 export default defineEventHandler(async (event) => {

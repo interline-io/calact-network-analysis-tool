@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { convertBbox, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
+import { queryAreaVariables, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
@@ -34,9 +34,9 @@ export interface FetchCensusIntersectionConfig {
   tableDatasetName: string
   tableNames: string[]
   bbox?: Bbox
-  // Polygon to clip against — server computes intersection_area against this
-  // rather than an axis-aligned bbox. Takes precedence over `bbox`.
-  within?: GeoJSON.Polygon
+  // Census geographies; the server clips to their union rather than to an
+  // axis-aligned bbox. Takes precedence over `bbox`.
+  geographyIds?: number[]
   stopIds?: Iterable<number>
   stopBufferRadius?: number
   includeIntersectionGeometry?: boolean
@@ -75,7 +75,7 @@ query GeographyIntersection(
   $tableNames: [String!]!,
   $tableDatasetName: String,
   $bbox: BoundingBox,
-  $within: Polygon,
+  $geographyIds: [Int!],
   $stopIds: [Int!],
   $stopBufferRadius: Float,
   $includeIntersectionGeometry: Boolean = false
@@ -91,7 +91,7 @@ query GeographyIntersection(
         layer: $layer,
         location: {
           bbox: $bbox,
-          within: $within,
+          geography_ids: $geographyIds,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
         }
       }
@@ -129,7 +129,7 @@ export interface FetchClipIntersectionsConfig {
   geoDatasetLayer: string
   bbox?: Bbox
   // Takes precedence over `bbox`, matching the query-area pass.
-  within?: GeoJSON.Polygon
+  geographyIds?: number[]
   stopIds: Iterable<number>
   stopBufferRadius: number
   // Roughly doubles the response size, so callers ask only when the clipped
@@ -151,7 +151,7 @@ query ClipIntersection(
   $geoDatasetName: String,
   $layer: String!,
   $bbox: BoundingBox,
-  $within: Polygon,
+  $geographyIds: [Int!],
   $stopIds: [Int!],
   $stopBufferRadius: Float,
   $includeGeometry: Boolean = false
@@ -165,7 +165,7 @@ query ClipIntersection(
         layer: $layer,
         location: {
           bbox: $bbox,
-          within: $within,
+          geography_ids: $geographyIds,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
         }
       }
@@ -186,8 +186,8 @@ export async function fetchClipIntersections (
 ): Promise<Map<string, ClipIntersection>> {
   const stopIds = Array.from(config.stopIds)
   const out = new Map<string, ClipIntersection>()
-  const clipArea = config.within || config.bbox
-  if (!clipArea || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+  const area = queryAreaVariables(config)
+  if (!(area.bbox || area.geographyIds) || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
     return out
   }
   const result = await config.client.query<{
@@ -201,8 +201,8 @@ export async function fetchClipIntersections (
   }>(clipIntersectionQuery, {
     geoDatasetName: config.geoDatasetName,
     layer: config.geoDatasetLayer,
-    bbox: config.within ? undefined : convertBbox(config.bbox),
-    within: config.within,
+    bbox: area.bbox,
+    geographyIds: area.geographyIds,
     stopIds,
     stopBufferRadius: config.stopBufferRadius,
     includeGeometry: config.includeGeometry || false,
@@ -292,6 +292,7 @@ export async function fetchBufferClipGeometry (
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
+  const area = queryAreaVariables(config)
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
@@ -299,8 +300,8 @@ export async function fetchCensusIntersection (
     layer: config.geoDatasetLayer,
     stopBufferRadius: config.stopBufferRadius,
     stopIds: config.stopIds ? Array.from(config.stopIds) : [],
-    bbox: config.within ? undefined : convertBbox(config.bbox),
-    within: config.within,
+    bbox: area.bbox,
+    geographyIds: area.geographyIds,
     includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
   const result = await config.client.query<{ census_datasets: geographyIntersectionResponse[] }>(

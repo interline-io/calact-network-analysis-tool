@@ -1,32 +1,29 @@
-// Phase 6: ACS census values for the aggregation layer. Depends on the
-// resolved geographic context, plus the scenario's stop set when the
-// intersection is narrowed to the stop buffers.
+// Phase 6: ACS census values for the aggregation layer. Depends on the query
+// area, plus the scenario's stop set when the intersection is narrowed to the
+// stop buffers.
 
 import {
   REQUIRED_ACS_TABLES,
+  hasSearchArea,
   type Bbox,
   type CensusGeographyData,
   type GraphQLClient,
 } from '~~/src/core'
 import { fetchCensusIntersection, fetchClipIntersections, type ClipIntersection } from '~~/src/tl'
-import { resolveGeographyContext } from './feed-versions'
 import { phaseDone, type PhaseEmit } from './common'
 
 export interface CensusValuesPhaseConfig {
   bbox?: Bbox
-  // Admin-boundary selection; resolved to bbox + within when `within` is not
-  // already provided (the standalone-request path).
+  // Admin-boundary selection. The server clips to their union, in place of
+  // the bbox.
   geographyIds?: number[]
-  // Pre-resolved admin polygon from the feed-versions phase (the inline
-  // path), so composition doesn't re-resolve per phase.
-  within?: GeoJSON.Polygon
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`).
   tableDatasetName: string
   aggregateLayer: string
   stopBufferRadius?: number
-  // With a radius and a `within` polygon, a second pass narrows each
-  // geography's intersection to the query area AND the stop buffers.
+  // With a radius, a second pass narrows each geography's intersection to the
+  // query area AND the stop buffers.
   stopIds?: number[]
   // Also fetch the clipped outlines, for drawing the choropleth as the
   // analyzed footprint rather than whole geographies. Off by default: the
@@ -39,14 +36,8 @@ export async function runCensusValuesPhase (
   client: GraphQLClient,
   emit: PhaseEmit,
 ): Promise<void> {
-  let { bbox: fetchBbox, within } = config
-  if (!within && config.geographyIds && config.geographyIds.length > 0) {
-    const resolved = await resolveGeographyContext(config, client)
-    fetchBbox = resolved.bbox ?? fetchBbox
-    within = resolved.within
-  }
-  if (!fetchBbox) {
-    console.warn('[CensusValues] No resolved bbox — skipping')
+  if (!hasSearchArea(config)) {
+    console.warn('[CensusValues] No query area — skipping')
     emit({ currentStage: 'census-values', phaseProgress: phaseDone('census-values') })
     return
   }
@@ -65,8 +56,8 @@ export async function runCensusValuesPhase (
     geoDatasetLayer: config.aggregateLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: REQUIRED_ACS_TABLES,
-    bbox: fetchBbox,
-    within,
+    bbox: config.bbox,
+    geographyIds: config.geographyIds,
     includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
 
@@ -87,8 +78,8 @@ export async function runCensusValuesPhase (
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
-        bbox: fetchBbox,
-        within,
+        bbox: config.bbox,
+        geographyIds: config.geographyIds,
         stopIds,
         stopBufferRadius: radius,
         includeGeometry: config.includeIntersectionGeometry,

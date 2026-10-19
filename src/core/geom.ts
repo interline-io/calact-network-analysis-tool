@@ -124,3 +124,19 @@ export function convertBbox (bbox?: Bbox): { min_lon?: number, min_lat?: number,
     max_lat: bbox ? bbox.ne.lat : undefined
   }
 }
+
+// Whether a config carries a search area: a bbox or at least one geography
+// id. The one validation every run entry point shares, client and server.
+export function hasSearchArea (config: { bbox?: Bbox, geographyIds?: number[] }): boolean {
+  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0
+}
+
+// The query area for a location filter: the geography ids when there are any,
+// otherwise the bbox. The server lets a bbox outrank geography ids and ignores
+// an empty id list, so at most one is set.
+export function queryAreaVariables (config: { bbox?: Bbox, geographyIds?: number[] }) {
+  if (config.geographyIds && config.geographyIds.length > 0) {
+    return { bbox: undefined, geographyIds: config.geographyIds }
+  }
+  return { bbox: convertBbox(config.bbox), geographyIds: undefined }
+}
