@@ -132,7 +132,6 @@
                 class="mt-2"
                 size="small"
                 icon-left="arrow-expand"
-                aria-haspopup="dialog"
                 fullwidth
                 @click="$emit('expandTrips')"
               >
