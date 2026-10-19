@@ -114,84 +114,22 @@
               </button>
             </p>
             <div class="cal-trip-panel-scroll">
-              <table class="cal-trip-panel-table cal-trip-panel-trips">
-                <caption class="is-sr-only">
-                  Trips
-                </caption>
-                <!-- Fixed widths, so long stop names, headsigns, and route names
-                     wrap or truncate within the panel rather than widen it. -->
-                <colgroup>
-                  <col class="cal-trip-panel-col-time">
-                  <col class="cal-trip-panel-col-route">
-                  <col>
-                  <col class="cal-trip-panel-col-trip">
-                  <col v-if="scopedDates.length > 1" class="cal-trip-panel-col-days">
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      <cat-tooltip :text="timeTooltip">
-                        Time
-                      </cat-tooltip>
-                    </th>
-                    <th scope="col">
-                      Route
-                    </th>
-                    <th scope="col">
-                      Headsign
-                    </th>
-                    <th scope="col">
-                      <cat-tooltip text="When the trip leaves its first stop and reaches its last, and how many stops it makes, including stops outside the scenario area.">
-                        Trip
-                      </cat-tooltip>
-                    </th>
-                    <th v-if="scopedDates.length > 1" scope="col">
-                      Days
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row of visibleRows" :key="row.key">
-                    <td class="cal-trip-panel-time">
-                      {{ formatGtfsTime(row.time) }}
-                      <div v-if="subject.kind === 'cluster'" class="cal-trip-panel-sub">
-                        {{ stopName(row.stopId) }}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        v-if="routesById.get(row.routeId)"
-                        class="cal-trip-panel-route cal-trip-panel-route-compact"
-                        :style="routeBadgeStyle(routesById.get(row.routeId)!)"
-                        :title="routeLabel(routesById.get(row.routeId)!)"
-                      >{{ routeLabel(routesById.get(row.routeId)!) }}</span>
-                    </td>
-                    <td>
-                      <template v-if="tripDetails.get(row.tripId)">
-                        {{ tripHeadsignAt(tripDetails.get(row.tripId)!, row.stopId) || `Direction ${row.directionId}` }}
-                      </template>
-                      <span v-else class="cal-trip-panel-pending">{{ detailsPlaceholder }}</span>
-                    </td>
-                    <td class="cal-trip-panel-time">
-                      <template v-if="tripDetails.get(row.tripId)">
-                        {{ formatGtfsTime(tripDetails.get(row.tripId)!.startTime) }}–{{ formatGtfsTime(tripDetails.get(row.tripId)!.endTime) }}
-                        <div class="cal-trip-panel-sub">
-                          {{ tripDetails.get(row.tripId)!.stopCount }} stops
-                        </div>
-                      </template>
-                      <span v-else class="cal-trip-panel-pending">{{ detailsPlaceholder }}</span>
-                    </td>
-                    <td v-if="scopedDates.length > 1">
-                      {{ describeRowDays(row.dates, scopedDates) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <cal-trip-table
+                :subject="subject"
+                :rows="previewRows"
+                :scenario-filter-result="scenarioFilterResult"
+                :scoped-dates="scopedDates"
+                :trip-details="tripDetails"
+                :details-loading="detailsLoading"
+                compact
+              />
             </div>
-            <div v-if="trips.rows.length > visibleRows.length" class="cal-trip-panel-more">
-              Showing {{ visibleRows.length }} of {{ trips.rows.length }} trips.
-              <button type="button" class="cal-trip-panel-link" @click="showAll = true">
-                Show all
+            <div class="cal-trip-panel-more">
+              <span v-if="trips.rows.length > previewRows.length">
+                Showing {{ previewRows.length }} of {{ trips.rows.length.toLocaleString() }} trips.
+              </span>
+              <button type="button" class="button is-small is-fullwidth mt-2" @click="$emit('expandTrips')">
+                Open full table
               </button>
             </div>
           </template>
@@ -203,12 +141,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { describeRowDays, type ScenarioFilterResult, type SubjectTrips, type TripSubject } from '~~/src/scenario'
+import type { ScenarioFilterResult, SubjectTrips, TripSubject } from '~~/src/scenario'
 import { formatDuration, formatGtfsTime } from '~~/src/core'
 import { tripHeadsignAt, type Route, type TripDetail } from '~~/src/tl'
 
 const props = defineProps<{
   subject?: TripSubject
+  // What the panel describes, as useTripPanel names it.
+  title: string
   trips?: SubjectTrips
   scenarioFilterResult?: ScenarioFilterResult
   // The scenario's dates scoped to its weekdays, as yyyy-MM-dd.
@@ -221,15 +161,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   loadDetails: []
+  // Open every trip in the full-size table.
+  expandTrips: []
 }>()
 
 type TripPanelTab = 'overview' | 'trips'
 const activeTab = ref<TripPanelTab>('overview')
 
-// The table renders this many rows until asked for the rest, as a long day at
-// a busy stop runs to hundreds.
-const ROW_LIMIT = 100
-const showAll = ref(false)
+// The sidebar shows the first few trips without scrolling; the full table
+// opens in a modal.
+const PREVIEW_ROWS = 8
 
 // Details are fetched only once the Trips tab is open, for whatever subject it
 // shows.
@@ -246,7 +187,6 @@ watch(
 // mounted while the panel is closed, so its tab would otherwise carry over.
 watch(() => props.subject, () => {
   activeTab.value = 'overview'
-  showAll.value = false
 })
 
 const routesById = computed(() => {
@@ -256,19 +196,6 @@ const routesById = computed(() => {
   }
   return m
 })
-
-const stopsById = computed(() => {
-  const m = new Map<number, { stop_name?: string, stop_id: string }>()
-  for (const s of props.scenarioFilterResult?.stops || []) {
-    m.set(s.id, s)
-  }
-  return m
-})
-
-function stopName (id: number): string {
-  const s = stopsById.value.get(id)
-  return s?.stop_name || s?.stop_id || String(id)
-}
 
 function routeLabel (r: Route): string {
   return r.route_short_name || r.route_long_name || r.route_id
@@ -291,37 +218,11 @@ const subjectRoute = computed(() => {
   return s?.kind === 'route' ? routesById.value.get(s.routeId) : undefined
 })
 
-const title = computed(() => {
-  const s = props.subject
-  if (!s) {
-    return ''
-  }
-  if (s.kind === 'stop') {
-    return stopName(s.stopId)
-  }
-  if (s.kind === 'cluster') {
-    const cluster = props.scenarioFilterResult?.stopClusters?.find(c => c.id === s.clusterId)
-    return `Stop cluster at ${stopName(cluster?.anchorStopId ?? s.stopIds[0] ?? 0)}`
-  }
-  const r = subjectRoute.value
-  if (!r) {
-    return 'Route'
-  }
-  return [r.route_short_name, r.route_long_name].filter(Boolean).join(' ')
-})
-
 const countTooltip = computed(() => {
   if (props.subject?.kind === 'route') {
     return 'Trips with any departure in the scenario area during the days and times within the current filters, as the Routes report counts them.'
   }
   return 'Visits at the stop by any route during the days and times within the current filters, as the Stops report\'s Total Visits counts them. A trip that calls twice counts twice.'
-})
-
-const timeTooltip = computed(() => {
-  if (props.subject?.kind === 'route') {
-    return 'When the trip leaves its first stop within the scenario area.'
-  }
-  return 'When the trip leaves this stop.'
 })
 
 const frequencyText = computed(() => {
@@ -392,12 +293,7 @@ function directionLabel (dir: number): string {
   return top ? `To ${top[0]}` : `Direction ${dir}`
 }
 
-const visibleRows = computed(() => {
-  const rows = props.trips?.rows || []
-  return showAll.value ? rows : rows.slice(0, ROW_LIMIT)
-})
-
-const detailsPlaceholder = computed(() => props.detailsLoading ? '…' : '—')
+const previewRows = computed(() => (props.trips?.rows || []).slice(0, PREVIEW_ROWS))
 
 function formatAverage (n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 1 })
@@ -405,8 +301,8 @@ function formatAverage (n: number): string {
 </script>
 
 <style scoped lang="scss">
-// Shrinks to the room the map sidebar leaves it. Header, tabs, and the
-// trips table's column headings stay put; only the tab's content scrolls.
+// Shrinks to the room the map sidebar leaves it. Header and tabs stay put;
+// the tab's content scrolls only if even the short trip preview does not fit.
 // Each level from the panel down to the scrolling div is a flex column with
 // min-height: 0, which is what lets the space pass down.
 .cal-trip-panel {
@@ -470,30 +366,6 @@ function formatAverage (n: number): string {
   margin-top: 10px;
 }
 
-.cal-trip-panel-trips {
-  table-layout: fixed;
-
-  td {
-    overflow-wrap: break-word;
-  }
-}
-
-.cal-trip-panel-col-time {
-  width: 17%;
-}
-
-.cal-trip-panel-col-route {
-  width: 23%;
-}
-
-.cal-trip-panel-col-trip {
-  width: 22%;
-}
-
-.cal-trip-panel-col-days {
-  width: 15%;
-}
-
 .cal-trip-panel-scroll {
   min-height: 0;
   overflow-y: auto;
@@ -503,17 +375,6 @@ function formatAverage (n: number): string {
   font-variant-numeric: tabular-nums;
   text-align: right !important;
   white-space: nowrap;
-}
-
-.cal-trip-panel-time {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.cal-trip-panel-sub {
-  font-size: 11px;
-  color: var(--bulma-text-weak);
-  white-space: normal;
 }
 
 .cal-trip-panel-route {
@@ -527,21 +388,8 @@ function formatAverage (n: number): string {
   white-space: nowrap;
 }
 
-// In the Trips table a long name (an intercity route with no short name)
-// would push the table past the panel's width.
-.cal-trip-panel-route-compact {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-}
-
 .cal-trip-panel-route-long {
   margin-left: 4px;
-}
-
-.cal-trip-panel-pending {
-  color: var(--bulma-text-weak);
 }
 
 .cal-trip-panel-empty,

@@ -111,6 +111,7 @@
           <template #sidebar-top>
             <cal-trip-panel
               :subject="tripPanelSubject"
+              :title="tripPanelTitle"
               :trips="tripPanelTrips"
               :scenario-filter-result="scenarioFilterResult"
               :scoped-dates="tripPanelScopedDates"
@@ -119,6 +120,7 @@
               :details-error="tripPanelDetailsError"
               @close="onTripPanelClose"
               @load-details="loadTripPanelDetails"
+              @expand-trips="showTripTable = true"
             />
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
@@ -170,6 +172,23 @@
           :start-time="startTime"
           :end-time="endTime"
           :initial-tab="timetableInitialTab"
+        />
+      </cat-modal>
+
+      <!-- Every trip behind the trip panel, at full size -->
+      <cat-modal
+        v-model="showTripTable"
+        :title="`Trips for: ${tripPanelTitle}`"
+        full-screen
+      >
+        <cal-trip-table
+          v-if="tripPanelSubject && tripPanelTrips"
+          :subject="tripPanelSubject"
+          :rows="tripPanelTrips.rows"
+          :scenario-filter-result="scenarioFilterResult"
+          :scoped-dates="tripPanelScopedDates"
+          :trip-details="tripPanelDetails"
+          :details-loading="tripPanelDetailsLoading"
         />
       </cat-modal>
 
@@ -829,6 +848,7 @@ const {
   open: openTripPanel,
   close: closeTripPanel,
   trips: tripPanelTrips,
+  title: tripPanelTitle,
   scopedDates: tripPanelScopedDates,
   tripDetails: tripPanelDetails,
   detailsLoading: tripPanelDetailsLoading,
@@ -846,6 +866,12 @@ const {
 // The panel describes the map's selection, so closing it clears that
 // selection; the map in turn closes the panel when its selection goes.
 const mapSelectionClearKey = ref(0)
+
+// The full trip table opens from the panel and goes with it.
+const showTripTable = ref(false)
+watch(tripPanelSubject, () => {
+  showTripTable.value = false
+})
 function onTripPanelClose () {
   closeTripPanel()
   mapSelectionClearKey.value++

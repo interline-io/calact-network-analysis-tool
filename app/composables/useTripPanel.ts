@@ -39,6 +39,8 @@ export interface UseTripPanelReturn {
   open: (next: TripSubject) => void
   close: () => void
   trips: ComputedRef<SubjectTrips | undefined>
+  // The subject by name: a stop's, a route's, or a cluster's anchor stop's.
+  title: ComputedRef<string>
   // The scoped dates as yyyy-MM-dd, for naming the days a row runs.
   scopedDates: ComputedRef<string[]>
   tripDetails: Ref<Map<number, TripDetail>>
@@ -103,6 +105,27 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
     })
   })
 
+  const title = computed(() => {
+    const result = toValue(deps.scenarioFilterResult)
+    const s = subject.value
+    if (!s) {
+      return ''
+    }
+    const stopName = (id: number) => {
+      const stop = result?.stops.find(st => st.id === id)
+      return stop?.stop_name || stop?.stop_id || String(id)
+    }
+    if (s.kind === 'stop') {
+      return stopName(s.stopId)
+    }
+    if (s.kind === 'cluster') {
+      const cluster = result?.stopClusters?.find(c => c.id === s.clusterId)
+      return `Stop cluster at ${stopName(cluster?.anchorStopId ?? s.stopIds[0] ?? 0)}`
+    }
+    const r = result?.routes.find(rt => rt.id === s.routeId)
+    return r ? [r.route_short_name, r.route_long_name].filter(Boolean).join(' ') : 'Route'
+  })
+
   // Trip ids are database ids, unique across feed versions, and a trip's
   // details do not depend on the date, so fetched details stay good for
   // every subject.
@@ -162,6 +185,7 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
     open,
     close,
     trips,
+    title,
     scopedDates,
     tripDetails,
     detailsLoading,
