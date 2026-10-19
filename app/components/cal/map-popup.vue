@@ -106,14 +106,16 @@
     <footer v-if="hasTripsAction || hasMultiple" class="cal-popup-footer">
       <div v-if="hasTripsAction" class="cal-popup-actions">
         <button class="button is-small" @click="$emit('showTrips', feature.featureType, feature.featureId)">
-          Show trip information
+          <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
+          <span>Show trip information</span>
         </button>
         <button
           v-if="feature.featureType === 'route'"
           class="button is-small is-info"
           @click="$emit('openTimetable', feature.featureId)"
         >
-          View Timetable
+          <span class="icon is-small"><i class="mdi mdi-timetable" /></span>
+          <span>View Timetable</span>
         </button>
       </div>
 

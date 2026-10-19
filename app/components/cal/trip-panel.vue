@@ -128,9 +128,16 @@
               <span v-if="trips.rows.length > previewRows.length">
                 Showing {{ previewRows.length }} of {{ trips.rows.length.toLocaleString() }} trips.
               </span>
-              <button type="button" class="button is-small is-fullwidth mt-2" @click="$emit('expandTrips')">
+              <cat-button
+                class="mt-2"
+                size="small"
+                icon-left="arrow-expand"
+                aria-haspopup="dialog"
+                fullwidth
+                @click="$emit('expandTrips')"
+              >
                 Open full table
-              </button>
+              </cat-button>
             </div>
           </template>
         </cat-tab-item>
