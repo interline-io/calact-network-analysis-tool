@@ -108,9 +108,8 @@
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
               :layer-label="aggregateLayerLabel"
-              :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
-              :all-derived="allGeographiesDerived"
-              :area-stats="selectedPanelData?.areaStats ?? null"
+              :geography="selectedPanelData?.geography ?? null"
+              :analysis-area="analysisAreaPanelData"
               @close="selectedAggregationGeoid = null"
               @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
             />
@@ -229,11 +228,10 @@ import {
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   formatAcsDatasetLabel,
-  summarizeApportioned,
-  censusApportionArea,
   censusApportionGeometry,
   censusApportionRatio,
-  deriveApportionedRow,
+  censusPanelAnalysisArea,
+  censusPanelGeography,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
   type FilterTag,
@@ -414,32 +412,17 @@ const selectedPanelData = computed(() => {
   const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
-  if (!geo) {
-    return { row, apportionedDerived: null, areaStats: null }
-  }
-  const mode = aggClipMode.value
-  const ratio = censusApportionRatio(geo, mode)
-  return {
-    row,
-    apportionedDerived: deriveApportionedRow(geo.values, ratio),
-    areaStats: {
-      geometryArea: geo.geometryArea,
-      // Unclipped mode has no intersection to report — the panel hides the
-      // row rather than restating the full area at 100%.
-      intersectionArea: mode === 'unclipped' ? null : censusApportionArea(geo, mode),
-      intersectionRatio: mode === 'unclipped' ? null : ratio,
-    },
-  }
+  return { row, geography: geo ? censusPanelGeography(geo) : null }
 })
 
-// Aggregate across every geography, fed to the panel's total column. Independent
-// of the selection so it doesn't recompute on every click.
-const allGeographiesDerived = computed((): Record<string, number | null> | null => {
+// The panel's Analysis area tab. Independent of the selection so it doesn't
+// recompute on every click.
+const analysisAreaPanelData = computed(() => {
   const geos = scenarioFilterResult.value?.censusGeographies
   if (!geos || geos.size === 0) {
     return null
   }
-  return summarizeApportioned(geos.keys(), geos, aggClipMode.value).derived
+  return censusPanelAnalysisArea(geos)
 })
 
 /////////////////////////
@@ -773,7 +756,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   includeFlexAreas: includeFlexAreas.value,
   includeCensus: includeCensus.value,
   includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
-  includeOutsideClip: aggClipMode.value === 'outside',
+  // The census panel splits every geography inside and outside the stop
+  // buffers, so the run always asks for the outside clip.
+  includeOutsideClip: true,
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,

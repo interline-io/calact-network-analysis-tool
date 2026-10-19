@@ -198,7 +198,7 @@ describe('summarizeApportioned', () => {
       ['1', geo({ values: { b01003_001: 1000, b02001_002: 600 }, intersectionRatio: 1.0 })],
       ['2', geo({ values: { b01003_001: 500, b02001_002: 400 }, intersectionRatio: 0.5 })],
     ])
-    const { raw, derived } = summarizeApportioned(['1', '2'], geos, 'queryArea')
+    const { raw, derived } = summarizeApportioned(['1', '2'], geos, g => g.intersectionRatio)
     // 1000*1.0 + 500*0.5 = 1250
     expect(raw.b01003_001).toBe(1250)
     // 600*1.0 + 400*0.5 = 800
@@ -208,7 +208,7 @@ describe('summarizeApportioned', () => {
     expect(derived.total_population).toBe(1250)
   })
 
-  it('totals follow the selected clip', () => {
+  it('totals follow the share each geography is given', () => {
     const geos = new Map([
       ['1', geo({
         values: { b01003_001: 1000 },
@@ -217,10 +217,21 @@ describe('summarizeApportioned', () => {
         outsideIntersectionRatio: 0.3,
       })],
     ])
-    expect(summarizeApportioned(['1'], geos, 'unclipped').derived.total_population).toBe(1000)
-    expect(summarizeApportioned(['1'], geos, 'queryArea').derived.total_population).toBe(500)
-    expect(summarizeApportioned(['1'], geos, 'buffer').derived.total_population).toBe(200)
-    expect(summarizeApportioned(['1'], geos, 'outside').derived.total_population).toBe(300)
+    const total = (mode: 'unclipped' | 'queryArea' | 'buffer' | 'outside') =>
+      summarizeApportioned(['1'], geos, g => censusApportionRatio(g, mode)).derived.total_population
+    expect(total('unclipped')).toBe(1000)
+    expect(total('queryArea')).toBe(500)
+    expect(total('buffer')).toBe(200)
+    expect(total('outside')).toBe(300)
+  })
+
+  it('leaves out a geography given no share', () => {
+    const geos = new Map([
+      ['1', geo({ values: { b01003_001: 1000 }, bufferIntersectionRatio: 0.2 })],
+      ['2', geo({ values: { b01003_001: 500 } })],
+    ])
+    const { derived } = summarizeApportioned(['1', '2'], geos, g => g.bufferIntersectionRatio ?? null)
+    expect(derived.total_population).toBe(200)
   })
 })
 
@@ -251,6 +262,13 @@ describe('formatArea', () => {
     expect(formatArea(1500, 'eu')).toBe('1,500 m²')
     expect(formatArea(1_000_000, 'eu')).toBe('1.00 km²')
     expect(formatArea(2_500_000, 'eu')).toBe('2.50 km²')
+  })
+
+  it('takes the unit from a whole when given one', () => {
+    // 0.08 mi² alone reads in ft², but beside its 0.13 mi² whole it reads in mi².
+    expect(formatArea(207_200, 'us')).toBe('2,230,282 ft²')
+    expect(formatArea(207_200, 'us', 336_700)).toBe('0.08 mi²')
+    expect(formatArea(500_000, 'eu', 2_000_000)).toBe('0.50 km²')
   })
 })
 

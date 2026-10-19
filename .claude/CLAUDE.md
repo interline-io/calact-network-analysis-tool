@@ -82,7 +82,9 @@ After making edits, run `pnpm check` to verify correctness (lint with auto-fix +
 
 ## Testing against the live server
 
-`docker/docker-compose.services.yaml` runs a real Transitland server (tlserver, built from the transitland-lib commit pinned in `docker/tlserver/tlserver.docker`) on fixture GTFS and census data, published at `localhost:28080`. `cd docker && ./reset-test-services.sh` rebuilds and restores it; `./check-test-services.sh` waits until it's healthy. `pnpm test` runs the integration suites against it (`TRANSITLAND_API_BASE`, default `http://localhost:28080`), and CI starts the same services before the tests.
+`docker/docker-compose.services.yaml` runs a real Transitland server (tlserver, built from the transitland-lib commit pinned in `docker/tlserver/tlserver.docker`) on fixture GTFS and census data, published at `localhost:28080`. `cd docker && ./reset-test-services.sh` rebuilds and restores it; `./check-test-services.sh` waits until it's healthy. CI starts the same services before the tests.
+
+**Always `source docker/docker-env.sh` first.** It points the shell at the stack: the GraphQL base the test suite and CLI use, the dev server's API proxy, and the Auth0 gate (off). Source it before `pnpm dev`, `pnpm test`, `pnpm test:browser` or the CLI. Don't hand-set these variables or point a config at another server.
 
 **Never use mocks for what this server covers.** Mocked GraphQL responses have no value here: they only confirm the client sent what it meant to send, and catch nothing the server would reject or answer wrong. Test new API fields, filters and query shapes against the live server, as the integration suites in `src/scenario/scenario-census.test.ts` do. A change that needs a newer transitland-lib bumps the tlserver pin in the same branch. (The outside clip's mocked tests passed while the fixture server rejected `stop_buffer.exclude`.)
 
@@ -111,7 +113,7 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 
 ## Environment Variables
 
-See `.env.example`. Key variables:
+Interline doesn't use `.env` files: Nuxt loads one on its own, so a stray file silently changes what the app talks to. Set the environment from sources you load on purpose: `source docker/docker-env.sh` for the local docker stack, and 1Password environments for API keys. Key variables:
 - `TRANSITLAND_API_BASE` — GraphQL API endpoint (used by CLI)
 - `NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE` / `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY` — Transitland API base URL and apikey, for the proxy and the server API
 - `NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY` — Map tiles API key

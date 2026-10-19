@@ -78,8 +78,7 @@ export interface ScenarioConfig {
   // than needing a follow-up recompute.
   includeIntersectionGeometry?: boolean
   // Also clip each census geography to the query area outside the stop
-  // buffers. Set from the display, since the clip costs a server pass of its
-  // own and only the outside mode reads it.
+  // buffers. Opt-in, since the clip costs a server pass of its own.
   includeOutsideClip?: boolean
   // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>

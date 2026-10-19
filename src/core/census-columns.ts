@@ -361,18 +361,20 @@ const SQ_M_PER_SQ_MI = 2_589_988.110336
 const SQ_FT_PER_SQ_M = 10.7639104
 
 // Switches m²↔km² (eu) or ft²↔mi² (us) at the natural threshold.
-export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem): string {
+// `unitOf` picks the unit from another area, so a part reads in its whole's
+// unit; by default the unit follows `m2` itself.
+export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem, unitOf?: number): string {
   if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
     return '—'
   }
+  const scale = unitOf !== undefined && Number.isFinite(unitOf) ? unitOf : m2
   if (unitSystem === 'us') {
-    const sqMi = m2 / SQ_M_PER_SQ_MI
-    if (sqMi >= 0.1) {
-      return `${sqMi.toFixed(2)} mi²`
+    if (scale / SQ_M_PER_SQ_MI >= 0.1) {
+      return `${(m2 / SQ_M_PER_SQ_MI).toFixed(2)} mi²`
     }
     return `${Math.round(m2 * SQ_FT_PER_SQ_M).toLocaleString('en-US')} ft²`
   }
-  if (m2 >= 1_000_000) {
+  if (scale >= 1_000_000) {
     return `${(m2 / 1_000_000).toFixed(2)} km²`
   }
   return `${Math.round(m2).toLocaleString('en-US')} m²`
@@ -510,12 +512,13 @@ export function deriveApportionedColumn (
 }
 
 // Sum apportioned raw ACS values across geographies, then run derivations.
-// Non-additive columns (medians) come out as nonsense — callers must render
-// `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
+// `ratioOf` gives each geography's share; a geography it returns null for is
+// left out. Non-additive columns (medians) come out as nonsense — callers must
+// render `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
 export function summarizeApportioned (
   geoids: Iterable<string>,
   geographies: Map<string, CensusGeographyData> | undefined,
-  mode: AggClipMode,
+  ratioOf: (geo: CensusGeographyData) => number | null,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {
@@ -526,7 +529,10 @@ export function summarizeApportioned (
     if (!geo) {
       continue
     }
-    const ratio = censusApportionRatio(geo, mode)
+    const ratio = ratioOf(geo)
+    if (ratio == null) {
+      continue
+    }
     for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue

@@ -29,7 +29,7 @@ export interface CensusValuesPhaseConfig {
   // outlines cost roughly as much as the values.
   includeIntersectionGeometry?: boolean
   // With a radius, a third pass clips each geography to the query area
-  // outside the stop buffers. Off by default: only the outside mode reads it.
+  // outside the stop buffers. Off by default: it costs a server pass.
   includeOutsideClip?: boolean
 }
 
