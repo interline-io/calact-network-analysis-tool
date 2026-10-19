@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, type Mock } from 'vitest'
+import { beforeAll, describe, it, expect, vi, type Mock } from 'vitest'
 import {
   type GraphQLClient,
   type Bbox,
+  type CensusGeographyData,
   parseBbox,
   apportionBuffer,
   censusGeographyMapToEntries,
@@ -9,9 +10,11 @@ import {
   BasicGraphQLClient,
 } from '~~/src/core'
 import {
+  runCensusValuesPhase,
   runScenarioFetcher,
   applyScenarioResultFilter,
   type ScenarioConfig,
+  type ScenarioData,
 } from '~~/src/scenario'
 import { geographySearchQuery, routesById, stopGeoAggregateCsv } from '~~/src/tl'
 
@@ -240,6 +243,75 @@ describe('admin-boundary query area (integration)', () => {
       if (!prefixes.some(p => geoid.startsWith(p))) {
         expect(geo.intersectionRatio, `expected no area for neighbor ${geoid}`).toBeLessThan(0.001)
       }
+    }
+  }, 120000)
+})
+
+// --- Stop-buffer clip suite -----------------------------------------------------
+//
+// The census clips come from the server: the query area narrowed to the stop
+// buffers, and with `exclude` the query area outside them. Only a live server
+// shows the two splitting each geography's query-area share.
+describe('stop-buffer clips (integration)', () => {
+  const client = integrationClient()
+
+  // Fixed-route on for the stops, and a radius small enough that downtown
+  // Portland's buffers leave gaps, so some tracts straddle a buffer edge.
+  const RADIUS = 100
+  const clipConfig: ScenarioConfig = {
+    ...censusConfig('tract'),
+    reportName: 'stop-buffer-clip-test',
+    includeFixedRoute: true,
+    stopBufferRadius: RADIUS,
+    includeOutsideClip: true,
+  }
+
+  let data: ScenarioData
+  beforeAll(async () => {
+    data = await runScenarioFetcher(noopController(), clipConfig, client)
+  }, 300000)
+
+  it('splits each tract between the inside and outside clips', () => {
+    expect(data.stops.length).toBeGreaterThan(0)
+    const tracts = [...data.censusGeographies!.entries()]
+    expect(tracts.length).toBeGreaterThan(0)
+
+    let split = 0
+    for (const [geoid, geo] of tracts) {
+      // A failed clip pass leaves its clip undefined, so these catch a server
+      // that rejects the clip as well as one that measures it wrong.
+      expect(geo.bufferIntersectionArea, `expected ${geoid} to carry the buffer clip`).toBeDefined()
+      expect(geo.outsideIntersectionArea, `expected ${geoid} to carry the outside clip`).toBeDefined()
+      const parts = geo.bufferIntersectionArea! + geo.outsideIntersectionArea!
+      expect(Math.abs(geo.intersectionArea - parts), `expected ${geoid}'s clips to add up`).toBeLessThan(1)
+      if (geo.bufferIntersectionArea! >= 1 && geo.outsideIntersectionArea! >= 1) {
+        split++
+      }
+    }
+    // Tracts cut by a buffer edge have area on both sides, so the sums check
+    // the difference rather than either clip alone.
+    expect(split).toBeGreaterThan(0)
+  })
+
+  // Only the outside mode reads the outside clip, so its pass waits to be asked.
+  it('skips the outside pass unless asked', async () => {
+    const emitted: [string, CensusGeographyData][] = []
+    await runCensusValuesPhase({
+      bbox: BBOX,
+      geoDatasetName: GEO_DATASET,
+      tableDatasetName: TABLE_DATASET,
+      aggregateLayer: 'tract',
+      stopBufferRadius: RADIUS,
+      stopIds: data.stops.map(s => s.id),
+    }, client, (p) => {
+      if (p.partialData?.censusGeographies) {
+        emitted.push(...p.partialData.censusGeographies as [string, CensusGeographyData][])
+      }
+    })
+    expect(emitted.length).toBeGreaterThan(0)
+    for (const [geoid, geo] of emitted) {
+      expect(geo.bufferIntersectionArea, `expected ${geoid} to carry the buffer clip`).toBeDefined()
+      expect(geo.outsideIntersectionArea, `expected no outside clip for ${geoid}`).toBeUndefined()
     }
   }, 120000)
 })

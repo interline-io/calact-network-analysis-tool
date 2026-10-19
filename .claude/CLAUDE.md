@@ -80,6 +80,12 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 
 After making edits, run `pnpm check` to verify correctness (lint with auto-fix + typecheck). **Always run this before presenting work as done or ready for testing** — never skip the typecheck step.
 
+## Testing against the live server
+
+`docker/docker-compose.services.yaml` runs a real Transitland server (tlserver, built from the transitland-lib commit pinned in `docker/tlserver/tlserver.docker`) on fixture GTFS and census data, published at `localhost:28080`. `cd docker && ./reset-test-services.sh` rebuilds and restores it; `./check-test-services.sh` waits until it's healthy. `pnpm test` runs the integration suites against it (`TRANSITLAND_API_BASE`, default `http://localhost:28080`), and CI starts the same services before the tests.
+
+**Never use mocks for what this server covers.** Mocked GraphQL responses have no value here: they only confirm the client sent what it meant to send, and catch nothing the server would reject or answer wrong. Test new API fields, filters and query shapes against the live server, as the integration suites in `src/scenario/scenario-census.test.ts` do. A change that needs a newer transitland-lib bumps the tlserver pin in the same branch. (The outside clip's mocked tests passed while the fixture server rejected `stop_buffer.exclude`.)
+
 ## Git & PRs
 
 Never create a PR or merge a PR automatically. Opening and merging PRs is always a 100% manual action by the repo owner. You may prepare branches, commits, and PR descriptions (see "PR Summary" below), but stop short of `gh pr create` or `gh pr merge` unless explicitly instructed in the current turn.
