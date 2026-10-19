@@ -1010,6 +1010,17 @@ function drawPopupFeatures (features: PopupFeature[]) {
   showPopupAtIndex(0)
 }
 
+function removePopup () {
+  if (currentPopup) {
+    currentPopup.remove()
+    currentPopup = undefined
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = undefined
+  }
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1053,14 +1064,7 @@ function showPopupAtIndex (index: number) {
       currentIndex: currentPopupIndex,
       total: total,
       onClose: () => {
-        if (currentPopup) {
-          currentPopup.remove()
-          currentPopup = undefined
-        }
-        if (currentPopupApp) {
-          currentPopupApp.unmount()
-          currentPopupApp = undefined
-        }
+        removePopup()
         updateHighlight(undefined)
       },
       onPrev: () => {
@@ -1078,6 +1082,10 @@ function showPopupAtIndex (index: number) {
       },
       onShowTrips: (featureType: string, featureId: string | number) => {
         emit('showTrips', featureType, featureId)
+        // The trip panel takes over from the popup. The feature stays
+        // highlighted, and a cluster stays selected, so the map still shows
+        // what the panel describes.
+        removePopup()
       },
     })
   })
