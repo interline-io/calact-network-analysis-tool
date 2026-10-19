@@ -82,6 +82,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
           ? deps.markedStopIds.value
           : data.stops.map(s => s.id),
         includeIntersectionGeometry: geometryLatch.value,
+        includeOutsideClip: config.includeOutsideClip,
       }
       return body
     },

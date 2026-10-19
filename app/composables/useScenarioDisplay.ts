@@ -1,7 +1,7 @@
 import { computed, type ComputedRef, type WritableComputedRef } from 'vue'
 import {
   AGG_CLIP_MODE_OPTIONS,
-  CHOROPLETH_DEFAULT_ELEMENT,
+  choroplethDefaultElement,
   type AggClipMode,
   type DataDisplayMode,
   type UnitSystem,
@@ -61,9 +61,11 @@ export function useScenarioDisplay (): ScenarioDisplay {
     set: (v) => { setQuery({ aggregateLayer: v }) }
   })
 
+  // The default follows the clip, so an explicit pick is always persisted,
+  // even one that matches the current clip's default.
   const choroplethElement = computed<string>({
-    get: () => query.value.choroplethElement?.toString() || CHOROPLETH_DEFAULT_ELEMENT,
-    set: (v) => { setQuery({ choroplethElement: v === CHOROPLETH_DEFAULT_ELEMENT ? undefined : v }) }
+    get: () => query.value.choroplethElement?.toString() || choroplethDefaultElement(aggClipMode.value),
+    set: (v) => { setQuery({ choroplethElement: v }) }
   })
 
   // Default true; only the off state is persisted to the URL.

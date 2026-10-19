@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { CHOROPLETH_INSUFFICIENT_COLOR, choroplethPalette } from './constants'
 import {
+  CHOROPLETH_DEFAULT_ELEMENT,
   buildChoroplethClassification,
+  choroplethDefaultElement,
   getChoroplethColor,
   pickChoroplethValue,
 } from './choropleth'
@@ -39,7 +41,8 @@ describe('pickChoroplethValue', () => {
 
   describe('apportionment by mode', () => {
     // 1000 people, half the tract inside the query area, a fifth inside the
-    // stop buffers. The aggregation row carries the full-geography value.
+    // stop buffers and three tenths outside them. The aggregation row carries
+    // the full-geography value.
     const geos = new Map<string, CensusGeographyData>([
       ['1', {
         id: 1,
@@ -50,6 +53,8 @@ describe('pickChoroplethValue', () => {
         intersectionRatio: 0.5,
         bufferIntersectionArea: 1_000_000,
         bufferIntersectionRatio: 0.2,
+        outsideIntersectionArea: 1_500_000,
+        outsideIntersectionRatio: 0.3,
       }],
     ])
     const row = { geoid: '1', total_population: 1000, pct_people_of_color: 0.4, visit_count_total: 42 }
@@ -58,26 +63,36 @@ describe('pickChoroplethValue', () => {
       expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'unclipped')).toBe(1000)
       expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'queryArea')).toBeCloseTo(500)
       expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'buffer')).toBeCloseTo(200)
+      expect(pickChoroplethValue(row, 'total_population', false, geos, 'eu', 'outside')).toBeCloseTo(300)
     })
 
     it('leaves ratio columns unchanged — apportionment is scale-invariant', () => {
-      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+      for (const mode of ['unclipped', 'queryArea', 'buffer', 'outside'] as const) {
         expect(pickChoroplethValue(row, 'pct_people_of_color', false, geos, 'eu', mode)).toBeCloseTo(0.4)
       }
     })
 
     it('leaves stop-aggregation elements unclipped — they already count what the query returned', () => {
-      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+      for (const mode of ['unclipped', 'queryArea', 'buffer', 'outside'] as const) {
         expect(pickChoroplethValue(row, 'visit_count_total', false, geos, 'eu', mode)).toBe(42)
       }
     })
 
     it('density is clip-invariant — value and area scale together', () => {
       // 1000 people over the full 5 km², in every mode.
-      for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+      for (const mode of ['unclipped', 'queryArea', 'buffer', 'outside'] as const) {
         expect(pickChoroplethValue(row, 'total_population', true, geos, 'eu', mode)).toBe(200)
       }
     })
+  })
+})
+
+describe('choroplethDefaultElement', () => {
+  it('shades by stop visits, except outside the stop buffers', () => {
+    for (const mode of ['unclipped', 'queryArea', 'buffer'] as const) {
+      expect(choroplethDefaultElement(mode)).toBe(CHOROPLETH_DEFAULT_ELEMENT)
+    }
+    expect(choroplethDefaultElement('outside')).toBe('total_population')
   })
 })
 

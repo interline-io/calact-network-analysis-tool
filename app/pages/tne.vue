@@ -108,9 +108,8 @@
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
               :layer-label="aggregateLayerLabel"
-              :apportioned-derived="selectedPanelData?.apportionedDerived ?? null"
-              :all-derived="allGeographiesDerived"
-              :area-stats="selectedPanelData?.areaStats ?? null"
+              :geography="selectedPanelData?.geography ?? null"
+              :analysis-area="analysisAreaPanelData"
               @close="selectedAggregationGeoid = null"
               @view-details="openCensusDetails(selectedAggregationGeoid ?? undefined)"
             />
@@ -229,11 +228,10 @@ import {
   SCENARIO_DEFAULTS,
   censusLayerLabels,
   formatAcsDatasetLabel,
-  summarizeApportioned,
-  censusApportionArea,
   censusApportionGeometry,
   censusApportionRatio,
-  deriveApportionedRow,
+  censusPanelAnalysisArea,
+  censusPanelGeography,
   censusGeographyMapToEntries,
   type CensusGeographyEntry,
   type FilterTag,
@@ -411,35 +409,22 @@ function onSelectAggregation (row: Record<string, any>) {
 const selectedPanelData = computed(() => {
   const geoid = selectedAggregationGeoid.value
   if (!geoid) { return null }
-  const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
+  const row = aggregateRows.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
-  if (!geo) {
-    return { row, apportionedDerived: null, areaStats: null }
-  }
-  const mode = aggClipMode.value
-  const ratio = censusApportionRatio(geo, mode)
-  return {
-    row,
-    apportionedDerived: deriveApportionedRow(geo.values, ratio),
-    areaStats: {
-      geometryArea: geo.geometryArea,
-      // Unclipped mode has no intersection to report — the panel hides the
-      // row rather than restating the full area at 100%.
-      intersectionArea: mode === 'unclipped' ? null : censusApportionArea(geo, mode),
-      intersectionRatio: mode === 'unclipped' ? null : ratio,
-    },
-  }
+  return { row, geography: geo ? censusPanelGeography(geo) : null }
 })
 
-// Aggregate across every geography, fed to the panel's total column. Independent
-// of the selection so it doesn't recompute on every click.
-const allGeographiesDerived = computed((): Record<string, number | null> | null => {
+// The panel's Analysis area tab, summed only while the panel is open: a
+// statewide run makes the sums slow enough to feel on every filter change.
+// Keyed on a boolean, so clicking between geographies doesn't redo them.
+const censusPanelOpen = computed(() => selectedPanelData.value !== null)
+const analysisAreaPanelData = computed(() => {
   const geos = scenarioFilterResult.value?.censusGeographies
-  if (!geos || geos.size === 0) {
+  if (!censusPanelOpen.value || !geos || geos.size === 0) {
     return null
   }
-  return summarizeApportioned(geos.keys(), geos, aggClipMode.value).derived
+  return censusPanelAnalysisArea(geos)
 })
 
 /////////////////////////
@@ -773,6 +758,9 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   includeFlexAreas: includeFlexAreas.value,
   includeCensus: includeCensus.value,
   includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
+  // The census panel splits every geography inside and outside the stop
+  // buffers, so the run always asks for the outside clip.
+  includeOutsideClip: true,
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
@@ -838,8 +826,8 @@ const aggregateLayerLabel = computed((): string => {
 
 // Geographies the choropleth still needs a full outline for. In a clipped mode
 // that's only the ones the census phase returned no clipped outline for — a
-// geography outside every stop buffer, or the window before those outlines
-// have streamed in. Empty when the overlay is off.
+// geography the clip doesn't reach, or the window before those outlines have
+// streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
   const mode = aggClipMode.value
@@ -871,25 +859,31 @@ const {
 const markedStopIds = computed((): number[] =>
   (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
 
-const choroplethAggregateData = computed(() => {
+// Every geography's aggregation row, before the clip filter below. The census
+// panel reads these, so a selection survives a switch to a clip that doesn't
+// reach the geography.
+const aggregateRows = computed(() => {
   if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  const rows = stopGeoAggregateCsv(
+  return stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
     routesById(scenarioFilterResult.value.routes),
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
+})
+
+const choroplethAggregateData = computed(() => {
   // A clipped mode measures nothing for a geography the clip doesn't reach, so
   // drop it rather than paint an empty polygon at zero. Filtered here so the
   // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
   // census entry are stop-derived and unaffected.
   const mode = aggClipMode.value
-  const geos = scenarioFilterResult.value.censusGeographies
-  return rows.filter((r) => {
+  const geos = scenarioFilterResult.value?.censusGeographies
+  return aggregateRows.value.filter((r) => {
     const geo = geos?.get(r.geoid)
     return !geo || censusApportionRatio(geo, mode) > 0
   })

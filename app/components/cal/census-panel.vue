@@ -13,17 +13,15 @@
           <span class="cal-census-panel-meta-label">{{ layerLabel || 'GEOID' }}:</span>
           <span class="cal-census-panel-meta-value">{{ row.geoid }}</span>
         </div>
-        <div v-if="areaStats && areaStats.geometryArea !== null">
+        <div v-if="geography">
           <span class="cal-census-panel-meta-label">Area:</span>
-          <span class="cal-census-panel-meta-value">{{ formatArea(areaStats.geometryArea, unitSystem) }}</span>
+          <span class="cal-census-panel-meta-value">{{ formatArea(geography.geometryArea, unitSystem) }}</span>
         </div>
-        <div v-if="areaStats && areaStats.intersectionArea !== null">
-          <span class="cal-census-panel-meta-label">Intersection:</span>
+        <div v-for="part of areaParts" :key="part.label">
+          <span class="cal-census-panel-meta-label">{{ part.label }}:</span>
           <span class="cal-census-panel-meta-value">
-            {{ formatArea(areaStats.intersectionArea, unitSystem) }}
-            <span v-if="areaStats.intersectionRatio !== null" class="cal-census-panel-meta-pct">
-              ({{ (areaStats.intersectionRatio * 100).toFixed(0) }}%)
-            </span>
+            {{ formatArea(part.area, unitSystem, geography?.geometryArea) }}
+            <span class="cal-census-panel-meta-pct">({{ formatCensusValue(part.ratio, 'percent') }})</span>
           </span>
         </div>
       </div>
@@ -34,63 +32,57 @@
         </a>
       </div>
 
-      <table class="cal-census-panel-table">
-        <caption class="is-sr-only">
-          Census statistics
-        </caption>
-        <thead>
-          <tr>
-            <th>Statistic</th>
-            <th>
-              <cat-tooltip text="The full raw ACS value for this geography — not scaled by the intersection with the area being analyzed.">
-                Full Geography
-                <cat-icon size="small" icon="information" />
-              </cat-tooltip>
-            </th>
-            <th v-if="showIntersection">
-              <cat-tooltip text="This geography's raw ACS value scaled by its intersection with the area being analyzed. Ratios (% columns) and medians are unchanged.">
-                Intersection
-                <cat-icon size="small" icon="information" />
-              </cat-tooltip>
-            </th>
-            <th>
-              <cat-tooltip text="Sum of every geography's Intersection value across the area being analyzed. This is the apportioned total, not the sum of the full geographies. Medians are not summable and render as —.">
-                Analysis Area Total
-                <cat-icon size="small" icon="information" />
-              </cat-tooltip>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="col of CENSUS_COLUMNS"
-            :key="col.id"
-            :class="{ 'is-highlighted': col.id === choroplethElement }"
-          >
-            <td>
-              <span v-if="col.id === choroplethElement">{{ col.label }}</span>
-              <button
-                v-else
-                type="button"
-                class="cal-census-panel-stat-link"
-                title="Shade map by this statistic"
-                @click="choroplethElement = col.id"
+      <cat-tabs v-model="activeTab" expanded>
+        <cat-tab-item
+          v-for="(tab, i) of tabs"
+          :key="tab.label"
+          :value="i"
+          :label="tab.label"
+        >
+          <table class="cal-census-panel-table">
+            <caption class="is-sr-only">
+              {{ tab.caption }}
+            </caption>
+            <thead>
+              <tr>
+                <th>Statistic</th>
+                <th v-for="column of tab.columns" :key="column.label">
+                  <cat-tooltip :text="column.tooltip">
+                    {{ column.label }}
+                    <cat-icon icon="information" />
+                  </cat-tooltip>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="col of CENSUS_COLUMNS"
+                :key="col.id"
+                :class="{ 'is-highlighted': col.id === choroplethElement }"
               >
-                {{ col.label }}
-              </button>
-            </td>
-            <td class="cal-census-panel-num">
-              {{ formatCensusValue(valueFor(col.id), col.format) }}
-            </td>
-            <td v-if="showIntersection" class="cal-census-panel-num">
-              {{ intersectionCell(col) }}
-            </td>
-            <td class="cal-census-panel-num">
-              {{ allGeographiesCell(col) }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <td>
+                  <span v-if="col.id === choroplethElement">{{ col.label }}</span>
+                  <button
+                    v-else
+                    type="button"
+                    class="cal-census-panel-stat-link"
+                    title="Shade map by this statistic"
+                    @click="choroplethElement = col.id"
+                  >
+                    {{ col.label }}
+                  </button>
+                </td>
+                <td v-for="column of tab.columns" :key="column.label" class="cal-census-panel-num">
+                  {{ cell(column.values, col, tab.summed) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="tab.note" class="cal-census-panel-note">
+            {{ tab.note }}
+          </p>
+        </cat-tab-item>
+      </cat-tabs>
     </cat-msg>
   </div>
 </template>
@@ -100,21 +92,18 @@ import {
   CENSUS_COLUMNS,
   NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
+  type CensusPanelAnalysisArea,
+  type CensusPanelGeography,
+  type CensusPanelValues,
   formatArea,
   formatCensusValue,
-  toFiniteNumber,
 } from '~~/src/core'
 
 const props = defineProps<{
   row?: Record<string, any> | null
   layerLabel?: string
-  apportionedDerived?: Record<string, number | null> | null
-  allDerived?: Record<string, number | null> | null
-  areaStats?: {
-    geometryArea: number | null
-    intersectionArea: number | null
-    intersectionRatio: number | null
-  } | null
+  geography?: CensusPanelGeography | null
+  analysisArea?: CensusPanelAnalysisArea | null
 }>()
 
 defineEmits<{
@@ -122,30 +111,99 @@ defineEmits<{
   viewDetails: []
 }>()
 
-const { choroplethElement, unitSystem, aggClipMode } = useScenarioDisplay()
+const { choroplethElement, unitSystem } = useScenarioDisplay()
 
-// Unclipped apportions at 1, so the column would only restate Full Geography.
-const showIntersection = computed(() => aggClipMode.value !== 'unclipped')
+const activeTab = ref(0)
 
-function valueFor (id: string): number | null {
-  return toFiniteNumber(props.row?.[id])
+interface PanelColumn {
+  label: string
+  tooltip: string
+  values: CensusPanelValues | null | undefined
 }
 
-function intersectionCell (col: CensusColumnDef): string {
-  if (!props.apportionedDerived) {
-    return '—'
-  }
-  return formatCensusValue(props.apportionedDerived[col.id] ?? null, col.format)
+interface PanelTab {
+  label: string
+  caption: string
+  columns: PanelColumn[]
+  // Summed across geographies, so medians can't be shown.
+  summed: boolean
+  note: string | null
 }
 
-function allGeographiesCell (col: CensusColumnDef): string {
-  if (NON_ADDITIVE_CENSUS_COLUMNS.has(col.id)) {
+const UNCHANGED = 'Ratios (% rows) and medians are unchanged.'
+
+const { stopBufferRadius } = useScenarioInputs()
+
+// Why the Inside and Outside columns are empty: no radius, or a radius with no
+// stops to buffer or failed clip requests.
+const noBuffersNote = computed((): string => stopBufferRadius.value > 0
+  ? 'This run has no stop buffers: it found no fixed-route stops, or the stop buffer requests failed.'
+  : 'Set a stop buffer radius to split these values inside and outside the stop buffers.')
+
+// The geography's share of the query area, then its parts inside and outside
+// the stop buffers, when the run has them.
+const areaParts = computed((): { label: string, area: number, ratio: number }[] => {
+  const geo = props.geography
+  if (!geo) {
+    return []
+  }
+  const parts = [{ label: 'In query area', area: geo.queryArea, ratio: geo.queryAreaRatio }]
+  if (geo.inside) {
+    parts.push({ label: 'Inside stop buffers', area: geo.inside.area, ratio: geo.inside.ratio })
+  }
+  if (geo.outside) {
+    parts.push({ label: 'Outside stop buffers', area: geo.outside.area, ratio: geo.outside.ratio })
+  }
+  return parts
+})
+
+// The clips stay inside the query area, so a geography that crosses its edge
+// has a share that neither column counts.
+const geographyNote = computed((): string | null => {
+  const geo = props.geography
+  if (!geo) {
+    return null
+  }
+  if (!geo.inside && !geo.outside) {
+    return noBuffersNote.value
+  }
+  const beyond = 1 - geo.queryAreaRatio
+  if (beyond < 0.005) {
+    return null
+  }
+  return `${formatCensusValue(beyond, 'percent')} of this geography lies outside the query area, so Inside and Outside add up to less than Total.`
+})
+
+const tabs = computed((): PanelTab[] => [
+  {
+    label: 'Selected geography',
+    caption: 'Census statistics for the selected geography',
+    summed: false,
+    columns: [
+      { label: 'Total', tooltip: 'The full ACS value for this geography.', values: props.geography?.total },
+      { label: 'Inside stop buffers', tooltip: `Scaled to the part of this geography inside the query area and within the stop buffers. ${UNCHANGED}`, values: props.geography?.inside?.values },
+      { label: 'Outside stop buffers', tooltip: `Scaled to the part of this geography inside the query area but outside every stop buffer. ${UNCHANGED}`, values: props.geography?.outside?.values },
+    ],
+    note: geographyNote.value,
+  },
+  {
+    label: 'Analysis area',
+    caption: 'Census statistics for the whole analysis area',
+    summed: true,
+    columns: [
+      { label: 'Total', tooltip: 'Every geography\'s value scaled to its share of the query area, then summed. Medians can\'t be summed and show as —.', values: props.analysisArea?.total },
+      { label: 'Inside stop buffers', tooltip: 'Every geography\'s Inside stop buffers value, summed.', values: props.analysisArea?.inside },
+      { label: 'Outside stop buffers', tooltip: 'Every geography\'s Outside stop buffers value, summed.', values: props.analysisArea?.outside },
+    ],
+    note: props.analysisArea && !props.analysisArea.inside && !props.analysisArea.outside ? noBuffersNote.value : null,
+  },
+])
+
+function cell (values: CensusPanelValues | null | undefined, col: CensusColumnDef, summed: boolean): string {
+  if (!values || (summed && NON_ADDITIVE_CENSUS_COLUMNS.has(col.id))) {
     return '—'
   }
-  if (!props.allDerived) {
-    return '—'
-  }
-  return formatCensusValue(props.allDerived[col.id] ?? null, col.format)
+  return formatCensusValue(values[col.id] ?? null, col.format)
 }
 </script>
 
@@ -159,7 +217,6 @@ function allGeographiesCell (col: CensusColumnDef): string {
 }
 
 .cal-census-panel-meta {
-  font-size: 12px;
   margin-bottom: 8px;
   display: flex;
   flex-direction: column;
@@ -182,7 +239,6 @@ function allGeographiesCell (col: CensusColumnDef): string {
 .cal-census-panel-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
 
   th, td {
     padding: 6px 8px;
@@ -211,7 +267,6 @@ function allGeographiesCell (col: CensusColumnDef): string {
 }
 
 .cal-census-panel-actions {
-  font-size: 0.85em;
   margin-bottom: 8px;
 
   a {
@@ -219,6 +274,10 @@ function allGeographiesCell (col: CensusColumnDef): string {
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+}
+
+.cal-census-panel-note {
+  margin-top: 8px;
 }
 
 .cal-census-panel-stat-link {

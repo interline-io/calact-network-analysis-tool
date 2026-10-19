@@ -1,12 +1,12 @@
 // Phase 6: ACS census values for the aggregation layer. Depends on the query
-// area, plus the scenario's stop set when the intersection is narrowed to the
-// stop buffers.
+// area, plus the scenario's stop set for the stop-buffer clips.
 
 import {
   REQUIRED_ACS_TABLES,
   hasSearchArea,
   type Bbox,
   type CensusGeographyData,
+  type Geometry,
   type GraphQLClient,
 } from '~~/src/core'
 import { fetchCensusIntersection, fetchClipIntersections, type ClipIntersection } from '~~/src/tl'
@@ -29,6 +29,9 @@ export interface CensusValuesPhaseConfig {
   // analyzed footprint rather than whole geographies. Off by default: the
   // outlines cost roughly as much as the values.
   includeIntersectionGeometry?: boolean
+  // With a radius, a third pass clips each geography to the query area
+  // outside the stop buffers. Off by default: it costs a server pass.
+  includeOutsideClip?: boolean
 }
 
 export async function runCensusValuesPhase (
@@ -61,20 +64,23 @@ export async function runCensusValuesPhase (
     includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
 
-  // Second pass: intersection with the query area AND the stop buffers. The
-  // first pass stays the row universe, so a geography the buffers don't reach
-  // is reported at zero rather than dropped by the server's clip — display
-  // decides whether to draw it. Clips against the same query area pass 1 used,
-  // so the two areas stay comparable.
+  // Clip passes: intersection with the query area AND the stop buffers, then,
+  // when asked, with the query area outside them. The first pass stays the
+  // row universe, so a geography a clip doesn't reach is reported at zero
+  // rather than dropped by the server's clip, and display decides whether to
+  // draw the geography. Both clip against the same query area pass 1 used, so
+  // the areas stay comparable.
   //
   // Optional by design: a failure here must not lose the ACS values pass 1
-  // already fetched, so it degrades to query-area-only rather than failing
+  // already fetched, so each degrades to query-area-only rather than failing
   // the scenario.
   const stopIds = config.stopIds || []
-  let clips: Map<string, ClipIntersection> | null = null
-  if (radius > 0 && stopIds.length > 0) {
+  async function fetchClip (exclude: boolean): Promise<Map<string, ClipIntersection> | null> {
+    if (!(radius > 0 && stopIds.length > 0)) {
+      return null
+    }
     try {
-      clips = await fetchClipIntersections({
+      return await fetchClipIntersections({
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
@@ -82,22 +88,29 @@ export async function runCensusValuesPhase (
         geographyIds: config.geographyIds,
         stopIds,
         stopBufferRadius: radius,
+        exclude,
         includeGeometry: config.includeIntersectionGeometry,
       })
     } catch (err) {
-      console.warn('[CensusValues] Stop buffer clip failed; keeping query-area intersections', err)
+      console.warn(`[CensusValues] ${exclude ? 'Outside' : 'Stop buffer'} clip failed; keeping query-area intersections`, err)
+      return null
     }
   }
+  const clips = await fetchClip(false)
   if (clips) {
     console.log(`[CensusValues] Clipped to query area + stop buffers (radius=${radius}m, ${stopIds.length} stops): ${clips.size}/${features.length} geographies overlap`)
+  }
+  const outsideClips = config.includeOutsideClip ? await fetchClip(true) : null
+  if (outsideClips) {
+    console.log(`[CensusValues] Clipped to query area outside stop buffers: ${outsideClips.size}/${features.length} geographies reach outside`)
   }
 
   const entries: [string, CensusGeographyData][] = features.map((f) => {
     const geometryArea = f.properties.geometry_area
-    // Both clips are kept: the choropleth mode picks between them at display
+    // Every clip is kept: the choropleth mode picks between them at display
     // time, so switching never needs a refetch.
-    const clip = clips?.get(f.properties.geoid)
-    const bufferArea = clips ? (clip?.area ?? 0) : undefined
+    const buffer = clipFields(clips, f.properties.geoid, geometryArea)
+    const outside = clipFields(outsideClips, f.properties.geoid, geometryArea)
     return [
       f.properties.geoid,
       {
@@ -108,11 +121,12 @@ export async function runCensusValuesPhase (
         geometryArea,
         intersectionArea: f.properties.intersection_area,
         intersectionGeometry: f.geometry ?? undefined,
-        bufferIntersectionArea: bufferArea,
-        bufferIntersectionRatio: bufferArea == null
-          ? undefined
-          : (geometryArea > 0 ? Math.min(bufferArea / geometryArea, 1.0) : 0),
-        bufferIntersectionGeometry: clip?.geometry,
+        bufferIntersectionArea: buffer.area,
+        bufferIntersectionRatio: buffer.ratio,
+        bufferIntersectionGeometry: buffer.geometry,
+        outsideIntersectionArea: outside.area,
+        outsideIntersectionRatio: outside.ratio,
+        outsideIntersectionGeometry: outside.geometry,
         layer: config.aggregateLayer,
       },
     ]
@@ -123,4 +137,23 @@ export async function runCensusValuesPhase (
     partialData: { censusGeographies: entries },
     phaseProgress: phaseDone('census-values'),
   })
+}
+
+// One geography's fields for one clip: all undefined when the clip wasn't
+// fetched, and zero area when the clip doesn't reach the geography.
+function clipFields (
+  clips: Map<string, ClipIntersection> | null,
+  geoid: string,
+  geometryArea: number,
+): { area?: number, ratio?: number, geometry?: Geometry } {
+  if (!clips) {
+    return {}
+  }
+  const clip = clips.get(geoid)
+  const area = clip?.area ?? 0
+  return {
+    area,
+    ratio: geometryArea > 0 ? Math.min(area / geometryArea, 1.0) : 0,
+    geometry: clip?.geometry,
+  }
 }

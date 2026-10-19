@@ -64,86 +64,105 @@ export type CensusValues = Record<string, number | undefined>
 export interface CensusGeographyData {
   id: number
   name: string
-  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
+  // Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`).
   values: CensusValues
-  /** Fraction of the geography inside the query area, in [0, 1]. */
+  // Fraction of the geography inside the query area, in [0, 1].
   intersectionRatio: number
-  /** Full geography area in m². */
+  // Full geography area in m².
   geometryArea: number
-  /** Geography ∩ query area in m². */
+  // Geography ∩ query area in m².
   intersectionArea: number
-  /**
-   * Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
-   * radius is set, or when the backend can't compose the two clips.
-   */
+  // Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
+  // radius is set, or when the backend can't compose the two clips.
   bufferIntersectionArea?: number
-  /** Fraction of the geography inside both clips, in [0, 1]. */
+  // Fraction of the geography inside both clips, in [0, 1].
   bufferIntersectionRatio?: number
-  /**
-   * Clipped outlines matching the two areas above, present only when the
-   * phase was asked for them — they cost roughly as much as the full
-   * geometry. The choropleth draws the full geography without them.
-   */
+  // The part of the geography inside the query area but outside every stop
+  // buffer, in m² and as a fraction of the geography. Absent when the scenario
+  // didn't fetch the outside clip, or its pass failed.
+  outsideIntersectionArea?: number
+  outsideIntersectionRatio?: number
+  // Clipped outlines matching the areas above, present only when the phase
+  // was asked for them — they cost roughly as much as the full geometry. The
+  // choropleth draws the full geography without them.
   intersectionGeometry?: Geometry
   bufferIntersectionGeometry?: Geometry
-  /**
-   * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
-   * Optional for backward compatibility with code paths that don't carry it,
-   * but populated by the scenario pipeline so the UI can filter by layer
-   * without parsing GEOID length.
-   */
+  outsideIntersectionGeometry?: Geometry
+  // Census layer the geography belongs to ('state', 'county', 'tract', etc.).
+  // Optional for backward compatibility with code paths that don't carry it,
+  // but populated by the scenario pipeline so the UI can filter by layer
+  // without parsing GEOID length.
   layer?: string
 }
 
-/** Which clip the aggregation overlay shades and reports by. */
-export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer'
+// Which clip the aggregation overlay shades and reports by.
+export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer' | 'outside'
 
-export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
+// `needsStopBuffers` marks the modes that clip by the stop buffers.
+export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string, needsStopBuffers?: boolean }[] = [
   { value: 'unclipped', label: 'None (full geographies)' },
   { value: 'queryArea', label: 'Query area' },
   // The backend composes both clips, so this is the query area narrowed to
   // the stop buffers — never the buffers on their own.
-  { value: 'buffer', label: 'Query area + stop buffers' },
+  { value: 'buffer', label: 'Query area + stop buffers', needsStopBuffers: true },
+  // The query area minus the stop buffers: where people live beyond their
+  // reach.
+  { value: 'outside', label: 'Areas outside stop buffers', needsStopBuffers: true },
 ]
 
-// Fraction of a geography attributed to the analysis area under the selected
-// clip. `buffer` falls back to the query-area clip when the scenario carries
-// no buffer intersection.
-export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
+// A geography's part inside one clip: its share of the geography, its area in
+// m², and its outline when the scenario fetched outlines.
+export interface CensusClip {
+  ratio: number
+  area: number
+  geometry?: Geometry
+}
+
+function queryAreaClip (geo: CensusGeographyData): CensusClip {
+  return { ratio: geo.intersectionRatio, area: geo.intersectionArea, geometry: geo.intersectionGeometry }
+}
+
+// The clip `mode` names, or null when the scenario didn't fetch it. Never
+// substitutes another clip. Unclipped has no outline: callers draw the full
+// geography.
+export function censusClip (geo: CensusGeographyData, mode: AggClipMode): CensusClip | null {
   if (mode === 'unclipped') {
-    return 1
+    return { ratio: 1, area: geo.geometryArea }
   }
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionRatio
+  if (mode === 'queryArea') {
+    return queryAreaClip(geo)
   }
-  return geo.intersectionRatio
+  if (mode === 'buffer') {
+    return geo.bufferIntersectionRatio == null
+      ? null
+      : { ratio: geo.bufferIntersectionRatio, area: geo.bufferIntersectionArea ?? 0, geometry: geo.bufferIntersectionGeometry }
+  }
+  return geo.outsideIntersectionRatio == null
+    ? null
+    : { ratio: geo.outsideIntersectionRatio, area: geo.outsideIntersectionArea ?? 0, geometry: geo.outsideIntersectionGeometry }
+}
+
+// The clip the map shades and reports by: `mode`'s clip, or the query-area
+// clip when the scenario carries no stop-buffer clip.
+function apportionClip (geo: CensusGeographyData, mode: AggClipMode): CensusClip {
+  return censusClip(geo, mode) ?? queryAreaClip(geo)
+}
+
+// Fraction of a geography attributed to the analysis area under the selected
+// clip.
+export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
+  return apportionClip(geo, mode).ratio
 }
 
 // The clipped area in m² matching `censusApportionRatio`.
 export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode): number {
-  if (mode === 'unclipped') {
-    return geo.geometryArea
-  }
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionArea ?? 0
-  }
-  return geo.intersectionArea
+  return apportionClip(geo, mode).area
 }
 
 // The clipped outline matching `censusApportionArea`, or undefined when the
 // scenario didn't fetch one — callers fall back to the full geography.
-export function censusApportionGeometry (
-  geo: CensusGeographyData,
-  mode: AggClipMode,
-): Geometry | undefined {
-  if (mode === 'unclipped') {
-    return undefined
-  }
-  // Same guard as the ratio and area, so all three fall back together.
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionGeometry
-  }
-  return geo.intersectionGeometry
+export function censusApportionGeometry (geo: CensusGeographyData, mode: AggClipMode): Geometry | undefined {
+  return apportionClip(geo, mode).geometry
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -343,18 +362,20 @@ const SQ_M_PER_SQ_MI = 2_589_988.110336
 const SQ_FT_PER_SQ_M = 10.7639104
 
 // Switches m²↔km² (eu) or ft²↔mi² (us) at the natural threshold.
-export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem): string {
+// `unitOf` picks the unit from another area, so a part reads in its whole's
+// unit; by default the unit follows `m2` itself.
+export function formatArea (m2: number | null | undefined, unitSystem: UnitSystem, unitOf?: number): string {
   if (m2 === null || m2 === undefined || !Number.isFinite(m2)) {
     return '—'
   }
+  const scale = unitOf !== undefined && Number.isFinite(unitOf) ? unitOf : m2
   if (unitSystem === 'us') {
-    const sqMi = m2 / SQ_M_PER_SQ_MI
-    if (sqMi >= 0.1) {
-      return `${sqMi.toFixed(2)} mi²`
+    if (scale / SQ_M_PER_SQ_MI >= 0.1) {
+      return `${(m2 / SQ_M_PER_SQ_MI).toFixed(2)} mi²`
     }
     return `${Math.round(m2 * SQ_FT_PER_SQ_M).toLocaleString('en-US')} ft²`
   }
-  if (m2 >= 1_000_000) {
+  if (scale >= 1_000_000) {
     return `${(m2 / 1_000_000).toFixed(2)} km²`
   }
   return `${Math.round(m2).toLocaleString('en-US')} m²`
