@@ -150,12 +150,26 @@ function allGeographiesCell (col: CensusColumnDef): string {
 </script>
 
 <style scoped lang="scss">
+// Shrinks to the room the map sidebar leaves it; the body scrolls, the
+// header stays.
 .cal-map-census-panel {
   color: black;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cal-map-census-panel :deep(.message) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
 }
 
 .cal-map-census-panel :deep(.message-body) {
   padding: 8px 10px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .cal-census-panel-meta {

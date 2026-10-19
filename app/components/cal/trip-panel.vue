@@ -10,94 +10,96 @@
     >
       <cat-tabs v-model="activeTab" type="boxed" size="small">
         <cat-tab-item value="overview" label="Overview">
-          <p v-if="trips.count === 0" class="cal-trip-panel-empty">
-            No trips within the current filters.
-          </p>
-          <table v-else class="cal-trip-panel-table cal-trip-panel-overview">
-            <caption class="is-sr-only">
-              Trip overview
-            </caption>
-            <tbody>
-              <tr v-if="subject.kind === 'cluster'">
-                <th scope="row">
-                  Stops
-                </th>
-                <td>{{ subject.stopIds.length }}</td>
-              </tr>
-              <tr>
-                <th scope="row">
-                  <cat-tooltip :text="countTooltip">
-                    Total trips
-                    <cat-icon size="small" icon="information" />
-                  </cat-tooltip>
-                </th>
-                <td>{{ trips.count.toLocaleString() }}</td>
-              </tr>
-              <tr v-if="trips.dateCount > 1">
-                <th scope="row">
-                  Trips per day
-                </th>
-                <td>{{ formatAverage(trips.count / trips.dateCount) }}</td>
-              </tr>
-              <tr v-if="subject.kind !== 'route'">
-                <th scope="row">
-                  Routes
-                </th>
-                <td>{{ trips.routeCounts.length }}</td>
-              </tr>
-              <tr v-if="frequencyText">
-                <th scope="row">
-                  <cat-tooltip :text="frequencyTooltip">
-                    Scheduled frequency
-                    <cat-icon size="small" icon="information" />
-                  </cat-tooltip>
-                </th>
-                <td>{{ frequencyText }}</td>
-              </tr>
-              <tr>
-                <th scope="row">
-                  {{ subject.kind === 'route' ? 'First / last trip' : 'First / last departure' }}
-                </th>
-                <td>{{ formatGtfsTime(trips.firstTime) }} – {{ formatGtfsTime(trips.lastTime) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="cal-trip-panel-scroll">
+            <p v-if="trips.count === 0" class="cal-trip-panel-empty">
+              No trips within the current filters.
+            </p>
+            <table v-else class="cal-trip-panel-table cal-trip-panel-overview">
+              <caption class="is-sr-only">
+                Trip overview
+              </caption>
+              <tbody>
+                <tr v-if="subject.kind === 'cluster'">
+                  <th scope="row">
+                    Stops
+                  </th>
+                  <td>{{ subject.stopIds.length }}</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    <cat-tooltip :text="countTooltip">
+                      Total trips
+                      <cat-icon size="small" icon="information" />
+                    </cat-tooltip>
+                  </th>
+                  <td>{{ trips.count.toLocaleString() }}</td>
+                </tr>
+                <tr v-if="trips.dateCount > 1">
+                  <th scope="row">
+                    Trips per day
+                  </th>
+                  <td>{{ formatAverage(trips.count / trips.dateCount) }}</td>
+                </tr>
+                <tr v-if="subject.kind !== 'route'">
+                  <th scope="row">
+                    Routes
+                  </th>
+                  <td>{{ trips.routeCounts.length }}</td>
+                </tr>
+                <tr v-if="frequencyText">
+                  <th scope="row">
+                    <cat-tooltip :text="frequencyTooltip">
+                      Scheduled frequency
+                      <cat-icon size="small" icon="information" />
+                    </cat-tooltip>
+                  </th>
+                  <td>{{ frequencyText }}</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    {{ subject.kind === 'route' ? 'First / last trip' : 'First / last departure' }}
+                  </th>
+                  <td>{{ formatGtfsTime(trips.firstTime) }} – {{ formatGtfsTime(trips.lastTime) }}</td>
+                </tr>
+              </tbody>
+            </table>
 
-          <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
-            <caption class="is-sr-only">
-              {{ subject.kind === 'route' ? 'Trips by direction' : 'Trips by route' }}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">
-                  {{ subject.kind === 'route' ? 'Direction' : 'Route' }}
-                </th>
-                <th scope="col" class="cal-trip-panel-num">
-                  Trips
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="b of breakdown" :key="b.key">
-                <td>
-                  <span
-                    v-if="b.route"
-                    class="cal-trip-panel-route"
-                    :style="routeBadgeStyle(b.route)"
-                  >{{ routeLabel(b.route) }}</span>
-                  <span v-if="b.route && b.route.route_long_name && b.route.route_short_name" class="cal-trip-panel-route-long">
-                    {{ b.route.route_long_name }}
-                  </span>
-                  <template v-if="!b.route">
-                    {{ b.label }}
-                  </template>
-                </td>
-                <td class="cal-trip-panel-num">
-                  {{ b.count.toLocaleString() }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+            <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
+              <caption class="is-sr-only">
+                {{ subject.kind === 'route' ? 'Trips by direction' : 'Trips by route' }}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {{ subject.kind === 'route' ? 'Direction' : 'Route' }}
+                  </th>
+                  <th scope="col" class="cal-trip-panel-num">
+                    Trips
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="b of breakdown" :key="b.key">
+                  <td>
+                    <span
+                      v-if="b.route"
+                      class="cal-trip-panel-route"
+                      :style="routeBadgeStyle(b.route)"
+                    >{{ routeLabel(b.route) }}</span>
+                    <span v-if="b.route && b.route.route_long_name && b.route.route_short_name" class="cal-trip-panel-route-long">
+                      {{ b.route.route_long_name }}
+                    </span>
+                    <template v-if="!b.route">
+                      {{ b.label }}
+                    </template>
+                  </td>
+                  <td class="cal-trip-panel-num">
+                    {{ b.count.toLocaleString() }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </cat-tab-item>
 
         <cat-tab-item value="trips" label="Trips">
@@ -400,8 +402,29 @@ function formatAverage (n: number): string {
 </script>
 
 <style scoped lang="scss">
+// Shrinks to the room the map sidebar leaves it. Header, tabs, and the
+// trips table's column headings stay put; only the tab's content scrolls.
+// Each level from the panel down to the scrolling div is a flex column with
+// min-height: 0, which is what lets the space pass down.
 .cal-trip-panel {
   color: black;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cal-trip-panel :deep(.message),
+.cal-trip-panel :deep(.message-body),
+.cal-trip-panel :deep(.message-body > div),
+.cal-trip-panel :deep(.cat-tab-content),
+.cal-trip-panel :deep([role='tabpanel']) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cal-trip-panel :deep(.message) {
+  margin-bottom: 0;
 }
 
 .cal-trip-panel :deep(.message-body) {
@@ -468,7 +491,7 @@ function formatAverage (n: number): string {
 }
 
 .cal-trip-panel-scroll {
-  max-height: 320px;
+  min-height: 0;
   overflow-y: auto;
 }
 

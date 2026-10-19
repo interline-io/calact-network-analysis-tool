@@ -1056,13 +1056,16 @@ function handleOpenTimetable (featureId: string | number) {
 }
 
 // Right-side stack hosting the legend and any slotted panels (census etc.).
+// It does not scroll itself: the legend keeps its height, and the panels above
+// it shrink to the space left and scroll inside, so there is one scrollbar per
+// panel rather than one for the whole stack as well.
 .cal-map-sidebar {
   position: absolute;
   right: 50px;
   bottom: 30px;
   width: 400px;
   max-height: calc(100% - 60px);
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1071,6 +1074,8 @@ function handleOpenTimetable (featureId: string | number) {
 
   > * {
     pointer-events: auto;
+    flex: 0 1 auto;
+    min-height: 0;
   }
 }
 
