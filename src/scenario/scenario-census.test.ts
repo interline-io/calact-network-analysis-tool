@@ -288,8 +288,8 @@ describe('stop-buffer clips (integration)', () => {
         split++
       }
     }
-    // Tracts cut by a buffer edge have area on both sides, so the sums check
-    // the difference rather than either clip alone.
+    // Without a tract on both sides of a buffer edge, the sums can't tell the
+    // two clips apart.
     expect(split).toBeGreaterThan(0)
   })
 

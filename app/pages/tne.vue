@@ -415,11 +415,13 @@ const selectedPanelData = computed(() => {
   return { row, geography: geo ? censusPanelGeography(geo) : null }
 })
 
-// The panel's Analysis area tab. Independent of the selection so it doesn't
-// recompute on every click.
+// The panel's Analysis area tab, summed only while the panel is open: a
+// statewide run makes the sums slow enough to feel on every filter change.
+// Keyed on a boolean, so clicking between geographies doesn't redo them.
+const censusPanelOpen = computed(() => selectedPanelData.value !== null)
 const analysisAreaPanelData = computed(() => {
   const geos = scenarioFilterResult.value?.censusGeographies
-  if (!geos || geos.size === 0) {
+  if (!censusPanelOpen.value || !geos || geos.size === 0) {
     return null
   }
   return censusPanelAnalysisArea(geos)

@@ -4,6 +4,7 @@ import {
   censusApportionArea,
   censusApportionGeometry,
   censusApportionRatio,
+  censusClip,
   deriveApportionedRow,
   formatAcsDatasetLabel,
   formatArea,
@@ -154,6 +155,16 @@ describe('censusApportionRatio / censusApportionArea', () => {
     expect(censusApportionRatio(insideBuffers, 'outside')).toBe(0)
     expect(censusApportionArea(insideBuffers, 'outside')).toBe(0)
   })
+
+  // The census panel reports each clip separately, so a missing one has to
+  // stay missing rather than become the query area.
+  it('has no clip in place of one the scenario never fetched', () => {
+    const noBuffer = geo({ intersectionRatio: 0.6, intersectionArea: 600 })
+    expect(censusClip(noBuffer, 'buffer')).toBeNull()
+    expect(censusClip(noBuffer, 'outside')).toBeNull()
+    expect(censusClip(noBuffer, 'queryArea')).toEqual({ ratio: 0.6, area: 600, geometry: undefined })
+    expect(censusClip(clipped, 'outside')).toEqual({ ratio: 0.35, area: 350, geometry: undefined })
+  })
 })
 
 describe('censusApportionGeometry', () => {
@@ -198,7 +209,7 @@ describe('summarizeApportioned', () => {
       ['1', geo({ values: { b01003_001: 1000, b02001_002: 600 }, intersectionRatio: 1.0 })],
       ['2', geo({ values: { b01003_001: 500, b02001_002: 400 }, intersectionRatio: 0.5 })],
     ])
-    const { raw, derived } = summarizeApportioned(['1', '2'], geos, g => g.intersectionRatio)
+    const { raw, derived } = summarizeApportioned(['1', '2'], geos, 'queryArea')
     // 1000*1.0 + 500*0.5 = 1250
     expect(raw.b01003_001).toBe(1250)
     // 600*1.0 + 400*0.5 = 800
@@ -208,7 +219,7 @@ describe('summarizeApportioned', () => {
     expect(derived.total_population).toBe(1250)
   })
 
-  it('totals follow the share each geography is given', () => {
+  it('totals follow the selected clip', () => {
     const geos = new Map([
       ['1', geo({
         values: { b01003_001: 1000 },
@@ -217,21 +228,10 @@ describe('summarizeApportioned', () => {
         outsideIntersectionRatio: 0.3,
       })],
     ])
-    const total = (mode: 'unclipped' | 'queryArea' | 'buffer' | 'outside') =>
-      summarizeApportioned(['1'], geos, g => censusApportionRatio(g, mode)).derived.total_population
-    expect(total('unclipped')).toBe(1000)
-    expect(total('queryArea')).toBe(500)
-    expect(total('buffer')).toBe(200)
-    expect(total('outside')).toBe(300)
-  })
-
-  it('leaves out a geography given no share', () => {
-    const geos = new Map([
-      ['1', geo({ values: { b01003_001: 1000 }, bufferIntersectionRatio: 0.2 })],
-      ['2', geo({ values: { b01003_001: 500 } })],
-    ])
-    const { derived } = summarizeApportioned(['1', '2'], geos, g => g.bufferIntersectionRatio ?? null)
-    expect(derived.total_population).toBe(200)
+    expect(summarizeApportioned(['1'], geos, 'unclipped').derived.total_population).toBe(1000)
+    expect(summarizeApportioned(['1'], geos, 'queryArea').derived.total_population).toBe(500)
+    expect(summarizeApportioned(['1'], geos, 'buffer').derived.total_population).toBe(200)
+    expect(summarizeApportioned(['1'], geos, 'outside').derived.total_population).toBe(300)
   })
 })
 

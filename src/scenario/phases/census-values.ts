@@ -6,6 +6,7 @@ import {
   hasSearchArea,
   type Bbox,
   type CensusGeographyData,
+  type Geometry,
   type GraphQLClient,
 } from '~~/src/core'
 import { fetchCensusIntersection, fetchClipIntersections, type ClipIntersection } from '~~/src/tl'
@@ -108,10 +109,8 @@ export async function runCensusValuesPhase (
     const geometryArea = f.properties.geometry_area
     // Every clip is kept: the choropleth mode picks between them at display
     // time, so switching never needs a refetch.
-    const clip = clips?.get(f.properties.geoid)
-    const bufferArea = clips ? (clip?.area ?? 0) : undefined
-    const outside = outsideClips?.get(f.properties.geoid)
-    const outsideArea = outsideClips ? (outside?.area ?? 0) : undefined
+    const buffer = clipFields(clips, f.properties.geoid, geometryArea)
+    const outside = clipFields(outsideClips, f.properties.geoid, geometryArea)
     return [
       f.properties.geoid,
       {
@@ -122,12 +121,12 @@ export async function runCensusValuesPhase (
         geometryArea,
         intersectionArea: f.properties.intersection_area,
         intersectionGeometry: f.geometry ?? undefined,
-        bufferIntersectionArea: bufferArea,
-        bufferIntersectionRatio: clipRatio(bufferArea, geometryArea),
-        bufferIntersectionGeometry: clip?.geometry,
-        outsideIntersectionArea: outsideArea,
-        outsideIntersectionRatio: clipRatio(outsideArea, geometryArea),
-        outsideIntersectionGeometry: outside?.geometry,
+        bufferIntersectionArea: buffer.area,
+        bufferIntersectionRatio: buffer.ratio,
+        bufferIntersectionGeometry: buffer.geometry,
+        outsideIntersectionArea: outside.area,
+        outsideIntersectionRatio: outside.ratio,
+        outsideIntersectionGeometry: outside.geometry,
         layer: config.aggregateLayer,
       },
     ]
@@ -140,11 +139,21 @@ export async function runCensusValuesPhase (
   })
 }
 
-// A clip's area as a fraction of the geography, or undefined when the clip
-// wasn't fetched.
-function clipRatio (area: number | undefined, geometryArea: number): number | undefined {
-  if (area == null) {
-    return undefined
+// One geography's fields for one clip: all undefined when the clip wasn't
+// fetched, and zero area when the clip doesn't reach the geography.
+function clipFields (
+  clips: Map<string, ClipIntersection> | null,
+  geoid: string,
+  geometryArea: number,
+): { area?: number, ratio?: number, geometry?: Geometry } {
+  if (!clips) {
+    return {}
   }
-  return geometryArea > 0 ? Math.min(area / geometryArea, 1.0) : 0
+  const clip = clips.get(geoid)
+  const area = clip?.area ?? 0
+  return {
+    area,
+    ratio: geometryArea > 0 ? Math.min(area / geometryArea, 1.0) : 0,
+    geometry: clip?.geometry,
+  }
 }

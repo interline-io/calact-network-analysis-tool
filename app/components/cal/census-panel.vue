@@ -21,7 +21,7 @@
           <span class="cal-census-panel-meta-label">{{ part.label }}:</span>
           <span class="cal-census-panel-meta-value">
             {{ formatArea(part.area, unitSystem, geography?.geometryArea) }}
-            <span class="cal-census-panel-meta-pct">({{ formatPct(part.ratio) }})</span>
+            <span class="cal-census-panel-meta-pct">({{ formatCensusValue(part.ratio, 'percent') }})</span>
           </span>
         </div>
       </div>
@@ -34,9 +34,9 @@
 
       <cat-tabs v-model="activeTab" expanded>
         <cat-tab-item
-          v-for="tab of tabs"
-          :key="tab.value"
-          :value="tab.value"
+          v-for="(tab, i) of tabs"
+          :key="tab.label"
+          :value="i"
           :label="tab.label"
         >
           <table class="cal-census-panel-table">
@@ -93,7 +93,6 @@ import {
   NON_ADDITIVE_CENSUS_COLUMNS,
   type CensusColumnDef,
   type CensusPanelAnalysisArea,
-  type CensusPanelClip,
   type CensusPanelGeography,
   type CensusPanelValues,
   formatArea,
@@ -123,7 +122,6 @@ interface PanelColumn {
 }
 
 interface PanelTab {
-  value: number
   label: string
   caption: string
   columns: PanelColumn[]
@@ -142,10 +140,6 @@ const noBuffersNote = computed((): string => stopBufferRadius.value > 0
   ? 'This run has no stop buffers: it found no fixed-route stops, or the stop buffer requests failed.'
   : 'Set a stop buffer radius to split these values inside and outside the stop buffers.')
 
-function formatPct (ratio: number): string {
-  return `${(ratio * 100).toFixed(0)}%`
-}
-
 // The geography's share of the query area, then its parts inside and outside
 // the stop buffers, when the run has them.
 const areaParts = computed((): { label: string, area: number, ratio: number }[] => {
@@ -154,14 +148,11 @@ const areaParts = computed((): { label: string, area: number, ratio: number }[] 
     return []
   }
   const parts = [{ label: 'In query area', area: geo.queryArea, ratio: geo.queryAreaRatio }]
-  const clips: [string, CensusPanelClip | null][] = [
-    ['Inside stop buffers', geo.inside],
-    ['Outside stop buffers', geo.outside],
-  ]
-  for (const [label, clip] of clips) {
-    if (clip) {
-      parts.push({ label, area: clip.area, ratio: clip.ratio })
-    }
+  if (geo.inside) {
+    parts.push({ label: 'Inside stop buffers', area: geo.inside.area, ratio: geo.inside.ratio })
+  }
+  if (geo.outside) {
+    parts.push({ label: 'Outside stop buffers', area: geo.outside.area, ratio: geo.outside.ratio })
   }
   return parts
 })
@@ -180,12 +171,11 @@ const geographyNote = computed((): string | null => {
   if (beyond < 0.005) {
     return null
   }
-  return `${formatPct(beyond)} of this geography lies outside the query area, so Inside and Outside add up to less than Total.`
+  return `${formatCensusValue(beyond, 'percent')} of this geography lies outside the query area, so Inside and Outside add up to less than Total.`
 })
 
 const tabs = computed((): PanelTab[] => [
   {
-    value: 0,
     label: 'Selected geography',
     caption: 'Census statistics for the selected geography',
     summed: false,
@@ -197,7 +187,6 @@ const tabs = computed((): PanelTab[] => [
     note: geographyNote.value,
   },
   {
-    value: 1,
     label: 'Analysis area',
     caption: 'Census statistics for the whole analysis area',
     summed: true,

@@ -1,5 +1,7 @@
 import {
+  censusClip,
   deriveApportionedRow,
+  deriveCensusRow,
   summarizeApportioned,
   type CensusGeographyData,
 } from './census-columns'
@@ -40,19 +42,17 @@ export interface CensusPanelAnalysisArea {
 // One geography's full values and its two stop-buffer clips, each taken from
 // the server's clip with no fallback to the query area.
 export function censusPanelGeography (geo: CensusGeographyData): CensusPanelGeography {
-  const clip = (ratio: number | undefined, area: number | undefined): CensusPanelClip | null => {
-    if (ratio == null) {
-      return null
-    }
-    return { values: deriveApportionedRow(geo.values, ratio), area: area ?? 0, ratio }
+  const clip = (mode: 'buffer' | 'outside'): CensusPanelClip | null => {
+    const c = censusClip(geo, mode)
+    return c && { values: deriveApportionedRow(geo.values, c.ratio), area: c.area, ratio: c.ratio }
   }
   return {
-    total: deriveApportionedRow(geo.values, 1),
+    total: deriveCensusRow(geo.values),
     geometryArea: geo.geometryArea,
     queryArea: geo.intersectionArea,
     queryAreaRatio: geo.intersectionRatio,
-    inside: clip(geo.bufferIntersectionRatio, geo.bufferIntersectionArea),
-    outside: clip(geo.outsideIntersectionRatio, geo.outsideIntersectionArea),
+    inside: clip('buffer'),
+    outside: clip('outside'),
   }
 }
 
@@ -60,14 +60,14 @@ export function censusPanelGeography (geo: CensusGeographyData): CensusPanelGeog
 // inside and outside the stop buffers.
 export function censusPanelAnalysisArea (geographies: Map<string, CensusGeographyData>): CensusPanelAnalysisArea {
   const geos = [...geographies.values()]
-  const sum = (ratioOf: (geo: CensusGeographyData) => number | null): CensusPanelValues =>
-    summarizeApportioned(geographies.keys(), geographies, ratioOf).derived
-  // The clip passes fill every geography or none.
-  const hasBuffer = geos.some(geo => geo.bufferIntersectionRatio != null)
-  const hasOutside = geos.some(geo => geo.outsideIntersectionRatio != null)
+  const sum = (mode: 'queryArea' | 'buffer' | 'outside'): CensusPanelValues =>
+    summarizeApportioned(geographies.keys(), geographies, mode).derived
+  // The clip passes fill every geography or none, so a clip found on any
+  // geography is on all of them, and summing it never falls back.
+  const has = (mode: 'buffer' | 'outside'): boolean => geos.some(geo => censusClip(geo, mode) !== null)
   return {
-    total: sum(geo => geo.intersectionRatio),
-    inside: hasBuffer ? sum(geo => geo.bufferIntersectionRatio ?? null) : null,
-    outside: hasOutside ? sum(geo => geo.outsideIntersectionRatio ?? null) : null,
+    total: sum('queryArea'),
+    inside: has('buffer') ? sum('buffer') : null,
+    outside: has('outside') ? sum('outside') : null,
   }
 }

@@ -98,64 +98,71 @@ export interface CensusGeographyData {
 // Which clip the aggregation overlay shades and reports by.
 export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer' | 'outside'
 
-export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
+// `needsStopBuffers` marks the modes that clip by the stop buffers.
+export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string, needsStopBuffers?: boolean }[] = [
   { value: 'unclipped', label: 'None (full geographies)' },
   { value: 'queryArea', label: 'Query area' },
   // The backend composes both clips, so this is the query area narrowed to
   // the stop buffers — never the buffers on their own.
-  { value: 'buffer', label: 'Query area + stop buffers' },
+  { value: 'buffer', label: 'Query area + stop buffers', needsStopBuffers: true },
   // The query area minus the stop buffers: where people live beyond their
   // reach.
-  { value: 'outside', label: 'Areas outside stop buffers' },
+  { value: 'outside', label: 'Areas outside stop buffers', needsStopBuffers: true },
 ]
 
-// Fraction of a geography attributed to the analysis area under the selected
-// clip. The stop-buffer clips fall back to the query-area clip when the
-// scenario carries none.
-export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
+// A geography's part inside one clip: its share of the geography, its area in
+// m², and its outline when the scenario fetched outlines.
+export interface CensusClip {
+  ratio: number
+  area: number
+  geometry?: Geometry
+}
+
+function queryAreaClip (geo: CensusGeographyData): CensusClip {
+  return { ratio: geo.intersectionRatio, area: geo.intersectionArea, geometry: geo.intersectionGeometry }
+}
+
+// The clip `mode` names, or null when the scenario didn't fetch it. Never
+// substitutes another clip. Unclipped has no outline: callers draw the full
+// geography.
+export function censusClip (geo: CensusGeographyData, mode: AggClipMode): CensusClip | null {
   if (mode === 'unclipped') {
-    return 1
+    return { ratio: 1, area: geo.geometryArea }
   }
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionRatio
+  if (mode === 'queryArea') {
+    return queryAreaClip(geo)
   }
-  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
-    return geo.outsideIntersectionRatio
+  if (mode === 'buffer') {
+    return geo.bufferIntersectionRatio == null
+      ? null
+      : { ratio: geo.bufferIntersectionRatio, area: geo.bufferIntersectionArea ?? 0, geometry: geo.bufferIntersectionGeometry }
   }
-  return geo.intersectionRatio
+  return geo.outsideIntersectionRatio == null
+    ? null
+    : { ratio: geo.outsideIntersectionRatio, area: geo.outsideIntersectionArea ?? 0, geometry: geo.outsideIntersectionGeometry }
+}
+
+// The clip the map shades and reports by: `mode`'s clip, or the query-area
+// clip when the scenario carries no stop-buffer clip.
+function apportionClip (geo: CensusGeographyData, mode: AggClipMode): CensusClip {
+  return censusClip(geo, mode) ?? queryAreaClip(geo)
+}
+
+// Fraction of a geography attributed to the analysis area under the selected
+// clip.
+export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
+  return apportionClip(geo, mode).ratio
 }
 
 // The clipped area in m² matching `censusApportionRatio`.
 export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode): number {
-  if (mode === 'unclipped') {
-    return geo.geometryArea
-  }
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionArea ?? 0
-  }
-  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
-    return geo.outsideIntersectionArea ?? 0
-  }
-  return geo.intersectionArea
+  return apportionClip(geo, mode).area
 }
 
 // The clipped outline matching `censusApportionArea`, or undefined when the
 // scenario didn't fetch one — callers fall back to the full geography.
-export function censusApportionGeometry (
-  geo: CensusGeographyData,
-  mode: AggClipMode,
-): Geometry | undefined {
-  if (mode === 'unclipped') {
-    return undefined
-  }
-  // Same guard as the ratio and area, so all three fall back together.
-  if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
-    return geo.bufferIntersectionGeometry
-  }
-  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
-    return geo.outsideIntersectionGeometry
-  }
-  return geo.intersectionGeometry
+export function censusApportionGeometry (geo: CensusGeographyData, mode: AggClipMode): Geometry | undefined {
+  return apportionClip(geo, mode).geometry
 }
 
 export type CensusFormat = 'integer' | 'percent' | 'currency' | 'decimal'
@@ -506,13 +513,12 @@ export function deriveApportionedColumn (
 }
 
 // Sum apportioned raw ACS values across geographies, then run derivations.
-// `ratioOf` gives each geography's share; a geography it returns null for is
-// left out. Non-additive columns (medians) come out as nonsense — callers must
-// render `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
+// Non-additive columns (medians) come out as nonsense — callers must render
+// `NON_ADDITIVE_CENSUS_COLUMNS` as "—".
 export function summarizeApportioned (
   geoids: Iterable<string>,
   geographies: Map<string, CensusGeographyData> | undefined,
-  ratioOf: (geo: CensusGeographyData) => number | null,
+  mode: AggClipMode,
 ): { raw: Record<string, number>, derived: Record<string, number | null> } {
   const raw: Record<string, number> = {}
   if (!geographies) {
@@ -523,10 +529,7 @@ export function summarizeApportioned (
     if (!geo) {
       continue
     }
-    const ratio = ratioOf(geo)
-    if (ratio == null) {
-      continue
-    }
+    const ratio = censusApportionRatio(geo, mode)
     for (const [key, v] of Object.entries(geo.values)) {
       if (typeof v !== 'number' || !Number.isFinite(v)) {
         continue
