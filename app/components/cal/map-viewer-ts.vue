@@ -29,6 +29,8 @@ const emit = defineEmits([
   'selectableGeoRightClick',
   'openTimetable',
   'showTrips',
+  'popupShown',
+  'popupClosed',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
@@ -63,6 +65,9 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // Increment to dismiss the popup and clear the highlight, as when the
+  // trip panel describing the selection closes
+  clearSelectionKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -179,6 +184,12 @@ watch(() => props.fitOverlayKey, () => {
   if (map && props.fitTargetFeatures?.length) {
     fitFeatures(props.fitTargetFeatures)
   }
+})
+
+watch(() => props.clearSelectionKey, () => {
+  removePopup()
+  currentPopupFeatures = []
+  updateHighlight(undefined)
 })
 
 watch(() => props.fitBoundsKey, () => {
@@ -1045,6 +1056,7 @@ function showPopupAtIndex (index: number) {
 
   // Update highlight to show the selected feature
   updateHighlight(feature)
+  emit('popupShown', feature.featureType, feature.featureId)
 
   const total = currentPopupFeatures.length
 
@@ -1066,6 +1078,7 @@ function showPopupAtIndex (index: number) {
       onClose: () => {
         removePopup()
         updateHighlight(undefined)
+        emit('popupClosed')
       },
       onPrev: () => {
         if (currentPopupIndex > 0) {

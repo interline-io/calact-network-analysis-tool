@@ -57,6 +57,7 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
+      :clear-selection-key="props.clearSelectionKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -66,6 +67,8 @@
       @overlay-drag-end="onOverlayDragEnd"
       @open-timetable="handleOpenTimetable"
       @show-trips="handleShowTrips"
+      @popup-shown="onPopupShown"
+      @popup-closed="onPopupClosed"
     />
   </div>
 </template>
@@ -85,6 +88,9 @@ const emit = defineEmits<{
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
   showTrips: [subject: TripSubject]
+  // The selection the trip panel describes is gone: replaced by a new map
+  // click, dismissed, or dropped by the filters.
+  selectionCleared: []
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
 }>()
@@ -111,6 +117,8 @@ const props = defineProps<{
   fitOverlayKey?: number
   // A panel (trip information, census) is open in the sidebar above the legend.
   sidebarPanelOpen?: boolean
+  // Increment to clear the selection, as when the trip panel is closed.
+  clearSelectionKey?: number
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -236,12 +244,33 @@ const visibleClusters = computed((): { cluster: StopCluster, agencyIds: number[]
 })
 const hasClusterData = computed(() => visibleClusters.value.length > 0)
 
-// Clear the selection if a refetch/refilter drops the selected cluster.
-watch(stopClusters, () => {
-  if (selectedClusterId.value && !clusterById.value.has(selectedClusterId.value)) {
+// One selection at a time: the feature the popup shows, kept after "Show trip
+// information" for the panel to describe. A new map click replaces it, and the
+// popup's or the panel's close button clears it; selectionCleared tells the
+// page to close the panel, since it describes what was selected.
+
+// Clear the selection if a refetch/refilter drops the selected cluster, or
+// hides it along with its agencies' stops.
+watch(visibleClusters, (visible) => {
+  if (selectedClusterId.value && !visible.some(v => v.cluster.id === selectedClusterId.value)) {
     selectedClusterId.value = null
+    emit('selectionCleared')
   }
 })
+
+watch(() => props.clearSelectionKey, () => {
+  selectedClusterId.value = null
+})
+
+// Paging through a popup's features moves the selection with it.
+function onPopupShown (featureType: string, featureId: string | number) {
+  selectedClusterId.value = featureType === 'cluster' ? String(featureId) : null
+}
+
+function onPopupClosed () {
+  selectedClusterId.value = null
+  emit('selectionCleared')
+}
 
 // Each cluster's anchor stop coordinates — the point its radius circle centers
 // on. Marker, spokes, and click target all hub here to stay concentric with it.
@@ -850,6 +879,9 @@ function mapClickFeatures (pt: any, features: Feature[]) {
   let clickedClusterId: string | null = null
 
   console.log(`[MapClick] ${features.length} raw features at point`)
+
+  // Whatever was selected before is replaced by this click.
+  emit('selectionCleared')
 
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''

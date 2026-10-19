@@ -98,6 +98,7 @@
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
+          :clear-selection-key="mapSelectionClearKey"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -105,6 +106,7 @@
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
+          @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>
             <cal-trip-panel
@@ -115,7 +117,7 @@
               :trip-details="tripPanelDetails"
               :details-loading="tripPanelDetailsLoading"
               :details-error="tripPanelDetailsError"
-              @close="closeTripPanel"
+              @close="onTripPanelClose"
               @load-details="loadTripPanelDetails"
             />
             <cal-census-panel
@@ -209,7 +211,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
@@ -840,6 +842,14 @@ const {
   startTime,
   endTime,
 })
+
+// The panel describes the map's selection, so closing it clears that
+// selection; the map in turn closes the panel when its selection goes.
+const mapSelectionClearKey = ref(0)
+function onTripPanelClose () {
+  closeTripPanel()
+  mapSelectionClearKey.value++
+}
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.
