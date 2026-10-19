@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, WEEKDAY_BY_GETDAY } from '~~/src/core'
+import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, flexRiderEligibilityTypes, WEEKDAY_BY_GETDAY, type FlexRiderEligibilityType } from '~~/src/core'
 import turfArea from '@turf/area'
 import type { RouteFareSummary } from './fare'
 
@@ -150,6 +150,10 @@ export interface FlexAreaProperties {
   zone_id?: string
   feed_onestop_id?: string
 
+  // Whether the feed is tagged rider_eligibility_restrictions in Transitland
+  // Atlas: the service carries only riders eligible for a specific program.
+  rider_eligibility_restricted?: boolean
+
   // Area in square meters (computed from full source geometry at load time)
   area_m2?: number
 
@@ -273,10 +277,26 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
 }
 
 /**
+ * Rider eligibility category for a flex area. Areas from feeds without the
+ * restriction tag count as general public.
+ */
+export function getFlexRiderEligibility (feature: FlexAreaFeature): FlexRiderEligibilityType {
+  return feature.properties.rider_eligibility_restricted ? 'Eligibility restricted' : 'General public'
+}
+
+/**
+ * Whether a feed's Transitland Atlas tags mark its service as restricted to
+ * eligible riders. Tag values are strings, so only "true" counts.
+ */
+export function feedTagsRestrictRiderEligibility (tags: Record<string, string> | null | undefined): boolean {
+  return tags?.rider_eligibility_restrictions === 'true'
+}
+
+/**
  * Filter selections for {@link flexAreaMatchesFilters}. Each field is optional;
  * `undefined` means "no filter applied" (everything matches that dimension).
  *
- * For `advanceNotice`/`areaTypes`, raw URL values are accepted but invalid
+ * For `advanceNotice`/`areaTypes`/`riderEligibility`, raw URL values are accepted but invalid
  * entries are dropped, and the remaining (possibly empty) list becomes the
  * active filter — so a selection of only invalid values matches nothing, the
  * same as an empty selection (distinct from `undefined`, which disables the
@@ -286,13 +306,14 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
 export interface FlexAreaFilterCriteria {
   advanceNotice?: readonly string[]
   areaTypes?: readonly string[]
+  riderEligibility?: readonly string[]
   startSeconds?: number
   endSeconds?: number
 }
 
 /**
- * Whether a flex area matches the current advance-notice, area-type, and
- * time-of-day filters. Returns true when it matches (should be highlighted);
+ * Whether a flex area matches the current advance-notice, area-type,
+ * rider-eligibility, and time-of-day filters. Returns true when it matches (should be highlighted);
  * false when it should be downplayed. Agency filtering is handled upstream by
  * the scenario filter, not here.
  */
@@ -304,12 +325,17 @@ export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: Flex
   const areaTypesFilter = criteria.areaTypes?.filter(
     (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
   )
+  const riderEligibilityFilter = criteria.riderEligibility?.filter(
+    (v): v is FlexRiderEligibilityType => flexRiderEligibilityTypes.includes(v as FlexRiderEligibilityType)
+  )
 
   const featureAreaType = getFlexAreaType(feature)
   if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
 
   const featureAdvanceNotice = getFlexAdvanceNotice(feature)
   if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
+
+  if (riderEligibilityFilter !== undefined && !riderEligibilityFilter.includes(getFlexRiderEligibility(feature))) { return false }
 
   // Time-of-day overlap: only applies when the user set a window and the area
   // declares one. Non-overlapping windows downplay the area.
@@ -435,6 +461,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
     feed {
       id
       onestop_id
+      tags
     }
     locations(limit: $limit) {
       id
@@ -640,6 +667,7 @@ export interface FlexLocationQueryResponse {
     feed: {
       id: number
       onestop_id: string
+      tags?: Record<string, string> | null
     }
     locations: FlexLocationGql[]
   }[]
@@ -730,7 +758,7 @@ function mergeBookingDays (days: (FlexBookingDays | undefined)[]): FlexBookingDa
  * - Collects booking rules
  * - Aggregates time windows
  */
-export function transformLocationToFlexArea (location: FlexLocationGql): FlexAreaFeature {
+export function transformLocationToFlexArea (location: FlexLocationGql, riderEligibilityRestricted = false): FlexAreaFeature {
   const stopTimes = location.stop_times || []
 
   // Collect unique agencies
@@ -867,6 +895,7 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
     // Additional metadata (for CSV export)
     zone_id: location.zone_id,
     feed_onestop_id: location.feed_onestop_id,
+    rider_eligibility_restricted: riderEligibilityRestricted,
 
     // Area computed from full source geometry (used for sorting overlapping areas in identify tool popup)
     area_m2: turfArea(location.geometry as GeoJSON.Geometry),
@@ -887,8 +916,8 @@ export function transformLocationToFlexArea (location: FlexLocationGql): FlexAre
  * Transform multiple GraphQL Locations into FlexAreaFeatures
  * Filters out locations with no stop_times (no service on the queried date)
  */
-export function transformLocationsToFlexAreas (locations: FlexLocationGql[]): FlexAreaFeature[] {
+export function transformLocationsToFlexAreas (locations: FlexLocationGql[], riderEligibilityRestricted = false): FlexAreaFeature[] {
   return locations
     .filter(loc => loc.stop_times && loc.stop_times.length > 0)
-    .map(transformLocationToFlexArea)
+    .map(loc => transformLocationToFlexArea(loc, riderEligibilityRestricted))
 }

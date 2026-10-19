@@ -25,6 +25,17 @@
         :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
       />
 
+      <p class="menu-label">
+        <cat-tooltip text="Eligibility restricted services carry only riders enrolled in or eligible for a specific program, such as ADA paratransit or Medicaid transportation. This comes from a feed tag in Transitland Atlas; areas from untagged feeds count as General public.">
+          Rider eligibility
+          <cat-icon icon="information" />
+        </cat-tooltip>
+      </p>
+      <cat-checkbox-group
+        v-model="flexRiderEligibility"
+        :options="flexRiderEligibilityTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+      />
+
       <cat-fieldset label="Color by" :disabled="!flexServicesEnabled">
         <ul>
           <li
@@ -50,12 +61,14 @@ import {
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   flexColorByModes,
+  flexRiderEligibilityTypes,
 } from '~~/src/core'
 
 const {
   flexServicesEnabled,
   flexAdvanceNotice,
   flexAreaTypesSelected,
+  flexRiderEligibility,
   flexColorBy,
 } = useScenarioFilters()
 </script>

@@ -19,6 +19,7 @@ import {
   flexLocationQuery,
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
+  feedTagsRestrictRiderEligibility,
   type FlexLocationQueryResponse,
   type FlexStopTimesQueryResponse,
 } from '~~/src/tl'
@@ -157,7 +158,7 @@ export async function runFlexPhase (
     }
 
     const locations = feedVersionData.locations || []
-    const flexAreas = transformLocationsToFlexAreas(locations)
+    const flexAreas = transformLocationsToFlexAreas(locations, feedTagsRestrictRiderEligibility(feedVersionData.feed?.tags))
 
     if (flexAreas.length === 0) {
       return

@@ -2,6 +2,7 @@ import {
   getFlexAreaType,
   getFlexAdvanceNotice,
   getFlexAgencyName,
+  getFlexRiderEligibility,
   fareReportFields,
   type FareReportFields,
   type FlexAreaFeature,
@@ -20,6 +21,7 @@ export interface FlexAreaDisplayProperties extends FareReportFields {
   time_window_start_formatted?: string
   time_window_end_formatted?: string
   advance_notice: string
+  rider_eligibility: string
   phone_number?: string
   booking_message?: string
   info_url?: string
@@ -62,6 +64,7 @@ export function useFlexAreaFormatting () {
       time_window_start_formatted: feature.properties.time_window_start_formatted,
       time_window_end_formatted: feature.properties.time_window_end_formatted,
       advance_notice: getFlexAdvanceNotice(feature),
+      rider_eligibility: getFlexRiderEligibility(feature),
       phone_number: bookingRule?.phone_number,
       booking_message: bookingRule?.message,
       info_url: bookingRule?.info_url,

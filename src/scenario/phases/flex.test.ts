@@ -79,3 +79,45 @@ describe('runFlexPhase route ids', () => {
     expect(result.feedVersionRouteIds).toEqual({ sha1: [10, 11] })
   })
 })
+
+describe('runFlexPhase rider eligibility', () => {
+  it('marks flex areas from feeds tagged as restricting rider eligibility', async () => {
+    const location = (feedOnestopId: string) => ({
+      id: 1,
+      location_id: 'loc-1',
+      feed_onestop_id: feedOnestopId,
+      geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] },
+      stop_times: [{
+        pickup_type: 2,
+        drop_off_type: 2,
+        trip: { trip_id: 't1', route: { id: 1, route_id: 'r1', route_type: 3, agency: { agency_id: 'a', agency_name: 'A' } } },
+      }],
+    })
+    const feedVersion = (sha1: string, tags?: Record<string, string>) => ({
+      id: 1,
+      sha1,
+      feed: { id: 1, onestop_id: `f-${sha1}`, tags },
+      locations: [location(`f-${sha1}`)],
+    })
+    const client = new MockGraphQLClient()
+    client.mockQuery.mockImplementation(async (_q: any, vars: any) => {
+      if (!vars?.serviceDate) { return { data: { feed_versions: [] } } }
+      const tags = vars.fvSha1 === 'restricted' ? { rider_eligibility_restrictions: 'true' } : undefined
+      return { data: { feed_versions: [feedVersion(vars.fvSha1, tags)] } }
+    })
+    const restrictedByFeed: Record<string, boolean | undefined> = {}
+    await runFlexPhase({
+      feedVersions: [
+        { feedOnestopId: 'f-restricted', feedVersionSha1: 'restricted' },
+        { feedOnestopId: 'f-open', feedVersionSha1: 'open' },
+      ],
+      startDate: '2026-08-24',
+      endDate: '2026-08-24',
+    } as unknown as FlexPhaseConfig, client, (progress: any) => {
+      for (const area of progress.partialData?.flexAreas ?? []) {
+        restrictedByFeed[area.properties.feed_onestop_id] = area.properties.rider_eligibility_restricted
+      }
+    })
+    expect(restrictedByFeed).toEqual({ 'f-restricted': true, 'f-open': false })
+  })
+})
