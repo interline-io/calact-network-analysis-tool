@@ -433,6 +433,7 @@ function formatAverage (n: number): string {
 
 .cal-trip-panel :deep(.tabs) {
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .cal-trip-panel-table {
@@ -545,6 +546,7 @@ function formatAverage (n: number): string {
 .cal-trip-panel-error {
   font-size: 12px;
   margin: 6px 0;
+  flex-shrink: 0;
 }
 
 .cal-trip-panel-error {

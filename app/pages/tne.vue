@@ -97,6 +97,7 @@
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
+          :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"

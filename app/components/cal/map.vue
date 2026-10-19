@@ -18,6 +18,7 @@
     <div class="cal-map-sidebar">
       <slot name="sidebar-top" />
       <cal-legend
+        :open="legendOpen"
         :style-data="styleData"
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
@@ -30,6 +31,7 @@
         :choropleth-classification="props.choroplethClassification"
         :has-cluster-data="hasClusterData"
         @view-details="emit('viewCensusDetails')"
+        @update:open="onLegendToggle"
       />
     </div>
 
@@ -107,6 +109,8 @@ const props = defineProps<{
   panelWidth?: number
   // Increment to fit map to overlay features
   fitOverlayKey?: number
+  // A panel (trip information, census) is open in the sidebar above the legend.
+  sidebarPanelOpen?: boolean
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -1010,6 +1014,26 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
       cluster_members: members,
     },
   }
+}
+
+// The legend steps aside while a sidebar panel is open, so the panel gets the
+// height rather than a sliver above an expanded legend. It comes back when the
+// panel closes, unless the user has toggled it in the meantime.
+const legendOpen = ref(true)
+let legendAutoCollapsed = false
+watch(() => props.sidebarPanelOpen, (panelOpen) => {
+  if (panelOpen && legendOpen.value) {
+    legendOpen.value = false
+    legendAutoCollapsed = true
+  } else if (!panelOpen && legendAutoCollapsed) {
+    legendOpen.value = true
+    legendAutoCollapsed = false
+  }
+})
+
+function onLegendToggle (value: boolean) {
+  legendOpen.value = value
+  legendAutoCollapsed = false
 }
 
 function handleShowTrips (featureType: string, featureId: string | number) {

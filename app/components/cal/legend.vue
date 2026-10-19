@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-legend" :class="{ 'is-hidden': !shouldShowLegend }">
     <cat-msg
+      v-model:open="open"
       title="Legend"
       expandable
-      :open="true"
       variant="dark"
     >
       <div class="cal-map-legend-box">
@@ -203,6 +203,9 @@ const props = defineProps<{
 defineEmits<{
   viewDetails: []
 }>()
+
+// Expanded or collapsed; map.vue collapses it while a sidebar panel is open.
+const open = defineModel<boolean>('open', { default: true })
 
 const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
