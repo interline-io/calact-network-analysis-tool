@@ -130,13 +130,8 @@
                       Headsign
                     </th>
                     <th scope="col">
-                      <cat-tooltip text="When the trip leaves its first stop and reaches its last, including stops outside the scenario area.">
+                      <cat-tooltip text="When the trip leaves its first stop and reaches its last, and how many stops it makes, including stops outside the scenario area.">
                         Trip
-                      </cat-tooltip>
-                    </th>
-                    <th scope="col" class="cal-trip-panel-num">
-                      <cat-tooltip text="Stops the whole trip makes, including stops outside the scenario area.">
-                        Stops
                       </cat-tooltip>
                     </th>
                     <th v-if="scopedDates.length > 1" scope="col">
@@ -169,12 +164,9 @@
                     <td class="cal-trip-panel-time">
                       <template v-if="tripDetails.get(row.tripId)">
                         {{ formatGtfsTime(tripDetails.get(row.tripId)!.startTime) }}–{{ formatGtfsTime(tripDetails.get(row.tripId)!.endTime) }}
-                      </template>
-                      <span v-else class="cal-trip-panel-pending">{{ detailsPlaceholder }}</span>
-                    </td>
-                    <td class="cal-trip-panel-num">
-                      <template v-if="tripDetails.get(row.tripId)">
-                        {{ tripDetails.get(row.tripId)!.stopCount }}
+                        <div class="cal-trip-panel-sub">
+                          {{ tripDetails.get(row.tripId)!.stopCount }} stops
+                        </div>
                       </template>
                       <span v-else class="cal-trip-panel-pending">{{ detailsPlaceholder }}</span>
                     </td>
