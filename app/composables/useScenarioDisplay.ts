@@ -61,10 +61,11 @@ export function useScenarioDisplay (): ScenarioDisplay {
     set: (v) => { setQuery({ aggregateLayer: v }) }
   })
 
-  // The default follows the clip, so only an explicit pick is persisted.
+  // The default follows the clip, so an explicit pick is always persisted,
+  // even one that matches the current clip's default.
   const choroplethElement = computed<string>({
     get: () => query.value.choroplethElement?.toString() || choroplethDefaultElement(aggClipMode.value),
-    set: (v) => { setQuery({ choroplethElement: v === choroplethDefaultElement(aggClipMode.value) ? undefined : v }) }
+    set: (v) => { setQuery({ choroplethElement: v }) }
   })
 
   // Default true; only the off state is persisted to the URL.

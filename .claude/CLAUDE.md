@@ -113,7 +113,7 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 
 ## Environment Variables
 
-Interline doesn't use `.env` files: Nuxt loads one on its own, so a stray file silently changes what the app talks to. Set the environment from sources you load on purpose: `source docker/docker-env.sh` for the local docker stack, and 1Password environments for API keys. Key variables:
+Interline doesn't use `.env` files: Nuxt loads one on its own, so a stray file silently changes which server the app uses. Set the environment from sources you load on purpose: `source docker/docker-env.sh` for the local docker stack, and 1Password environments for API keys. Key variables:
 - `TRANSITLAND_API_BASE` — GraphQL API endpoint (used by CLI)
 - `NUXT_TLV2PROXY_BACKENDS_DEFAULT_BASE` / `NUXT_TLV2PROXY_BACKENDS_DEFAULT_APIKEY` — Transitland API base URL and apikey, for the proxy and the server API
 - `NUXT_PUBLIC_TLV2_PROTOMAPS_APIKEY` — Map tiles API key

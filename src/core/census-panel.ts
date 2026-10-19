@@ -22,6 +22,7 @@ export interface CensusPanelClip {
 export interface CensusPanelGeography {
   total: CensusPanelValues
   geometryArea: number
+  queryArea: number
   queryAreaRatio: number
   inside: CensusPanelClip | null
   outside: CensusPanelClip | null
@@ -48,6 +49,7 @@ export function censusPanelGeography (geo: CensusGeographyData): CensusPanelGeog
   return {
     total: deriveApportionedRow(geo.values, 1),
     geometryArea: geo.geometryArea,
+    queryArea: geo.intersectionArea,
     queryAreaRatio: geo.intersectionRatio,
     inside: clip(geo.bufferIntersectionRatio, geo.bufferIntersectionArea),
     outside: clip(geo.outsideIntersectionRatio, geo.outsideIntersectionArea),

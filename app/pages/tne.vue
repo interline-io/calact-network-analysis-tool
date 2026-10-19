@@ -409,7 +409,7 @@ function onSelectAggregation (row: Record<string, any>) {
 const selectedPanelData = computed(() => {
   const geoid = selectedAggregationGeoid.value
   if (!geoid) { return null }
-  const row = choroplethAggregateData.value.find(r => r.geoid === geoid)
+  const row = aggregateRows.value.find(r => r.geoid === geoid)
   if (!row) { return null }
   const geo = scenarioFilterResult.value?.censusGeographies?.get(geoid)
   return { row, geography: geo ? censusPanelGeography(geo) : null }
@@ -857,25 +857,31 @@ const {
 const markedStopIds = computed((): number[] =>
   (scenarioFilterResult.value?.stops || []).filter(s => s.marked).map(s => s.id))
 
-const choroplethAggregateData = computed(() => {
+// Every geography's aggregation row, before the clip filter below. The census
+// panel reads these, so a selection survives a switch to a clip that doesn't
+// reach the geography.
+const aggregateRows = computed(() => {
   if (!showAggAreas.value || !scenarioFilterResult.value) {
     return []
   }
   const markedStops = scenarioFilterResult.value.stops.filter(s => s.marked)
-  const rows = stopGeoAggregateCsv(
+  return stopGeoAggregateCsv(
     markedStops,
     aggregateLayer.value,
     routesById(scenarioFilterResult.value.routes),
     scenarioFilterResult.value.censusGeographies,
     { onlyWithStops: onlyWithStops.value },
   )
+})
+
+const choroplethAggregateData = computed(() => {
   // A clipped mode measures nothing for a geography the clip doesn't reach, so
   // drop it rather than paint an empty polygon at zero. Filtered here so the
   // legend's breaks aren't skewed by a pile of zeroes either. Rows with no
   // census entry are stop-derived and unaffected.
   const mode = aggClipMode.value
-  const geos = scenarioFilterResult.value.censusGeographies
-  return rows.filter((r) => {
+  const geos = scenarioFilterResult.value?.censusGeographies
+  return aggregateRows.value.filter((r) => {
     const geo = geos?.get(r.geoid)
     return !geo || censusApportionRatio(geo, mode) > 0
   })

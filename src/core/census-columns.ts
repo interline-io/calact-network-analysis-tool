@@ -64,44 +64,38 @@ export type CensusValues = Record<string, number | undefined>
 export interface CensusGeographyData {
   id: number
   name: string
-  /** Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`). */
+  // Raw ACS values keyed by `<table>_<col>` (e.g. `b01001_001`).
   values: CensusValues
-  /** Fraction of the geography inside the query area, in [0, 1]. */
+  // Fraction of the geography inside the query area, in [0, 1].
   intersectionRatio: number
-  /** Full geography area in m². */
+  // Full geography area in m².
   geometryArea: number
-  /** Geography ∩ query area in m². */
+  // Geography ∩ query area in m².
   intersectionArea: number
-  /**
-   * Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
-   * radius is set, or when the backend can't compose the two clips.
-   */
+  // Geography ∩ query area ∩ stop buffers in m². Absent when no stop buffer
+  // radius is set, or when the backend can't compose the two clips.
   bufferIntersectionArea?: number
-  /** Fraction of the geography inside both clips, in [0, 1]. */
+  // Fraction of the geography inside both clips, in [0, 1].
   bufferIntersectionRatio?: number
   // The part of the geography inside the query area but outside every stop
-  // buffer, in m² and as a fraction of the geography. Absent whenever the
-  // buffer clip is.
+  // buffer, in m² and as a fraction of the geography. Absent when the scenario
+  // didn't fetch the outside clip, or its pass failed.
   outsideIntersectionArea?: number
   outsideIntersectionRatio?: number
-  /**
-   * Clipped outlines matching the areas above, present only when the
-   * phase was asked for them — they cost roughly as much as the full
-   * geometry. The choropleth draws the full geography without them.
-   */
+  // Clipped outlines matching the areas above, present only when the phase
+  // was asked for them — they cost roughly as much as the full geometry. The
+  // choropleth draws the full geography without them.
   intersectionGeometry?: Geometry
   bufferIntersectionGeometry?: Geometry
   outsideIntersectionGeometry?: Geometry
-  /**
-   * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
-   * Optional for backward compatibility with code paths that don't carry it,
-   * but populated by the scenario pipeline so the UI can filter by layer
-   * without parsing GEOID length.
-   */
+  // Census layer the geography belongs to ('state', 'county', 'tract', etc.).
+  // Optional for backward compatibility with code paths that don't carry it,
+  // but populated by the scenario pipeline so the UI can filter by layer
+  // without parsing GEOID length.
   layer?: string
 }
 
-/** Which clip the aggregation overlay shades and reports by. */
+// Which clip the aggregation overlay shades and reports by.
 export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer' | 'outside'
 
 export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [

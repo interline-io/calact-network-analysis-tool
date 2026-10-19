@@ -293,7 +293,7 @@ describe('stop-buffer clips (integration)', () => {
     expect(split).toBeGreaterThan(0)
   })
 
-  // Only the outside mode reads the outside clip, so its pass waits to be asked.
+  // The outside clip costs a server pass of its own, so callers opt in.
   it('skips the outside pass unless asked', async () => {
     const emitted: [string, CensusGeographyData][] = []
     await runCensusValuesPhase({

@@ -20,8 +20,8 @@
         <div v-for="part of areaParts" :key="part.label">
           <span class="cal-census-panel-meta-label">{{ part.label }}:</span>
           <span class="cal-census-panel-meta-value">
-            {{ formatArea(part.clip.area, unitSystem, geography?.geometryArea) }}
-            <span class="cal-census-panel-meta-pct">({{ formatPct(part.clip.ratio) }})</span>
+            {{ formatArea(part.area, unitSystem, geography?.geometryArea) }}
+            <span class="cal-census-panel-meta-pct">({{ formatPct(part.ratio) }})</span>
           </span>
         </div>
       </div>
@@ -133,22 +133,37 @@ interface PanelTab {
 }
 
 const UNCHANGED = 'Ratios (% rows) and medians are unchanged.'
-const NO_BUFFERS = 'Set a stop buffer radius to split these values inside and outside the stop buffers.'
+
+const { stopBufferRadius } = useScenarioInputs()
+
+// Why the Inside and Outside columns are empty: no radius, or a radius with no
+// stops to buffer or failed clip requests.
+const noBuffersNote = computed((): string => stopBufferRadius.value > 0
+  ? 'This run has no stop buffers: it found no fixed-route stops, or the stop buffer requests failed.'
+  : 'Set a stop buffer radius to split these values inside and outside the stop buffers.')
 
 function formatPct (ratio: number): string {
   return `${(ratio * 100).toFixed(0)}%`
 }
 
-const areaParts = computed((): { label: string, clip: CensusPanelClip }[] => {
+// The geography's share of the query area, then its parts inside and outside
+// the stop buffers, when the run has them.
+const areaParts = computed((): { label: string, area: number, ratio: number }[] => {
   const geo = props.geography
   if (!geo) {
     return []
   }
-  const parts = [
-    { label: 'Inside stop buffers', clip: geo.inside },
-    { label: 'Outside stop buffers', clip: geo.outside },
+  const parts = [{ label: 'In query area', area: geo.queryArea, ratio: geo.queryAreaRatio }]
+  const clips: [string, CensusPanelClip | null][] = [
+    ['Inside stop buffers', geo.inside],
+    ['Outside stop buffers', geo.outside],
   ]
-  return parts.filter((p): p is { label: string, clip: CensusPanelClip } => p.clip !== null)
+  for (const [label, clip] of clips) {
+    if (clip) {
+      parts.push({ label, area: clip.area, ratio: clip.ratio })
+    }
+  }
+  return parts
 })
 
 // The clips stay inside the query area, so a geography that crosses its edge
@@ -159,7 +174,7 @@ const geographyNote = computed((): string | null => {
     return null
   }
   if (!geo.inside && !geo.outside) {
-    return NO_BUFFERS
+    return noBuffersNote.value
   }
   const beyond = 1 - geo.queryAreaRatio
   if (beyond < 0.005) {
@@ -191,7 +206,7 @@ const tabs = computed((): PanelTab[] => [
       { label: 'Inside stop buffers', tooltip: 'Every geography\'s Inside stop buffers value, summed.', values: props.analysisArea?.inside },
       { label: 'Outside stop buffers', tooltip: 'Every geography\'s Outside stop buffers value, summed.', values: props.analysisArea?.outside },
     ],
-    note: props.analysisArea && !props.analysisArea.inside && !props.analysisArea.outside ? NO_BUFFERS : null,
+    note: props.analysisArea && !props.analysisArea.inside && !props.analysisArea.outside ? noBuffersNote.value : null,
   },
 ])
 

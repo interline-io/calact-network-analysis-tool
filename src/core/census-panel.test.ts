@@ -29,6 +29,7 @@ describe('censusPanelGeography', () => {
     expect(panel.inside?.area).toBe(300)
     expect(panel.outside?.area).toBe(500)
     // The share beyond the query area belongs to neither clip.
+    expect(panel.queryArea).toBe(800)
     expect(panel.queryAreaRatio).toBe(0.8)
   })
 

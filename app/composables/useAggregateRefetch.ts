@@ -82,8 +82,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
           ? deps.markedStopIds.value
           : data.stops.map(s => s.id),
         includeIntersectionGeometry: geometryLatch.value,
-        // The census panel splits every geography by the stop buffers.
-        includeOutsideClip: true,
+        includeOutsideClip: config.includeOutsideClip,
       }
       return body
     },

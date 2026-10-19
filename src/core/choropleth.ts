@@ -7,8 +7,8 @@ import { CENSUS_COLUMNS, censusApportionRatio, deriveApportionedColumn, sqMeters
 
 export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
 
-// The element the choropleth shades by until the user picks one. Outside the
-// stop buffers there are no stops to count, so that clip shades by population.
+// The default shading element, used until the user picks one. Outside the stop
+// buffers there are no stops to count, so that clip defaults to population.
 export function choroplethDefaultElement (mode: AggClipMode): string {
   return mode === 'outside' ? 'total_population' : CHOROPLETH_DEFAULT_ELEMENT
 }
