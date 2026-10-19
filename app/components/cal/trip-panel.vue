@@ -116,6 +116,15 @@
                 <caption class="is-sr-only">
                   Trips
                 </caption>
+                <!-- Fixed widths, so long stop names, headsigns, and route names
+                     wrap or truncate within the panel rather than widen it. -->
+                <colgroup>
+                  <col class="cal-trip-panel-col-time">
+                  <col class="cal-trip-panel-col-route">
+                  <col>
+                  <col class="cal-trip-panel-col-trip">
+                  <col v-if="scopedDates.length > 1" class="cal-trip-panel-col-days">
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">
@@ -434,6 +443,30 @@ function formatAverage (n: number): string {
   margin-top: 10px;
 }
 
+.cal-trip-panel-trips {
+  table-layout: fixed;
+
+  td {
+    overflow-wrap: anywhere;
+  }
+}
+
+.cal-trip-panel-col-time {
+  width: 18%;
+}
+
+.cal-trip-panel-col-route {
+  width: 19%;
+}
+
+.cal-trip-panel-col-trip {
+  width: 24%;
+}
+
+.cal-trip-panel-col-days {
+  width: 17%;
+}
+
 .cal-trip-panel-scroll {
   max-height: 320px;
   overflow-y: auto;
@@ -470,7 +503,7 @@ function formatAverage (n: number): string {
 // In the Trips table a long name (an intercity route with no short name)
 // would push the table past the panel's width.
 .cal-trip-panel-route-compact {
-  max-width: 6.5em;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
