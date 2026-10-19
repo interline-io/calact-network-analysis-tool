@@ -85,6 +85,7 @@ export interface PopupFeature {
     route_names?: string
     area_type?: string
     advance_notice?: string
+    rider_eligibility?: string
     phone_number?: string
     marked?: boolean
     // Stop cluster fields

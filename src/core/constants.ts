@@ -235,6 +235,22 @@ export const flexAreaTypes = [
 export type FlexAreaType = typeof flexAreaTypes[number]
 
 /**
+ * Rider eligibility categories for flex services, from the feed's
+ * `rider_eligibility_restrictions` tag in Transitland Atlas. A restricted
+ * service carries only riders enrolled in or eligible for a specific program,
+ * such as ADA paratransit or Medicaid transportation.
+ */
+export const flexRiderEligibilityTypes = [
+  'No known restriction',
+  'Eligibility restricted',
+] as const
+
+export type FlexRiderEligibilityType = typeof flexRiderEligibilityTypes[number]
+
+// Shared by the Flex Services filter and the Flex Areas report column.
+export const flexRiderEligibilityDescription = 'Eligibility restricted services carry only riders enrolled in or eligible for a specific program, such as ADA paratransit or Medicaid transportation. This comes from a feed tag in Transitland Atlas; areas from untagged feeds show No known restriction, which includes feeds not yet reviewed.'
+
+/**
  * Color/styling modes for flex service areas on the map
  */
 export const flexColorByModes = [

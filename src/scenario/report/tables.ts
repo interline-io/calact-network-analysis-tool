@@ -1,4 +1,4 @@
-import { CENSUS_COLUMNS, type Feature, type TableColumn } from '~~/src/core'
+import { CENSUS_COLUMNS, flexRiderEligibilityDescription, type Feature, type TableColumn } from '~~/src/core'
 
 // Column definitions and row transforms for the report tables. Kept out of the
 // report.vue SFC so they're pure and unit-testable; the component supplies the
@@ -254,6 +254,7 @@ export const flexAreaColumns: TableColumn[] = [
   { key: 'area_type', label: 'Service Type', sortable: true },
   { key: 'time_window', label: 'Operating Hours', sortable: true },
   { key: 'advance_notice', label: 'Advance Notice', sortable: true },
+  { key: 'rider_eligibility', label: 'Rider Eligibility', sortable: true, tooltip: flexRiderEligibilityDescription },
   { key: 'phone_number', label: 'Phone', sortable: true },
   { key: 'urls', label: 'Links', sortable: false },
   { key: 'trip_count', label: 'Trips', sortable: true },
@@ -282,6 +283,7 @@ export function flexFeatureToCsv (feature: Feature): Record<string, string | num
     area_type: props.area_type || '',
     time_window: timeWindow,
     advance_notice: props.advance_notice || '',
+    rider_eligibility: props.rider_eligibility || '',
     phone_number: props.phone_number || '',
     // For table display, we use a combined 'urls' field; for CSV, we use separate columns
     urls: [infoUrl, bookingUrl].filter(Boolean).join(' | ') || '',

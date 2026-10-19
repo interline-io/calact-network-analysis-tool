@@ -71,6 +71,7 @@
             <div><strong>Routes:</strong> {{ feature.data.route_names }}</div>
             <div><strong>Service:</strong> {{ feature.data.area_type }}</div>
             <div><strong>Advance Notice:</strong> {{ feature.data.advance_notice }}</div>
+            <div><strong>Rider Eligibility:</strong> {{ feature.data.rider_eligibility }}</div>
             <div v-if="feature.data.phone_number">
               <strong>Phone:</strong> {{ feature.data.phone_number }}
             </div>
@@ -158,6 +159,7 @@ export interface PopupFeatureData {
     route_names?: string
     area_type?: string
     advance_notice?: string
+    rider_eligibility?: string
     phone_number?: string
     marked?: boolean
     // Stop cluster fields

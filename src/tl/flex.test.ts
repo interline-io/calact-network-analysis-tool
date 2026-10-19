@@ -5,6 +5,8 @@ import {
   bookingTypeToAdvanceNotice,
   getFlexAgencyName,
   getFlexAgencyNames,
+  getFlexRiderEligibility,
+  feedTagsRestrictRiderEligibility,
   flexAreaMatchesFilters,
   markFlexAreas,
   isBookingAvailableOnDay,
@@ -99,6 +101,28 @@ describe('transformLocationToFlexArea', () => {
     })
     const feature = transformLocationToFlexArea(location)
     expect(feature.properties.area_m2).toBeGreaterThan(0)
+  })
+})
+
+describe('feedTagsRestrictRiderEligibility', () => {
+  it('is true only for the string "true"', () => {
+    expect(feedTagsRestrictRiderEligibility({ rider_eligibility_restrictions: 'true' })).toBe(true)
+    expect(feedTagsRestrictRiderEligibility({ rider_eligibility_restrictions: 'false' })).toBe(false)
+    expect(feedTagsRestrictRiderEligibility({ us_ntd_id: '00282' })).toBe(false)
+    expect(feedTagsRestrictRiderEligibility({})).toBe(false)
+    expect(feedTagsRestrictRiderEligibility(null)).toBe(false)
+    expect(feedTagsRestrictRiderEligibility(undefined)).toBe(false)
+  })
+})
+
+describe('getFlexRiderEligibility', () => {
+  it('reports restricted areas', () => {
+    expect(getFlexRiderEligibility(createFlexFeature({ rider_eligibility_restricted: true }))).toBe('Eligibility restricted')
+  })
+
+  it('reports untagged areas as having no known restriction', () => {
+    expect(getFlexRiderEligibility(createFlexFeature({ rider_eligibility_restricted: false }))).toBe('No known restriction')
+    expect(getFlexRiderEligibility(createFlexFeature({}))).toBe('No known restriction')
   })
 })
 
@@ -382,6 +406,14 @@ describe('flexAreaMatchesFilters', () => {
 
   it('does not match when the advance notice is excluded', () => {
     expect(flexAreaMatchesFilters(puOnDemand, { advanceNotice: ['Same day'] })).toBe(false)
+  })
+
+  it('matches on rider eligibility', () => {
+    const restricted = createFlexFeature({ rider_eligibility_restricted: true })
+    expect(flexAreaMatchesFilters(restricted, { riderEligibility: ['Eligibility restricted'] })).toBe(true)
+    expect(flexAreaMatchesFilters(restricted, { riderEligibility: ['No known restriction'] })).toBe(false)
+    expect(flexAreaMatchesFilters(puOnDemand, { riderEligibility: ['No known restriction'] })).toBe(true)
+    expect(flexAreaMatchesFilters(puOnDemand, { riderEligibility: [] })).toBe(false)
   })
 
   it('treats an all-invalid selection as matching nothing (like an empty selection)', () => {

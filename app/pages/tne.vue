@@ -1141,6 +1141,7 @@ async function resetFilters () {
     flexServicesEnabled: undefined,
     flexAdvanceNotice: undefined,
     flexAreaTypesSelected: undefined,
+    flexRiderEligibility: undefined,
     flexColorBy: undefined,
     stopBufferRadius: undefined,
     stopBufferLayer: undefined,

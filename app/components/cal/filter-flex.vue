@@ -14,7 +14,8 @@
       </p>
       <cat-checkbox-group
         v-model="flexAdvanceNotice"
-        :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+        :options="[...flexAdvanceNoticeTypes]"
+        :disabled="!flexServicesEnabled"
       />
 
       <p class="menu-label">
@@ -22,7 +23,20 @@
       </p>
       <cat-checkbox-group
         v-model="flexAreaTypesSelected"
-        :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+        :options="[...flexAreaTypes]"
+        :disabled="!flexServicesEnabled"
+      />
+
+      <p class="menu-label">
+        <cat-tooltip :text="flexRiderEligibilityDescription">
+          Rider eligibility
+          <cat-icon icon="information" />
+        </cat-tooltip>
+      </p>
+      <cat-checkbox-group
+        v-model="flexRiderEligibility"
+        :options="[...flexRiderEligibilityTypes]"
+        :disabled="!flexServicesEnabled"
       />
 
       <cat-fieldset label="Color by" :disabled="!flexServicesEnabled">
@@ -50,12 +64,15 @@ import {
   flexAdvanceNoticeTypes,
   flexAreaTypes,
   flexColorByModes,
+  flexRiderEligibilityDescription,
+  flexRiderEligibilityTypes,
 } from '~~/src/core'
 
 const {
   flexServicesEnabled,
   flexAdvanceNotice,
   flexAreaTypesSelected,
+  flexRiderEligibility,
   flexColorBy,
 } = useScenarioFilters()
 </script>

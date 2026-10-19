@@ -19,6 +19,7 @@ import {
   flexLocationQuery,
   flexStopTimesQuery,
   transformLocationsToFlexAreas,
+  feedTagsRestrictRiderEligibility,
   type FlexLocationQueryResponse,
   type FlexStopTimesQueryResponse,
 } from '~~/src/tl'
@@ -161,6 +162,12 @@ export async function runFlexPhase (
 
     if (flexAreas.length === 0) {
       return
+    }
+
+    // Rider eligibility is a feed-level tag, so every area in the feed shares it.
+    const riderEligibilityRestricted = feedTagsRestrictRiderEligibility(feedVersionData.feed?.tags)
+    for (const area of flexAreas) {
+      area.properties.rider_eligibility_restricted = riderEligibilityRestricted
     }
     const routeIds = new Set<number>()
     for (const area of flexAreas) {

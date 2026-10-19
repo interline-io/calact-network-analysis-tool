@@ -29,6 +29,7 @@ interface ScenarioFilters {
   flexServicesEnabled: WritableComputedRef<boolean | undefined>
   flexAdvanceNotice: WritableComputedRef<string[] | undefined>
   flexAreaTypesSelected: WritableComputedRef<string[] | undefined>
+  flexRiderEligibility: WritableComputedRef<string[] | undefined>
   flexColorBy: WritableComputedRef<string | undefined>
   // max transfer time (minutes) for the client-side temporal cluster
   // prune. Effective default 15; 0 means proximity-only (no temporal filter).
@@ -134,6 +135,11 @@ export function useScenarioFilters (): ScenarioFilters {
     set: (v) => { setArrayParam('flexAreaTypesSelected', v) }
   })
 
+  const flexRiderEligibility = computed<string[] | undefined>({
+    get: () => getArrayParam('flexRiderEligibility'),
+    set: (v) => { setArrayParam('flexRiderEligibility', v) }
+  })
+
   const flexColorBy = computed<string | undefined>({
     get: () => query.value.flexColorBy?.toString() || 'Agency',
     set: (v) => { setQuery({ flexColorBy: v === 'Agency' ? undefined : v }) }
@@ -176,6 +182,7 @@ export function useScenarioFilters (): ScenarioFilters {
     flexServicesEnabled,
     flexAdvanceNotice,
     flexAreaTypesSelected,
+    flexRiderEligibility,
     flexColorBy,
     clusterMaxTransferMinutes,
     setTimeRange,

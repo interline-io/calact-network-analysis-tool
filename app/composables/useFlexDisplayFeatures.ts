@@ -35,6 +35,7 @@ export function useFlexDisplayFeatures (deps: UseFlexDisplayFeaturesDeps): UseFl
     flexServicesEnabled,
     flexAdvanceNotice,
     flexAreaTypesSelected,
+    flexRiderEligibility,
     flexColorBy,
   } = useScenarioFilters()
   const { hideUnmarked } = useScenarioDisplay()
@@ -57,11 +58,12 @@ export function useFlexDisplayFeatures (deps: UseFlexDisplayFeaturesDeps): UseFl
 
   // Every flex area with its marked status, independent of the map toggle.
   // Combines agency marking from the scenario filter with the advance-notice,
-  // area-type, and time-of-day filters.
+  // area-type, rider-eligibility, and time-of-day filters.
   const flexAreasWithMarked = computed(() => {
     const criteria = {
       advanceNotice: flexAdvanceNotice.value,
       areaTypes: flexAreaTypesSelected.value,
+      riderEligibility: flexRiderEligibility.value,
       startSeconds: dateToSeconds(startTime.value),
       endSeconds: dateToSeconds(endTime.value),
     }

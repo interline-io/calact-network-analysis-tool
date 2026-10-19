@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { parseHMS, flexAdvanceNoticeTypes, flexAreaTypes, WEEKDAY_BY_GETDAY } from '~~/src/core'
+import { parseHMS, WEEKDAY_BY_GETDAY, type FlexRiderEligibilityType } from '~~/src/core'
 import turfArea from '@turf/area'
 import type { RouteFareSummary } from './fare'
 
@@ -150,6 +150,10 @@ export interface FlexAreaProperties {
   zone_id?: string
   feed_onestop_id?: string
 
+  // Whether the feed is tagged rider_eligibility_restrictions in Transitland
+  // Atlas: the service carries only riders eligible for a specific program.
+  rider_eligibility_restricted?: boolean
+
   // Area in square meters (computed from full source geometry at load time)
   area_m2?: number
 
@@ -273,43 +277,55 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
 }
 
 /**
+ * Rider eligibility category for a flex area. Areas from feeds without the
+ * restriction tag have no known restriction.
+ */
+export function getFlexRiderEligibility (feature: FlexAreaFeature): FlexRiderEligibilityType {
+  return feature.properties.rider_eligibility_restricted ? 'Eligibility restricted' : 'No known restriction'
+}
+
+/**
+ * Whether a feed's Transitland Atlas tags mark its service as restricted to
+ * eligible riders. Tag values are strings, so only "true" counts.
+ */
+export function feedTagsRestrictRiderEligibility (tags: Record<string, string> | null | undefined): boolean {
+  return tags?.rider_eligibility_restrictions === 'true'
+}
+
+/**
  * Filter selections for {@link flexAreaMatchesFilters}. Each field is optional;
  * `undefined` means "no filter applied" (everything matches that dimension).
  *
- * For `advanceNotice`/`areaTypes`, raw URL values are accepted but invalid
- * entries are dropped, and the remaining (possibly empty) list becomes the
- * active filter — so a selection of only invalid values matches nothing, the
- * same as an empty selection (distinct from `undefined`, which disables the
- * filter). `startSeconds`/`endSeconds` are the user's time-of-day window in
+ * For `advanceNotice`/`areaTypes`/`riderEligibility`, the list holds raw URL
+ * values: an area passes when its category is in the list. Unknown values
+ * never match, so a list of only unknown values matches nothing, the same as
+ * an empty list (distinct from `undefined`, which disables the filter). `startSeconds`/`endSeconds` are the user's time-of-day window in
  * seconds since midnight; both must be set for the time filter to apply.
  */
 export interface FlexAreaFilterCriteria {
   advanceNotice?: readonly string[]
   areaTypes?: readonly string[]
+  riderEligibility?: readonly string[]
   startSeconds?: number
   endSeconds?: number
 }
 
+// Whether `value` passes a category selection; undefined means no filter.
+// Invalid URL values never equal a category, so they match nothing.
+function selectionIncludes (selection: readonly string[] | undefined, value: string): boolean {
+  return selection === undefined || selection.includes(value)
+}
+
 /**
- * Whether a flex area matches the current advance-notice, area-type, and
- * time-of-day filters. Returns true when it matches (should be highlighted);
- * false when it should be downplayed. Agency filtering is handled upstream by
- * the scenario filter, not here.
+ * Whether a flex area matches the current advance-notice, area-type,
+ * rider-eligibility, and time-of-day filters. Returns true when it matches
+ * (should be highlighted); false when it should be downplayed. Agency
+ * filtering is handled upstream by the scenario filter, not here.
  */
 export function flexAreaMatchesFilters (feature: FlexAreaFeature, criteria: FlexAreaFilterCriteria): boolean {
-  // Drop invalid URL values; undefined stays undefined ("no filter").
-  const advanceNoticeFilter = criteria.advanceNotice?.filter(
-    (v): v is FlexAdvanceNotice => flexAdvanceNoticeTypes.includes(v as FlexAdvanceNotice)
-  )
-  const areaTypesFilter = criteria.areaTypes?.filter(
-    (v): v is FlexAreaType => flexAreaTypes.includes(v as FlexAreaType)
-  )
-
-  const featureAreaType = getFlexAreaType(feature)
-  if (areaTypesFilter !== undefined && !areaTypesFilter.includes(featureAreaType)) { return false }
-
-  const featureAdvanceNotice = getFlexAdvanceNotice(feature)
-  if (advanceNoticeFilter !== undefined && !advanceNoticeFilter.includes(featureAdvanceNotice)) { return false }
+  if (!selectionIncludes(criteria.areaTypes, getFlexAreaType(feature))) { return false }
+  if (!selectionIncludes(criteria.advanceNotice, getFlexAdvanceNotice(feature))) { return false }
+  if (!selectionIncludes(criteria.riderEligibility, getFlexRiderEligibility(feature))) { return false }
 
   // Time-of-day overlap: only applies when the user set a window and the area
   // declares one. Non-overlapping windows downplay the area.
@@ -435,6 +451,7 @@ query FlexLocations($fvSha1: String!, $limit: Int, $serviceDate: Date) {
     feed {
       id
       onestop_id
+      tags
     }
     locations(limit: $limit) {
       id
@@ -640,6 +657,7 @@ export interface FlexLocationQueryResponse {
     feed: {
       id: number
       onestop_id: string
+      tags?: Record<string, string> | null
     }
     locations: FlexLocationGql[]
   }[]
