@@ -35,13 +35,16 @@ export interface TripDetailsResponse {
     id: number
     trip_id: string
     trip_headsign?: string | null
-    stop_times: {
+    // Elements are nullable in the schema: a stop time whose stop the API
+    // cannot return comes back null, with an error, rather than failing the
+    // trip.
+    stop_times: ({
       stop_sequence?: number
       arrival_time?: number | string | null
       departure_time?: number | string | null
       stop_headsign?: string | null
       stop?: { id: number, stop_name?: string | null } | null
-    }[]
+    } | null)[]
   }[]
 }
 
@@ -76,7 +79,11 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
     // one blank.
     let startTime: number | undefined
     let endTime: number | undefined
-    const stopTimes = [...t.stop_times].sort((a, b) => (a.stop_sequence ?? 0) - (b.stop_sequence ?? 0))
+    // A null stop time still counts as a stop the trip makes, but has no times
+    // or headsign to read.
+    const stopTimes = t.stop_times
+      .filter(st => st != null)
+      .sort((a, b) => (a.stop_sequence ?? 0) - (b.stop_sequence ?? 0))
     const stopHeadsigns = new Map<number, string>()
     for (const st of stopTimes) {
       // A stop called twice keeps the sign from its first call.
@@ -84,7 +91,7 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
         stopHeadsigns.set(st.stop.id, st.stop_headsign)
       }
     }
-    for (const st of t.stop_times) {
+    for (const st of stopTimes) {
       const dep = toSeconds(st.departure_time) ?? toSeconds(st.arrival_time)
       const arr = toSeconds(st.arrival_time) ?? toSeconds(st.departure_time)
       if (dep !== undefined && (startTime === undefined || dep < startTime)) {

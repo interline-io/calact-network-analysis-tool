@@ -152,10 +152,20 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
         for (const id of ids) {
           requested.add(id)
         }
+        // Partial data is still worth showing: a stop the API cannot return
+        // nulls only its own stop time, and one error per such stop would
+        // otherwise fail the whole chunk.
         const result = await resolveClient().query<TripDetailsResponse>({
           query: tripDetailsQuery,
           variables: { ids, limit: ids.length },
+          errorPolicy: 'all',
         })
+        if (!result.data?.trips) {
+          throw new Error(result.errors?.[0]?.message || 'No trip details returned')
+        }
+        if (result.errors?.length) {
+          console.warn(`[TripDetails] ${result.errors.length} partial errors`, result.errors[0])
+        }
         // A new map per chunk, so the table fills in as chunks arrive.
         const next = new Map(tripDetails.value)
         for (const d of parseTripDetails(result.data)) {

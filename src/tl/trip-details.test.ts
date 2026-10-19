@@ -55,6 +55,22 @@ describe('parseTripDetails', () => {
     expect(tripHeadsignAt({ ...t!, headsign: 'Gateway' }, 11)).toBe('Gateway')
   })
 
+  it('reads around stop times the API returned as null, still counting them as stops', () => {
+    const [t] = parseTripDetails({
+      trips: [{
+        id: 4,
+        trip_id: 't4',
+        trip_headsign: 'Sacramento',
+        stop_times: [
+          { stop_sequence: 1, departure_time: '04:15:00', stop: { id: 1, stop_name: 'Seattle' } },
+          null,
+          { stop_sequence: 3, arrival_time: '21:40:00', stop: { id: 3, stop_name: 'Sacramento' } },
+        ],
+      }],
+    })
+    expect(t).toMatchObject({ startTime: 4 * 3600 + 15 * 60, endTime: 21 * 3600 + 40 * 60, stopCount: 3, lastStopName: 'Sacramento' })
+  })
+
   it('returns nothing for an empty response', () => {
     expect(parseTripDetails(undefined)).toEqual([])
   })
