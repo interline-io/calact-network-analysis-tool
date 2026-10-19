@@ -937,7 +937,7 @@ function mapClickFeatures (pt: any, features: Feature[]) {
           route_names: fp.route_names || 'Unknown',
           area_type: fp.area_type || 'Unknown',
           advance_notice: fp.advance_notice || 'Unknown',
-          rider_eligibility: fp.rider_eligibility,
+          rider_eligibility: fp.rider_eligibility || 'Unknown',
           phone_number: fp.phone_number,
           marked: fp.marked,
         }

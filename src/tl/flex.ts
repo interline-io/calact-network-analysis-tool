@@ -278,10 +278,10 @@ export function getFlexAgencyName (feature: FlexAreaFeature): string {
 
 /**
  * Rider eligibility category for a flex area. Areas from feeds without the
- * restriction tag count as general public.
+ * restriction tag have no known restriction.
  */
 export function getFlexRiderEligibility (feature: FlexAreaFeature): FlexRiderEligibilityType {
-  return feature.properties.rider_eligibility_restricted ? 'Eligibility restricted' : 'General public'
+  return feature.properties.rider_eligibility_restricted ? 'Eligibility restricted' : 'No known restriction'
 }
 
 /**
@@ -296,11 +296,10 @@ export function feedTagsRestrictRiderEligibility (tags: Record<string, string> |
  * Filter selections for {@link flexAreaMatchesFilters}. Each field is optional;
  * `undefined` means "no filter applied" (everything matches that dimension).
  *
- * For `advanceNotice`/`areaTypes`/`riderEligibility`, raw URL values are accepted but invalid
- * entries are dropped, and the remaining (possibly empty) list becomes the
- * active filter — so a selection of only invalid values matches nothing, the
- * same as an empty selection (distinct from `undefined`, which disables the
- * filter). `startSeconds`/`endSeconds` are the user's time-of-day window in
+ * For `advanceNotice`/`areaTypes`/`riderEligibility`, the list holds raw URL
+ * values: an area passes when its category is in the list. Unknown values
+ * never match, so a list of only unknown values matches nothing, the same as
+ * an empty list (distinct from `undefined`, which disables the filter). `startSeconds`/`endSeconds` are the user's time-of-day window in
  * seconds since midnight; both must be set for the time filter to apply.
  */
 export interface FlexAreaFilterCriteria {

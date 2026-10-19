@@ -120,9 +120,9 @@ describe('getFlexRiderEligibility', () => {
     expect(getFlexRiderEligibility(createFlexFeature({ rider_eligibility_restricted: true }))).toBe('Eligibility restricted')
   })
 
-  it('counts untagged areas as general public', () => {
-    expect(getFlexRiderEligibility(createFlexFeature({ rider_eligibility_restricted: false }))).toBe('General public')
-    expect(getFlexRiderEligibility(createFlexFeature({}))).toBe('General public')
+  it('reports untagged areas as having no known restriction', () => {
+    expect(getFlexRiderEligibility(createFlexFeature({ rider_eligibility_restricted: false }))).toBe('No known restriction')
+    expect(getFlexRiderEligibility(createFlexFeature({}))).toBe('No known restriction')
   })
 })
 
@@ -411,8 +411,8 @@ describe('flexAreaMatchesFilters', () => {
   it('matches on rider eligibility', () => {
     const restricted = createFlexFeature({ rider_eligibility_restricted: true })
     expect(flexAreaMatchesFilters(restricted, { riderEligibility: ['Eligibility restricted'] })).toBe(true)
-    expect(flexAreaMatchesFilters(restricted, { riderEligibility: ['General public'] })).toBe(false)
-    expect(flexAreaMatchesFilters(puOnDemand, { riderEligibility: ['General public'] })).toBe(true)
+    expect(flexAreaMatchesFilters(restricted, { riderEligibility: ['No known restriction'] })).toBe(false)
+    expect(flexAreaMatchesFilters(puOnDemand, { riderEligibility: ['No known restriction'] })).toBe(true)
     expect(flexAreaMatchesFilters(puOnDemand, { riderEligibility: [] })).toBe(false)
   })
 

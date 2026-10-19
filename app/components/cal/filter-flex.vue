@@ -14,7 +14,8 @@
       </p>
       <cat-checkbox-group
         v-model="flexAdvanceNotice"
-        :options="flexAdvanceNoticeTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+        :options="[...flexAdvanceNoticeTypes]"
+        :disabled="!flexServicesEnabled"
       />
 
       <p class="menu-label">
@@ -22,7 +23,8 @@
       </p>
       <cat-checkbox-group
         v-model="flexAreaTypesSelected"
-        :options="flexAreaTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+        :options="[...flexAreaTypes]"
+        :disabled="!flexServicesEnabled"
       />
 
       <p class="menu-label">
@@ -33,7 +35,8 @@
       </p>
       <cat-checkbox-group
         v-model="flexRiderEligibility"
-        :options="flexRiderEligibilityTypes.map(t => ({ value: t, label: t, disabled: !flexServicesEnabled }))"
+        :options="[...flexRiderEligibilityTypes]"
+        :disabled="!flexServicesEnabled"
       />
 
       <cat-fieldset label="Color by" :disabled="!flexServicesEnabled">
