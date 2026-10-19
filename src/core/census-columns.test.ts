@@ -121,34 +121,45 @@ describe('censusApportionRatio / censusApportionArea', () => {
     intersectionRatio: 0.6,
     bufferIntersectionArea: 250,
     bufferIntersectionRatio: 0.25,
+    outsideIntersectionArea: 350,
+    outsideIntersectionRatio: 0.35,
   })
 
   it('picks the clip named by the mode', () => {
     expect(censusApportionRatio(clipped, 'unclipped')).toBe(1)
     expect(censusApportionRatio(clipped, 'queryArea')).toBe(0.6)
     expect(censusApportionRatio(clipped, 'buffer')).toBe(0.25)
+    expect(censusApportionRatio(clipped, 'outside')).toBe(0.35)
 
     expect(censusApportionArea(clipped, 'unclipped')).toBe(1000)
     expect(censusApportionArea(clipped, 'queryArea')).toBe(600)
     expect(censusApportionArea(clipped, 'buffer')).toBe(250)
+    expect(censusApportionArea(clipped, 'outside')).toBe(350)
   })
 
-  it('falls back to the query area when no buffer clip was fetched', () => {
+  it('falls back to the query area when no stop-buffer clip was fetched', () => {
     const noBuffer = geo({ intersectionRatio: 0.6, intersectionArea: 600 })
-    expect(censusApportionRatio(noBuffer, 'buffer')).toBe(0.6)
-    expect(censusApportionArea(noBuffer, 'buffer')).toBe(600)
+    for (const mode of ['buffer', 'outside'] as const) {
+      expect(censusApportionRatio(noBuffer, mode)).toBe(0.6)
+      expect(censusApportionArea(noBuffer, mode)).toBe(600)
+    }
   })
 
-  it('keeps a zero buffer clip rather than falling back to the query area', () => {
+  it('keeps a zero stop-buffer clip rather than falling back to the query area', () => {
     const outsideBuffers = geo({ bufferIntersectionArea: 0, bufferIntersectionRatio: 0 })
     expect(censusApportionRatio(outsideBuffers, 'buffer')).toBe(0)
     expect(censusApportionArea(outsideBuffers, 'buffer')).toBe(0)
+
+    const insideBuffers = geo({ outsideIntersectionArea: 0, outsideIntersectionRatio: 0 })
+    expect(censusApportionRatio(insideBuffers, 'outside')).toBe(0)
+    expect(censusApportionArea(insideBuffers, 'outside')).toBe(0)
   })
 })
 
 describe('censusApportionGeometry', () => {
   const queryAreaGeom = { type: 'Polygon', coordinates: [[[0, 0]]] }
   const bufferGeom = { type: 'Polygon', coordinates: [[[1, 1]]] }
+  const outsideGeom = { type: 'Polygon', coordinates: [[[2, 2]]] }
 
   it('picks the outline matching the mode', () => {
     const g = geo({
@@ -156,9 +167,13 @@ describe('censusApportionGeometry', () => {
       bufferIntersectionArea: 250,
       bufferIntersectionRatio: 0.25,
       bufferIntersectionGeometry: bufferGeom,
+      outsideIntersectionArea: 350,
+      outsideIntersectionRatio: 0.35,
+      outsideIntersectionGeometry: outsideGeom,
     })
     expect(censusApportionGeometry(g, 'queryArea')).toBe(queryAreaGeom)
     expect(censusApportionGeometry(g, 'buffer')).toBe(bufferGeom)
+    expect(censusApportionGeometry(g, 'outside')).toBe(outsideGeom)
   })
 
   it('has no outline for unclipped — the caller draws the full geography', () => {
@@ -166,9 +181,10 @@ describe('censusApportionGeometry', () => {
     expect(censusApportionGeometry(g, 'unclipped')).toBeUndefined()
   })
 
-  it('falls back with the ratio when the scenario fetched no buffer clip', () => {
+  it('falls back with the ratio when the scenario fetched no stop-buffer clip', () => {
     const g = geo({ intersectionGeometry: queryAreaGeom })
     expect(censusApportionGeometry(g, 'buffer')).toBe(queryAreaGeom)
+    expect(censusApportionGeometry(g, 'outside')).toBe(queryAreaGeom)
   })
 
   it('is undefined when the outlines were never fetched', () => {
@@ -198,11 +214,13 @@ describe('summarizeApportioned', () => {
         values: { b01003_001: 1000 },
         intersectionRatio: 0.5,
         bufferIntersectionRatio: 0.2,
+        outsideIntersectionRatio: 0.3,
       })],
     ])
     expect(summarizeApportioned(['1'], geos, 'unclipped').derived.total_population).toBe(1000)
     expect(summarizeApportioned(['1'], geos, 'queryArea').derived.total_population).toBe(500)
     expect(summarizeApportioned(['1'], geos, 'buffer').derived.total_population).toBe(200)
+    expect(summarizeApportioned(['1'], geos, 'outside').derived.total_population).toBe(300)
   })
 })
 

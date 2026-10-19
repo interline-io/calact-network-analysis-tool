@@ -86,6 +86,15 @@ describe('fetchClipIntersections', () => {
     })
   })
 
+  it('clips inside the buffers unless asked for the outside', async () => {
+    const { client, query } = mockClient(geographiesResponse([]))
+    await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400 })
+    expect(query.mock.calls[0]![1].exclude).toBe(false)
+
+    await fetchClipIntersections({ ...base, client, stopIds: [1], stopBufferRadius: 400, exclude: true })
+    expect(query.mock.calls[1]![1].exclude).toBe(true)
+  })
+
   // Radius 0 routes the backend to point matching, which never selects
   // intersection_area — the field comes back null and would zero every ratio.
   it('makes no request at radius 0', async () => {

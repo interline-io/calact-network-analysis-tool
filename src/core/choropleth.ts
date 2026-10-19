@@ -7,6 +7,12 @@ import { CENSUS_COLUMNS, censusApportionRatio, deriveApportionedColumn, sqMeters
 
 export const CHOROPLETH_DEFAULT_ELEMENT = 'visit_count_total'
 
+// The element the choropleth shades by until the user picks one. Outside the
+// stop buffers there are no stops to count, so that clip shades by population.
+export function choroplethDefaultElement (mode: AggClipMode): string {
+  return mode === 'outside' ? 'total_population' : CHOROPLETH_DEFAULT_ELEMENT
+}
+
 // Stop-aggregation choropleth elements (not census). Listed alongside
 // CENSUS_COLUMNS in the "Shade map by" dropdown. None are density-eligible:
 // the numerator is the bbox slice while the divisor would be the full

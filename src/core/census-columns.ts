@@ -79,13 +79,19 @@ export interface CensusGeographyData {
   bufferIntersectionArea?: number
   /** Fraction of the geography inside both clips, in [0, 1]. */
   bufferIntersectionRatio?: number
+  // The part of the geography inside the query area but outside every stop
+  // buffer, in m² and as a fraction of the geography. Absent whenever the
+  // buffer clip is.
+  outsideIntersectionArea?: number
+  outsideIntersectionRatio?: number
   /**
-   * Clipped outlines matching the two areas above, present only when the
+   * Clipped outlines matching the areas above, present only when the
    * phase was asked for them — they cost roughly as much as the full
    * geometry. The choropleth draws the full geography without them.
    */
   intersectionGeometry?: Geometry
   bufferIntersectionGeometry?: Geometry
+  outsideIntersectionGeometry?: Geometry
   /**
    * Census layer the geography belongs to ('state', 'county', 'tract', etc.).
    * Optional for backward compatibility with code paths that don't carry it,
@@ -96,7 +102,7 @@ export interface CensusGeographyData {
 }
 
 /** Which clip the aggregation overlay shades and reports by. */
-export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer'
+export type AggClipMode = 'unclipped' | 'queryArea' | 'buffer' | 'outside'
 
 export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
   { value: 'unclipped', label: 'None (full geographies)' },
@@ -104,17 +110,23 @@ export const AGG_CLIP_MODE_OPTIONS: { value: AggClipMode, label: string }[] = [
   // The backend composes both clips, so this is the query area narrowed to
   // the stop buffers — never the buffers on their own.
   { value: 'buffer', label: 'Query area + stop buffers' },
+  // The query area minus the stop buffers: where people live beyond their
+  // reach.
+  { value: 'outside', label: 'Areas outside stop buffers' },
 ]
 
 // Fraction of a geography attributed to the analysis area under the selected
-// clip. `buffer` falls back to the query-area clip when the scenario carries
-// no buffer intersection.
+// clip. The stop-buffer clips fall back to the query-area clip when the
+// scenario carries none.
 export function censusApportionRatio (geo: CensusGeographyData, mode: AggClipMode): number {
   if (mode === 'unclipped') {
     return 1
   }
   if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
     return geo.bufferIntersectionRatio
+  }
+  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
+    return geo.outsideIntersectionRatio
   }
   return geo.intersectionRatio
 }
@@ -126,6 +138,9 @@ export function censusApportionArea (geo: CensusGeographyData, mode: AggClipMode
   }
   if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
     return geo.bufferIntersectionArea ?? 0
+  }
+  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
+    return geo.outsideIntersectionArea ?? 0
   }
   return geo.intersectionArea
 }
@@ -142,6 +157,9 @@ export function censusApportionGeometry (
   // Same guard as the ratio and area, so all three fall back together.
   if (mode === 'buffer' && geo.bufferIntersectionRatio != null) {
     return geo.bufferIntersectionGeometry
+  }
+  if (mode === 'outside' && geo.outsideIntersectionRatio != null) {
+    return geo.outsideIntersectionGeometry
   }
   return geo.intersectionGeometry
 }

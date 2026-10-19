@@ -4,7 +4,7 @@
 // half of the same layer change is useStopCensusRefetch's; the two run
 // concurrently. Streaming/abort/debounce machinery lives in useStreamingRefetch.
 
-import { ref, watchEffect, type Ref } from 'vue'
+import { ref, watch, watchEffect, type Ref } from 'vue'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
@@ -36,6 +36,17 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
     }
   })
 
+  // The outside clip costs a server pass of its own, so census fetches carry
+  // it only in that mode. Switching to the mode refetches when the loaded
+  // census lacks the clip. At radius 0 the phase skips the clip anyway.
+  const outsideRequests = ref(0)
+  watch(aggClipMode, (mode) => {
+    const loaded = deps.scenarioData.value?.censusGeographies?.values().next().value
+    if (mode === 'outside' && stopBufferRadius.value > 0 && loaded && loaded.outsideIntersectionRatio == null) {
+      outsideRequests.value++
+    }
+  })
+
   // The marked set churns while results stream in, so watching it would fire a
   // recompute mid-load and fight the main run for the loading modal and the
   // receiver's census slice. Bumped by `refresh()` instead.
@@ -47,7 +58,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
   const clipToMarkedStops = ref(false)
 
   useStreamingRefetch(deps, {
-    watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, manualRefresh],
+    watchSources: [aggregateLayer, stopBufferRadius, geometryLatch, outsideRequests, manualRefresh],
     // Reuse the standalone census-values phase endpoint (it takes
     // geographyIds or a plain bbox) rather than a bespoke one.
     endpoint: 'scenario/census-values',
@@ -82,6 +93,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
           ? deps.markedStopIds.value
           : data.stops.map(s => s.id),
         includeIntersectionGeometry: geometryLatch.value,
+        includeOutsideClip: aggClipMode.value === 'outside',
       }
       return body
     },

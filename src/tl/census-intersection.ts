@@ -132,6 +132,8 @@ export interface FetchClipIntersectionsConfig {
   geographyIds?: number[]
   stopIds: Iterable<number>
   stopBufferRadius: number
+  // Clip to the part of the query area outside the stop buffers instead.
+  exclude?: boolean
   // Roughly doubles the response size, so callers ask only when the clipped
   // outline is actually being drawn.
   includeGeometry?: boolean
@@ -142,10 +144,10 @@ export interface ClipIntersection {
   geometry?: Geometry
 }
 
-// The query area ∩ stop buffers clip. Values come from the query-area pass, so
-// this fetches areas only unless the caller wants the outline too. The backend
-// clips to the intersection of both, so a geography absent from the result
-// overlaps neither.
+// The query area ∩ stop buffers clip, or with `exclude` the query area minus
+// the stop buffers. Values come from the query-area pass, so this fetches areas
+// only unless the caller wants the outline too. A geography absent from the
+// result has no area in the clip.
 export const clipIntersectionQuery = gql`
 query ClipIntersection(
   $geoDatasetName: String,
@@ -154,6 +156,7 @@ query ClipIntersection(
   $geographyIds: [Int!],
   $stopIds: [Int!],
   $stopBufferRadius: Float,
+  $exclude: Boolean = false,
   $includeGeometry: Boolean = false
 ) {
   census_datasets(where: {name: $geoDatasetName}) {
@@ -166,7 +169,7 @@ query ClipIntersection(
         location: {
           bbox: $bbox,
           geography_ids: $geographyIds,
-          stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
+          stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius, exclude: $exclude}
         }
       }
     ) {
@@ -178,9 +181,9 @@ query ClipIntersection(
 }
 `
 
-// Intersection of each geography with the query area AND the stop buffers,
-// keyed by geoid. Geographies the buffers don't reach are omitted by the
-// server; callers should treat a missing key as zero overlap.
+// Intersection of each geography with the clip, keyed by geoid. Geographies
+// the clip doesn't reach are omitted by the server; callers should treat a
+// missing key as zero overlap.
 export async function fetchClipIntersections (
   config: FetchClipIntersectionsConfig,
 ): Promise<Map<string, ClipIntersection>> {
@@ -205,6 +208,7 @@ export async function fetchClipIntersections (
     geographyIds: area.geographyIds,
     stopIds,
     stopBufferRadius: config.stopBufferRadius,
+    exclude: config.exclude || false,
     includeGeometry: config.includeGeometry || false,
   })
   for (const geoDataset of result.data?.census_datasets || []) {

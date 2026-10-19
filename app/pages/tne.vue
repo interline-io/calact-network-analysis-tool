@@ -773,6 +773,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   includeFlexAreas: includeFlexAreas.value,
   includeCensus: includeCensus.value,
   includeIntersectionGeometry: showAggAreas.value && aggClipMode.value !== 'unclipped',
+  includeOutsideClip: aggClipMode.value === 'outside',
   // Feed version picks from the Query-tab picker modal (URL-backed).
   feedVersionOverrides: fvidsForConfig.value.feedVersionOverrides,
   excludedFeeds: fvidsForConfig.value.excludedFeeds,
@@ -838,8 +839,8 @@ const aggregateLayerLabel = computed((): string => {
 
 // Geographies the choropleth still needs a full outline for. In a clipped mode
 // that's only the ones the census phase returned no clipped outline for — a
-// geography outside every stop buffer, or the window before those outlines
-// have streamed in. Empty when the overlay is off.
+// geography the clip doesn't reach, or the window before those outlines have
+// streamed in. Empty when the overlay is off.
 const choroplethGeoIds = computed((): number[] => {
   if (!showAggAreas.value) { return [] }
   const mode = aggClipMode.value

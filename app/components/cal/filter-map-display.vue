@@ -60,7 +60,7 @@
           :key="option.value"
           :value="option.value"
         >
-          {{ option.label }}{{ option.value === 'buffer' && stopBufferRadius <= 0 ? ' (no stop radius set)' : '' }}
+          {{ option.label }}{{ (option.value === 'buffer' || option.value === 'outside') && stopBufferRadius <= 0 ? ' (no stop radius set)' : '' }}
         </option>
       </cat-select>
     </cat-field>

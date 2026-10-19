@@ -77,6 +77,10 @@ export interface ScenarioConfig {
   // display so a run started in a clipped mode arrives ready to draw, rather
   // than needing a follow-up recompute.
   includeIntersectionGeometry?: boolean
+  // Also clip each census geography to the query area outside the stop
+  // buffers. Set from the display, since the clip costs a server pass of its
+  // own and only the outside mode reads it.
+  includeOutsideClip?: boolean
   // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>
   // Picker-excluded onestop_ids. Dropped before any stop/route fetch.
@@ -485,6 +489,7 @@ export class ScenarioFetcher {
       stopBufferRadius: this.config.stopBufferRadius,
       stopIds,
       includeIntersectionGeometry: this.config.includeIntersectionGeometry,
+      includeOutsideClip: this.config.includeOutsideClip,
     }, this.client, this.emit)
   }
 
