@@ -26,6 +26,9 @@
       <span v-if="value">{{ value }}</span>
       <span v-else class="cal-trip-report-pending">{{ placeholder }}</span>
     </template>
+    <template #column-area_end="{ row }">
+      <span class="cal-trip-report-nowrap" :title="row.area_end_stop_name || row.area_end_stop_id">{{ tripTimeLabel(row.area_end) }}</span>
+    </template>
     <template #column-trip_start="{ row }">
       <span v-if="row.trip_start" class="cal-trip-report-nowrap">
         {{ tripTimeLabel(row.trip_start) }}–{{ tripTimeLabel(row.trip_end) }}

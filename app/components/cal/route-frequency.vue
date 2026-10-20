@@ -483,7 +483,6 @@ import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
 import type { TripDetailsTab } from './trip-details.vue'
 import type { StopTimeCacheItem } from '~~/src/tl/departure-cache'
 
-// The modal tab this shows: the calculations, or the route's stops.
 // The trip details tab this shows: the route's calculations, or its stops.
 type Tab = Exclude<TripDetailsTab, 'trips'>
 

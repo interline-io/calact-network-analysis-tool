@@ -4,15 +4,7 @@
        rebuild its calculations. -->
   <cat-tabs v-if="route && scenarioFilterResult" v-model="tab" type="boxed">
     <cat-tab-item value="trips" label="Trips">
-      <cal-trip-report
-        :subject-kind="subjectKind"
-        :rows="rows"
-        :multi-day="multiDay"
-        :title="title"
-        :details-loading="detailsLoading"
-        :details-error="detailsError"
-        @retry="$emit('retry')"
-      />
+      <cal-trip-report v-bind="report" @retry="$emit('retry')" />
     </cat-tab-item>
     <cat-tab-item v-for="routeTab of routeTabs" :key="routeTab.value" :value="routeTab.value" :label="routeTab.label">
       <KeepAlive>
@@ -30,19 +22,11 @@
       </KeepAlive>
     </cat-tab-item>
   </cat-tabs>
-  <cal-trip-report
-    v-else
-    :subject-kind="subjectKind"
-    :rows="rows"
-    :multi-day="multiDay"
-    :title="title"
-    :details-loading="detailsLoading"
-    :details-error="detailsError"
-    @retry="$emit('retry')"
-  />
+  <cal-trip-report v-else v-bind="report" @retry="$emit('retry')" />
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ScenarioFilterResult, TripSubject, TripTableRow } from '~~/src/scenario'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import type { Route } from '~~/src/tl'
@@ -56,7 +40,7 @@ const routeTabs: { value: Exclude<TripDetailsTab, 'trips'>, label: string }[] = 
   { value: 'stops', label: 'Stop Details' },
 ]
 
-defineProps<{
+const props = defineProps<{
   subjectKind: TripSubject['kind']
   rows: TripTableRow[]
   multiDay: boolean
@@ -76,6 +60,16 @@ defineProps<{
 defineEmits<{
   retry: []
 }>()
+
+// The trip table, with or without the route tabs around it.
+const report = computed(() => ({
+  subjectKind: props.subjectKind,
+  rows: props.rows,
+  multiDay: props.multiDay,
+  title: props.title,
+  detailsLoading: props.detailsLoading,
+  detailsError: props.detailsError,
+}))
 
 const tab = defineModel<TripDetailsTab>('tab', { default: 'trips' })
 </script>

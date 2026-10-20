@@ -43,6 +43,10 @@ export interface SubjectTripRow {
   // trip's first stop within the scenario area for a route.
   stopId: number
   time: number
+  // A route's trip only: its last departure within the scenario area, and that
+  // stop. The Routes report's trip end times are these.
+  lastTime?: number
+  lastStopId?: number
   // Calendar dates (yyyy-MM-dd) the row runs on, in date order.
   dates: string[]
 }
@@ -111,7 +115,7 @@ export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOp
       // in-bbox departure.
       for (const [tripId, t] of routeTripsOnDate(routeIndex!, subject.routeId, date, opts.startTime, opts.endTime)) {
         if (t.inWindow) {
-          add({ key: `${tripId}|${t.first}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first }, date)
+          add({ key: `${tripId}|${t.first}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first, lastTime: t.last, lastStopId: t.lastStopId }, date)
         }
       }
     }
@@ -245,6 +249,10 @@ export interface TripTableRow {
   stop_count: number | ''
   days: string
   dates: string
+  // A route's trips only, so a stop's or cluster's CSV goes without them.
+  area_end?: string
+  area_end_stop_id?: string
+  area_end_stop_name?: string
 }
 
 export function tripTableRows (
@@ -261,6 +269,7 @@ export function tripTableRows (
     const route = opts.routes.get(row.routeId)
     const stop = opts.stops.get(row.stopId)
     const detail = opts.tripDetails.get(row.tripId)
+    const endStop = row.lastStopId !== undefined ? opts.stops.get(row.lastStopId) : undefined
     return {
       time: formatGtfsTimeFull(row.time),
       stop_id: stop?.stop_id ?? '',
@@ -280,6 +289,11 @@ export function tripTableRows (
       days: describeDays(row.dates),
       // Space-separated, so the CSV keeps one row per trip.
       dates: row.dates.join(' '),
+      ...(row.lastTime !== undefined && {
+        area_end: formatGtfsTimeFull(row.lastTime),
+        area_end_stop_id: endStop?.stop_id ?? '',
+        area_end_stop_name: endStop?.stop_name ?? '',
+      }),
     }
   })
 }
@@ -302,7 +316,8 @@ export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: bo
   const cols: TableColumn[] = [
     {
       key: 'time',
-      label: 'Time',
+      // A route's pair with Last in Area.
+      label: subjectKind === 'route' ? 'First in Area' : 'Time',
       sortable: true,
       tooltip: subjectKind === 'route'
         ? 'When the trip leaves its first stop within the scenario area.'
@@ -315,6 +330,16 @@ export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: bo
   cols.push(
     { key: 'route_short_name', label: 'Route', sortable: true },
     { key: 'headsign', label: 'Headsign', sortable: true },
+  )
+  if (subjectKind === 'route') {
+    cols.push({
+      key: 'area_end',
+      label: 'Last in Area',
+      sortable: true,
+      tooltip: 'When the trip leaves its last stop within the scenario area. The Routes report\'s earliest and latest trip end come from these.',
+    })
+  }
+  cols.push(
     {
       key: 'trip_start',
       label: 'Trip',

@@ -160,7 +160,7 @@
            size; for a route, with how its report numbers are worked out -->
       <cat-modal
         v-model="showTripTable"
-        :title="`Trips for: ${tripTable.title}`"
+        :title="tripTableTitle"
         full-screen
       >
         <cal-trip-details
@@ -859,14 +859,21 @@ const tripTableRoute = computed(() => {
   const s = tripTable.resolvedSubject
   return s?.kind === 'route' ? tripTable.routes.get(s.routeId) : undefined
 })
+// A route's title names its agency too, as routes from different agencies can
+// share a name.
+const tripTableTitle = computed(() => {
+  const agency = tripTableRoute.value?.agency?.agency_name
+  return `Trips for: ${tripTable.title}${agency ? ` · ${agency}` : ''}`
+})
 watch(tripPanelOpenedSubject, () => {
   if (tripTableFromPanel) {
     showTripTable.value = false
   }
 })
-// Every trip's details while the table is open, as the filters change its trips.
-watch(() => tripTable.trips, () => {
-  if (showTripTable.value) {
+// Every trip's details while the Trips tab is shown, as the filters change its
+// trips; a route opened on its calculations or stops fetches none until then.
+watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
+  if (showTripTable.value && tripTableTab.value === 'trips') {
     tripTable.loadDetails('all')
   }
 })
@@ -875,7 +882,6 @@ function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTa
   tripTableFromPanel = fromPanel
   tripTableTab.value = tab
   showTripTable.value = true
-  tripTable.loadDetails('all')
 }
 function openTripTable (tab: TripDetailsTab = 'trips') {
   if (tripPanelOpenedSubject.value) {

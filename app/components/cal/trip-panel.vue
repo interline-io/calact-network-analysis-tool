@@ -54,16 +54,6 @@
                 </th>
                 <td>
                   {{ frequencyText }}
-                  <!-- A route's frequency, and any caveat on it, is explained
-                       in the full table's Calculations tab. -->
-                  <button
-                    v-if="subject.kind === 'route'"
-                    type="button"
-                    class="cal-trip-panel-link cal-trip-panel-how"
-                    @click="$emit('expandTrips', 'calculations')"
-                  >
-                    How it's calculated
-                  </button>
                 </td>
               </tr>
               <tr>
@@ -74,6 +64,17 @@
               </tr>
             </tbody>
           </table>
+          <!-- How a route's numbers, and any caveat on its frequency, are
+               worked out, in the full table's Calculations tab. Every route
+               has it, with or without a frequency. -->
+          <button
+            v-if="subject.kind === 'route'"
+            type="button"
+            class="cal-trip-panel-link cal-trip-panel-how"
+            @click="$emit('expandTrips', 'calculations')"
+          >
+            How these are calculated
+          </button>
 
           <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
             <caption class="is-sr-only">
@@ -330,9 +331,11 @@ function formatAverage (n: number): string {
   color: var(--bulma-danger);
 }
 
-.cal-trip-panel-how {
+// Compound, so it wins over .cal-trip-panel-link's font: inherit.
+.cal-trip-panel-link.cal-trip-panel-how {
   display: block;
   font-size: 11px;
+  margin-bottom: 0.5rem;
 }
 
 .cal-trip-panel-link {

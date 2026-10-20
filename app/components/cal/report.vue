@@ -196,13 +196,11 @@ const emit = defineEmits<{
 
 // The trips/frequency columns all render a drill button into the route's trip
 // details; they vary only by which tab it opens and how the value is
-// formatted. Trip counts and start times open the trips, which are counted the
-// same way and timed at each trip's first in-area departure; trip end times (a
-// trip's last in-area departure, which the trip table does not show) and
-// frequencies open the calculations, which show how they were worked out.
+// formatted. Trip counts and times open the trips, which are counted the same
+// way and show each trip's first and last in-area departure; frequencies open
+// the calculations, which show how they were worked out.
 // average_frequency additionally shows the #368 frequency caveat tooltip.
 const tripsTitle = 'View this route\'s trips'
-const endTimeTitle = 'View how this route\'s trip times are worked out'
 const frequencyTitle = 'View how this frequency is calculated'
 const routeDrillColumns: {
   id: string
@@ -218,9 +216,9 @@ const routeDrillColumns: {
   { id: 'fastest_frequency', tab: 'calculations', title: frequencyTitle, format: formatDuration },
   { id: 'slowest_frequency', tab: 'calculations', title: frequencyTitle, format: formatDuration },
   { id: 'earliest_trip_start', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
-  { id: 'earliest_trip_end', tab: 'calculations', title: endTimeTitle, format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
   { id: 'latest_trip_start', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
-  { id: 'latest_trip_end', tab: 'calculations', title: endTimeTitle, format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
 ]
 
 // Only a route in the current results: a stale row opens nothing rather than

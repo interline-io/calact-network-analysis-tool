@@ -224,7 +224,7 @@ export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday
 
 /**
  * A route's trip on one date, as its in-bbox departures show it: the first
- * and last departure (and the stop of the first), and whether any departure
+ * and last departure (and their stops), and whether any departure
  * falls in the time-of-day window. The span is NOT the trip's literal
  * origin-to-terminus; stop_times for stops outside the bbox are absent from
  * the index.
@@ -234,6 +234,7 @@ export interface RouteTripOnDate {
   first: number
   firstStopId: number
   last: number
+  lastStopId: number
   inWindow: boolean
 }
 
@@ -256,14 +257,17 @@ export function routeTripsOnDate (
         const inWindow = st.departureTime >= startTime && st.departureTime <= endTime
         const t = trips.get(st.tripId)
         if (!t) {
-          trips.set(st.tripId, { directionId: dir, first: st.departureTime, firstStopId: stopId, last: st.departureTime, inWindow })
+          trips.set(st.tripId, { directionId: dir, first: st.departureTime, firstStopId: stopId, last: st.departureTime, lastStopId: stopId, inWindow })
           continue
         }
         if (st.departureTime < t.first) {
           t.first = st.departureTime
           t.firstStopId = stopId
         }
-        t.last = Math.max(t.last, st.departureTime)
+        if (st.departureTime > t.last) {
+          t.last = st.departureTime
+          t.lastStopId = stopId
+        }
         t.inWindow ||= inWindow
       }
     }

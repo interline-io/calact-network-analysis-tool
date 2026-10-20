@@ -86,7 +86,7 @@ describe('subjectTrips', () => {
     expect(r.rows.map(row => [row.stopId, row.routeId])).toEqual([[1, 10], [2, 20]])
   })
 
-  it('counts a route\'s trips by any in-window departure, timed at the first in-area stop', () => {
+  it('counts a route\'s trips by any in-window departure, timed at the first and last in-area stops', () => {
     const cache = cacheOf([
       // Trip 100 starts before the window and reaches stop 2 inside it.
       [1, MON, hms(5, 50), 100, 0, 10],
@@ -105,9 +105,9 @@ describe('subjectTrips', () => {
       routeIndex: RouteDepartureIndex.fromCache(cache),
     })
     expect(r.count).toBe(2)
-    expect(r.rows.map(row => [row.tripId, row.stopId, row.time, row.directionId])).toEqual([
-      [100, 1, hms(5, 50), 0],
-      [102, 2, hms(7), 1],
+    expect(r.rows.map(row => [row.tripId, row.stopId, row.time, row.directionId, row.lastStopId, row.lastTime])).toEqual([
+      [100, 1, hms(5, 50), 0, 2, hms(6, 10)],
+      [102, 2, hms(7), 1, 1, hms(7, 20)],
     ])
   })
 })
@@ -170,6 +170,21 @@ describe('tripTableRows', () => {
       dates: `${MON} ${TUE}`,
     })
     expect(rows[1]).toMatchObject({ headsign: '', trip_id: '', trip_start: '', stop_count: '', days: 'Mon' })
+    expect(rows[0]).not.toHaveProperty('area_end')
+  })
+})
+
+describe('tripTableRows for a route', () => {
+  it('adds each trip\'s last in-area departure and stop', () => {
+    const [row] = tripTableRows([
+      { key: 'a', tripId: 100, routeId: 10, directionId: 0, stopId: 1, time: hms(7), lastStopId: 2, lastTime: hms(7, 40), dates: [MON] },
+    ], {
+      routes: new Map(),
+      stops: new Map([[1, { stop_id: 'S1' }], [2, { stop_id: 'S2', stop_name: 'Transit Center' }]]),
+      tripDetails: new Map(),
+      scopedDates: [MON],
+    })
+    expect(row).toMatchObject({ time: '07:00:00', area_end: '07:40:00', area_end_stop_id: 'S2', area_end_stop_name: 'Transit Center' })
   })
 })
 
@@ -180,6 +195,12 @@ describe('tripTableColumns', () => {
     )
     expect(tripTableColumns('stop', false).map(c => c.key)).toEqual(
       ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count'],
+    )
+  })
+
+  it('adds Last in Area for a route', () => {
+    expect(tripTableColumns('route', false).map(c => c.key)).toEqual(
+      ['time', 'route_short_name', 'headsign', 'area_end', 'trip_start', 'stop_count'],
     )
   })
 })
