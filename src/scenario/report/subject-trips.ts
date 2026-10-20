@@ -285,9 +285,11 @@ export function tripTableRows (
 }
 
 // A row's HH:MM:SS as the tables show it, HH:MM; the CSV keeps the seconds.
-// After-midnight times stay past 24:00, as GTFS writes them.
-export function tripTimeLabel (hms: string): string {
-  return hms.slice(0, -3)
+// After-midnight times stay past 24:00, as GTFS writes them. Blank for a
+// missing time: cal-datagrid's hidden sizing row carries only the table's
+// column keys, so a slot reading another of the row's fields gets undefined.
+export function tripTimeLabel (hms: string | undefined): string {
+  return hms ? hms.slice(0, -3) : ''
 }
 
 // What a cell shows before its trip's details arrive: an ellipsis while they

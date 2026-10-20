@@ -189,4 +189,9 @@ describe('tripTimeLabel', () => {
     expect(tripTimeLabel('07:35:00')).toBe('07:35')
     expect(tripTimeLabel('25:10:00')).toBe('25:10')
   })
+
+  it('is blank for a missing time', () => {
+    expect(tripTimeLabel(undefined)).toBe('')
+    expect(tripTimeLabel('')).toBe('')
+  })
 })
