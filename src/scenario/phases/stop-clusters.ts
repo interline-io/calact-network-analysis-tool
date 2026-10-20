@@ -660,6 +660,7 @@ async function addNearNames (
 // ============================================================================
 
 export interface StopClusterCsv {
+  id: string
   cluster: string
   near: string
   agencies_count: number
@@ -707,6 +708,7 @@ export function stopClusterCsv (
       }
     }
     return {
+      id: cluster.id,
       cluster: cluster.name,
       near: cluster.nearName ?? '',
       agencies_count: agencyIds.size,

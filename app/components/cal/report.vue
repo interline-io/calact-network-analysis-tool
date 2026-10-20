@@ -97,7 +97,8 @@
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          @click="handleOpenTimetable(row.id, col.tab)"
+          :title="col.tab === 'trip-table' ? 'View this route\'s trips' : 'View the route timetable'"
+          @click="handleRouteDrill(row.id, col.tab)"
         >
           {{ col.format(value) }}
         </button>
@@ -108,6 +109,30 @@
         >
           <cat-icon icon="alert" size="small" />
         </cat-tooltip>
+      </template>
+      <!-- A stop's visits, and a cluster by name, open their trips. The
+           aggregated stops table has the same visits column but no one stop. -->
+      <template #column-visit_count_total="{ value, row }">
+        <button
+          v-if="activeReportTab === 'stops' && value != null && row.id != null"
+          type="button"
+          class="cal-report-cell-button"
+          title="View this stop's trips"
+          @click="emit('openTrips', { kind: 'stop', stopId: row.id })"
+        >
+          {{ value }}
+        </button>
+        <span v-else>{{ value }}</span>
+      </template>
+      <template #column-cluster="{ value, row }">
+        <button
+          type="button"
+          class="cal-report-cell-button"
+          title="View this cluster's trips"
+          @click="emit('openTrips', { kind: 'cluster', clusterId: row.id })"
+        >
+          {{ value }}
+        </button>
       </template>
       <template
         v-for="key of fareAmountColumns"
@@ -141,7 +166,7 @@
 
 <script setup lang="ts">
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, formatFareAmount, type Route, type Stop, type Agency } from '~~/src/tl'
-import { stopClusterCsv, type ScenarioFilterResult, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
+import { stopClusterCsv, type ScenarioFilterResult, type TripSubject, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
 
 const props = defineProps<{
@@ -160,6 +185,8 @@ export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
 const emit = defineEmits<{
   openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
   openBufferDetails: [payload: BufferDetailsPayload]
+  // Every trip behind a row's count, in the full trip table.
+  openTrips: [subject: TripSubject]
 }>()
 
 function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
@@ -169,25 +196,36 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
   }
 }
 
-// The trips/frequency columns all render a drill button that opens the route
-// timetable; they vary only by which tab to open and how the value is formatted.
+// The trips/frequency columns all render a drill button; they vary only by
+// where it leads and how the value is formatted. Trip counts and times open
+// the route's trips in the trip table, which counts them the same way;
+// frequencies open the route timetable, which shows how they were worked out.
 // average_frequency additionally shows the #368 frequency caveat tooltip.
 const timetableDrillColumns: {
   id: string
-  tab: RouteTimetableTab
+  // A route timetable tab, or the trip table.
+  tab: RouteTimetableTab | 'trip-table'
   format: (value: unknown) => unknown
   caveat?: boolean
 }[] = [
-  { id: 'average_trips_per_day', tab: 'trips', format: value => value },
-  { id: 'average_trips_per_hour', tab: 'trips', format: value => value },
+  { id: 'average_trips_per_day', tab: 'trip-table', format: value => value },
+  { id: 'average_trips_per_hour', tab: 'trip-table', format: value => value },
   { id: 'average_frequency', tab: 'frequency', format: formatDuration, caveat: true },
   { id: 'fastest_frequency', tab: 'frequency', format: formatDuration },
   { id: 'slowest_frequency', tab: 'frequency', format: formatDuration },
-  { id: 'earliest_trip_start', tab: 'trips', format: formatGtfsTime },
-  { id: 'earliest_trip_end', tab: 'trips', format: formatGtfsTime },
-  { id: 'latest_trip_start', tab: 'trips', format: formatGtfsTime },
-  { id: 'latest_trip_end', tab: 'trips', format: formatGtfsTime },
+  { id: 'earliest_trip_start', tab: 'trip-table', format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'trip-table', format: formatGtfsTime },
+  { id: 'latest_trip_start', tab: 'trip-table', format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'trip-table', format: formatGtfsTime },
 ]
+
+function handleRouteDrill (routeId: number, tab: RouteTimetableTab | 'trip-table') {
+  if (tab === 'trip-table') {
+    emit('openTrips', { kind: 'route', routeId })
+  } else {
+    handleOpenTimetable(routeId, tab)
+  }
+}
 
 // Fare amounts (#454), numeric in the data so they sort by value.
 const fareAmountColumns = ['fare_min', 'fare_max']

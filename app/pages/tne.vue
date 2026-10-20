@@ -71,6 +71,7 @@
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
             @open-buffer-details="openBufferDetails"
+            @open-trips="openReportTrips"
           />
         </div>
 
@@ -176,21 +177,21 @@
         />
       </cat-modal>
 
-      <!-- Every trip behind the trip panel, at full size -->
+      <!-- Every trip behind the trip panel, or behind a Reports row, at full size -->
       <cat-modal
         v-model="showTripTable"
-        :title="`Trips for: ${tripPanelTitle}`"
+        :title="`Trips for: ${tripTable.title}`"
         full-screen
       >
         <cal-trip-report
-          v-if="tripPanelSubject && tripPanelTrips"
-          :subject-kind="tripPanelSubject.kind"
-          :rows="tripPanelRows"
-          :multi-day="tripPanelTrips.dateCount > 1"
-          :title="tripPanelTitle"
-          :details-loading="tripPanelDetailsLoading"
-          :details-error="tripPanelDetailsError"
-          @retry="loadTripPanelDetails('all')"
+          v-if="tripTable.subject && tripTable.trips"
+          :subject-kind="tripTable.subject.kind"
+          :rows="tripTable.rows"
+          :multi-day="tripTable.trips.dateCount > 1"
+          :title="tripTable.title"
+          :details-loading="tripTable.detailsLoading"
+          :details-error="tripTable.detailsError"
+          @retry="tripTable.loadDetails('all')"
         />
       </cat-modal>
 
@@ -232,7 +233,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
@@ -278,7 +279,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -338,6 +339,8 @@ function clearScenario () {
   querySubmitted.value = false
   closeTripPanel()
   clearTripPanelDetails()
+  reportTrips.close()
+  reportTrips.clearDetails()
   clearAllResults()
 }
 
@@ -861,15 +864,61 @@ const {
 // selection; the map in turn closes the panel when its selection goes.
 const mapSelectionClearKey = ref(0)
 
-// The full trip table opens from the panel, fetching every trip's details,
-// and goes with it.
+// Trips opened from a Reports row. Its own instance, not the panel's: the
+// panel describes the map's selection, and a Reports row selects nothing on
+// the map.
+const reportTrips = reactive(useTripPanel({
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+}))
+
+// The full trip table, for the panel's subject or a Reports row's, fetching
+// every trip's details. From the panel it goes with the panel's selection.
 const showTripTable = ref(false)
+const tripTableFromReport = ref(false)
+const tripTable = computed(() => tripTableFromReport.value
+  ? {
+      subject: reportTrips.resolvedSubject,
+      trips: reportTrips.trips,
+      rows: reportTrips.rows,
+      title: reportTrips.title,
+      detailsLoading: reportTrips.detailsLoading,
+      detailsError: reportTrips.detailsError,
+      loadDetails: reportTrips.loadDetails,
+    }
+  : {
+      subject: tripPanelSubject.value,
+      trips: tripPanelTrips.value,
+      rows: tripPanelRows.value,
+      title: tripPanelTitle.value,
+      detailsLoading: tripPanelDetailsLoading.value,
+      detailsError: tripPanelDetailsError.value,
+      loadDetails: loadTripPanelDetails,
+    })
 watch(tripPanelOpenedSubject, () => {
-  showTripTable.value = false
+  if (!tripTableFromReport.value) {
+    showTripTable.value = false
+  }
+})
+watch(showTripTable, (open) => {
+  if (!open && tripTableFromReport.value) {
+    reportTrips.close()
+  }
 })
 function openTripTable () {
+  tripTableFromReport.value = false
   showTripTable.value = true
   loadTripPanelDetails('all')
+}
+function openReportTrips (subject: TripSubject) {
+  reportTrips.open(subject)
+  tripTableFromReport.value = true
+  showTripTable.value = true
+  reportTrips.loadDetails('all')
 }
 function onTripPanelClose () {
   closeTripPanel()
