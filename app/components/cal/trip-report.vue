@@ -39,10 +39,6 @@
     <template #column-days="{ value }">
       <span class="cal-trip-report-nowrap">{{ value }}</span>
     </template>
-    <template #column-trip_id="{ value }">
-      <span v-if="value" class="cal-trip-report-id" :title="value">{{ value }}</span>
-      <span v-else class="cal-trip-report-pending">{{ placeholder }}</span>
-    </template>
   </cal-datagrid>
 </template>
 
@@ -78,20 +74,6 @@ const placeholder = computed(() => tripDetailPlaceholder(props.detailsLoading))
 .cal-trip-report-nowrap {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-// A trip_id can run to a sentence in some feeds; the full id is on hover and
-// in the CSV.
-.cal-trip-report-id {
-  display: inline-block;
-  max-width: 14em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-  font-family: var(--bulma-family-code);
-  font-size: 12px;
-  color: var(--bulma-text-weak);
 }
 
 .cal-trip-report-error {
