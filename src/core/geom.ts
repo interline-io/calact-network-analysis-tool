@@ -90,6 +90,8 @@ export interface PopupFeature {
     marked?: boolean
     // Stop cluster fields
     cluster_id?: string
+    // The cluster's name, with the place it is near.
+    cluster_name?: string
     agency_names?: string[]
     cluster_members?: ClusterMemberInfo[]
   }

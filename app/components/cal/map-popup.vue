@@ -80,6 +80,9 @@
           <div class="popup-feature-type">
             🔗 Stop Cluster
           </div>
+          <div v-if="feature.data.cluster_name" class="popup-location-name">
+            {{ feature.data.cluster_name }}
+          </div>
           <div class="popup-details">
             <div><strong>Agencies:</strong> {{ feature.data.agency_names?.join(', ') }}</div>
           </div>
@@ -180,6 +183,7 @@ export interface PopupFeatureData {
     marked?: boolean
     // Stop cluster fields
     cluster_id?: string
+    cluster_name?: string
     agency_names?: string[]
     cluster_members?: ClusterMemberInfo[]
   }

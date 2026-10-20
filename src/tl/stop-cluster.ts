@@ -10,6 +10,12 @@ export const stopClusterQuery = gql`
 query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float, $nearbyLimit: Int) {
   stops(limit: $limit, after: $after, where: $where) {
     id
+    # For naming the cluster after what its members' feeds call the place.
+    # (Each page is one feed version, so the feed comes from the request.)
+    stop_name
+    parent {
+      stop_name
+    }
     # Without an explicit limit the backend returns 100; 1000 is its maximum.
     route_stops(limit: 1000) {
       route_id
@@ -24,6 +30,8 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
 // Raw GraphQL shape for one stop in the cluster query response.
 export interface StopClusterStopResponse {
   id: number
+  stop_name?: string | null
+  parent?: { stop_name?: string | null } | null
   route_stops: {
     route_id: number
     agency_id: number
@@ -31,4 +39,40 @@ export interface StopClusterStopResponse {
   nearby_stops: {
     id: number
   }[]
+}
+
+// The stops around each cluster's center, by name and feed, for saying what
+// better-known place a cluster is near. One request for every cluster; the
+// radius test is PostGIS's.
+export const stopClusterNearQuery = gql`
+query StopClusterNear($ids: [Int!], $limit: Int, $radius: Float, $nearbyLimit: Int) {
+  stops(ids: $ids, limit: $limit) {
+    id
+    nearby_stops(radius: $radius, limit: $nearbyLimit) {
+      id
+      stop_name
+      parent {
+        stop_name
+      }
+      feed_version {
+        feed {
+          onestop_id
+        }
+      }
+    }
+  }
+}`
+
+export interface StopClusterNearResponse {
+  id: number
+  nearby_stops: {
+    id: number
+    stop_name?: string | null
+    parent?: { stop_name?: string | null } | null
+    feed_version?: {
+      feed: {
+        onestop_id: string
+      }
+    }
+  }[] | null
 }

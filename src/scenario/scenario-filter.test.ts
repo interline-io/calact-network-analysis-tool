@@ -386,6 +386,7 @@ describe('applyScenarioResultFilter — stop cluster transfer-time prune', () =>
       agencyIds: [AGENCY_A, AGENCY_B],
       routeIds: [ROUTE_A, ROUTE_B],
       maxDistanceMeters: 100,
+      name: 'Cluster stop',
     }]
     return data
   }

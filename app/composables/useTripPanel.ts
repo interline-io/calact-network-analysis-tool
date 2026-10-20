@@ -9,6 +9,7 @@ import { computed, ref, shallowRef, toValue, triggerRef, type ComputedRef, type 
 import { useApolloClient } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 import {
+  clusterDisplayName,
   subjectTrips,
   resolveEffectiveWeekdays,
   tripTableRows,
@@ -135,8 +136,9 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
       return stopName(s.stopId)
     }
     if (s.kind === 'cluster') {
+      // resolvedSubject only holds a cluster the filters still have.
       const cluster = result.value?.stopClusters?.find(c => c.id === s.clusterId)
-      return `Stop cluster at ${stopName(cluster?.anchorStopId ?? s.stopIds[0] ?? 0)}`
+      return cluster ? clusterDisplayName(cluster.name, cluster.nearName) : 'Stop cluster'
     }
     const r = routes.value.get(s.routeId)
     return r ? [r.route_short_name, r.route_long_name].filter(Boolean).join(' ') : 'Route'
