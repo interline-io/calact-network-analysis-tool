@@ -31,7 +31,7 @@
 
     <!-- Calculations: how the Routes report gets its trip counts, times, and frequency -->
     <div v-if="tab === 'frequency'">
-      <cat-msg variant="info" title="Summary" class="mb-4">
+      <cat-msg variant="info" title="Trip counts and times" class="mb-4">
         <p class="mb-2">
           Totals reflect all departures at stops within selected geographic bounds across the selected date range, subject to any time-of-day or day-of-week filters. Earliest and latest trip times are based on the first and last departures at stops within bounds.
         </p>
