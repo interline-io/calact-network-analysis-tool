@@ -1,7 +1,7 @@
 <template>
   <span
     class="cal-route-badge"
-    :class="{ 'is-truncated': truncate }"
+    :class="{ 'cal-route-badge-truncated': truncate }"
     :style="style"
     :title="title"
   >{{ label }}</span>
@@ -44,7 +44,7 @@ const style = computed(() => {
   text-align: center;
   white-space: nowrap;
 
-  &.is-truncated {
+  &.cal-route-badge-truncated {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;

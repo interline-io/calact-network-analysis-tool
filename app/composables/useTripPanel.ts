@@ -35,6 +35,10 @@ import {
 // Detail requests in flight at once, when the full table asks for them all.
 const DETAILS_CONCURRENCY = 4
 
+// Rows are rebuilt from arrived details at most this often while chunks land,
+// rather than once per chunk.
+const DETAILS_REFRESH_MS = 250
+
 export interface UseTripPanelDeps {
   scenarioFilterResult: MaybeRefOrGetter<ScenarioFilterResult | undefined>
   selectedDateRange: MaybeRefOrGetter<Date[]>
@@ -63,6 +67,8 @@ export interface UseTripPanelReturn {
   // Fetch details for the rows shown: the first page's trips for the panel's
   // preview, or every trip for the full table.
   loadDetails: (scope: 'preview' | 'all') => Promise<void>
+  // Forget fetched details, as when the scenario is cleared.
+  clearDetails: () => void
 }
 
 export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
@@ -178,7 +184,7 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
       for (const d of parseTripDetails(response.data)) {
         tripDetails.value.set(d.id, d)
       }
-      triggerRef(tripDetails)
+      scheduleRefresh()
     } catch (err: any) {
       // Let a retry ask again for what did not arrive.
       for (const id of ids) {
@@ -190,6 +196,24 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
     } finally {
       inFlight.value--
     }
+  }
+
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined
+  function scheduleRefresh () {
+    refreshTimer ??= setTimeout(refreshNow, DETAILS_REFRESH_MS)
+  }
+  function refreshNow () {
+    clearTimeout(refreshTimer)
+    refreshTimer = undefined
+    triggerRef(tripDetails)
+  }
+
+  function clearDetails () {
+    clearTimeout(refreshTimer)
+    refreshTimer = undefined
+    requested.clear()
+    tripDetails.value = new Map()
+    detailsError.value = null
   }
 
   async function loadDetails (scope: 'preview' | 'all'): Promise<void> {
@@ -217,6 +241,7 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
       }
     })
     await Promise.all(workers)
+    refreshNow()
   }
 
   return {
@@ -231,5 +256,6 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
     detailsLoading,
     detailsError,
     loadDetails,
+    clearDetails,
   }
 }

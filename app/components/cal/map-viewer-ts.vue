@@ -65,9 +65,6 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
-  // Increment to dismiss the popup and clear the highlight, as when the
-  // trip panel describing the selection closes
-  clearSelectionKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -184,12 +181,6 @@ watch(() => props.fitOverlayKey, () => {
   if (map && props.fitTargetFeatures?.length) {
     fitFeatures(props.fitTargetFeatures)
   }
-})
-
-watch(() => props.clearSelectionKey, () => {
-  removePopup()
-  currentPopupFeatures = []
-  updateHighlight(undefined)
 })
 
 watch(() => props.fitBoundsKey, () => {

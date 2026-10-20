@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { StopDepartureCache, RouteDepartureIndex } from '../../tl/departure-cache'
-import { describeRowDays, subjectTrips, tripTableColumns, tripTableRows } from './subject-trips'
+import { describeRowDays, subjectTrips, tripTableColumns, tripTableRows, tripTimeLabel } from './subject-trips'
 
 // 2026-10-19 is a Monday.
 const MON = '2026-10-19'
@@ -181,5 +181,12 @@ describe('tripTableColumns', () => {
     expect(tripTableColumns('stop', false).map(c => c.key)).toEqual(
       ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'trip_id'],
     )
+  })
+})
+
+describe('tripTimeLabel', () => {
+  it('drops the seconds and keeps after-midnight hours', () => {
+    expect(tripTimeLabel('07:35:00')).toBe('07:35')
+    expect(tripTimeLabel('25:10:00')).toBe('25:10')
   })
 })

@@ -57,7 +57,6 @@
       :fit-bounds-key="fitBoundsKey"
       :fit-overlay-key="props.fitOverlayKey"
       :fit-target-features="fitTargetFeatures"
-      :clear-selection-key="props.clearSelectionKey"
       @map-move="mapMove"
       @map-click-features="mapClickFeatures"
       @selectable-geo-click="onSelectableGeoClick"
@@ -249,18 +248,23 @@ const hasClusterData = computed(() => visibleClusters.value.length > 0)
 // popup's or the panel's close button clears it; selectionCleared tells the
 // page to close the panel, since it describes what was selected.
 
+// Clear the selection: the cluster, and the popup and highlight (an empty
+// popup list dismisses both in the viewer).
+function clearSelection () {
+  selectedClusterId.value = null
+  popupFeatures.value = []
+}
+
 // Clear the selection if a refetch/refilter drops the selected cluster, or
-// hides it along with its agencies' stops.
+// hides it along with its agencies' stops, popup included.
 watch(visibleClusters, (visible) => {
   if (selectedClusterId.value && !visible.some(v => v.cluster.id === selectedClusterId.value)) {
-    selectedClusterId.value = null
+    clearSelection()
     emit('selectionCleared')
   }
 })
 
-watch(() => props.clearSelectionKey, () => {
-  selectedClusterId.value = null
-})
+watch(() => props.clearSelectionKey, clearSelection)
 
 // Paging through a popup's features moves the selection with it.
 function onPopupShown (featureType: string, featureId: string | number) {

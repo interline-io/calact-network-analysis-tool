@@ -1,4 +1,10 @@
 <template>
+  <p v-if="detailsError" class="cal-trip-report-error">
+    Could not load details for some trips: {{ detailsError }}
+    <cat-button size="small" class="ml-2" @click="$emit('retry')">
+      Retry
+    </cat-button>
+  </p>
   <cal-datagrid
     :table-report="tableReport"
     :loading="detailsLoading"
@@ -6,7 +12,7 @@
     :filename="`trips-${title}`"
   >
     <template #column-time="{ value }">
-      <span class="cal-trip-report-nowrap">{{ hhmm(value) }}</span>
+      <span class="cal-trip-report-nowrap">{{ tripTimeLabel(value) }}</span>
     </template>
     <template #column-route_short_name="{ row }">
       <cal-route-badge
@@ -22,7 +28,7 @@
     </template>
     <template #column-trip_start="{ row }">
       <span v-if="row.trip_start" class="cal-trip-report-nowrap">
-        {{ hhmm(row.trip_start) }}–{{ hhmm(row.trip_end) }}
+        {{ tripTimeLabel(row.trip_start) }}–{{ tripTimeLabel(row.trip_end) }}
       </span>
       <span v-else class="cal-trip-report-pending">{{ placeholder }}</span>
     </template>
@@ -42,8 +48,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { tripTableColumns, type TripSubject, type TripTableRow } from '~~/src/scenario'
-import { formatGtfsTime, parseHMS, type TableReport } from '~~/src/core'
+import { tripDetailPlaceholder, tripTableColumns, tripTimeLabel, type TripSubject, type TripTableRow } from '~~/src/scenario'
+import type { TableReport } from '~~/src/core'
 
 const props = defineProps<{
   subjectKind: TripSubject['kind']
@@ -52,6 +58,12 @@ const props = defineProps<{
   // What the trips are for, as the download's file name.
   title: string
   detailsLoading: boolean
+  detailsError: string | null
+}>()
+
+defineEmits<{
+  // Fetch the details that did not arrive.
+  retry: []
 }>()
 
 const tableReport = computed((): TableReport => ({
@@ -59,12 +71,7 @@ const tableReport = computed((): TableReport => ({
   data: props.rows,
 }))
 
-const placeholder = computed(() => props.detailsLoading ? '…' : '—')
-
-// HH:MM from a row's HH:MM:SS; the CSV keeps the seconds.
-function hhmm (value: string): string {
-  return formatGtfsTime(parseHMS(value))
-}
+const placeholder = computed(() => tripDetailPlaceholder(props.detailsLoading))
 </script>
 
 <style scoped lang="scss">
@@ -85,6 +92,11 @@ function hhmm (value: string): string {
   font-family: var(--bulma-family-code);
   font-size: 12px;
   color: var(--bulma-text-weak);
+}
+
+.cal-trip-report-error {
+  color: var(--bulma-danger);
+  margin-bottom: 1rem;
 }
 
 .cal-trip-report-pending {

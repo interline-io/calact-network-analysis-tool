@@ -284,6 +284,18 @@ export function tripTableRows (
   })
 }
 
+// A row's HH:MM:SS as the tables show it, HH:MM; the CSV keeps the seconds.
+// After-midnight times stay past 24:00, as GTFS writes them.
+export function tripTimeLabel (hms: string): string {
+  return hms.slice(0, -3)
+}
+
+// What a cell shows before its trip's details arrive: an ellipsis while they
+// load, a dash if they did not.
+export function tripDetailPlaceholder (loading: boolean): string {
+  return loading ? '…' : '—'
+}
+
 export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: boolean): TableColumn[] {
   const cols: TableColumn[] = [
     {

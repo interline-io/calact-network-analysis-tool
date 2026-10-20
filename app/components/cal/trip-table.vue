@@ -38,7 +38,7 @@
     <tbody>
       <tr v-for="(row, i) of rows" :key="i">
         <td class="cal-trip-table-time">
-          {{ hhmm(row.time) }}
+          {{ tripTimeLabel(row.time) }}
           <div v-if="subjectKind === 'cluster'" class="cal-trip-table-sub">
             {{ row.stop_name || row.stop_id }}
           </div>
@@ -58,7 +58,7 @@
         </td>
         <td class="cal-trip-table-time">
           <template v-if="row.trip_start">
-            {{ hhmm(row.trip_start) }}–{{ hhmm(row.trip_end) }}
+            {{ tripTimeLabel(row.trip_start) }}–{{ tripTimeLabel(row.trip_end) }}
             <div class="cal-trip-table-sub">
               {{ row.stop_count }} stops
             </div>
@@ -75,8 +75,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { tripTableColumns, type TripSubject, type TripTableRow } from '~~/src/scenario'
-import { formatGtfsTime, parseHMS } from '~~/src/core'
+import { tripDetailPlaceholder, tripTableColumns, tripTimeLabel, type TripSubject, type TripTableRow } from '~~/src/scenario'
 
 const props = defineProps<{
   subjectKind: TripSubject['kind']
@@ -85,17 +84,12 @@ const props = defineProps<{
   detailsLoading: boolean
 }>()
 
-const placeholder = computed(() => props.detailsLoading ? '…' : '—')
+const placeholder = computed(() => tripDetailPlaceholder(props.detailsLoading))
 
 // The full table's column tooltips, so the two tables explain alike.
 const columns = computed(() => tripTableColumns(props.subjectKind, props.multiDay))
 function tooltip (key: string): string {
   return columns.value.find(c => c.key === key)?.tooltip ?? ''
-}
-
-// HH:MM from a row's HH:MM:SS; the CSV keeps the seconds.
-function hhmm (value: string): string {
-  return formatGtfsTime(parseHMS(value))
 }
 </script>
 

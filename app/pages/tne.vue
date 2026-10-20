@@ -190,6 +190,8 @@
           :multi-day="tripPanelTrips.dateCount > 1"
           :title="tripPanelTitle"
           :details-loading="tripPanelDetailsLoading"
+          :details-error="tripPanelDetailsError"
+          @retry="loadTripPanelDetails('all')"
         />
       </cat-modal>
 
@@ -337,6 +339,7 @@ function clearScenario () {
   exportFeatures.value = []
   querySubmitted.value = false
   closeTripPanel()
+  clearTripPanelDetails()
   clearAllResults()
 }
 
@@ -856,6 +859,7 @@ const {
   detailsLoading: tripPanelDetailsLoading,
   detailsError: tripPanelDetailsError,
   loadDetails: loadTripPanelDetails,
+  clearDetails: clearTripPanelDetails,
 } = useTripPanel({
   scenarioFilterResult,
   selectedDateRange,

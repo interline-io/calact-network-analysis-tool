@@ -224,11 +224,26 @@ function bucketLabel (i: number): string {
 
 <style scoped lang="scss">
 .cal-map-legend {
-  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue. The
-  // panels above shrink instead; the legend collapses if space is short.
+  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue. When
+  // the stack runs out of room the legend gives up less of it than the panels
+  // above, and scrolls its body; map.vue collapses it while a panel is open.
   width: 100%;
-  flex-shrink: 0 !important;
+  flex-shrink: 0.25 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   color: black;
+}
+
+.cal-map-legend :deep(.message) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cal-map-legend :deep(.message-body) {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .message-header {
