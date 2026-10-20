@@ -176,10 +176,10 @@ describe('tripTableRows', () => {
 describe('tripTableColumns', () => {
   it('adds a Stop column for a cluster and Days for more than one date', () => {
     expect(tripTableColumns('cluster', true).map(c => c.key)).toEqual(
-      ['time', 'stop_name', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'days', 'trip_id'],
+      ['time', 'stop_name', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'days'],
     )
     expect(tripTableColumns('stop', false).map(c => c.key)).toEqual(
-      ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'trip_id'],
+      ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count'],
     )
   })
 })

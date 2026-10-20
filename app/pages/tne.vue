@@ -71,6 +71,7 @@
             :flex-display-features="flexFeaturesForReport"
             @open-timetable="openRouteTimetable"
             @open-buffer-details="openBufferDetails"
+            @open-trips="openReportTrips"
           />
         </div>
 
@@ -176,21 +177,21 @@
         />
       </cat-modal>
 
-      <!-- Every trip behind the trip panel, at full size -->
+      <!-- Every trip behind the trip panel, or behind a Reports row, at full size -->
       <cat-modal
         v-model="showTripTable"
-        :title="`Trips for: ${tripPanelTitle}`"
+        :title="`Trips for: ${tripTable.title}`"
         full-screen
       >
         <cal-trip-report
-          v-if="tripPanelSubject && tripPanelTrips"
-          :subject-kind="tripPanelSubject.kind"
-          :rows="tripPanelRows"
-          :multi-day="tripPanelTrips.dateCount > 1"
-          :title="tripPanelTitle"
-          :details-loading="tripPanelDetailsLoading"
-          :details-error="tripPanelDetailsError"
-          @retry="loadTripPanelDetails('all')"
+          v-if="tripTable.resolvedSubject && tripTable.trips"
+          :subject-kind="tripTable.resolvedSubject.kind"
+          :rows="tripTable.rows"
+          :multi-day="tripTable.trips.dateCount > 1"
+          :title="tripTable.title"
+          :details-loading="tripTable.detailsLoading"
+          :details-error="tripTable.detailsError"
+          @retry="tripTable.loadDetails('all')"
         />
       </cat-modal>
 
@@ -232,11 +233,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
-import { useTripPanel } from '~/composables/useTripPanel'
+import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -278,7 +279,7 @@ import {
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -337,6 +338,8 @@ function clearScenario () {
   exportFeatures.value = []
   querySubmitted.value = false
   closeTripPanel()
+  showTripTable.value = false
+  // Shared with the trip table, so this forgets both views' details.
   clearTripPanelDetails()
   clearAllResults()
 }
@@ -834,6 +837,10 @@ const exportFeatures = shallowRef<Feature[]>([])
 // depends on scenarioFilterResult; consumed by the map and report components.
 const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
 
+// Fetched trip details, shared by the trip panel and the full trip table so a
+// trip is fetched once whichever view asks first.
+const tripDetailsStore = createTripDetailsStore()
+
 // Trip information panel (#476), opened from a stop, route, or cluster popup.
 const {
   subject: tripPanelOpenedSubject,
@@ -855,21 +862,50 @@ const {
   selectedWeekdayMode,
   startTime,
   endTime,
-})
+}, tripDetailsStore)
 
 // The panel describes the map's selection, so closing it clears that
 // selection; the map in turn closes the panel when its selection goes.
 const mapSelectionClearKey = ref(0)
 
-// The full trip table opens from the panel, fetching every trip's details,
-// and goes with it.
+// The full trip table, opened with the panel's subject or a Reports row's.
+// Its own instance, not the panel's: a Reports row selects nothing on the map,
+// and the panel describes the map's selection.
+const tripTable = reactive(useTripPanel({
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+}, tripDetailsStore))
 const showTripTable = ref(false)
+// Opened from the panel, the table goes with the panel's selection.
+let tripTableFromPanel = false
 watch(tripPanelOpenedSubject, () => {
-  showTripTable.value = false
+  if (tripTableFromPanel) {
+    showTripTable.value = false
+  }
 })
-function openTripTable () {
+// Every trip's details while the table is open, as the filters change its trips.
+watch(() => tripTable.trips, () => {
+  if (showTripTable.value) {
+    tripTable.loadDetails('all')
+  }
+})
+function showTrips (subject: TripSubject, fromPanel: boolean) {
+  tripTable.open(subject)
+  tripTableFromPanel = fromPanel
   showTripTable.value = true
-  loadTripPanelDetails('all')
+  tripTable.loadDetails('all')
+}
+function openTripTable () {
+  if (tripPanelOpenedSubject.value) {
+    showTrips(tripPanelOpenedSubject.value, true)
+  }
+}
+function openReportTrips (subject: TripSubject) {
+  showTrips(subject, false)
 }
 function onTripPanelClose () {
   closeTripPanel()

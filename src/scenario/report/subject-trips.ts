@@ -332,6 +332,8 @@ export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: bo
   if (multiDay) {
     cols.push({ key: 'days', label: 'Days', sortable: true })
   }
-  cols.push({ key: 'trip_id', label: 'Trip ID', sortable: true })
+  // trip_id is in each row, so the CSV and the row filter have it, but not a
+  // column: some feeds' ids run to a sentence and push the table wider than
+  // the modal.
   return cols
 }
