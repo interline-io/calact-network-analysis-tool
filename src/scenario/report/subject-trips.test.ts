@@ -174,6 +174,29 @@ describe('tripTableRows', () => {
   })
 })
 
+describe('subjectTrips for a route', () => {
+  it('splits a trip into rows where its last in-area departure differs by date', () => {
+    const cache = cacheOf([
+      [1, MON, hms(23, 53), 100, 0, 10],
+      [2, MON, hms(23, 59), 100, 0, 10],
+      [1, TUE, hms(23, 53), 100, 0, 10],
+      [2, TUE, hms(23, 59), 100, 0, 10],
+      [3, TUE, hms(24, 2), 100, 0, 10],
+    ])
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, {
+      dates: [day(MON), day(TUE)],
+      startTime: 0,
+      endTime: hms(24),
+      stopDepartureCache: cache,
+      routeIndex: RouteDepartureIndex.fromCache(cache),
+    })
+    expect(r.rows.map(row => [row.lastTime, row.dates])).toEqual([
+      [hms(23, 59), [MON]],
+      [hms(24, 2), [TUE]],
+    ])
+  })
+})
+
 describe('tripTableRows for a route', () => {
   it('adds each trip\'s last in-area departure and stop', () => {
     const [row] = tripTableRows([

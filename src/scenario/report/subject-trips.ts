@@ -111,11 +111,12 @@ export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOp
   if (subject.kind === 'route') {
     const routeIndex = opts.routeIndex
     for (const date of routeIndex ? dateStrs : []) {
-      // The trips calculateRouteTripStats counts, timed at their first
-      // in-bbox departure.
+      // The trips calculateRouteTripStats counts, timed at their first and
+      // last in-bbox departures. Both are in the key: a date whose in-bbox
+      // stops differ is its own row, so every last departure shows.
       for (const [tripId, t] of routeTripsOnDate(routeIndex!, subject.routeId, date, opts.startTime, opts.endTime)) {
         if (t.inWindow) {
-          add({ key: `${tripId}|${t.first}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first, lastTime: t.last, lastStopId: t.lastStopId }, date)
+          add({ key: `${tripId}|${t.first}|${t.last}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first, lastTime: t.last, lastStopId: t.lastStopId }, date)
         }
       }
     }
