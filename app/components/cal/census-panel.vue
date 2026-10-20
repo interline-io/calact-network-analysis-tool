@@ -1,5 +1,5 @@
 <template>
-  <div v-if="row" class="cal-map-census-panel">
+  <div v-if="row" class="cal-sidebar-panel cal-map-census-panel">
     <cat-msg
       :title="row.name || 'Aggregation area'"
       expandable
@@ -150,28 +150,6 @@ function allGeographiesCell (col: CensusColumnDef): string {
 </script>
 
 <style scoped lang="scss">
-// Shrinks to the room the map sidebar leaves it; the body scrolls, the
-// header stays.
-.cal-map-census-panel {
-  color: black;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.cal-map-census-panel :deep(.message) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  margin-bottom: 0;
-}
-
-.cal-map-census-panel :deep(.message-body) {
-  padding: 8px 10px;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 .cal-census-panel-meta {
   font-size: 12px;
   margin-bottom: 8px;

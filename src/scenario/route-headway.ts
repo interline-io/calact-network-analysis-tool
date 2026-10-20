@@ -223,6 +223,55 @@ export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday
 }
 
 /**
+ * A route's trip on one date, as its in-bbox departures show it: the first
+ * and last departure (and the stop of the first), and whether any departure
+ * falls in the time-of-day window. The span is NOT the trip's literal
+ * origin-to-terminus; stop_times for stops outside the bbox are absent from
+ * the index.
+ */
+export interface RouteTripOnDate {
+  directionId: number
+  first: number
+  firstStopId: number
+  last: number
+  inWindow: boolean
+}
+
+/**
+ * Every trip of a route on a date, both directions, keyed by trip id. A trip
+ * counts toward the Routes report when `inWindow` (calculateRouteTripStats),
+ * and the trip panel lists the same trips (subjectTrips).
+ */
+export function routeTripsOnDate (
+  routeIndex: RouteDepartureIndex,
+  routeId: number,
+  date: string,
+  startTime: number,
+  endTime: number,
+): Map<number, RouteTripOnDate> {
+  const trips = new Map<number, RouteTripOnDate>()
+  for (const dir of [0, 1]) {
+    for (const [stopId, deps] of routeIndex.getRouteDate(routeId, dir, date)) {
+      for (const st of deps) {
+        const inWindow = st.departureTime >= startTime && st.departureTime <= endTime
+        const t = trips.get(st.tripId)
+        if (!t) {
+          trips.set(st.tripId, { directionId: dir, first: st.departureTime, firstStopId: stopId, last: st.departureTime, inWindow })
+          continue
+        }
+        if (st.departureTime < t.first) {
+          t.first = st.departureTime
+          t.firstStopId = stopId
+        }
+        t.last = Math.max(t.last, st.departureTime)
+        t.inWindow ||= inWindow
+      }
+    }
+  }
+  return trips
+}
+
+/**
  * Statistics about trips on a route across the selected date range.
  */
 export interface RouteTripStats {
@@ -286,47 +335,22 @@ export function calculateRouteTripStats (
 
   for (const d of selectedDateRange) {
     const formattedDate = format(d, 'yyyy-MM-dd')
-    // For each trip: track its full in-bbox span and whether any stop_time
-    // falls in the selected time-of-day window. The span is NOT the trip's
-    // literal origin-to-terminus — stop_times for stops outside the bbox
-    // are absent from the index.
-    const tripTimes = new Map<number, { min: number, max: number, inWindow: boolean }>()
-
-    for (const dir of [0, 1]) {
-      const dateStopDeps = routeIndex.getRouteDate(route.id, dir, formattedDate)
-      for (const deps of dateStopDeps.values()) {
-        for (const st of deps) {
-          const inWindow = st.departureTime >= startTime && st.departureTime <= endTime
-          const existing = tripTimes.get(st.tripId)
-          if (existing) {
-            existing.min = Math.min(existing.min, st.departureTime)
-            existing.max = Math.max(existing.max, st.departureTime)
-            if (inWindow) {
-              existing.inWindow = true
-            }
-          } else {
-            tripTimes.set(st.tripId, { min: st.departureTime, max: st.departureTime, inWindow })
-          }
-        }
-      }
-    }
-
-    for (const t of tripTimes.values()) {
+    for (const t of routeTripsOnDate(routeIndex, route.id, formattedDate, startTime, endTime).values()) {
       if (!t.inWindow) {
         continue
       }
       totalTrips++
-      if (earliestTripStart === undefined || t.min < earliestTripStart) {
-        earliestTripStart = t.min
+      if (earliestTripStart === undefined || t.first < earliestTripStart) {
+        earliestTripStart = t.first
       }
-      if (latestTripStart === undefined || t.min > latestTripStart) {
-        latestTripStart = t.min
+      if (latestTripStart === undefined || t.first > latestTripStart) {
+        latestTripStart = t.first
       }
-      if (earliestTripEnd === undefined || t.max < earliestTripEnd) {
-        earliestTripEnd = t.max
+      if (earliestTripEnd === undefined || t.last < earliestTripEnd) {
+        earliestTripEnd = t.last
       }
-      if (latestTripEnd === undefined || t.max > latestTripEnd) {
-        latestTripEnd = t.max
+      if (latestTripEnd === undefined || t.last > latestTripEnd) {
+        latestTripEnd = t.last
       }
     }
   }

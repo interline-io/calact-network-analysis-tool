@@ -109,18 +109,20 @@
           @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>
+            <!-- Keyed by subject, so each feature opens fresh. -->
             <cal-trip-panel
+              v-if="tripPanelSubject && tripPanelTrips"
+              :key="JSON.stringify(tripPanelOpenedSubject)"
               :subject="tripPanelSubject"
               :title="tripPanelTitle"
               :trips="tripPanelTrips"
-              :scenario-filter-result="scenarioFilterResult"
-              :scoped-dates="tripPanelScopedDates"
-              :trip-details="tripPanelDetails"
+              :rows="tripPanelRows"
+              :routes="tripPanelRoutes"
               :details-loading="tripPanelDetailsLoading"
               :details-error="tripPanelDetailsError"
               @close="onTripPanelClose"
-              @load-details="loadTripPanelDetails"
-              @expand-trips="showTripTable = true"
+              @load-details="loadTripPanelDetails('preview')"
+              @expand-trips="openTripTable"
             />
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
@@ -183,12 +185,10 @@
       >
         <cal-trip-report
           v-if="tripPanelSubject && tripPanelTrips"
-          :subject="tripPanelSubject"
-          :trips="tripPanelTrips"
+          :subject-kind="tripPanelSubject.kind"
+          :rows="tripPanelRows"
+          :multi-day="tripPanelTrips.dateCount > 1"
           :title="tripPanelTitle"
-          :scenario-filter-result="scenarioFilterResult"
-          :scoped-dates="tripPanelScopedDates"
-          :trip-details="tripPanelDetails"
           :details-loading="tripPanelDetailsLoading"
         />
       </cat-modal>
@@ -845,13 +845,14 @@ const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ 
 
 // Trip information panel (#476), opened from a stop, route, or cluster popup.
 const {
-  subject: tripPanelSubject,
+  subject: tripPanelOpenedSubject,
+  resolvedSubject: tripPanelSubject,
   open: openTripPanel,
   close: closeTripPanel,
   trips: tripPanelTrips,
+  rows: tripPanelRows,
+  routes: tripPanelRoutes,
   title: tripPanelTitle,
-  scopedDates: tripPanelScopedDates,
-  tripDetails: tripPanelDetails,
   detailsLoading: tripPanelDetailsLoading,
   detailsError: tripPanelDetailsError,
   loadDetails: loadTripPanelDetails,
@@ -868,11 +869,16 @@ const {
 // selection; the map in turn closes the panel when its selection goes.
 const mapSelectionClearKey = ref(0)
 
-// The full trip table opens from the panel and goes with it.
+// The full trip table opens from the panel, fetching every trip's details,
+// and goes with it.
 const showTripTable = ref(false)
-watch(tripPanelSubject, () => {
+watch(tripPanelOpenedSubject, () => {
   showTripTable.value = false
 })
+function openTripTable () {
+  showTripTable.value = true
+  loadTripPanelDetails('all')
+}
 function onTripPanelClose () {
   closeTripPanel()
   mapSelectionClearKey.value++

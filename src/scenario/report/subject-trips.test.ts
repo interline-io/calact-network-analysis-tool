@@ -157,6 +157,8 @@ describe('tripTableRows', () => {
       route_id: 'R10',
       route_short_name: '10',
       route_long_name: 'Tenth',
+      route_color: '',
+      route_text_color: '',
       agency_name: 'TriMet',
       headsign: 'Downtown',
       direction_id: 1,

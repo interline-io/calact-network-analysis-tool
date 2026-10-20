@@ -17,14 +17,22 @@
  */
 
 import { format } from 'date-fns'
-import { WEEKDAY_BY_GETDAY, formatGtfsTimeFull, type TableColumn, type Weekday } from '../../core'
+import { WEEKDAY_BY_GETDAY, dowValues, formatGtfsTimeFull, parseCalendarDate, type TableColumn, type Weekday } from '../../core'
 import type { RouteDepartureIndex, StopDepartureCache } from '../../tl/departure-cache'
 import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
+import { routeTripsOnDate } from '../route-headway'
 
+// The map feature a trip panel describes. A cluster is named by id only: its
+// members follow the filters, so they are looked up when needed.
 export type TripSubject
   = | { kind: 'stop', stopId: number }
-    | { kind: 'cluster', clusterId: string, stopIds: number[] }
+    | { kind: 'cluster', clusterId: string }
     | { kind: 'route', routeId: number }
+
+// A subject with a cluster's current members filled in.
+export type ResolvedTripSubject
+  = | Exclude<TripSubject, { kind: 'cluster' }>
+    | { kind: 'cluster', clusterId: string, stopIds: number[] }
 
 export interface SubjectTripRow {
   key: string
@@ -49,9 +57,8 @@ export interface SubjectTrips {
   count: number
   // Scoped calendar dates, not service days, as the reports divide by.
   dateCount: number
-  // Hours in the time-of-day window; 24 in all-day mode.
-  hoursInWindow: number
-  // count / (hoursInWindow * dateCount); undefined with no dates.
+  // count / (hours in the time-of-day window * dateCount); undefined with no
+  // dates.
   averagePerHour?: number
   firstTime?: number
   lastTime?: number
@@ -71,7 +78,7 @@ export interface SubjectTripsOptions {
   routeIndex?: RouteDepartureIndex
 }
 
-export function subjectTrips (subject: TripSubject, opts: SubjectTripsOptions): SubjectTrips {
+export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOptions): SubjectTrips {
   const dateStrs = opts.dates.map(d => format(d, 'yyyy-MM-dd'))
   const rows = new Map<string, SubjectTripRow>()
   const routeCounts = new Map<number, number>()
@@ -79,52 +86,32 @@ export function subjectTrips (subject: TripSubject, opts: SubjectTripsOptions): 
   let firstTime: number | undefined
   let lastTime: number | undefined
 
-  function add (key: string, tripId: number, routeId: number, directionId: number, stopId: number, time: number, date: string) {
+  // One visit (or trip) on one date; a row already seen gains the date.
+  function add (visit: Omit<SubjectTripRow, 'dates'>, date: string) {
     count += 1
-    routeCounts.set(routeId, (routeCounts.get(routeId) || 0) + 1)
-    if (firstTime === undefined || time < firstTime) {
-      firstTime = time
+    routeCounts.set(visit.routeId, (routeCounts.get(visit.routeId) || 0) + 1)
+    if (firstTime === undefined || visit.time < firstTime) {
+      firstTime = visit.time
     }
-    if (lastTime === undefined || time > lastTime) {
-      lastTime = time
+    if (lastTime === undefined || visit.time > lastTime) {
+      lastTime = visit.time
     }
-    const row = rows.get(key)
+    const row = rows.get(visit.key)
     if (row) {
       row.dates.push(date)
     } else {
-      rows.set(key, { key, tripId, routeId, directionId, stopId, time, dates: [date] })
+      rows.set(visit.key, { ...visit, dates: [date] })
     }
   }
 
   if (subject.kind === 'route') {
     const routeIndex = opts.routeIndex
-    for (const date of dateStrs) {
-      if (!routeIndex) {
-        break
-      }
-      for (const dir of [0, 1]) {
-        // Each trip's earliest in-bbox departure, and whether any of its
-        // departures falls in the window (calculateRouteTripStats' rule).
-        const trips = new Map<number, { time: number, stopId: number, inWindow: boolean }>()
-        for (const [stopId, deps] of routeIndex.getRouteDate(subject.routeId, dir, date)) {
-          for (const st of deps) {
-            const inWindow = st.departureTime >= opts.startTime && st.departureTime <= opts.endTime
-            const t = trips.get(st.tripId)
-            if (!t) {
-              trips.set(st.tripId, { time: st.departureTime, stopId, inWindow })
-              continue
-            }
-            if (st.departureTime < t.time) {
-              t.time = st.departureTime
-              t.stopId = stopId
-            }
-            t.inWindow ||= inWindow
-          }
-        }
-        for (const [tripId, t] of trips) {
-          if (t.inWindow) {
-            add(`${tripId}|${t.time}`, tripId, subject.routeId, dir, t.stopId, t.time, date)
-          }
+    for (const date of routeIndex ? dateStrs : []) {
+      // The trips calculateRouteTripStats counts, timed at their first
+      // in-bbox departure.
+      for (const [tripId, t] of routeTripsOnDate(routeIndex!, subject.routeId, date, opts.startTime, opts.endTime)) {
+        if (t.inWindow) {
+          add({ key: `${tripId}|${t.first}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first }, date)
         }
       }
     }
@@ -137,7 +124,7 @@ export function subjectTrips (subject: TripSubject, opts: SubjectTripsOptions): 
           if (st.departureTime < opts.startTime || st.departureTime > opts.endTime) {
             continue
           }
-          add(`${st.tripId}|${stopId}|${st.departureTime}`, st.tripId, st.routeId, st.directionId, stopId, st.departureTime, date)
+          add({ key: `${st.tripId}|${stopId}|${st.departureTime}`, tripId: st.tripId, routeId: st.routeId, directionId: st.directionId, stopId, time: st.departureTime }, date)
         }
       }
     }
@@ -149,7 +136,6 @@ export function subjectTrips (subject: TripSubject, opts: SubjectTripsOptions): 
   return {
     count,
     dateCount,
-    hoursInWindow,
     averagePerHour: denominator > 0 ? count / denominator : undefined,
     firstTime,
     lastTime,
@@ -160,63 +146,67 @@ export function subjectTrips (subject: TripSubject, opts: SubjectTripsOptions): 
   }
 }
 
-const WEEKDAY_SHORT: Record<Weekday, string> = {
-  monday: 'Mon',
-  tuesday: 'Tue',
-  wednesday: 'Wed',
-  thursday: 'Thu',
-  friday: 'Fri',
-  saturday: 'Sat',
-  sunday: 'Sun',
-}
-
-const WEEK: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-
-function weekdayOf (date: string): Weekday {
-  // Noon, so no timezone offset can move the date.
-  return WEEKDAY_BY_GETDAY[new Date(`${date}T12:00:00`).getDay()]!
+// "monday" as "Mon".
+function weekdayShort (day: Weekday): string {
+  return day.charAt(0).toUpperCase() + day.slice(1, 3)
 }
 
 /**
- * The days a row runs, said the way a printed timetable says them: its
- * weekdays ("Mon–Fri", "Sat, Sun", "Every day") when it runs on every scoped
- * date of those weekdays, and otherwise how many of the dates ("3 of 10 days").
+ * Says the days a row runs the way a printed timetable says them: its weekdays
+ * ("Mon–Fri", "Sat, Sun", "Every day") when it runs on every scoped date of
+ * those weekdays, and otherwise how many of the dates ("3 of 10 days").
+ *
+ * Built once per set of scoped dates: each date's weekday is worked out once,
+ * and a set of dates already described (most rows share a few: weekdays,
+ * weekends) is not described again.
  */
-export function describeRowDays (rowDates: string[], scopedDates: string[]): string {
-  const runs = new Set(rowDates)
-  const ran = scopedDates.filter(d => runs.has(d))
-  const weekdays = new Set(ran.map(weekdayOf))
-  const everyOfWeekday = scopedDates.every(d => !weekdays.has(weekdayOf(d)) || runs.has(d))
-  if (!everyOfWeekday) {
-    return `${ran.length} of ${scopedDates.length} days`
+export function rowDaysDescriber (scopedDates: string[]): (rowDates: string[]) => string {
+  const weekdayOf = new Map<string, Weekday>()
+  for (const d of scopedDates) {
+    weekdayOf.set(d, WEEKDAY_BY_GETDAY[parseCalendarDate(d)!.getDay()]!)
   }
-  if (weekdays.size === WEEK.length) {
-    return 'Every day'
+  const said = new Map<string, string>()
+  return (rowDates) => {
+    const memoKey = rowDates.join(',')
+    let text = said.get(memoKey)
+    if (text === undefined) {
+      text = describe(new Set(rowDates))
+      said.set(memoKey, text)
+    }
+    return text
   }
-  return weekdayRanges(WEEK.filter(w => weekdays.has(w)))
+
+  function describe (runs: Set<string>): string {
+    const ran = scopedDates.filter(d => runs.has(d))
+    const weekdays = new Set(ran.map(d => weekdayOf.get(d)!))
+    if (!scopedDates.every(d => !weekdays.has(weekdayOf.get(d)!) || runs.has(d))) {
+      return `${ran.length} of ${scopedDates.length} days`
+    }
+    if (weekdays.size === dowValues.length) {
+      return 'Every day'
+    }
+    // Runs of consecutive weekdays: Mon, Tue, Wed, Fri as "Mon–Wed, Fri".
+    const parts: string[] = []
+    let run: Weekday[] = []
+    for (const day of [...dowValues, undefined]) {
+      if (day && weekdays.has(day)) {
+        run.push(day)
+        continue
+      }
+      if (run.length >= 3) {
+        parts.push(`${weekdayShort(run[0]!)}–${weekdayShort(run[run.length - 1]!)}`)
+      } else {
+        parts.push(...run.map(weekdayShort))
+      }
+      run = []
+    }
+    return parts.join(', ')
+  }
 }
 
-// Consecutive weekdays as a range: Mon, Tue, Wed, Fri as "Mon–Wed, Fri".
-function weekdayRanges (days: Weekday[]): string {
-  const parts: string[] = []
-  let i = 0
-  while (i < days.length) {
-    let j = i
-    while (j + 1 < days.length && WEEK.indexOf(days[j + 1]!) === WEEK.indexOf(days[j]!) + 1) {
-      j++
-    }
-    const from = WEEKDAY_SHORT[days[i]!]
-    const to = WEEKDAY_SHORT[days[j]!]
-    if (j - i >= 2) {
-      parts.push(`${from}–${to}`)
-    } else if (j > i) {
-      parts.push(`${from}, ${to}`)
-    } else {
-      parts.push(from)
-    }
-    i = j + 1
-  }
-  return parts.join(', ')
+// One row's days, for a single description; rowDaysDescriber for many rows.
+export function describeRowDays (rowDates: string[], scopedDates: string[]): string {
+  return rowDaysDescriber(scopedDates)(rowDates)
 }
 
 // The trip table's rows (the full-size table and its CSV download). Each row is
@@ -226,6 +216,8 @@ export interface TripTableRoute {
   route_id: string
   route_short_name?: string | null
   route_long_name?: string | null
+  route_color?: string | null
+  route_text_color?: string | null
   agency_name?: string | null
 }
 
@@ -241,6 +233,9 @@ export interface TripTableRow {
   route_id: string
   route_short_name: string
   route_long_name: string
+  // GTFS colors, for the table's route badge; harmless in the CSV.
+  route_color: string
+  route_text_color: string
   agency_name: string
   headsign: string
   direction_id: number
@@ -261,6 +256,7 @@ export function tripTableRows (
     scopedDates: string[]
   },
 ): TripTableRow[] {
+  const describeDays = rowDaysDescriber(opts.scopedDates)
   return rows.map((row) => {
     const route = opts.routes.get(row.routeId)
     const stop = opts.stops.get(row.stopId)
@@ -272,6 +268,8 @@ export function tripTableRows (
       route_id: route?.route_id ?? '',
       route_short_name: route?.route_short_name ?? '',
       route_long_name: route?.route_long_name ?? '',
+      route_color: route?.route_color ?? '',
+      route_text_color: route?.route_text_color ?? '',
       agency_name: route?.agency_name ?? '',
       headsign: (detail && tripHeadsignAt(detail, row.stopId)) || '',
       direction_id: row.directionId,
@@ -279,7 +277,7 @@ export function tripTableRows (
       trip_start: detail?.startTime != null ? formatGtfsTimeFull(detail.startTime) : '',
       trip_end: detail?.endTime != null ? formatGtfsTimeFull(detail.endTime) : '',
       stop_count: detail ? detail.stopCount : '',
-      days: describeRowDays(row.dates, opts.scopedDates),
+      days: describeDays(row.dates),
       // Space-separated, so the CSV keeps one row per trip.
       dates: row.dates.join(' '),
     }

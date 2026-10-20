@@ -10,12 +10,12 @@
       <col class="cal-trip-table-col-route">
       <col>
       <col class="cal-trip-table-col-trip">
-      <col v-if="showDays" class="cal-trip-table-col-days">
+      <col v-if="multiDay" class="cal-trip-table-col-days">
     </colgroup>
     <thead>
       <tr>
         <th scope="col">
-          <cat-tooltip :text="timeTooltip">
+          <cat-tooltip :text="tooltip('time')">
             Time
           </cat-tooltip>
         </th>
@@ -26,49 +26,47 @@
           Headsign
         </th>
         <th scope="col">
-          <cat-tooltip :text="tripTooltip">
+          <cat-tooltip :text="tooltip('trip_start')">
             Trip
           </cat-tooltip>
         </th>
-        <th v-if="showDays" scope="col">
+        <th v-if="multiDay" scope="col">
           Days
         </th>
       </tr>
     </thead>
     <tbody>
-      <tr v-for="row of rows" :key="row.key">
+      <tr v-for="(row, i) of rows" :key="i">
         <td class="cal-trip-table-time">
-          {{ formatGtfsTime(row.time) }}
-          <div v-if="subject.kind === 'cluster'" class="cal-trip-table-sub">
-            {{ stopName(row.stopId) }}
+          {{ hhmm(row.time) }}
+          <div v-if="subjectKind === 'cluster'" class="cal-trip-table-sub">
+            {{ row.stop_name || row.stop_id }}
           </div>
         </td>
         <td>
-          <template v-if="routesById.get(row.routeId)">
-            <span
-              class="cal-trip-table-route"
-              :style="routeBadgeStyle(routesById.get(row.routeId)!)"
-              :title="routeLabel(routesById.get(row.routeId)!)"
-            >{{ routeLabel(routesById.get(row.routeId)!) }}</span>
-          </template>
+          <cal-route-badge
+            :label="row.route_short_name || row.route_long_name || row.route_id"
+            :color="row.route_color"
+            :text-color="row.route_text_color"
+            :title="row.route_long_name"
+            truncate
+          />
         </td>
         <td>
-          <template v-if="tripDetails.get(row.tripId)">
-            {{ tripHeadsignAt(tripDetails.get(row.tripId)!, row.stopId) || `Direction ${row.directionId}` }}
-          </template>
+          <span v-if="row.headsign">{{ row.headsign }}</span>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
         <td class="cal-trip-table-time">
-          <template v-if="tripDetails.get(row.tripId)">
-            {{ formatGtfsTime(tripDetails.get(row.tripId)!.startTime) }}–{{ formatGtfsTime(tripDetails.get(row.tripId)!.endTime) }}
+          <template v-if="row.trip_start">
+            {{ hhmm(row.trip_start) }}–{{ hhmm(row.trip_end) }}
             <div class="cal-trip-table-sub">
-              {{ tripDetails.get(row.tripId)!.stopCount }} stops
+              {{ row.stop_count }} stops
             </div>
           </template>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
-        <td v-if="showDays">
-          {{ describeRowDays(row.dates, scopedDates) }}
+        <td v-if="multiDay">
+          {{ row.days }}
         </td>
       </tr>
     </tbody>
@@ -77,69 +75,28 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { describeRowDays, type ScenarioFilterResult, type SubjectTripRow, type TripSubject } from '~~/src/scenario'
-import { formatGtfsTime } from '~~/src/core'
-import { tripHeadsignAt, type Route, type TripDetail } from '~~/src/tl'
+import { tripTableColumns, type TripSubject, type TripTableRow } from '~~/src/scenario'
+import { formatGtfsTime, parseHMS } from '~~/src/core'
 
 const props = defineProps<{
-  subject: TripSubject
-  rows: SubjectTripRow[]
-  scenarioFilterResult?: ScenarioFilterResult
-  // The scenario's dates scoped to its weekdays, as yyyy-MM-dd.
-  scopedDates: string[]
-  tripDetails: Map<number, TripDetail>
+  subjectKind: TripSubject['kind']
+  rows: TripTableRow[]
+  multiDay: boolean
   detailsLoading: boolean
 }>()
 
-const showDays = computed(() => props.scopedDates.length > 1)
-
 const placeholder = computed(() => props.detailsLoading ? '…' : '—')
 
-const routesById = computed(() => {
-  const m = new Map<number, Route>()
-  for (const r of props.scenarioFilterResult?.routes || []) {
-    m.set(r.id, r)
-  }
-  return m
-})
-
-const stopsById = computed(() => {
-  const m = new Map<number, { stop_name?: string, stop_id: string }>()
-  for (const s of props.scenarioFilterResult?.stops || []) {
-    m.set(s.id, s)
-  }
-  return m
-})
-
-function stopName (id: number): string {
-  const s = stopsById.value.get(id)
-  return s?.stop_name || s?.stop_id || String(id)
+// The full table's column tooltips, so the two tables explain alike.
+const columns = computed(() => tripTableColumns(props.subjectKind, props.multiDay))
+function tooltip (key: string): string {
+  return columns.value.find(c => c.key === key)?.tooltip ?? ''
 }
 
-function routeLabel (r: Route): string {
-  return r.route_short_name || r.route_long_name || r.route_id
+// HH:MM from a row's HH:MM:SS; the CSV keeps the seconds.
+function hhmm (value: string): string {
+  return formatGtfsTime(parseHMS(value))
 }
-
-// The route's own colors where the feed gives them, as www's route chips are
-// drawn; a neutral badge otherwise.
-function routeBadgeStyle (r: Route): Record<string, string> {
-  if (!r.route_color) {
-    return {}
-  }
-  return {
-    background: `#${r.route_color}`,
-    color: r.route_text_color ? `#${r.route_text_color}` : '#fff',
-  }
-}
-
-const timeTooltip = computed(() => {
-  if (props.subject.kind === 'route') {
-    return 'When the trip leaves its first stop within the scenario area.'
-  }
-  return 'When the trip leaves this stop.'
-})
-
-const tripTooltip = 'When the trip leaves its first stop and reaches its last, and how many stops it makes, including stops outside the scenario area.'
 </script>
 
 <style scoped lang="scss">
@@ -160,9 +117,6 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
     background: var(--bulma-scheme-main-bis);
     font-weight: 600;
     color: var(--bulma-text-strong);
-    position: sticky;
-    top: 0;
-    z-index: 1;
   }
 
   td {
@@ -195,23 +149,6 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
   font-size: 11px;
   color: var(--bulma-text-weak);
   white-space: normal;
-}
-
-.cal-trip-table-route {
-  display: inline-block;
-  min-width: 1.75em;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: var(--bulma-scheme-main-ter);
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  // A long name (an intercity route with no short name) would push the table
-  // past the panel's width.
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
 }
 
 .cal-trip-table-pending {

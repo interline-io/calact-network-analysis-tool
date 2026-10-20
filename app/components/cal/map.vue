@@ -1074,11 +1074,8 @@ function handleShowTrips (featureType: string, featureId: string | number) {
     emit('showTrips', { kind: 'stop', stopId: id })
   } else if (featureType === 'route' && Number.isFinite(id)) {
     emit('showTrips', { kind: 'route', routeId: id })
-  } else if (featureType === 'cluster') {
-    const cluster = props.scenarioFilterResult?.stopClusters?.find(c => c.id === featureId)
-    if (cluster) {
-      emit('showTrips', { kind: 'cluster', clusterId: cluster.id, stopIds: cluster.memberStopIds })
-    }
+  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
+    emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
   }
 }
 

@@ -609,6 +609,9 @@ export interface ScenarioFilterResult {
   stops: Stop[]
   agencies: Agency[]
   stopDepartureCache: StopDepartureCache
+  // The same departures by route, as the filter built them for the route
+  // stats; reused by views that need a route's trips (the trip panel).
+  routeIndex?: RouteDepartureIndex
   feedVersions: FeedVersion[]
   flexAreas: FlexAreaFeature[]
   // Passed through from ScenarioData for debug UIs (Route Timetable modal).
@@ -846,6 +849,7 @@ export function applyScenarioResultFilter (
     agencies: agencyFeatures,
     feedVersions: [],
     stopDepartureCache: sdCache,
+    routeIndex,
     flexAreas: flexAreaFeatures,
     tripIdStrings: data.tripIdStrings,
     censusGeographies: data.censusGeographies,

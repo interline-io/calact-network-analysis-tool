@@ -92,8 +92,10 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       }
     }
     for (const st of stopTimes) {
-      const dep = toSeconds(st.departure_time) ?? toSeconds(st.arrival_time)
-      const arr = toSeconds(st.arrival_time) ?? toSeconds(st.departure_time)
+      const depTime = toSeconds(st.departure_time)
+      const arrTime = toSeconds(st.arrival_time)
+      const dep = depTime ?? arrTime
+      const arr = arrTime ?? depTime
       if (dep !== undefined && (startTime === undefined || dep < startTime)) {
         startTime = dep
       }
