@@ -64,7 +64,6 @@
       @overlay-drag-start="onOverlayDragStart"
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
-      @open-timetable="handleOpenTimetable"
       @show-trips="handleShowTrips"
       @popup-shown="onPopupShown"
       @popup-closed="onPopupClosed"
@@ -85,7 +84,6 @@ const emit = defineEmits<{
   setDisplayFeatures: [value: Feature[]]
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
-  openTimetable: [route: Route]
   showTrips: [subject: TripSubject]
   // The selection the trip panel describes is gone: replaced by a new map
   // click, dismissed, or dropped by the filters.
@@ -1081,13 +1079,6 @@ function handleShowTrips (featureType: string, featureId: string | number) {
     emit('showTrips', { kind: 'route', routeId: id })
   } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
     emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
-  }
-}
-
-function handleOpenTimetable (featureId: string | number) {
-  const route = props.scenarioFilterResult?.routes?.find(r => r.id.toString() === featureId.toString())
-  if (route) {
-    emit('openTimetable', route)
   }
 }
 </script>

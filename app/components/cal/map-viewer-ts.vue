@@ -27,7 +27,6 @@ const emit = defineEmits([
   'overlayDragEnd',
   'selectableGeoClick',
   'selectableGeoRightClick',
-  'openTimetable',
   'showTrips',
   'popupShown',
   'popupClosed',
@@ -1080,9 +1079,6 @@ function showPopupAtIndex (index: number) {
         if (currentPopupIndex < currentPopupFeatures.length - 1) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
-      },
-      onOpenTimetable: (featureId: string | number) => {
-        emit('openTimetable', featureId)
       },
       onShowTrips: (featureType: string, featureId: string | number) => {
         emit('showTrips', featureType, featureId)

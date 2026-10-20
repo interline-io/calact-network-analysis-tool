@@ -97,7 +97,7 @@
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          :title="col.tab === 'trip-table' ? 'View this route\'s trips' : 'View the route timetable'"
+          :title="col.tab === 'trips' ? 'View this route\'s trips' : 'View how this frequency is calculated'"
           @click="handleRouteDrill(row.id, col.tab)"
         >
           {{ col.format(value) }}
@@ -171,6 +171,7 @@
 </template>
 
 <script setup lang="ts">
+import type { TripDetailsTab } from './trip-details.vue'
 import { stopToStopCsv, stopGeoAggregateCsv, routeToRouteCsv, agencyToAgencyCsv, routesById, formatFareAmount, type Route, type Stop, type Agency } from '~~/src/tl'
 import { stopClusterCsv, type ScenarioFilterResult, type TripSubject, type BufferDetailsKind, type BufferDetailsPayload, buildRouteColumns, buildStopColumns, buildStopGeoAggregateColumns, buildAgencyColumns, stopClusterColumns, flexAreaColumns, flexFeatureToCsv } from '~~/src/scenario'
 import { fmtDate, formatGtfsTime, formatDuration, formatCensusValue, toFiniteNumber, CENSUS_COLUMNS, HIERARCHICAL_TIGER_LAYERS, SCENARIO_DEFAULTS, type DataDisplayMode, type Feature, type FilterTag, type TableReport } from '~~/src/core'
@@ -186,52 +187,41 @@ const props = defineProps<{
 const { aggregateLayer, onlyWithStops, dataDisplayMode, isAllDayMode } = useScenarioDisplay()
 const { startDate, endDate, fixedRouteEnabled, stopBufferRadius, stopBufferLayer, geoDatasetName } = useScenarioInputs()
 
-export type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
-
 const emit = defineEmits<{
-  openTimetable: [payload: { route: Route, initialTab: RouteTimetableTab }]
   openBufferDetails: [payload: BufferDetailsPayload]
-  // Every trip behind a row's count, in the full trip table.
-  openTrips: [subject: TripSubject]
+  // Every trip behind a row's count, in the full trip table; for a route's
+  // frequency, on the tab that shows how it was worked out.
+  openTrips: [subject: TripSubject, tab?: TripDetailsTab]
 }>()
 
-function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
-  const route = props.scenarioFilterResult?.routes.find(r => r.id === routeId)
-  if (route) {
-    emit('openTimetable', { route, initialTab })
-  }
-}
-
-// The trips/frequency columns all render a drill button; they vary only by
-// where it leads and how the value is formatted. Trip counts and start times
-// open the route's trips in the trip table, which counts them the same way and
-// times each trip at its first in-area departure; trip end times (a trip's
-// last in-area departure, which the trip table does not show) and frequencies
-// open the route timetable, which shows how they were worked out.
+// The trips/frequency columns all render a drill button into the route's trip
+// details; they vary only by which tab it opens and how the value is
+// formatted. Trip counts and start times open the trips, which are counted the
+// same way and timed at each trip's first in-area departure; trip end times (a
+// trip's last in-area departure, which the trip table does not show) and
+// frequencies open the calculations, which show how they were worked out.
 // average_frequency additionally shows the #368 frequency caveat tooltip.
 const timetableDrillColumns: {
   id: string
-  // A route timetable tab, or the trip table.
-  tab: RouteTimetableTab | 'trip-table'
+  tab: TripDetailsTab
   format: (value: unknown) => unknown
   caveat?: boolean
 }[] = [
-  { id: 'average_trips_per_day', tab: 'trip-table', format: value => value },
-  { id: 'average_trips_per_hour', tab: 'trip-table', format: value => value },
+  { id: 'average_trips_per_day', tab: 'trips', format: value => value },
+  { id: 'average_trips_per_hour', tab: 'trips', format: value => value },
   { id: 'average_frequency', tab: 'frequency', format: formatDuration, caveat: true },
   { id: 'fastest_frequency', tab: 'frequency', format: formatDuration },
   { id: 'slowest_frequency', tab: 'frequency', format: formatDuration },
-  { id: 'earliest_trip_start', tab: 'trip-table', format: formatGtfsTime },
-  { id: 'earliest_trip_end', tab: 'trips', format: formatGtfsTime },
-  { id: 'latest_trip_start', tab: 'trip-table', format: formatGtfsTime },
-  { id: 'latest_trip_end', tab: 'trips', format: formatGtfsTime },
+  { id: 'earliest_trip_start', tab: 'trips', format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'frequency', format: formatGtfsTime },
+  { id: 'latest_trip_start', tab: 'trips', format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'frequency', format: formatGtfsTime },
 ]
 
-function handleRouteDrill (routeId: number, tab: RouteTimetableTab | 'trip-table') {
-  if (tab !== 'trip-table') {
-    handleOpenTimetable(routeId, tab)
-  } else if (props.scenarioFilterResult?.routes.some(r => r.id === routeId)) {
-    emit('openTrips', { kind: 'route', routeId })
+// Only a route in the current results, which the trip details can find.
+function handleRouteDrill (routeId: number, tab: TripDetailsTab) {
+  if (props.scenarioFilterResult?.routes.some(r => r.id === routeId)) {
+    emit('openTrips', { kind: 'route', routeId }, tab)
   }
 }
 
@@ -251,7 +241,7 @@ function frequencyCaveatText (row: { frequency_irregular?: boolean, frequency_di
   if (reasons.length === 0) {
     return ''
   }
-  return `This frequency may not be representative: ${reasons.join('; ')}. Open the timetable for details.`
+  return `This frequency may not be representative: ${reasons.join('; ')}. Open its calculations for details.`
 }
 
 const drillableBufferTab = computed<BufferDetailsKind | null>(() => {

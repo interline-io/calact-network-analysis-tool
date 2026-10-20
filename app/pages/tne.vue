@@ -69,7 +69,6 @@
             :export-features="exportFeatures"
             :filter-tags="filterTags"
             :flex-display-features="flexFeaturesForReport"
-            @open-timetable="openRouteTimetable"
             @open-buffer-details="openBufferDetails"
             @open-trips="openReportTrips"
           />
@@ -103,7 +102,6 @@
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
-          @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
@@ -158,39 +156,29 @@
         />
       </cat-modal>
 
-      <!-- Route Timetable debug modal -->
-      <cat-modal
-        v-model="showTimetable"
-        title="Route Timetable"
-        full-screen
-      >
-        <cal-route-timetable
-          v-if="timetableRoute && scenarioFilterResult"
-          :route="timetableRoute"
-          :scenario-filter-result="scenarioFilterResult"
-          :selected-date-range="selectedDateRange"
-          :selected-weekdays="selectedWeekdays"
-          :selected-weekday-mode="selectedWeekdayMode"
-          :start-time="startTime"
-          :end-time="endTime"
-          :initial-tab="timetableInitialTab"
-        />
-      </cat-modal>
-
-      <!-- Every trip behind the trip panel, or behind a Reports row, at full size -->
+      <!-- Every trip behind the trip panel, or behind a Reports row, at full
+           size; for a route, with how its report numbers are worked out -->
       <cat-modal
         v-model="showTripTable"
         :title="`Trips for: ${tripTable.title}`"
         full-screen
       >
-        <cal-trip-report
+        <cal-trip-details
           v-if="tripTable.resolvedSubject && tripTable.trips"
+          v-model:tab="tripTableTab"
           :subject-kind="tripTable.resolvedSubject.kind"
           :rows="tripTable.rows"
           :multi-day="tripTable.trips.dateCount > 1"
           :title="tripTable.title"
           :details-loading="tripTable.detailsLoading"
           :details-error="tripTable.detailsError"
+          :route="tripTableRoute"
+          :scenario-filter-result="scenarioFilterResult"
+          :selected-date-range="selectedDateRange"
+          :selected-weekdays="selectedWeekdays"
+          :selected-weekday-mode="selectedWeekdayMode"
+          :start-time="startTime"
+          :end-time="endTime"
           @retry="tripTable.loadDetails('all')"
         />
       </cat-modal>
@@ -238,6 +226,7 @@ import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
+import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -253,7 +242,6 @@ import {
 import type {
   CensusDataset,
   CensusGeography,
-  Route,
 } from '~~/src/tl'
 import {
   type Bbox,
@@ -706,23 +694,6 @@ watch([geographyFitPending, selectedGeographiesLoaded], ([pending, loaded]) => {
 // Scenario
 ////////////////////////////
 
-// Route Timetable debug modal state.
-type RouteTimetableTab = 'frequency' | 'trips' | 'stops'
-const timetableRoute = ref<Route | undefined>(undefined)
-const timetableInitialTab = ref<RouteTimetableTab>('frequency')
-const showTimetable = computed({
-  get: () => timetableRoute.value !== undefined,
-  set: (v: boolean) => {
-    if (!v) {
-      timetableRoute.value = undefined
-    }
-  },
-})
-function openRouteTimetable (payload: { route: Route, initialTab: RouteTimetableTab }) {
-  timetableInitialTab.value = payload.initialTab
-  timetableRoute.value = payload.route
-}
-
 const showCensusDetails = ref(false)
 const highlightedCensusGeoid = ref<string | null>(null)
 function openCensusDetails (geoid?: string) {
@@ -882,6 +853,12 @@ const tripTable = reactive(useTripPanel({
 const showTripTable = ref(false)
 // Opened from the panel, the table goes with the panel's selection.
 let tripTableFromPanel = false
+const tripTableTab = ref<TripDetailsTab>('trips')
+// A route subject's route, for its calculation and stop tabs.
+const tripTableRoute = computed(() => {
+  const s = tripTable.resolvedSubject
+  return s?.kind === 'route' ? scenarioFilterResult.value?.routes.find(r => r.id === s.routeId) : undefined
+})
 watch(tripPanelOpenedSubject, () => {
   if (tripTableFromPanel) {
     showTripTable.value = false
@@ -893,9 +870,10 @@ watch(() => tripTable.trips, () => {
     tripTable.loadDetails('all')
   }
 })
-function showTrips (subject: TripSubject, fromPanel: boolean) {
+function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTab = 'trips') {
   tripTable.open(subject)
   tripTableFromPanel = fromPanel
+  tripTableTab.value = tab
   showTripTable.value = true
   tripTable.loadDetails('all')
 }
@@ -904,8 +882,8 @@ function openTripTable () {
     showTrips(tripPanelOpenedSubject.value, true)
   }
 }
-function openReportTrips (subject: TripSubject) {
-  showTrips(subject, false)
+function openReportTrips (subject: TripSubject, tab: TripDetailsTab = 'trips') {
+  showTrips(subject, false, tab)
 }
 function onTripPanelClose () {
   closeTripPanel()
