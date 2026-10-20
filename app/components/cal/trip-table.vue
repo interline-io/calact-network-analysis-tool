@@ -3,8 +3,9 @@
     <caption class="is-sr-only">
       Trips
     </caption>
-    <!-- Fixed widths, so long stop names, headsigns, and route names wrap or
-         truncate within the map sidebar rather than widen it. -->
+    <!-- A preview: one line per trip, so the first few fit the map sidebar
+         without scrolling. Fixed widths; a long value is cut short, with the
+         whole of it on hover and in the full table. -->
     <colgroup>
       <col class="cal-trip-table-col-time">
       <col class="cal-trip-table-col-route">
@@ -37,11 +38,8 @@
     </thead>
     <tbody>
       <tr v-for="(row, i) of rows" :key="i">
-        <td class="cal-trip-table-time">
+        <td class="cal-trip-table-time" :title="subjectKind === 'cluster' ? (row.stop_name || row.stop_id) : undefined">
           {{ tripTimeLabel(row.time) }}
-          <div v-if="subjectKind === 'cluster'" class="cal-trip-table-sub">
-            {{ row.stop_name || row.stop_id }}
-          </div>
         </td>
         <td>
           <cal-route-badge
@@ -52,20 +50,17 @@
             truncate
           />
         </td>
-        <td>
+        <td :title="row.headsign || undefined">
           <span v-if="row.headsign">{{ row.headsign }}</span>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
-        <td class="cal-trip-table-time">
+        <td class="cal-trip-table-time" :title="row.trip_start ? `${row.stop_count} stops` : undefined">
           <template v-if="row.trip_start">
             {{ tripTimeLabel(row.trip_start) }}–{{ tripTimeLabel(row.trip_end) }}
-            <div class="cal-trip-table-sub">
-              {{ row.stop_count }} stops
-            </div>
           </template>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
-        <td v-if="multiDay">
+        <td v-if="multiDay" :title="row.days">
           {{ row.days }}
         </td>
       </tr>
@@ -114,35 +109,30 @@ function tooltip (key: string): string {
   }
 
   td {
-    overflow-wrap: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
 .cal-trip-table-col-time {
-  width: 17%;
+  width: 14%;
 }
 
 .cal-trip-table-col-route {
-  width: 23%;
+  width: 18%;
 }
 
 .cal-trip-table-col-trip {
-  width: 22%;
+  width: 26%;
 }
 
 .cal-trip-table-col-days {
-  width: 15%;
+  width: 18%;
 }
 
 .cal-trip-table-time {
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.cal-trip-table-sub {
-  font-size: 11px;
-  color: var(--bulma-text-weak);
-  white-space: normal;
 }
 
 .cal-trip-table-pending {
