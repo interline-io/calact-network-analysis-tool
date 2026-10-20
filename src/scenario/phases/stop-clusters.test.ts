@@ -115,6 +115,29 @@ describe('deriveStopClusters', () => {
     expect(clusters[0]?.agencyIds).toEqual([10, 20, 30])
   })
 
+  it('centers a cluster on one of its own stops', () => {
+    // Stop 2 is agency 10's busier stop, so it represents agency 10 in every
+    // ball, stop 1's included. The lowest-id tie-break alone would anchor the
+    // cluster on stop 1 and draw its circle around a stop it does not hold.
+    const clusters = deriveStopClusters([
+      stop(1, [10], [2, 3], [101]),
+      stop(2, [10], [1, 3], [102, 103]),
+      stop(3, [20], [1, 2], [201]),
+    ], DIST)
+    expect(clusters).toHaveLength(1)
+    expect(clusters[0]?.memberStopIds).toEqual([2, 3])
+    expect(clusters[0]?.anchorStopId).toBe(2)
+  })
+
+  it('names a cluster for what most of its members\' feeds call the place', () => {
+    const clusters = deriveStopClusters([
+      { ...stop(1, [10], [2, 3]), name: 'Tacoma', feedOnestopId: 'f-a' },
+      { ...stop(2, [20], [1, 3]), name: 'Tacoma Dome Station - Zone H', feedOnestopId: 'f-b' },
+      { ...stop(3, [30], [1, 2]), name: 'Tacoma Dome Station', feedOnestopId: 'f-c' },
+    ], DIST)
+    expect(clusters[0]?.name).toBe('Tacoma Dome Station')
+  })
+
   it('keeps a stop that shares an agency but also contributes a new one', () => {
     // Stop 1 serves 10 + 20, stop 2 serves 20 + 30. Stop 2 shares agency 20 but
     // adds 30, so it is admitted as a member.
@@ -240,5 +263,21 @@ describe('stopClusterCsv', () => {
     expect(rows[0]?.routes_count).toBe(2)
     expect(rows[0]?.agencies).toContain('TriMet')
     expect(rows[0]?.member_stops).toContain('First & Main (S1)')
+  })
+
+  it('uses the cluster\'s name and the place it is near', () => {
+    const cluster: StopCluster = {
+      id: 'cluster:1',
+      anchorStopId: 1,
+      memberStopIds: [1, 2],
+      agencyIds: [10, 20],
+      routeIds: [10, 20],
+      maxDistanceMeters: DIST,
+      name: 'Portland Curbside Bus Stop',
+      nearName: 'Portland Union Station',
+    }
+    const rows = stopClusterCsv([cluster], new Map(), new Map())
+    expect(rows[0]?.cluster).toBe('Portland Curbside Bus Stop')
+    expect(rows[0]?.near).toBe('Portland Union Station')
   })
 })

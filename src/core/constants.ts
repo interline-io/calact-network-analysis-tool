@@ -309,6 +309,10 @@ export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 // enabling the optional prune. The prune is off (0) by default — proximity alone.
 export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
 export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
+// How far around a cluster's center to look for a better-known place to say it
+// is near ("Portland Curbside Bus Stop, near Portland Union Station"). Wider
+// than the default cluster distance: the place is next door, not in the cluster.
+export const STOP_CLUSTER_NEAR_RADIUS = 250
 
 // Seeded when the user ticks a Fixed-Route Services threshold: route frequency
 // (minutes between trips) and stop visits (total visits during the filtered

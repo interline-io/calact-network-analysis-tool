@@ -208,7 +208,18 @@ export function buildStopGeoAggregateColumns (allDay: boolean, bufferAggregation
 
 // one row per cross-agency transfer-hub cluster.
 export const stopClusterColumns: TableColumn[] = [
-  { key: 'cluster', label: 'Cluster', sortable: true },
+  {
+    key: 'cluster',
+    label: 'Cluster',
+    sortable: true,
+    tooltip: 'What most of the member stops\' feeds call the place.',
+  },
+  {
+    key: 'near',
+    label: 'Near',
+    sortable: true,
+    tooltip: 'A better-known place just outside the cluster, where more feeds agree on its name than on the cluster\'s own.',
+  },
   {
     key: 'agencies_count',
     label: 'Agencies',

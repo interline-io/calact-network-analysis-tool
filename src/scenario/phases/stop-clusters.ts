@@ -23,12 +23,22 @@ import {
   parseHMS,
   queryAreaVariables,
   routeTypeNames,
+  STOP_CLUSTER_NEAR_RADIUS,
   WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
   type Weekday,
 } from '~~/src/core'
-import { stopClusterQuery, type RouteGql, type Stop, type StopClusterStopResponse, type StopDepartureCache } from '~~/src/tl'
+import {
+  stopClusterNearQuery,
+  stopClusterQuery,
+  type RouteGql,
+  type Stop,
+  type StopClusterNearResponse,
+  type StopClusterStopResponse,
+  type StopDepartureCache,
+} from '~~/src/tl'
+import { chooseNearName, chooseStopName, type NamedStop } from './cluster-names'
 import {
   phaseDone,
   phaseQueue,
@@ -46,6 +56,9 @@ export interface ClusterInputStop {
   routeIds: number[]
   /** Stop ids within the max distance, from PostGIS nearby_stops (server-side). */
   neighborIds: number[]
+  /** For naming the cluster: the stop's name and its feed. */
+  name?: string
+  feedOnestopId?: string
 }
 
 /** Per-stop agency/route metadata, used when re-deriving a pruned cluster. */
@@ -68,6 +81,13 @@ export interface StopCluster {
   routeIds: number[]
   /** The max distance (meters) used — drives the map circle radius. */
   maxDistanceMeters: number
+  /**
+   * What the members' feeds most agree on calling the place (cluster-names.ts).
+   * Absent when no member has a name; show the anchor stop's name instead.
+   */
+  name?: string
+  /** A better-known place just outside the cluster, for "near …". */
+  nearName?: string
 }
 
 /** A cluster needs at least this many member stops (a hub is multi-stop). */
@@ -125,6 +145,7 @@ function buildCluster (
       routeIds.add(r)
     }
   }
+  const name = chooseStopName(namedStops(memberStopIds, byId))?.name
   return {
     id: `cluster:${anchor}`,
     anchorStopId: anchor,
@@ -132,7 +153,20 @@ function buildCluster (
     agencyIds: [...agencyIds].sort((a, b) => a - b),
     routeIds: [...routeIds].sort((a, b) => a - b),
     maxDistanceMeters,
+    ...(name ? { name } : {}),
   }
+}
+
+// The named stops among `ids`, as cluster-names.ts takes them.
+function namedStops (ids: number[], byId: Map<number, ClusterInputStop>): NamedStop[] {
+  const out: NamedStop[] = []
+  for (const id of ids) {
+    const stop = byId.get(id)
+    if (stop?.name) {
+      out.push({ name: stop.name, feedOnestopId: stop.feedOnestopId ?? '' })
+    }
+  }
+  return out
 }
 
 /**
@@ -198,7 +232,11 @@ export function deriveStopClusters (
         }
       }
       const members = selectClusterMembers(ball, byId)
-      if (members.length < MIN_CLUSTER_MEMBERS) {
+      // The map draws the cluster's circle around its anchor, so the anchor
+      // must be one of the stops it holds. A ball whose anchor loses to a
+      // busier stop of its own agency (or is a layover point with no routes)
+      // is left to an anchor that is a member.
+      if (members.length < MIN_CLUSTER_MEMBERS || !members.includes(anchor)) {
         continue
       }
       if (
@@ -445,6 +483,8 @@ function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
     ...stopRouteAgencyIds(stop.route_stops),
     id: stop.id,
     neighborIds: (stop.nearby_stops || []).map(n => n.id),
+    name: stop.stop_name || undefined,
+    feedOnestopId: stop.feed_version?.feed.onestop_id,
   }
 }
 
@@ -515,7 +555,7 @@ export async function runStopClustersPhase (
   opts: PhaseOpts = {},
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
-  const clusters = deriveStopClusters(inputs, config.maxDistanceMeters)
+  const clusters = await addNearNames(deriveStopClusters(inputs, config.maxDistanceMeters), inputs, client)
   await emit({
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
@@ -524,12 +564,60 @@ export async function runStopClustersPhase (
   return clusters
 }
 
+// Anchors per request for the "near" lookup.
+const NEAR_QUERY_CHUNK = 100
+
+/**
+ * Say what better-known place each cluster is near, where that helps
+ * (chooseNearName). Names only: a failed lookup leaves the clusters as they were
+ * rather than failing the phase.
+ */
+async function addNearNames (
+  clusters: StopCluster[],
+  inputs: ClusterInputStop[],
+  client: GraphQLClient,
+): Promise<StopCluster[]> {
+  if (clusters.length === 0) {
+    return clusters
+  }
+  const nearbyByAnchor = new Map<number, (NamedStop & { id: number })[]>()
+  try {
+    const anchors = clusters.map(c => c.anchorStopId)
+    for (let i = 0; i < anchors.length; i += NEAR_QUERY_CHUNK) {
+      const response = await client.query<{ stops: StopClusterNearResponse[] }>(stopClusterNearQuery, {
+        ids: anchors.slice(i, i + NEAR_QUERY_CHUNK),
+        radius: STOP_CLUSTER_NEAR_RADIUS,
+        nearbyLimit: NEARBY_STOPS_LIMIT,
+      })
+      for (const stop of response.data?.stops || []) {
+        nearbyByAnchor.set(stop.id, (stop.nearby_stops || [])
+          .filter(n => n.stop_name)
+          .map(n => ({ id: n.id, name: n.stop_name!, feedOnestopId: n.feed_version?.feed.onestop_id ?? '' })))
+      }
+    }
+  } catch (err) {
+    console.warn('[stop-clusters] could not look up nearby place names', err)
+    return clusters
+  }
+  const byId = new Map(inputs.map(s => [s.id, s]))
+  return clusters.map((cluster) => {
+    const members = namedStops(cluster.memberStopIds, byId)
+    const memberIds = new Set(cluster.memberStopIds)
+    // The cluster's own stops come back from nearby_stops too; drop them by id
+    // here, and chooseNearName drops anything sharing a member's name.
+    const nearby = (nearbyByAnchor.get(cluster.anchorStopId) || []).filter(n => !memberIds.has(n.id))
+    const nearName = chooseNearName(chooseStopName(members), members, nearby)
+    return nearName ? { ...cluster, nearName } : cluster
+  })
+}
+
 // ============================================================================
 // REPORT — one flat row per cluster for the "Stop Clusters" aggregation tab
 // ============================================================================
 
 export interface StopClusterCsv {
   cluster: string
+  near: string
   agencies_count: number
   agencies: string
   stops_count: number
@@ -575,7 +663,8 @@ export function stopClusterCsv (
       }
     }
     return {
-      cluster: `Cluster ${idx + 1}`,
+      cluster: cluster.name ?? `Cluster ${idx + 1}`,
+      near: cluster.nearName ?? '',
       agencies_count: agencyIds.size,
       agencies: [...agencies].join(', '),
       stops_count: cluster.memberStopIds.length,

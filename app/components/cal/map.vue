@@ -78,7 +78,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
+import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -1046,6 +1046,10 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     featureType: 'cluster',
     data: {
       cluster_id: cluster.id,
+      cluster_name: clusterDisplayName(
+        cluster.name ?? stopFeatureLookup.value.get(cluster.anchorStopId.toString())?.stop_name ?? '',
+        cluster.nearName,
+      ),
       agency_names: [...allAgencies],
       cluster_members: members,
     },
