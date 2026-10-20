@@ -101,6 +101,7 @@
           @click="handleRouteDrill(row.id, col.tab)"
         >
           {{ col.format(value) }}
+          <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <cat-tooltip
           v-if="col.caveat && (row.frequency_irregular || row.frequency_directions_differ)"
@@ -121,6 +122,7 @@
           @click="emit('openTrips', { kind: 'stop', stopId: row.id })"
         >
           {{ value }}
+          <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <span v-else>{{ value }}</span>
       </template>
@@ -133,6 +135,7 @@
           @click="emit('openTrips', { kind: 'cluster', clusterId: row.id })"
         >
           {{ value }}
+          <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <span v-else>{{ value }}</span>
       </template>
@@ -156,6 +159,7 @@
           @click="handleOpenBufferDetails(row)"
         >
           {{ formatCensusValue(toFiniteNumber(value), col.format) }}
+          <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <span v-else>
           {{ formatCensusValue(toFiniteNumber(value), col.format) }}
@@ -539,10 +543,26 @@ const activeTableReport = computed((): TableReport => {
     cursor: pointer;
     text-decoration: underline dotted;
     text-underline-offset: 2px;
+    // Room for the drill icon on the same line as the figure.
+    white-space: nowrap;
 
     &:hover {
       text-decoration-style: solid;
     }
+
+    &:hover .cal-report-drill-icon,
+    &:focus-visible .cal-report-drill-icon {
+      opacity: 1;
+    }
+  }
+
+  // Marks a figure that opens its details (trips, a calculation, a census
+  // derivation): the same icon as the trip panel's "Open full table". Muted
+  // until the figure is hovered or focused.
+  .cal-report-drill-icon {
+    margin-left: 2px;
+    opacity: 0.45;
+    vertical-align: middle;
   }
 
   .cal-report-frequency-caveat {
