@@ -197,6 +197,49 @@ describe('subjectTrips for a route', () => {
   })
 })
 
+describe('subjectTrips with excluded trips', () => {
+  const cache = cacheOf([
+    // Counted: in the window on Monday.
+    [1, MON, hms(7), 100, 0, 10],
+    // Outside the 06:00-10:00 window.
+    [1, MON, hms(11), 101, 0, 10],
+    // On Saturday, outside the selected weekdays.
+    [1, SAT, hms(7), 102, 0, 10],
+  ])
+  const opts = {
+    dates: [day(MON)],
+    startTime: hms(6),
+    endTime: hms(10),
+    stopDepartureCache: cache,
+    routeIndex: RouteDepartureIndex.fromCache(cache),
+    excludedDates: [day(SAT)],
+  }
+
+  it('leaves them out unless asked', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, opts)
+    expect(r.rows.map(row => row.tripId)).toEqual([100])
+  })
+
+  it('lists them with why, without counting them', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, { ...opts, includeExcluded: true })
+    expect(r.count).toBe(1)
+    expect(r.firstTime).toBe(hms(7))
+    expect(r.lastTime).toBe(hms(7))
+    expect(r.rows.map(row => [row.tripId, row.excluded, row.dates])).toEqual([
+      [100, undefined, [MON]],
+      [102, 'weekday', [SAT]],
+      [101, 'time', [MON]],
+    ])
+  })
+
+  it('gives every table row the reason column, so the CSV has it', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, { ...opts, includeExcluded: true })
+    const rows = tripTableRows(r.rows, { routes: new Map(), stops: new Map(), tripDetails: new Map(), scopedDates: [MON, SAT], includeExcluded: true })
+    expect(rows.map(row => row.excluded)).toEqual(['', 'Not a selected weekday', 'Outside time window'])
+    expect(tripTableColumns('route', true, true).map(c => c.key).at(-1)).toBe('excluded')
+  })
+})
+
 describe('tripTableRows for a route', () => {
   it('adds each trip\'s last in-area departure and stop', () => {
     const [row] = tripTableRows([

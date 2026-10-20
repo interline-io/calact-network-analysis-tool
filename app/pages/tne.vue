@@ -166,6 +166,7 @@
         <cal-trip-details
           v-if="tripTable.resolvedSubject && tripTable.trips"
           v-model:tab="tripTableTab"
+          v-model:include-excluded="tripTableIncludeExcluded"
           :subject-kind="tripTable.resolvedSubject.kind"
           :rows="tripTable.rows"
           :multi-day="tripTable.trips.dateCount > 1"
@@ -842,6 +843,8 @@ const mapSelectionClearKey = ref(0)
 // The full trip table, opened with the panel's subject or a Reports row's.
 // Its own instance, not the panel's: a Reports row selects nothing on the map,
 // and the panel describes the map's selection.
+// A route's trips its report leaves out, listed too; off for each new subject.
+const tripTableIncludeExcluded = ref(false)
 const tripTable = reactive(useTripPanel({
   scenarioFilterResult,
   selectedDateRange,
@@ -849,6 +852,7 @@ const tripTable = reactive(useTripPanel({
   selectedWeekdayMode,
   startTime,
   endTime,
+  includeExcluded: () => tripTableIncludeExcluded.value,
 }, tripDetailsStore))
 const showTripTable = ref(false)
 // Opened from the panel, the table goes with the panel's selection.
@@ -881,6 +885,7 @@ function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTa
   tripTable.open(subject)
   tripTableFromPanel = fromPanel
   tripTableTab.value = tab
+  tripTableIncludeExcluded.value = false
   showTripTable.value = true
 }
 function openTripTable (tab: TripDetailsTab = 'trips') {

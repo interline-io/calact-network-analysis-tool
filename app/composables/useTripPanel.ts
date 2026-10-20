@@ -47,6 +47,8 @@ export interface UseTripPanelDeps {
   selectedWeekdayMode: MaybeRefOrGetter<WeekdayMode | undefined>
   startTime: MaybeRefOrGetter<Date | undefined>
   endTime: MaybeRefOrGetter<Date | undefined>
+  // A route's trips the reports leave out are listed too, marked with why.
+  includeExcluded?: MaybeRefOrGetter<boolean>
 }
 
 export interface UseTripPanelReturn {
@@ -210,12 +212,16 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
     resolveEffectiveWeekdays(toValue(deps.selectedWeekdays), toValue(deps.selectedWeekdayMode)),
   ))
 
+  // Only a route lists excluded trips.
+  const includeExcluded = computed(() => resolvedSubject.value?.kind === 'route' && !!toValue(deps.includeExcluded))
+
   const trips = computed(() => {
     const r = result.value
     const s = resolvedSubject.value
     if (!r || !s) {
       return undefined
     }
+    const scoped = new Set(scopedDateRange.value)
     const start = toValue(deps.startTime)
     const end = toValue(deps.endTime)
     return subjectTrips(s, {
@@ -226,6 +232,8 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
       // The filter's own index, so the panel counts what the Routes report
       // counts; built here only for a result made without one.
       routeIndex: s.kind === 'route' ? (r.routeIndex ?? RouteDepartureIndex.fromCache(r.stopDepartureCache)) : undefined,
+      includeExcluded: includeExcluded.value,
+      excludedDates: toValue(deps.selectedDateRange).filter(d => !scoped.has(d)),
     })
   })
 
@@ -256,7 +264,9 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
     routes: routes.value,
     stops: stops.value,
     tripDetails: store.details.value,
-    scopedDates: scopedDateRange.value.map(d => format(d, 'yyyy-MM-dd')),
+    // Excluded trips run on dates outside the scoped ones too.
+    scopedDates: (includeExcluded.value ? toValue(deps.selectedDateRange) : scopedDateRange.value).map(d => format(d, 'yyyy-MM-dd')),
+    includeExcluded: includeExcluded.value,
   }))
 
   function clearDetails () {

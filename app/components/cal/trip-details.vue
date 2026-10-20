@@ -4,7 +4,7 @@
        rebuild its calculations. -->
   <cat-tabs v-if="route && scenarioFilterResult" v-model="tab" type="boxed">
     <cat-tab-item value="trips" label="Trips">
-      <cal-trip-report v-bind="report" @retry="$emit('retry')" />
+      <cal-trip-report v-bind="report" v-model:include-excluded="includeExcluded" @retry="$emit('retry')" />
     </cat-tab-item>
     <cat-tab-item v-for="routeTab of routeTabs" :key="routeTab.value" :value="routeTab.value" :label="routeTab.label">
       <KeepAlive>
@@ -72,4 +72,6 @@ const report = computed(() => ({
 }))
 
 const tab = defineModel<TripDetailsTab>('tab', { default: 'trips' })
+// For a route: list the trips its report leaves out too.
+const includeExcluded = defineModel<boolean>('includeExcluded', { default: false })
 </script>

@@ -132,7 +132,7 @@
               </div>
             </td>
           </tr>
-          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
+          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx" :class="rowClass?.(row)">
             <td v-for="column in tableReport.columns" :key="column.key">
               <slot
                 :name="`column-${column.key}`"
@@ -191,6 +191,8 @@ const props = defineProps<{
   // leave out context the surrounding heading already gives (dates, the
   // selected route or area).
   caption: string
+  // A class for a row, such as one marking it apart from the rest.
+  rowClass?: (row: any) => string | undefined
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
