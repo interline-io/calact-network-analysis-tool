@@ -126,6 +126,7 @@
       </template>
       <template #column-cluster="{ value, row }">
         <button
+          v-if="value && row.id != null"
           type="button"
           class="cal-report-cell-button"
           title="View this cluster's trips"
@@ -133,6 +134,7 @@
         >
           {{ value }}
         </button>
+        <span v-else>{{ value }}</span>
       </template>
       <template
         v-for="key of fareAmountColumns"
@@ -197,9 +199,11 @@ function handleOpenTimetable (routeId: number, initialTab: RouteTimetableTab) {
 }
 
 // The trips/frequency columns all render a drill button; they vary only by
-// where it leads and how the value is formatted. Trip counts and times open
-// the route's trips in the trip table, which counts them the same way;
-// frequencies open the route timetable, which shows how they were worked out.
+// where it leads and how the value is formatted. Trip counts and start times
+// open the route's trips in the trip table, which counts them the same way and
+// times each trip at its first in-area departure; trip end times (a trip's
+// last in-area departure, which the trip table does not show) and frequencies
+// open the route timetable, which shows how they were worked out.
 // average_frequency additionally shows the #368 frequency caveat tooltip.
 const timetableDrillColumns: {
   id: string
@@ -214,16 +218,16 @@ const timetableDrillColumns: {
   { id: 'fastest_frequency', tab: 'frequency', format: formatDuration },
   { id: 'slowest_frequency', tab: 'frequency', format: formatDuration },
   { id: 'earliest_trip_start', tab: 'trip-table', format: formatGtfsTime },
-  { id: 'earliest_trip_end', tab: 'trip-table', format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'trips', format: formatGtfsTime },
   { id: 'latest_trip_start', tab: 'trip-table', format: formatGtfsTime },
-  { id: 'latest_trip_end', tab: 'trip-table', format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'trips', format: formatGtfsTime },
 ]
 
 function handleRouteDrill (routeId: number, tab: RouteTimetableTab | 'trip-table') {
-  if (tab === 'trip-table') {
-    emit('openTrips', { kind: 'route', routeId })
-  } else {
+  if (tab !== 'trip-table') {
     handleOpenTimetable(routeId, tab)
+  } else if (props.scenarioFilterResult?.routes.some(r => r.id === routeId)) {
+    emit('openTrips', { kind: 'route', routeId })
   }
 }
 

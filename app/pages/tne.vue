@@ -184,8 +184,8 @@
         full-screen
       >
         <cal-trip-report
-          v-if="tripTable.subject && tripTable.trips"
-          :subject-kind="tripTable.subject.kind"
+          v-if="tripTable.resolvedSubject && tripTable.trips"
+          :subject-kind="tripTable.resolvedSubject.kind"
           :rows="tripTable.rows"
           :multi-day="tripTable.trips.dateCount > 1"
           :title="tripTable.title"
@@ -237,7 +237,7 @@ import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
-import { useTripPanel } from '~/composables/useTripPanel'
+import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -338,9 +338,9 @@ function clearScenario () {
   exportFeatures.value = []
   querySubmitted.value = false
   closeTripPanel()
+  showTripTable.value = false
+  // Shared with the trip table, so this forgets both views' details.
   clearTripPanelDetails()
-  reportTrips.close()
-  reportTrips.clearDetails()
   clearAllResults()
 }
 
@@ -837,6 +837,10 @@ const exportFeatures = shallowRef<Feature[]>([])
 // depends on scenarioFilterResult; consumed by the map and report components.
 const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
 
+// Fetched trip details, shared by the trip panel and the full trip table so a
+// trip is fetched once whichever view asks first.
+const tripDetailsStore = createTripDetailsStore()
+
 // Trip information panel (#476), opened from a stop, route, or cluster popup.
 const {
   subject: tripPanelOpenedSubject,
@@ -858,67 +862,50 @@ const {
   selectedWeekdayMode,
   startTime,
   endTime,
-})
+}, tripDetailsStore)
 
 // The panel describes the map's selection, so closing it clears that
 // selection; the map in turn closes the panel when its selection goes.
 const mapSelectionClearKey = ref(0)
 
-// Trips opened from a Reports row. Its own instance, not the panel's: the
-// panel describes the map's selection, and a Reports row selects nothing on
-// the map.
-const reportTrips = reactive(useTripPanel({
+// The full trip table, opened with the panel's subject or a Reports row's.
+// Its own instance, not the panel's: a Reports row selects nothing on the map,
+// and the panel describes the map's selection.
+const tripTable = reactive(useTripPanel({
   scenarioFilterResult,
   selectedDateRange,
   selectedWeekdays,
   selectedWeekdayMode,
   startTime,
   endTime,
-}))
-
-// The full trip table, for the panel's subject or a Reports row's, fetching
-// every trip's details. From the panel it goes with the panel's selection.
+}, tripDetailsStore))
 const showTripTable = ref(false)
-const tripTableFromReport = ref(false)
-const tripTable = computed(() => tripTableFromReport.value
-  ? {
-      subject: reportTrips.resolvedSubject,
-      trips: reportTrips.trips,
-      rows: reportTrips.rows,
-      title: reportTrips.title,
-      detailsLoading: reportTrips.detailsLoading,
-      detailsError: reportTrips.detailsError,
-      loadDetails: reportTrips.loadDetails,
-    }
-  : {
-      subject: tripPanelSubject.value,
-      trips: tripPanelTrips.value,
-      rows: tripPanelRows.value,
-      title: tripPanelTitle.value,
-      detailsLoading: tripPanelDetailsLoading.value,
-      detailsError: tripPanelDetailsError.value,
-      loadDetails: loadTripPanelDetails,
-    })
+// Opened from the panel, the table goes with the panel's selection.
+let tripTableFromPanel = false
 watch(tripPanelOpenedSubject, () => {
-  if (!tripTableFromReport.value) {
+  if (tripTableFromPanel) {
     showTripTable.value = false
   }
 })
-watch(showTripTable, (open) => {
-  if (!open && tripTableFromReport.value) {
-    reportTrips.close()
+// Every trip's details while the table is open, as the filters change its trips.
+watch(() => tripTable.trips, () => {
+  if (showTripTable.value) {
+    tripTable.loadDetails('all')
   }
 })
-function openTripTable () {
-  tripTableFromReport.value = false
+function showTrips (subject: TripSubject, fromPanel: boolean) {
+  tripTable.open(subject)
+  tripTableFromPanel = fromPanel
   showTripTable.value = true
-  loadTripPanelDetails('all')
+  tripTable.loadDetails('all')
+}
+function openTripTable () {
+  if (tripPanelOpenedSubject.value) {
+    showTrips(tripPanelOpenedSubject.value, true)
+  }
 }
 function openReportTrips (subject: TripSubject) {
-  reportTrips.open(subject)
-  tripTableFromReport.value = true
-  showTripTable.value = true
-  reportTrips.loadDetails('all')
+  showTrips(subject, false)
 }
 function onTripPanelClose () {
   closeTripPanel()
