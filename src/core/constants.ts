@@ -310,9 +310,10 @@ export const STOP_BUFFER_DEFAULT_LAYER = 'tract'
 export const STOP_CLUSTER_DEFAULT_DISTANCE = 100
 export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
 // How far around a cluster's center to look for a better-known place to say it
-// is near ("Portland Curbside Bus Stop, near Portland Union Station"). Wider
-// than the default cluster distance: the place is next door, not in the cluster.
-export const STOP_CLUSTER_NEAR_RADIUS = 250
+// is near ("Portland Curbside Bus Stop, near Portland Union Station"), as a
+// multiple of the cluster distance the user chose: the place is next door, not
+// in the cluster. 250 m at the default 100 m.
+export const STOP_CLUSTER_NEAR_RADIUS_FACTOR = 2.5
 
 // Seeded when the user ticks a Fixed-Route Services threshold: route frequency
 // (minutes between trips) and stop visits (total visits during the filtered

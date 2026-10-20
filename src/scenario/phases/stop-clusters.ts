@@ -23,7 +23,7 @@ import {
   parseHMS,
   queryAreaVariables,
   routeTypeNames,
-  STOP_CLUSTER_NEAR_RADIUS,
+  STOP_CLUSTER_NEAR_RADIUS_FACTOR,
   WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
@@ -555,7 +555,7 @@ export async function runStopClustersPhase (
   opts: PhaseOpts = {},
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
-  const clusters = await addNearNames(deriveStopClusters(inputs, config.maxDistanceMeters), inputs, client)
+  const clusters = await addNearNames(deriveStopClusters(inputs, config.maxDistanceMeters), inputs, client, config.maxDistanceMeters)
   await emit({
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
@@ -576,6 +576,7 @@ async function addNearNames (
   clusters: StopCluster[],
   inputs: ClusterInputStop[],
   client: GraphQLClient,
+  maxDistanceMeters: number,
 ): Promise<StopCluster[]> {
   if (clusters.length === 0) {
     return clusters
@@ -586,7 +587,7 @@ async function addNearNames (
     for (let i = 0; i < anchors.length; i += NEAR_QUERY_CHUNK) {
       const response = await client.query<{ stops: StopClusterNearResponse[] }>(stopClusterNearQuery, {
         ids: anchors.slice(i, i + NEAR_QUERY_CHUNK),
-        radius: STOP_CLUSTER_NEAR_RADIUS,
+        radius: maxDistanceMeters * STOP_CLUSTER_NEAR_RADIUS_FACTOR,
         nearbyLimit: NEARBY_STOPS_LIMIT,
       })
       for (const stop of response.data?.stops || []) {
