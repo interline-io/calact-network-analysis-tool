@@ -169,7 +169,7 @@
           v-model:include-excluded="tripTableIncludeExcluded"
           :subject-kind="tripTable.resolvedSubject.kind"
           :rows="tripTable.rows"
-          :multi-day="tripTable.trips.dateCount > 1"
+          :multi-day="tripTable.multiDay"
           :title="tripTable.title"
           :details-loading="tripTable.detailsLoading"
           :details-error="tripTable.detailsError"
@@ -887,6 +887,11 @@ function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTa
   tripTableTab.value = tab
   tripTableIncludeExcluded.value = false
   showTripTable.value = true
+  // Also asked for here: reopening on the same subject changes nothing the
+  // watch below sees. Details already asked for are not fetched again.
+  if (tab === 'trips') {
+    tripTable.loadDetails('all')
+  }
 }
 function openTripTable (tab: TripDetailsTab = 'trips') {
   if (tripPanelOpenedSubject.value) {

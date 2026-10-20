@@ -288,14 +288,15 @@ export function tripTableRows (
     stops: Map<number, TripTableStop>
     tripDetails: Map<number, TripDetail>
     // The dates the rows' days are described against: the scoped dates, or
-    // every date in the range when excluded trips are listed.
-    scopedDates: string[]
+    // every date in the range when excluded trips are listed, as those run on
+    // dates outside the scoped ones.
+    describedDates: string[]
     // Listing excluded trips: every row has an `excluded` field, so the CSV
     // has the column whichever row comes first.
     includeExcluded?: boolean
   },
 ): TripTableRow[] {
-  const describeDays = rowDaysDescriber(opts.scopedDates)
+  const describeDays = rowDaysDescriber(opts.describedDates)
   return rows.map((row) => {
     const route = opts.routes.get(row.routeId)
     const stop = opts.stops.get(row.stopId)

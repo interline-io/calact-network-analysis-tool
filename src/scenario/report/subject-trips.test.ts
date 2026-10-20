@@ -148,7 +148,7 @@ describe('tripTableRows', () => {
       routes: new Map([[10, { route_id: 'R10', route_short_name: '10', route_long_name: 'Tenth', agency_name: 'TriMet' }]]),
       stops: new Map([[1, { stop_id: 'S1', stop_name: 'Main & 1st' }]]),
       tripDetails: new Map([[100, { id: 100, tripId: 't100', headsign: 'Downtown', stopHeadsigns: new Map(), startTime: hms(7), endTime: hms(8, 5), stopCount: 30 }]]),
-      scopedDates: [MON, TUE],
+      describedDates: [MON, TUE],
     })
     expect(rows[0]).toEqual({
       time: '07:35:00',
@@ -234,7 +234,7 @@ describe('subjectTrips with excluded trips', () => {
 
   it('gives every table row the reason column, so the CSV has it', () => {
     const r = subjectTrips({ kind: 'route', routeId: 10 }, { ...opts, includeExcluded: true })
-    const rows = tripTableRows(r.rows, { routes: new Map(), stops: new Map(), tripDetails: new Map(), scopedDates: [MON, SAT], includeExcluded: true })
+    const rows = tripTableRows(r.rows, { routes: new Map(), stops: new Map(), tripDetails: new Map(), describedDates: [MON, SAT], includeExcluded: true })
     expect(rows.map(row => row.excluded)).toEqual(['', 'Not a selected weekday', 'Outside time window'])
     expect(tripTableColumns('route', true, true).map(c => c.key).at(-1)).toBe('excluded')
   })
@@ -248,7 +248,7 @@ describe('tripTableRows for a route', () => {
       routes: new Map(),
       stops: new Map([[1, { stop_id: 'S1' }], [2, { stop_id: 'S2', stop_name: 'Transit Center' }]]),
       tripDetails: new Map(),
-      scopedDates: [MON],
+      describedDates: [MON],
     })
     expect(row).toMatchObject({ time: '07:00:00', area_end: '07:40:00', area_end_stop_id: 'S2', area_end_stop_name: 'Transit Center' })
   })

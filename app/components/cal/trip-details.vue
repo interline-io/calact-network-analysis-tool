@@ -22,7 +22,7 @@
       </KeepAlive>
     </cat-tab-item>
   </cat-tabs>
-  <cal-trip-report v-else v-bind="report" @retry="$emit('retry')" />
+  <cal-trip-report v-else v-bind="report" v-model:include-excluded="includeExcluded" @retry="$emit('retry')" />
 </template>
 
 <script setup lang="ts">
