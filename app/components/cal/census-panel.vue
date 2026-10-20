@@ -1,5 +1,5 @@
 <template>
-  <div v-if="row" class="cal-map-census-panel">
+  <div v-if="row" class="cal-sidebar-panel cal-map-census-panel">
     <cat-msg
       :title="row.name || 'Aggregation area'"
       expandable
@@ -208,14 +208,6 @@ function cell (values: CensusPanelValues | null | undefined, col: CensusColumnDe
 </script>
 
 <style scoped lang="scss">
-.cal-map-census-panel {
-  color: black;
-}
-
-.cal-map-census-panel :deep(.message-body) {
-  padding: 8px 10px;
-}
-
 .cal-census-panel-meta {
   margin-bottom: 8px;
   display: flex;

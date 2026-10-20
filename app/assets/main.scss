@@ -49,3 +49,27 @@ $duration: 1000ms;
 .cat-modal {
   z-index: 99999 !important;
 }
+
+// A panel stacked above the legend in the map sidebar (map.vue's
+// .cal-map-sidebar), drawn as a cat-msg: it shrinks to the room the sidebar
+// leaves it and scrolls its body, keeping its header. Each level down to the
+// body is a flex column with min-height: 0, which is what passes the room on.
+.cal-sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  color: black;
+
+  > .message {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .message-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 10px;
+  }
+}

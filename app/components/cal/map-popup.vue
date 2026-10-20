@@ -47,9 +47,6 @@
             </template>
             See timetable for details.
           </div>
-          <button class="button is-small is-info mt-2" @click="$emit('openTimetable', feature.featureId)">
-            View Timetable
-          </button>
         </template>
 
         <!-- Flex service area popup -->
@@ -102,6 +99,25 @@
           </div>
         </template>
       </div>
+    </div>
+
+    <!-- Kept out of the scrolling content, so a long cluster member list
+         never hides the actions or the pager. -->
+    <footer v-if="hasTripsAction || hasMultiple" class="cal-popup-footer">
+      <div v-if="hasTripsAction" class="cal-popup-actions">
+        <button class="button is-small" @click="$emit('showTrips', feature.featureType, feature.featureId)">
+          <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
+          <span>Show trip information</span>
+        </button>
+        <button
+          v-if="feature.featureType === 'route'"
+          class="button is-small is-info"
+          @click="$emit('openTimetable', feature.featureId)"
+        >
+          <span class="icon is-small"><i class="mdi mdi-timetable" /></span>
+          <span>View Timetable</span>
+        </button>
+      </div>
 
       <!-- Navigation bar for multiple features -->
       <div v-if="hasMultiple" class="popup-nav-bar">
@@ -121,7 +137,7 @@
           <span class="icon is-small"><i class="mdi mdi-chevron-right" /></span>
         </button>
       </div>
-    </div>
+    </footer>
   </div>
 </template>
 
@@ -180,9 +196,12 @@ defineEmits<{
   prev: []
   next: []
   openTimetable: [featureId: string | number]
+  showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
+
+const hasTripsAction = computed(() => ['stop', 'route', 'cluster'].includes(props.feature.featureType))
 </script>
 
 <style scoped lang="scss">
@@ -226,9 +245,10 @@ const hasMultiple = computed(() => props.total > 1)
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
+}
+
+.cal-popup-actions + .popup-nav-bar {
+  margin-top: 8px;
 }
 
 .popup-nav-label {
@@ -278,6 +298,21 @@ const hasMultiple = computed(() => props.total > 1)
 
 .popup-details div {
   font-size: 13px;
+}
+
+.cal-popup-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+// Full width; a route's two actions share the row.
+.cal-popup-actions {
+  display: flex;
+  gap: 6px;
+
+  .button {
+    flex: 1;
+  }
 }
 
 .cal-cluster-members {

@@ -18,6 +18,7 @@
     <div class="cal-map-sidebar">
       <slot name="sidebar-top" />
       <cal-legend
+        :open="legendOpen"
         :style-data="styleData"
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
@@ -30,6 +31,7 @@
         :choropleth-classification="props.choroplethClassification"
         :has-cluster-data="hasClusterData"
         @view-details="emit('viewCensusDetails')"
+        @update:open="onLegendToggle"
       />
     </div>
 
@@ -63,6 +65,9 @@
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
       @open-timetable="handleOpenTimetable"
+      @show-trips="handleShowTrips"
+      @popup-shown="onPopupShown"
+      @popup-closed="onPopupClosed"
     />
   </div>
 </template>
@@ -73,7 +78,7 @@ import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
 import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
-import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster } from '~~/src/scenario'
+import { buildStyleData, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
 const emit = defineEmits<{
   setMapExtent: [value: Bbox, userInitiated: boolean]
@@ -81,6 +86,10 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   openTimetable: [route: Route]
+  showTrips: [subject: TripSubject]
+  // The selection the trip panel describes is gone: replaced by a new map
+  // click, dismissed, or dropped by the filters.
+  selectionCleared: []
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
 }>()
@@ -105,6 +114,10 @@ const props = defineProps<{
   panelWidth?: number
   // Increment to fit map to overlay features
   fitOverlayKey?: number
+  // A panel (trip information, census) is open in the sidebar above the legend.
+  sidebarPanelOpen?: boolean
+  // Increment to clear the selection, as when the trip panel is closed.
+  clearSelectionKey?: number
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -230,12 +243,38 @@ const visibleClusters = computed((): { cluster: StopCluster, agencyIds: number[]
 })
 const hasClusterData = computed(() => visibleClusters.value.length > 0)
 
-// Clear the selection if a refetch/refilter drops the selected cluster.
-watch(stopClusters, () => {
-  if (selectedClusterId.value && !clusterById.value.has(selectedClusterId.value)) {
-    selectedClusterId.value = null
+// One selection at a time: the feature the popup shows, kept after "Show trip
+// information" for the panel to describe. A new map click replaces it, and the
+// popup's or the panel's close button clears it; selectionCleared tells the
+// page to close the panel, since it describes what was selected.
+
+// Clear the selection: the cluster, and the popup and highlight (an empty
+// popup list dismisses both in the viewer).
+function clearSelection () {
+  selectedClusterId.value = null
+  popupFeatures.value = []
+}
+
+// Clear the selection if a refetch/refilter drops the selected cluster, or
+// hides it along with its agencies' stops, popup included.
+watch(visibleClusters, (visible) => {
+  if (selectedClusterId.value && !visible.some(v => v.cluster.id === selectedClusterId.value)) {
+    clearSelection()
+    emit('selectionCleared')
   }
 })
+
+watch(() => props.clearSelectionKey, clearSelection)
+
+// Paging through a popup's features moves the selection with it.
+function onPopupShown (featureType: string, featureId: string | number) {
+  selectedClusterId.value = featureType === 'cluster' ? String(featureId) : null
+}
+
+function onPopupClosed () {
+  selectedClusterId.value = null
+  emit('selectionCleared')
+}
 
 // Each cluster's anchor stop coordinates — the point its radius circle centers
 // on. Marker, spokes, and click target all hub here to stay concentric with it.
@@ -845,6 +884,9 @@ function mapClickFeatures (pt: any, features: Feature[]) {
 
   console.log(`[MapClick] ${features.length} raw features at point`)
 
+  // Whatever was selected before is replaced by this click.
+  emit('selectionCleared')
+
   for (const feature of features) {
     const featureId = feature.id?.toString() || ''
 
@@ -1010,6 +1052,37 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
   }
 }
 
+// The legend steps aside while a sidebar panel is open, so the panel gets the
+// height rather than a sliver above an expanded legend. It comes back when the
+// panel closes, unless the user has toggled it in the meantime.
+const legendOpen = ref(true)
+let legendAutoCollapsed = false
+watch(() => props.sidebarPanelOpen, (panelOpen) => {
+  if (panelOpen && legendOpen.value) {
+    legendOpen.value = false
+    legendAutoCollapsed = true
+  } else if (!panelOpen && legendAutoCollapsed) {
+    legendOpen.value = true
+    legendAutoCollapsed = false
+  }
+})
+
+function onLegendToggle (value: boolean) {
+  legendOpen.value = value
+  legendAutoCollapsed = false
+}
+
+function handleShowTrips (featureType: string, featureId: string | number) {
+  const id = Number(featureId)
+  if (featureType === 'stop' && Number.isFinite(id)) {
+    emit('showTrips', { kind: 'stop', stopId: id })
+  } else if (featureType === 'route' && Number.isFinite(id)) {
+    emit('showTrips', { kind: 'route', routeId: id })
+  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
+    emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
+  }
+}
+
 function handleOpenTimetable (featureId: string | number) {
   const route = props.scenarioFilterResult?.routes?.find(r => r.id.toString() === featureId.toString())
   if (route) {
@@ -1040,13 +1113,16 @@ function handleOpenTimetable (featureId: string | number) {
 }
 
 // Right-side stack hosting the legend and any slotted panels (census etc.).
+// It does not scroll itself: the legend keeps its height, and the panels above
+// it shrink to the space left and scroll inside, so there is one scrollbar per
+// panel rather than one for the whole stack as well.
 .cal-map-sidebar {
   position: absolute;
   right: 50px;
   bottom: 30px;
   width: 400px;
   max-height: calc(100% - 60px);
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1055,6 +1131,8 @@ function handleOpenTimetable (featureId: string | number) {
 
   > * {
     pointer-events: auto;
+    flex: 0 1 auto;
+    min-height: 0;
   }
 }
 

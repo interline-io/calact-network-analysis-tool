@@ -97,14 +97,33 @@
           :loading-stage="loadingProgress?.currentStage"
           :panel-width="activeTabPanelWidth"
           :fit-overlay-key="fitOverlayKey"
+          :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
+          :clear-selection-key="mapSelectionClearKey"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
           @open-timetable="openRouteTimetable({ route: $event, initialTab: 'trips' })"
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
+          @show-trips="openTripPanel"
+          @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>
+            <!-- Keyed by subject, so each feature opens fresh. -->
+            <cal-trip-panel
+              v-if="tripPanelSubject && tripPanelTrips"
+              :key="JSON.stringify(tripPanelOpenedSubject)"
+              :subject="tripPanelSubject"
+              :title="tripPanelTitle"
+              :trips="tripPanelTrips"
+              :rows="tripPanelRows"
+              :routes="tripPanelRoutes"
+              :details-loading="tripPanelDetailsLoading"
+              :details-error="tripPanelDetailsError"
+              @close="onTripPanelClose"
+              @load-details="loadTripPanelDetails('preview')"
+              @expand-trips="openTripTable"
+            />
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
               :layer-label="aggregateLayerLabel"
@@ -157,6 +176,24 @@
         />
       </cat-modal>
 
+      <!-- Every trip behind the trip panel, at full size -->
+      <cat-modal
+        v-model="showTripTable"
+        :title="`Trips for: ${tripPanelTitle}`"
+        full-screen
+      >
+        <cal-trip-report
+          v-if="tripPanelSubject && tripPanelTrips"
+          :subject-kind="tripPanelSubject.kind"
+          :rows="tripPanelRows"
+          :multi-day="tripPanelTrips.dateCount > 1"
+          :title="tripPanelTitle"
+          :details-loading="tripPanelDetailsLoading"
+          :details-error="tripPanelDetailsError"
+          @retry="loadTripPanelDetails('all')"
+        />
+      </cat-modal>
+
       <cat-modal
         v-model="showCensusDetails"
         title="Census Details"
@@ -195,10 +232,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
+import { useTripPanel } from '~/composables/useTripPanel'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -298,6 +336,8 @@ function clearScenario () {
   scenarioFilterResult.value = undefined
   exportFeatures.value = []
   querySubmitted.value = false
+  closeTripPanel()
+  clearTripPanelDetails()
   clearAllResults()
 }
 
@@ -793,6 +833,48 @@ const exportFeatures = shallowRef<Feature[]>([])
 // Flex display features (map + Reports tab). Instantiated here because it
 // depends on scenarioFilterResult; consumed by the map and report components.
 const { flexDisplayFeatures, flexFeaturesForReport } = useFlexDisplayFeatures({ scenarioData, scenarioFilterResult })
+
+// Trip information panel (#476), opened from a stop, route, or cluster popup.
+const {
+  subject: tripPanelOpenedSubject,
+  resolvedSubject: tripPanelSubject,
+  open: openTripPanel,
+  close: closeTripPanel,
+  trips: tripPanelTrips,
+  rows: tripPanelRows,
+  routes: tripPanelRoutes,
+  title: tripPanelTitle,
+  detailsLoading: tripPanelDetailsLoading,
+  detailsError: tripPanelDetailsError,
+  loadDetails: loadTripPanelDetails,
+  clearDetails: clearTripPanelDetails,
+} = useTripPanel({
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+})
+
+// The panel describes the map's selection, so closing it clears that
+// selection; the map in turn closes the panel when its selection goes.
+const mapSelectionClearKey = ref(0)
+
+// The full trip table opens from the panel, fetching every trip's details,
+// and goes with it.
+const showTripTable = ref(false)
+watch(tripPanelOpenedSubject, () => {
+  showTripTable.value = false
+})
+function openTripTable () {
+  showTripTable.value = true
+  loadTripPanelDetails('all')
+}
+function onTripPanelClose () {
+  closeTripPanel()
+  mapSelectionClearKey.value++
+}
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.

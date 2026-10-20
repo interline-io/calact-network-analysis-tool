@@ -1,9 +1,9 @@
 <template>
   <div class="cal-map-legend" :class="{ 'is-hidden': !shouldShowLegend }">
     <cat-msg
+      v-model:open="open"
       title="Legend"
       expandable
-      :open="true"
       variant="dark"
     >
       <div class="cal-map-legend-box">
@@ -204,6 +204,9 @@ defineEmits<{
   viewDetails: []
 }>()
 
+// Expanded or collapsed; map.vue collapses it while a sidebar panel is open.
+const open = defineModel<boolean>('open', { default: true })
+
 const { showAggAreas, hideUnmarked, dataDisplayMode, unitSystem, isAllDayMode } = useScenarioDisplay()
 const { geomSource } = useScenarioInputs()
 
@@ -221,9 +224,26 @@ function bucketLabel (i: number): string {
 
 <style scoped lang="scss">
 .cal-map-legend {
-  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue.
+  // Positioning lives on the parent `.cal-map-sidebar` stack in map.vue. When
+  // the stack runs out of room the legend gives up less of it than the panels
+  // above, and scrolls its body; map.vue collapses it while a panel is open.
   width: 100%;
+  flex-shrink: 0.25 !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   color: black;
+}
+
+.cal-map-legend :deep(.message) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cal-map-legend :deep(.message-body) {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .message-header {

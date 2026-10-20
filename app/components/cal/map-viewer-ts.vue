@@ -28,6 +28,9 @@ const emit = defineEmits([
   'selectableGeoClick',
   'selectableGeoRightClick',
   'openTimetable',
+  'showTrips',
+  'popupShown',
+  'popupClosed',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
@@ -1009,6 +1012,17 @@ function drawPopupFeatures (features: PopupFeature[]) {
   showPopupAtIndex(0)
 }
 
+function removePopup () {
+  if (currentPopup) {
+    currentPopup.remove()
+    currentPopup = undefined
+  }
+  if (currentPopupApp) {
+    currentPopupApp.unmount()
+    currentPopupApp = undefined
+  }
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1033,6 +1047,7 @@ function showPopupAtIndex (index: number) {
 
   // Update highlight to show the selected feature
   updateHighlight(feature)
+  emit('popupShown', feature.featureType, feature.featureId)
 
   const total = currentPopupFeatures.length
 
@@ -1052,15 +1067,9 @@ function showPopupAtIndex (index: number) {
       currentIndex: currentPopupIndex,
       total: total,
       onClose: () => {
-        if (currentPopup) {
-          currentPopup.remove()
-          currentPopup = undefined
-        }
-        if (currentPopupApp) {
-          currentPopupApp.unmount()
-          currentPopupApp = undefined
-        }
+        removePopup()
         updateHighlight(undefined)
+        emit('popupClosed')
       },
       onPrev: () => {
         if (currentPopupIndex > 0) {
@@ -1074,6 +1083,13 @@ function showPopupAtIndex (index: number) {
       },
       onOpenTimetable: (featureId: string | number) => {
         emit('openTimetable', featureId)
+      },
+      onShowTrips: (featureType: string, featureId: string | number) => {
+        emit('showTrips', featureType, featureId)
+        // The trip panel takes over from the popup. The feature stays
+        // highlighted, and a cluster stays selected, so the map still shows
+        // what the panel describes.
+        removePopup()
       },
     })
   })
