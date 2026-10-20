@@ -121,7 +121,6 @@
                 :scoped-dates="scopedDates"
                 :trip-details="tripDetails"
                 :details-loading="detailsLoading"
-                compact
               />
             </div>
             <div class="cal-trip-panel-more">

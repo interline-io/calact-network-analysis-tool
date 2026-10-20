@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { StopDepartureCache, RouteDepartureIndex } from '../../tl/departure-cache'
-import { describeRowDays, subjectTrips } from './subject-trips'
+import { describeRowDays, subjectTrips, tripTableColumns, tripTableRows } from './subject-trips'
 
 // 2026-10-19 is a Monday.
 const MON = '2026-10-19'
@@ -136,5 +136,48 @@ describe('describeRowDays', () => {
   it('names the weekdays of a weekday-scoped range rather than every day', () => {
     const weekdays = week.slice(0, 5)
     expect(describeRowDays(weekdays, weekdays)).toBe('Mon–Fri')
+  })
+})
+
+describe('tripTableRows', () => {
+  it('writes each row as a full CSV record, blank where details have not loaded', () => {
+    const rows = tripTableRows([
+      { key: 'a', tripId: 100, routeId: 10, directionId: 1, stopId: 1, time: hms(7, 35), dates: [MON, TUE] },
+      { key: 'b', tripId: 101, routeId: 10, directionId: 0, stopId: 1, time: hms(8), dates: [MON] },
+    ], {
+      routes: new Map([[10, { route_id: 'R10', route_short_name: '10', route_long_name: 'Tenth', agency_name: 'TriMet' }]]),
+      stops: new Map([[1, { stop_id: 'S1', stop_name: 'Main & 1st' }]]),
+      tripDetails: new Map([[100, { id: 100, tripId: 't100', headsign: 'Downtown', stopHeadsigns: new Map(), startTime: hms(7), endTime: hms(8, 5), stopCount: 30 }]]),
+      scopedDates: [MON, TUE],
+    })
+    expect(rows[0]).toEqual({
+      time: '07:35:00',
+      stop_id: 'S1',
+      stop_name: 'Main & 1st',
+      route_id: 'R10',
+      route_short_name: '10',
+      route_long_name: 'Tenth',
+      agency_name: 'TriMet',
+      headsign: 'Downtown',
+      direction_id: 1,
+      trip_id: 't100',
+      trip_start: '07:00:00',
+      trip_end: '08:05:00',
+      stop_count: 30,
+      days: 'Mon, Tue',
+      dates: `${MON} ${TUE}`,
+    })
+    expect(rows[1]).toMatchObject({ headsign: '', trip_id: '', trip_start: '', stop_count: '', days: 'Mon' })
+  })
+})
+
+describe('tripTableColumns', () => {
+  it('adds a Stop column for a cluster and Days for more than one date', () => {
+    expect(tripTableColumns('cluster', true).map(c => c.key)).toEqual(
+      ['time', 'stop_name', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'days', 'trip_id'],
+    )
+    expect(tripTableColumns('stop', false).map(c => c.key)).toEqual(
+      ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count', 'trip_id'],
+    )
   })
 })

@@ -1,12 +1,11 @@
 <template>
-  <table class="cal-trip-table" :class="{ 'is-compact': compact }">
+  <table class="cal-trip-table">
     <caption class="is-sr-only">
       Trips
     </caption>
-    <!-- Compact, in the map sidebar: fixed widths, so long stop names,
-         headsigns, and route names wrap or truncate within the panel rather
-         than widen it. -->
-    <colgroup v-if="compact">
+    <!-- Fixed widths, so long stop names, headsigns, and route names wrap or
+         truncate within the map sidebar rather than widen it. -->
+    <colgroup>
       <col class="cal-trip-table-col-time">
       <col class="cal-trip-table-col-route">
       <col>
@@ -20,47 +19,19 @@
             Time
           </cat-tooltip>
         </th>
-        <th v-if="!compact && subject.kind === 'cluster'" scope="col">
-          Stop
-        </th>
         <th scope="col">
           Route
         </th>
         <th scope="col">
           Headsign
         </th>
-        <template v-if="compact">
-          <th scope="col">
-            <cat-tooltip :text="tripTooltip">
-              Trip
-            </cat-tooltip>
-          </th>
-        </template>
-        <template v-else>
-          <th scope="col">
-            Direction
-          </th>
-          <th scope="col">
-            <cat-tooltip text="When the trip leaves its first stop, including stops outside the scenario area.">
-              Start
-            </cat-tooltip>
-          </th>
-          <th scope="col">
-            <cat-tooltip text="When the trip reaches its last stop, including stops outside the scenario area.">
-              End
-            </cat-tooltip>
-          </th>
-          <th scope="col" class="cal-trip-table-num">
-            <cat-tooltip text="Stops the whole trip makes, including stops outside the scenario area.">
-              Stops
-            </cat-tooltip>
-          </th>
-        </template>
+        <th scope="col">
+          <cat-tooltip :text="tripTooltip">
+            Trip
+          </cat-tooltip>
+        </th>
         <th v-if="showDays" scope="col">
           Days
-        </th>
-        <th v-if="!compact" scope="col">
-          Trip ID
         </th>
       </tr>
     </thead>
@@ -68,25 +39,17 @@
       <tr v-for="row of rows" :key="row.key">
         <td class="cal-trip-table-time">
           {{ formatGtfsTime(row.time) }}
-          <div v-if="compact && subject.kind === 'cluster'" class="cal-trip-table-sub">
+          <div v-if="subject.kind === 'cluster'" class="cal-trip-table-sub">
             {{ stopName(row.stopId) }}
           </div>
-        </td>
-        <td v-if="!compact && subject.kind === 'cluster'">
-          {{ stopName(row.stopId) }}
         </td>
         <td>
           <template v-if="routesById.get(row.routeId)">
             <span
               class="cal-trip-table-route"
-              :class="{ 'is-truncated': compact }"
               :style="routeBadgeStyle(routesById.get(row.routeId)!)"
               :title="routeLabel(routesById.get(row.routeId)!)"
             >{{ routeLabel(routesById.get(row.routeId)!) }}</span>
-            <span
-              v-if="!compact && routesById.get(row.routeId)!.route_short_name && routesById.get(row.routeId)!.route_long_name"
-              class="cal-trip-table-route-long"
-            >{{ routesById.get(row.routeId)!.route_long_name }}</span>
           </template>
         </td>
         <td>
@@ -95,7 +58,7 @@
           </template>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
-        <td v-if="compact" class="cal-trip-table-time">
+        <td class="cal-trip-table-time">
           <template v-if="tripDetails.get(row.tripId)">
             {{ formatGtfsTime(tripDetails.get(row.tripId)!.startTime) }}–{{ formatGtfsTime(tripDetails.get(row.tripId)!.endTime) }}
             <div class="cal-trip-table-sub">
@@ -104,32 +67,8 @@
           </template>
           <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
         </td>
-        <template v-else>
-          <td>{{ row.directionId }}</td>
-          <td class="cal-trip-table-time">
-            <template v-if="tripDetails.get(row.tripId)">
-              {{ formatGtfsTime(tripDetails.get(row.tripId)!.startTime) }}
-            </template>
-            <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
-          </td>
-          <td class="cal-trip-table-time">
-            <template v-if="tripDetails.get(row.tripId)">
-              {{ formatGtfsTime(tripDetails.get(row.tripId)!.endTime) }}
-            </template>
-            <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
-          </td>
-          <td class="cal-trip-table-num">
-            <template v-if="tripDetails.get(row.tripId)">
-              {{ tripDetails.get(row.tripId)!.stopCount }}
-            </template>
-            <span v-else class="cal-trip-table-pending">{{ placeholder }}</span>
-          </td>
-        </template>
         <td v-if="showDays">
           {{ describeRowDays(row.dates, scopedDates) }}
-        </td>
-        <td v-if="!compact" class="cal-trip-table-id">
-          {{ tripDetails.get(row.tripId)?.tripId ?? '' }}
         </td>
       </tr>
     </tbody>
@@ -150,8 +89,6 @@ const props = defineProps<{
   scopedDates: string[]
   tripDetails: Map<number, TripDetail>
   detailsLoading: boolean
-  // The map sidebar's narrow form; the modal shows every column.
-  compact?: boolean
 }>()
 
 const showDays = computed(() => props.scopedDates.length > 1)
@@ -209,10 +146,11 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
 .cal-trip-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  table-layout: fixed;
+  font-size: 12px;
 
   th, td {
-    padding: 4px 8px;
+    padding: 4px 6px;
     text-align: left;
     vertical-align: top;
     border-bottom: 1px solid var(--bulma-border);
@@ -227,17 +165,8 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
     z-index: 1;
   }
 
-  &.is-compact {
-    table-layout: fixed;
-    font-size: 12px;
-
-    th, td {
-      padding: 4px 6px;
-    }
-
-    td {
-      overflow-wrap: break-word;
-    }
+  td {
+    overflow-wrap: break-word;
   }
 }
 
@@ -257,21 +186,9 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
   width: 15%;
 }
 
-.cal-trip-table-num {
-  font-variant-numeric: tabular-nums;
-  text-align: right !important;
-  white-space: nowrap;
-}
-
 .cal-trip-table-time {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.cal-trip-table-id {
-  font-family: var(--bulma-family-code);
-  font-size: 12px;
-  color: var(--bulma-text-weak);
 }
 
 .cal-trip-table-sub {
@@ -289,19 +206,12 @@ const tripTooltip = 'When the trip leaves its first stop and reaches its last, a
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
-
-  // In the sidebar a long name (an intercity route with no short name) would
-  // push the table past the panel's width.
-  &.is-truncated {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: bottom;
-  }
-}
-
-.cal-trip-table-route-long {
-  margin-left: 6px;
+  // A long name (an intercity route with no short name) would push the table
+  // past the panel's width.
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .cal-trip-table-pending {

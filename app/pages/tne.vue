@@ -181,10 +181,11 @@
         :title="`Trips for: ${tripPanelTitle}`"
         full-screen
       >
-        <cal-trip-table
+        <cal-trip-report
           v-if="tripPanelSubject && tripPanelTrips"
           :subject="tripPanelSubject"
-          :rows="tripPanelTrips.rows"
+          :trips="tripPanelTrips"
+          :title="tripPanelTitle"
           :scenario-filter-result="scenarioFilterResult"
           :scoped-dates="tripPanelScopedDates"
           :trip-details="tripPanelDetails"

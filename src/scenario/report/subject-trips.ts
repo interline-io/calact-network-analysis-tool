@@ -17,8 +17,9 @@
  */
 
 import { format } from 'date-fns'
-import { WEEKDAY_BY_GETDAY, type Weekday } from '../../core'
+import { WEEKDAY_BY_GETDAY, formatGtfsTimeFull, type TableColumn, type Weekday } from '../../core'
 import type { RouteDepartureIndex, StopDepartureCache } from '../../tl/departure-cache'
+import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
 
 export type TripSubject
   = | { kind: 'stop', stopId: number }
@@ -216,4 +217,109 @@ function weekdayRanges (days: Weekday[]): string {
     i = j + 1
   }
   return parts.join(', ')
+}
+
+// The trip table's rows (the full-size table and its CSV download). Each row is
+// a whole CSV record; the table shows a subset of the columns, so the download
+// keeps what the table leaves out, such as the direction and every date.
+export interface TripTableRoute {
+  route_id: string
+  route_short_name?: string | null
+  route_long_name?: string | null
+  agency_name?: string | null
+}
+
+export interface TripTableStop {
+  stop_id: string
+  stop_name?: string | null
+}
+
+export interface TripTableRow {
+  time: string
+  stop_id: string
+  stop_name: string
+  route_id: string
+  route_short_name: string
+  route_long_name: string
+  agency_name: string
+  headsign: string
+  direction_id: number
+  trip_id: string
+  trip_start: string
+  trip_end: string
+  stop_count: number | ''
+  days: string
+  dates: string
+}
+
+export function tripTableRows (
+  rows: SubjectTripRow[],
+  opts: {
+    routes: Map<number, TripTableRoute>
+    stops: Map<number, TripTableStop>
+    tripDetails: Map<number, TripDetail>
+    scopedDates: string[]
+  },
+): TripTableRow[] {
+  return rows.map((row) => {
+    const route = opts.routes.get(row.routeId)
+    const stop = opts.stops.get(row.stopId)
+    const detail = opts.tripDetails.get(row.tripId)
+    return {
+      time: formatGtfsTimeFull(row.time),
+      stop_id: stop?.stop_id ?? '',
+      stop_name: stop?.stop_name ?? '',
+      route_id: route?.route_id ?? '',
+      route_short_name: route?.route_short_name ?? '',
+      route_long_name: route?.route_long_name ?? '',
+      agency_name: route?.agency_name ?? '',
+      headsign: (detail && tripHeadsignAt(detail, row.stopId)) || '',
+      direction_id: row.directionId,
+      trip_id: detail?.tripId ?? '',
+      trip_start: detail?.startTime != null ? formatGtfsTimeFull(detail.startTime) : '',
+      trip_end: detail?.endTime != null ? formatGtfsTimeFull(detail.endTime) : '',
+      stop_count: detail ? detail.stopCount : '',
+      days: describeRowDays(row.dates, opts.scopedDates),
+      // Space-separated, so the CSV keeps one row per trip.
+      dates: row.dates.join(' '),
+    }
+  })
+}
+
+export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: boolean): TableColumn[] {
+  const cols: TableColumn[] = [
+    {
+      key: 'time',
+      label: 'Time',
+      sortable: true,
+      tooltip: subjectKind === 'route'
+        ? 'When the trip leaves its first stop within the scenario area.'
+        : 'When the trip leaves this stop.',
+    },
+  ]
+  if (subjectKind === 'cluster') {
+    cols.push({ key: 'stop_name', label: 'Stop', sortable: true })
+  }
+  cols.push(
+    { key: 'route_short_name', label: 'Route', sortable: true },
+    { key: 'headsign', label: 'Headsign', sortable: true },
+    {
+      key: 'trip_start',
+      label: 'Trip',
+      sortable: true,
+      tooltip: 'When the trip leaves its first stop and reaches its last, including stops outside the scenario area.',
+    },
+    {
+      key: 'stop_count',
+      label: 'Stops',
+      sortable: true,
+      numeric: true,
+      tooltip: 'Stops the whole trip makes, including stops outside the scenario area.',
+    },
+  )
+  if (multiDay) {
+    cols.push({ key: 'days', label: 'Days', sortable: true })
+  }
+  cols.push({ key: 'trip_id', label: 'Trip ID', sortable: true })
+  return cols
 }
