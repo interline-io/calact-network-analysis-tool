@@ -45,7 +45,7 @@
             <template v-else>
               Directions differ.
             </template>
-            See its trip information for details.
+            See how it's calculated in its trip information.
           </div>
         </template>
 

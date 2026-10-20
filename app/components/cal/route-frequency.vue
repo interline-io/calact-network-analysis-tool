@@ -30,7 +30,7 @@
     </header>
 
     <!-- Calculations: how the Routes report gets its trip counts, times, and frequency -->
-    <div v-if="tab === 'frequency'">
+    <div v-if="tab === 'calculations'">
       <cat-msg variant="info" title="Trip counts and times" class="mb-4">
         <p class="mb-2">
           Totals reflect all departures at stops within selected geographic bounds across the selected date range, subject to any time-of-day or day-of-week filters. Earliest and latest trip times are based on the first and last departures at stops within bounds.
@@ -274,13 +274,13 @@
             <tr>
               <th>Trip ID</th>
               <th>
-                <cat-tooltip text="The dominant direction is selected for each service date based on which direction has the most departures. See the Stops tab for details.">
+                <cat-tooltip text="The dominant direction is selected for each service date based on which direction has the most departures. See Stop Details for details.">
                   Direction
                   <cat-icon size="small" icon="information" />
                 </cat-tooltip>
               </th>
               <th>
-                <cat-tooltip text="A representative stop within bounds is chosen for each route and service date. See the Stops tab for calculation details.">
+                <cat-tooltip text="A representative stop within bounds is chosen for each route and service date. See Stop Details for calculation details.">
                   Representative Stop
                   <cat-icon size="small" icon="information" />
                 </cat-tooltip>
@@ -463,7 +463,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { resolveEffectiveWeekdays } from '~~/src/scenario'
-import { formatGtfsTimeFull, formatDuration, dowValues } from '~~/src/core'
+import { dateToSeconds, formatGtfsTimeFull, formatDuration, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -480,10 +480,12 @@ import {
   MIN_HEADWAY_SECONDS,
 } from '~~/src/scenario/route-headway'
 import { RouteDepartureIndex } from '~~/src/tl/departure-cache'
+import type { TripDetailsTab } from './trip-details.vue'
 import type { StopTimeCacheItem } from '~~/src/tl/departure-cache'
 
 // The modal tab this shows: the calculations, or the route's stops.
-type Tab = 'frequency' | 'stops'
+// The trip details tab this shows: the route's calculations, or its stops.
+type Tab = Exclude<TripDetailsTab, 'trips'>
 
 interface FrequencyRow {
   serviceDate: string
@@ -507,25 +509,17 @@ const props = defineProps<{
   tab: Tab
 }>()
 
-// Build the route-departure index lazily from the scenario cache. Keeping this
-// a computed means the O(cache) iteration only runs when the modal opens.
+// The filter's own route index, so these numbers come from the same index as
+// the report; built here only for a result made without one.
 const routeIndex = computed(() =>
-  RouteDepartureIndex.fromCache(props.scenarioFilterResult.stopDepartureCache),
+  props.scenarioFilterResult.routeIndex ?? RouteDepartureIndex.fromCache(props.scenarioFilterResult.stopDepartureCache),
 )
 
-const chartStartHour = computed(() =>
-  props.startTime ? Math.floor(dateToSec(props.startTime) / 3600) : 0,
-)
-const chartEndHour = computed(() =>
-  props.endTime ? Math.ceil(dateToSec(props.endTime) / 3600) : 24,
-)
+const startTimeSec = computed(() => dateToSeconds(props.startTime) ?? 0)
+const endTimeSec = computed(() => dateToSeconds(props.endTime) ?? 86400)
 
-const startTimeSec = computed(() =>
-  props.startTime ? dateToSec(props.startTime) : 0,
-)
-const endTimeSec = computed(() =>
-  props.endTime ? dateToSec(props.endTime) : 86400,
-)
+const chartStartHour = computed(() => Math.floor(startTimeSec.value / 3600))
+const chartEndHour = computed(() => Math.ceil(endTimeSec.value / 3600))
 
 const startTimeStr = computed(() =>
   props.startTime ? format(props.startTime, 'HH:mm:ss') : undefined,
@@ -535,7 +529,7 @@ const endTimeStr = computed(() =>
 )
 
 // Scope the report-matching computations (frequency + trip stats) to the
-// selected weekdays, exactly as scenario-filter does, so the debug numbers can
+// selected weekdays, exactly as scenario-filter does, so these numbers can
 // never drift from the report. The per-date listings below still show every
 // service day and tag out-of-scope dates via isDateInScope so the user can see
 // what was excluded (issue #222).
@@ -800,9 +794,6 @@ function stopName (id: number): string {
 function tripIdLabel (numericId: number): string {
   return props.scenarioFilterResult.tripIdStrings?.get(numericId) ?? String(numericId)
 }
-function dateToSec (d: Date): number {
-  return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()
-}
 
 function formatServiceDate (dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -926,11 +917,6 @@ const frequencyCsvData = computed(() => {
   font-variant-numeric: tabular-nums;
   width: auto;
 }
-.cal-route-frequency-direction-nav {
-  h4 {
-    margin-bottom: 0.25rem;
-  }
-}
 .cal-route-frequency-date-nav {
   display: flex;
   flex-wrap: wrap;
@@ -968,26 +954,10 @@ tbody + tbody > .cal-route-frequency-date-separator > td {
   padding-bottom: 0.4em;
   border-bottom: 1px solid var(--bulma-border, #dbdbdb);
 }
-.cal-route-frequency-day-break > td {
-  border-top: 2px solid var(--bulma-grey-light, #999);
-}
-.cal-route-frequency-trips-table {
-  table-layout: fixed;
-
-  th,
-  td {
-    width: 25%;
-  }
-}
 .cal-route-frequency-noise-gap {
   font-variant-numeric: tabular-nums;
   color: #888;
   text-decoration: line-through;
-}
-.cal-route-frequency-gap-summary {
-  padding: 0.75rem;
-  background: var(--bulma-scheme-main-ter, #f5f5f5);
-  border-radius: 4px;
 }
 .cal-route-frequency-gap-list {
   font-variant-numeric: tabular-nums;

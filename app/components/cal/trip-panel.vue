@@ -52,7 +52,19 @@
                     <cat-icon size="small" icon="information" />
                   </cat-tooltip>
                 </th>
-                <td>{{ frequencyText }}</td>
+                <td>
+                  {{ frequencyText }}
+                  <!-- A route's frequency, and any caveat on it, is explained
+                       in the full table's Calculations tab. -->
+                  <button
+                    v-if="subject.kind === 'route'"
+                    type="button"
+                    class="cal-trip-panel-link cal-trip-panel-how"
+                    @click="$emit('expandTrips', 'calculations')"
+                  >
+                    How it's calculated
+                  </button>
+                </td>
               </tr>
               <tr>
                 <th scope="row">
@@ -141,6 +153,7 @@
 </template>
 
 <script setup lang="ts">
+import type { TripDetailsTab } from './trip-details.vue'
 import { computed, ref, watch } from 'vue'
 import type { ResolvedTripSubject, SubjectTrips, TripTableRow } from '~~/src/scenario'
 import { formatDuration, formatGtfsTime } from '~~/src/core'
@@ -164,7 +177,7 @@ const emit = defineEmits<{
   // The Trips tab is showing: fetch details for its rows.
   loadDetails: []
   // Open every trip in the full-size table.
-  expandTrips: []
+  expandTrips: [tab?: TripDetailsTab]
 }>()
 
 type TripPanelTab = 'overview' | 'trips'
@@ -315,6 +328,11 @@ function formatAverage (n: number): string {
 
 .cal-trip-panel-error {
   color: var(--bulma-danger);
+}
+
+.cal-trip-panel-how {
+  display: block;
+  font-size: 11px;
 }
 
 .cal-trip-panel-link {

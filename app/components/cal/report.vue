@@ -89,7 +89,7 @@
         </span>
       </template>
       <template
-        v-for="col of timetableDrillColumns"
+        v-for="col of routeDrillColumns"
         :key="col.id"
         #[`column-${col.id}`]="{ value, row }"
       >
@@ -97,7 +97,7 @@
           v-if="value != null && row.id != null"
           type="button"
           class="cal-report-cell-button"
-          :title="col.tab === 'trips' ? 'View this route\'s trips' : 'View how this frequency is calculated'"
+          :title="col.title"
           @click="handleRouteDrill(row.id, col.tab)"
         >
           {{ col.format(value) }}
@@ -201,24 +201,30 @@ const emit = defineEmits<{
 // trip's last in-area departure, which the trip table does not show) and
 // frequencies open the calculations, which show how they were worked out.
 // average_frequency additionally shows the #368 frequency caveat tooltip.
-const timetableDrillColumns: {
+const tripsTitle = 'View this route\'s trips'
+const endTimeTitle = 'View how this route\'s trip times are worked out'
+const frequencyTitle = 'View how this frequency is calculated'
+const routeDrillColumns: {
   id: string
   tab: TripDetailsTab
+  // What the button opens, on hover.
+  title: string
   format: (value: unknown) => unknown
   caveat?: boolean
 }[] = [
-  { id: 'average_trips_per_day', tab: 'trips', format: value => value },
-  { id: 'average_trips_per_hour', tab: 'trips', format: value => value },
-  { id: 'average_frequency', tab: 'frequency', format: formatDuration, caveat: true },
-  { id: 'fastest_frequency', tab: 'frequency', format: formatDuration },
-  { id: 'slowest_frequency', tab: 'frequency', format: formatDuration },
-  { id: 'earliest_trip_start', tab: 'trips', format: formatGtfsTime },
-  { id: 'earliest_trip_end', tab: 'frequency', format: formatGtfsTime },
-  { id: 'latest_trip_start', tab: 'trips', format: formatGtfsTime },
-  { id: 'latest_trip_end', tab: 'frequency', format: formatGtfsTime },
+  { id: 'average_trips_per_day', tab: 'trips', title: tripsTitle, format: value => value },
+  { id: 'average_trips_per_hour', tab: 'trips', title: tripsTitle, format: value => value },
+  { id: 'average_frequency', tab: 'calculations', title: frequencyTitle, format: formatDuration, caveat: true },
+  { id: 'fastest_frequency', tab: 'calculations', title: frequencyTitle, format: formatDuration },
+  { id: 'slowest_frequency', tab: 'calculations', title: frequencyTitle, format: formatDuration },
+  { id: 'earliest_trip_start', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
+  { id: 'earliest_trip_end', tab: 'calculations', title: endTimeTitle, format: formatGtfsTime },
+  { id: 'latest_trip_start', tab: 'trips', title: tripsTitle, format: formatGtfsTime },
+  { id: 'latest_trip_end', tab: 'calculations', title: endTimeTitle, format: formatGtfsTime },
 ]
 
-// Only a route in the current results, which the trip details can find.
+// Only a route in the current results: a stale row opens nothing rather than
+// an empty modal.
 function handleRouteDrill (routeId: number, tab: TripDetailsTab) {
   if (props.scenarioFilterResult?.routes.some(r => r.id === routeId)) {
     emit('openTrips', { kind: 'route', routeId }, tab)

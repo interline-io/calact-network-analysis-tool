@@ -1,30 +1,62 @@
 <template>
-  <!-- A route also shows how the Routes report works out its numbers. -->
-  <cat-tabs v-if="route" v-model="tab" type="boxed">
+  <!-- A route also shows how the Routes report works out its numbers. Each
+       route tab is kept alive once opened, so switching between them does not
+       rebuild its calculations. -->
+  <cat-tabs v-if="route && scenarioFilterResult" v-model="tab" type="boxed">
     <cat-tab-item value="trips" label="Trips">
-      <cal-trip-report v-bind="reportProps" @retry="$emit('retry')" />
+      <cal-trip-report
+        :subject-kind="subjectKind"
+        :rows="rows"
+        :multi-day="multiDay"
+        :title="title"
+        :details-loading="detailsLoading"
+        :details-error="detailsError"
+        @retry="$emit('retry')"
+      />
     </cat-tab-item>
-    <cat-tab-item value="frequency" label="Calculations">
-      <cal-route-frequency v-if="tab === 'frequency'" v-bind="frequencyProps" tab="frequency" />
-    </cat-tab-item>
-    <cat-tab-item value="stops" label="Stop Details">
-      <cal-route-frequency v-if="tab === 'stops'" v-bind="frequencyProps" tab="stops" />
+    <cat-tab-item v-for="routeTab of routeTabs" :key="routeTab.value" :value="routeTab.value" :label="routeTab.label">
+      <KeepAlive>
+        <cal-route-frequency
+          v-if="tab === routeTab.value"
+          :tab="routeTab.value"
+          :route="route"
+          :scenario-filter-result="scenarioFilterResult"
+          :selected-date-range="selectedDateRange"
+          :selected-weekdays="selectedWeekdays"
+          :selected-weekday-mode="selectedWeekdayMode"
+          :start-time="startTime"
+          :end-time="endTime"
+        />
+      </KeepAlive>
     </cat-tab-item>
   </cat-tabs>
-  <cal-trip-report v-else v-bind="reportProps" @retry="$emit('retry')" />
+  <cal-trip-report
+    v-else
+    :subject-kind="subjectKind"
+    :rows="rows"
+    :multi-day="multiDay"
+    :title="title"
+    :details-loading="detailsLoading"
+    :details-error="detailsError"
+    @retry="$emit('retry')"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { ScenarioFilterResult, TripSubject, TripTableRow } from '~~/src/scenario'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import type { Route } from '~~/src/tl'
 
 // The full-size view of a stop's, cluster's, or route's trips: the trip table,
-// and for a route its calculation and stop details too.
-export type TripDetailsTab = 'trips' | 'frequency' | 'stops'
+// and for a route its calculations and stop details too.
+export type TripDetailsTab = 'trips' | 'calculations' | 'stops'
 
-const props = defineProps<{
+const routeTabs: { value: Exclude<TripDetailsTab, 'trips'>, label: string }[] = [
+  { value: 'calculations', label: 'Calculations' },
+  { value: 'stops', label: 'Stop Details' },
+]
+
+defineProps<{
   subjectKind: TripSubject['kind']
   rows: TripTableRow[]
   multiDay: boolean
@@ -46,23 +78,4 @@ defineEmits<{
 }>()
 
 const tab = defineModel<TripDetailsTab>('tab', { default: 'trips' })
-
-const reportProps = computed(() => ({
-  subjectKind: props.subjectKind,
-  rows: props.rows,
-  multiDay: props.multiDay,
-  title: props.title,
-  detailsLoading: props.detailsLoading,
-  detailsError: props.detailsError,
-}))
-
-const frequencyProps = computed(() => ({
-  route: props.route!,
-  scenarioFilterResult: props.scenarioFilterResult!,
-  selectedDateRange: props.selectedDateRange,
-  selectedWeekdays: props.selectedWeekdays,
-  selectedWeekdayMode: props.selectedWeekdayMode,
-  startTime: props.startTime,
-  endTime: props.endTime,
-}))
 </script>

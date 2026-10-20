@@ -857,7 +857,7 @@ const tripTableTab = ref<TripDetailsTab>('trips')
 // A route subject's route, for its calculation and stop tabs.
 const tripTableRoute = computed(() => {
   const s = tripTable.resolvedSubject
-  return s?.kind === 'route' ? scenarioFilterResult.value?.routes.find(r => r.id === s.routeId) : undefined
+  return s?.kind === 'route' ? tripTable.routes.get(s.routeId) : undefined
 })
 watch(tripPanelOpenedSubject, () => {
   if (tripTableFromPanel) {
@@ -877,9 +877,9 @@ function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTa
   showTripTable.value = true
   tripTable.loadDetails('all')
 }
-function openTripTable () {
+function openTripTable (tab: TripDetailsTab = 'trips') {
   if (tripPanelOpenedSubject.value) {
-    showTrips(tripPanelOpenedSubject.value, true)
+    showTrips(tripPanelOpenedSubject.value, true, tab)
   }
 }
 function openReportTrips (subject: TripSubject, tab: TripDetailsTab = 'trips') {
