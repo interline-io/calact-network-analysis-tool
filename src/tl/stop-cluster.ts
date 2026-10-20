@@ -12,6 +12,9 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
     id
     # For naming the cluster after what its members' feeds call the place.
     stop_name
+    parent {
+      stop_name
+    }
     feed_version {
       feed {
         onestop_id
@@ -32,6 +35,7 @@ query StopClusters($limit: Int, $after: Int, $where: StopFilter, $radius: Float,
 export interface StopClusterStopResponse {
   id: number
   stop_name?: string | null
+  parent?: { stop_name?: string | null } | null
   feed_version?: {
     feed: {
       onestop_id: string
@@ -56,6 +60,9 @@ query StopClusterNear($ids: [Int!], $radius: Float, $nearbyLimit: Int) {
     nearby_stops(radius: $radius, limit: $nearbyLimit) {
       id
       stop_name
+      parent {
+        stop_name
+      }
       feed_version {
         feed {
           onestop_id
@@ -70,6 +77,7 @@ export interface StopClusterNearResponse {
   nearby_stops: {
     id: number
     stop_name?: string | null
+    parent?: { stop_name?: string | null } | null
     feed_version?: {
       feed: {
         onestop_id: string

@@ -23,6 +23,7 @@ import {
   parseHMS,
   queryAreaVariables,
   routeTypeNames,
+  STOP_CLUSTER_NEAR_MAX_RADIUS,
   STOP_CLUSTER_NEAR_RADIUS_FACTOR,
   WEEKDAY_BY_GETDAY,
   type Bbox,
@@ -56,8 +57,9 @@ export interface ClusterInputStop {
   routeIds: number[]
   /** Stop ids within the max distance, from PostGIS nearby_stops (server-side). */
   neighborIds: number[]
-  /** For naming the cluster: the stop's name and its feed. */
+  /** For naming the cluster: the stop's name, its parent station's, and its feed. */
   name?: string
+  parentName?: string
   feedOnestopId?: string
 }
 
@@ -164,7 +166,7 @@ function namedStops (ids: number[], byId: Map<number, ClusterInputStop>): NamedS
   for (const id of ids) {
     const stop = byId.get(id)
     if (stop?.name) {
-      out.push({ name: stop.name, feedOnestopId: stop.feedOnestopId ?? '' })
+      out.push({ name: stop.name, parentName: stop.parentName, feedOnestopId: stop.feedOnestopId ?? '' })
     }
   }
   return out
@@ -485,6 +487,7 @@ function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
     id: stop.id,
     neighborIds: (stop.nearby_stops || []).map(n => n.id),
     name: stop.stop_name || undefined,
+    parentName: stop.parent?.stop_name || undefined,
     feedOnestopId: stop.feed_version?.feed.onestop_id,
   }
 }
@@ -588,13 +591,13 @@ async function addNearNames (
     for (let i = 0; i < anchors.length; i += NEAR_QUERY_CHUNK) {
       const response = await client.query<{ stops: StopClusterNearResponse[] }>(stopClusterNearQuery, {
         ids: anchors.slice(i, i + NEAR_QUERY_CHUNK),
-        radius: maxDistanceMeters * STOP_CLUSTER_NEAR_RADIUS_FACTOR,
+        radius: Math.min(maxDistanceMeters * STOP_CLUSTER_NEAR_RADIUS_FACTOR, STOP_CLUSTER_NEAR_MAX_RADIUS),
         nearbyLimit: NEARBY_STOPS_LIMIT,
       })
       for (const stop of response.data?.stops || []) {
         nearbyByAnchor.set(stop.id, (stop.nearby_stops || [])
           .filter(n => n.stop_name)
-          .map(n => ({ id: n.id, name: n.stop_name!, feedOnestopId: n.feed_version?.feed.onestop_id ?? '' })))
+          .map(n => ({ id: n.id, name: n.stop_name!, parentName: n.parent?.stop_name || undefined, feedOnestopId: n.feed_version?.feed.onestop_id ?? '' })))
       }
     }
   } catch (err) {

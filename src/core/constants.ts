@@ -314,6 +314,12 @@ export const STOP_CLUSTER_DEFAULT_MAX_TRANSFER_MINUTES = 60
 // multiple of the cluster distance the user chose: the place is next door, not
 // in the cluster. 250 m at the default 100 m.
 export const STOP_CLUSTER_NEAR_RADIUS_FACTOR = 2.5
+// The lookup's radius stops growing here however wide the cluster distance: in
+// a dense downtown a wider circle holds more stops than one request returns.
+export const STOP_CLUSTER_NEAR_MAX_RADIUS = 1000
+// Feeds that must use the same name for a nearby place before a cluster is
+// said to be near it.
+export const CLUSTER_NEAR_MIN_FEEDS = 2
 
 // Seeded when the user ticks a Fixed-Route Services threshold: route frequency
 // (minutes between trips) and stop visits (total visits during the filtered

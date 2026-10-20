@@ -8,6 +8,8 @@ import {
   type StopClusterMeta,
 } from './stop-clusters'
 import { routesById, type RouteGql, type Stop } from '~~/src/tl'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { apiFetch, BasicGraphQLClient, parseBbox } from '~~/src/core'
 import { runStopClustersPhase } from './stop-clusters'
 
@@ -304,12 +306,20 @@ describe('runStopClustersPhase (integration)', () => {
     apiFetch(''),
   )
 
+  // The fixture's feed versions, as the fixture build loads them, so a
+  // rebuilt fixture does not leave this test behind.
+  const fixtureVersions = new Map(readFileSync(join(__dirname, '../../../testdata/gtfs/fvs.txt'), 'utf8')
+    .split('\n')
+    .map(line => line.trim().split(/\s+/))
+    .filter(parts => parts.length === 2)
+    .map(([feed, sha1]) => [feed!, sha1!]))
+
   it('names every cluster and centers it on one of its own stops', async () => {
     const clusters = await runStopClustersPhase({
-      feedVersions: [
-        { feedOnestopId: 'f-c20-trimet', feedVersionSha1: '6ea075cf7d3c28a1b3a76866b38538f539b908e2' },
-        { feedOnestopId: 'f-c20g-c~tran', feedVersionSha1: 'b62c192c66ea39b74c8d986c956fddfb67edee6c' },
-      ],
+      feedVersions: ['f-c20-trimet', 'f-c20g-c~tran'].map(feedOnestopId => ({
+        feedOnestopId,
+        feedVersionSha1: fixtureVersions.get(feedOnestopId)!,
+      })),
       bbox: parseBbox('-122.69075,45.51358,-122.66809,45.53306'),
       geoDatasetName: 'tiger2021',
       maxDistanceMeters: 100,
