@@ -131,6 +131,14 @@ describe('deriveStopClusters', () => {
     expect(clusters[0]?.anchorStopId).toBe(2)
   })
 
+  it('gives a cluster of unnamed stops a generic name', () => {
+    const clusters = deriveStopClusters([
+      stop(1, [10], [2]),
+      stop(2, [20], [1]),
+    ], DIST)
+    expect(clusters[0]?.name).toBe('Stop cluster 1')
+  })
+
   it('names a cluster for what most of its members\' feeds call the place', () => {
     const clusters = deriveStopClusters([
       { ...stop(1, [10], [2, 3]), name: 'Tacoma', feedOnestopId: 'f-a' },
@@ -161,6 +169,7 @@ describe('applyClusterTransferTime', () => {
     agencyIds: [10, 20],
     routeIds: [101, 202],
     maxDistanceMeters: DIST,
+    name: 'Main St',
   }
   const meta = new Map<number, StopClusterMeta>([
     [1, { agencyIds: [10], routeIds: [101] }],
@@ -251,6 +260,7 @@ describe('stopClusterCsv', () => {
       agencyIds: [10, 20],
       routeIds: [10, 20],
       maxDistanceMeters: 200,
+      name: 'First St',
     }
     const stopById = new Map<number, Stop>([
       [1, makeStop(1, 'First & Main')],
@@ -259,7 +269,7 @@ describe('stopClusterCsv', () => {
     const routeLookup = routesById([makeRoute(1, 'TriMet'), makeRoute(2, 'C-Tran')])
     const rows = stopClusterCsv([cluster], stopById, routeLookup)
     expect(rows).toHaveLength(1)
-    expect(rows[0]?.cluster).toBe('Cluster 1')
+    expect(rows[0]?.cluster).toBe('First St')
     expect(rows[0]?.agencies_count).toBe(2)
     expect(rows[0]?.stops_count).toBe(2)
     expect(rows[0]?.routes_count).toBe(2)

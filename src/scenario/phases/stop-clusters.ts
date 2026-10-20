@@ -83,9 +83,10 @@ export interface StopCluster {
   maxDistanceMeters: number
   /**
    * What the members' feeds most agree on calling the place (cluster-names.ts).
-   * Absent when no member has a name; show the anchor stop's name instead.
+   * The anchor is a member, so this is only ever generic where no member stop
+   * has a name at all.
    */
-  name?: string
+  name: string
   /** A better-known place just outside the cluster, for "near …". */
   nearName?: string
 }
@@ -145,7 +146,7 @@ function buildCluster (
       routeIds.add(r)
     }
   }
-  const name = chooseStopName(namedStops(memberStopIds, byId))?.name
+  const name = chooseStopName(namedStops(memberStopIds, byId))?.name ?? `Stop cluster ${anchor}`
   return {
     id: `cluster:${anchor}`,
     anchorStopId: anchor,
@@ -153,7 +154,7 @@ function buildCluster (
     agencyIds: [...agencyIds].sort((a, b) => a - b),
     routeIds: [...routeIds].sort((a, b) => a - b),
     maxDistanceMeters,
-    ...(name ? { name } : {}),
+    name,
   }
 }
 
@@ -637,7 +638,7 @@ export function stopClusterCsv (
   stopById: Map<number, Stop>,
   routeLookup: Map<number, RouteGql>,
 ): StopClusterCsv[] {
-  return clusters.map((cluster, idx): StopClusterCsv => {
+  return clusters.map((cluster): StopClusterCsv => {
     const agencies = new Set<string>()
     const agencyIds = new Set<number>()
     const modes = new Set<number>()
@@ -664,7 +665,7 @@ export function stopClusterCsv (
       }
     }
     return {
-      cluster: cluster.name ?? `Cluster ${idx + 1}`,
+      cluster: cluster.name,
       near: cluster.nearName ?? '',
       agencies_count: agencyIds.size,
       agencies: [...agencies].join(', '),

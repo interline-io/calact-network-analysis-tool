@@ -1046,10 +1046,7 @@ function buildClusterPopup (cluster: StopCluster, pt: any): PopupFeature {
     featureType: 'cluster',
     data: {
       cluster_id: cluster.id,
-      cluster_name: clusterDisplayName(
-        cluster.name ?? stopFeatureLookup.value.get(cluster.anchorStopId.toString())?.stop_name ?? '',
-        cluster.nearName,
-      ),
+      cluster_name: clusterDisplayName(cluster.name, cluster.nearName),
       agency_names: [...allAgencies],
       cluster_members: members,
     },
