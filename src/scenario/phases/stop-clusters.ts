@@ -73,7 +73,11 @@ export interface StopClusterMeta {
 export interface StopCluster {
   /** Stable id, namespaced to avoid colliding with stop ids on the map. */
   id: string
-  /** The stop the cluster ball is centered on (the map circle centers here). */
+  /**
+   * The stop the cluster ball is centered on (the map circle centers here); a
+   * member when the cluster is built. The max-transfer-time prune keeps it, and
+   * the name, as members drop: the hub keeps its circle and its name.
+   */
   anchorStopId: number
   /** Member stop ids (one representative stop per agency; >= 2). */
   memberStopIds: number[]
@@ -84,9 +88,8 @@ export interface StopCluster {
   /** The max distance (meters) used — drives the map circle radius. */
   maxDistanceMeters: number
   /**
-   * What the members' feeds most agree on calling the place (cluster-names.ts).
-   * The anchor is a member, so this is only ever generic where no member stop
-   * has a name at all.
+   * One of the members' own GTFS names (cluster-names.ts); generic only where
+   * no member stop has a name at all.
    */
   name: string
   /** A better-known place just outside the cluster, for "near …". */
@@ -107,11 +110,14 @@ const MIN_CLUSTER_MEMBERS = 2
 function selectClusterMembers (
   ballStopIds: number[],
   byId: Map<number, ClusterInputStop>,
+  // A stop to take first, before the richest: the anchor, where it would
+  // otherwise lose to a busier stop of its own agency.
+  seed?: number,
 ): number[] {
   const ordered = ballStopIds
     .map(id => byId.get(id))
     .filter((s): s is ClusterInputStop => !!s)
-    .sort((a, b) => (b.routeIds.length - a.routeIds.length) || (a.id - b.id))
+    .sort((a, b) => Number(b.id === seed) - Number(a.id === seed) || (b.routeIds.length - a.routeIds.length) || (a.id - b.id))
   const coveredAgencies = new Set<number>()
   const chosen: number[] = []
   for (const stop of ordered) {
@@ -125,6 +131,25 @@ function selectClusterMembers (
     }
   }
   return chosen
+}
+
+interface ClusterCandidate {
+  anchor: number
+  members: number[]
+  agencies: number
+  // Members chosen starting from the anchor, not busiest-first.
+  seeded: boolean
+}
+
+// Negative where `a` is the better cluster: the most agencies, then the fewest
+// stops to bring them together (so a seeded anchor that only repeats an agency
+// does not win by size), then members chosen busiest-first over a seeded set,
+// then the lowest anchor id.
+function compareCandidates (a: ClusterCandidate, b: ClusterCandidate): number {
+  return (b.agencies - a.agencies)
+    || (a.members.length - b.members.length)
+    || (Number(a.seeded) - Number(b.seeded))
+    || (a.anchor - b.anchor)
 }
 
 /** Build a StopCluster from a chosen member set, unioning agency/route ids. */
@@ -222,8 +247,11 @@ export function deriveStopClusters (
   // Greedy maximal assignment. Recomputing the best candidate each round is
   // O(rounds * stops * degree); fine for the hundreds-to-low-thousands of stops
   // in a typical bbox. Revisit with spatial bucketing if it ever gets hot.
+  // Agencies a member set brings together.
+  const agencyCount = (members: number[]): number => new Set(members.flatMap(id => byId.get(id)?.agencyIds || [])).size
+
   for (;;) {
-    let best: { anchor: number, members: number[] } | null = null
+    let best: ClusterCandidate | null = null
     for (const anchor of pool) {
       const neighbors = adj.get(anchor)
       const ball = [anchor]
@@ -234,20 +262,20 @@ export function deriveStopClusters (
           }
         }
       }
-      const members = selectClusterMembers(ball, byId)
       // The map draws the cluster's circle around its anchor, so the anchor
-      // must be one of the stops it holds. A ball whose anchor loses to a
-      // busier stop of its own agency (or is a layover point with no routes)
-      // is left to an anchor that is a member.
+      // must be one of the stops it holds. Where the anchor loses to a busier
+      // stop of its own agency, the members are chosen again starting from it.
+      let members = selectClusterMembers(ball, byId)
+      const seeded = !members.includes(anchor)
+      if (seeded) {
+        members = selectClusterMembers(ball, byId, anchor)
+      }
       if (members.length < MIN_CLUSTER_MEMBERS || !members.includes(anchor)) {
         continue
       }
-      if (
-        !best
-        || members.length > best.members.length
-        || (members.length === best.members.length && anchor < best.anchor)
-      ) {
-        best = { anchor, members }
+      const candidate = { anchor, members, agencies: agencyCount(members), seeded }
+      if (!best || compareCandidates(candidate, best) < 0) {
+        best = candidate
       }
     }
     if (!best) {
@@ -481,14 +509,14 @@ function stopRouteAgencyIds (routeStops?: { route_id: number, agency_id: number 
 }
 
 // Map a raw GraphQL stop into the minimal ClusterInputStop the algorithm needs.
-function toClusterInputStop (stop: StopClusterStopResponse): ClusterInputStop {
+function toClusterInputStop (stop: StopClusterStopResponse, feedOnestopId: string): ClusterInputStop {
   return {
     ...stopRouteAgencyIds(stop.route_stops),
     id: stop.id,
     neighborIds: (stop.nearby_stops || []).map(n => n.id),
     name: stop.stop_name || undefined,
     parentName: stop.parent?.stop_name || undefined,
-    feedOnestopId: stop.feed_version?.feed.onestop_id,
+    feedOnestopId,
   }
 }
 
@@ -524,7 +552,7 @@ async function fetchStopClusterInputs (
     const response = await client.query<{ stops: StopClusterStopResponse[] }>(stopClusterQuery, variables)
     const stops = response.data?.stops || []
     for (const stop of stops) {
-      inputs.push(toClusterInputStop(stop))
+      inputs.push(toClusterInputStop(stop, task.feedOnestopId))
     }
     const lastStopId = stops[stops.length - 1]?.id
     if (stops.length >= stopLimit && lastStopId !== undefined) {
@@ -559,7 +587,7 @@ export async function runStopClustersPhase (
   opts: PhaseOpts = {},
 ): Promise<StopCluster[]> {
   const inputs = await fetchStopClusterInputs(config, client, emit, opts)
-  const clusters = await addNearNames(deriveStopClusters(inputs, config.maxDistanceMeters), inputs, client, config.maxDistanceMeters)
+  const clusters = await addNearNames(deriveStopClusters(inputs, config.maxDistanceMeters), inputs, client, config, opts)
   await emit({
     currentStage: 'stop-clusters',
     partialData: { stopClusters: clusters },
@@ -573,44 +601,55 @@ const NEAR_QUERY_CHUNK = 100
 
 /**
  * Say what better-known place each cluster is near, where that helps
- * (chooseNearName). Names only: a failed lookup leaves the clusters as they were
- * rather than failing the phase.
+ * (chooseNearName). Names only: a failed lookup is reported as a non-fatal
+ * error and leaves the clusters as they were rather than failing the phase.
  */
 async function addNearNames (
   clusters: StopCluster[],
   inputs: ClusterInputStop[],
   client: GraphQLClient,
-  maxDistanceMeters: number,
+  config: StopClusterFetchConfig,
+  opts: PhaseOpts,
 ): Promise<StopCluster[]> {
   if (clusters.length === 0) {
     return clusters
   }
+  const radius = Math.min(config.maxDistanceMeters * STOP_CLUSTER_NEAR_RADIUS_FACTOR, STOP_CLUSTER_NEAR_MAX_RADIUS)
+  // Only the scenario's feeds name a place: nearby_stops reads every feed's
+  // active version, including feeds the user did not select.
+  const scenarioFeeds = new Set(config.feedVersions.map(fv => fv.feedOnestopId))
   const nearbyByAnchor = new Map<number, (NamedStop & { id: number })[]>()
   try {
     const anchors = clusters.map(c => c.anchorStopId)
+    const chunks: number[][] = []
     for (let i = 0; i < anchors.length; i += NEAR_QUERY_CHUNK) {
-      const response = await client.query<{ stops: StopClusterNearResponse[] }>(stopClusterNearQuery, {
-        ids: anchors.slice(i, i + NEAR_QUERY_CHUNK),
-        radius: Math.min(maxDistanceMeters * STOP_CLUSTER_NEAR_RADIUS_FACTOR, STOP_CLUSTER_NEAR_MAX_RADIUS),
-        nearbyLimit: NEARBY_STOPS_LIMIT,
-      })
+      chunks.push(anchors.slice(i, i + NEAR_QUERY_CHUNK))
+    }
+    const responses = await Promise.all(chunks.map(ids => client.query<{ stops: StopClusterNearResponse[] }>(stopClusterNearQuery, {
+      ids,
+      limit: ids.length,
+      radius,
+      nearbyLimit: NEARBY_STOPS_LIMIT,
+    })))
+    for (const response of responses) {
       for (const stop of response.data?.stops || []) {
         nearbyByAnchor.set(stop.id, (stop.nearby_stops || [])
-          .filter(n => n.stop_name)
-          .map(n => ({ id: n.id, name: n.stop_name!, parentName: n.parent?.stop_name || undefined, feedOnestopId: n.feed_version?.feed.onestop_id ?? '' })))
+          .filter(n => n.stop_name && scenarioFeeds.has(n.feed_version?.feed.onestop_id ?? ''))
+          .map(n => ({ id: n.id, name: n.stop_name!, parentName: n.parent?.stop_name || undefined, feedOnestopId: n.feed_version!.feed.onestop_id })))
       }
     }
   } catch (err) {
-    console.warn('[stop-clusters] could not look up nearby place names', err)
+    opts.onError?.(err)
     return clusters
   }
   const byId = new Map(inputs.map(s => [s.id, s]))
   return clusters.map((cluster) => {
     const members = namedStops(cluster.memberStopIds, byId)
-    const memberIds = new Set(cluster.memberStopIds)
-    // The cluster's own stops come back from nearby_stops too; drop them by id
-    // here, and chooseNearName drops anything sharing a member's name.
-    const nearby = (nearbyByAnchor.get(cluster.anchorStopId) || []).filter(n => !memberIds.has(n.id))
+    // Everything within the cluster distance of the anchor is part of the hub,
+    // member or not (another bay of the same station): a cluster is near what
+    // lies beyond it. chooseNearName also drops anything sharing a member's name.
+    const inHub = new Set([cluster.anchorStopId, ...cluster.memberStopIds, ...(byId.get(cluster.anchorStopId)?.neighborIds || [])])
+    const nearby = (nearbyByAnchor.get(cluster.anchorStopId) || []).filter(n => !inHub.has(n.id))
     const nearName = chooseNearName(chooseStopName(members), members, nearby)
     return nearName ? { ...cluster, nearName } : cluster
   })

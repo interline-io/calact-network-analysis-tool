@@ -138,7 +138,7 @@ export function useTripPanel (deps: UseTripPanelDeps): UseTripPanelReturn {
     if (s.kind === 'cluster') {
       // resolvedSubject only holds a cluster the filters still have.
       const cluster = result.value?.stopClusters?.find(c => c.id === s.clusterId)
-      return cluster ? `Stop cluster at ${clusterDisplayName(cluster.name, cluster.nearName)}` : 'Stop cluster'
+      return cluster ? clusterDisplayName(cluster.name, cluster.nearName) : 'Stop cluster'
     }
     const r = routes.value.get(s.routeId)
     return r ? [r.route_short_name, r.route_long_name].filter(Boolean).join(' ') : 'Route'

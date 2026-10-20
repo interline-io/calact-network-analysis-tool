@@ -133,6 +133,21 @@ describe('deriveStopClusters', () => {
     expect(clusters[0]?.anchorStopId).toBe(2)
   })
 
+  it('keeps a cross-agency pair whose stops each lose to a busier sibling', () => {
+    // A chain Y - X - Z - W, each within distance only of its neighbors: X and
+    // Z are the cross-agency pair, but in X's ball agency 10 is Y's (busier),
+    // and in Z's ball agency 20 is W's. Starting from the anchor keeps the pair.
+    const clusters = deriveStopClusters([
+      stop(1, [10], [2], [101, 102, 103]), // Y
+      stop(2, [10], [1, 3], [104]), // X
+      stop(3, [20], [2, 4], [201]), // Z
+      stop(4, [20], [3], [202, 203, 204]), // W
+    ], DIST)
+    expect(clusters).toHaveLength(1)
+    expect(clusters[0]?.memberStopIds).toEqual([2, 3])
+    expect(clusters[0]?.memberStopIds).toContain(clusters[0]?.anchorStopId)
+  })
+
   it('gives a cluster of unnamed stops a generic name', () => {
     const clusters = deriveStopClusters([
       stop(1, [10], [2]),
