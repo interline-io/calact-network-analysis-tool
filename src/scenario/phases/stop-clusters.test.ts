@@ -8,6 +8,8 @@ import {
   type StopClusterMeta,
 } from './stop-clusters'
 import { routesById, type RouteGql, type Stop } from '~~/src/tl'
+import { apiFetch, BasicGraphQLClient, parseBbox } from '~~/src/core'
+import { runStopClustersPhase } from './stop-clusters'
 
 /**
  * Build a ClusterInputStop. Neighbors are listed one-directionally in the tests;
@@ -279,5 +281,38 @@ describe('stopClusterCsv', () => {
     const rows = stopClusterCsv([cluster], new Map(), new Map())
     expect(rows[0]?.cluster).toBe('Portland Curbside Bus Stop')
     expect(rows[0]?.near).toBe('Portland Union Station')
+  })
+})
+
+// Against the fixture transitland-server (docker/docker-compose.services.yaml):
+// the cluster query's stop names and feeds, and the "near" lookup, as the
+// server answers them. Downtown Portland, where TriMet and C-TRAN share stops
+// on the transit mall.
+describe('runStopClustersPhase (integration)', () => {
+  const client = new BasicGraphQLClient(
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
+  )
+
+  it('names every cluster and centers it on one of its own stops', async () => {
+    const clusters = await runStopClustersPhase({
+      feedVersions: [
+        { feedOnestopId: 'f-c20-trimet', feedVersionSha1: '6ea075cf7d3c28a1b3a76866b38538f539b908e2' },
+        { feedOnestopId: 'f-c20g-c~tran', feedVersionSha1: 'b62c192c66ea39b74c8d986c956fddfb67edee6c' },
+      ],
+      bbox: parseBbox('-122.69075,45.51358,-122.66809,45.53306'),
+      geoDatasetName: 'tiger2021',
+      maxDistanceMeters: 100,
+    }, client, async () => {})
+    expect(clusters.length).toBeGreaterThan(0)
+    for (const c of clusters) {
+      expect(c.name, c.id).toBeTruthy()
+      expect(c.memberStopIds, c.id).toContain(c.anchorStopId)
+      if (c.nearName !== undefined) {
+        expect(c.nearName).not.toBe(c.name)
+      }
+    }
+    // Where both agencies name the stop alike, the cluster takes that name.
+    expect(clusters.map(c => c.name)).toContain('NW Everett & 5th')
   })
 })
