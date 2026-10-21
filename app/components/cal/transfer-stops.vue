@@ -14,15 +14,11 @@
           size="small"
         />
       </cat-field>
-      <p class="cal-transfer-stops-help">
-        A cluster holds one stop per agency, so a station's other platforms
-        may need adding.
-        <template v-if="edited">
-          Changed from the {{ subjectStopCount }} {{ subjectStopCount === 1 ? 'stop' : 'stops' }} it started with.
-          <button type="button" class="cal-transfer-stops-reset" @click="$emit('reset')">
-            Reset
-          </button>
-        </template>
+      <p v-if="edited" class="cal-transfer-stops-help">
+        Changed from the {{ subjectStopCount }} {{ subjectStopCount === 1 ? 'stop' : 'stops' }} it started with.
+        <button type="button" class="cal-transfer-stops-reset" @click="$emit('reset')">
+          Reset
+        </button>
       </p>
     </div>
   </section>
