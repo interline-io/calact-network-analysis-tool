@@ -27,6 +27,12 @@
       >
         Lasso
       </cat-button>
+      <cat-button v-if="inView.some(id => !picked.has(id))" size="small" @click="selectInView">
+        Select all in view
+      </cat-button>
+      <cat-button v-if="selected.length > 0" size="small" @click="selected = []">
+        Unselect all
+      </cat-button>
     </div>
     <p class="cal-transfer-stops-map-hint">
       <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-stop" />Stop</span>
@@ -37,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
@@ -120,10 +126,22 @@ function toggle (id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
 }
 
+// The map's view, west, south, east, north; and the stops in it.
+const bounds = ref<[number, number, number, number]>()
+const picked = computed(() => new Set(selected.value))
+const inView = computed(() => {
+  const v = bounds.value
+  return v ? props.stops.filter(s => s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]).map(s => s.id) : []
+})
+function selectInView () {
+  selected.value = [...new Set([...selected.value, ...inView.value])]
+}
+
 function emitView () {
   const b = map?.getBounds()
   if (b) {
-    emit('view', [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+    bounds.value = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
+    emit('view', bounds.value)
   }
 }
 
@@ -469,6 +487,8 @@ onBeforeUnmount(() => {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 3;
+  display: flex;
+  gap: 0.35rem;
 }
 
 :deep(.cal-transfer-stops-map-chooser) {

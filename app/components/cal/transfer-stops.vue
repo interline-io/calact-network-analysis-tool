@@ -14,12 +14,6 @@
     <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
       <div class="cal-transfer-stops-head">
         <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
-        <button v-if="listed.some(s => !picked.has(s.id))" type="button" class="cal-transfer-stops-link" @click="setAll(true)">
-          Select all
-        </button>
-        <button v-if="listed.some(s => picked.has(s.id))" type="button" class="cal-transfer-stops-link" @click="setAll(false)">
-          Unselect all
-        </button>
         <button v-if="edited" type="button" class="cal-transfer-stops-link" :title="`Back to the ${subjectStopCount} ${subjectStopCount === 1 ? 'stop' : 'stops'} it started with`" @click="$emit('reset')">
           Reset
         </button>
@@ -104,12 +98,6 @@ const groups = computed(() => {
 
 function setPicked (id: number, on: boolean) {
   stops.value = on ? [...stops.value, id] : stops.value.filter(x => x !== id)
-}
-
-// Every stop listed picked, or none of them.
-function setAll (on: boolean) {
-  const ids = new Set(listed.value.map(s => s.id))
-  stops.value = on ? [...new Set([...stops.value, ...ids])] : stops.value.filter(id => !ids.has(id))
 }
 </script>
 

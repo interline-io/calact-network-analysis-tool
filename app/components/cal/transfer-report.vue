@@ -223,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue'
+import { computed, useId } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
 import type { TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
@@ -247,6 +247,7 @@ import {
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
 export type TransferReportView = 'summary' | 'individual'
+export type TransferReportSection = TransferSettingsSection | 'stops'
 
 const props = defineProps<{
   // What the transfers are at, as the downloads' file names.
@@ -303,9 +304,10 @@ const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
 const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
 const settings = defineModel<TransferSettings>('settings', { required: true })
-// Trip filtering is open on entering, as which trips count is the first
-// thing to set.
-const openSection = ref<TransferSettingsSection | 'stops' | undefined>('trips')
+// The settings panel open, one at a time: by default Trip filtering, as which
+// trips count is the first thing to set; the page opens Stops & platforms on
+// entering from a cluster.
+const openSection = defineModel<TransferReportSection | undefined>('section', { default: 'trips' })
 const settingsId = useId()
 
 // The share of trips, arriving and departing, that trip filtering keeps, on

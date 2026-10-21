@@ -86,6 +86,7 @@
               <cal-transfer-report
                 v-model:subject="transferSubject"
                 v-model:view="transferView"
+                v-model:section="transferSection"
                 v-model:date="transfers.selectedDate"
                 v-model:time-band="transfers.timeBand"
                 v-model:settings="transfers.settings"
@@ -277,7 +278,7 @@ import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
-import type { TransferReportView } from '~/components/cal/transfer-report.vue'
+import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer-report.vue'
 import type { ReportTab } from '~/components/cal/report.vue'
 import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
@@ -968,6 +969,7 @@ const transfers = reactive(useSubjectTransfers({
   stopEdits: transferStopEdits,
 }, tripDetailsStore))
 const transferView = ref<TransferReportView>('summary')
+const transferSection = ref<TransferReportSection | undefined>('trips')
 // The view's table, as the Reports tab's CSV download.
 const transferCsv = computed(() => (transferView.value === 'summary'
   ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.title}`, label: 'Download summary as CSV' }
@@ -980,8 +982,11 @@ async function enableClustersForTransfers () {
   await until(clusterDistance).toMatch(v => v > 0)
   await runScenarioQuery('Stop clusters found.')
 }
+// Entered from a cluster, Stops & platforms opens first, as a cluster's
+// stops are the first thing to check.
 function openTransfers (subject: TripSubject) {
   transferSubject.value = transferSubjectKey(subject)
+  transferSection.value = subject.kind === 'cluster' ? 'stops' : 'trips'
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
 }
