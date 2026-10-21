@@ -86,7 +86,7 @@ describe('subjectTrips', () => {
     expect(r.rows.map(row => [row.stopId, row.routeId])).toEqual([[1, 10], [2, 20]])
   })
 
-  it('counts a route\'s trips by any in-window departure, timed at the first in-area stop', () => {
+  it('counts a route\'s trips by any in-window departure, timed at the first and last in-area stops', () => {
     const cache = cacheOf([
       // Trip 100 starts before the window and reaches stop 2 inside it.
       [1, MON, hms(5, 50), 100, 0, 10],
@@ -105,9 +105,9 @@ describe('subjectTrips', () => {
       routeIndex: RouteDepartureIndex.fromCache(cache),
     })
     expect(r.count).toBe(2)
-    expect(r.rows.map(row => [row.tripId, row.stopId, row.time, row.directionId])).toEqual([
-      [100, 1, hms(5, 50), 0],
-      [102, 2, hms(7), 1],
+    expect(r.rows.map(row => [row.tripId, row.stopId, row.time, row.directionId, row.lastStopId, row.lastTime])).toEqual([
+      [100, 1, hms(5, 50), 0, 2, hms(6, 10)],
+      [102, 2, hms(7), 1, 1, hms(7, 20)],
     ])
   })
 })
@@ -148,7 +148,7 @@ describe('tripTableRows', () => {
       routes: new Map([[10, { route_id: 'R10', route_short_name: '10', route_long_name: 'Tenth', agency_name: 'TriMet' }]]),
       stops: new Map([[1, { stop_id: 'S1', stop_name: 'Main & 1st' }]]),
       tripDetails: new Map([[100, { id: 100, tripId: 't100', headsign: 'Downtown', stopHeadsigns: new Map(), startTime: hms(7), endTime: hms(8, 5), stopCount: 30 }]]),
-      scopedDates: [MON, TUE],
+      describedDates: [MON, TUE],
     })
     expect(rows[0]).toEqual({
       time: '07:35:00',
@@ -170,6 +170,87 @@ describe('tripTableRows', () => {
       dates: `${MON} ${TUE}`,
     })
     expect(rows[1]).toMatchObject({ headsign: '', trip_id: '', trip_start: '', stop_count: '', days: 'Mon' })
+    expect(rows[0]).not.toHaveProperty('area_end')
+  })
+})
+
+describe('subjectTrips for a route', () => {
+  it('splits a trip into rows where its last in-area departure differs by date', () => {
+    const cache = cacheOf([
+      [1, MON, hms(23, 53), 100, 0, 10],
+      [2, MON, hms(23, 59), 100, 0, 10],
+      [1, TUE, hms(23, 53), 100, 0, 10],
+      [2, TUE, hms(23, 59), 100, 0, 10],
+      [3, TUE, hms(24, 2), 100, 0, 10],
+    ])
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, {
+      dates: [day(MON), day(TUE)],
+      startTime: 0,
+      endTime: hms(24),
+      stopDepartureCache: cache,
+      routeIndex: RouteDepartureIndex.fromCache(cache),
+    })
+    expect(r.rows.map(row => [row.lastTime, row.dates])).toEqual([
+      [hms(23, 59), [MON]],
+      [hms(24, 2), [TUE]],
+    ])
+  })
+})
+
+describe('subjectTrips with excluded trips', () => {
+  const cache = cacheOf([
+    // Counted: in the window on Monday.
+    [1, MON, hms(7), 100, 0, 10],
+    // Outside the 06:00-10:00 window.
+    [1, MON, hms(11), 101, 0, 10],
+    // On Saturday, outside the selected weekdays.
+    [1, SAT, hms(7), 102, 0, 10],
+  ])
+  const opts = {
+    dates: [day(MON)],
+    startTime: hms(6),
+    endTime: hms(10),
+    stopDepartureCache: cache,
+    routeIndex: RouteDepartureIndex.fromCache(cache),
+    excludedDates: [day(SAT)],
+  }
+
+  it('leaves them out unless asked', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, opts)
+    expect(r.rows.map(row => row.tripId)).toEqual([100])
+  })
+
+  it('lists them with why, without counting them', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, { ...opts, includeExcluded: true })
+    expect(r.count).toBe(1)
+    expect(r.firstTime).toBe(hms(7))
+    expect(r.lastTime).toBe(hms(7))
+    expect(r.rows.map(row => [row.tripId, row.excluded, row.dates])).toEqual([
+      [100, undefined, [MON]],
+      [102, 'weekday', [SAT]],
+      [101, 'time', [MON]],
+    ])
+  })
+
+  it('gives every table row the reason column, so the CSV has it', () => {
+    const r = subjectTrips({ kind: 'route', routeId: 10 }, { ...opts, includeExcluded: true })
+    const rows = tripTableRows(r.rows, { routes: new Map(), stops: new Map(), tripDetails: new Map(), describedDates: [MON, SAT], includeExcluded: true })
+    expect(rows.map(row => row.excluded)).toEqual(['', 'Not a selected weekday', 'Outside time window'])
+    expect(tripTableColumns('route', true, true).map(c => c.key).at(-1)).toBe('excluded')
+  })
+})
+
+describe('tripTableRows for a route', () => {
+  it('adds each trip\'s last in-area departure and stop', () => {
+    const [row] = tripTableRows([
+      { key: 'a', tripId: 100, routeId: 10, directionId: 0, stopId: 1, time: hms(7), lastStopId: 2, lastTime: hms(7, 40), dates: [MON] },
+    ], {
+      routes: new Map(),
+      stops: new Map([[1, { stop_id: 'S1' }], [2, { stop_id: 'S2', stop_name: 'Transit Center' }]]),
+      tripDetails: new Map(),
+      describedDates: [MON],
+    })
+    expect(row).toMatchObject({ time: '07:00:00', area_end: '07:40:00', area_end_stop_id: 'S2', area_end_stop_name: 'Transit Center' })
   })
 })
 
@@ -180,6 +261,12 @@ describe('tripTableColumns', () => {
     )
     expect(tripTableColumns('stop', false).map(c => c.key)).toEqual(
       ['time', 'route_short_name', 'headsign', 'trip_start', 'stop_count'],
+    )
+  })
+
+  it('adds Last in Area for a route', () => {
+    expect(tripTableColumns('route', false).map(c => c.key)).toEqual(
+      ['time', 'route_short_name', 'headsign', 'area_end', 'trip_start', 'stop_count'],
     )
   })
 })

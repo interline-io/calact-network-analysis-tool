@@ -52,7 +52,9 @@
                     <cat-icon size="small" icon="information" />
                   </cat-tooltip>
                 </th>
-                <td>{{ frequencyText }}</td>
+                <td>
+                  {{ frequencyText }}
+                </td>
               </tr>
               <tr>
                 <th scope="row">
@@ -62,6 +64,17 @@
               </tr>
             </tbody>
           </table>
+          <!-- How a route's numbers, and any caveat on its frequency, are
+               worked out, in the full table's Calculations tab. Every route
+               has it, with or without a frequency. -->
+          <button
+            v-if="subject.kind === 'route'"
+            type="button"
+            class="cal-trip-panel-link cal-trip-panel-how"
+            @click="$emit('expandTrips', 'calculations')"
+          >
+            How these are calculated
+          </button>
 
           <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
             <caption class="is-sr-only">
@@ -141,6 +154,7 @@
 </template>
 
 <script setup lang="ts">
+import type { TripDetailsTab } from './trip-details.vue'
 import { computed, ref, watch } from 'vue'
 import type { ResolvedTripSubject, SubjectTrips, TripTableRow } from '~~/src/scenario'
 import { formatDuration, formatGtfsTime } from '~~/src/core'
@@ -164,7 +178,7 @@ const emit = defineEmits<{
   // The Trips tab is showing: fetch details for its rows.
   loadDetails: []
   // Open every trip in the full-size table.
-  expandTrips: []
+  expandTrips: [tab?: TripDetailsTab]
 }>()
 
 type TripPanelTab = 'overview' | 'trips'
@@ -315,6 +329,13 @@ function formatAverage (n: number): string {
 
 .cal-trip-panel-error {
   color: var(--bulma-danger);
+}
+
+// Compound, so it wins over .cal-trip-panel-link's font: inherit.
+.cal-trip-panel-link.cal-trip-panel-how {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 0.5rem;
 }
 
 .cal-trip-panel-link {

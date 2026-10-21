@@ -47,6 +47,8 @@ export interface UseTripPanelDeps {
   selectedWeekdayMode: MaybeRefOrGetter<WeekdayMode | undefined>
   startTime: MaybeRefOrGetter<Date | undefined>
   endTime: MaybeRefOrGetter<Date | undefined>
+  // A route's trips the reports leave out are listed too, marked with why.
+  includeExcluded?: MaybeRefOrGetter<boolean>
 }
 
 export interface UseTripPanelReturn {
@@ -60,6 +62,8 @@ export interface UseTripPanelReturn {
   // trips.rows as table rows (and CSV records), with whatever trip details
   // have arrived.
   rows: ComputedRef<TripTableRow[]>
+  // The rows cover more than one date, so the table says which days each runs.
+  multiDay: ComputedRef<boolean>
   routes: ComputedRef<Map<number, Route>>
   // The subject by name: a stop's, a route's, or a cluster's anchor stop's.
   title: ComputedRef<string>
@@ -210,12 +214,18 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
     resolveEffectiveWeekdays(toValue(deps.selectedWeekdays), toValue(deps.selectedWeekdayMode)),
   ))
 
+  // Only a route lists excluded trips.
+  const includeExcluded = computed(() => resolvedSubject.value?.kind === 'route' && !!toValue(deps.includeExcluded))
+
   const trips = computed(() => {
     const r = result.value
     const s = resolvedSubject.value
     if (!r || !s) {
       return undefined
     }
+    // By date string, not Date identity, so a caller's dates need not be the
+    // same objects the scoping returned.
+    const scoped = new Set(scopedDateRange.value.map(d => format(d, 'yyyy-MM-dd')))
     const start = toValue(deps.startTime)
     const end = toValue(deps.endTime)
     return subjectTrips(s, {
@@ -226,6 +236,8 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
       // The filter's own index, so the panel counts what the Routes report
       // counts; built here only for a result made without one.
       routeIndex: s.kind === 'route' ? (r.routeIndex ?? RouteDepartureIndex.fromCache(r.stopDepartureCache)) : undefined,
+      includeExcluded: includeExcluded.value,
+      excludedDates: toValue(deps.selectedDateRange).filter(d => !scoped.has(format(d, 'yyyy-MM-dd'))),
     })
   })
 
@@ -252,11 +264,16 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
 
   const detailsError = ref<string | null>(null)
 
+  // Excluded trips run on dates outside the scoped ones too.
+  const describedDates = computed(() => (includeExcluded.value ? toValue(deps.selectedDateRange) : scopedDateRange.value).map(d => format(d, 'yyyy-MM-dd')))
+  const multiDay = computed(() => describedDates.value.length > 1)
+
   const rows = computed(() => tripTableRows(trips.value?.rows || [], {
     routes: routes.value,
     stops: stops.value,
     tripDetails: store.details.value,
-    scopedDates: scopedDateRange.value.map(d => format(d, 'yyyy-MM-dd')),
+    describedDates: describedDates.value,
+    includeExcluded: includeExcluded.value,
   }))
 
   function clearDetails () {
@@ -282,6 +299,7 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
     close,
     trips,
     rows,
+    multiDay,
     routes,
     title,
     detailsLoading: store.loading,

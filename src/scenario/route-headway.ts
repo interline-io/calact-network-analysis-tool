@@ -209,7 +209,7 @@ export function hasServiceOnWeekday (
  * Filter a date range to the dates whose weekday is in `effectiveWeekdays`.
  * When `effectiveWeekdays` is undefined (no weekday subset selected), the range
  * is returned unchanged. Shared by scenario-filter (route frequency and trip
- * stats) and the Route Timetable debug modal so the two cannot diverge on which
+ * stats) and a route's Calculations tab so the two cannot diverge on which
  * service days feed the numbers (issue #222).
  */
 export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday[]): Date[] {
@@ -224,7 +224,7 @@ export function scopeDatesToWeekdays (dates: Date[], effectiveWeekdays?: Weekday
 
 /**
  * A route's trip on one date, as its in-bbox departures show it: the first
- * and last departure (and the stop of the first), and whether any departure
+ * and last departure (and their stops), and whether any departure
  * falls in the time-of-day window. The span is NOT the trip's literal
  * origin-to-terminus; stop_times for stops outside the bbox are absent from
  * the index.
@@ -234,6 +234,7 @@ export interface RouteTripOnDate {
   first: number
   firstStopId: number
   last: number
+  lastStopId: number
   inWindow: boolean
 }
 
@@ -256,14 +257,17 @@ export function routeTripsOnDate (
         const inWindow = st.departureTime >= startTime && st.departureTime <= endTime
         const t = trips.get(st.tripId)
         if (!t) {
-          trips.set(st.tripId, { directionId: dir, first: st.departureTime, firstStopId: stopId, last: st.departureTime, inWindow })
+          trips.set(st.tripId, { directionId: dir, first: st.departureTime, firstStopId: stopId, last: st.departureTime, lastStopId: stopId, inWindow })
           continue
         }
         if (st.departureTime < t.first) {
           t.first = st.departureTime
           t.firstStopId = stopId
         }
-        t.last = Math.max(t.last, st.departureTime)
+        if (st.departureTime > t.last) {
+          t.last = st.departureTime
+          t.lastStopId = stopId
+        }
         t.inWindow ||= inWindow
       }
     }
@@ -379,7 +383,7 @@ export function calculateRouteTripStats (
 // Headways below this are filtered out as noise (e.g., bunched buses during peak demand)
 // Re-export so existing consumers (tests, UI) can still import from this module.
 // WEEKDAY_BY_GETDAY lives in core (used app-wide) but rides along here so the
-// Route Timetable debug view keeps importing the frequency bundle from one place.
+// Calculations tab keeps importing the frequency bundle from one place.
 export { MIN_HEADWAY_SECONDS, WEEKDAY_BY_GETDAY } from '../core'
 
 /**
@@ -421,7 +425,7 @@ export function computeHeadwaysPerDay<T> (
  * Pick the dominant direction from a `RouteDepartures` set. The direction with
  * more total in-window rep-stop departures wins; ties go to direction 0.
  * Shared by scenario-filter (which then takes that direction's departures into
- * `calculateHeadwayStats`) and the Route Timetable debug UI.
+ * `calculateHeadwayStats`) and a route's Calculations tab.
  */
 export function pickDominantDirection (deps: RouteDepartures): 0 | 1 {
   const dir0Count = deps.dir0.reduce((sum, d) => sum + d.length, 0)
@@ -432,7 +436,7 @@ export function pickDominantDirection (deps: RouteDepartures): 0 | 1 {
 /**
  * Summary statistics over a set of headway gaps (seconds). Callers collect the
  * contributing gaps; this performs the min/median/max/average math shared by
- * `calculateHeadwayStats` and the Route Timetable debug views (overall and
+ * `calculateHeadwayStats` and a route's Calculations tab (overall and
  * per-weekday) so the implementations can never disagree on how a
  * representative frequency is derived. Returns undefined for an empty input.
  */
@@ -593,8 +597,8 @@ export function compareDirectionFrequencies (deps: RouteDepartures): DirectionFr
 
 /**
  * Build the route's frequency caveats from a windowed RouteDepartures. Pure;
- * called by scenario-filter (to store booleans on the route) and by the Route
- * Timetable debug modal (to render the explanation) so the two cannot drift.
+ * called by scenario-filter (to store booleans on the route) and by a route's
+ * Calculations tab (to render the explanation) so the two cannot drift.
  */
 export function buildRouteFrequencyCaveats (deps: RouteDepartures): RouteFrequencyCaveats {
   const gapSummary = dominantGapSummary(deps)

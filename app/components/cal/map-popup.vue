@@ -45,7 +45,7 @@
             <template v-else>
               Directions differ.
             </template>
-            See timetable for details.
+            See how it's calculated in its trip information.
           </div>
         </template>
 
@@ -111,14 +111,6 @@
         <button class="button is-small" @click="$emit('showTrips', feature.featureType, feature.featureId)">
           <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
           <span>Show trip information</span>
-        </button>
-        <button
-          v-if="feature.featureType === 'route'"
-          class="button is-small is-info"
-          @click="$emit('openTimetable', feature.featureId)"
-        >
-          <span class="icon is-small"><i class="mdi mdi-timetable" /></span>
-          <span>View Timetable</span>
         </button>
       </div>
 
@@ -199,7 +191,6 @@ defineEmits<{
   close: []
   prev: []
   next: []
-  openTimetable: [featureId: string | number]
   showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
 }>()
 

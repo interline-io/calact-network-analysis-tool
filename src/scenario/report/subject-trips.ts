@@ -43,9 +43,19 @@ export interface SubjectTripRow {
   // trip's first stop within the scenario area for a route.
   stopId: number
   time: number
+  // A route's trip only: its last departure within the scenario area, and that
+  // stop. The Routes report's trip end times are these.
+  lastTime?: number
+  lastStopId?: number
   // Calendar dates (yyyy-MM-dd) the row runs on, in date order.
   dates: string[]
+  // Why the reports leave this row's trips out, for a route asked to list them
+  // too: no departure in the time-of-day window, or a date outside the selected
+  // weekdays. Excluded rows add nothing to the counts.
+  excluded?: SubjectTripExclusion
 }
+
+export type SubjectTripExclusion = 'time' | 'weekday'
 
 export interface SubjectRouteCount {
   routeId: number
@@ -76,6 +86,10 @@ export interface SubjectTripsOptions {
   stopDepartureCache: StopDepartureCache
   // Needed for a route subject; built from the same cache.
   routeIndex?: RouteDepartureIndex
+  // For a route: also list the trips the Routes report leaves out, on `dates`
+  // and on these, the scenario's dates outside the selected weekdays.
+  excludedDates?: Date[]
+  includeExcluded?: boolean
 }
 
 export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOptions): SubjectTrips {
@@ -86,8 +100,18 @@ export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOp
   let firstTime: number | undefined
   let lastTime: number | undefined
 
-  // One visit (or trip) on one date; a row already seen gains the date.
+  // One visit (or trip) on one date; a row already seen gains the date. An
+  // excluded one is listed but not counted.
   function add (visit: Omit<SubjectTripRow, 'dates'>, date: string) {
+    const row = rows.get(visit.key)
+    if (row) {
+      row.dates.push(date)
+    } else {
+      rows.set(visit.key, { ...visit, dates: [date] })
+    }
+    if (visit.excluded) {
+      return
+    }
     count += 1
     routeCounts.set(visit.routeId, (routeCounts.get(visit.routeId) || 0) + 1)
     if (firstTime === undefined || visit.time < firstTime) {
@@ -96,23 +120,22 @@ export function subjectTrips (subject: ResolvedTripSubject, opts: SubjectTripsOp
     if (lastTime === undefined || visit.time > lastTime) {
       lastTime = visit.time
     }
-    const row = rows.get(visit.key)
-    if (row) {
-      row.dates.push(date)
-    } else {
-      rows.set(visit.key, { ...visit, dates: [date] })
-    }
   }
 
   if (subject.kind === 'route') {
     const routeIndex = opts.routeIndex
-    for (const date of routeIndex ? dateStrs : []) {
-      // The trips calculateRouteTripStats counts, timed at their first
-      // in-bbox departure.
+    const outOfScope = new Set(opts.includeExcluded ? (opts.excludedDates || []).map(d => format(d, 'yyyy-MM-dd')) : [])
+    const routeDates = [...dateStrs, ...outOfScope].sort()
+    for (const date of routeIndex ? routeDates : []) {
+      // The trips calculateRouteTripStats counts, timed at their first and
+      // last in-bbox departures. Both are in the key: a date whose in-bbox
+      // stops differ is its own row, so every last departure shows.
       for (const [tripId, t] of routeTripsOnDate(routeIndex!, subject.routeId, date, opts.startTime, opts.endTime)) {
-        if (t.inWindow) {
-          add({ key: `${tripId}|${t.first}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first }, date)
+        const excluded: SubjectTripExclusion | undefined = outOfScope.has(date) ? 'weekday' : t.inWindow ? undefined : 'time'
+        if (excluded && !opts.includeExcluded) {
+          continue
         }
+        add({ key: `${tripId}|${t.first}|${t.last}|${excluded ?? ''}`, tripId, routeId: subject.routeId, directionId: t.directionId, stopId: t.firstStopId, time: t.first, lastTime: t.last, lastStopId: t.lastStopId, excluded }, date)
       }
     }
   } else {
@@ -245,6 +268,17 @@ export interface TripTableRow {
   stop_count: number | ''
   days: string
   dates: string
+  // A route's trips only, so a stop's or cluster's CSV goes without them.
+  area_end?: string
+  area_end_stop_id?: string
+  area_end_stop_name?: string
+  // With excluded trips listed: why the reports leave the row out, or blank.
+  excluded?: string
+}
+
+const EXCLUSION_LABELS: Record<SubjectTripExclusion, string> = {
+  time: 'Outside time window',
+  weekday: 'Not a selected weekday',
 }
 
 export function tripTableRows (
@@ -253,14 +287,21 @@ export function tripTableRows (
     routes: Map<number, TripTableRoute>
     stops: Map<number, TripTableStop>
     tripDetails: Map<number, TripDetail>
-    scopedDates: string[]
+    // The dates the rows' days are described against: the scoped dates, or
+    // every date in the range when excluded trips are listed, as those run on
+    // dates outside the scoped ones.
+    describedDates: string[]
+    // Listing excluded trips: every row has an `excluded` field, so the CSV
+    // has the column whichever row comes first.
+    includeExcluded?: boolean
   },
 ): TripTableRow[] {
-  const describeDays = rowDaysDescriber(opts.scopedDates)
+  const describeDays = rowDaysDescriber(opts.describedDates)
   return rows.map((row) => {
     const route = opts.routes.get(row.routeId)
     const stop = opts.stops.get(row.stopId)
     const detail = opts.tripDetails.get(row.tripId)
+    const endStop = row.lastStopId !== undefined ? opts.stops.get(row.lastStopId) : undefined
     return {
       time: formatGtfsTimeFull(row.time),
       stop_id: stop?.stop_id ?? '',
@@ -280,6 +321,12 @@ export function tripTableRows (
       days: describeDays(row.dates),
       // Space-separated, so the CSV keeps one row per trip.
       dates: row.dates.join(' '),
+      ...(row.lastTime !== undefined && {
+        area_end: formatGtfsTimeFull(row.lastTime),
+        area_end_stop_id: endStop?.stop_id ?? '',
+        area_end_stop_name: endStop?.stop_name ?? '',
+      }),
+      ...(opts.includeExcluded && { excluded: row.excluded ? EXCLUSION_LABELS[row.excluded] : '' }),
     }
   })
 }
@@ -298,11 +345,12 @@ export function tripDetailPlaceholder (loading: boolean): string {
   return loading ? '…' : '—'
 }
 
-export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: boolean): TableColumn[] {
+export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: boolean, includeExcluded = false): TableColumn[] {
   const cols: TableColumn[] = [
     {
       key: 'time',
-      label: 'Time',
+      // A route's pair with Last in Area.
+      label: subjectKind === 'route' ? 'First in Area' : 'Time',
       sortable: true,
       tooltip: subjectKind === 'route'
         ? 'When the trip leaves its first stop within the scenario area.'
@@ -315,6 +363,16 @@ export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: bo
   cols.push(
     { key: 'route_short_name', label: 'Route', sortable: true },
     { key: 'headsign', label: 'Headsign', sortable: true },
+  )
+  if (subjectKind === 'route') {
+    cols.push({
+      key: 'area_end',
+      label: 'Last in Area',
+      sortable: true,
+      tooltip: 'When the trip leaves its last stop within the scenario area. The Routes report\'s earliest and latest trip end come from these.',
+    })
+  }
+  cols.push(
     {
       key: 'trip_start',
       label: 'Trip',
@@ -331,6 +389,14 @@ export function tripTableColumns (subjectKind: TripSubject['kind'], multiDay: bo
   )
   if (multiDay) {
     cols.push({ key: 'days', label: 'Days', sortable: true })
+  }
+  if (includeExcluded) {
+    cols.push({
+      key: 'excluded',
+      label: 'Excluded',
+      sortable: true,
+      tooltip: 'Why the Routes report does not count this trip: it has no departure within the time-of-day window, or runs on a day outside the selected weekdays.',
+    })
   }
   // trip_id is in each row, so the CSV and the row filter have it, but not a
   // column: some feeds' ids run to a sentence and push the table wider than

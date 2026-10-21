@@ -150,8 +150,8 @@ function routeSetDerived (
   // reflect the current weekday selection (issue #222). Without this, the stats
   // pool every service day in the span and are invariant to weekday vs weekend.
   // resolveEffectiveWeekdays returns undefined when no weekday subset applies,
-  // leaving the full range unscoped (all-days behavior unchanged). The Route
-  // Timetable debug modal applies the same scopeDatesToWeekdays helper so it
+  // leaving the full range unscoped (all-days behavior unchanged). A route's
+  // Calculations tab applies the same scopeDatesToWeekdays helper so it
   // cannot drift from these numbers.
   const scopedDateRange = scopeDatesToWeekdays(
     selectedDateRange,
@@ -614,7 +614,7 @@ export interface ScenarioFilterResult {
   routeIndex?: RouteDepartureIndex
   feedVersions: FeedVersion[]
   flexAreas: FlexAreaFeature[]
-  // Passed through from ScenarioData for debug UIs (Route Timetable modal).
+  // Passed through from ScenarioData for a route's Calculations tab.
   tripIdStrings?: Map<number, string>
   // Passed through from ScenarioData for the aggregation table demographic
   // columns. Keyed by census geography geoid.
