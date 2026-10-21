@@ -1376,7 +1376,11 @@ function styleIsochroneOrigin () {
     return
   }
   const arriveBy = !!props.isochroneArriveBy
-  el.className = `cal-isochrone-origin ${arriveBy ? 'is-destination' : 'is-origin'}`
+  // classList, not className: the marker's own maplibregl-marker classes
+  // position it.
+  el.classList.add('cal-isochrone-origin')
+  el.classList.toggle('is-destination', arriveBy)
+  el.classList.toggle('is-origin', !arriveBy)
   el.title = arriveBy ? 'Arriving here. Drag to move.' : 'Leaving from here. Drag to move.'
   el.replaceChildren()
   if (arriveBy) {

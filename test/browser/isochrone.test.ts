@@ -26,30 +26,32 @@ async function routeIsochrone (page: Page, name: string): Promise<URL[]> {
 }
 
 const panel = (page: Page) => page.locator('.cal-isochrone-panel')
+const legend = (page: Page) => page.locator('.cal-map-legend')
 
 test.describe('Isochrone panel', () => {
   test('opens from the URL and shows the bands', async ({ page }) => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
     await expect(panel(page).getByText('Travel time: 45.51890, -122.67930')).toBeVisible({ timeout: 15000 })
+    // The bands are keyed in the map legend.
     for (const m of [15, 30, 45]) {
-      await expect(panel(page).getByText(`Within ${m} min`)).toBeVisible()
+      await expect(legend(page).getByText(`Within ${m} min`)).toBeVisible()
     }
+    await expect(legend(page).getByText('Leaving from here')).toBeVisible()
     const q = requests.at(-1)!.searchParams
     expect(q.get('fromPlace')).toBe(PLACE)
     expect(q.get('date')).toBe('2026-10-27')
     expect(q.getAll('cutoff')).toEqual(['15m', '30m', '45m'])
     expect(q.get('ignoreRealtimeUpdates')).toBe('true')
     expect(q.has('walkingSpeed')).toBe(false)
-    await expect(panel(page).getByText('Reach for a single departure at 08:00.')).toBeVisible()
   })
 
   test('settings change the request and the URL', async ({ page }) => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
-    await expect(panel(page).getByText('Within 15 min')).toBeVisible({ timeout: 15000 })
+    await expect(legend(page).getByText('Within 15 min')).toBeVisible({ timeout: 15000 })
 
-    await panel(page).getByRole('button', { name: '60 min' }).click()
+    await panel(page).getByRole('button', { name: '60 minutes' }).click()
     await expect(page).toHaveURL(/isoCutoffs=15%2C30%2C45%2C60|isoCutoffs=15,30,45,60/)
     await expect.poll(() => requests.at(-1)!.searchParams.getAll('cutoff')).toEqual(['15m', '30m', '45m', '60m'])
 
@@ -57,9 +59,13 @@ test.describe('Isochrone panel', () => {
     await expect(page).toHaveURL(/isoArriveBy=true/)
     await expect.poll(() => requests.at(-1)!.searchParams.get('toPlace')).toBe(PLACE)
     expect(requests.at(-1)!.searchParams.get('arriveBy')).toBe('true')
-    await expect(panel(page).getByText('Reach for a single arrival by 08:00.')).toBeVisible()
+    await expect(legend(page).getByText('Arriving here')).toBeVisible()
 
-    await panel(page).getByLabel('Walk only').check()
+    await panel(page).getByRole('button', { name: 'Bus' }).click()
+    await expect.poll(() => requests.at(-1)!.searchParams.get('mode')).toBe('TRANSIT,tram,subway,rail,ferry')
+    await expect(panel(page).getByRole('button', { name: 'Bus' })).toHaveAttribute('aria-pressed', 'false')
+
+    await panel(page).getByRole('button', { name: 'Walk only' }).click()
     await expect(page).toHaveURL(/isoMode=walk/)
     await expect.poll(() => requests.at(-1)!.searchParams.get('mode')).toBe('WALK')
   })

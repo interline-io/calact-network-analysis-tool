@@ -8,36 +8,32 @@
       variant="dark"
       @close="$emit('close')"
     >
-      <div class="buttons has-addons cal-isochrone-direction" role="group" aria-label="Direction">
-        <button
-          type="button"
-          class="button is-small"
-          :class="{ 'is-link is-selected': !params.arriveBy }"
-          :aria-pressed="!params.arriveBy"
-          @click="update({ arriveBy: false })"
-        >
-          Leaving from
-        </button>
-        <button
-          type="button"
-          class="button is-small"
-          :class="{ 'is-link is-selected': params.arriveBy }"
-          :aria-pressed="params.arriveBy"
-          @click="update({ arriveBy: true })"
-        >
-          Arriving at
-        </button>
+      <!-- Toggle buttons bind ariaPressed and ariaLabel in an object: vue-tsc
+           reads the hyphenated attributes lint asks for as native ones. -->
+      <div class="cal-isochrone-row">
+        <div role="group" aria-label="Direction">
+          <cat-field addons class="cal-isochrone-group">
+            <div v-for="d of directions" :key="d.label" class="control">
+              <cat-button
+                size="small"
+                :variant="params.arriveBy === d.arriveBy ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.arriveBy === d.arriveBy }"
+                @click="update({ arriveBy: d.arriveBy })"
+              >
+                {{ d.label }}
+              </cat-button>
+            </div>
+          </cat-field>
+        </div>
+        <!-- As the map draws the place. -->
+        <span class="cal-isochrone-place" :title="`${placeLabel}. Drag the marker to move it.`">
+          <i class="mdi" :class="params.arriveBy ? 'mdi-flag-checkered' : 'mdi-circle'" />
+          {{ placeLabel }}
+        </span>
       </div>
 
-      <p class="cal-isochrone-place">
-        <!-- As the map draws the place. -->
-        <i class="mdi" :class="params.arriveBy ? 'mdi-flag-checkered' : 'mdi-circle'" />
-        {{ placeLabel }}
-        <span class="cal-isochrone-hint">Drag the marker to move it.</span>
-      </p>
-
-      <div class="cal-isochrone-when">
-        <label class="cal-isochrone-field">
+      <div class="cal-isochrone-row">
+        <label class="cal-isochrone-field cal-isochrone-date">
           <span class="cal-isochrone-label">Date</span>
           <input
             class="input is-small"
@@ -47,7 +43,7 @@
             @change="onDate"
           >
         </label>
-        <label class="cal-isochrone-field">
+        <label class="cal-isochrone-field cal-isochrone-time">
           <span class="cal-isochrone-label">{{ params.arriveBy ? 'Arrive by' : 'Leave at' }}</span>
           <input
             class="input is-small"
@@ -57,50 +53,8 @@
             @change="onTime"
           >
         </label>
-      </div>
-
-      <div class="cal-isochrone-section">
-        <span class="cal-isochrone-label">Travel time</span>
-        <div class="buttons are-small cal-isochrone-cutoffs">
-          <button
-            v-for="m of cutoffChoices"
-            :key="m"
-            type="button"
-            class="button"
-            :class="{ 'is-link is-selected': params.cutoffs.includes(m) }"
-            :aria-pressed="params.cutoffs.includes(m)"
-            :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
-            @click="toggleCutoff(m)"
-          >
-            {{ m }} min
-          </button>
-        </div>
-      </div>
-
-      <div class="cal-isochrone-section">
-        <span class="cal-isochrone-label">Ride</span>
-        <div class="cal-isochrone-modes">
-          <cat-checkbox
-            v-for="rt of ISOCHRONE_ROUTE_TYPES"
-            :key="rt"
-            size="small"
-            :label="routeTypeNames.get(rt)"
-            :model-value="!params.mode.walkOnly && selectedRouteTypes.includes(rt)"
-            :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
-            @update:model-value="toggleRouteType(rt, $event)"
-          />
-          <cat-checkbox
-            size="small"
-            label="Walk only"
-            :model-value="params.mode.walkOnly"
-            @update:model-value="setWalkOnly"
-          />
-        </div>
-      </div>
-
-      <div class="cal-isochrone-section">
-        <label class="cal-isochrone-field">
-          <span class="cal-isochrone-label">Max walk to or from a stop</span>
+        <label class="cal-isochrone-field cal-isochrone-walk" title="Farthest walk to the first stop, or from the last">
+          <span class="cal-isochrone-label">Max walk</span>
           <cat-select
             size="small"
             :model-value="String(params.maxWalk)"
@@ -113,45 +67,78 @@
         </label>
       </div>
 
-      <p class="cal-isochrone-caveat">
-        <template v-if="params.arriveBy">
-          Reach for a single arrival by {{ params.time }}. Arriving a few minutes earlier or later can change the result.
-        </template>
-        <template v-else>
-          Reach for a single departure at {{ params.time }}. Leaving a few minutes earlier or later can change the result.
-        </template>
-      </p>
-
-      <div class="cal-isochrone-result" aria-live="polite">
-        <p v-if="error" class="cal-isochrone-error">
-          Could not calculate travel times: {{ error }}
-        </p>
-        <p v-else-if="empty" class="cal-isochrone-empty">
-          Nothing reachable within these settings.
-        </p>
-        <ul v-else-if="legend.length" class="cal-isochrone-legend" :class="{ 'is-stale': loading }">
-          <li v-for="row of legend" :key="row.label">
-            <span class="cal-isochrone-swatch" :style="{ background: row.color }" />
-            {{ row.label }}
-          </li>
-        </ul>
-        <p v-if="loading" class="cal-isochrone-loading">
-          <i class="mdi mdi-loading mdi-spin" /> Calculating…
-        </p>
+      <div class="cal-isochrone-field">
+        <span class="cal-isochrone-label">Travel time (min)</span>
+        <div role="group" aria-label="Travel time in minutes">
+          <cat-field addons class="cal-isochrone-group">
+            <div v-for="m of cutoffChoices" :key="m" class="control">
+              <cat-button
+                size="small"
+                :variant="params.cutoffs.includes(m) ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
+                :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
+                @click="toggleCutoff(m)"
+              >
+                {{ m }}
+              </cat-button>
+            </div>
+          </cat-field>
+        </div>
       </div>
+
+      <div class="cal-isochrone-field">
+        <span class="cal-isochrone-label">Ride</span>
+        <div class="cal-isochrone-row">
+          <div role="group" aria-label="Route types">
+            <cat-field addons class="cal-isochrone-group">
+              <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
+                <cat-button
+                  size="small"
+                  :icon-left="routeTypeIcons.get(rt)"
+                  :variant="selectedRouteTypes.includes(rt) ? 'primary' : undefined"
+                  v-bind="{ ariaPressed: selectedRouteTypes.includes(rt), ariaLabel: routeTypeNames.get(rt) }"
+                  :title="routeTypeNames.get(rt)"
+                  :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
+                  @click="toggleRouteType(rt, !selectedRouteTypes.includes(rt))"
+                />
+              </div>
+            </cat-field>
+          </div>
+          <cat-field addons class="cal-isochrone-group">
+            <div class="control">
+              <cat-button
+                size="small"
+                icon-left="walk"
+                :variant="params.mode.walkOnly ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.mode.walkOnly }"
+                title="Walk only, without transit"
+                @click="setWalkOnly(!params.mode.walkOnly)"
+              >
+                Walk only
+              </cat-button>
+            </div>
+          </cat-field>
+        </div>
+      </div>
+
+      <p v-if="error || empty || loading" class="cal-isochrone-status" aria-live="polite">
+        <span v-if="error" class="cal-isochrone-error">Could not calculate travel times: {{ error }}</span>
+        <span v-else-if="empty">Nothing reachable within these settings.</span>
+        <span v-else><i class="mdi mdi-loading mdi-spin" /> Calculating…</span>
+      </p>
 
       <div class="cal-isochrone-actions">
         <cat-button
           size="small"
           icon-left="magnify-expand"
-          :disabled="!legend.length || empty"
+          :disabled="!bands.length || empty"
           @click="$emit('zoom')"
         >
           Zoom to
         </cat-button>
         <cal-geojson-download
           button-text="Download GeoJSON"
-          :disabled="!legend.length || empty"
+          :disabled="!bands.length || empty"
           :filename="downloadFilename"
           :data="downloadFeatures"
         />
@@ -195,13 +182,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { routeTypeNames, type Feature, type RouteType } from '~~/src/core'
+import { routeTypeIcons, routeTypeNames, type Feature, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
   ISOCHRONE_MAX_CUTOFFS,
   ISOCHRONE_MAX_WALK_CHOICES,
   ISOCHRONE_ROUTE_TYPES,
-  isochroneLegend,
   isochroneModeParam,
   type IsochroneBand,
   type IsochroneParams,
@@ -231,6 +217,11 @@ const emit = defineEmits<{
 
 const { unitSystem } = useScenarioDisplay()
 const debug = useDebugMenu()
+
+const directions = [
+  { label: 'Leaving from', arriveBy: false },
+  { label: 'Arriving at', arriveBy: true },
+]
 
 function update (next: Partial<IsochroneParams>) {
   emit('update', next)
@@ -289,8 +280,6 @@ function formatDistance (m: number): string {
   return m >= 1000 ? `${(m / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${m} m`
 }
 
-const legend = computed(() => isochroneLegend(props.bands))
-
 // The bands, and the place with what they were asked for, so a download
 // says what it shows.
 const downloadFeatures = computed((): Feature[] => [
@@ -329,33 +318,52 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
   font-size: 12px;
 }
 
-.cal-isochrone-direction {
-  margin-bottom: 6px !important;
+.cal-isochrone-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 8px;
+  margin-bottom: 6px;
+}
+
+// Bulma's field margin, inside a row that spaces its own items.
+.cal-isochrone-group {
+  margin-bottom: 0 !important;
 }
 
 .cal-isochrone-place {
-  margin-bottom: 8px;
+  align-self: center;
   font-weight: 600;
-}
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 
-.cal-isochrone-hint {
-  display: block;
-  font-weight: normal;
-  color: var(--bulma-text-weak);
-}
-
-.cal-isochrone-when {
-  display: flex;
-  gap: 8px;
-
-  .cal-isochrone-field {
-    flex: 1;
+  .mdi {
+    color: #08306b;
   }
 }
 
 .cal-isochrone-field {
   display: block;
   margin-bottom: 6px;
+
+  .cal-isochrone-row & {
+    margin-bottom: 0;
+  }
+}
+
+.cal-isochrone-date {
+  flex: 1.3;
+}
+
+.cal-isochrone-time {
+  flex: 1;
+}
+
+.cal-isochrone-walk {
+  flex: 0.9;
 }
 
 .cal-isochrone-label {
@@ -364,55 +372,8 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
   margin-bottom: 2px;
 }
 
-.cal-isochrone-section {
-  margin-bottom: 6px;
-}
-
-.cal-isochrone-cutoffs {
-  margin-bottom: 0 !important;
-
-  .button {
-    margin-bottom: 4px;
-  }
-}
-
-.cal-isochrone-modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-}
-
-.cal-isochrone-caveat {
-  margin: 6px 0;
-  color: var(--bulma-text-weak);
-}
-
-.cal-isochrone-result {
-  margin: 6px 0;
-}
-
-.cal-isochrone-legend {
-  list-style: none;
-  margin: 0;
-
-  li {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 2px;
-  }
-
-  &.is-stale {
-    opacity: 0.5;
-  }
-}
-
-.cal-isochrone-swatch {
-  display: inline-block;
-  width: 16px;
-  height: 12px;
-  border-radius: 2px;
-  opacity: 0.8;
+.cal-isochrone-status {
+  margin: 4px 0 6px;
 }
 
 .cal-isochrone-error {
