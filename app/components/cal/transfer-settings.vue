@@ -56,10 +56,10 @@
               @update:model-value="setBreakpoint(i, Number($event))"
             />
             <span
-              v-if="grades[i]"
+              v-if="TRANSFER_GRADES[i]"
               class="cal-transfer-settings-grade"
-              :style="{ background: TRANSFER_GRADE_COLORS[grades[i]!].fill, color: TRANSFER_GRADE_COLORS[grades[i]!].text }"
-            >{{ TRANSFER_GRADE_LABELS[grades[i]!] }}</span>
+              :style="{ background: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].fill, color: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].text }"
+            >{{ TRANSFER_GRADE_LABELS[TRANSFER_GRADES[i]!] }}</span>
           </template>
         </div>
         <p class="cal-transfer-settings-help">
@@ -120,8 +120,8 @@
             <span v-else class="cal-transfer-settings-caret" />
             <cat-checkbox
               class="cal-transfer-settings-item-check"
-              :model-value="state(side.key, row.keys) !== 'none'"
-              :indeterminate="state(side.key, row.keys) === 'some'"
+              :model-value="row.state !== 'none'"
+              :indeterminate="row.state === 'some'"
               @update:model-value="setKeys(side.key, row.keys, !!$event)"
             >
               <cal-route-badge v-if="row.badge" :label="row.badge" :title="row.title" />
@@ -181,8 +181,7 @@ const pace = computed(() => {
 })
 
 // The five breakpoints, by what each starts or ends, and the grades between.
-const bounds = ['Missed from', 'Good from', 'OK from', 'Long wait from', 'Long wait up to']
-const grades = TRANSFER_GRADES
+const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.long} up to`]
 
 function minutes (seconds: number | undefined): number | undefined {
   return seconds === undefined ? undefined : seconds / 60
@@ -208,6 +207,8 @@ interface Row {
   title?: string
   count: number
   keys: string[]
+  // Whether all, some, or none of the keys are included.
+  state: 'all' | 'some' | 'none'
   // Set where the row opens to destinations.
   openKey?: string
 }
@@ -224,8 +225,8 @@ function toggleOpen (key: string) {
 
 // A route with one direction at the stops is one row; with two, a row and a
 // row per direction. A direction with several destinations opens to them.
-function rows (side: Side, routes: TransferRouteChoice[]): Row[] {
-  const out: Row[] = []
+function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
+  const out: Omit<Row, 'state'>[] = []
   for (const route of routes) {
     const single = route.directions.length === 1
     const routeKeys = route.directions.flatMap(d => d.destinations.map(x => x.key))
@@ -258,17 +259,19 @@ function rows (side: Side, routes: TransferRouteChoice[]): Row[] {
   return out
 }
 
+// Each side's rows, with their checkbox state read from one set of the
+// side's exclusions.
 const sides = computed(() => [
-  { key: 'excludedFrom' as const, legend: 'Arriving', rows: rows('excludedFrom', props.routeChoices.from) },
-  { key: 'excludedTo' as const, legend: 'Departing', rows: rows('excludedTo', props.routeChoices.to) },
-])
-
-// Whether all, some, or none of the keys are included.
-function state (side: Side, keys: string[]): 'all' | 'some' | 'none' {
-  const excluded = new Set(settings.value[side])
-  const out = keys.filter(k => excluded.has(k)).length
-  return out === 0 ? 'all' : out === keys.length ? 'none' : 'some'
-}
+  { key: 'excludedFrom' as const, legend: 'Arriving', routes: props.routeChoices.from },
+  { key: 'excludedTo' as const, legend: 'Departing', routes: props.routeChoices.to },
+].map((side) => {
+  const excluded = new Set(settings.value[side.key])
+  const rowsWithState = rows(side.key, side.routes).map((row) => {
+    const out = row.keys.filter(k => excluded.has(k)).length
+    return { ...row, state: out === 0 ? 'all' as const : out === row.keys.length ? 'none' as const : 'some' as const }
+  })
+  return { key: side.key, legend: side.legend, rows: rowsWithState }
+}))
 
 function setKeys (side: Side, keys: string[], included: boolean) {
   const excluded = new Set(settings.value[side])

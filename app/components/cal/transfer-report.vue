@@ -75,16 +75,6 @@
       </template>
     </div>
 
-    <!-- The table's CSV, beside the page's other downloads. -->
-    <Teleport v-if="subjectKind" defer to="#cal-report-tab-downloads">
-      <cal-csv-download
-        :data="view === 'summary' ? summaryRows : individualRows"
-        :disabled="detailsLoading"
-        :filename="view === 'summary' ? `transfers-summary-${title}` : `transfers-${individualDate}-${title}`"
-        :button-text="view === 'summary' ? 'Download summary as CSV' : 'Download transfers as CSV'"
-      />
-    </Teleport>
-
     <cal-transfer-settings
       v-if="subjectKind && openSection"
       v-bind="{ id: settingsId }"
@@ -110,50 +100,56 @@
         Loading trip details{{ missingDetails > 0 ? `: ${missingDetails.toLocaleString()} trips to go` : '' }}…
       </p>
 
-      <template v-if="view === 'summary'">
+      <p v-if="view === 'individual' && individualDates.length === 0" class="cal-transfer-report-note">
+        No trips arrive here within the filters.
+      </p>
+      <template v-else>
+        <!-- The view's key figures beside a bar of its connections by grade. -->
         <div class="cal-transfer-report-overview">
           <dl class="cal-transfer-report-figures">
-            <div v-for="f of figures(summaryOverview)" :key="f.label">
+            <div v-for="f of figures(overview)" :key="f.label">
               <dt>
-                <cat-tooltip v-if="f.tooltip" :text="f.tooltip">
+                <cat-tooltip :text="f.tooltip">
                   {{ f.label }}
                 </cat-tooltip>
-                <template v-else>
-                  {{ f.label }}
-                </template>
               </dt>
               <dd>{{ f.value }}</dd>
             </div>
           </dl>
-          <cal-plot class="cal-transfer-report-grades" :options="summaryChart" :label="gradeChartLabel(summaryCounts)" />
+          <cal-plot class="cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
         </div>
+        <cal-plot v-if="view === 'individual'" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
+        <!-- One grid for either view, keyed so each starts on its first page
+             and its own sort; slots for columns it lacks go unused. -->
         <cal-datagrid
+          :key="view"
           fill
           dense
           :searchable="false"
           :downloadable="false"
           :per-page="100"
-          :table-report="summaryReport"
           :loading="detailsLoading"
-          caption="Transfers by route"
-          :filename="`transfers-summary-${title}`"
+          v-bind="grid"
         >
-          <template #column-from_route_name="{ row }">
-            <cal-route-badge :label="row.from_route_name" :title="row.from_agency_name" />
-            <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.from_headsign">{{ row.from_headsign }}</span>
+          <template v-for="side of SIDES" :key="side" #[`column-${side}_route_name`]="{ row }">
+            <template v-if="row[`${side}_route_name`]">
+              <cal-route-badge :label="row[`${side}_route_name`]" :title="row[`${side}_agency_name`]" />
+              <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row[`${side}_headsign`]">{{ row[`${side}_headsign`] }}</span>
+            </template>
           </template>
-          <template #column-to_route_name="{ row }">
-            <cal-route-badge :label="row.to_route_name" :title="row.to_agency_name" />
-            <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.to_headsign">{{ row.to_headsign }}</span>
+          <template v-for="side of SIDES" :key="side" #[`column-${side}_stop_name`]="{ value }">
+            <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
           </template>
-          <!-- A grade's count highlighted in its color; blank where none. -->
-          <template v-for="g of gradeColumns" :key="g.key" #[`column-${g.key}`]="{ value }">
-            <span v-if="value > 0" class="cal-transfer-report-count" :style="{ background: gradeTint(g.grade) }">{{ value.toLocaleString() }}</span>
-            <!-- Something rendered, or the grid falls back to printing the 0. -->
-            <span v-else />
+          <template v-for="key of TIME_COLUMNS" :key="key" #[`column-${key}`]="{ value }">
+            <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
           </template>
-          <template #column-median_wait_seconds="{ value }">
+          <template v-for="key of DURATION_COLUMNS" :key="key" #[`column-${key}`]="{ value }">
             <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
+          </template>
+          <!-- A grade's count highlighted in its color; blank where none, so
+               the grid does not print the 0. -->
+          <template v-for="g of GRADE_COLUMNS" :key="g.key" #[`column-${g.key}`]="{ value }">
+            <span :class="{ 'cal-transfer-report-count': value > 0 }" :style="value > 0 ? { background: gradeTint(g.grade) } : undefined">{{ value > 0 ? value.toLocaleString() : '' }}</span>
           </template>
           <!-- The share as a bar on a 0 to 100% track: the good part, then
                the OK part, in their grade colors. -->
@@ -170,80 +166,18 @@
               <span class="cal-transfer-report-time">{{ value }}%</span>
             </span>
           </template>
+          <!-- The grade is the wait's color, and text for screen readers. The
+               grid's hidden sizing row has no grade, so is guarded too. -->
+          <template #column-wait_seconds="{ row }">
+            <span
+              v-if="waitStyle(row.grade)"
+              class="cal-transfer-report-wait"
+              :style="waitStyle(row.grade)"
+              :title="row.grade_label"
+            >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade_label }}</span></span>
+            <span v-else>{{ row.grade_label }}</span>
+          </template>
         </cal-datagrid>
-      </template>
-
-      <template v-else>
-        <p v-if="individualDates.length === 0" class="cal-transfer-report-note">
-          No trips arrive here within the filters.
-        </p>
-        <template v-else>
-          <div class="cal-transfer-report-overview">
-            <dl class="cal-transfer-report-figures">
-              <div v-for="f of figures(individualOverview)" :key="f.label">
-                <dt>
-                  <cat-tooltip v-if="f.tooltip" :text="f.tooltip">
-                    {{ f.label }}
-                  </cat-tooltip>
-                  <template v-else>
-                    {{ f.label }}
-                  </template>
-                </dt>
-                <dd>{{ f.value }}</dd>
-              </div>
-            </dl>
-            <cal-plot class="cal-transfer-report-grades" :options="individualChart" :label="gradeChartLabel(individualCounts)" />
-          </div>
-          <cal-plot :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
-          <cal-datagrid
-            fill
-            dense
-            :searchable="false"
-            :downloadable="false"
-            :per-page="100"
-            :table-report="individualReport"
-            :loading="detailsLoading"
-            caption="Transfers"
-            :filename="`transfers-${individualDate}-${title}`"
-            :row-class="row => row.grade === 'No connection' ? 'cal-transfer-report-none' : undefined"
-          >
-            <template #column-arrival_time="{ value }">
-              <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
-            </template>
-            <template #column-departure_time="{ value }">
-              <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
-            </template>
-            <template #column-from_route_name="{ row }">
-              <cal-route-badge :label="row.from_route_name" :title="row.from_agency_name" />
-              <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.from_headsign">{{ row.from_headsign }}</span>
-            </template>
-            <template #column-to_route_name="{ row }">
-              <template v-if="row.to_route_name">
-                <cal-route-badge :label="row.to_route_name" :title="row.to_agency_name" />
-                <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.to_headsign">{{ row.to_headsign }}</span>
-              </template>
-            </template>
-            <template #column-walk_seconds="{ value }">
-              <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
-            </template>
-            <template #column-from_stop_name="{ value }">
-              <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
-            </template>
-            <template #column-to_stop_name="{ value }">
-              <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
-            </template>
-            <!-- The grade is the wait's color, and text for screen readers. -->
-            <template #column-wait_seconds="{ row }">
-              <span
-                v-if="row.wait_seconds !== ''"
-                class="cal-transfer-report-wait"
-                :style="gradeStyle(row.grade)"
-                :title="row.grade"
-              >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade }}</span></span>
-              <span v-else>{{ row.grade }}</span>
-            </template>
-          </cal-datagrid>
-        </template>
       </template>
     </template>
   </div>
@@ -279,14 +213,12 @@ const props = defineProps<{
   // The stops and clusters the report can be about, as picker options.
   subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
   summaryRows: TransferSummaryRow[]
-  summaryCounts: TransferGradeCount[]
   summaryOverview: TransferOverview
   individualDates: string[]
   individualDate?: string
   // The date the Summary is narrowed to; every date when undefined.
   summaryDate?: string
   individualRows: TransferRow[]
-  individualCounts: TransferGradeCount[]
   individualOverview: TransferOverview
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
   // The breakpoints in use, in seconds.
@@ -354,23 +286,27 @@ function minutes (seconds: number): number {
   return seconds / 60
 }
 
-const gradeByLabel = new Map(TRANSFER_GRADES.map(g => [TRANSFER_GRADE_LABELS[g], g]))
+// The two sides of a connection, and the columns that share a slot.
+const SIDES = ['from', 'to'] as const
+const TIME_COLUMNS = ['arrival_time', 'departure_time']
+const DURATION_COLUMNS = ['walk_seconds', 'median_wait_seconds']
 // The summary's count columns and their grades.
-const gradeColumns: { key: string, grade: TransferGrade }[] = [
+const GRADE_COLUMNS: { key: string, grade: TransferGrade }[] = [
   { key: 'missed', grade: 'missed' },
   { key: 'good', grade: 'good' },
   { key: 'ok', grade: 'ok' },
   { key: 'long_wait', grade: 'long' },
 ]
 
+// A wait's colors by its grade; none for an arrival with no connection.
+function waitStyle (grade: TransferRow['grade'] | undefined) {
+  const colors = grade && grade !== 'none' ? TRANSFER_GRADE_COLORS[grade] : undefined
+  return colors && { background: colors.fill, color: colors.text }
+}
+
 // A grade's color, faint enough to read text on in either theme.
 function gradeTint (grade: TransferGrade): string {
   return `${TRANSFER_GRADE_COLORS[grade].fill}40`
-}
-
-function gradeStyle (label: string) {
-  const grade = gradeByLabel.get(label)
-  return grade ? { background: TRANSFER_GRADE_COLORS[grade].fill, color: TRANSFER_GRADE_COLORS[grade].text } : undefined
 }
 
 const gradeColor = {
@@ -401,7 +337,7 @@ function gradeChart (counts: TransferGradeCount[]) {
     x += c.count
     return segment
   })
-  const label = (d: TransferGradeCount) => `${d.label} ${d.count.toLocaleString()} (${percent(d.share)})`
+  const label = (d: TransferGradeCount) => `${TRANSFER_GRADE_LABELS[d.grade]} ${d.count.toLocaleString()} (${percent(d.share)})`
   return (width: number): Plot.PlotOptions => ({
     height: 36,
     margin: 0,
@@ -418,36 +354,45 @@ function gradeChart (counts: TransferGradeCount[]) {
   })
 }
 
-// Built once per change of counts, so a chart redraws only when they change.
-const summaryChart = computed(() => gradeChart(props.summaryCounts))
-const individualChart = computed(() => gradeChart(props.individualCounts))
+// The view shown's figures and its grade bar, which redraws when they change.
+const overview = computed(() => (view.value === 'summary' ? props.summaryOverview : props.individualOverview))
+const gradeBar = computed(() => gradeChart(overview.value.grades))
 
 function gradeChartLabel (counts: TransferGradeCount[]): string {
-  return `Connections by grade: ${counts.map(c => `${c.label} ${c.count} (${percent(c.share)})`).join(', ')}`
+  return `Connections by grade: ${counts.map(c => `${TRANSFER_GRADE_LABELS[c.grade]} ${c.count} (${percent(c.share)})`).join(', ')}`
 }
 
 function hourLabel (hour: number): string {
   return `${String(Math.floor(hour)).padStart(2, '0')}:00`
 }
 
-// Each connection's wait by the time its trip arrives.
-const waitChart = computed(() => (_width: number): Plot.PlotOptions => ({
-  height: 120,
-  marginTop: 8,
-  marginLeft: 56,
-  x: { label: null, tickFormat: hourLabel },
-  // The grade bar above is the legend.
-  y: { label: null, grid: true, ticks: props.breakpoints.map(minutes), tickFormat: (m: number) => `${m} min`, domain: [minutes(props.breakpoints[0]!), minutes(props.breakpoints[4]!)] },
-  color: gradeColor,
-  marks: [
-    Plot.ruleY([0], { strokeOpacity: 0.5 }),
-    Plot.dot(props.individualPoints, { x: 'hour', y: 'waitMinutes', fill: 'grade', r: 2.5 }),
-  ],
-}))
+// Each connection's wait by the time its trip arrives. The points and
+// breakpoints are read here, not in the returned options, so the chart
+// redraws when they change.
+const waitChart = computed(() => {
+  const points = props.individualPoints
+  const bp = props.breakpoints
+  return (): Plot.PlotOptions => ({
+    height: 120,
+    marginTop: 8,
+    marginLeft: 56,
+    x: { label: null, tickFormat: hourLabel },
+    // The grade bar above is the legend.
+    y: { label: null, grid: true, ticks: bp.map(minutes), tickFormat: (m: number) => `${m} min`, domain: [minutes(bp[0]!), minutes(bp[bp.length - 1]!)] },
+    color: gradeColor,
+    marks: [
+      Plot.ruleY([0], { strokeOpacity: 0.5 }),
+      Plot.dot(points, { x: 'hour', y: 'waitMinutes', fill: 'grade', r: 2.5 }),
+    ],
+  })
+})
+
+const FROM_COLUMN: TableColumn = { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' }
+const TO_COLUMN: TableColumn = { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' }
 
 const summaryColumns: TableColumn[] = [
-  { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
-  { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
+  FROM_COLUMN,
+  TO_COLUMN,
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.' },
   { key: 'missed', label: 'Missed', sortable: true, numeric: true },
   { key: 'good', label: 'Good', sortable: true, numeric: true },
@@ -457,24 +402,32 @@ const summaryColumns: TableColumn[] = [
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.' },
 ]
 
-const summaryReport = computed((): TableReport => ({
-  columns: summaryColumns,
-  data: props.summaryRows,
-}))
-
-const individualReport = computed((): TableReport => {
+// The shown view's table.
+const grid = computed(() => {
+  if (view.value === 'summary') {
+    return {
+      tableReport: { columns: summaryColumns, data: props.summaryRows } as TableReport,
+      caption: 'Transfers by route',
+      filename: `transfers-summary-${props.title}`,
+    }
+  }
   const cluster = subjectKind.value === 'cluster'
   const columns: TableColumn[] = [
     { key: 'arrival_time', label: 'Arrival', sortable: true },
-    { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
+    FROM_COLUMN,
     ...(cluster ? [{ key: 'from_stop_name', label: 'Arrives at', sortable: true }] : []),
     { key: 'departure_time', label: 'Departure', sortable: true },
-    { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
+    TO_COLUMN,
     ...(cluster ? [{ key: 'to_stop_name', label: 'Departs from', sortable: true }] : []),
     { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true },
     { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.' },
   ]
-  return { columns, data: props.individualRows }
+  return {
+    tableReport: { columns, data: props.individualRows } as TableReport,
+    caption: 'Transfers',
+    filename: `transfers-${props.individualDate}-${props.title}`,
+    rowClass: (row: TransferRow) => (row.grade === 'none' ? 'cal-transfer-report-none' : undefined),
+  }
 })
 </script>
 
@@ -576,17 +529,6 @@ const individualReport = computed((): TableReport => {
 .cal-transfer-report-grades {
   flex: 1 1 24rem;
   margin: 0;
-}
-
-.cal-transfer-report-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-
-  :deep(input) {
-    width: 5rem;
-  }
 }
 
 .cal-transfer-report-error {

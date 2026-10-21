@@ -4,10 +4,10 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <!-- The page's downloads in one place: a tab that downloads its own
-           table (Transfer Analyst) puts its button in the target. -->
+      <!-- The page's downloads in one place: the Transfer Analyst's table
+           download, given by the page, beside the GeoJSON. -->
       <div class="cal-report-downloads">
-        <div id="cal-report-tab-downloads" />
+        <slot v-if="activeReportTab === 'transfers'" name="downloads" />
         <cal-geojson-download
           :data="downloadFeatures"
           variant="primary"
@@ -555,8 +555,7 @@ const activeTableReport = computed((): TableReport => {
     padding-bottom: 1rem;
   }
 
-  .cal-report-downloads,
-  #cal-report-tab-downloads {
+  .cal-report-downloads {
     display: flex;
     gap: 0.5rem;
   }

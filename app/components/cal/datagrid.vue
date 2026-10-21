@@ -1,6 +1,6 @@
 <template>
   <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
-    <div v-if="props.searchable !== false || props.downloadable !== false" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
+    <div v-if="props.searchable || props.downloadable" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
            other filters.
@@ -9,7 +9,7 @@
            one — cat-tabs uses v-show (display:none drops it from the
            accessibility tree) and census-details uses v-if — so keep that
            invariant if a layout ever puts two datagrids side by side. -->
-      <div v-if="props.searchable !== false" class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
+      <div v-if="props.searchable" class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
         <!-- ariaLabel/aria-controls passed via a v-bind object: cat-search-bar
              sets inheritAttrs:false, so vue-tsc checks attributes against its
              declared props and rejects a plain :aria-controls; the object also
@@ -30,7 +30,7 @@
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
-      <cat-field v-if="props.downloadable !== false" style="margin-left: auto;">
+      <cat-field v-if="props.downloadable" style="margin-left: auto;">
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
@@ -153,7 +153,7 @@
       <cat-pagination
         v-model:current="current"
         :total="total"
-        :per-page="perPage"
+        :per-page="props.perPage"
         style="margin-left: auto;"
       />
     </div>
@@ -166,7 +166,6 @@
 <script setup lang="ts">
 import { formatCensusValue, toFiniteNumber, type TableColumn, type TableReport } from '~~/src/core'
 
-const perPage = computed(() => props.perPage ?? 20)
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
@@ -178,7 +177,7 @@ function renderCell (column: TableColumn, value: unknown): string {
   return value == null ? '' : String(value)
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   filename?: string
   // Horizontally scrollable, with the first column pinned.
   freezeFirstColumn?: boolean
@@ -206,7 +205,12 @@ const props = defineProps<{
   downloadable?: boolean
   // Smaller type and padding, for more rows in view.
   dense?: boolean
-}>()
+}>(), {
+  // Vue reads a missing boolean prop as false; these default to shown.
+  searchable: true,
+  downloadable: true,
+  perPage: 20,
+})
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
 const searchQuery = ref<string | null>('')
@@ -341,8 +345,8 @@ watch([sortKey, sortDir], () => {
 })
 
 const currentRows = computed(() => {
-  const start = (current.value - 1) * perPage.value
-  const end = start + perPage.value
+  const start = (current.value - 1) * props.perPage
+  const end = start + props.perPage
   return sortedData.value.slice(start, end)
 })
 
@@ -381,10 +385,10 @@ const total = computed(() => {
   return sortedData.value.length
 })
 const rangeStart = computed(() => {
-  return total.value === 0 ? 0 : (current.value - 1) * perPage.value + 1
+  return total.value === 0 ? 0 : (current.value - 1) * props.perPage + 1
 })
 const rangeEnd = computed(() => {
-  return Math.min(current.value * perPage.value, total.value)
+  return Math.min(current.value * props.perPage, total.value)
 })
 
 // Screen-reader announcement of the filter's effect, fed into cat-search-bar's

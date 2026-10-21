@@ -74,6 +74,14 @@
             @open-trips="openReportTrips"
             @open-transfers="openTransfers"
           >
+            <template v-if="transferSubject" #downloads>
+              <cal-csv-download
+                :data="transferCsv.data"
+                :disabled="transfers.detailsLoading"
+                :filename="transferCsv.filename"
+                :button-text="transferCsv.label"
+              />
+            </template>
             <template #transfers>
               <cal-transfer-report
                 v-model:subject="transferSubject"
@@ -87,13 +95,11 @@
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-rows="transfers.summaryRows"
-                :summary-counts="transfers.summaryCounts"
                 :summary-overview="transfers.summaryOverview"
                 :individual-dates="transfers.individualDates"
                 :individual-date="transfers.individualDate"
                 :summary-date="transfers.summaryDate"
                 :individual-rows="transfers.individualRows"
-                :individual-counts="transfers.individualCounts"
                 :individual-overview="transfers.individualOverview"
                 :individual-points="transfers.individualPoints"
                 :missing-details="transfers.missingDetails"
@@ -930,20 +936,18 @@ const transfers = reactive(useSubjectTransfers({
   selectedWeekdayMode,
   startTime,
   endTime,
+  active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
 }, tripDetailsStore))
 const transferView = ref<TransferReportView>('summary')
+// The view's table, as the Reports tab's CSV download.
+const transferCsv = computed(() => (transferView.value === 'summary'
+  ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.title}`, label: 'Download summary as CSV' }
+  : { data: transfers.individualRows, filename: `transfers-${transfers.individualDate}-${transfers.title}`, label: 'Download transfers as CSV' }))
 function openTransfers (subject: TripSubject) {
   transferSubject.value = transferSubjectKey(subject)
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
 }
-// The trip details and stop distances the transfers need while their tab is
-// shown, as the subject, the filters, or the settings change which those are.
-watch([() => activeTab.value.tab, reportTab, transferSubject, scenarioFilterResult, () => transfers.settings.walkDistance, () => transfers.breakpoints], () => {
-  if (activeTab.value.tab === 'report' && reportTab.value === 'transfers') {
-    transfers.load()
-  }
-})
 function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTab = 'trips') {
   tripTable.open(subject)
   tripTableFromPanel = fromPanel

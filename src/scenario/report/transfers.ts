@@ -3,14 +3,16 @@
  * the trips leaving soon after on other routes, and graded by how long a rider
  * waits after walking between the two stops.
  *
- * Times are absolute seconds (`dayNumber(serviceDate) * 86400` plus the feed's
- * GTFS seconds), so a departure past midnight compares correctly with an
- * arrival the evening before.
+ * Times are absolute seconds (the service date's day number, `isoToOrdinal`,
+ * times 86400, plus the feed's GTFS seconds), so a departure past midnight
+ * compares correctly with an arrival the evening before.
  */
 
 import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatDuration, formatGtfsTimeFull } from '../../core'
 import type { StopDepartureCache } from '../../tl/departure-cache'
+import { isoToOrdinal, ordinalToIso } from '../../tl/feed-version'
 import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
+import { summarizeGaps } from '../route-headway'
 import type { TripTableRoute, TripTableStop } from './subject-trips'
 
 const SECONDS_PER_DAY = 86400
@@ -26,6 +28,9 @@ export interface TransferEvent {
   serviceDate: string
   // Absolute seconds; see the module comment.
   time: number
+  // The calendar date the time falls on, and its seconds into that day.
+  date: string
+  seconds: number
   headsign?: string
 }
 
@@ -161,19 +166,15 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       }
     }
     return {
-      choice: {
-        id,
-        label,
-        longName: route?.route_long_name ?? '',
-        count: directions.reduce((n, d) => n + d.count, 0),
-        directions,
-      },
-      sortOrder: route?.route_sort_order ?? Number.POSITIVE_INFINITY,
+      id,
+      label,
+      longName: route?.route_long_name ?? '',
+      count: directions.reduce((n, d) => n + d.count, 0),
+      directions,
     }
   })
-  return choices
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.choice.label.localeCompare(b.choice.label, undefined, { numeric: true }))
-    .map(c => c.choice)
+  const sortOrder = (id: number) => routes.get(id)?.route_sort_order ?? Number.POSITIVE_INFINITY
+  return choices.sort((a, b) => sortOrder(a.id) - sortOrder(b.id) || a.label.localeCompare(b.label, undefined, { numeric: true }))
 }
 
 export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
@@ -204,10 +205,7 @@ export type TransferTimeBand = typeof TRANSFER_TIME_BANDS[number]['key']
 // a time band.
 export function filterTransferGroups (groups: TransferGroup[], date: string | undefined, band: TransferTimeBand): TransferGroup[] {
   const { start, end } = TRANSFER_TIME_BANDS.find(b => b.key === band) ?? TRANSFER_TIME_BANDS[0]
-  return groups.filter((g) => {
-    const t = calendarTime(g.arrival.time)
-    return (date === undefined || t.date === date) && t.seconds >= start && t.seconds < end
-  })
+  return groups.filter(({ arrival: a }) => (date === undefined || a.date === date) && a.seconds >= start && a.seconds < end)
 }
 
 // Whether breakpoints can grade waits: five, strictly increasing.
@@ -223,27 +221,16 @@ export interface TransferOptions {
   maxWalkSeconds: number
   // Five increasing wait breakpoints, in seconds: missed, good, OK, and long
   // wait fall between consecutive pairs.
-  breakpoints?: readonly number[]
+  breakpoints: readonly number[]
   // Every connection, rather than the first on each route and direction (and
   // any missed just before it).
   allConnections?: boolean
 }
 
-// Days since 1970-01-01 for a yyyy-MM-dd date.
-export function dayNumber (date: string): number {
-  const [y, m, d] = date.split('-').map(Number)
-  return Date.UTC(y!, m! - 1, d!) / (SECONDS_PER_DAY * 1000)
-}
-
-// The yyyy-MM-dd date for a day number.
-export function dayString (day: number): string {
-  return new Date(day * SECONDS_PER_DAY * 1000).toISOString().slice(0, 10)
-}
-
 // The calendar date an absolute time falls on, and its seconds into that day.
-export function calendarTime (time: number): { date: string, seconds: number } {
+export function calendarTime (time: number, dateOf: (day: number) => string = ordinalToIso): { date: string, seconds: number } {
   const day = Math.floor(time / SECONDS_PER_DAY)
-  return { date: dayString(day), seconds: time - day * SECONDS_PER_DAY }
+  return { date: dateOf(day), seconds: time - day * SECONDS_PER_DAY }
 }
 
 export function transferGrade (wait: number, breakpoints: readonly number[] = TRANSFER_GRADE_BREAKPOINTS): TransferGrade {
@@ -269,24 +256,17 @@ export interface TransferEventsOptions {
   endTime: number
   stopDepartureCache: StopDepartureCache
   tripDetails: Map<number, TripDetail>
+  // The longest walk and wait, which bound how late a departure can connect.
+  maxWalkSeconds: number
+  breakpoints: readonly number[]
 }
 
 export interface TransferEvents {
   arrivals: TransferEvent[]
   departures: TransferEvent[]
-  // Trips at the stops whose details have not arrived, so are left out.
-  missingDetails: number
-}
-
-// The calendar dates to read departures from: the dates themselves, and the
-// day after each, for connections past midnight.
-function departureDates (dates: string[]): string[] {
-  const days = new Set<string>()
-  for (const d of dates) {
-    days.add(d)
-    days.add(dayString(dayNumber(d) + 1))
-  }
-  return [...days]
+  // Trips the transfers need whose details have not arrived, so are left out
+  // until they do.
+  missingTripIds: number[]
 }
 
 /**
@@ -303,49 +283,83 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   const arrivals = new Map<string, TransferEvent>()
   const departures = new Map<string, TransferEvent>()
   const missing = new Set<number>()
-  for (const date of departureDates(opts.dates)) {
+  // A handful of days recur, so each day's date is worked out once.
+  const dateCache = new Map<number, string>()
+  const dateOf = (day: number) => {
+    let date = dateCache.get(day)
+    if (date === undefined) {
+      date = ordinalToIso(day)
+      dateCache.set(day, date)
+    }
+    return date
+  }
+  // Departures that can matter: from the window's start to its end plus the
+  // longest walk and wait. One early in a day may connect from an arrival
+  // late the day before, so it is also read a day later.
+  const until = opts.endTime + opts.maxWalkSeconds + opts.breakpoints[opts.breakpoints.length - 1]!
+  const inReach = (t: number) => (t >= opts.startTime && t <= until) || (t + SECONDS_PER_DAY >= opts.startTime && t + SECONDS_PER_DAY <= until)
+  // The dates, and the day after each, for connections past midnight.
+  const days = new Set<number>()
+  for (const d of opts.dates) {
+    const day = isoToOrdinal(d)
+    days.add(day)
+    days.add(day + 1)
+  }
+  for (const day of days) {
+    const date = dateOf(day)
     for (const stopId of opts.stopIds) {
       for (const st of opts.stopDepartureCache.get(stopId, date)) {
+        if (!inReach(st.departureTime % SECONDS_PER_DAY)) {
+          continue
+        }
         const detail = opts.tripDetails.get(st.tripId)
         if (!detail) {
           missing.add(st.tripId)
           continue
         }
+        // A trip calling at the stop more than once is matched to the call
+        // nearest the departure, as a call may have no departure time of its
+        // own in the details.
         const stopTimes = detail.stopTimes
-        // A trip calling at the stop twice is matched by its departure time.
-        let index = stopTimes.findIndex(s => s.stopId === stopId && s.departure === st.departureTime)
-        if (index < 0) {
-          index = stopTimes.findIndex(s => s.stopId === stopId)
+        let index = -1
+        for (let i = 0; i < stopTimes.length; i++) {
+          const s = stopTimes[i]!
+          if (s.stopId === stopId && (index < 0 || Math.abs((s.departure ?? Infinity) - st.departureTime) < Math.abs((stopTimes[index]!.departure ?? Infinity) - st.departureTime))) {
+            index = i
+          }
         }
         const stopTime = stopTimes[index]
         if (!stopTime) {
           continue
         }
-        const serviceDay = dayNumber(date) - Math.floor(st.departureTime / SECONDS_PER_DAY)
-        const serviceDate = dayString(serviceDay)
+        const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
+        const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
         const key = `${st.tripId}|${serviceDate}`
-        const event = {
+        const headsign = tripHeadsignAt(detail, stopId)
+        const event = (time: number): TransferEvent => ({
           tripId: st.tripId,
           routeId: st.routeId,
           directionId: st.directionId,
           stopId,
           serviceDate,
-          headsign: tripHeadsignAt(detail, stopId),
-        }
+          time,
+          ...calendarTime(time, dateOf),
+          headsign,
+        })
         if (index > 0 && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
           const time = base + st.departureTime - Math.max(0, dwell)
           const seen = arrivals.get(key)
           if (!seen || time < seen.time) {
-            arrivals.set(key, { ...event, time })
+            arrivals.set(key, event(time))
           }
         }
         if (index < stopTimes.length - 1 && (st.pickupType ?? stopTime.pickupType) !== 1) {
           const time = base + st.departureTime
           const seen = departures.get(key)
           if (!seen || time > seen.time) {
-            departures.set(key, { ...event, time })
+            departures.set(key, event(time))
           }
         }
       }
@@ -354,14 +368,11 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   // Arrivals on the dates and in the window; departures at any time, as a
   // connection may leave after the window ends.
   const dates = new Set(opts.dates)
-  const inWindow = (e: TransferEvent) => {
-    const { date, seconds } = calendarTime(e.time)
-    return dates.has(date) && seconds >= opts.startTime && seconds <= opts.endTime
-  }
+  const inWindow = (e: TransferEvent) => dates.has(e.date) && e.seconds >= opts.startTime && e.seconds <= opts.endTime
   return {
     arrivals: [...arrivals.values()].filter(inWindow).sort((a, b) => a.time - b.time || a.tripId - b.tripId),
     departures: [...departures.values()].sort((a, b) => a.time - b.time || a.tripId - b.tripId),
-    missingDetails: missing.size,
+    missingTripIds: [...missing],
   }
 }
 
@@ -389,11 +400,14 @@ function lowerBound (events: TransferEvent[], time: number): number {
  * on it are not where riders transfer.
  */
 export function calculateTransfers (arrivals: TransferEvent[], departures: TransferEvent[], opts: TransferOptions): TransferGroup[] {
-  const bp = opts.breakpoints ?? TRANSFER_GRADE_BREAKPOINTS
+  const bp = opts.breakpoints
   const minWait = bp[0]!
   const maxWait = bp[bp.length - 1]!
-  // Departures must be sorted by time.
-  const sorted = departures.every((d, i) => i === 0 || departures[i - 1]!.time <= d.time) ? departures : [...departures].sort((a, b) => a.time - b.time)
+  // Departures come sorted by time, as transferEvents gives them.
+  const sorted = departures
+  // The routes and directions an arrival has made a connection to, cleared
+  // for each arrival.
+  const made = new Set<number>()
   return arrivals.map((arrival) => {
     const connections: TransferConnection[] = []
     const last = arrival.time + opts.maxWalkSeconds + maxWait
@@ -419,11 +433,11 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
     if (opts.allConnections) {
       return { arrival, connections }
     }
-    const made = new Set<string>()
+    made.clear()
     return {
       arrival,
       connections: connections.filter((c) => {
-        const key = `${c.departure.routeId}|${c.departure.directionId}`
+        const key = c.departure.routeId * 2 + (c.departure.directionId ? 1 : 0)
         if (made.has(key)) {
           return false
         }
@@ -438,32 +452,16 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
 
 export interface TransferGradeCount {
   grade: TransferGrade
-  label: string
   count: number
   // Of all connections.
   share: number
 }
 
-export function transferGradeCounts (groups: TransferGroup[]): TransferGradeCount[] {
-  const counts = new Map<TransferGrade, number>(TRANSFER_GRADES.map(g => [g, 0]))
-  let total = 0
-  for (const g of groups) {
-    for (const c of g.connections) {
-      counts.set(c.grade, counts.get(c.grade)! + 1)
-      total += 1
-    }
-  }
-  return TRANSFER_GRADES.map(grade => ({
-    grade,
-    label: TRANSFER_GRADE_LABELS[grade],
-    count: counts.get(grade)!,
-    share: total > 0 ? counts.get(grade)! / total : 0,
-  }))
-}
-
 export interface TransferOverview {
   arrivals: number
   connections: number
+  // Connections by grade, in order of wait.
+  grades: TransferGradeCount[]
   // Arrivals whose soonest connection made, on any route, is good or OK.
   goodOrOkShare: number
   // The wait for each arrival's soonest connection made, over arrivals that
@@ -473,10 +471,14 @@ export interface TransferOverview {
 
 // The figures over all of the groups' arrivals.
 export function transferOverview (groups: TransferGroup[]): TransferOverview {
+  const counts: Record<TransferGrade, number> = { missed: 0, good: 0, ok: 0, long: 0 }
   let connections = 0
   let goodOrOk = 0
   const waits: number[] = []
   for (const g of groups) {
+    for (const c of g.connections) {
+      counts[c.grade] += 1
+    }
     connections += g.connections.length
     // Connections are sorted by wait, so the first made is the soonest.
     const soonest = g.connections.find(c => c.wait >= 0)
@@ -490,18 +492,10 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
   return {
     arrivals: groups.length,
     connections,
+    grades: TRANSFER_GRADES.map(grade => ({ grade, count: counts[grade], share: connections > 0 ? counts[grade] / connections : 0 })),
     goodOrOkShare: groups.length > 0 ? goodOrOk / groups.length : 0,
-    medianWait: median(waits.sort((a, b) => a - b)),
+    medianWait: summarizeGaps(waits)?.median,
   }
-}
-
-// The middle value of sorted numbers.
-function median (sorted: number[]): number | undefined {
-  if (sorted.length === 0) {
-    return undefined
-  }
-  const mid = sorted.length >> 1
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1]! + sorted[mid]!) / 2
 }
 
 // The most common of some values.
@@ -621,7 +615,7 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
       goodOrOkShare: arrivals > 0 ? (firstGood + firstOk) / arrivals : 0,
       goodShare: arrivals > 0 ? firstGood / arrivals : 0,
       okShare: arrivals > 0 ? firstOk / arrivals : 0,
-      medianWait: median(firstWaits.sort((a, b) => a - b)),
+      medianWait: summarizeGaps(firstWaits)?.median,
     }
   }).sort((a, b) => b.arrivals - a.arrivals || a.key.localeCompare(b.key))
 }
@@ -727,7 +721,9 @@ export interface TransferRow {
   to_stop_name: string
   walk_seconds: number | ''
   wait_seconds: number | ''
-  grade: string
+  // The grade, or 'none' for an arrival with no connection; and as words.
+  grade: TransferGrade | 'none'
+  grade_label: string
 }
 
 export function transferRows (
@@ -740,7 +736,7 @@ export function transferRows (
 ): TransferRow[] {
   const rows: TransferRow[] = []
   for (const { arrival, connections } of groups) {
-    const { date, seconds } = calendarTime(arrival.time)
+    const { date, seconds } = arrival
     const dayStart = arrival.time - seconds
     const from = opts.routes.get(arrival.routeId)
     const fromStop = opts.stops.get(arrival.stopId)
@@ -772,7 +768,8 @@ export function transferRows (
         to_stop_name: '',
         walk_seconds: '',
         wait_seconds: '',
-        grade: 'No connection',
+        grade: 'none',
+        grade_label: 'No connection',
       })
       continue
     }
@@ -793,39 +790,10 @@ export function transferRows (
         to_stop_name: toStop?.stop_name ?? '',
         walk_seconds: c.walk,
         wait_seconds: c.wait,
-        grade: TRANSFER_GRADE_LABELS[c.grade],
+        grade: c.grade,
+        grade_label: TRANSFER_GRADE_LABELS[c.grade],
       })
     }
   }
   return rows
-}
-
-// The trips whose details the transfers need: those at the stops from the
-// window's start to its end plus the longest wait and walk, on the dates and
-// the day after each.
-export function transferTripIds (opts: {
-  stopIds: number[]
-  dates: string[]
-  startTime: number
-  endTime: number
-  stopDepartureCache: StopDepartureCache
-  maxWalkSeconds: number
-  breakpoints?: readonly number[]
-}): number[] {
-  const bp = opts.breakpoints ?? TRANSFER_GRADE_BREAKPOINTS
-  const until = opts.endTime + opts.maxWalkSeconds + bp[bp.length - 1]!
-  const ids = new Set<number>()
-  // A departure early in a day may connect from an arrival late the day
-  // before, so it is also read a day later.
-  const wanted = (t: number) => (t >= opts.startTime && t <= until) || (t + SECONDS_PER_DAY >= opts.startTime && t + SECONDS_PER_DAY <= until)
-  for (const date of departureDates(opts.dates)) {
-    for (const stopId of opts.stopIds) {
-      for (const st of opts.stopDepartureCache.get(stopId, date)) {
-        if (wanted(st.departureTime % SECONDS_PER_DAY)) {
-          ids.add(st.tripId)
-        }
-      }
-    }
-  }
-  return [...ids]
 }

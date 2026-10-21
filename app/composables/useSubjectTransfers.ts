@@ -5,25 +5,21 @@
 // props. Trip details come from the store the trip panel and table share;
 // distances between the stops, from the Transitland directions API.
 
-import { computed, ref, shallowRef, toValue, triggerRef, type MaybeRefOrGetter } from 'vue'
+import { computed, ref, shallowRef, toValue, triggerRef, watch, type MaybeRefOrGetter } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
-import { format } from 'date-fns'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
-  calendarTime,
   clusterDisplayName,
   filterTransferGroups,
   resolveEffectiveWeekdays,
   summarizeTransfers,
   transferEvents,
-  transferGradeCounts,
   transferOverview,
   transferRows,
   transferSummaryRows,
   transferTripChoices,
   transferTripKey,
-  transferTripIds,
   validBreakpoints,
   type ScenarioFilterResult,
   type TransferSettings,
@@ -31,7 +27,7 @@ import {
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { dateToSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import { chunkArray, fmtDate, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
 import {
   STOP_DISTANCE_BATCH_SIZE,
   parseStopDistances,
@@ -55,6 +51,9 @@ export interface UseSubjectTransfersDeps {
   selectedWeekdayMode: MaybeRefOrGetter<WeekdayMode | undefined>
   startTime: MaybeRefOrGetter<Date | undefined>
   endTime: MaybeRefOrGetter<Date | undefined>
+  // While the report is shown: the trip details and stop distances it needs
+  // are fetched then, as they come to be needed.
+  active: MaybeRefOrGetter<boolean>
 }
 
 export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripDetailsStore) {
@@ -85,15 +84,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
     resolveEffectiveWeekdays(toValue(deps.selectedWeekdays), toValue(deps.selectedWeekdayMode)),
-  ).map(d => format(d, 'yyyy-MM-dd')))
-  const timeWindow = computed(() => {
-    const start = toValue(deps.startTime)
-    const end = toValue(deps.endTime)
-    return {
-      startTime: start ? (dateToSeconds(start) ?? 0) : 0,
-      endTime: end ? (dateToSeconds(end) ?? 86400) : 86400,
-    }
-  })
+  ).map(d => fmtDate(d)))
+  const timeWindow = computed(() => timeWindowSeconds(toValue(deps.startTime), toValue(deps.endTime)))
 
   // Meters between the subject's stops, by stopPairKey, for each source asked
   // for; kept across subjects, as a pair's distance does not change.
@@ -107,55 +99,77 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
     return lon !== undefined && lat !== undefined ? [{ id, lon, lat }] : []
   }))
+  const pairs = computed(() => stopPairs(stopPoints.value))
   // The sources the walk reads: a straight line always, as the street
   // network's fallback where it cannot route a pair.
   const distanceModes = computed((): StopDistanceMode[] => (settings.value.walkDistance === 'street' ? ['WALK', 'LINE'] : ['LINE']))
 
+  // Each mode's pairs not yet asked for, fetched in parallel batches, and
+  // applied together.
   async function loadDistances (): Promise<void> {
-    for (const mode of distanceModes.value) {
-      const pairs = stopPairs(stopPoints.value).filter(([a, b]) => !distancesRequested.has(`${mode}|${stopPairKey(a.id, b.id)}`))
-      for (const [a, b] of pairs) {
-        distancesRequested.add(`${mode}|${stopPairKey(a.id, b.id)}`)
+    const requestKey = (mode: StopDistanceMode, a: StopPoint, b: StopPoint) => `${mode}|${stopPairKey(a.id, b.id)}`
+    const batches = distanceModes.value.flatMap((mode) => {
+      const wanted = pairs.value.filter(([a, b]) => !distancesRequested.has(requestKey(mode, a, b)))
+      for (const [a, b] of wanted) {
+        distancesRequested.add(requestKey(mode, a, b))
       }
-      for (let i = 0; i < pairs.length; i += STOP_DISTANCE_BATCH_SIZE) {
-        const batch = pairs.slice(i, i + STOP_DISTANCE_BATCH_SIZE)
-        distancesLoading.value++
-        try {
-          const { query, variables } = stopDistancesRequest(batch, mode)
-          const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
-          const known = distances.value.get(mode) ?? new Map<string, number>()
-          for (const [key, meters] of parseStopDistances(batch, response.data)) {
-            known.set(key, meters)
-          }
-          distances.value.set(mode, known)
-          triggerRef(distances)
-        } catch (err: any) {
-          // Let a retry ask again.
-          for (const [a, b] of batch) {
-            distancesRequested.delete(`${mode}|${stopPairKey(a.id, b.id)}`)
-          }
-          distancesError.value = err?.message || String(err)
-        } finally {
-          distancesLoading.value--
+      return chunkArray(wanted, STOP_DISTANCE_BATCH_SIZE).map(batch => ({ mode, batch }))
+    })
+    if (batches.length === 0) {
+      return
+    }
+    distancesLoading.value++
+    const results = await Promise.all(batches.map(async ({ mode, batch }) => {
+      try {
+        const { query, variables } = stopDistancesRequest(batch, mode)
+        const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
+        return { mode, meters: parseStopDistances(batch, response.data) }
+      } catch (err: any) {
+        // Let a retry ask again.
+        for (const [a, b] of batch) {
+          distancesRequested.delete(requestKey(mode, a, b))
         }
+        distancesError.value = err?.message || String(err)
+        return undefined
+      }
+    }))
+    for (const r of results) {
+      if (r) {
+        const known = distances.value.get(r.mode) ?? new Map<string, number>()
+        for (const [key, meters] of r.meters) {
+          known.set(key, meters)
+        }
+        distances.value.set(r.mode, known)
       }
     }
+    triggerRef(distances)
+    distancesLoading.value--
   }
 
-  // Meters between two different stops from the chosen source, falling back
-  // to a straight line; undefined where neither is known.
-  function walkMeters (a: number, b: number): number | undefined {
-    const key = stopPairKey(a, b)
-    return distanceModes.value.map(mode => distances.value.get(mode)?.get(key)).find(m => m !== undefined)
-  }
-  const unknownPairs = computed(() => stopPairs(stopPoints.value).filter(([a, b]) => walkMeters(a.id, b.id) === undefined).length)
+  // Walking seconds between each pair of the stops, from the chosen source,
+  // falling back to a straight line; built once per change of distances or
+  // pace, as every candidate connection reads it.
   const secondsPerMeter = computed(() => Math.max(0, Number(settings.value.secondsPerMeter) || 0))
-  const maxWalkSeconds = computed(() => {
+  const walkTable = computed(() => {
+    const table = new Map<number, Map<number, number>>()
+    let unknown = 0
     let most = 0
-    for (const [a, b] of stopPairs(stopPoints.value)) {
-      most = Math.max(most, (walkMeters(a.id, b.id) ?? 0) * secondsPerMeter.value)
+    for (const [a, b] of pairs.value) {
+      const key = stopPairKey(a.id, b.id)
+      const meters = distanceModes.value.map(mode => distances.value.get(mode)?.get(key)).find(m => m !== undefined)
+      if (meters === undefined) {
+        unknown += 1
+        continue
+      }
+      const seconds = meters * secondsPerMeter.value
+      most = Math.max(most, seconds)
+      for (const [from, to] of [[a.id, b.id], [b.id, a.id]] as const) {
+        const row = table.get(from) ?? new Map<number, number>()
+        row.set(to, seconds)
+        table.set(from, row)
+      }
     }
-    return most
+    return { table, unknown, most }
   })
 
   const events = computed(() => {
@@ -169,6 +183,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       ...timeWindow.value,
       stopDepartureCache: r.stopDepartureCache,
       tripDetails: store.details.value,
+      maxWalkSeconds: walkTable.value.most,
+      breakpoints: breakpoints.value,
     })
   })
 
@@ -186,13 +202,13 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     const fromOut = new Set(settings.value.excludedFrom)
     const toOut = new Set(settings.value.excludedTo)
-    const spm = secondsPerMeter.value
+    const { table, most } = walkTable.value
     return calculateTransfers(
       e.arrivals.filter(a => !fromOut.has(transferTripKey(a))),
       e.departures.filter(d => !toOut.has(transferTripKey(d))),
       {
-        walkSeconds: (from, to) => (from === to ? 0 : (walkMeters(from, to) ?? Number.NaN) * spm),
-        maxWalkSeconds: maxWalkSeconds.value,
+        walkSeconds: (from, to) => (from === to ? 0 : (table.get(from)?.get(to) ?? Number.NaN)),
+        maxWalkSeconds: most,
         breakpoints: breakpoints.value,
         allConnections: settings.value.allConnections,
       },
@@ -200,13 +216,15 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   })
 
   // The dates with arrivals, for the date picker.
-  const individualDates = computed(() => dates.value.filter(d => groups.value.some(g => calendarTime(g.arrival.time).date === d)))
+  const individualDates = computed(() => {
+    const withArrivals = new Set(groups.value.map(g => g.arrival.date))
+    return dates.value.filter(d => withArrivals.has(d))
+  })
   const pickedDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : undefined))
 
   // The Summary covers every date unless one is picked.
   const summaryGroups = computed(() => filterTransferGroups(groups.value, pickedDate.value, timeBand.value))
   const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(summaryGroups.value), routes.value))
-  const summaryCounts = computed(() => transferGradeCounts(summaryGroups.value))
   const summaryOverview = computed(() => transferOverview(summaryGroups.value))
 
   // The Individual report shows one date: the one picked, or the first.
@@ -217,37 +235,34 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stops: stops.value,
     tripDetails: store.details.value,
   }))
-  const individualCounts = computed(() => transferGradeCounts(individualGroups.value))
   const individualOverview = computed(() => transferOverview(individualGroups.value))
   // Each connection on the date by the arrival's time of day, for the chart.
-  const individualPoints = computed(() => individualGroups.value.flatMap(g => g.connections.map(c => ({
-    hour: calendarTime(g.arrival.time).seconds / 3600,
-    waitMinutes: c.wait / 60,
-    grade: c.grade,
-  }))))
+  const individualPoints = computed(() => individualGroups.value.flatMap((g) => {
+    const hour = g.arrival.seconds / 3600
+    return g.connections.map(c => ({ hour, waitMinutes: c.wait / 60, grade: c.grade }))
+  }))
 
+  // While shown, the details of the trips the report is missing, and the
+  // distances between its stops. Each widens what the other needs (a longer
+  // walk reaches later departures), so both follow their own inputs.
   const detailsError = ref<string | null>(null)
-  // The trips' details and the stops' distances the report needs.
   async function load (): Promise<void> {
-    const r = result.value
-    if (!r || stopIds.value.length === 0) {
+    if (!toValue(deps.active) || stopIds.value.length === 0) {
       return
     }
     detailsError.value = null
     distancesError.value = null
-    const distancesLoaded = loadDistances()
-    detailsError.value = await store.load(transferTripIds({
-      stopIds: stopIds.value,
-      dates: dates.value,
-      ...timeWindow.value,
-      stopDepartureCache: r.stopDepartureCache,
-      // The longest walk the settings could give, as distances may still be
-      // arriving: a few minutes' slack on the trips asked for.
-      maxWalkSeconds: Math.max(maxWalkSeconds.value, 15 * 60),
-      breakpoints: breakpoints.value,
-    }))
-    await distancesLoaded
+    await Promise.all([
+      loadDistances(),
+      store.load(events.value?.missingTripIds ?? []).then((err) => {
+        detailsError.value = err
+      }),
+    ])
   }
+  watch(
+    [() => toValue(deps.active), pairs, distanceModes, () => events.value?.missingTripIds],
+    () => load(),
+  )
 
   // The subject by name, as the report's heading and download names.
   const title = computed(() => {
@@ -284,23 +299,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     selectedDate,
     summaryDate: pickedDate,
     timeBand,
-    available: computed(() => stopIds.value.length > 0),
-    arrivalCount: computed(() => events.value?.arrivals.length ?? 0),
-    missingDetails: computed(() => events.value?.missingDetails ?? 0),
+    missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     summaryRows,
-    summaryCounts,
     summaryOverview,
     individualDates,
     individualDate,
     individualRows,
-    individualCounts,
     individualOverview,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
     detailsError: computed(() => detailsError.value ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)),
     // Pairs of the stops with no distance to walk between them, which are
     // left out.
-    unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : unknownPairs.value)),
+    unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : walkTable.value.unknown)),
     load,
   }
 }

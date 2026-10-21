@@ -28,26 +28,36 @@ function draw () {
     ...options,
     width,
     // Text and rules in the theme's text color, on the page's background.
-    style: { background: 'transparent', color: 'var(--bulma-text)', fontSize: '12px', ...(typeof options.style === 'object' ? options.style : {}) },
+    style: { background: 'transparent', color: 'var(--bulma-text)', fontSize: '12px' },
   })
   chart.setAttribute('aria-hidden', 'true')
   el.replaceChildren(chart)
 }
 
 let observer: ResizeObserver | undefined
+// One redraw per frame while the width is changing.
+let frame: number | undefined
 onMounted(() => {
   observer = new ResizeObserver((entries) => {
     const next = Math.floor(entries[0]?.contentRect.width ?? 0)
     if (next !== width) {
       width = next
-      draw()
+      frame ??= requestAnimationFrame(() => {
+        frame = undefined
+        draw()
+      })
     }
   })
   if (container.value) {
     observer.observe(container.value)
   }
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  if (frame !== undefined) {
+    cancelAnimationFrame(frame)
+  }
+})
 
 watch(() => props.options, draw)
 </script>
