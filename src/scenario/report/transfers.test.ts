@@ -191,6 +191,20 @@ describe('calculateTransfers', () => {
     ])
   })
 
+  it('leaves out the arriving vehicle turning back, unless counted', () => {
+    // Route 10 ends at stop 1; route 11 of the same agency starts there, 12 at
+    // stop 2, and route 20 of another agency at stop 1.
+    const arrival = { ...event(1, 10, hms(7)), terminal: true }
+    const sameAgency = { ...event(2, 11, hms(7, 5)), terminal: true }
+    const otherStop = { ...event(3, 12, hms(7, 6), 2), terminal: true }
+    const otherAgency = { ...event(4, 20, hms(7, 7)), terminal: true }
+    const agencyOf = (routeId: number) => (routeId < 20 ? 1 : 2)
+    const [group] = calculateTransfers([arrival], [sameAgency, otherStop, otherAgency], { ...walk, agencyOf })
+    expect(group!.connections.map(c => c.departure.tripId)).toEqual([3, 4])
+    const [counted] = calculateTransfers([arrival], [sameAgency, otherStop, otherAgency], { ...walk, agencyOf, countTurnbacks: true })
+    expect(counted!.connections.map(c => [c.departure.tripId, !!c.turnback])).toEqual([[3, false], [2, true], [4, false]])
+  })
+
   it('counts a short run apart from the full one on its route and direction', () => {
     const full = { ...event(2, 20, hms(7, 8)), headsign: 'Airport' }
     const short = { ...event(3, 20, hms(7, 4)), headsign: 'Downtown' }
@@ -324,7 +338,8 @@ describe('transferTripChoices', () => {
     expect(tenth).toMatchObject({ label: '10', count: 5 })
     expect(tenth!.directions.map(d => [d.label, d.count, d.destinations.map(x => x.label)])).toEqual([
       ['Toward Downtown', 3, ['Downtown', 'Midtown']],
-      ['Direction 1', 2, ['Airport', 'Zoo']],
+      // Neither has half; the two together do.
+      ['Toward Airport or Zoo', 2, ['Airport', 'Zoo']],
     ])
     expect(tenth!.directions[0]!.destinations[0]!.key).toBe(transferTripKey({ routeId: 10, directionId: 0, headsign: 'Downtown' }))
     // No sign: the route's long name.
@@ -349,6 +364,24 @@ describe('transferTripChoices', () => {
     expect(transferTripTags(midtown, 'from').map(t => t.label)).toEqual(['Ends here', 'Short run'])
     expect(transferTripTags(midtown, 'to', false).map(t => t.label)).toEqual(['Short run'])
     expect(transferTripInfo([route!]).get(midtown!.key)?.routeId).toBe(10)
+  })
+
+  it('names arriving trips that end at the stops by where they come from', () => {
+    const ending = (directionId: number, origin: string) => ({ ...trip(10, directionId, 'Millbrae'), origin, terminal: true })
+    const [route] = transferTripChoices([ending(0, 'Richmond'), ending(0, 'Richmond'), ending(1, 'SFO')], routes, 'from')
+    expect(route!.directions.map(d => [d.label, d.destinations.map(x => x.label)])).toEqual([
+      ['From Richmond', ['From Richmond']],
+      ['From SFO', ['From SFO']],
+    ])
+  })
+
+  it('tells apart destinations of a route that would read the same', () => {
+    const ending = (directionId: number, terminus: string) => ({ ...trip(10, directionId, 'SFO / SF / Antioch'), terminus })
+    const [route] = transferTripChoices([ending(0, 'Antioch'), ending(1, 'SFO')], routes)
+    expect(route!.directions.flatMap(d => d.destinations.map(x => x.label))).toEqual([
+      'SFO / SF / Antioch (Toward Antioch)',
+      'SFO / SF / Antioch (Toward SFO)',
+    ])
   })
 
   it('numbers both directions where they would read the same', () => {

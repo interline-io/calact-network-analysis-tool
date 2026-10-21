@@ -91,6 +91,9 @@
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
+                :stops="transfers.stopIds"
+                :stop-options="transfers.stopOptions"
+                :has-clusters="transfers.hasClusters"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
@@ -107,6 +110,8 @@
                 :details-error="transfers.detailsError"
                 @retry="transfers.retry()"
                 @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
+                @update:stops="transfers.setStopIds($event)"
+                @enable-clusters="enableClustersForTransfers"
               />
             </template>
           </cal-report>
@@ -264,6 +269,7 @@
 <script lang="ts" setup>
 import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
+import { until } from '@vueuse/core'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
@@ -309,6 +315,7 @@ import {
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
+  STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
@@ -944,6 +951,14 @@ const transferView = ref<TransferReportView>('summary')
 const transferCsv = computed(() => (transferView.value === 'summary'
   ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.title}`, label: 'Download summary as CSV' }
   : { data: transfers.individualRows, filename: `transfers-${transfers.individualDate}-${transfers.title}`, label: 'Download transfers as CSV' }))
+// Stop clustering on at its default distance, and the scenario run again,
+// staying on the Transfer Analyst; once the URL holds the distance, which
+// the run reads.
+async function enableClustersForTransfers () {
+  clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
+  await until(clusterDistance).toMatch(v => v > 0)
+  await runScenarioQuery('Stop clusters found.')
+}
 function openTransfers (subject: TripSubject) {
   transferSubject.value = transferSubjectKey(subject)
   reportTab.value = 'transfers'

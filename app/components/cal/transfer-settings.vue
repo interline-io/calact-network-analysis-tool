@@ -68,6 +68,8 @@
           </template>
           <template v-else>
             A wait below the first, or above the last, is not a transfer.
+            Services every 15 minutes or more, as on many rail lines, grade
+            mostly long wait at these; widen them to compare such services.
           </template>
           <button type="button" class="cal-transfer-settings-link" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
             Reset
@@ -82,6 +84,14 @@
         <p class="cal-transfer-settings-help">
           Otherwise each arrival shows its first connection to each route,
           direction, and destination, and any it just missed.
+        </p>
+        <cat-checkbox :model-value="settings.countTurnbacks" @update:model-value="set({ countTurnbacks: !!$event })">
+          Count likely turnbacks
+        </cat-checkbox>
+        <p class="cal-transfer-settings-help">
+          A trip ending here and one of the same agency starting from the same
+          stop are likely one vehicle turning back, so are not counted as a
+          transfer unless checked.
         </p>
       </cat-fieldset>
     </template>

@@ -75,14 +75,44 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const s = toValue(deps.subject)
     return s?.kind === 'cluster' ? result.value?.stopClusters?.find(c => c.id === s.clusterId) : undefined
   })
-  // A cluster's members follow the filters, as the trip panel's do.
-  const stopIds = computed((): number[] => {
+  // The subject's own stops: a cluster's members follow the filters, as the
+  // trip panel's do.
+  const subjectStopIds = computed((): number[] => {
     const s = toValue(deps.subject)
     if (s?.kind === 'stop') {
       return stops.value.has(s.stopId) ? [s.stopId] : []
     }
     return cluster.value?.memberStopIds ?? []
   })
+  // Stops added to the subject's, and of its own, those taken out: so a
+  // station's other platform can join a cluster. Cleared for each subject.
+  const addedStopIds = ref<number[]>([])
+  const removedStopIds = ref<number[]>([])
+  watch(() => transferSubjectKey(toValue(deps.subject)), () => {
+    addedStopIds.value = []
+    removedStopIds.value = []
+  })
+  const stopIds = computed((): number[] => {
+    const removed = new Set(removedStopIds.value)
+    const own = subjectStopIds.value.filter(id => !removed.has(id))
+    return [...own, ...addedStopIds.value.filter(id => stops.value.has(id) && !own.includes(id))]
+  })
+  // The stops picked, as added to and taken from the subject's own.
+  function setStopIds (ids: number[]) {
+    const own = new Set(subjectStopIds.value)
+    const picked = new Set(ids)
+    addedStopIds.value = ids.filter(id => !own.has(id))
+    removedStopIds.value = subjectStopIds.value.filter(id => !picked.has(id))
+  }
+  // Every stop with service, by name, with its routes to tell apart stops
+  // that share a name; for adding stops to the subject.
+  const stopOptions = computed(() => (result.value?.stops || [])
+    .filter(s => s.marked)
+    .map((s) => {
+      const routeNames = [...new Set(s.route_stops.map(rs => routes.value.get(rs.route_id)?.route_short_name || routes.value.get(rs.route_id)?.route_long_name).filter(Boolean))]
+      return { value: s.id, name: s.stop_name || s.stop_id, label: `${s.stop_name || s.stop_id}${routeNames.length ? ` · ${routeNames.join(', ')}` : ''}` }
+    })
+    .sort((a, b) => a.label.localeCompare(b.label)))
   // Scoped as the reports scope them.
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
@@ -199,8 +229,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // The trips arriving and departing as routes, directions, and
   // destinations, for the settings' trip filtering.
   const routeChoices = computed(() => ({
-    from: transferTripChoices(events.value?.arrivals ?? [], routes.value),
-    to: transferTripChoices(events.value?.departures ?? [], routes.value),
+    from: transferTripChoices(events.value?.arrivals ?? [], routes.value, 'from'),
+    to: transferTripChoices(events.value?.departures ?? [], routes.value, 'to'),
   }))
   // The same by destination, for the tables' names and tags.
   const tripInfo = computed(() => ({
@@ -225,6 +255,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         maxWalkSeconds: most,
         breakpoints: breakpoints.value,
         allConnections: settings.value.allConnections,
+        agencyOf: routeId => routes.value.get(routeId)?.agency?.id,
+        countTurnbacks: settings.value.countTurnbacks,
       },
     )
   })
@@ -287,14 +319,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     () => load(),
   )
 
-  // The subject by name, as the report's heading and download names.
+  // The subject by name, as the report's heading and download names; with
+  // its count of stops where they have been changed.
   const title = computed(() => {
     const s = toValue(deps.subject)
+    let name = ''
     if (s?.kind === 'stop') {
       const stop = stops.value.get(s.stopId)
-      return stop?.stop_name || stop?.stop_id || ''
+      name = stop?.stop_name || stop?.stop_id || ''
+    } else if (cluster.value) {
+      name = clusterDisplayName(cluster.value.name, cluster.value.nearName)
     }
-    return cluster.value ? clusterDisplayName(cluster.value.name, cluster.value.nearName) : ''
+    const edited = addedStopIds.value.length > 0 || removedStopIds.value.length > 0
+    return edited ? `${name} (${stopIds.value.length} stops)` : name
   })
 
   // What the report can be about: the scenario's clusters, then its stops
@@ -303,8 +340,13 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const r = result.value
     const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
     return {
-      clusters: (r?.stopClusters || [])
-        .map(c => ({ key: transferSubjectKey({ kind: 'cluster', clusterId: c.id }), label: clusterDisplayName(c.name, c.nearName) }))
+      clusters: distinctLabels((r?.stopClusters || [])
+        .map(c => ({
+          key: transferSubjectKey({ kind: 'cluster', clusterId: c.id }),
+          label: clusterDisplayName(c.name, c.nearName),
+          // To tell apart clusters of the same name: their members' names.
+          memberNames: c.memberStopIds.map(id => stops.value.get(id)?.stop_name).filter((n): n is string => !!n),
+        })))
         .sort(byLabel),
       stops: (r?.stops || [])
         .filter(s => s.marked)
@@ -316,6 +358,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   return {
     title,
     subjectOptions,
+    stopIds,
+    setStopIds,
+    stopOptions,
+    // Whether the scenario found stop clusters; it finds none with clustering
+    // off.
+    hasClusters: computed(() => (result.value?.stopClusters?.length ?? 0) > 0),
     settings,
     breakpoints,
     routeChoices,
@@ -339,6 +387,20 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : walkTable.value.unknown)),
     retry,
   }
+}
+
+// Clusters whose names are the same, each told apart by a member's name the
+// others lack.
+function distinctLabels (clusters: { key: string, label: string, memberNames: string[] }[]): { key: string, label: string }[] {
+  return clusters.map((c) => {
+    const same = clusters.filter(o => o.label === c.label && o !== c)
+    if (same.length === 0) {
+      return { key: c.key, label: c.label }
+    }
+    const theirs = new Set(same.flatMap(o => o.memberNames))
+    const own = c.memberNames.find(n => !theirs.has(n) && n !== c.label)
+    return { key: c.key, label: own ? `${c.label} (${own})` : c.label }
+  })
 }
 
 // A stop or cluster as a picker's value, and back.

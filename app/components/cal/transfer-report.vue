@@ -75,6 +75,20 @@
       </template>
     </div>
 
+    <!-- The subject's stops, to add to or take from: a station's other
+         platform, say, that its cluster left out. -->
+    <cat-field v-if="subjectKind" label="Stops" class="cal-transfer-report-stops">
+      <cat-taginput
+        :model-value="stops"
+        :options="stopOptions"
+        placeholder="Add a stop…"
+        icon="plus"
+        fullwidth
+        size="small"
+        @update:model-value="$emit('update:stops', $event as number[])"
+      />
+    </cat-field>
+
     <cal-transfer-settings
       v-if="subjectKind && openSection"
       v-bind="{ id: settingsId }"
@@ -85,6 +99,15 @@
       @open-trips="$emit('openTrips', $event)"
     />
 
+    <!-- Without clusters, only single stops can be picked, and a station's
+         stops seldom serve both sides of a transfer. -->
+    <p v-if="!hasClusters" class="cal-transfer-report-note">
+      Stop clusters are off, so only single stops are listed; add other
+      stops to one under Stops, or
+      <cat-button size="small" class="ml-1" @click="$emit('enableClusters')">
+        Turn on stop clusters and rerun
+      </cat-button>
+    </p>
     <p v-if="!subjectKind" class="cal-transfer-report-note">
       Pick a stop or stop cluster to see its transfers, or use "Enter Transfer
       Analyst" in a stop's or cluster's trip information on the map.
@@ -230,6 +253,12 @@ const props = defineProps<{
   title: string
   // The stops and clusters the report can be about, as picker options.
   subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
+  // The stops the transfers are at: the subject's, as changed; and every stop
+  // that can be added.
+  stops: number[]
+  stopOptions: { value: number, label: string }[]
+  // Whether the scenario has stop clusters.
+  hasClusters: boolean
   // Each view's rows, nested: an arriving trip (or destination), then the
   // departing ones it connects to.
   summaryGrid: TransferSummaryGridRow[]
@@ -254,9 +283,13 @@ const props = defineProps<{
 
 defineEmits<{
   // Fetch the details that did not arrive.
-  retry: []
+  'retry': []
   // Show a route's trips.
-  openTrips: [routeId: number]
+  'openTrips': [routeId: number]
+  // The stops picked.
+  'update:stops': [stopIds: number[]]
+  // Turn on stop clustering, and run the scenario again.
+  'enableClusters': []
 }>()
 
 // The picked stop or cluster, as "stop:<id>" or "cluster:<id>"; blank for none.
@@ -492,6 +525,11 @@ function rowClass (row: TransferGridTrip): string | undefined {
   :deep(.label) {
     margin-bottom: 0.25rem;
   }
+}
+
+.cal-transfer-report-stops {
+  flex: 0 0 auto;
+  margin-bottom: 0.75rem;
 }
 
 .cal-transfer-report-view :deep(.cat-tabs) {
