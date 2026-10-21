@@ -62,7 +62,13 @@
               @click="openSection = openSection === t.section ? undefined : t.section"
             >
               {{ t.label }}
-              <span v-if="t.badge" class="tag is-rounded is-info is-light ml-2">{{ t.badge }}</span>
+              <!-- A count on the button's corner, so it shows at a glance
+                   that trips are left out, without widening the button; said
+                   in full on hover and to screen readers. -->
+              <span v-if="t.badge" class="cal-transfer-report-badge" :title="t.badge.title">
+                <span aria-hidden="true">{{ t.badge.short }}</span>
+                <span class="is-sr-only">{{ t.badge.title }}</span>
+              </span>
             </cat-button>
           </div>
         </cat-field>
@@ -297,9 +303,9 @@ const excludedCount = computed(() => {
   }
   return count(props.routeChoices.from, settings.value.excludedFrom) + count(props.routeChoices.to, settings.value.excludedTo)
 })
-const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: string }[] => [
+const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: { short: string, title: string } }[] => [
   { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },
-  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? `${excludedCount.value.toLocaleString()} trips excluded` : undefined },
+  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? { short: excludedCount.value > 999 ? '999+' : String(excludedCount.value), title: `${excludedCount.value.toLocaleString()} trips excluded` } : undefined },
 ])
 
 const views: { value: TransferReportView, label: string }[] = [
@@ -467,6 +473,33 @@ const individualReport = computed((): TableReport => {
 .cal-transfer-report-settings-toggles {
   display: flex;
   gap: 0.5rem;
+
+  // The badge sits on the button's corner.
+  :deep(.button) {
+    position: relative;
+    overflow: visible;
+  }
+}
+
+.cal-transfer-report-badge {
+  position: absolute;
+  top: -0.55rem;
+  right: -0.55rem;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bulma-primary);
+  color: var(--bulma-primary-invert, #fff);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bulma-scheme-main);
+  pointer-events: none;
 }
 
 // The figures and the grade bar, one row.
