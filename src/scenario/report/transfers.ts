@@ -8,7 +8,7 @@
  * arrival the evening before.
  */
 
-import { TRANSFER_GRADE_BREAKPOINTS, formatGtfsTimeFull } from '../../core'
+import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatGtfsTimeFull } from '../../core'
 import type { StopDepartureCache } from '../../tl/departure-cache'
 import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
 import type { TripTableRoute, TripTableStop } from './subject-trips'
@@ -65,8 +65,40 @@ export interface TransferGroup {
   connections: TransferConnection[]
 }
 
+// How the Transfer Analyst finds and grades connections.
+export interface TransferSettings {
+  // Where a walk between two different stops gets its distance: a straight
+  // line or the street network, from the Transitland directions API; GTFS
+  // pathways are not yet supported.
+  walkDistance: 'line' | 'street' | 'pathways'
+  // Walking time per meter of that distance.
+  secondsPerMeter: number
+  // Every connection, rather than the first on each route and direction.
+  allConnections: boolean
+  // Five increasing wait breakpoints, in seconds.
+  breakpoints: number[]
+  // Routes whose arrivals, or departures, are left out.
+  excludedFromRoutes: number[]
+  excludedToRoutes: number[]
+}
+
+export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
+  walkDistance: 'line',
+  secondsPerMeter: TRANSFER_WALK_SECONDS_PER_METER,
+  allConnections: false,
+  breakpoints: [...TRANSFER_GRADE_BREAKPOINTS],
+  excludedFromRoutes: [],
+  excludedToRoutes: [],
+}
+
+// Whether breakpoints can grade waits: five, strictly increasing.
+export function validBreakpoints (breakpoints: readonly number[]): boolean {
+  return breakpoints.length === 5 && breakpoints.every((b, i) => Number.isFinite(b) && (i === 0 || b > breakpoints[i - 1]!))
+}
+
 export interface TransferOptions {
-  // Walking time between two stops, in seconds.
+  // Walking time between two stops, in seconds; not finite where it is not
+  // known, which leaves that pair of stops out.
   walkSeconds: (fromStopId: number, toStopId: number) => number
   // The most walkSeconds returns, to bound the search.
   maxWalkSeconds: number
@@ -255,6 +287,9 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
         continue
       }
       const walk = opts.walkSeconds(arrival.stopId, departure.stopId)
+      if (!Number.isFinite(walk)) {
+        continue
+      }
       const wait = departure.time - arrival.time - walk
       if (wait < minWait || wait > maxWait) {
         continue

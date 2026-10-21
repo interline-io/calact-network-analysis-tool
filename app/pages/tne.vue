@@ -79,10 +79,12 @@
                 v-model:subject="transferSubject"
                 v-model:view="transferView"
                 v-model:date="transfers.selectedDate"
-                v-model:walk-minutes="transfers.walkMinutes"
-                v-model:all-connections="transfers.allConnections"
+                v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
+                :breakpoints="transfers.breakpoints"
+                :route-choices="transfers.routeChoices"
+                :unknown-pairs="transfers.unknownPairs"
                 :summary-rows="transfers.summaryRows"
                 :summary-counts="transfers.summaryCounts"
                 :summary-overview="transfers.summaryOverview"
@@ -95,7 +97,7 @@
                 :missing-details="transfers.missingDetails"
                 :details-loading="transfers.detailsLoading"
                 :details-error="transfers.detailsError"
-                @retry="transfers.loadDetails()"
+                @retry="transfers.load()"
               />
             </template>
           </cal-report>
@@ -933,11 +935,11 @@ function openTransfers (subject: TripSubject) {
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
 }
-// The details the transfers need while their tab is shown, as the subject,
-// the filters, or the walk allowance change which trips those are.
-watch([() => activeTab.value.tab, reportTab, transferSubject, scenarioFilterResult, () => transfers.walkMinutes], () => {
+// The trip details and stop distances the transfers need while their tab is
+// shown, as the subject, the filters, or the settings change which those are.
+watch([() => activeTab.value.tab, reportTab, transferSubject, scenarioFilterResult, () => transfers.settings.walkDistance, () => transfers.breakpoints], () => {
   if (activeTab.value.tab === 'report' && reportTab.value === 'transfers') {
-    transfers.loadDetails()
+    transfers.load()
   }
 })
 function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTab = 'trips') {

@@ -1,12 +1,15 @@
 // Transfers at a stop or stop cluster: its arrivals paired with the departures
-// soon after, graded, as the Reports tab's Transfers report shows them.
+// soon after, graded, as the Reports tab's Transfer Analyst shows them.
 //
 // Called from tne.vue, which passes the results to <cal-transfer-report> as
-// props. Trip details come from the store the trip panel and table share.
+// props. Trip details come from the store the trip panel and table share;
+// distances between the stops, from the Transitland directions API.
 
-import { computed, ref, toValue, type MaybeRefOrGetter } from 'vue'
+import { computed, ref, shallowRef, toValue, triggerRef, type MaybeRefOrGetter } from 'vue'
+import { useApolloClient } from '@vue/apollo-composable'
 import { format } from 'date-fns'
 import {
+  DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
   calendarTime,
   clusterDisplayName,
@@ -18,12 +21,25 @@ import {
   transferRows,
   transferSummaryRows,
   transferTripIds,
+  validBreakpoints,
   type ScenarioFilterResult,
+  type TransferSettings,
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { TRANSFER_WALK_SECONDS, dateToSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
-import { routesById, type Stop } from '~~/src/tl'
+import { dateToSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import {
+  STOP_DISTANCE_BATCH_SIZE,
+  parseStopDistances,
+  routesById,
+  stopDistancesRequest,
+  stopPairKey,
+  stopPairs,
+  type Stop,
+  type StopDistanceMode,
+  type StopDistancesResponse,
+  type StopPoint,
+} from '~~/src/tl'
 import type { TripDetailsStore } from './useTripPanel'
 
 export interface UseSubjectTransfersDeps {
@@ -38,10 +54,9 @@ export interface UseSubjectTransfersDeps {
 }
 
 export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripDetailsStore) {
-  // Walking time between two different stops, in minutes; none at one stop.
-  const walkMinutes = ref(TRANSFER_WALK_SECONDS / 60)
-  // Every connection, rather than the first on each route and direction.
-  const allConnections = ref(false)
+  const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
+  // Breakpoints that cannot grade waits are not applied.
+  const breakpoints = computed(() => (validBreakpoints(settings.value.breakpoints) ? settings.value.breakpoints : DEFAULT_TRANSFER_SETTINGS.breakpoints))
   // The date the Individual report shows.
   const selectedDate = ref<string>()
 
@@ -73,7 +88,69 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       endTime: end ? (dateToSeconds(end) ?? 86400) : 86400,
     }
   })
-  const walkSeconds = computed(() => Math.max(0, walkMinutes.value || 0) * 60)
+
+  // Meters between the subject's stops, by stopPairKey, for each source asked
+  // for; kept across subjects, as a pair's distance does not change.
+  const distances = shallowRef(new Map<StopDistanceMode, Map<string, number>>())
+  const distancesRequested = new Set<string>()
+  const distancesLoading = ref(0)
+  const distancesError = ref<string | null>(null)
+  const { resolveClient } = useApolloClient()
+
+  const stopPoints = computed((): StopPoint[] => stopIds.value.flatMap((id) => {
+    const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
+    return lon !== undefined && lat !== undefined ? [{ id, lon, lat }] : []
+  }))
+  // The sources the walk reads: a straight line always, as the street
+  // network's fallback where it cannot route a pair.
+  const distanceModes = computed((): StopDistanceMode[] => (settings.value.walkDistance === 'street' ? ['WALK', 'LINE'] : ['LINE']))
+
+  async function loadDistances (): Promise<void> {
+    for (const mode of distanceModes.value) {
+      const pairs = stopPairs(stopPoints.value).filter(([a, b]) => !distancesRequested.has(`${mode}|${stopPairKey(a.id, b.id)}`))
+      for (const [a, b] of pairs) {
+        distancesRequested.add(`${mode}|${stopPairKey(a.id, b.id)}`)
+      }
+      for (let i = 0; i < pairs.length; i += STOP_DISTANCE_BATCH_SIZE) {
+        const batch = pairs.slice(i, i + STOP_DISTANCE_BATCH_SIZE)
+        distancesLoading.value++
+        try {
+          const { query, variables } = stopDistancesRequest(batch, mode)
+          const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
+          const known = distances.value.get(mode) ?? new Map<string, number>()
+          for (const [key, meters] of parseStopDistances(batch, response.data)) {
+            known.set(key, meters)
+          }
+          distances.value.set(mode, known)
+          triggerRef(distances)
+        } catch (err: any) {
+          // Let a retry ask again.
+          for (const [a, b] of batch) {
+            distancesRequested.delete(`${mode}|${stopPairKey(a.id, b.id)}`)
+          }
+          distancesError.value = err?.message || String(err)
+        } finally {
+          distancesLoading.value--
+        }
+      }
+    }
+  }
+
+  // Meters between two different stops from the chosen source, falling back
+  // to a straight line; undefined where neither is known.
+  function walkMeters (a: number, b: number): number | undefined {
+    const key = stopPairKey(a, b)
+    return distanceModes.value.map(mode => distances.value.get(mode)?.get(key)).find(m => m !== undefined)
+  }
+  const unknownPairs = computed(() => stopPairs(stopPoints.value).filter(([a, b]) => walkMeters(a.id, b.id) === undefined).length)
+  const secondsPerMeter = computed(() => Math.max(0, Number(settings.value.secondsPerMeter) || 0))
+  const maxWalkSeconds = computed(() => {
+    let most = 0
+    for (const [a, b] of stopPairs(stopPoints.value)) {
+      most = Math.max(most, (walkMeters(a.id, b.id) ?? 0) * secondsPerMeter.value)
+    }
+    return most
+  })
 
   const events = computed(() => {
     const r = result.value
@@ -89,17 +166,42 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     })
   })
 
+  // The routes arriving and departing, for the settings' route choices.
+  const routeChoices = computed(() => {
+    const choices = (ids: Set<number>) => [...ids].map((id) => {
+      const route = routes.value.get(id)
+      return {
+        id,
+        label: route?.route_short_name || route?.route_long_name || route?.route_id || String(id),
+        longName: route?.route_long_name ?? '',
+        color: route?.route_color ?? '',
+        textColor: route?.route_text_color ?? '',
+      }
+    }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    return {
+      from: choices(new Set((events.value?.arrivals ?? []).map(e => e.routeId))),
+      to: choices(new Set((events.value?.departures ?? []).map(e => e.routeId))),
+    }
+  })
+
   const groups = computed(() => {
     const e = events.value
     if (!e) {
       return []
     }
-    const walk = walkSeconds.value
-    return calculateTransfers(e.arrivals, e.departures, {
-      walkSeconds: (from, to) => (from === to ? 0 : walk),
-      maxWalkSeconds: walk,
-      allConnections: allConnections.value,
-    })
+    const fromOut = new Set(settings.value.excludedFromRoutes)
+    const toOut = new Set(settings.value.excludedToRoutes)
+    const spm = secondsPerMeter.value
+    return calculateTransfers(
+      e.arrivals.filter(a => !fromOut.has(a.routeId)),
+      e.departures.filter(d => !toOut.has(d.routeId)),
+      {
+        walkSeconds: (from, to) => (from === to ? 0 : (walkMeters(from, to) ?? Number.NaN) * spm),
+        maxWalkSeconds: maxWalkSeconds.value,
+        breakpoints: breakpoints.value,
+        allConnections: settings.value.allConnections,
+      },
+    )
   })
 
   const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(groups.value), routes.value))
@@ -128,19 +230,26 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   }))))
 
   const detailsError = ref<string | null>(null)
-  async function loadDetails (): Promise<void> {
+  // The trips' details and the stops' distances the report needs.
+  async function load (): Promise<void> {
     const r = result.value
     if (!r || stopIds.value.length === 0) {
       return
     }
     detailsError.value = null
+    distancesError.value = null
+    const distancesLoaded = loadDistances()
     detailsError.value = await store.load(transferTripIds({
       stopIds: stopIds.value,
       dates: dates.value,
       ...timeWindow.value,
       stopDepartureCache: r.stopDepartureCache,
-      maxWalkSeconds: walkSeconds.value,
+      // The longest walk the settings could give, as distances may still be
+      // arriving: a few minutes' slack on the trips asked for.
+      maxWalkSeconds: Math.max(maxWalkSeconds.value, 15 * 60),
+      breakpoints: breakpoints.value,
     }))
+    await distancesLoaded
   }
 
   // The subject by name, as the report's heading and download names.
@@ -172,8 +281,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   return {
     title,
     subjectOptions,
-    walkMinutes,
-    allConnections,
+    settings,
+    breakpoints,
+    routeChoices,
     selectedDate,
     available: computed(() => stopIds.value.length > 0),
     arrivalCount: computed(() => events.value?.arrivals.length ?? 0),
@@ -187,9 +297,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     individualCounts,
     individualOverview,
     individualPoints,
-    detailsLoading: store.loading,
-    detailsError,
-    loadDetails,
+    detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
+    detailsError: computed(() => detailsError.value ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)),
+    // Pairs of the stops with no distance to walk between them, which are
+    // left out.
+    unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : unknownPairs.value)),
+    load,
   }
 }
 

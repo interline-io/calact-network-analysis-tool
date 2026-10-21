@@ -180,6 +180,14 @@ describe('calculateTransfers', () => {
     expect(all!.connections.map(c => c.departure.tripId)).toEqual([2, 3, 5, 4])
   })
 
+  it('leaves out stops whose walk between them is not known', () => {
+    const [group] = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 5), 2), event(3, 30, hms(7, 6))], {
+      walkSeconds: (a, b) => (a === b ? 0 : Number.NaN),
+      maxWalkSeconds: 0,
+    })
+    expect(group!.connections.map(c => c.departure.tripId)).toEqual([3])
+  })
+
   it('takes other breakpoints', () => {
     const [group] = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 25))], { ...walk, breakpoints: [-600, 0, 600, 1200, 1800] })
     expect(group!.connections.map(c => c.grade)).toEqual(['long'])

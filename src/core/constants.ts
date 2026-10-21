@@ -173,8 +173,9 @@ export const FREQUENCY_DIRECTION_DIVERGENCE_RATIO = 1.5
 // minutes, good to 6, OK to 10, long wait to 20. A connection outside -5 to 20
 // minutes is not a transfer.
 export const TRANSFER_GRADE_BREAKPOINTS = [-5 * 60, 0, 6 * 60, 10 * 60, 20 * 60] as const
-// Walking time allowed between two different stops; none at the same stop.
-export const TRANSFER_WALK_SECONDS = 2 * 60
+// Walking time between two different stops, per meter of distance between
+// them: 1 second, about 3.6 km/h (2.2 mph), as Transfer Analyst assumes.
+export const TRANSFER_WALK_SECONDS_PER_METER = 1
 
 export const DEFAULT_TIME_WINDOW = {
   start: '06:00:00',

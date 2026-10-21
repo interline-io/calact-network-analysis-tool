@@ -1,7 +1,7 @@
 <template>
   <div class="cal-transfer-report">
-    <!-- What the report is about and how it is viewed come first, at full
-         size; the settings that tune the grading follow, smaller. -->
+    <!-- What the report is about and how it is viewed come first; the
+         settings that tune walking and grading open below on request. -->
     <div class="cal-transfer-report-toolbar">
       <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
         <cat-select v-model="subject">
@@ -41,34 +41,26 @@
             </option>
           </cat-select>
         </cat-field>
-        <div class="cal-transfer-report-settings">
-          <label class="cal-transfer-report-label">
-            <cat-tooltip text="Time allowed to walk between two different stops. A transfer at the same stop has no walk.">
-              Walk between stops (min)
-              <cat-icon size="small" icon="information" />
-            </cat-tooltip>
-            <cat-input
-              v-model="walkMinutes"
-              :model-modifiers="{ lazy: true }"
-              type="number"
-              min="0"
-              step="0.5"
-              size="small"
-              v-bind="{ ariaLabel: 'Walk between stops, in minutes' }"
-            />
-          </label>
-          <cat-checkbox v-model="allConnections">
-            <cat-tooltip text="By default, each arrival shows its first connection on each route and direction, and any it just missed. Check to show every later departure as well.">
-              Show every connection
-            </cat-tooltip>
-          </cat-checkbox>
-          <cat-tooltip :text="about" position="left">
-            How transfers are graded
-            <cat-icon size="small" icon="information" />
-          </cat-tooltip>
-        </div>
+        <cat-button
+          class="cal-transfer-report-settings-toggle"
+          icon-left="tune"
+          :variant="settingsOpen ? 'primary' : undefined"
+          :outlined="settingsOpen"
+          v-bind="{ 'aria-expanded': settingsOpen, 'aria-controls': settingsId }"
+          @click="settingsOpen = !settingsOpen"
+        >
+          Settings
+        </cat-button>
       </template>
     </div>
+
+    <cal-transfer-settings
+      v-if="subjectKind && settingsOpen"
+      v-bind="{ id: settingsId }"
+      v-model="settings"
+      :route-choices="routeChoices"
+      :unknown-pairs="unknownPairs"
+    />
 
     <p v-if="!subjectKind" class="cal-transfer-report-note">
       Pick a stop or stop cluster to see its transfers, or use "Enter Transfer
@@ -201,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, useId } from 'vue'
 import * as Plot from '@observablehq/plot'
 import {
   type TransferOverview,
@@ -213,9 +205,10 @@ import {
   type TransferGrade,
   type TransferGradeCount,
   type TransferRow,
+  type TransferSettings,
   type TransferSummaryRow,
 } from '~~/src/scenario'
-import { TRANSFER_GRADE_BREAKPOINTS, formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
+import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
 export type TransferReportView = 'summary' | 'individual'
 
@@ -233,6 +226,12 @@ const props = defineProps<{
   individualCounts: TransferGradeCount[]
   individualOverview: TransferOverview
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
+  // The breakpoints in use, in seconds.
+  breakpoints: number[]
+  // The routes arriving and departing, and pairs of stops with no distance
+  // between them, for the settings.
+  routeChoices: { from: { id: number, label: string, longName: string, color: string, textColor: string }[], to: { id: number, label: string, longName: string, color: string, textColor: string }[] }
+  unknownPairs: number
   missingDetails: number
   detailsLoading: boolean
   detailsError: string | null
@@ -248,20 +247,18 @@ const subject = defineModel<string>('subject', { required: true })
 const subjectKind = computed(() => (subject.value.startsWith('cluster:') ? 'cluster' : subject.value.startsWith('stop:') ? 'stop' : undefined))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
-const walkMinutes = defineModel<number>('walkMinutes', { required: true })
-const allConnections = defineModel<boolean>('allConnections', { required: true })
+const settings = defineModel<TransferSettings>('settings', { required: true })
+const settingsOpen = ref(false)
+const settingsId = useId()
 
 const views: { value: TransferReportView, label: string }[] = [
   { value: 'summary', label: 'Summary' },
   { value: 'individual', label: 'Individual' },
 ]
 
-const bp = TRANSFER_GRADE_BREAKPOINTS
 function minutes (seconds: number): number {
   return seconds / 60
 }
-
-const about = `Each trip arriving at the stops is paired with the trips leaving on other routes from ${minutes(bp[0])} to ${minutes(bp[4])} minutes later, after walking between stops. Waits from ${minutes(bp[1])} to ${minutes(bp[2])} minutes are good, ${minutes(bp[2])} to ${minutes(bp[3])} OK, and ${minutes(bp[3])} to ${minutes(bp[4])} a long wait; a departure up to ${minutes(-bp[0])} minutes before the rider can reach it is missed.`
 
 const gradeByLabel = new Map(TRANSFER_GRADES.map(g => [TRANSFER_GRADE_LABELS[g], g]))
 function gradeStyle (label: string) {
@@ -333,7 +330,7 @@ const waitChart = computed(() => (_width: number): Plot.PlotOptions => ({
   marginLeft: 56,
   x: { label: null, tickFormat: hourLabel },
   // The grade bar above is the legend.
-  y: { label: null, grid: true, ticks: [minutes(bp[0]), 0, minutes(bp[2]), minutes(bp[3]), minutes(bp[4])], tickFormat: (m: number) => `${m} min`, domain: [minutes(bp[0]), minutes(bp[4])] },
+  y: { label: null, grid: true, ticks: props.breakpoints.map(minutes), tickFormat: (m: number) => `${m} min`, domain: [minutes(props.breakpoints[0]!), minutes(props.breakpoints[4]!)] },
   color: gradeColor,
   marks: [
     Plot.ruleY([0], { strokeOpacity: 0.5 }),
@@ -389,8 +386,8 @@ const individualReport = computed((): TableReport => {
   max-width: 28rem;
 }
 
-// The primary fields, labeled, at full size; the settings at the end of the
-// row, smaller.
+// The primary fields, labeled, at full size; the settings toggle at the end
+// of the row.
 .cal-transfer-report-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -408,15 +405,8 @@ const individualReport = computed((): TableReport => {
   }
 }
 
-.cal-transfer-report-settings {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 1.25rem;
+.cal-transfer-report-settings-toggle {
   margin-left: auto;
-  font-size: 0.875rem;
-  color: var(--bulma-text-weak);
-  min-height: 2.5em;
 }
 
 // The figures and the grade bar, one row.
