@@ -130,6 +130,7 @@
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
+          @open-transfers="openTransfers"
           @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>

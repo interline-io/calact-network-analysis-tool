@@ -28,6 +28,7 @@ const emit = defineEmits([
   'selectableGeoClick',
   'selectableGeoRightClick',
   'showTrips',
+  'openTransfers',
   'popupShown',
   'popupClosed',
 ])
@@ -1085,6 +1086,11 @@ function showPopupAtIndex (index: number) {
         // The trip panel takes over from the popup. The feature stays
         // highlighted, and a cluster stays selected, so the map still shows
         // what the panel describes.
+        removePopup()
+      },
+      onOpenTransfers: (featureType: string, featureId: string | number) => {
+        emit('openTransfers', featureType, featureId)
+        // The Reports tab replaces the map.
         removePopup()
       },
     })
