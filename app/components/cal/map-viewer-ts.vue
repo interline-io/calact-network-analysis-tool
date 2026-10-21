@@ -74,8 +74,10 @@ const props = defineProps<{
   // Draw isochrone bands as outlines only, as while the census choropleth
   // has the fill.
   isochroneOutlineOnly?: boolean
-  // The open isochrone's place, as a draggable marker.
+  // The open isochrone's place, as a draggable marker: drawn as an origin,
+  // or as a destination for arrive-by.
   isochroneOrigin?: Point
+  isochroneArriveBy?: boolean
   // Increment to fit the map to the isochrone bands.
   fitIsochroneKey?: number
 }>()
@@ -126,6 +128,10 @@ watch(() => props.isochroneOutlineOnly, () => {
 
 watch(() => props.isochroneOrigin, (v) => {
   drawIsochroneOrigin(v)
+})
+
+watch(() => props.isochroneArriveBy, () => {
+  styleIsochroneOrigin()
 })
 
 watch(() => props.fitIsochroneKey, () => {
@@ -1348,10 +1354,7 @@ function drawIsochroneOrigin (p: Point | undefined) {
     return
   }
   if (!isochroneOriginMarker) {
-    const el = document.createElement('div')
-    el.className = 'cal-isochrone-origin'
-    el.title = 'Drag to move'
-    isochroneOriginMarker = new maplibre.Marker({ element: el, draggable: true })
+    isochroneOriginMarker = new maplibre.Marker({ element: document.createElement('div'), draggable: true })
       .setLngLat([p.lon, p.lat])
       .addTo(map)
     isochroneOriginMarker.on('dragend', () => {
@@ -1360,9 +1363,27 @@ function drawIsochroneOrigin (p: Point | undefined) {
         emit('isochroneOriginMoved', { lon: ll.lng, lat: ll.lat })
       }
     })
+    styleIsochroneOrigin()
     return
   }
   isochroneOriginMarker.setLngLat([p.lon, p.lat])
+}
+
+// A solid dot to leave from; a flag to arrive at.
+function styleIsochroneOrigin () {
+  const el = isochroneOriginMarker?.getElement()
+  if (!el) {
+    return
+  }
+  const arriveBy = !!props.isochroneArriveBy
+  el.className = `cal-isochrone-origin ${arriveBy ? 'is-destination' : 'is-origin'}`
+  el.title = arriveBy ? 'Arriving here. Drag to move.' : 'Leaving from here. Drag to move.'
+  el.replaceChildren()
+  if (arriveBy) {
+    const icon = document.createElement('i')
+    icon.className = 'mdi mdi-flag-checkered'
+    el.appendChild(icon)
+  }
 }
 
 function mapZoom () {
@@ -1459,13 +1480,27 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
 
   /* The open isochrone's place */
   .cal-isochrone-origin {
-    width: 18px;
-    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 50%;
-    background: #08306b;
-    border: 3px solid #fff;
     box-shadow: 0 0 0 1px #08306b, 0 2px 4px rgba(0, 0, 0, 0.4);
     cursor: grab;
+  }
+  .cal-isochrone-origin.is-origin {
+    width: 18px;
+    height: 18px;
+    background: #08306b;
+    border: 3px solid #fff;
+  }
+  .cal-isochrone-origin.is-destination {
+    width: 26px;
+    height: 26px;
+    background: #fff;
+    border: 3px solid #08306b;
+    color: #08306b;
+    font-size: 15px;
+    line-height: 1;
   }
 
   /* Hover tooltip for selectable geographies */

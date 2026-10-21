@@ -101,6 +101,7 @@
           :clear-selection-key="mapSelectionClearKey"
           :isochrone-features="isochroneFeatures"
           :isochrone-origin="isochroneParams?.place"
+          :isochrone-arrive-by="isochroneParams?.arriveBy"
           :fit-isochrone-key="fitIsochroneKey"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"

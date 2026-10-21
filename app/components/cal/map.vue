@@ -46,6 +46,7 @@
       :isochrone-features="props.isochroneFeatures || []"
       :isochrone-outline-only="!!props.choroplethFeatures?.length"
       :isochrone-origin="props.isochroneOrigin"
+      :isochrone-arrive-by="props.isochroneArriveBy"
       :fit-isochrone-key="props.fitIsochroneKey"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
@@ -130,6 +131,7 @@ const props = defineProps<{
   // The open isochrone's bands, longest first, and its place.
   isochroneFeatures?: Feature[]
   isochroneOrigin?: Point
+  isochroneArriveBy?: boolean
   // Increment to fit the map to the isochrone bands.
   fitIsochroneKey?: number
 }>()

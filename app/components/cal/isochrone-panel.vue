@@ -30,7 +30,8 @@
       </div>
 
       <p class="cal-isochrone-place">
-        <i class="mdi mdi-map-marker" />
+        <!-- As the map draws the place. -->
+        <i class="mdi" :class="params.arriveBy ? 'mdi-flag-checkered' : 'mdi-circle'" />
         {{ placeLabel }}
         <span class="cal-isochrone-hint">Drag the marker to move it.</span>
       </p>
