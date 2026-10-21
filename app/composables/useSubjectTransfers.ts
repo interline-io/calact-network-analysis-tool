@@ -84,14 +84,36 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const s = toValue(deps.subject)
     return s?.kind === 'cluster' ? result.value?.stopClusters?.find(c => c.id === s.clusterId) : undefined
   })
+  // Stops by their parent station (its feed version and GTFS id).
+  const stopsByParent = computed(() => {
+    const byParent = new Map<string, number[]>()
+    for (const stop of stops.value.values()) {
+      if (stop.parent?.stop_id) {
+        const key = `${stop.feed_version.sha1}|${stop.parent.stop_id}`
+        byParent.set(key, [...(byParent.get(key) ?? []), stop.id])
+      }
+    }
+    return byParent
+  })
   // The subject's own stops: a cluster's members follow the filters, as the
-  // trip panel's do.
+  // trip panel's do. With them, the other stops of their parent stations, as
+  // a station's other platforms, which a cluster of one stop per agency
+  // leaves out, are where riders transfer too.
   const subjectStopIds = computed((): number[] => {
     const s = toValue(deps.subject)
-    if (s?.kind === 'stop') {
-      return stops.value.has(s.stopId) ? [s.stopId] : []
+    const own = s?.kind === 'stop'
+      ? (stops.value.has(s.stopId) ? [s.stopId] : [])
+      : (cluster.value?.memberStopIds ?? [])
+    const ids = new Set(own)
+    for (const id of own) {
+      const stop = stops.value.get(id)
+      if (stop?.parent?.stop_id) {
+        for (const sibling of stopsByParent.value.get(`${stop.feed_version.sha1}|${stop.parent.stop_id}`) ?? []) {
+          ids.add(sibling)
+        }
+      }
     }
-    return cluster.value?.memberStopIds ?? []
+    return [...ids]
   })
   const addedStopIds = computed(() => deps.stopEdits.value.added)
   const removedStopIds = computed(() => deps.stopEdits.value.removed)
