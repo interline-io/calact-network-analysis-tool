@@ -94,8 +94,6 @@
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
                 :map-stops="transfers.mapStops"
-                :stops-edited="transfers.stopsEdited"
-                :subject-stop-count="transfers.subjectStopCount"
                 :has-clusters="transfers.hasClusters"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
@@ -114,7 +112,6 @@
                 @retry="transfers.retry()"
                 @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
                 @update:stops="transfers.setStopIds($event)"
-                @reset-stops="transferStopEdits = { added: [], removed: [] }"
                 @enable-clusters="enableClustersForTransfers"
               />
             </template>

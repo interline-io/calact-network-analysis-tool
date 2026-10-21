@@ -14,8 +14,11 @@
     <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
       <div class="cal-transfer-stops-head">
         <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
-        <button v-if="edited" type="button" class="cal-transfer-stops-link" :title="`Back to the ${subjectStopCount} ${subjectStopCount === 1 ? 'stop' : 'stops'} it started with`" @click="$emit('reset')">
-          Reset
+        <button v-if="listed.some(s => !picked.has(s.id))" type="button" class="cal-transfer-stops-link" @click="selectListed">
+          Select all
+        </button>
+        <button v-if="stops.length > 0" type="button" class="cal-transfer-stops-link" @click="stops = []">
+          Unselect all
         </button>
       </div>
       <div v-for="group of groups" :key="group.operator" class="cal-transfer-stops-group">
@@ -57,14 +60,6 @@ const props = defineProps<{
   mapStops: TransferMapStop[]
   // Frames the map anew when it changes: the subject.
   fitKey: string
-  // Whether the stops differ from the subject's own, and how many those are.
-  edited: boolean
-  subjectStopCount: number
-}>()
-
-defineEmits<{
-  // Back to the subject's own stops.
-  reset: []
 }>()
 
 const stops = defineModel<number[]>({ required: true })
@@ -95,6 +90,11 @@ const groups = computed(() => {
     .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
     .map(([operator, list]) => ({ operator, stops: list }))
 })
+
+// Every stop listed picked.
+function selectListed () {
+  stops.value = [...new Set([...stops.value, ...listed.value.map(s => s.id)])]
+}
 
 function setPicked (id: number, on: boolean) {
   stops.value = on ? [...stops.value, id] : stops.value.filter(x => x !== id)

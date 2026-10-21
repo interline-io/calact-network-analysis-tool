@@ -83,10 +83,7 @@
       :model-value="stops"
       :map-stops="mapStops"
       :fit-key="subject"
-      :edited="stopsEdited"
-      :subject-stop-count="subjectStopCount"
       @update:model-value="$emit('update:stops', $event)"
-      @reset="$emit('resetStops')"
     />
     <cal-transfer-settings
       v-else-if="subjectKind && openSection"
@@ -258,9 +255,6 @@ const props = defineProps<{
   // that can be added.
   stops: number[]
   mapStops: TransferMapStop[]
-  // Whether the stops differ from the subject's own, and how many those are.
-  stopsEdited: boolean
-  subjectStopCount: number
   // Whether the scenario has stop clusters.
   hasClusters: boolean
   // Each view's rows, nested: an arriving trip (or destination), then the
@@ -292,7 +286,6 @@ defineEmits<{
   'openTrips': [routeId: number]
   // The stops picked, or the subject's own again.
   'update:stops': [stopIds: number[]]
-  'resetStops': []
   // Turn on stop clustering, and run the scenario again.
   'enableClusters': []
 }>()
@@ -335,10 +328,8 @@ const tripsKeptBadge = computed(() => {
   const percent = Math.floor((kept / total) * 100)
   return { short: `${percent}%`, title: `${percent}% of trips match the trip filters (${kept.toLocaleString()} of ${total.toLocaleString()})` }
 })
-// The stop count, on its button while it differs from the subject's own.
-const stopsBadge = computed(() => (props.stopsEdited
-  ? { short: String(props.stops.length), title: `${props.stops.length} stops, changed from the ${props.subjectStopCount} it started with` }
-  : undefined))
+// The count of stops picked, on its button.
+const stopsBadge = computed(() => ({ short: String(props.stops.length), title: `${props.stops.length} ${props.stops.length === 1 ? 'stop' : 'stops'} picked` }))
 const settingsToggles = computed((): { section: TransferSettingsSection | 'stops', label: string, icon: string, badge?: { short: string, title: string } }[] => [
   { section: 'stops', label: 'Stops & platforms', icon: 'map-marker-multiple', badge: stopsBadge.value },
   { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },

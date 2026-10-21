@@ -398,9 +398,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stopIds,
     setStopIds,
     mapStops,
-    // The subject's own stops, and whether they have been changed.
-    subjectStopCount: computed(() => subjectStopIds.value.length),
-    stopsEdited: computed(() => addedStopIds.value.length > 0 || removedStopIds.value.length > 0),
     // Whether the scenario found stop clusters; it finds none with clustering
     // off.
     hasClusters: computed(() => (result.value?.stopClusters?.length ?? 0) > 0),
