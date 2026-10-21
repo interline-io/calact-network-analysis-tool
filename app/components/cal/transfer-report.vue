@@ -77,23 +77,23 @@
 
     <!-- The subject's stops, to add to or take from: a station's other
          platform, say, that its cluster left out. -->
-    <cat-field v-if="subjectKind" label="Stops" class="cal-transfer-report-stops">
-      <cat-taginput
-        :model-value="stops"
-        :options="stopOptions"
-        placeholder="Add a stop…"
-        icon="plus"
-        fullwidth
-        size="small"
-        @update:model-value="$emit('update:stops', $event as number[])"
-      />
-    </cat-field>
-
+    <cal-transfer-stops
+      v-if="subjectKind && openSection === 'stops'"
+      v-bind="{ id: settingsId }"
+      :model-value="stops"
+      :stop-options="stopOptions"
+      :map-stops="mapStops"
+      :fit-key="subject"
+      :edited="stopsEdited"
+      :subject-stop-count="subjectStopCount"
+      @update:model-value="$emit('update:stops', $event)"
+      @reset="$emit('resetStops')"
+    />
     <cal-transfer-settings
-      v-if="subjectKind && openSection"
+      v-else-if="subjectKind && openSection"
       v-bind="{ id: settingsId }"
       v-model="settings"
-      :section="openSection"
+      :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
       :route-choices="routeChoices"
       :unknown-pairs="unknownPairs"
       @open-trips="$emit('openTrips', $event)"
@@ -102,8 +102,8 @@
     <!-- Without clusters, only single stops can be picked, and a station's
          stops seldom serve both sides of a transfer. -->
     <p v-if="!hasClusters" class="cal-transfer-report-note">
-      Stop clusters are off, so only single stops are listed; add other
-      stops to one under Stops, or
+      Stop clusters are off, so only single stops are listed; pick one and
+      add other stops to it under Stops & platforms, or
       <cat-button size="small" class="ml-1" @click="$emit('enableClusters')">
         Turn on stop clusters and rerun
       </cat-button>
@@ -226,6 +226,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
+import type { TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
 import {
   TRANSFER_TIME_BANDS,
@@ -257,6 +258,10 @@ const props = defineProps<{
   // that can be added.
   stops: number[]
   stopOptions: { value: number, label: string }[]
+  mapStops: TransferMapStop[]
+  // Whether the stops differ from the subject's own, and how many those are.
+  stopsEdited: boolean
+  subjectStopCount: number
   // Whether the scenario has stop clusters.
   hasClusters: boolean
   // Each view's rows, nested: an arriving trip (or destination), then the
@@ -286,8 +291,9 @@ defineEmits<{
   'retry': []
   // Show a route's trips.
   'openTrips': [routeId: number]
-  // The stops picked.
+  // The stops picked, or the subject's own again.
   'update:stops': [stopIds: number[]]
+  'resetStops': []
   // Turn on stop clustering, and run the scenario again.
   'enableClusters': []
 }>()
@@ -301,7 +307,7 @@ const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
 const settings = defineModel<TransferSettings>('settings', { required: true })
 // Trip filtering is open on entering, as which trips count is the first
 // thing to set.
-const openSection = ref<TransferSettingsSection | undefined>('trips')
+const openSection = ref<TransferSettingsSection | 'stops' | undefined>('trips')
 const settingsId = useId()
 
 // The share of trips, arriving and departing, that trip filtering keeps, on
@@ -329,7 +335,12 @@ const tripsKeptBadge = computed(() => {
   const percent = Math.floor((kept / total) * 100)
   return { short: `${percent}%`, title: `${percent}% of trips match the trip filters (${kept.toLocaleString()} of ${total.toLocaleString()})` }
 })
-const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: { short: string, title: string } }[] => [
+// The stop count, on its button while it differs from the subject's own.
+const stopsBadge = computed(() => (props.stopsEdited
+  ? { short: String(props.stops.length), title: `${props.stops.length} stops, changed from the ${props.subjectStopCount} it started with` }
+  : undefined))
+const settingsToggles = computed((): { section: TransferSettingsSection | 'stops', label: string, icon: string, badge?: { short: string, title: string } }[] => [
+  { section: 'stops', label: 'Stops & platforms', icon: 'map-marker-multiple', badge: stopsBadge.value },
   { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },
   { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: tripsKeptBadge.value },
 ])
@@ -525,11 +536,6 @@ function rowClass (row: TransferGridTrip): string | undefined {
   :deep(.label) {
     margin-bottom: 0.25rem;
   }
-}
-
-.cal-transfer-report-stops {
-  flex: 0 0 auto;
-  margin-bottom: 0.75rem;
 }
 
 .cal-transfer-report-view :deep(.cat-tabs) {

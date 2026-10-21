@@ -93,6 +93,9 @@
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
                 :stop-options="transfers.stopOptions"
+                :map-stops="transfers.mapStops"
+                :stops-edited="transfers.stopsEdited"
+                :subject-stop-count="transfers.subjectStopCount"
                 :has-clusters="transfers.hasClusters"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
@@ -111,6 +114,7 @@
                 @retry="transfers.retry()"
                 @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
                 @update:stops="transfers.setStopIds($event)"
+                @reset-stops="transferStopEdits = { added: [], removed: [] }"
                 @enable-clusters="enableClustersForTransfers"
               />
             </template>
@@ -276,7 +280,7 @@ import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import type { TransferReportView } from '~/components/cal/transfer-report.vue'
 import type { ReportTab } from '~/components/cal/report.vue'
-import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers } from '~/composables/useSubjectTransfers'
+import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -935,7 +939,24 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
 // Transfers at a stop or cluster, in the Reports tab's Transfer Analyst: picked
 // there, or opened from the trip panel or a Stop Clusters row.
 const reportTab = ref<ReportTab>('routes')
-const transferSubject = ref('')
+// The stop or cluster ("transferAt"), and the stops added to or taken from
+// its own ("transferStops", as "+id" and "-id"), are in the URL, so a link
+// shares the analysis. A new subject starts from its own stops.
+const transferSubject = computed({
+  get: () => query.value.transferAt?.toString() ?? '',
+  set: (v: string) => { setQuery({ transferAt: v || undefined, transferStops: undefined }) },
+})
+const transferStopEdits = computed<TransferStopEdits>({
+  get: () => {
+    const parts = (query.value.transferStops?.toString() ?? '').split(',').filter(Boolean)
+    const ids = (sign: string) => parts.filter(p => p.startsWith(sign)).map(p => Number(p.slice(1))).filter(Number.isFinite)
+    return { added: ids('+'), removed: ids('-') }
+  },
+  set: ({ added, removed }) => {
+    const value = [...added.map(id => `+${id}`), ...removed.map(id => `-${id}`)].join(',')
+    setQuery({ transferStops: value || undefined })
+  },
+})
 const transfers = reactive(useSubjectTransfers({
   subject: () => transferSubjectFromKey(transferSubject.value),
   scenarioFilterResult,
@@ -945,6 +966,7 @@ const transfers = reactive(useSubjectTransfers({
   startTime,
   endTime,
   active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
+  stopEdits: transferStopEdits,
 }, tripDetailsStore))
 const transferView = ref<TransferReportView>('summary')
 // The view's table, as the Reports tab's CSV download.

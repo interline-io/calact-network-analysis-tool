@@ -5,7 +5,7 @@
 // props. Trip details come from the store the trip panel and table share;
 // distances between the stops, from the Transitland directions API.
 
-import { computed, ref, shallowRef, toValue, triggerRef, watch, type MaybeRefOrGetter } from 'vue'
+import { computed, ref, shallowRef, toValue, triggerRef, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
 import {
   DEFAULT_TRANSFER_SETTINGS,
@@ -57,6 +57,15 @@ export interface UseSubjectTransfersDeps {
   // While the report is shown: the trip details and stop distances it needs
   // are fetched then, as they come to be needed.
   active: MaybeRefOrGetter<boolean>
+  // Stops added to the subject's, and of its own, those taken out: so a
+  // station's other platform can join a cluster. Held by the page (in the
+  // URL), which clears them for each subject.
+  stopEdits: Ref<TransferStopEdits>
+}
+
+export interface TransferStopEdits {
+  added: number[]
+  removed: number[]
 }
 
 export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripDetailsStore) {
@@ -84,14 +93,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     return cluster.value?.memberStopIds ?? []
   })
-  // Stops added to the subject's, and of its own, those taken out: so a
-  // station's other platform can join a cluster. Cleared for each subject.
-  const addedStopIds = ref<number[]>([])
-  const removedStopIds = ref<number[]>([])
-  watch(() => transferSubjectKey(toValue(deps.subject)), () => {
-    addedStopIds.value = []
-    removedStopIds.value = []
-  })
+  const addedStopIds = computed(() => deps.stopEdits.value.added)
+  const removedStopIds = computed(() => deps.stopEdits.value.removed)
   const stopIds = computed((): number[] => {
     const removed = new Set(removedStopIds.value)
     const own = subjectStopIds.value.filter(id => !removed.has(id))
@@ -101,18 +104,25 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   function setStopIds (ids: number[]) {
     const own = new Set(subjectStopIds.value)
     const picked = new Set(ids)
-    addedStopIds.value = ids.filter(id => !own.has(id))
-    removedStopIds.value = subjectStopIds.value.filter(id => !picked.has(id))
+    deps.stopEdits.value = {
+      added: ids.filter(id => !own.has(id)),
+      removed: subjectStopIds.value.filter(id => !picked.has(id)),
+    }
   }
   // Every stop with service, by name, with its routes to tell apart stops
   // that share a name; for adding stops to the subject.
-  const stopOptions = computed(() => (result.value?.stops || [])
+  const stopChoices = computed(() => (result.value?.stops || [])
     .filter(s => s.marked)
     .map((s) => {
-      const routeNames = [...new Set(s.route_stops.map(rs => routes.value.get(rs.route_id)?.route_short_name || routes.value.get(rs.route_id)?.route_long_name).filter(Boolean))]
-      return { value: s.id, name: s.stop_name || s.stop_id, label: `${s.stop_name || s.stop_id}${routeNames.length ? ` · ${routeNames.join(', ')}` : ''}` }
+      const routeNames = [...new Set(s.route_stops.map(rs => routes.value.get(rs.route_id)?.route_short_name || routes.value.get(rs.route_id)?.route_long_name).filter(Boolean))].join(', ')
+      const name = s.stop_name || s.stop_id
+      const [lon, lat] = s.geometry.coordinates
+      return { id: s.id, name, routes: routeNames, lon: lon!, lat: lat!, label: `${name}${routeNames ? ` · ${routeNames}` : ''}` }
     })
     .sort((a, b) => a.label.localeCompare(b.label)))
+  // As picker options, and as the map's stops.
+  const stopOptions = computed(() => stopChoices.value.map(s => ({ value: s.id, label: s.label })))
+  const mapStops = computed(() => stopChoices.value.map(({ label: _, ...s }) => s))
   // Scoped as the reports scope them.
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
@@ -361,6 +371,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stopIds,
     setStopIds,
     stopOptions,
+    mapStops,
+    // The subject's own stops, and whether they have been changed.
+    subjectStopCount: computed(() => subjectStopIds.value.length),
+    stopsEdited: computed(() => addedStopIds.value.length > 0 || removedStopIds.value.length > 0),
     // Whether the scenario found stop clusters; it finds none with clustering
     // off.
     hasClusters: computed(() => (result.value?.stopClusters?.length ?? 0) > 0),
