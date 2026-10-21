@@ -242,6 +242,9 @@ function initMap () {
     zoom: 15,
     maxZoom: MAX_ZOOM,
     center: [-122.4, 45.5],
+    // The map data's credits only, not MapLibre's own, which the control
+    // adds by default.
+    attributionControl: { compact: true },
     style: {
       glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
       sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
