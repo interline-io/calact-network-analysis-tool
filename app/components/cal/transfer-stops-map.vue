@@ -130,6 +130,8 @@ function emitView () {
 // A marker: a circle for a stop, a rounded square for a platform; filled
 // when picked, hollow otherwise.
 const MARKER_SIZE = 20
+// As close as the map goes, a few meters across a marker.
+const MAX_ZOOM = 21
 const PICKED = '#7a4dda'
 const UNPICKED = '#5b6470'
 function marker (platform: boolean, picked: boolean): ImageData {
@@ -209,7 +211,7 @@ function showHover (m: maplibre.Map, features: maplibre.MapGeoJSONFeature[]) {
   popup = new maplibre.Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '18rem' })
     .setLngLat(f.geometry.coordinates as [number, number])
     .setHTML(features.length > 1
-      ? `${features.map(x => stopHtml(x.properties ?? {})).join('<hr>')}<br><em>Click to pick among these ${features.length}</em>`
+      ? `${features.map(x => stopHtml(x.properties ?? {})).join('<hr>')}<br><em>Click to set these ${features.length} apart</em>`
       : stopHtml(f.properties ?? {}))
     .addTo(m)
 }
@@ -238,6 +240,7 @@ function initMap () {
   const m = new maplibre.Map({
     container: mapContainer.value,
     zoom: 15,
+    maxZoom: MAX_ZOOM,
     center: [-122.4, 45.5],
     style: {
       glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
@@ -293,8 +296,9 @@ function initMap () {
     })
     // No names drawn: they crowd a station's stops. Hovering a stop, or its
     // row in the list, names it.
-    // Several stops under the pointer are listed together; clicking one
-    // picks it, clicking several opens a list to pick among them.
+    // Several stops under the pointer are listed together. Clicking one picks
+    // it; clicking several zooms in on them, to set them apart, and once
+    // zoomed all the way in, opens a list to pick among them.
     let hovered: number | undefined
     m.on('mousemove', (e) => {
       const features = stopsAt(m, e.point)
@@ -325,6 +329,11 @@ function initMap () {
       }
       if (features.length === 1) {
         toggle(f.properties?.id as number)
+        return
+      }
+      if (m.getZoom() < MAX_ZOOM - 0.5) {
+        popup?.remove()
+        m.easeTo({ center: f.geometry.coordinates as [number, number], zoom: Math.min(m.getZoom() + 2, MAX_ZOOM) })
         return
       }
       popup?.remove()
