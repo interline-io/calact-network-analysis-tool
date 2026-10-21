@@ -94,18 +94,19 @@
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
-                :summary-rows="transfers.summaryRows"
+                :summary-grid="transfers.summaryGrid"
                 :summary-overview="transfers.summaryOverview"
                 :individual-dates="transfers.individualDates"
                 :individual-date="transfers.individualDate"
                 :summary-date="transfers.summaryDate"
-                :individual-rows="transfers.individualRows"
+                :individual-grid="transfers.individualGrid"
                 :individual-overview="transfers.individualOverview"
                 :individual-points="transfers.individualPoints"
                 :missing-details="transfers.missingDetails"
                 :details-loading="transfers.detailsLoading"
                 :details-error="transfers.detailsError"
                 @retry="transfers.retry()"
+                @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
               />
             </template>
           </cal-report>

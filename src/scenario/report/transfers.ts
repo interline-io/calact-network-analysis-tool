@@ -32,6 +32,13 @@ export interface TransferEvent {
   date: string
   seconds: number
   headsign?: string
+  // Where the trip starts and ends, by station, and how many stops it makes.
+  origin?: string
+  terminus?: string
+  stopCount?: number
+  // An arrival on a trip that ends at the stops, or a departure on one that
+  // starts there.
+  terminal?: boolean
 }
 
 export type TransferGrade = 'missed' | 'good' | 'ok' | 'long'
@@ -95,16 +102,30 @@ export function transferTripKey (e: Pick<TransferEvent, 'routeId' | 'directionId
   return `${e.routeId}|${e.directionId}|${e.headsign ?? ''}`
 }
 
+// Where a destination's trips most often start and end, and how many stops
+// they make.
+export interface TransferTripRun {
+  origin?: string
+  terminus?: string
+  stopCount?: number
+}
+
 export interface TransferTripDestination {
   key: string
   label: string
   count: number
+  run: TransferTripRun
+  // Its trips that end at the stops (arriving) or start there (departing).
+  terminal: number
+  // Where its run is shorter than its direction's main one, between other
+  // ends, that main run.
+  shortOf?: TransferTripRun
 }
 
 export interface TransferTripDirection {
   directionId: number
-  // "Toward X" where most of the direction's trips go to X; otherwise its
-  // number.
+  // "Toward X" where most of the direction's trips are signed for, or end
+  // at, X; otherwise its number.
   label: string
   count: number
   destinations: TransferTripDestination[]
@@ -130,16 +151,34 @@ export interface TransferChoiceRoute {
 /**
  * The trips at the stops as a tree of routes, directions, and destinations,
  * as www groups a stop's departures. A direction is "Toward X" when more than
- * half its trips go to X; otherwise, or where both directions would read the
- * same, it is "Direction 0" or "Direction 1". A trip with no sign reads its
- * route's long name. Routes go by their GTFS sort order, then name.
+ * half its trips are signed for X, or failing that end at X; otherwise, or
+ * where both directions would read the same, it is "Direction 0" or
+ * "Direction 1". A trip with no sign reads its route's long name. Routes go
+ * by their GTFS sort order, then name.
+ *
+ * A destination whose trips most often make fewer stops than those of its
+ * direction's busiest destination, between other ends, is a short run.
  */
 export function transferTripChoices (events: TransferEvent[], routes: Map<number, TransferChoiceRoute>): TransferRouteChoice[] {
-  const byRoute = new Map<number, Map<number, Map<string, number>>>()
+  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[] }
+  const byRoute = new Map<number, Map<number, Map<string, Tally>>>()
   for (const e of events) {
-    const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, number>>()
-    const destinations = directions.get(e.directionId) ?? new Map<string, number>()
-    destinations.set(e.headsign ?? '', (destinations.get(e.headsign ?? '') || 0) + 1)
+    const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, Tally>>()
+    const destinations = directions.get(e.directionId) ?? new Map<string, Tally>()
+    const headsign = e.headsign ?? ''
+    const tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [] }
+    tally.count += 1
+    tally.terminal += e.terminal ? 1 : 0
+    if (e.origin) {
+      tally.origins.push(e.origin)
+    }
+    if (e.terminus) {
+      tally.termini.push(e.terminus)
+    }
+    if (e.stopCount !== undefined) {
+      tally.stopCounts.push(e.stopCount)
+    }
+    destinations.set(headsign, tally)
     directions.set(e.directionId, destinations)
     byRoute.set(e.routeId, directions)
   }
@@ -148,33 +187,111 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     const label = routeLabel(route) || String(id)
     const destinationLabel = (headsign: string) => headsign || route?.route_long_name || 'No destination'
     const directions = [...directionMap].map(([directionId, destinationMap]) => {
-      const destinations = [...destinationMap]
-        .map(([headsign, count]) => ({ key: transferTripKey({ routeId: id, directionId, headsign }), label: destinationLabel(headsign), count }))
+      const destinations: TransferTripDestination[] = [...destinationMap]
+        .map(([headsign, t]) => ({
+          key: transferTripKey({ routeId: id, directionId, headsign }),
+          label: destinationLabel(headsign),
+          count: t.count,
+          run: { origin: mostCommon(t.origins), terminus: mostCommon(t.termini), stopCount: mostCommon(t.stopCounts) },
+          terminal: t.terminal,
+        }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+      const main = destinations[0]?.run
+      for (const d of destinations.slice(1)) {
+        if (main && isShorter(d.run, main)) {
+          d.shortOf = main
+        }
+      }
       const count = destinations.reduce((n, d) => n + d.count, 0)
-      const top = destinations[0]
+      const majority = (counts: Map<string, number>) => [...counts].find(([, n]) => n * 2 > count)?.[0]
+      const termini = new Map<string, number>()
+      for (const t of destinationMap.values()) {
+        for (const x of t.termini) {
+          termini.set(x, (termini.get(x) || 0) + 1)
+        }
+      }
       return {
         directionId,
-        label: top && top.count * 2 > count ? `Toward ${top.label}` : `Direction ${directionId}`,
+        bySign: majority(new Map(destinations.map(d => [d.label, d.count]))),
+        byEnd: majority(termini),
         count,
         destinations,
       }
     }).sort((a, b) => a.directionId - b.directionId)
-    if (directions.length === 2 && directions[0]!.label === directions[1]!.label) {
-      for (const d of directions) {
-        d.label = `Direction ${d.directionId}`
-      }
+    // By sign where that tells the directions apart, else by where they end.
+    const distinct = (labels: (string | undefined)[]) => labels.length < 2 || labels[0] !== labels[1]
+    let names = directions.map(d => d.bySign ?? d.byEnd)
+    if (!distinct(names)) {
+      names = directions.map(d => d.byEnd)
+    }
+    if (!distinct(names)) {
+      names = directions.map(() => undefined)
     }
     return {
       id,
       label,
       longName: route?.route_long_name ?? '',
       count: directions.reduce((n, d) => n + d.count, 0),
-      directions,
+      directions: directions.map(({ directionId, count, destinations }, i) => ({
+        directionId,
+        label: names[i] ? `Toward ${names[i]}` : `Direction ${directionId}`,
+        count,
+        destinations,
+      })),
     }
   })
   const sortOrder = (id: number) => routes.get(id)?.route_sort_order ?? Number.POSITIVE_INFINITY
   return choices.sort((a, b) => sortOrder(a.id) - sortOrder(b.id) || a.label.localeCompare(b.label, undefined, { numeric: true }))
+}
+
+// Whether a run makes fewer stops than another, between other ends.
+function isShorter (run: TransferTripRun, than: TransferTripRun): boolean {
+  return run.stopCount !== undefined && than.stopCount !== undefined && run.stopCount < than.stopCount
+    && (run.origin !== than.origin || run.terminus !== than.terminus)
+}
+
+// Each destination of the choices by its key, with its route.
+export function transferTripInfo (choices: TransferRouteChoice[]): Map<string, TransferTripDestination & { routeId: number }> {
+  return new Map(choices.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => [x.key, { ...x, routeId: r.id }] as const))))
+}
+
+// A note on a trip: whether it ends (or starts) at the stops, or is a short
+// run; said in full in `title`.
+export interface TransferTripTag {
+  label: string
+  title: string
+}
+
+function runText (run: TransferTripRun): string {
+  const ends = run.origin && run.terminus ? `${run.origin} to ${run.terminus}` : run.origin || run.terminus || ''
+  const stops = run.stopCount !== undefined ? `${run.stopCount} stops` : ''
+  return [ends, stops].filter(Boolean).join(', ')
+}
+
+const TERMINAL_TEXT = {
+  from: { all: 'Ends here', some: 'Some end here', trips: 'end', trip: 'ends', so: 'every rider gets off here' },
+  to: { all: 'Starts here', some: 'Some start here', trips: 'start', trip: 'starts', so: 'it brings no one here' },
+}
+
+/**
+ * The tags for a destination's trips, arriving ('from') or departing ('to'):
+ * whether they end or start at the stops (all, or some, of them), and whether
+ * they are a short run. For one trip, `terminal` says whether it does.
+ */
+export function transferTripTags (d: TransferTripDestination | undefined, side: 'from' | 'to', terminal?: boolean): TransferTripTag[] {
+  const text = TERMINAL_TEXT[side]
+  const tags: TransferTripTag[] = []
+  if (terminal) {
+    tags.push({ label: text.all, title: `This trip ${text.trip} at the stops, so ${text.so}.` })
+  } else if (terminal === undefined && d && d.terminal > 0) {
+    tags.push(d.terminal === d.count
+      ? { label: text.all, title: `These trips ${text.trips} at the stops, so ${text.so}.` }
+      : { label: text.some, title: `${d.terminal.toLocaleString()} of ${d.count.toLocaleString()} of these trips ${text.trips} at the stops.` })
+  }
+  if (d?.shortOf) {
+    tags.push({ label: 'Short run', title: `Runs ${runText(d.run)}; most trips this way run ${runText(d.shortOf)}.` })
+  }
+  return tags
 }
 
 export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
@@ -222,8 +339,8 @@ export interface TransferOptions {
   // Five increasing wait breakpoints, in seconds: missed, good, OK, and long
   // wait fall between consecutive pairs.
   breakpoints: readonly number[]
-  // Every connection, rather than the first on each route and direction (and
-  // any missed just before it).
+  // Every connection, rather than the first on each route, direction, and
+  // destination (and any missed just before it).
   allConnections?: boolean
 }
 
@@ -271,8 +388,9 @@ export interface TransferEvents {
 
 /**
  * The arrivals and departures at a subject's stops. A trip arrives where it
- * lets riders off, other than at its first stop, and departs where it picks
- * them up, other than at its last. A trip at several of the stops arrives at
+ * lets riders off, coming from somewhere else, and departs where it picks
+ * them up, going on somewhere else; a trip moving only between the stops
+ * does neither. Each says whether the trip ends (or starts) at the stops. A trip at several of the stops arrives at
  * the first of them and departs from the last, the most time it gives a rider.
  *
  * The departure cache gives each departure's time; the trip's details give its
@@ -283,6 +401,7 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   const arrivals = new Map<string, TransferEvent>()
   const departures = new Map<string, TransferEvent>()
   const missing = new Set<number>()
+  const atStops = new Set(opts.stopIds)
   // A handful of days recur, so each day's date is worked out once.
   const dateCache = new Map<number, string>()
   const dateOf = (day: number) => {
@@ -357,20 +476,35 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           time,
           ...calendarTime(time, dateOf),
           headsign,
+          origin: detail.firstStopName,
+          terminus: detail.lastStopName,
+          stopCount: stopTimes.length,
         })
-        if (index > 0 && stopTime.dropOffType !== 1) {
+        // Whether the trip calls anywhere else before the stop, and after it.
+        let comesFrom = false
+        let goesOn = false
+        for (let i = 0; i < stopTimes.length; i++) {
+          if (i !== index && !atStops.has(stopTimes[i]!.stopId)) {
+            if (i < index) {
+              comesFrom = true
+            } else {
+              goesOn = true
+            }
+          }
+        }
+        if (comesFrom && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
           const time = base + st.departureTime - Math.max(0, dwell)
           const seen = arrivals.get(key)
           if (!seen || time < seen.time) {
-            arrivals.set(key, event(time))
+            arrivals.set(key, { ...event(time), terminal: !goesOn })
           }
         }
-        if (index < stopTimes.length - 1 && (st.pickupType ?? stopTime.pickupType) !== 1) {
+        if (goesOn && (st.pickupType ?? stopTime.pickupType) !== 1) {
           const time = base + st.departureTime
           const seen = departures.get(key)
           if (!seen || time > seen.time) {
-            departures.set(key, event(time))
+            departures.set(key, { ...event(time), terminal: !comesFrom })
           }
         }
       }
@@ -406,17 +540,19 @@ function lowerBound (events: TransferEvent[], time: number): number {
  * Each arrival's connections: departures on another route whose wait after
  * walking falls within the breakpoints. The same route either way is not a
  * transfer: in the other direction it is often the same vehicle turning
- * back at the end of its run. Unless `allConnections`, a route and direction shows its first
- * connection a rider makes and any missed just before it, as later departures
- * on it are not where riders transfer.
+ * back at the end of its run. Unless `allConnections`, each route, direction,
+ * and destination shows its first connection a rider makes and any missed
+ * just before it, as later departures on it are not where riders transfer. A
+ * short run counts apart from the full one, as it may not go where a rider is
+ * headed.
  */
 export function calculateTransfers (arrivals: TransferEvent[], departures: TransferEvent[], opts: TransferOptions): TransferGroup[] {
   const bp = opts.breakpoints
   const minWait = bp[0]!
   const maxWait = bp[bp.length - 1]!
-  // The routes and directions an arrival has made a connection to, cleared
-  // for each arrival.
-  const made = new Set<number>()
+  // The destinations (transferTripKey) an arrival has made a connection to,
+  // cleared for each arrival.
+  const made = new Set<string>()
   return arrivals.map((arrival) => {
     const connections: TransferConnection[] = []
     const last = arrival.time + opts.maxWalkSeconds + maxWait
@@ -445,7 +581,7 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
     return {
       arrival,
       connections: connections.filter((c) => {
-        const key = c.departure.routeId * 2 + (c.departure.directionId ? 1 : 0)
+        const key = transferTripKey(c.departure)
         if (made.has(key)) {
           return false
         }
@@ -470,8 +606,11 @@ export interface TransferOverview {
   connections: number
   // Connections by grade, in order of wait.
   grades: TransferGradeCount[]
-  // Arrivals whose soonest connection made, on any route, is good or OK.
+  // Arrivals whose soonest connection made, on any route, is good or OK; and
+  // good, and OK, apart.
   goodOrOkShare: number
+  goodShare: number
+  okShare: number
   // The wait for each arrival's soonest connection made, over arrivals that
   // make one.
   medianWait?: number
@@ -481,7 +620,8 @@ export interface TransferOverview {
 export function transferOverview (groups: TransferGroup[]): TransferOverview {
   const counts: Record<TransferGrade, number> = { missed: 0, good: 0, ok: 0, long: 0 }
   let connections = 0
-  let goodOrOk = 0
+  let good = 0
+  let ok = 0
   const waits: number[] = []
   for (const g of groups) {
     for (const c of g.connections) {
@@ -493,29 +633,28 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
     const soonest = g.connections.find(c => c.grade !== 'missed')
     if (soonest) {
       waits.push(soonest.wait)
-      if (soonest.grade === 'good' || soonest.grade === 'ok') {
-        goodOrOk += 1
-      }
+      good += soonest.grade === 'good' ? 1 : 0
+      ok += soonest.grade === 'ok' ? 1 : 0
     }
   }
   return {
     arrivals: groups.length,
     connections,
     grades: TRANSFER_GRADES.map(grade => ({ grade, count: counts[grade], share: connections > 0 ? counts[grade] / connections : 0 })),
-    goodOrOkShare: groups.length > 0 ? goodOrOk / groups.length : 0,
+    goodOrOkShare: groups.length > 0 ? (good + ok) / groups.length : 0,
+    goodShare: groups.length > 0 ? good / groups.length : 0,
+    okShare: groups.length > 0 ? ok / groups.length : 0,
     medianWait: summarizeGaps(waits)?.median,
   }
 }
 
 // The most common of some values.
-function mostCommon (values: (string | undefined)[]): string {
-  const counts = new Map<string, number>()
+function mostCommon<T extends string | number> (values: T[]): T | undefined {
+  const counts = new Map<T, number>()
   for (const v of values) {
-    if (v) {
-      counts.set(v, (counts.get(v) || 0) + 1)
-    }
+    counts.set(v, (counts.get(v) || 0) + 1)
   }
-  let best = ''
+  let best: T | undefined
   let bestCount = 0
   for (const [v, n] of counts) {
     if (n > bestCount) {
@@ -526,23 +665,29 @@ function mostCommon (values: (string | undefined)[]): string {
   return best
 }
 
-export interface TransferPairSummary {
+// One trip's route, direction, and destination (transferTripKey).
+export interface TransferTripRef {
   key: string
-  fromRouteId: number
-  fromDirectionId: number
-  fromHeadsign: string
-  toRouteId: number
-  toDirectionId: number
-  toHeadsign: string
-  // Arrivals on the incoming route and direction.
-  arrivals: number
+  routeId: number
+  directionId: number
+  headsign?: string
+}
+
+function tripRef (e: TransferEvent): TransferTripRef {
+  return { key: transferTripKey(e), routeId: e.routeId, directionId: e.directionId, headsign: e.headsign }
+}
+
+// Connections from one arriving destination to one departing one.
+export interface TransferPairSummary {
+  to: TransferTripRef
   // Connections by grade.
   missed: number
   good: number
   ok: number
   long: number
-  // Arrivals whose first connection made to the outgoing route and direction
-  // is good or OK, of all its arrivals; and good, and OK, apart.
+  // Arrivals whose first connection made to the departing destination is
+  // good or OK, of all the arriving destination's arrivals; and good, and OK,
+  // apart.
   goodOrOkShare: number
   goodShare: number
   okShare: number
@@ -550,83 +695,60 @@ export interface TransferPairSummary {
   medianWait?: number
 }
 
+// An arriving destination: its figures over all of its arrivals, as the
+// overview's, and its connections by departing destination.
+export interface TransferArrivalSummary {
+  from: TransferTripRef
+  overview: TransferOverview
+  pairs: TransferPairSummary[]
+}
+
 /**
- * Connections totaled by route pair: the incoming route and direction, and the
- * outgoing one. Each row's arrivals are every arrival on its incoming route
- * and direction, connected to the outgoing one or not.
+ * Connections totaled by the arriving trips' destination (route, direction,
+ * and sign), and under each, by the departing trips'. A pair's shares are of
+ * every arrival on its arriving destination, connected to the departing one
+ * or not. Arriving destinations go by most arrivals; departing ones, by most
+ * connections made.
  */
-export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummary[] {
-  const arrivalsByRoute = new Map<string, number>()
-  const pairs = new Map<string, {
-    summary: TransferPairSummary
-    fromHeadsigns: (string | undefined)[]
-    toHeadsigns: (string | undefined)[]
-    firstWaits: number[]
-    firstGood: number
-    firstOk: number
-  }>()
-  for (const { arrival, connections } of groups) {
-    const fromKey = `${arrival.routeId}|${arrival.directionId}`
-    arrivalsByRoute.set(fromKey, (arrivalsByRoute.get(fromKey) || 0) + 1)
-    const firstMade = new Set<string>()
-    for (const c of connections) {
-      const toKey = `${c.departure.routeId}|${c.departure.directionId}`
-      const key = `${fromKey}|${toKey}`
-      let pair = pairs.get(key)
-      if (!pair) {
-        pair = {
-          summary: {
-            key,
-            fromRouteId: arrival.routeId,
-            fromDirectionId: arrival.directionId,
-            fromHeadsign: '',
-            toRouteId: c.departure.routeId,
-            toDirectionId: c.departure.directionId,
-            toHeadsign: '',
-            arrivals: 0,
-            missed: 0,
-            good: 0,
-            ok: 0,
-            long: 0,
-            goodOrOkShare: 0,
-            goodShare: 0,
-            okShare: 0,
-          },
-          fromHeadsigns: [],
-          toHeadsigns: [],
-          firstWaits: [],
-          firstGood: 0,
-          firstOk: 0,
-        }
-        pairs.set(key, pair)
-      }
-      pair.summary[c.grade] += 1
-      pair.toHeadsigns.push(c.departure.headsign)
-      if (c.grade !== 'missed' && !firstMade.has(toKey)) {
-        firstMade.add(toKey)
-        pair.fromHeadsigns.push(arrival.headsign)
-        pair.firstWaits.push(c.wait)
-        if (c.grade === 'good') {
-          pair.firstGood += 1
-        } else if (c.grade === 'ok') {
-          pair.firstOk += 1
-        }
-      }
-    }
+export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSummary[] {
+  const byFrom = new Map<string, TransferGroup[]>()
+  for (const g of groups) {
+    const key = transferTripKey(g.arrival)
+    byFrom.set(key, [...(byFrom.get(key) ?? []), g])
   }
-  return [...pairs.values()].map(({ summary, fromHeadsigns, toHeadsigns, firstWaits, firstGood, firstOk }) => {
-    const arrivals = arrivalsByRoute.get(`${summary.fromRouteId}|${summary.fromDirectionId}`) || 0
-    return {
-      ...summary,
-      fromHeadsign: mostCommon(fromHeadsigns),
-      toHeadsign: mostCommon(toHeadsigns),
-      arrivals,
-      goodOrOkShare: arrivals > 0 ? (firstGood + firstOk) / arrivals : 0,
-      goodShare: arrivals > 0 ? firstGood / arrivals : 0,
-      okShare: arrivals > 0 ? firstOk / arrivals : 0,
-      medianWait: summarizeGaps(firstWaits)?.median,
+  return [...byFrom.values()].map((fromGroups) => {
+    const arrivals = fromGroups.length
+    const pairs = new Map<string, { pair: TransferPairSummary, firstWaits: number[], firstGood: number, firstOk: number }>()
+    for (const { connections } of fromGroups) {
+      const firstMade = new Set<string>()
+      for (const c of connections) {
+        const to = tripRef(c.departure)
+        let p = pairs.get(to.key)
+        if (!p) {
+          p = { pair: { to, missed: 0, good: 0, ok: 0, long: 0, goodOrOkShare: 0, goodShare: 0, okShare: 0 }, firstWaits: [], firstGood: 0, firstOk: 0 }
+          pairs.set(to.key, p)
+        }
+        p.pair[c.grade] += 1
+        if (c.grade !== 'missed' && !firstMade.has(to.key)) {
+          firstMade.add(to.key)
+          p.firstWaits.push(c.wait)
+          p.firstGood += c.grade === 'good' ? 1 : 0
+          p.firstOk += c.grade === 'ok' ? 1 : 0
+        }
+      }
     }
-  }).sort((a, b) => b.arrivals - a.arrivals || a.key.localeCompare(b.key))
+    return {
+      from: tripRef(fromGroups[0]!.arrival),
+      overview: transferOverview(fromGroups),
+      pairs: [...pairs.values()].map(({ pair, firstWaits, firstGood, firstOk }) => ({
+        ...pair,
+        goodOrOkShare: (firstGood + firstOk) / arrivals,
+        goodShare: firstGood / arrivals,
+        okShare: firstOk / arrivals,
+        medianWait: summarizeGaps(firstWaits)?.median,
+      })).sort((a, b) => b.good + b.ok + b.long - (a.good + a.ok + a.long) || a.to.key.localeCompare(b.to.key)),
+    }
+  }).sort((a, b) => b.overview.arrivals - a.overview.arrivals || a.from.key.localeCompare(b.from.key))
 }
 
 // A wait or walk with its units, signed when missed: "4m 30s", "-1m 15s".
@@ -671,35 +793,175 @@ export interface TransferSummaryRow {
   median_wait_seconds: number | ''
 }
 
-export function transferSummaryRows (summaries: TransferPairSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
-  return summaries.map((s) => {
-    const from = routes.get(s.fromRouteId)
-    const to = routes.get(s.toRouteId)
-    return {
-      from_route_id: from?.route_id ?? '',
-      from_route_name: routeLabel(from),
-      from_route_color: from?.route_color ?? '',
-      from_route_text_color: from?.route_text_color ?? '',
-      from_agency_name: from?.agency_name ?? '',
-      from_direction_id: s.fromDirectionId,
-      from_headsign: s.fromHeadsign,
-      to_route_id: to?.route_id ?? '',
-      to_route_name: routeLabel(to),
-      to_route_color: to?.route_color ?? '',
-      to_route_text_color: to?.route_text_color ?? '',
-      to_agency_name: to?.agency_name ?? '',
-      to_direction_id: s.toDirectionId,
-      to_headsign: s.toHeadsign,
-      arrivals: s.arrivals,
-      missed: s.missed,
-      good: s.good,
-      ok: s.ok,
-      long_wait: s.long,
-      good_or_ok_share: Math.round(s.goodOrOkShare * 1000) / 10,
-      good_share: Math.round(s.goodShare * 1000) / 10,
-      ok_share: Math.round(s.okShare * 1000) / 10,
-      median_wait_seconds: s.medianWait ?? '',
-    }
+function percent (share: number): number {
+  return Math.round(share * 1000) / 10
+}
+
+// A row per pair of arriving and departing destinations, for the CSV.
+export function transferSummaryRows (summaries: TransferArrivalSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
+  return summaries.flatMap(({ from: f, overview, pairs }) => {
+    const from = routes.get(f.routeId)
+    return pairs.map((s) => {
+      const to = routes.get(s.to.routeId)
+      return {
+        from_route_id: from?.route_id ?? '',
+        from_route_name: routeLabel(from),
+        from_route_color: from?.route_color ?? '',
+        from_route_text_color: from?.route_text_color ?? '',
+        from_agency_name: from?.agency_name ?? '',
+        from_direction_id: f.directionId,
+        from_headsign: f.headsign ?? '',
+        to_route_id: to?.route_id ?? '',
+        to_route_name: routeLabel(to),
+        to_route_color: to?.route_color ?? '',
+        to_route_text_color: to?.route_text_color ?? '',
+        to_agency_name: to?.agency_name ?? '',
+        to_direction_id: s.to.directionId,
+        to_headsign: s.to.headsign ?? '',
+        arrivals: overview.arrivals,
+        missed: s.missed,
+        good: s.good,
+        ok: s.ok,
+        long_wait: s.long,
+        good_or_ok_share: percent(s.goodOrOkShare),
+        good_share: percent(s.goodShare),
+        ok_share: percent(s.okShare),
+        median_wait_seconds: s.medianWait ?? '',
+      }
+    })
+  })
+}
+
+// A row of the report's nested tables: an arriving trip (or destination),
+// heading its group, or a departing one under it. Rows share their trip
+// columns, so the grid sorts a group's heading and its rows alike.
+export interface TransferGridTrip {
+  id: string
+  // The heading row's id, for every row of its group.
+  group: string
+  head: boolean
+  route_id: number
+  route_name: string
+  agency_name: string
+  // The destination's name: its sign, else the route's long name.
+  headsign: string
+  // Where an arriving trip comes from.
+  origin: string
+  tags: TransferTripTag[]
+}
+
+export interface TransferSummaryGridRow extends TransferGridTrip {
+  // On the heading row only.
+  arrivals: number | ''
+  missed: number
+  good: number
+  ok: number
+  long_wait: number
+  // Percent.
+  good_or_ok_share: number
+  good_share: number
+  ok_share: number
+  median_wait_seconds: number | ''
+}
+
+export interface TransferGridRow extends TransferGridTrip {
+  // HH:MM:SS: the arrival on a heading row, the departure under it.
+  time: string
+  stop_name: string
+  walk_seconds: number | ''
+  wait_seconds: number | ''
+  // Blank on a heading row with connections; 'none' on one without.
+  grade: TransferGrade | 'none' | ''
+  grade_label: string
+}
+
+interface GridTripOptions {
+  routes: Map<number, TripTableRoute>
+  // The destinations at the stops (transferTripInfo), arriving and departing.
+  from: Map<string, TransferTripDestination>
+  to: Map<string, TransferTripDestination>
+}
+
+function gridTrip (
+  e: Pick<TransferEvent, 'routeId' | 'directionId' | 'headsign'> & { origin?: string, terminal?: boolean },
+  side: 'from' | 'to',
+  opts: GridTripOptions,
+  ids: { id: string, group: string },
+): TransferGridTrip {
+  const route = opts.routes.get(e.routeId)
+  const info = opts[side].get(transferTripKey(e))
+  return {
+    ...ids,
+    head: side === 'from',
+    route_id: e.routeId,
+    route_name: routeLabel(route),
+    agency_name: route?.agency_name ?? '',
+    headsign: info?.label ?? e.headsign ?? '',
+    origin: side === 'from' ? (e.origin ?? info?.run.origin ?? '') : '',
+    tags: transferTripTags(info, side, e.terminal),
+  }
+}
+
+// The Summary as nested rows: each arriving destination with its figures,
+// then each departing one it connects to.
+export function transferSummaryGrid (summaries: TransferArrivalSummary[], opts: GridTripOptions): TransferSummaryGridRow[] {
+  return summaries.flatMap(({ from, overview, pairs }): TransferSummaryGridRow[] => {
+    const group = from.key
+    const count = (grade: TransferGrade) => overview.grades.find(g => g.grade === grade)?.count ?? 0
+    return [
+      {
+        ...gridTrip(from, 'from', opts, { id: group, group }),
+        arrivals: overview.arrivals,
+        missed: count('missed'),
+        good: count('good'),
+        ok: count('ok'),
+        long_wait: count('long'),
+        good_or_ok_share: percent(overview.goodOrOkShare),
+        good_share: percent(overview.goodShare),
+        ok_share: percent(overview.okShare),
+        median_wait_seconds: overview.medianWait ?? '',
+      },
+      ...pairs.map((p): TransferSummaryGridRow => ({
+        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }),
+        arrivals: '',
+        missed: p.missed,
+        good: p.good,
+        ok: p.ok,
+        long_wait: p.long,
+        good_or_ok_share: percent(p.goodOrOkShare),
+        good_share: percent(p.goodShare),
+        ok_share: percent(p.okShare),
+        median_wait_seconds: p.medianWait ?? '',
+      })),
+    ]
+  })
+}
+
+// The Individual report as nested rows: each arrival, then its connections.
+export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & { stops: Map<number, TripTableStop> }): TransferGridRow[] {
+  return groups.flatMap(({ arrival, connections }): TransferGridRow[] => {
+    const group = `${arrival.tripId}|${arrival.serviceDate}|${arrival.time}`
+    const dayStart = arrival.time - arrival.seconds
+    return [
+      {
+        ...gridTrip(arrival, 'from', opts, { id: group, group }),
+        time: formatGtfsTimeFull(arrival.seconds),
+        stop_name: opts.stops.get(arrival.stopId)?.stop_name ?? '',
+        walk_seconds: '',
+        wait_seconds: '',
+        grade: connections.length > 0 ? '' : 'none',
+        grade_label: connections.length > 0 ? '' : 'No connection',
+      },
+      ...connections.map((c, i) => ({
+        ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }),
+        time: formatGtfsTimeFull(c.departure.time - dayStart),
+        stop_name: opts.stops.get(c.departure.stopId)?.stop_name ?? '',
+        walk_seconds: c.walk,
+        wait_seconds: c.wait,
+        grade: c.grade,
+        grade_label: TRANSFER_GRADE_LABELS[c.grade],
+      })),
+    ]
   })
 }
 

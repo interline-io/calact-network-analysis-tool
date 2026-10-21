@@ -10,10 +10,14 @@ import {
   summarizeTransfers,
   transferEvents,
   transferGrade,
+  transferGrid,
   transferOverview,
   transferRows,
+  transferSummaryGrid,
   transferTripChoices,
+  transferTripInfo,
   transferTripKey,
+  transferTripTags,
   type TransferEvent,
 } from './transfers'
 
@@ -104,6 +108,27 @@ describe('transferEvents', () => {
     ])
     expect(events.departures.map(e => e.tripId)).toEqual([100, 200])
     expect(events.missingTripIds).toEqual([])
+    // Trip 300 ends at the stops, and trip 200 starts there.
+    expect(events.arrivals.map(e => e.terminal)).toEqual([false, true, false])
+    expect(events.departures.map(e => e.terminal)).toEqual([false, true])
+  })
+
+  it('neither arrives nor departs a trip starting at one of the stops and ending at another', () => {
+    const cache = cacheOf([
+      [1, MON, hms(7), 100, 0, 10],
+      [2, MON, hms(7, 2), 100, 0, 10],
+      // Trip 200 starts at stop 1 and goes on past stop 2: it departs from
+      // stop 2, starting here, and does not arrive.
+      [1, MON, hms(7), 200, 0, 20],
+      [2, MON, hms(7, 2), 200, 0, 20],
+    ])
+    const tripDetails = new Map([
+      [100, detail(100, [{ stopId: 1, departure: hms(7) }, { stopId: 2, arrival: hms(7, 2) }])],
+      [200, detail(200, [{ stopId: 1, departure: hms(7) }, { stopId: 2, arrival: hms(7, 2), departure: hms(7, 2) }, { stopId: 8, arrival: hms(7, 9) }])],
+    ])
+    const events = transferEvents({ stopIds: [1, 2], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
+    expect(events.arrivals).toEqual([])
+    expect(events.departures.map(e => [e.tripId, e.stopId, e.terminal])).toEqual([[200, 2, true]])
   })
 
   it('counts a trip at several of the stops once: arriving at the first, leaving from the last', () => {
@@ -166,6 +191,14 @@ describe('calculateTransfers', () => {
     ])
   })
 
+  it('counts a short run apart from the full one on its route and direction', () => {
+    const full = { ...event(2, 20, hms(7, 8)), headsign: 'Airport' }
+    const short = { ...event(3, 20, hms(7, 4)), headsign: 'Downtown' }
+    const later = { ...event(4, 20, hms(7, 12)), headsign: 'Downtown' }
+    const [group] = calculateTransfers([event(1, 10, hms(7))], [short, full, later], walk)
+    expect(group!.connections.map(c => c.departure.tripId)).toEqual([3, 2])
+  })
+
   it('shows the first connection made on each route and direction, and any missed before it', () => {
     const deps = [
       event(2, 20, hms(6, 58)),
@@ -215,13 +248,33 @@ describe('summarizeTransfers and transferOverview', () => {
   ]
   const groups = calculateTransfers(arrivals, departures, walk)
 
-  it('totals connections by route pair against every arrival on the incoming route', () => {
-    const [row] = summarizeTransfers(groups)
-    expect(row).toMatchObject({ fromRouteId: 10, toRouteId: 20, arrivals: 3, good: 1, long: 1, missed: 0, ok: 0 })
+  it('totals connections by destination pair against every arrival on the arriving destination', () => {
+    const [from] = summarizeTransfers(groups)
+    expect(from!.from).toMatchObject({ routeId: 10 })
+    expect(from!.overview.arrivals).toBe(3)
+    const [row] = from!.pairs
+    expect(row).toMatchObject({ to: { routeId: 20 }, good: 1, long: 1, missed: 0, ok: 0 })
     expect(row!.goodOrOkShare).toBeCloseTo(1 / 3)
     expect(row!.goodShare).toBeCloseTo(1 / 3)
     expect(row!.okShare).toBe(0)
     expect(row!.medianWait).toBe((hms(0, 3) + hms(0, 15)) / 2)
+  })
+
+  it('nests each arriving destination\'s figures over the departing ones it connects to', () => {
+    const empty = { routes: new Map(), from: new Map(), to: new Map() }
+    const rows = transferSummaryGrid(summarizeTransfers(groups), empty)
+    expect(rows.map(r => [r.head, r.group === rows[0]!.id, r.arrivals, r.good, r.long_wait])).toEqual([
+      [true, true, 3, 1, 1],
+      [false, true, '', 1, 1],
+    ])
+    const individual = transferGrid(groups, { ...empty, stops: new Map() })
+    expect(individual.map(r => [r.head, r.time, r.grade])).toEqual([
+      [true, '07:00:00', ''],
+      [false, '07:03:00', 'good'],
+      [true, '07:30:00', ''],
+      [false, '07:45:00', 'long'],
+      [true, '08:00:00', 'none'],
+    ])
   })
 
   it('sums up every arrival by its soonest connection', () => {
@@ -276,6 +329,26 @@ describe('transferTripChoices', () => {
     expect(tenth!.directions[0]!.destinations[0]!.key).toBe(transferTripKey({ routeId: 10, directionId: 0, headsign: 'Downtown' }))
     // No sign: the route's long name.
     expect(loop!.directions[0]!.label).toBe('Toward Downtown Loop')
+  })
+
+  it('names a direction by where its trips end where their signs do not tell the directions apart', () => {
+    const ending = (directionId: number, terminus: string) => ({ ...trip(10, directionId, 'Loop'), terminus })
+    const [route] = transferTripChoices([ending(0, 'North TC'), ending(0, 'North TC'), ending(1, 'South TC')], routes)
+    expect(route!.directions.map(d => d.label)).toEqual(['Toward North TC', 'Toward South TC'])
+  })
+
+  it('marks a destination making fewer stops than its direction\'s main one as a short run', () => {
+    const run = (headsign: string, origin: string, terminus: string, stopCount: number, terminal = false) => ({ ...trip(10, 0, headsign), origin, terminus, stopCount, terminal })
+    const [route] = transferTripChoices([
+      run('Downtown', 'Gateway', 'Downtown', 30), run('Downtown', 'Gateway', 'Downtown', 30),
+      run('Midtown', 'Gateway', 'Midtown', 12, true),
+    ], routes)
+    const [downtown, midtown] = route!.directions[0]!.destinations
+    expect(downtown!.shortOf).toBeUndefined()
+    expect(midtown!.shortOf).toEqual({ origin: 'Gateway', terminus: 'Downtown', stopCount: 30 })
+    expect(transferTripTags(midtown, 'from').map(t => t.label)).toEqual(['Ends here', 'Short run'])
+    expect(transferTripTags(midtown, 'to', false).map(t => t.label)).toEqual(['Short run'])
+    expect(transferTripInfo([route!]).get(midtown!.key)?.routeId).toBe(10)
   })
 
   it('numbers both directions where they would read the same', () => {

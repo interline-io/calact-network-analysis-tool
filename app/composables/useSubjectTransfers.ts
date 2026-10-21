@@ -15,10 +15,13 @@ import {
   resolveEffectiveWeekdays,
   summarizeTransfers,
   transferEvents,
+  transferGrid,
   transferOverview,
   transferRows,
+  transferSummaryGrid,
   transferSummaryRows,
   transferTripChoices,
+  transferTripInfo,
   transferTripKey,
   validBreakpoints,
   type ScenarioFilterResult,
@@ -199,6 +202,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     from: transferTripChoices(events.value?.arrivals ?? [], routes.value),
     to: transferTripChoices(events.value?.departures ?? [], routes.value),
   }))
+  // The same by destination, for the tables' names and tags.
+  const tripInfo = computed(() => ({
+    routes: routes.value,
+    from: transferTripInfo(routeChoices.value.from),
+    to: transferTripInfo(routeChoices.value.to),
+  }))
 
   const groups = computed(() => {
     const e = events.value
@@ -229,7 +238,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   // The Summary covers every date unless one is picked.
   const summaryGroups = computed(() => filterTransferGroups(groups.value, pickedDate.value, timeBand.value))
-  const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(summaryGroups.value), routes.value))
+  const summary = computed(() => summarizeTransfers(summaryGroups.value))
+  const summaryRows = computed(() => transferSummaryRows(summary.value, routes.value))
+  const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
   const summaryOverview = computed(() => transferOverview(summaryGroups.value))
 
   // The Individual report shows one date: the one picked, or the first.
@@ -240,6 +251,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stops: stops.value,
     tripDetails: store.details.value,
   }))
+  const individualGrid = computed(() => transferGrid(individualGroups.value, { ...tripInfo.value, stops: stops.value }))
   const individualOverview = computed(() => transferOverview(individualGroups.value))
   // Each connection on the date by the arrival's time of day, for the chart.
   const individualPoints = computed(() => individualGroups.value.flatMap((g) => {
@@ -312,10 +324,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     timeBand,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     summaryRows,
+    summaryGrid,
     summaryOverview,
     individualDates,
     individualDate,
     individualRows,
+    individualGrid,
     individualOverview,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),

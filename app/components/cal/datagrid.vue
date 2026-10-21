@@ -56,9 +56,21 @@
               v-for="column in tableReport.columns"
               :key="column.key"
               scope="col"
-              :class="[column.class, { 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }]"
+              :class="[column.class, { 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key, 'cal-datagrid-group-th': props.groupKey && column === tableReport.columns[0] }]"
               :aria-sort="ariaSort(column)"
             >
+              <!-- Grouped: every group open or closed at once, from the first
+                   column's header. -->
+              <button
+                v-if="props.groupKey && column === tableReport.columns[0]"
+                type="button"
+                class="cal-datagrid-group-toggle cal-datagrid-group-toggle-all"
+                :aria-label="anyOpen ? 'Collapse all groups' : 'Expand all groups'"
+                :title="anyOpen ? 'Collapse all' : 'Expand all'"
+                @click="setAllOpen(!anyOpen)"
+              >
+                <cat-icon size="small" :icon="anyOpen ? 'chevron-down' : 'chevron-right'" />
+              </button>
               <!-- Sortable columns render the header as a real <button> so
                    sorting is keyboard-operable (Enter/Space) and announced as a
                    button; aria-sort on the <th> conveys the current direction.
@@ -121,6 +133,7 @@
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
             <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
               <div class="cal-datagrid-shim-cell">
+                <span v-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-indent" />
                 <slot
                   :name="`column-${column.key}`"
                   :row="layoutShimRow"
@@ -132,9 +145,36 @@
               </div>
             </td>
           </tr>
-          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx" :class="rowClass?.(row)">
+          <tr
+            v-for="(row, idx) in currentRows"
+            :key="row.id ?? row.geoid ?? row.location_id ?? idx"
+            :class="[rowClass?.(row), groupRowClass(row)]"
+          >
             <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
+              <!-- A group's heading opens and closes it. -->
+              <span v-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-cell">
+                <button
+                  v-if="opensGroup(row)"
+                  type="button"
+                  class="cal-datagrid-group-toggle"
+                  :aria-expanded="!closed.has(groupOf(row))"
+                  :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
+                  @click="toggleGroup(groupOf(row))"
+                >
+                  <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
+                </button>
+                <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                <slot
+                  :name="`column-${column.key}`"
+                  :row="row"
+                  :column="column"
+                  :value="row[column.key]"
+                >
+                  {{ renderCell(column, row[column.key]) }}
+                </slot>
+              </span>
               <slot
+                v-else
                 :name="`column-${column.key}`"
                 :row="row"
                 :column="column"
@@ -205,6 +245,12 @@ const props = withDefaults(defineProps<{
   downloadable?: boolean
   // Smaller type and padding, for more rows in view.
   dense?: boolean
+  // Rows in groups, by this field: each group's first row heads it. Sorting
+  // orders the groups by their headings and the rows within each group;
+  // pages hold whole groups; and a heading opens and closes its group.
+  groupKey?: string
+  // A group's heading row in words, naming its open and close button.
+  groupLabel?: (row: any) => string
 }>(), {
   // Vue reads a missing boolean prop as false; these default to shown.
   searchable: true,
@@ -276,32 +322,33 @@ function announceSort (message: string) {
   })
 }
 
+function matches (row: Record<string, any>, query: string): boolean {
+  return Object.values(row).some(val => String(val ?? '').toLowerCase().includes(query))
+}
+
+// Grouped, the filter keeps whole groups, so is applied to them below.
 const filteredData = computed(() => {
   const data = tableReport?.value?.data || []
   const query = (searchQuery.value || '').trim().toLowerCase()
-  if (!query) {
+  if (!query || props.groupKey) {
     return data
   }
-  return data.filter(row =>
-    Object.values(row).some(val =>
-      String(val ?? '').toLowerCase().includes(query),
-    ),
-  )
+  return data.filter(row => matches(row, query))
 })
 
-// Sort the filtered data. Nullish values are pushed to the end regardless
-// of direction so they don't pollute either tail of a sorted column.
-const sortedData = computed(() => {
-  const base = filteredData.value
+// The sort's comparison, if any. Nullish values are pushed to the end
+// regardless of direction so they don't pollute either tail of a sorted
+// column.
+const compareRows = computed(() => {
   const key = sortKey.value
   const dir = sortDir.value
   if (!key || !dir) {
-    return base
+    return undefined
   }
   const col = tableReport.value?.columns.find(c => c.key === key)
   const numeric = col?.numeric === true || col?.format !== undefined
   const sign = dir === 'asc' ? 1 : -1
-  return [...base].sort((a, b) => {
+  return (a: Record<string, any>, b: Record<string, any>): number => {
     const va = a[key]
     const vb = b[key]
     const aNil = va == null || va === ''
@@ -318,8 +365,72 @@ const sortedData = computed(() => {
       return sign * (na - nb)
     }
     return sign * String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
-  })
+  }
 })
+
+const sortedData = computed(() => {
+  const compare = compareRows.value
+  return compare ? [...filteredData.value].sort(compare) : filteredData.value
+})
+
+// Grouped: the rows by group, in their first row's order, filtered and
+// sorted as groups.
+function groupOf (row: Record<string, any>): string {
+  return String(row[props.groupKey!])
+}
+const groups = computed((): Record<string, any>[][] => {
+  if (!props.groupKey) {
+    return []
+  }
+  const byGroup = new Map<string, Record<string, any>[]>()
+  for (const row of filteredData.value) {
+    const id = groupOf(row)
+    const rows = byGroup.get(id)
+    if (rows) {
+      rows.push(row)
+    } else {
+      byGroup.set(id, [row])
+    }
+  }
+  const query = (searchQuery.value || '').trim().toLowerCase()
+  let list = [...byGroup.values()]
+  if (query) {
+    list = list.filter(rows => rows.some(row => matches(row, query)))
+  }
+  const compare = compareRows.value
+  if (compare) {
+    list = list.map(([head, ...rest]) => [head!, ...rest.sort(compare)]).sort((a, b) => compare(a[0]!, b[0]!))
+  }
+  return list
+})
+
+// Groups closed to their heading; all open to begin with.
+const closed = ref(new Set<string>())
+// Each heading row, and whether its group has rows under it to open.
+const heads = computed(() => new Map(groups.value.map(rows => [rows[0], rows.length > 1])))
+function isGroupHead (row: Record<string, any>): boolean {
+  return heads.value.has(row)
+}
+function opensGroup (row: Record<string, any>): boolean {
+  return heads.value.get(row) === true
+}
+function toggleGroup (id: string) {
+  const next = new Set(closed.value)
+  if (!next.delete(id)) {
+    next.add(id)
+  }
+  closed.value = next
+}
+const anyOpen = computed(() => groups.value.some(rows => rows.length > 1 && !closed.value.has(groupOf(rows[0]!))))
+function setAllOpen (open: boolean) {
+  closed.value = open ? new Set() : new Set(groups.value.map(rows => groupOf(rows[0]!)))
+}
+function groupRowClass (row: Record<string, any>): string | undefined {
+  if (!props.groupKey) {
+    return undefined
+  }
+  return isGroupHead(row) ? 'cal-datagrid-group-head' : 'cal-datagrid-group-row'
+}
 
 watch(searchQuery, () => {
   current.value = 1
@@ -347,6 +458,9 @@ watch([sortKey, sortDir], () => {
 const currentRows = computed(() => {
   const start = (current.value - 1) * props.perPage
   const end = start + props.perPage
+  if (props.groupKey) {
+    return groups.value.slice(start, end).flatMap(rows => (closed.value.has(groupOf(rows[0]!)) ? rows.slice(0, 1) : rows))
+  }
   return sortedData.value.slice(start, end)
 })
 
@@ -381,8 +495,9 @@ const layoutShimRow = computed((): Record<string, any> | null => {
   }
   return shim
 })
+// Rows, or grouped, groups.
 const total = computed(() => {
-  return sortedData.value.length
+  return props.groupKey ? groups.value.length : sortedData.value.length
 })
 const rangeStart = computed(() => {
   return total.value === 0 ? 0 : (current.value - 1) * props.perPage + 1
@@ -616,6 +731,49 @@ const filterStatus = computed(() => {
       background: var(--bulma-scheme-main-ter);
       z-index: 3;
     }
+  }
+}
+
+// Grouped rows: a heading's open and close button, and the rows under it
+// indented past it.
+.cal-datagrid-group-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cal-datagrid-group-toggle {
+  flex: 0 0 1.25rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+  }
+}
+
+.cal-datagrid-group-indent {
+  display: inline-block;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+}
+
+.cal-report-table th.cal-datagrid-group-th {
+  position: relative;
+
+  .cal-datagrid-group-toggle-all {
+    position: absolute;
+    left: 0.4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+  }
+
+  .cal-datagrid-sort-button {
+    padding-left: 1.9rem;
   }
 }
 

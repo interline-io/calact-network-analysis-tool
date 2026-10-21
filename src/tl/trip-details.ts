@@ -63,6 +63,9 @@ export interface TripDetail {
   // headsign at that stop only. Feeds such as TriMet's leave the trip headsign
   // blank and sign every stop instead.
   stopHeadsigns: Map<number, string>
+  // Where the trip starts and ends, as stations a rider knows: each stop's
+  // parent station's name, else the stop's own.
+  firstStopName?: string
   lastStopName?: string
   // Seconds since midnight; may run past 24:00 for after-midnight trips.
   startTime?: number
@@ -80,6 +83,10 @@ export interface TripStopTime {
   // GTFS pickup_type and drop_off_type; 1 means none at this stop.
   pickupType?: number | null
   dropOffType?: number | null
+}
+
+function stationName (stop: { stop_name?: string | null, parent?: { stop_name?: string | null } | null } | null | undefined): string | undefined {
+  return stop?.parent?.stop_name || stop?.stop_name || undefined
 }
 
 // The API returns Seconds as "HH:MM:SS"; accept a number too.
@@ -127,9 +134,8 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       tripId: t.trip_id,
       headsign: t.trip_headsign || undefined,
       stopHeadsigns,
-      // Where the trip ends, as a station a rider knows: its parent
-      // station's name, else the stop's own.
-      lastStopName: stopTimes[stopTimes.length - 1]?.stop?.parent?.stop_name || stopTimes[stopTimes.length - 1]?.stop?.stop_name || undefined,
+      firstStopName: stationName(stopTimes[0]?.stop),
+      lastStopName: stationName(stopTimes[stopTimes.length - 1]?.stop),
       startTime,
       endTime,
       stopCount: t.stop_times.length,

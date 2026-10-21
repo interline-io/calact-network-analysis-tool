@@ -80,8 +80,8 @@
           Show every connection
         </cat-checkbox>
         <p class="cal-transfer-settings-help">
-          Otherwise each arrival shows its first connection on each route and
-          direction, and any it just missed.
+          Otherwise each arrival shows its first connection to each route,
+          direction, and destination, and any it just missed.
         </p>
       </cat-fieldset>
     </template>
@@ -126,11 +126,29 @@
             >
               <cal-route-badge v-if="row.badge" :label="row.badge" :title="row.title" />
               <span class="cal-transfer-settings-item-label" :title="row.title">{{ row.label }}</span>
+              <span v-if="row.origin" class="cal-transfer-settings-origin" :title="`From ${row.origin}`">from {{ row.origin }}</span>
+              <span v-for="tag of row.tags" :key="tag.label" class="tag is-light cal-transfer-settings-tag" :title="tag.title">
+                {{ tag.label }}<span class="is-sr-only">: {{ tag.title }}</span>
+              </span>
             </cat-checkbox>
+            <button
+              v-if="row.routeId !== undefined"
+              type="button"
+              class="cal-transfer-settings-view-trips"
+              :title="`View trips for route ${row.badge}`"
+              :aria-label="`View trips for route ${row.badge}`"
+              @click="emit('openTrips', row.routeId)"
+            >
+              <cat-icon size="small" icon="table-clock" />
+            </button>
             <span class="cal-transfer-settings-count">{{ row.count.toLocaleString() }}</span>
           </li>
         </ul>
       </div>
+      <p class="cal-transfer-settings-help cal-transfer-settings-note">
+        A trip that starts here only departs, and one that ends here only
+        arrives. A short run makes fewer stops than most trips its way.
+      </p>
     </template>
   </section>
 </template>
@@ -143,8 +161,11 @@ import {
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
   validBreakpoints,
+  transferTripTags,
   type TransferRouteChoice,
   type TransferSettings,
+  type TransferTripDestination,
+  type TransferTripTag,
 } from '~~/src/scenario'
 
 export type TransferSettingsSection = 'wait-walk' | 'trips'
@@ -159,6 +180,11 @@ const props = defineProps<{
 }>()
 
 const settings = defineModel<TransferSettings>({ required: true })
+
+const emit = defineEmits<{
+  // Show a route's trips.
+  openTrips: [routeId: number]
+}>()
 
 function set (change: Partial<TransferSettings>) {
   settings.value = { ...settings.value, ...change }
@@ -207,6 +233,11 @@ interface Row {
   title?: string
   count: number
   keys: string[]
+  // For one destination: where an arriving one comes from, and its tags.
+  origin?: string
+  tags: TransferTripTag[]
+  // On a route's first row, the route, to show its trips.
+  routeId?: number
   // Whether all, some, or none of the keys are included.
   state: 'all' | 'some' | 'none'
   // Set where the row opens to destinations.
@@ -227,6 +258,11 @@ function toggleOpen (key: string) {
 // row per direction. A direction with several destinations opens to them.
 function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
   const out: Omit<Row, 'state'>[] = []
+  const tripSide = side === 'excludedFrom' ? 'from' : 'to'
+  const about = (d: TransferTripDestination | undefined) => ({
+    origin: tripSide === 'from' ? d?.run.origin : undefined,
+    tags: transferTripTags(d, tripSide),
+  })
   for (const route of routes) {
     const single = route.directions.length === 1
     const routeKeys = route.directions.flatMap(d => d.destinations.map(x => x.key))
@@ -237,7 +273,7 @@ function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] 
       if (i === 0 && !single) {
         // The long name beside the badge, where it says more than the badge.
         const label = route.longName !== route.label ? route.longName : ''
-        out.push({ id: `r${route.id}`, depth: 0, badge: route.label, label, title, count: route.count, keys: routeKeys })
+        out.push({ id: `r${route.id}`, depth: 0, badge: route.label, label, title, count: route.count, keys: routeKeys, tags: [], routeId: route.id })
       }
       out.push({
         id: `d${route.id}|${dir.directionId}`,
@@ -248,10 +284,12 @@ function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] 
         count: dir.count,
         keys: dir.destinations.map(x => x.key),
         openKey,
+        ...(dir.destinations.length === 1 ? about(dir.destinations[0]) : { tags: [] }),
+        routeId: single ? route.id : undefined,
       })
       if (openKey && opened.value.has(openKey)) {
         for (const dest of dir.destinations) {
-          out.push({ id: `x${dest.key}`, depth: depth + 1, label: dest.label, count: dest.count, keys: [dest.key] })
+          out.push({ id: `x${dest.key}`, depth: depth + 1, label: dest.label, count: dest.count, keys: [dest.key], ...about(dest) })
         }
       }
     }
@@ -310,8 +348,14 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     }
   }
 
+  // Arriving and departing side by side, the note beneath; one above the
+  // other on narrow screens.
   &.cal-transfer-settings-trips {
-    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    @media (max-width: 48rem) {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   > * {
@@ -450,6 +494,34 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cal-transfer-settings-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.cal-transfer-settings-origin {
+  flex: 0 1 auto;
+  min-width: 3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bulma-text-weak);
+}
+
+.cal-transfer-settings-tag {
+  flex: 0 0 auto;
+  height: 1.4em;
+  font-size: 0.7rem;
+}
+
+.cal-transfer-settings-view-trips {
+  background: none;
+  border: 0;
+  padding: 0 0.25rem;
+  color: var(--bulma-link);
+  cursor: pointer;
 }
 
 .cal-transfer-settings-count {

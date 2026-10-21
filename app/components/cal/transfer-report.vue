@@ -82,6 +82,7 @@
       :section="openSection"
       :route-choices="routeChoices"
       :unknown-pairs="unknownPairs"
+      @open-trips="$emit('openTrips', $event)"
     />
 
     <p v-if="!subjectKind" class="cal-transfer-report-note">
@@ -132,15 +133,25 @@
           :downloadable="false"
           :per-page="100"
           :loading="detailsLoading"
+          group-key="group"
+          :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
+          :row-class="rowClass"
           v-bind="grid"
         >
-          <template v-for="side of SIDES" :key="side" #[`column-${side}_route_name`]="{ row }">
-            <template v-if="row[`${side}_route_name`]">
-              <cal-route-badge :label="row[`${side}_route_name`]" :title="row[`${side}_agency_name`]" />
-              <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row[`${side}_headsign`]">{{ row[`${side}_headsign`] }}</span>
-            </template>
+          <!-- The trip: its route, its destination, where an arriving one
+               comes from, and its tags. The grid's hidden sizing row carries
+               no tags, so is guarded. -->
+          <template #column-route_name="{ row }">
+            <span v-if="row.route_name" class="cal-transfer-report-trip">
+              <cal-route-badge :label="row.route_name" :title="row.agency_name" />
+              <span class="cal-transfer-report-clip" :title="row.headsign">{{ row.headsign }}</span>
+              <span v-if="row.origin" class="cal-transfer-report-origin cal-transfer-report-clip" :title="`From ${row.origin}`">from {{ row.origin }}</span>
+              <span v-for="tag of row.tags ?? []" :key="tag.label" class="tag is-light cal-transfer-report-tag" :title="tag.title">
+                {{ tag.label }}<span class="is-sr-only">: {{ tag.title }}</span>
+              </span>
+            </span>
           </template>
-          <template v-for="side of SIDES" :key="side" #[`column-${side}_stop_name`]="{ value }">
+          <template #column-stop_name="{ value }">
             <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
           </template>
           <template v-for="key of TIME_COLUMNS" :key="key" #[`column-${key}`]="{ value }">
@@ -153,6 +164,9 @@
                the grid does not print the 0. -->
           <template v-for="g of GRADE_COLUMNS" :key="g.key" #[`column-${g.key}`]="{ value }">
             <span :class="{ 'cal-transfer-report-count': value > 0 }" :style="value > 0 ? { background: gradeTint(g.grade) } : undefined">{{ value > 0 ? value.toLocaleString() : '' }}</span>
+          </template>
+          <template #column-arrivals="{ value }">
+            <span class="cal-transfer-report-time">{{ value === '' ? '' : value.toLocaleString() }}</span>
           </template>
           <!-- The share as a bar on a 0 to 100% track: the good part, then
                the OK part, in their grade colors. -->
@@ -178,7 +192,7 @@
               :style="waitStyle(row.grade)"
               :title="row.grade_label"
             >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade_label }}</span></span>
-            <span v-else>{{ row.grade_label }}</span>
+            <span v-else class="cal-transfer-report-none">{{ row.grade_label }}</span>
           </template>
         </cal-datagrid>
       </template>
@@ -200,10 +214,11 @@ import {
   tripTimeLabel,
   type TransferGrade,
   type TransferGradeCount,
-  type TransferRow,
+  type TransferGridRow,
+  type TransferGridTrip,
   type TransferRouteChoice,
   type TransferSettings,
-  type TransferSummaryRow,
+  type TransferSummaryGridRow,
   type TransferTimeBand,
 } from '~~/src/scenario'
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
@@ -215,13 +230,15 @@ const props = defineProps<{
   title: string
   // The stops and clusters the report can be about, as picker options.
   subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
-  summaryRows: TransferSummaryRow[]
+  // Each view's rows, nested: an arriving trip (or destination), then the
+  // departing ones it connects to.
+  summaryGrid: TransferSummaryGridRow[]
   summaryOverview: TransferOverview
   individualDates: string[]
   individualDate?: string
   // The date the Summary is narrowed to; every date when undefined.
   summaryDate?: string
-  individualRows: TransferRow[]
+  individualGrid: TransferGridRow[]
   individualOverview: TransferOverview
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
   // The breakpoints in use, in seconds.
@@ -238,6 +255,8 @@ const props = defineProps<{
 defineEmits<{
   // Fetch the details that did not arrive.
   retry: []
+  // Show a route's trips.
+  openTrips: [routeId: number]
 }>()
 
 // The picked stop or cluster, as "stop:<id>" or "cluster:<id>"; blank for none.
@@ -291,9 +310,8 @@ function minutes (seconds: number): number {
   return seconds / 60
 }
 
-// The two sides of a connection, and the columns that share a slot.
-const SIDES = ['from', 'to'] as const
-const TIME_COLUMNS = ['arrival_time', 'departure_time']
+// The columns that share a slot.
+const TIME_COLUMNS = ['time']
 const DURATION_COLUMNS = ['walk_seconds', 'median_wait_seconds']
 // The summary's count columns and their grades.
 const GRADE_COLUMNS: { key: string, grade: TransferGrade }[] = [
@@ -303,8 +321,8 @@ const GRADE_COLUMNS: { key: string, grade: TransferGrade }[] = [
   { key: 'long_wait', grade: 'long' },
 ]
 
-// A wait's colors by its grade; none for an arrival with no connection.
-function waitStyle (grade: TransferRow['grade'] | undefined) {
+// A wait's colors by its grade; none for an arrival's own row.
+function waitStyle (grade: TransferGridRow['grade'] | undefined) {
   const colors = grade && grade !== 'none' ? TRANSFER_GRADE_COLORS[grade] : undefined
   return colors && { background: colors.fill, color: colors.text }
 }
@@ -397,48 +415,49 @@ const waitChart = computed(() => {
 const NARROW = 'cal-transfer-report-col-narrow'
 const COUNT = 'cal-transfer-report-col-narrow cal-transfer-report-col-count'
 
-const FROM_COLUMN: TableColumn = { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' }
-const TO_COLUMN: TableColumn = { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' }
+const TRIP_COLUMN: TableColumn = {
+  key: 'route_name',
+  label: 'Arriving trip, then departing trips',
+  sortable: true,
+  tooltip: 'Each arriving trip by route and destination, and where it comes from, with the departing trips riders connect to beneath it. Sorting orders the arriving trips, and the departing trips under each.',
+}
 
 const summaryColumns: TableColumn[] = [
-  FROM_COLUMN,
-  TO_COLUMN,
-  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.', class: NARROW },
+  TRIP_COLUMN,
+  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', class: NARROW },
   { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT },
   { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT },
   { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT },
   { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, class: COUNT },
-  { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection to the To route and direction is good or OK.' },
-  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', class: NARROW },
+  { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'For an arriving trip, the share of its arrivals whose soonest connection, on any route, is good or OK; for a departing trip, whose first connection to it is.' },
+  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'For an arriving trip, the median wait for its soonest connection; for a departing trip, for the first connection to it. Over arrivals that make one.', class: NARROW },
 ]
 
 // The Individual table's columns, with the stops for a cluster. Apart from
 // its rows, so the grid keeps its sort as rows change.
-const individualColumns = computed((): TableColumn[] => {
-  const cluster = subjectKind.value === 'cluster'
-  return [
-    { key: 'arrival_time', label: 'Arrival', sortable: true, class: NARROW },
-    FROM_COLUMN,
-    ...(cluster ? [{ key: 'from_stop_name', label: 'Arrives at', sortable: true }] : []),
-    { key: 'departure_time', label: 'Departure', sortable: true, class: NARROW },
-    TO_COLUMN,
-    ...(cluster ? [{ key: 'to_stop_name', label: 'Departs from', sortable: true }] : []),
-    { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW },
-    { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW },
-  ]
-})
+const individualColumns = computed((): TableColumn[] => [
+  { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', class: NARROW },
+  { ...TRIP_COLUMN, label: 'Arriving trip, then connections', tooltip: 'Each arriving trip, and where it comes from, with its connections beneath it.' },
+  ...(subjectKind.value === 'cluster' ? [{ key: 'stop_name', label: 'Stop', sortable: true }] : []),
+  { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW },
+  { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW },
+])
 
-// The shown view's table. Its CSV download is the Reports tab's, by the page.
+// The shown view's table. Its CSV download, flat, is the Reports tab's, by
+// the page.
 const grid = computed(() => (view.value === 'summary'
   ? {
-      tableReport: { columns: summaryColumns, data: props.summaryRows } as TableReport,
+      tableReport: { columns: summaryColumns, data: props.summaryGrid } as TableReport,
       caption: 'Transfers by route',
     }
   : {
-      tableReport: { columns: individualColumns.value, data: props.individualRows } as TableReport,
+      tableReport: { columns: individualColumns.value, data: props.individualGrid } as TableReport,
       caption: 'Transfers',
-      rowClass: (row: TransferRow) => (row.grade === 'none' ? 'cal-transfer-report-none' : undefined),
     }))
+
+function rowClass (row: TransferGridTrip): string | undefined {
+  return row.head ? 'cal-transfer-report-arriving' : undefined
+}
 </script>
 
 <style scoped lang="scss">
@@ -556,10 +575,6 @@ const grid = computed(() => (view.value === 'summary'
   font-variant-numeric: tabular-nums;
 }
 
-.cal-transfer-report-headsign {
-  margin-left: 0.4em;
-}
-
 // Long headsigns and stop names are cut short, whole on hover, so each row
 // stays one line and the table fits the page.
 .cal-transfer-report-clip {
@@ -628,8 +643,34 @@ const grid = computed(() => (view.value === 'summary'
   font-variant-numeric: tabular-nums;
 }
 
-// The row is in the datagrid, outside this component's scope.
-:deep(.cal-transfer-report-none) td {
+// The rows are in the datagrid, outside this component's scope. An arriving
+// trip heads its group, its departing trips beneath it.
+:deep(tr.cal-transfer-report-arriving) td {
+  background: var(--bulma-scheme-main-bis);
+  font-weight: 600;
+  border-top: 2px solid var(--bulma-border);
+}
+
+.cal-transfer-report-none {
   color: var(--bulma-text-weak);
+  font-weight: normal;
+}
+
+.cal-transfer-report-trip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.cal-transfer-report-origin {
+  color: var(--bulma-text-weak);
+  font-weight: normal;
+  max-width: 12rem;
+}
+
+.cal-transfer-report-tag {
+  font-weight: normal;
+  height: 1.5em;
+  font-size: 0.75rem;
 }
 </style>
