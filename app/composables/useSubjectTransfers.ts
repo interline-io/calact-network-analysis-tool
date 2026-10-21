@@ -101,8 +101,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   }))
   const pairs = computed(() => stopPairs(stopPoints.value))
   // The sources the walk reads: a straight line always, as the street
-  // network's fallback where it cannot route a pair.
-  const distanceModes = computed((): StopDistanceMode[] => (settings.value.walkDistance === 'street' ? ['WALK', 'LINE'] : ['LINE']))
+  // network's fallback where it cannot route a pair. Read through the one
+  // setting, so other settings changing leave it, and what follows it, be.
+  const walkDistance = computed(() => settings.value.walkDistance)
+  const distanceModes = computed((): StopDistanceMode[] => (walkDistance.value === 'street' ? ['WALK', 'LINE'] : ['LINE']))
 
   // Each mode's pairs not yet asked for, fetched in parallel batches, and
   // applied together.
@@ -123,6 +125,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       try {
         const { query, variables } = stopDistancesRequest(batch, mode)
         const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
+        if (!response.data && response.errors?.length) {
+          throw new Error(response.errors[0]!.message)
+        }
         return { mode, meters: parseStopDistances(batch, response.data) }
       } catch (err: any) {
         // Let a retry ask again.
@@ -244,14 +249,14 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   // While shown, the details of the trips the report is missing, and the
   // distances between its stops. Each widens what the other needs (a longer
-  // walk reaches later departures), so both follow their own inputs.
+  // walk reaches later departures), so both follow their own inputs. After a
+  // failure, loading waits for a retry rather than asking again at once.
   const detailsError = ref<string | null>(null)
+  const failed = computed(() => !!detailsError.value || !!distancesError.value)
   async function load (): Promise<void> {
-    if (!toValue(deps.active) || stopIds.value.length === 0) {
+    if (!toValue(deps.active) || stopIds.value.length === 0 || failed.value) {
       return
     }
-    detailsError.value = null
-    distancesError.value = null
     await Promise.all([
       loadDistances(),
       store.load(events.value?.missingTripIds ?? []).then((err) => {
@@ -259,8 +264,14 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       }),
     ])
   }
+  function retry (): Promise<void> {
+    detailsError.value = null
+    distancesError.value = null
+    return load()
+  }
+  // Nothing is read while hidden, so the report does no work then.
   watch(
-    [() => toValue(deps.active), pairs, distanceModes, () => events.value?.missingTripIds],
+    () => (toValue(deps.active) ? [pairs.value, distanceModes.value, events.value?.missingTripIds] : undefined),
     () => load(),
   )
 
@@ -312,7 +323,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     // Pairs of the stops with no distance to walk between them, which are
     // left out.
     unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : walkTable.value.unknown)),
-    load,
+    retry,
   }
 }
 

@@ -55,15 +55,17 @@ export interface StopDistancesResponse {
   } | null
 }
 
-const METERS_PER_UNIT = { KILOMETERS: 1000, METERS: 1, MILES: 1609.344 } as const
+const METERS_PER_UNIT: Record<string, number> = { KILOMETERS: 1000, METERS: 1, MILES: 1609.344 }
 
-// Meters for each pair the server could route, by stopPairKey.
+// Meters for each pair the server could route, by stopPairKey. A distance in
+// a unit it does not know, or not a number, is left out like an unrouted pair.
 export function parseStopDistances (pairs: [StopPoint, StopPoint][], data: StopDistancesResponse | undefined): Map<string, number> {
   const meters = new Map<string, number>()
   pairs.forEach(([a, b], i) => {
     const d = data?.[`p${i}`]
-    if (d?.success && d.distance) {
-      meters.set(stopPairKey(a.id, b.id), d.distance.distance * METERS_PER_UNIT[d.distance.units])
+    const m = d?.success && d.distance ? d.distance.distance * (METERS_PER_UNIT[d.distance.units] ?? Number.NaN) : Number.NaN
+    if (Number.isFinite(m)) {
+      meters.set(stopPairKey(a.id, b.id), m)
     }
   })
   return meters

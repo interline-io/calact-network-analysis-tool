@@ -105,7 +105,7 @@
                 :missing-details="transfers.missingDetails"
                 :details-loading="transfers.detailsLoading"
                 :details-error="transfers.detailsError"
-                @retry="transfers.load()"
+                @retry="transfers.retry()"
               />
             </template>
           </cal-report>

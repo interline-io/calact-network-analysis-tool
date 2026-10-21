@@ -463,7 +463,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { resolveEffectiveWeekdays } from '~~/src/scenario'
-import { dateToSeconds, formatGtfsTimeFull, formatDuration, formatServiceDate, dowValues } from '~~/src/core'
+import { timeWindowSeconds, formatGtfsTimeFull, formatDuration, formatServiceDate, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -514,8 +514,9 @@ const routeIndex = computed(() =>
   props.scenarioFilterResult.routeIndex ?? RouteDepartureIndex.fromCache(props.scenarioFilterResult.stopDepartureCache),
 )
 
-const startTimeSec = computed(() => dateToSeconds(props.startTime) ?? 0)
-const endTimeSec = computed(() => dateToSeconds(props.endTime) ?? 86400)
+const timeWindow = computed(() => timeWindowSeconds(props.startTime, props.endTime))
+const startTimeSec = computed(() => timeWindow.value.startTime)
+const endTimeSec = computed(() => timeWindow.value.endTime)
 
 const chartStartHour = computed(() => Math.floor(startTimeSec.value / 3600))
 const chartEndHour = computed(() => Math.ceil(endTimeSec.value / 3600))

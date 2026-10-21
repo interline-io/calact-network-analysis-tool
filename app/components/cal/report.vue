@@ -154,7 +154,7 @@
           type="button"
           class="cal-report-cell-button ml-3"
           title="Open this cluster in Transfer Analyst"
-          @click="openTransfers({ kind: 'cluster', clusterId: row.id })"
+          @click="emit('openTransfers', { kind: 'cluster', clusterId: row.id })"
         >
           Transfer Analyst
         </button>
@@ -212,14 +212,10 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
-  // Transfers at a stop or cluster, in the Transfer Analyst tab.
+  // Transfers at a stop or cluster, in the Transfer Analyst tab, which the
+  // page opens.
   openTransfers: [subject: TripSubject]
 }>()
-
-function openTransfers (subject: TripSubject) {
-  emit('openTransfers', subject)
-  activeReportTab.value = 'transfers'
-}
 
 // The trips/frequency columns all render a drill button into the route's trip
 // details; they vary only by which tab it opens and how the value is

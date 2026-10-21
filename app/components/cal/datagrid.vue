@@ -46,7 +46,7 @@
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'is-dense': props.dense }">
+      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'cal-report-table-dense': props.dense }">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -431,7 +431,7 @@ const filterStatus = computed(() => {
   position: relative;
 }
 
-.cal-report-table.is-dense {
+.cal-report-table.cal-report-table-dense {
   font-size: 0.875rem;
 
   th, td {

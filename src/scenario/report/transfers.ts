@@ -145,7 +145,7 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
   }
   const choices = [...byRoute].map(([id, directionMap]) => {
     const route = routes.get(id)
-    const label = route?.route_short_name || route?.route_long_name || route?.route_id || String(id)
+    const label = routeLabel(route) || String(id)
     const destinationLabel = (headsign: string) => headsign || route?.route_long_name || 'No destination'
     const directions = [...directionMap].map(([directionId, destinationMap]) => {
       const destinations = [...destinationMap]
@@ -293,23 +293,31 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
     }
     return date
   }
-  // Departures that can matter: from the window's start to its end plus the
-  // longest walk and wait. One early in a day may connect from an arrival
-  // late the day before, so it is also read a day later.
-  const until = opts.endTime + opts.maxWalkSeconds + opts.breakpoints[opts.breakpoints.length - 1]!
-  const inReach = (t: number) => (t >= opts.startTime && t <= until) || (t + SECONDS_PER_DAY >= opts.startTime && t + SECONDS_PER_DAY <= until)
-  // The dates, and the day after each, for connections past midnight.
-  const days = new Set<number>()
+  // Departures that can matter: from the window's start, less the earliest
+  // a missed connection reaches back, to its end plus the longest walk and
+  // wait. One early in a day may connect from an arrival late the day
+  // before, so is also read as a day later.
+  const bp = opts.breakpoints
+  const from = opts.startTime + Math.min(0, bp[0]!)
+  const until = opts.endTime + opts.maxWalkSeconds + bp[bp.length - 1]!
+  const sameDay = (t: number) => t >= from && t <= until
+  const dayLater = (t: number) => t + SECONDS_PER_DAY >= from && t + SECONDS_PER_DAY <= until
+  // The dates, and the day after each for connections past midnight, which
+  // reads only those.
+  const days = new Map<number, boolean>()
   for (const d of opts.dates) {
     const day = isoToOrdinal(d)
-    days.add(day)
-    days.add(day + 1)
+    days.set(day, false)
+    if (!days.has(day + 1)) {
+      days.set(day + 1, true)
+    }
   }
-  for (const day of days) {
+  for (const [day, afterMidnightOnly] of days) {
     const date = dateOf(day)
     for (const stopId of opts.stopIds) {
       for (const st of opts.stopDepartureCache.get(stopId, date)) {
-        if (!inReach(st.departureTime % SECONDS_PER_DAY)) {
+        const t = st.departureTime % SECONDS_PER_DAY
+        if (!(dayLater(t) || (!afterMidnightOnly && sameDay(t)))) {
           continue
         }
         const detail = opts.tripDetails.get(st.tripId)
@@ -335,7 +343,10 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
         const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
         const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
-        const key = `${st.tripId}|${serviceDate}`
+        // One run of the trip: a trip from frequencies.txt runs many times a
+        // day under one id, each run offset from its stated times.
+        const runOffset = st.departureTime - (stopTime.departure ?? st.departureTime)
+        const key = `${st.tripId}|${serviceDate}|${runOffset}`
         const headsign = tripHeadsignAt(detail, stopId)
         const event = (time: number): TransferEvent => ({
           tripId: st.tripId,
@@ -403,19 +414,16 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
   const bp = opts.breakpoints
   const minWait = bp[0]!
   const maxWait = bp[bp.length - 1]!
-  // Departures come sorted by time, as transferEvents gives them.
-  const sorted = departures
   // The routes and directions an arrival has made a connection to, cleared
   // for each arrival.
   const made = new Set<number>()
   return arrivals.map((arrival) => {
     const connections: TransferConnection[] = []
     const last = arrival.time + opts.maxWalkSeconds + maxWait
-    for (let i = lowerBound(sorted, arrival.time + minWait); i < sorted.length && sorted[i]!.time <= last; i++) {
-      const departure = sorted[i]!
-      if (departure.tripId === arrival.tripId) {
-        continue
-      }
+    // Departures come sorted by time, as transferEvents gives them.
+    for (let i = lowerBound(departures, arrival.time + minWait); i < departures.length && departures[i]!.time <= last; i++) {
+      const departure = departures[i]!
+      // Not the same route either way, which takes in the same trip.
       if (departure.routeId === arrival.routeId) {
         continue
       }
@@ -441,7 +449,7 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
         if (made.has(key)) {
           return false
         }
-        if (c.wait >= 0) {
+        if (c.grade !== 'missed') {
           made.add(key)
         }
         return true
@@ -480,8 +488,9 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
       counts[c.grade] += 1
     }
     connections += g.connections.length
-    // Connections are sorted by wait, so the first made is the soonest.
-    const soonest = g.connections.find(c => c.wait >= 0)
+    // Connections are sorted by wait, so the first made (not missed) is the
+    // soonest.
+    const soonest = g.connections.find(c => c.grade !== 'missed')
     if (soonest) {
       waits.push(soonest.wait)
       if (soonest.grade === 'good' || soonest.grade === 'ok') {
@@ -593,7 +602,7 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
       }
       pair.summary[c.grade] += 1
       pair.toHeadsigns.push(c.departure.headsign)
-      if (c.wait >= 0 && !firstMade.has(toKey)) {
+      if (c.grade !== 'missed' && !firstMade.has(toKey)) {
         firstMade.add(toKey)
         pair.fromHeadsigns.push(arrival.headsign)
         pair.firstWaits.push(c.wait)
@@ -629,7 +638,7 @@ export function formatWait (seconds: number | undefined): string {
   return seconds < 0 ? `-${formatDuration(-seconds)}` : formatDuration(seconds)
 }
 
-function routeLabel (route: TripTableRoute | undefined): string {
+function routeLabel (route: Pick<TripTableRoute, 'route_id' | 'route_short_name' | 'route_long_name'> | undefined): string {
   return route?.route_short_name || route?.route_long_name || route?.route_id || ''
 }
 

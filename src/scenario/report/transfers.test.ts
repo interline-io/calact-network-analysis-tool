@@ -192,6 +192,14 @@ describe('calculateTransfers', () => {
     expect(group!.connections.map(c => c.departure.tripId)).toEqual([3])
   })
 
+  it('counts a connection made only once it is better than missed, whatever the breakpoints', () => {
+    // Good from 1 minute: a 30 s wait is missed, so the later good one shows.
+    const deps = [event(2, 20, hms(7) + 30), event(3, 20, hms(7, 3))]
+    const [group] = calculateTransfers([event(1, 10, hms(7))], deps, { ...walk, breakpoints: [-300, 60, 360, 600, 1200] })
+    expect(group!.connections.map(c => [c.departure.tripId, c.grade])).toEqual([[2, 'missed'], [3, 'good']])
+    expect(transferOverview([group!]).medianWait).toBe(hms(0, 3))
+  })
+
   it('takes other breakpoints', () => {
     const [group] = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 25))], { ...walk, breakpoints: [-600, 0, 600, 1200, 1800] })
     expect(group!.connections.map(c => c.grade)).toEqual(['long'])
@@ -277,14 +285,40 @@ describe('transferTripChoices', () => {
 })
 
 describe('transferEvents reach', () => {
-  it('needs only the trips from the window to its end plus the longest walk and wait', () => {
+  it('needs the trips from a missed connection before the window to its end plus the longest walk and wait', () => {
     const cache = cacheOf([
-      [1, MON, hms(6, 59), 1, 0, 10],
-      [1, MON, hms(7), 2, 0, 10],
+      [1, MON, hms(6, 54), 1, 0, 10],
+      [1, MON, hms(6, 56), 2, 0, 10],
       [1, MON, hms(8, 21), 3, 0, 10],
       [1, MON, hms(8, 23), 4, 0, 10],
     ])
     const events = transferEvents({ stopIds: [1], dates: [MON], startTime: hms(7), endTime: hms(8), stopDepartureCache: cache, tripDetails: new Map(), ...reach })
     expect(events.missingTripIds.sort()).toEqual([2, 3])
+  })
+
+  it('reads the day after a date only for departures past midnight', () => {
+    const cache = cacheOf([
+      // Tuesday's own morning trip is not Monday's spillover.
+      [1, TUE, hms(7, 30), 1, 0, 10],
+      // Monday's trip past midnight, filed under Tuesday.
+      [1, TUE, hms(24, 5), 2, 0, 10],
+    ])
+    const events = transferEvents({ stopIds: [1], dates: [MON], startTime: hms(20), endTime: hms(24), stopDepartureCache: cache, tripDetails: new Map(), ...reach })
+    expect(events.missingTripIds).toEqual([2])
+  })
+})
+
+describe('transferEvents for a trip from frequencies.txt', () => {
+  it('keeps each run of the trip apart', () => {
+    // One trip id run every 30 minutes; its stated time at stop 1 is 07:00.
+    const cache = cacheOf([
+      [1, MON, hms(7), 100, 0, 10],
+      [1, MON, hms(7, 30), 100, 0, 10],
+      [1, MON, hms(8), 100, 0, 10],
+    ])
+    const tripDetails = new Map([[100, detail(100, [{ stopId: 9, departure: hms(6, 50) }, { stopId: 1, arrival: hms(7), departure: hms(7) }, { stopId: 8, arrival: hms(7, 10) }])]])
+    const events = transferEvents({ stopIds: [1], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
+    expect(events.arrivals.map(e => e.seconds)).toEqual([hms(7), hms(7, 30), hms(8)])
+    expect(events.departures.map(e => e.seconds)).toEqual([hms(7), hms(7, 30), hms(8)])
   })
 })

@@ -96,8 +96,11 @@
           Retry
         </cat-button>
       </p>
-      <p v-else-if="detailsLoading || missingDetails > 0" class="cal-transfer-report-note">
+      <p v-else-if="detailsLoading" class="cal-transfer-report-note">
         Loading trip details{{ missingDetails > 0 ? `: ${missingDetails.toLocaleString()} trips to go` : '' }}…
+      </p>
+      <p v-else-if="missingDetails > 0" class="cal-transfer-report-note">
+        Details for {{ missingDetails.toLocaleString() }} {{ missingDetails === 1 ? 'trip' : 'trips' }} could not be found, so {{ missingDetails === 1 ? 'its' : 'their' }} transfers are left out.
       </p>
 
       <p v-if="view === 'individual' && individualDates.length === 0" class="cal-transfer-report-note">
@@ -402,17 +405,11 @@ const summaryColumns: TableColumn[] = [
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.' },
 ]
 
-// The shown view's table.
-const grid = computed(() => {
-  if (view.value === 'summary') {
-    return {
-      tableReport: { columns: summaryColumns, data: props.summaryRows } as TableReport,
-      caption: 'Transfers by route',
-      filename: `transfers-summary-${props.title}`,
-    }
-  }
+// The Individual table's columns, with the stops for a cluster. Apart from
+// its rows, so the grid keeps its sort as rows change.
+const individualColumns = computed((): TableColumn[] => {
   const cluster = subjectKind.value === 'cluster'
-  const columns: TableColumn[] = [
+  return [
     { key: 'arrival_time', label: 'Arrival', sortable: true },
     FROM_COLUMN,
     ...(cluster ? [{ key: 'from_stop_name', label: 'Arrives at', sortable: true }] : []),
@@ -422,13 +419,19 @@ const grid = computed(() => {
     { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true },
     { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.' },
   ]
-  return {
-    tableReport: { columns, data: props.individualRows } as TableReport,
-    caption: 'Transfers',
-    filename: `transfers-${props.individualDate}-${props.title}`,
-    rowClass: (row: TransferRow) => (row.grade === 'none' ? 'cal-transfer-report-none' : undefined),
-  }
 })
+
+// The shown view's table. Its CSV download is the Reports tab's, by the page.
+const grid = computed(() => (view.value === 'summary'
+  ? {
+      tableReport: { columns: summaryColumns, data: props.summaryRows } as TableReport,
+      caption: 'Transfers by route',
+    }
+  : {
+      tableReport: { columns: individualColumns.value, data: props.individualRows } as TableReport,
+      caption: 'Transfers',
+      rowClass: (row: TransferRow) => (row.grade === 'none' ? 'cal-transfer-report-none' : undefined),
+    }))
 </script>
 
 <style scoped lang="scss">

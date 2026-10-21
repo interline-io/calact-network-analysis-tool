@@ -1,7 +1,7 @@
 <template>
   <section
     class="cal-transfer-settings"
-    :class="section === 'trips' ? 'is-trips' : 'is-wait-walk'"
+    :class="section === 'trips' ? 'cal-transfer-settings-trips' : 'cal-transfer-settings-wait-walk'"
     :aria-label="section === 'trips' ? 'Trip filtering' : 'Wait and walking settings'"
   >
     <template v-if="section === 'wait-walk'">
@@ -105,7 +105,7 @@
             v-for="row of side.rows"
             :key="row.id"
             class="cal-transfer-settings-item"
-            :class="`is-depth-${row.depth}`"
+            :class="`cal-transfer-settings-depth-${row.depth}`"
           >
             <button
               v-if="row.openKey"
@@ -301,7 +301,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   flex: 0 0 auto;
 
   // Walking and the grade scale at their own width; connections, the rest.
-  &.is-wait-walk {
+  &.cal-transfer-settings-wait-walk {
     display: flex;
     flex-wrap: wrap;
 
@@ -310,7 +310,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     }
   }
 
-  &.is-trips {
+  &.cal-transfer-settings-trips {
     grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
   }
 
@@ -411,15 +411,15 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     border-bottom: 0;
   }
 
-  &.is-depth-1 {
+  &.cal-transfer-settings-depth-1 {
     padding-left: 1.75rem;
   }
 
-  &.is-depth-2 {
+  &.cal-transfer-settings-depth-2 {
     padding-left: 3rem;
   }
 
-  &:not(.is-depth-0) {
+  &:not(.cal-transfer-settings-depth-0) {
     font-size: 0.8125rem;
   }
 }

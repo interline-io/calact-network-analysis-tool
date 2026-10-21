@@ -21,6 +21,8 @@ describe('parseStopDistances', () => {
     expect(meters.get('1|2')).toBe(250)
     expect(meters.has('1|3')).toBe(false)
     expect(meters.get('2|3')).toBeCloseTo(1609.344)
+    const odd = parseStopDistances(pairs.slice(0, 1), { p0: { success: true, distance: { distance: 1, units: 'FURLONGS' as 'MILES' } } })
+    expect(odd.size).toBe(0)
   })
 })
 
