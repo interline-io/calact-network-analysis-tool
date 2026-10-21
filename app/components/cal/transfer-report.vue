@@ -247,7 +247,9 @@ const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
 const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
 const settings = defineModel<TransferSettings>('settings', { required: true })
-const openSection = ref<TransferSettingsSection>()
+// Trip filtering is open on entering, as which trips count is the first
+// thing to set.
+const openSection = ref<TransferSettingsSection | undefined>('trips')
 const settingsId = useId()
 
 // The share of trips, arriving and departing, that trip filtering keeps, on
@@ -390,19 +392,24 @@ const waitChart = computed(() => {
   })
 })
 
+// Columns as wide as their contents, and the grade counts centered too, so
+// the From and To columns take the rest.
+const NARROW = 'cal-transfer-report-col-narrow'
+const COUNT = 'cal-transfer-report-col-narrow cal-transfer-report-col-count'
+
 const FROM_COLUMN: TableColumn = { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' }
 const TO_COLUMN: TableColumn = { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' }
 
 const summaryColumns: TableColumn[] = [
   FROM_COLUMN,
   TO_COLUMN,
-  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.' },
-  { key: 'missed', label: 'Missed', sortable: true, numeric: true },
-  { key: 'good', label: 'Good', sortable: true, numeric: true },
-  { key: 'ok', label: 'OK', sortable: true, numeric: true },
-  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true },
+  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.', class: NARROW },
+  { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT },
+  { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT },
+  { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT },
+  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, class: COUNT },
   { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection to the To route and direction is good or OK.' },
-  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.' },
+  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', class: NARROW },
 ]
 
 // The Individual table's columns, with the stops for a cluster. Apart from
@@ -410,14 +417,14 @@ const summaryColumns: TableColumn[] = [
 const individualColumns = computed((): TableColumn[] => {
   const cluster = subjectKind.value === 'cluster'
   return [
-    { key: 'arrival_time', label: 'Arrival', sortable: true },
+    { key: 'arrival_time', label: 'Arrival', sortable: true, class: NARROW },
     FROM_COLUMN,
     ...(cluster ? [{ key: 'from_stop_name', label: 'Arrives at', sortable: true }] : []),
-    { key: 'departure_time', label: 'Departure', sortable: true },
+    { key: 'departure_time', label: 'Departure', sortable: true, class: NARROW },
     TO_COLUMN,
     ...(cluster ? [{ key: 'to_stop_name', label: 'Departs from', sortable: true }] : []),
-    { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true },
-    { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.' },
+    { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW },
+    { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW },
   ]
 })
 
@@ -585,6 +592,21 @@ const grid = computed(() => (view.value === 'summary'
 .cal-transfer-report-share-bar {
   display: block;
   height: 100%;
+}
+
+// The grid's cells, outside this component's scope.
+:deep(.cal-transfer-report-col-narrow) {
+  width: 1%;
+  white-space: nowrap;
+}
+
+:deep(.cal-transfer-report-col-count) {
+  text-align: center;
+
+  // A sortable header's label is a full-width button.
+  .cal-datagrid-sort-button {
+    justify-content: center;
+  }
 }
 
 .cal-transfer-report-count {

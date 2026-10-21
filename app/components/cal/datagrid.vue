@@ -56,7 +56,7 @@
               v-for="column in tableReport.columns"
               :key="column.key"
               scope="col"
-              :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
+              :class="[column.class, { 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }]"
               :aria-sort="ariaSort(column)"
             >
               <!-- Sortable columns render the header as a real <button> so
@@ -119,7 +119,7 @@
                sizes each column to the worst case and widths stay constant
                across pagination / sort. -->
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
-            <td v-for="column in tableReport.columns" :key="column.key">
+            <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
               <div class="cal-datagrid-shim-cell">
                 <slot
                   :name="`column-${column.key}`"
@@ -133,7 +133,7 @@
             </td>
           </tr>
           <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx" :class="rowClass?.(row)">
-            <td v-for="column in tableReport.columns" :key="column.key">
+            <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
               <slot
                 :name="`column-${column.key}`"
                 :row="row"

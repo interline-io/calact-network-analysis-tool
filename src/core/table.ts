@@ -14,6 +14,8 @@ export interface TableColumn {
   // numeric columns rendered through a slot rather than formatCensusValue,
   // where string collation would order negative values incorrectly.
   numeric?: boolean
+  // A class for the column's header and cells, such as one narrowing it.
+  class?: string
 }
 
 export interface TableReport {
