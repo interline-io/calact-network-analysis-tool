@@ -8,15 +8,13 @@
            a drag draws the lasso rather than panning. -->
       <svg
         v-if="lassoOn"
-        v-if="lassoPoints.length > 1"
         class="cal-transfer-stops-map-lasso"
-        <polygon
-        :points="lassoPoints.map(p => p.join(',')).join(' ')"
         @pointerdown="startLasso"
         @pointermove="moveLasso"
         @pointerup="endLasso"
         @pointercancel="cancelLasso"
-      />
+      >
+        <polygon v-if="lassoPoints.length > 1" :points="lassoPoints.map(p => p.join(',')).join(' ')" />
       </svg>
     </div>
     <div class="cal-transfer-stops-map-tools">
