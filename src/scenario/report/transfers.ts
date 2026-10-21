@@ -8,7 +8,7 @@
  * arrival the evening before.
  */
 
-import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatGtfsTimeFull } from '../../core'
+import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatDuration, formatGtfsTimeFull } from '../../core'
 import type { StopDepartureCache } from '../../tl/departure-cache'
 import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
 import type { TripTableRoute, TripTableStop } from './subject-trips'
@@ -616,14 +616,13 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
   }).sort((a, b) => b.arrivals - a.arrivals || a.key.localeCompare(b.key))
 }
 
-// A wait as minutes and seconds, signed when missed: "4:30", "-1:15".
+// A wait or walk with its units, signed when missed: "4m 30s", "-1m 15s".
+// Not "4:30", which reads as a time of day.
 export function formatWait (seconds: number | undefined): string {
   if (seconds === undefined || !Number.isFinite(seconds)) {
     return ''
   }
-  const total = Math.round(Math.abs(seconds))
-  const text = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-  return seconds < 0 ? `-${text}` : text
+  return seconds < 0 ? `-${formatDuration(-seconds)}` : formatDuration(seconds)
 }
 
 function routeLabel (route: TripTableRoute | undefined): string {
@@ -652,7 +651,8 @@ export interface TransferSummaryRow {
   ok: number
   long_wait: number
   good_or_ok_share: number
-  median_wait: string
+  // Seconds; blank where no arrival makes a connection.
+  median_wait_seconds: number | ''
 }
 
 export function transferSummaryRows (summaries: TransferPairSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
@@ -680,7 +680,7 @@ export function transferSummaryRows (summaries: TransferPairSummary[], routes: M
       ok: s.ok,
       long_wait: s.long,
       good_or_ok_share: Math.round(s.goodOrOkShare * 1000) / 10,
-      median_wait: formatWait(s.medianWait),
+      median_wait_seconds: s.medianWait ?? '',
     }
   })
 }

@@ -61,8 +61,9 @@ describe('dates and times', () => {
   })
 
   it('formats waits as minutes and seconds, signed when missed', () => {
-    expect(formatWait(270)).toBe('4:30')
-    expect(formatWait(-75)).toBe('-1:15')
+    expect(formatWait(270)).toBe('4m 30s')
+    expect(formatWait(-75)).toBe('-1m 15s')
+    expect(formatWait(0)).toBe('0s')
     expect(formatWait(undefined)).toBe('')
   })
 })

@@ -152,6 +152,9 @@
             <!-- Something rendered, or the grid falls back to printing the 0. -->
             <span v-else />
           </template>
+          <template #column-median_wait_seconds="{ value }">
+            <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
+          </template>
           <template #column-good_or_ok_share="{ value }">
             {{ value }}%
           </template>
@@ -373,7 +376,7 @@ function figures (o: TransferOverview) {
     { label: 'Arrivals', value: o.arrivals.toLocaleString(), tooltip: 'Trips arriving at the stops within the filters.' },
     { label: 'Connections', value: o.connections.toLocaleString(), tooltip: 'Connections shown, by grade in the bar.' },
     { label: 'Good or OK', value: percent(o.goodOrOkShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is good or OK.' },
-    { label: 'Median wait', value: formatWait(o.medianWait) || '—', tooltip: 'Median wait for each arrival\'s soonest connection, over arrivals that make one (minutes:seconds).' },
+    { label: 'Median wait', value: formatWait(o.medianWait) || '—', tooltip: 'Median wait for each arrival\'s soonest connection, over arrivals that make one.' },
   ]
 }
 
@@ -439,7 +442,7 @@ const summaryColumns: TableColumn[] = [
   { key: 'ok', label: 'OK', sortable: true, numeric: true },
   { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true },
   { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection to the To route and direction is good or OK.' },
-  { key: 'median_wait', label: 'Median wait', sortable: true, tooltip: 'Median wait for the first connection, over arrivals that make one (minutes:seconds).' },
+  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.' },
 ]
 
 const summaryReport = computed((): TableReport => ({
@@ -457,7 +460,7 @@ const individualReport = computed((): TableReport => {
     { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
     ...(cluster ? [{ key: 'to_stop_name', label: 'Departs from', sortable: true }] : []),
     { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true },
-    { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure (minutes:seconds), colored by grade. Negative when missed.' },
+    { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.' },
   ]
   return { columns, data: props.individualRows }
 })
