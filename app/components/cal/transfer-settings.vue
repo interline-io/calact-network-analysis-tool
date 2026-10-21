@@ -86,47 +86,57 @@
       </cat-fieldset>
     </template>
 
-    <!-- Arriving and departing trips side by side; each route with its
-         headsigns beneath, the routes in a grid that fills the width. -->
+    <!-- Arriving and departing trips side by side, as www groups a stop's
+         departures: each route, its directions ("Toward X"), and their
+         destinations, opened on request, with trip counts. -->
     <template v-else>
-      <cat-fieldset v-for="side of sides" :key="side.key" :label="`${side.legend} routes and headsigns`">
-        <div class="cal-transfer-settings-route-actions">
+      <div v-for="side of sides" :key="side.key" class="cal-transfer-settings-side" role="group" :aria-label="`${side.legend} trips`">
+        <div class="cal-transfer-settings-side-head">
+          <span>{{ side.legend }} trips</span>
           <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [] })">
             All
           </button>
-          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: side.routes.flatMap(r => r.headsigns.map(h => h.key)) })">
+          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: side.rows.filter(r => r.depth === 0).flatMap(r => r.keys) })">
             None
           </button>
         </div>
-        <ul class="cal-transfer-settings-routes">
-          <li v-for="route of side.routes" :key="route.id" class="cal-transfer-settings-route">
-            <cat-checkbox
-              :model-value="routeState(side.key, route) !== 'none'"
-              :indeterminate="routeState(side.key, route) === 'some'"
-              @update:model-value="setHeadsigns(side.key, route.headsigns.map(h => h.key), !!$event)"
+        <ul class="cal-transfer-settings-list">
+          <li
+            v-for="row of side.rows"
+            :key="row.id"
+            class="cal-transfer-settings-item"
+            :class="`is-depth-${row.depth}`"
+          >
+            <button
+              v-if="row.openKey"
+              type="button"
+              class="cal-transfer-settings-caret"
+              :aria-expanded="opened.has(row.openKey)"
+              :aria-label="`${opened.has(row.openKey) ? 'Hide' : 'Show'} destinations for ${row.label}`"
+              @click="toggleOpen(row.openKey)"
             >
-              <cal-route-badge :label="route.label" :title="route.longName || route.label" truncate />
-              <span v-if="route.longName && route.longName !== route.label" class="cal-transfer-settings-long-name">{{ route.longName }}</span>
+              <cat-icon size="small" :icon="opened.has(row.openKey) ? 'chevron-down' : 'chevron-right'" />
+            </button>
+            <span v-else class="cal-transfer-settings-caret" />
+            <cat-checkbox
+              class="cal-transfer-settings-item-check"
+              :model-value="state(side.key, row.keys) !== 'none'"
+              :indeterminate="state(side.key, row.keys) === 'some'"
+              @update:model-value="setKeys(side.key, row.keys, !!$event)"
+            >
+              <cal-route-badge v-if="row.badge" :label="row.badge" :title="row.title" />
+              <span class="cal-transfer-settings-item-label" :title="row.title">{{ row.label }}</span>
             </cat-checkbox>
-            <ul class="cal-transfer-settings-headsigns">
-              <li v-for="h of route.headsigns" :key="h.key">
-                <cat-checkbox
-                  :model-value="!settings[side.key].includes(h.key)"
-                  @update:model-value="setHeadsigns(side.key, [h.key], !!$event)"
-                >
-                  {{ h.label }} <span class="cal-transfer-settings-count">{{ h.count.toLocaleString() }}</span>
-                </cat-checkbox>
-              </li>
-            </ul>
+            <span class="cal-transfer-settings-count">{{ row.count.toLocaleString() }}</span>
           </li>
         </ul>
-      </cat-fieldset>
+      </div>
     </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   TRANSFER_GRADES,
@@ -188,19 +198,79 @@ const breakpointsValid = computed(() => validBreakpoints(settings.value.breakpoi
 
 type Side = 'excludedFrom' | 'excludedTo'
 
-const sides = computed(() => [
-  { key: 'excludedFrom' as const, legend: 'Arriving', routes: props.routeChoices.from },
-  { key: 'excludedTo' as const, legend: 'Departing', routes: props.routeChoices.to },
-])
-
-// Whether all, some, or none of a route's headsigns are included.
-function routeState (side: Side, route: TransferRouteChoice): 'all' | 'some' | 'none' {
-  const excluded = new Set(settings.value[side])
-  const out = route.headsigns.filter(h => excluded.has(h.key)).length
-  return out === 0 ? 'all' : out === route.headsigns.length ? 'none' : 'some'
+// One line of a side's list: a route, a direction, or a destination, with
+// the destination keys its checkbox covers.
+interface Row {
+  id: string
+  depth: number
+  badge?: string
+  label: string
+  title?: string
+  count: number
+  keys: string[]
+  // Set where the row opens to destinations.
+  openKey?: string
 }
 
-function setHeadsigns (side: Side, keys: string[], included: boolean) {
+// Rows opened to show their destinations.
+const opened = ref(new Set<string>())
+function toggleOpen (key: string) {
+  const next = new Set(opened.value)
+  if (!next.delete(key)) {
+    next.add(key)
+  }
+  opened.value = next
+}
+
+// A route with one direction at the stops is one row; with two, a row and a
+// row per direction. A direction with several destinations opens to them.
+function rows (side: Side, routes: TransferRouteChoice[]): Row[] {
+  const out: Row[] = []
+  for (const route of routes) {
+    const single = route.directions.length === 1
+    const routeKeys = route.directions.flatMap(d => d.destinations.map(x => x.key))
+    const title = route.longName || route.label
+    for (const [i, dir] of route.directions.entries()) {
+      const depth = single ? 0 : 1
+      const openKey = dir.destinations.length > 1 ? `${side}|${route.id}|${dir.directionId}` : undefined
+      if (i === 0 && !single) {
+        // The long name beside the badge, where it says more than the badge.
+        const label = route.longName !== route.label ? route.longName : ''
+        out.push({ id: `r${route.id}`, depth: 0, badge: route.label, label, title, count: route.count, keys: routeKeys })
+      }
+      out.push({
+        id: `d${route.id}|${dir.directionId}`,
+        depth,
+        badge: single ? route.label : undefined,
+        label: dir.label,
+        title,
+        count: dir.count,
+        keys: dir.destinations.map(x => x.key),
+        openKey,
+      })
+      if (openKey && opened.value.has(openKey)) {
+        for (const dest of dir.destinations) {
+          out.push({ id: `x${dest.key}`, depth: depth + 1, label: dest.label, count: dest.count, keys: [dest.key] })
+        }
+      }
+    }
+  }
+  return out
+}
+
+const sides = computed(() => [
+  { key: 'excludedFrom' as const, legend: 'Arriving', rows: rows('excludedFrom', props.routeChoices.from) },
+  { key: 'excludedTo' as const, legend: 'Departing', rows: rows('excludedTo', props.routeChoices.to) },
+])
+
+// Whether all, some, or none of the keys are included.
+function state (side: Side, keys: string[]): 'all' | 'some' | 'none' {
+  const excluded = new Set(settings.value[side])
+  const out = keys.filter(k => excluded.has(k)).length
+  return out === 0 ? 'all' : out === keys.length ? 'none' : 'some'
+}
+
+function setKeys (side: Side, keys: string[], included: boolean) {
   const excluded = new Set(settings.value[side])
   for (const key of keys) {
     if (included) {
@@ -238,7 +308,7 @@ function setHeadsigns (side: Side, keys: string[], included: boolean) {
   }
 
   &.is-trips {
-    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
   }
 
   > * {
@@ -298,47 +368,85 @@ function setHeadsigns (side: Side, keys: string[], included: boolean) {
   text-decoration: underline;
 }
 
-.cal-transfer-settings-route-actions {
-  display: flex;
-  font-size: 0.75rem;
-  margin-bottom: 0.4rem;
+.cal-transfer-settings-side {
+  min-width: 0;
+}
 
-  .cal-transfer-settings-link:first-child {
-    margin-left: 0;
+.cal-transfer-settings-side-head {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+
+  span {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--bulma-text-strong);
+    margin-right: 0.25rem;
   }
 }
 
-// Routes in columns that fill the side's width, scrolling past a few rows.
-.cal-transfer-settings-routes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
-  gap: 0.5rem 1rem;
-  max-height: 11rem;
-  overflow-x: hidden;
+// One line per row, the count at the end, scrolling past a dozen or so.
+.cal-transfer-settings-list {
+  max-height: 12rem;
   overflow-y: auto;
   margin: 0;
   list-style: none;
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--bulma-radius);
+  background: var(--bulma-scheme-main);
 }
 
-.cal-transfer-settings-route {
-  min-width: 0;
+.cal-transfer-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid var(--bulma-border-weak);
 
-  // A long route name is cut short within its column.
-  :deep(.checkbox) {
-    max-width: 100%;
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &.is-depth-1 {
+    padding-left: 1.75rem;
+  }
+
+  &.is-depth-2 {
+    padding-left: 3rem;
+  }
+
+  &:not(.is-depth-0) {
+    font-size: 0.8125rem;
   }
 }
 
-.cal-transfer-settings-long-name {
-  margin-left: 0.35rem;
-  font-size: 0.75rem;
+.cal-transfer-settings-caret {
+  flex: 0 0 1.25rem;
+  background: none;
+  border: 0;
+  padding: 0;
   color: var(--bulma-text-weak);
+  cursor: pointer;
 }
 
-.cal-transfer-settings-headsigns {
-  margin: 0.1rem 0 0 1.5rem;
-  list-style: none;
-  font-size: 0.75rem;
+.cal-transfer-settings-item-check {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  :deep(label),
+  :deep(.checkbox) {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+}
+
+.cal-transfer-settings-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cal-transfer-settings-count {

@@ -23,6 +23,9 @@ query TripDetails($ids: [Int!], $limit: Int) {
       stop {
         id
         stop_name
+        parent {
+          stop_name
+        }
       }
     }
   }
@@ -47,7 +50,7 @@ export interface TripDetailsResponse {
       stop_headsign?: string | null
       pickup_type?: number | null
       drop_off_type?: number | null
-      stop?: { id: number, stop_name?: string | null } | null
+      stop?: { id: number, stop_name?: string | null, parent?: { stop_name?: string | null } | null } | null
     } | null)[]
   }[]
 }
@@ -124,7 +127,9 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       tripId: t.trip_id,
       headsign: t.trip_headsign || undefined,
       stopHeadsigns,
-      lastStopName: stopTimes[stopTimes.length - 1]?.stop?.stop_name || undefined,
+      // Where the trip ends, as a station a rider knows: its parent
+      // station's name, else the stop's own.
+      lastStopName: stopTimes[stopTimes.length - 1]?.stop?.parent?.stop_name || stopTimes[stopTimes.length - 1]?.stop?.stop_name || undefined,
       startTime,
       endTime,
       stopCount: t.stop_times.length,

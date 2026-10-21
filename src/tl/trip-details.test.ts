@@ -57,6 +57,21 @@ describe('parseTripDetails', () => {
     expect(tripHeadsignAt({ ...t!, headsign: 'Gateway' }, 11)).toBe('Gateway')
   })
 
+  it('names where a trip ends by its last stop\'s parent station, where it has one', () => {
+    const [t] = parseTripDetails({
+      trips: [{
+        id: 4,
+        trip_id: 't4',
+        trip_headsign: null,
+        stop_times: [
+          { stop_sequence: 1, departure_time: '08:00:00', stop: { id: 10, stop_name: 'Start' } },
+          { stop_sequence: 2, arrival_time: '08:20:00', stop: { id: 12, stop_name: 'Platform 2', parent: { stop_name: 'Union Station' } } },
+        ],
+      }],
+    })
+    expect(t?.lastStopName).toBe('Union Station')
+  })
+
   it('reads around stop times the API returned as null, still counting them as stops', () => {
     const [t] = parseTripDetails({
       trips: [{

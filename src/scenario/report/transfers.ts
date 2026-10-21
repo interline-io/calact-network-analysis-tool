@@ -77,26 +77,103 @@ export interface TransferSettings {
   allConnections: boolean
   // Five increasing wait breakpoints, in seconds.
   breakpoints: number[]
-  // Route and headsign pairs (transferRouteKey) whose arrivals, or
-  // departures, are left out.
+  // Route, direction, and destination keys (transferTripKey) whose
+  // arrivals, or departures, are left out.
   excludedFrom: string[]
   excludedTo: string[]
 }
 
-// A route at the stops, with its headsigns, as the settings offer them.
+// A trip's route, direction, and destination at the stops, as the settings
+// choose them. The destination is the trip's sign there, compared exactly as
+// the feed writes it.
+export function transferTripKey (e: Pick<TransferEvent, 'routeId' | 'directionId' | 'headsign'>): string {
+  return `${e.routeId}|${e.directionId}|${e.headsign ?? ''}`
+}
+
+export interface TransferTripDestination {
+  key: string
+  label: string
+  count: number
+}
+
+export interface TransferTripDirection {
+  directionId: number
+  // "Toward X" where most of the direction's trips go to X; otherwise its
+  // number.
+  label: string
+  count: number
+  destinations: TransferTripDestination[]
+}
+
+// A route at the stops, its directions, and their destinations, with trip
+// counts, as the settings offer them.
 export interface TransferRouteChoice {
   id: number
   label: string
   longName: string
-  color: string
-  textColor: string
-  // Each headsign's transferRouteKey, label, and trip count.
-  headsigns: { key: string, label: string, count: number }[]
+  count: number
+  directions: TransferTripDirection[]
 }
 
-// A trip's route and headsign, as the settings exclude them.
-export function transferRouteKey (e: Pick<TransferEvent, 'routeId' | 'headsign'>): string {
-  return `${e.routeId}|${e.headsign ?? ''}`
+export interface TransferChoiceRoute {
+  route_id: string
+  route_short_name?: string | null
+  route_long_name?: string | null
+  route_sort_order?: number | null
+}
+
+/**
+ * The trips at the stops as a tree of routes, directions, and destinations,
+ * as www groups a stop's departures. A direction is "Toward X" when more than
+ * half its trips go to X; otherwise, or where both directions would read the
+ * same, it is "Direction 0" or "Direction 1". A trip with no sign reads its
+ * route's long name. Routes go by their GTFS sort order, then name.
+ */
+export function transferTripChoices (events: TransferEvent[], routes: Map<number, TransferChoiceRoute>): TransferRouteChoice[] {
+  const byRoute = new Map<number, Map<number, Map<string, number>>>()
+  for (const e of events) {
+    const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, number>>()
+    const destinations = directions.get(e.directionId) ?? new Map<string, number>()
+    destinations.set(e.headsign ?? '', (destinations.get(e.headsign ?? '') || 0) + 1)
+    directions.set(e.directionId, destinations)
+    byRoute.set(e.routeId, directions)
+  }
+  const choices = [...byRoute].map(([id, directionMap]) => {
+    const route = routes.get(id)
+    const label = route?.route_short_name || route?.route_long_name || route?.route_id || String(id)
+    const destinationLabel = (headsign: string) => headsign || route?.route_long_name || 'No destination'
+    const directions = [...directionMap].map(([directionId, destinationMap]) => {
+      const destinations = [...destinationMap]
+        .map(([headsign, count]) => ({ key: transferTripKey({ routeId: id, directionId, headsign }), label: destinationLabel(headsign), count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+      const count = destinations.reduce((n, d) => n + d.count, 0)
+      const top = destinations[0]
+      return {
+        directionId,
+        label: top && top.count * 2 > count ? `Toward ${top.label}` : `Direction ${directionId}`,
+        count,
+        destinations,
+      }
+    }).sort((a, b) => a.directionId - b.directionId)
+    if (directions.length === 2 && directions[0]!.label === directions[1]!.label) {
+      for (const d of directions) {
+        d.label = `Direction ${d.directionId}`
+      }
+    }
+    return {
+      choice: {
+        id,
+        label,
+        longName: route?.route_long_name ?? '',
+        count: directions.reduce((n, d) => n + d.count, 0),
+        directions,
+      },
+      sortOrder: route?.route_sort_order ?? Number.POSITIVE_INFINITY,
+    }
+  })
+  return choices
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.choice.label.localeCompare(b.choice.label, undefined, { numeric: true }))
+    .map(c => c.choice)
 }
 
 export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {

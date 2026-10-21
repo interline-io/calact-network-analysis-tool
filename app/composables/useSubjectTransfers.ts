@@ -21,12 +21,11 @@ import {
   transferOverview,
   transferRows,
   transferSummaryRows,
-  transferRouteKey,
+  transferTripChoices,
+  transferTripKey,
   transferTripIds,
   validBreakpoints,
   type ScenarioFilterResult,
-  type TransferEvent,
-  type TransferRouteChoice,
   type TransferSettings,
   type TransferTimeBand,
   type TripSubject,
@@ -173,35 +172,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     })
   })
 
-  // The routes arriving and departing, each with its headsigns and how many
-  // trips each has, for the settings' route tree.
-  const routeChoices = computed(() => {
-    const tree = (events: TransferEvent[]): TransferRouteChoice[] => {
-      const byRoute = new Map<number, Map<string, number>>()
-      for (const e of events) {
-        const headsigns = byRoute.get(e.routeId) ?? new Map<string, number>()
-        headsigns.set(e.headsign ?? '', (headsigns.get(e.headsign ?? '') || 0) + 1)
-        byRoute.set(e.routeId, headsigns)
-      }
-      return [...byRoute].map(([id, headsigns]) => {
-        const route = routes.value.get(id)
-        return {
-          id,
-          label: route?.route_short_name || route?.route_long_name || route?.route_id || String(id),
-          longName: route?.route_long_name ?? '',
-          color: route?.route_color ?? '',
-          textColor: route?.route_text_color ?? '',
-          headsigns: [...headsigns]
-            .map(([headsign, count]) => ({ key: transferRouteKey({ routeId: id, headsign }), label: headsign || '(no headsign)', count }))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        }
-      }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
-    }
-    return {
-      from: tree(events.value?.arrivals ?? []),
-      to: tree(events.value?.departures ?? []),
-    }
-  })
+  // The trips arriving and departing as routes, directions, and
+  // destinations, for the settings' trip filtering.
+  const routeChoices = computed(() => ({
+    from: transferTripChoices(events.value?.arrivals ?? [], routes.value),
+    to: transferTripChoices(events.value?.departures ?? [], routes.value),
+  }))
 
   const groups = computed(() => {
     const e = events.value
@@ -212,8 +188,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const toOut = new Set(settings.value.excludedTo)
     const spm = secondsPerMeter.value
     return calculateTransfers(
-      e.arrivals.filter(a => !fromOut.has(transferRouteKey(a))),
-      e.departures.filter(d => !toOut.has(transferRouteKey(d))),
+      e.arrivals.filter(a => !fromOut.has(transferTripKey(a))),
+      e.departures.filter(d => !toOut.has(transferTripKey(d))),
       {
         walkSeconds: (from, to) => (from === to ? 0 : (walkMeters(from, to) ?? Number.NaN) * spm),
         maxWalkSeconds: maxWalkSeconds.value,

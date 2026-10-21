@@ -288,11 +288,18 @@ const settings = defineModel<TransferSettings>('settings', { required: true })
 const openSection = ref<TransferSettingsSection>()
 const settingsId = useId()
 
-// How many headsigns trip filtering leaves out, on its button.
-const excludedCount = computed(() => settings.value.excludedFrom.length + settings.value.excludedTo.length)
+// How many trips trip filtering leaves out, arriving and departing, on its
+// button.
+const excludedCount = computed(() => {
+  const count = (routes: TransferRouteChoice[], excluded: string[]) => {
+    const out = new Set(excluded)
+    return routes.flatMap(r => r.directions.flatMap(d => d.destinations)).filter(d => out.has(d.key)).reduce((n, d) => n + d.count, 0)
+  }
+  return count(props.routeChoices.from, settings.value.excludedFrom) + count(props.routeChoices.to, settings.value.excludedTo)
+})
 const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: string }[] => [
   { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },
-  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? `${excludedCount.value} excluded` : undefined },
+  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? `${excludedCount.value.toLocaleString()} trips excluded` : undefined },
 ])
 
 const views: { value: TransferReportView, label: string }[] = [

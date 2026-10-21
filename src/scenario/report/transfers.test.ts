@@ -14,7 +14,9 @@ import {
   transferGradeCounts,
   transferOverview,
   transferRows,
+  transferTripChoices,
   transferTripIds,
+  transferTripKey,
   type TransferEvent,
 } from './transfers'
 
@@ -236,6 +238,38 @@ describe('filterTransferGroups', () => {
     expect(filterTransferGroups(groups, undefined, 'am').map(g => g.arrival.tripId)).toEqual([2, 3])
     expect(filterTransferGroups(groups, MON, 'am').map(g => g.arrival.tripId)).toEqual([2])
     expect(filterTransferGroups(groups, TUE, 'early').length).toBe(0)
+  })
+})
+
+describe('transferTripChoices', () => {
+  const trip = (routeId: number, directionId: number, headsign?: string): TransferEvent => ({ ...event(1, routeId, 0, 1, directionId), headsign })
+  const routes = new Map([
+    [10, { route_id: 'R10', route_short_name: '10', route_long_name: 'Tenth', route_sort_order: 2 }],
+    [20, { route_id: 'R20', route_short_name: '2', route_long_name: 'Second', route_sort_order: 1 }],
+    [30, { route_id: 'R30', route_short_name: 'Loop', route_long_name: 'Downtown Loop' }],
+  ])
+
+  it('groups trips by route, direction, and destination, naming a direction by its majority destination', () => {
+    const [second, tenth, loop] = transferTripChoices([
+      trip(10, 0, 'Downtown'), trip(10, 0, 'Downtown'), trip(10, 0, 'Midtown'),
+      trip(10, 1, 'Airport'), trip(10, 1, 'Zoo'),
+      trip(20, 0, 'Gateway'),
+      trip(30, 0),
+    ], routes)
+    expect(second!.label).toBe('2')
+    expect(tenth).toMatchObject({ label: '10', count: 5 })
+    expect(tenth!.directions.map(d => [d.label, d.count, d.destinations.map(x => x.label)])).toEqual([
+      ['Toward Downtown', 3, ['Downtown', 'Midtown']],
+      ['Direction 1', 2, ['Airport', 'Zoo']],
+    ])
+    expect(tenth!.directions[0]!.destinations[0]!.key).toBe(transferTripKey({ routeId: 10, directionId: 0, headsign: 'Downtown' }))
+    // No sign: the route's long name.
+    expect(loop!.directions[0]!.label).toBe('Toward Downtown Loop')
+  })
+
+  it('numbers both directions where they would read the same', () => {
+    const [route] = transferTripChoices([trip(10, 0, 'Loop'), trip(10, 1, 'Loop')], routes)
+    expect(route!.directions.map(d => d.label)).toEqual(['Direction 0', 'Direction 1'])
   })
 })
 
