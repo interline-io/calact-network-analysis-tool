@@ -26,8 +26,8 @@
     </div>
 
     <p v-if="!subjectKind" class="cal-transfer-report-note">
-      Pick a stop or stop cluster to see its transfers, or use "Transfers here"
-      in a stop's or cluster's trip information on the map.
+      Pick a stop or stop cluster to see its transfers, or use "Enter Transfer
+      Analyst" in a stop's or cluster's trip information on the map.
     </p>
 
     <template v-else>

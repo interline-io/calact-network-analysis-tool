@@ -29,7 +29,7 @@
         <cat-tab-item v-if="fixedRouteEnabled && hasClusterData" value="stop-clusters" label="Stop Clusters" />
         <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="hasFlexData" value="flex" label="Flex Areas" />
-        <cat-tab-item v-if="fixedRouteEnabled && $slots.transfers" value="transfers" label="Transfers" />
+        <cat-tab-item v-if="fixedRouteEnabled && $slots.transfers" value="transfers" label="Transfer Analyst" />
       </cat-tabs>
     </div>
 
@@ -148,10 +148,10 @@
           v-if="value && row.id != null"
           type="button"
           class="cal-report-cell-button ml-3"
-          title="View transfers at this cluster"
+          title="Open this cluster in Transfer Analyst"
           @click="openTransfers({ kind: 'cluster', clusterId: row.id })"
         >
-          Transfers
+          Transfer Analyst
         </button>
       </template>
       <template
@@ -207,7 +207,7 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
-  // Transfers at a stop or cluster, in the Transfers tab.
+  // Transfers at a stop or cluster, in the Transfer Analyst tab.
   openTransfers: [subject: TripSubject]
 }>()
 
@@ -365,7 +365,7 @@ const reportTabLabels: Record<ReportTab, string> = {
   'stop-clusters': 'Stop Clusters',
   'agencies': 'Agencies',
   'flex': 'Flex Areas',
-  'transfers': 'Transfers',
+  'transfers': 'Transfer Analyst',
 }
 
 const activeReportTabLabel = computed(() => reportTabLabels[activeReportTab.value])
@@ -380,8 +380,8 @@ const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?
 // areas shows an empty table instead of hiding the tab.
 const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
-// Sync dataDisplayMode when user switches tabs. Transfers has no map display
-// mode of its own, so leaves it be, and the mode does not move off it.
+// Sync dataDisplayMode when user switches tabs. Transfer Analyst has no map
+// display mode of its own, so leaves it be, and the mode does not move off it.
 const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
@@ -542,7 +542,8 @@ const activeTableReport = computed((): TableReport => {
     padding-right:20px;
   }
 
-  // The Transfers tab fills the page's height, rather than growing past it.
+  // The Transfer Analyst tab fills the page's height, rather than growing
+  // past it.
   .cal-report-fill {
     min-height: 0;
     overflow: hidden;

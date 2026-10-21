@@ -911,7 +911,7 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
   }
 })
 
-// Transfers at a stop or cluster, in the Reports tab's Transfers tab: picked
+// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst: picked
 // there, or opened from the trip panel or a Stop Clusters row.
 const reportTab = ref<ReportTab>('routes')
 const transferSubject = ref('')
