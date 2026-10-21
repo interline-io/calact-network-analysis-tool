@@ -1,18 +1,24 @@
 <template>
   <div class="cal-transfer-stops-map">
-    <div ref="mapContainer" class="cal-transfer-stops-map-canvas" />
-    <!-- While the lasso is on, this layer takes the pointer from the map, so
-         a drag draws the lasso rather than panning. -->
-    <svg
-      v-if="lassoOn"
-      class="cal-transfer-stops-map-lasso"
-      @pointerdown="startLasso"
-      @pointermove="moveLasso"
-      @pointerup="endLasso"
-      @pointercancel="cancelLasso"
-    >
-      <polygon v-if="lassoPoints.length > 1" :points="lassoPoints.map(p => p.join(',')).join(' ')" />
-    </svg>
+    <!-- The map and the lasso drawn over it share this frame, so the lasso's
+         points and the map's are measured from the same corner. -->
+    <div ref="frame" class="cal-transfer-stops-map-frame">
+      <div ref="mapContainer" class="cal-transfer-stops-map-canvas" />
+      <!-- While the lasso is on, this layer takes the pointer from the map, so
+           a drag draws the lasso rather than panning. -->
+      <svg
+        v-if="lassoOn"
+        v-if="lassoPoints.length > 1"
+        class="cal-transfer-stops-map-lasso"
+        <polygon
+        :points="lassoPoints.map(p => p.join(',')).join(' ')"
+        @pointerdown="startLasso"
+        @pointermove="moveLasso"
+        @pointerup="endLasso"
+        @pointercancel="cancelLasso"
+      />
+      </svg>
+    </div>
     <div class="cal-transfer-stops-map-tools">
       <cat-button
         size="small"
@@ -57,6 +63,7 @@ const props = defineProps<{
 const selected = defineModel<number[]>({ required: true })
 
 const config = useRuntimeConfig()
+const frame = ref<HTMLDivElement>()
 const mapContainer = ref<HTMLDivElement>()
 let map: maplibre.Map | undefined
 let popup: maplibre.Popup | undefined
@@ -205,12 +212,16 @@ const lassoPoints = ref<[number, number][]>([])
 let drawing = false
 
 function point (e: PointerEvent): [number, number] {
-  const r = (e.currentTarget as Element).getBoundingClientRect()
+  const r = frame.value!.getBoundingClientRect()
   return [e.clientX - r.left, e.clientY - r.top]
 }
 function startLasso (e: PointerEvent) {
   drawing = true
-  ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+  try {
+    (e.currentTarget as Element).setPointerCapture(e.pointerId)
+  } catch {
+    // Without capture, a drag past the map's edge ends the lasso there.
+  }
   lassoPoints.value = [point(e)]
 }
 function moveLasso (e: PointerEvent) {
@@ -274,9 +285,14 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.cal-transfer-stops-map-frame {
+  position: relative;
+  height: 16rem;
+}
+
 .cal-transfer-stops-map-canvas {
   width: 100%;
-  height: 16rem;
+  height: 100%;
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
 }
@@ -285,7 +301,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 16rem;
+  height: 100%;
   cursor: crosshair;
   touch-action: none;
   z-index: 2;
