@@ -62,10 +62,10 @@
               @click="openSection = openSection === t.section ? undefined : t.section"
             >
               {{ t.label }}
-              <!-- A count on the button's corner, so it shows at a glance
-                   that trips are left out, without widening the button; said
+              <!-- The share of trips the filters keep, on the button's corner,
+                   so it shows at a glance without widening the button; said
                    in full on hover and to screen readers. -->
-              <span v-if="t.badge" class="cal-transfer-report-badge" :title="t.badge.title">
+              <span v-if="t.badge" class="tag is-rounded cal-transfer-report-badge" :title="t.badge.title">
                 <span aria-hidden="true">{{ t.badge.short }}</span>
                 <span class="is-sr-only">{{ t.badge.title }}</span>
               </span>
@@ -294,18 +294,34 @@ const settings = defineModel<TransferSettings>('settings', { required: true })
 const openSection = ref<TransferSettingsSection>()
 const settingsId = useId()
 
-// How many trips trip filtering leaves out, arriving and departing, on its
-// button.
-const excludedCount = computed(() => {
-  const count = (routes: TransferRouteChoice[], excluded: string[]) => {
+// The share of trips, arriving and departing, that trip filtering keeps, on
+// its button while it keeps less than all of them.
+const tripsKept = computed(() => {
+  let total = 0
+  let kept = 0
+  const tally = (routes: TransferRouteChoice[], excluded: string[]) => {
     const out = new Set(excluded)
-    return routes.flatMap(r => r.directions.flatMap(d => d.destinations)).filter(d => out.has(d.key)).reduce((n, d) => n + d.count, 0)
+    for (const d of routes.flatMap(r => r.directions.flatMap(dir => dir.destinations))) {
+      total += d.count
+      kept += out.has(d.key) ? 0 : d.count
+    }
   }
-  return count(props.routeChoices.from, settings.value.excludedFrom) + count(props.routeChoices.to, settings.value.excludedTo)
+  tally(props.routeChoices.from, settings.value.excludedFrom)
+  tally(props.routeChoices.to, settings.value.excludedTo)
+  return { total, kept }
+})
+const tripsKeptBadge = computed(() => {
+  const { total, kept } = tripsKept.value
+  if (total === 0 || kept === total) {
+    return undefined
+  }
+  // Rounded down, so it never reads 100% while any trip is left out.
+  const percent = Math.floor((kept / total) * 100)
+  return { short: `${percent}%`, title: `${percent}% of trips match the trip filters (${kept.toLocaleString()} of ${total.toLocaleString()})` }
 })
 const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: { short: string, title: string } }[] => [
   { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },
-  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? { short: excludedCount.value > 999 ? '999+' : String(excludedCount.value), title: `${excludedCount.value.toLocaleString()} trips excluded` } : undefined },
+  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: tripsKeptBadge.value },
 ])
 
 const views: { value: TransferReportView, label: string }[] = [
@@ -483,20 +499,12 @@ const individualReport = computed((): TableReport => {
 
 .cal-transfer-report-badge {
   position: absolute;
-  top: -0.55rem;
-  right: -0.55rem;
-  min-width: 1.35rem;
+  top: -0.6rem;
+  right: -0.6rem;
   height: 1.35rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bulma-primary);
-  color: var(--bulma-primary-invert, #fff);
+  padding: 0 0.45rem;
   font-size: 0.7rem;
   font-weight: 700;
-  line-height: 1;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 2px var(--bulma-scheme-main);
   pointer-events: none;
