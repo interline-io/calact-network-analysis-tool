@@ -417,9 +417,9 @@ const COUNT = 'cal-transfer-report-col-narrow cal-transfer-report-col-count'
 
 const TRIP_COLUMN: TableColumn = {
   key: 'route_name',
-  label: 'Arriving trip, then departing trips',
+  label: 'Incoming trip / Outgoing trip',
   sortable: true,
-  tooltip: 'Each arriving trip by route and destination, and where it comes from, with the departing trips riders connect to beneath it. Sorting orders the arriving trips, and the departing trips under each.',
+  tooltip: 'Each incoming trip by route and destination, and where it comes from, with the outgoing trips riders connect to beneath it. Sorting orders the incoming trips, and the outgoing trips under each.',
 }
 
 const summaryColumns: TableColumn[] = [
@@ -437,7 +437,7 @@ const summaryColumns: TableColumn[] = [
 // its rows, so the grid keeps its sort as rows change.
 const individualColumns = computed((): TableColumn[] => [
   { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', class: NARROW },
-  { ...TRIP_COLUMN, label: 'Arriving trip, then connections', tooltip: 'Each arriving trip, and where it comes from, with its connections beneath it.' },
+  { ...TRIP_COLUMN, tooltip: 'Each incoming trip, and where it comes from, with its connections beneath it.' },
   ...(subjectKind.value === 'cluster' ? [{ key: 'stop_name', label: 'Stop', sortable: true }] : []),
   { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW },
   { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW },

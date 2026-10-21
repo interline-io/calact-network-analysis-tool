@@ -145,10 +145,6 @@
           </li>
         </ul>
       </div>
-      <p class="cal-transfer-settings-help cal-transfer-settings-note">
-        A trip that starts here only departs, and one that ends here only
-        arrives. A short run makes fewer stops than most trips its way.
-      </p>
     </template>
   </section>
 </template>
@@ -348,8 +344,8 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     }
   }
 
-  // Arriving and departing side by side, the note beneath; one above the
-  // other on narrow screens.
+  // Arriving and departing side by side; one above the other on narrow
+  // screens.
   &.cal-transfer-settings-trips {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 
@@ -494,11 +490,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.cal-transfer-settings-note {
-  grid-column: 1 / -1;
-  margin: 0;
 }
 
 .cal-transfer-settings-origin {
