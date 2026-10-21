@@ -343,6 +343,9 @@ function initMap () {
     let overlayDragActive = false
     map?.on('mousedown', 'overlay-polygons', (e: maplibre.MapLayerMouseEvent) => {
       if (markers.value.length === 0 || e.originalEvent.button !== 0) { return }
+      // A press on a marker over the bbox (the isochrone origin) drags that
+      // marker, not the bbox.
+      if (!(e.originalEvent.target as HTMLElement | null)?.classList?.contains('maplibregl-canvas')) { return }
       e.preventDefault()
       overlayDragActive = true
       map!.dragPan.disable()
