@@ -10,12 +10,12 @@
       />
     </div>
 
-    <div class="cal-report-header block">
-      <div class="cal-report-filter-tags mb-4">
+    <div class="cal-report-header mb-4">
+      <div class="cal-report-filter-tags mb-3">
         <span
           v-for="tag of filterTags"
           :key="tag.label + tag.value"
-          class="tag is-medium"
+          class="tag"
           :class="tag.active ? 'is-primary' : 'is-light'"
         >
           {{ tag.label }}: {{ tag.value }}
@@ -554,6 +554,12 @@ const activeTableReport = computed((): TableReport => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+    // Smaller than a page title, so the reports below get the room.
+    :deep(h1.title) {
+      font-size: 2rem;
+      margin: 0.75rem 0 0.5rem;
+    }
   }
 
   .cal-report-filter-tags {

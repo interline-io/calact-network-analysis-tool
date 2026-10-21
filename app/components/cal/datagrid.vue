@@ -46,7 +46,7 @@
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'is-dense': props.dense }">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -166,7 +166,7 @@
 <script setup lang="ts">
 import { formatCensusValue, toFiniteNumber, type TableColumn, type TableReport } from '~~/src/core'
 
-const perPage = 20
+const perPage = computed(() => props.perPage ?? 20)
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
@@ -196,6 +196,10 @@ const props = defineProps<{
   // Fill the parent's height (a flex column), with the table scrolling inside
   // and its header row pinned, so its scrollbars stay in view.
   fill?: boolean
+  // Rows per page; 20 by default.
+  perPage?: number
+  // Smaller type and padding, for more rows in view.
+  dense?: boolean
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
@@ -331,8 +335,8 @@ watch([sortKey, sortDir], () => {
 })
 
 const currentRows = computed(() => {
-  const start = (current.value - 1) * perPage
-  const end = start + perPage
+  const start = (current.value - 1) * perPage.value
+  const end = start + perPage.value
   return sortedData.value.slice(start, end)
 })
 
@@ -371,10 +375,10 @@ const total = computed(() => {
   return sortedData.value.length
 })
 const rangeStart = computed(() => {
-  return total.value === 0 ? 0 : (current.value - 1) * perPage + 1
+  return total.value === 0 ? 0 : (current.value - 1) * perPage.value + 1
 })
 const rangeEnd = computed(() => {
-  return Math.min(current.value * perPage, total.value)
+  return Math.min(current.value * perPage.value, total.value)
 })
 
 // Screen-reader announcement of the filter's effect, fed into cat-search-bar's
@@ -415,6 +419,14 @@ const filterStatus = computed(() => {
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
   position: relative;
+}
+
+.cal-report-table.is-dense {
+  font-size: 0.875rem;
+
+  th, td {
+    padding: 0.3rem 0.5rem;
+  }
 }
 
 .cal-datagrid-fill {

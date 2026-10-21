@@ -14,6 +14,7 @@ import {
   summarizeTransfers,
   transferEvents,
   transferGradeCounts,
+  transferOverview,
   transferRows,
   transferSummaryRows,
   transferTripIds,
@@ -103,6 +104,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(groups.value), routes.value))
   const summaryCounts = computed(() => transferGradeCounts(groups.value))
+  const summaryOverview = computed(() => transferOverview(groups.value))
 
   // The dates with arrivals, for the Individual report's date picker.
   const individualDates = computed(() => dates.value.filter(d => groups.value.some(g => calendarTime(g.arrival.time).date === d)))
@@ -117,6 +119,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     tripDetails: store.details.value,
   }))
   const individualCounts = computed(() => transferGradeCounts(individualGroups.value))
+  const individualOverview = computed(() => transferOverview(individualGroups.value))
   // Each connection on the date by the arrival's time of day, for the chart.
   const individualPoints = computed(() => individualGroups.value.flatMap(g => g.connections.map(c => ({
     hour: calendarTime(g.arrival.time).seconds / 3600,
@@ -177,10 +180,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     missingDetails: computed(() => events.value?.missingDetails ?? 0),
     summaryRows,
     summaryCounts,
+    summaryOverview,
     individualDates,
     individualDate,
     individualRows,
     individualCounts,
+    individualOverview,
     individualPoints,
     detailsLoading: store.loading,
     detailsError,

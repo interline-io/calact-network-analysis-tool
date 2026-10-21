@@ -307,6 +307,40 @@ export function transferGradeCounts (groups: TransferGroup[]): TransferGradeCoun
   }))
 }
 
+export interface TransferOverview {
+  arrivals: number
+  connections: number
+  // Arrivals whose soonest connection made, on any route, is good or OK.
+  goodOrOkShare: number
+  // The wait for each arrival's soonest connection made, over arrivals that
+  // make one.
+  medianWait?: number
+}
+
+// The figures over all of the groups' arrivals.
+export function transferOverview (groups: TransferGroup[]): TransferOverview {
+  let connections = 0
+  let goodOrOk = 0
+  const waits: number[] = []
+  for (const g of groups) {
+    connections += g.connections.length
+    // Connections are sorted by wait, so the first made is the soonest.
+    const soonest = g.connections.find(c => c.wait >= 0)
+    if (soonest) {
+      waits.push(soonest.wait)
+      if (soonest.grade === 'good' || soonest.grade === 'ok') {
+        goodOrOk += 1
+      }
+    }
+  }
+  return {
+    arrivals: groups.length,
+    connections,
+    goodOrOkShare: groups.length > 0 ? goodOrOk / groups.length : 0,
+    medianWait: median(waits.sort((a, b) => a - b)),
+  }
+}
+
 // The middle value of sorted numbers.
 function median (sorted: number[]): number | undefined {
   if (sorted.length === 0) {
