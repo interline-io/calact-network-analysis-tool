@@ -68,18 +68,19 @@
       </div>
 
       <div class="cal-isochrone-field">
-        <span class="cal-isochrone-label">Travel time (min)</span>
-        <div role="group" aria-label="Travel time in minutes">
+        <span class="cal-isochrone-label">Travel time</span>
+        <div role="group" aria-label="Travel time">
           <cat-field addons class="cal-isochrone-group">
-            <div v-for="m of cutoffChoices" :key="m" class="control">
+            <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
               <cat-button
                 size="small"
+                fullwidth
                 :variant="params.cutoffs.includes(m) ? 'primary' : undefined"
                 v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
                 :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
                 @click="toggleCutoff(m)"
               >
-                {{ m }}
+                {{ formatCutoff(m) }}
               </cat-button>
             </div>
           </cat-field>
@@ -269,6 +270,16 @@ function toggleRouteType (rt: RouteType, on: boolean) {
 
 function setWalkOnly (walkOnly: boolean) {
   update({ mode: walkOnly ? { walkOnly: true } : { walkOnly: false } })
+}
+
+// "15m", "1h", "1h30m".
+function formatCutoff (m: number): string {
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  if (h === 0) {
+    return `${m}m`
+  }
+  return rest ? `${h}h${rest}m` : `${h}h`
 }
 
 const maxWalkChoices = computed(() => [...new Set([...ISOCHRONE_MAX_WALK_CHOICES, props.params.maxWalk])].sort((a, b) => a - b))
