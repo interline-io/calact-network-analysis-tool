@@ -3,7 +3,14 @@
        and as a list, by operator, of those in the map's view and those
        picked. -->
   <section class="cal-transfer-stops" aria-label="Stops and platforms">
-    <cal-transfer-stops-map v-model="stops" :stops="mapStops" :fit-key="fitKey" @view="view = $event" />
+    <cal-transfer-stops-map
+      v-model="stops"
+      :stops="mapStops"
+      :fit-key="fitKey"
+      :highlight="rowHover"
+      @view="view = $event"
+      @hover="mapHover = $event"
+    />
     <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
       <div class="cal-transfer-stops-head">
         <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
@@ -22,7 +29,13 @@
           {{ group.operator || 'Unknown operator' }}
         </div>
         <ul>
-          <li v-for="s of group.stops" :key="s.id">
+          <li
+            v-for="s of group.stops"
+            :key="s.id"
+            :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
+            @mouseenter="rowHover = s.id"
+            @mouseleave="rowHover = undefined"
+          >
             <cat-checkbox :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
               <span
                 :class="s.platform ? 'cal-transfer-stops-shape-platform' : 'cal-transfer-stops-shape-stop'"
@@ -61,6 +74,10 @@ defineEmits<{
 }>()
 
 const stops = defineModel<number[]>({ required: true })
+// The stop under the pointer in the list, ringed on the map; and on the map,
+// marked in the list.
+const rowHover = ref<number>()
+const mapHover = ref<number>()
 const picked = computed(() => new Set(stops.value))
 
 // The map's view, west, south, east, north; and the stops listed: those in
@@ -159,6 +176,16 @@ function setAll (on: boolean) {
     align-items: center;
     gap: 0.35rem;
     min-width: 0;
+  }
+}
+
+li {
+  padding: 0 0.25rem;
+  border-radius: 4px;
+
+  &:hover,
+  &.cal-transfer-stops-hovered {
+    background: color-mix(in srgb, #7a4dda 15%, transparent);
   }
 }
 

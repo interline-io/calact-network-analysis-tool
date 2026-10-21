@@ -60,6 +60,8 @@ const props = defineProps<{
   // What the map frames when it changes: the subject, say, rather than each
   // stop added.
   fitKey: string
+  // A stop to ring, as the list's row under the pointer.
+  highlight?: number
 }>()
 
 // The stops picked.
@@ -68,6 +70,8 @@ const selected = defineModel<number[]>({ required: true })
 const emit = defineEmits<{
   // The map's view, as west, south, east, north, when it settles.
   view: [bounds: [number, number, number, number]]
+  // The stop under the pointer, for the list to mark; none as it leaves.
+  hover: [id: number | undefined]
 }>()
 
 const config = useRuntimeConfig()
@@ -75,6 +79,8 @@ const frame = ref<HTMLDivElement>()
 const mapContainer = ref<HTMLDivElement>()
 let map: maplibre.Map | undefined
 let popup: maplibre.Popup | undefined
+// Open while picking among stops drawn on top of one another.
+let chooser: maplibre.Popup | undefined
 
 function stopFeatures (): GeoJSON.FeatureCollection {
   const picked = new Set(selected.value)
@@ -107,7 +113,7 @@ function fit () {
   for (const p of points) {
     bounds.extend([p.lon, p.lat])
   }
-  map.fitBounds(bounds, { padding: 48, maxZoom: 17, duration: 0 })
+  map.fitBounds(bounds, { padding: 48, maxZoom: 19, duration: 0 })
 }
 
 function toggle (id: number) {
@@ -150,6 +156,68 @@ function marker (platform: boolean, picked: boolean): ImageData {
 
 function escapeHtml (s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c] || c))
+}
+
+// A stop as text: its name, a platform's note, operator, and routes.
+function stopHtml (p: Record<string, any>): string {
+  return [
+    `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.platform ? ' (platform)' : ''}`,
+    p.operator ? escapeHtml(String(p.operator)) : '',
+    p.routes ? `<span class="cal-transfer-stops-map-routes">${escapeHtml(String(p.routes))}</span>` : '',
+  ].filter(Boolean).join('<br>')
+}
+
+// The stops under a point, within a few pixels: one, or several drawn on top
+// of one another.
+function stopsAt (m: maplibre.Map, point: maplibre.Point): maplibre.MapGeoJSONFeature[] {
+  const r = 8
+  const seen = new Set<number>()
+  return m.queryRenderedFeatures([[point.x - r, point.y - r], [point.x + r, point.y + r]], { layers: ['stops'] })
+    .filter((f) => {
+      const id = f.properties?.id as number
+      return !seen.has(id) && !!seen.add(id)
+    })
+}
+
+// A list of the stops at a point, each with a checkbox, to pick among stops
+// drawn on top of one another.
+function chooserContent (features: maplibre.MapGeoJSONFeature[]): HTMLElement {
+  const root = document.createElement('div')
+  root.className = 'cal-transfer-stops-map-chooser'
+  const picked = new Set(selected.value)
+  for (const f of features) {
+    const id = f.properties?.id as number
+    const label = document.createElement('label')
+    const box = document.createElement('input')
+    box.type = 'checkbox'
+    box.checked = picked.has(id)
+    box.addEventListener('change', () => toggle(id))
+    const text = document.createElement('span')
+    text.innerHTML = stopHtml(f.properties ?? {})
+    label.append(box, text)
+    root.append(label)
+  }
+  return root
+}
+
+function showHover (m: maplibre.Map, features: maplibre.MapGeoJSONFeature[]) {
+  const f = features[0]
+  if (!f || f.geometry.type !== 'Point' || chooser?.isOpen()) {
+    return
+  }
+  popup?.remove()
+  popup = new maplibre.Popup({ closeButton: false, closeOnClick: false, offset: 12, maxWidth: '18rem' })
+    .setLngLat(f.geometry.coordinates as [number, number])
+    .setHTML(features.length > 1
+      ? `${features.map(x => stopHtml(x.properties ?? {})).join('<hr>')}<br><em>Click to pick among these ${features.length}</em>`
+      : stopHtml(f.properties ?? {}))
+    .addTo(m)
+}
+
+function setHighlight (id: number | undefined) {
+  if (map?.getLayer('stop-highlight')) {
+    map.setFilter('stop-highlight', ['==', ['get', 'id'], id ?? -1])
+  }
 }
 
 // The basemap without its labels, as the census map draws it, so the stops'
@@ -195,6 +263,20 @@ function initMap () {
         m.addImage(`marker-${platform ? 'platform' : 'stop'}-${picked ? 'picked' : 'other'}`, marker(platform, picked), { pixelRatio: 2 })
       }
     }
+    // A ring around the stop under the pointer, here or in the list.
+    m.addLayer({
+      id: 'stop-highlight',
+      type: 'circle',
+      source: 'stops',
+      filter: ['==', ['get', 'id'], -1],
+      paint: {
+        'circle-radius': 16,
+        'circle-color': PICKED,
+        'circle-opacity': 0.25,
+        'circle-stroke-color': PICKED,
+        'circle-stroke-width': 2,
+      },
+    })
     // Stops as circles and platforms as squares, picked ones filled and
     // drawn on top.
     m.addLayer({
@@ -204,54 +286,53 @@ function initMap () {
       layout: {
         'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], '-', ['case', ['get', 'selected'], 'picked', 'other']],
         'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.7, 16, 1, 18, 1.2],
-        // Always drawn, and kept clear of the names, which move aside.
         'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
         'symbol-sort-key': ['case', ['get', 'selected'], 1, 0],
       },
     })
-    // Names close in, where platforms sit apart; the picked ones first.
-    m.addLayer({
-      id: 'stop-names',
-      type: 'symbol',
-      source: 'stops',
-      minzoom: 15,
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 11,
-        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': 0.9,
-        'text-justify': 'auto',
-        'text-optional': true,
-        'symbol-sort-key': ['case', ['get', 'selected'], 0, 1],
-      },
-      paint: { 'text-color': '#333333', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
-    })
-    m.on('click', 'stops', (e) => {
-      const id = e.features?.[0]?.properties?.id
-      if (typeof id === 'number') {
-        toggle(id)
+    // No names drawn: they crowd a station's stops. Hovering a stop, or its
+    // row in the list, names it.
+    // Several stops under the pointer are listed together; clicking one
+    // picks it, clicking several opens a list to pick among them.
+    let hovered: number | undefined
+    m.on('mousemove', (e) => {
+      const features = stopsAt(m, e.point)
+      const id = features[0]?.properties?.id as number | undefined
+      m.getCanvas().style.cursor = id === undefined ? '' : 'pointer'
+      if (id !== hovered) {
+        hovered = id
+        emit('hover', id)
+        setHighlight(id)
+        if (id === undefined) {
+          popup?.remove()
+        } else {
+          showHover(m, features)
+        }
       }
     })
-    m.on('mouseenter', 'stops', (e) => {
-      m.getCanvas().style.cursor = 'pointer'
-      const f = e.features?.[0]
-      if (f?.geometry.type === 'Point') {
-        const p = f.properties ?? {}
-        popup?.remove()
-        popup = new maplibre.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
-          .setLngLat(f.geometry.coordinates as [number, number])
-          .setHTML([
-            `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.platform ? ' (platform)' : ''}`,
-            p.operator ? escapeHtml(String(p.operator)) : '',
-            p.routes ? escapeHtml(String(p.routes)) : '',
-          ].filter(Boolean).join('<br>'))
-          .addTo(m)
-      }
-    })
-    m.on('mouseleave', 'stops', () => {
-      m.getCanvas().style.cursor = ''
+    m.getCanvas().addEventListener('mouseleave', () => {
+      hovered = undefined
+      emit('hover', undefined)
+      setHighlight(props.highlight)
       popup?.remove()
+    })
+    m.on('click', (e) => {
+      const features = stopsAt(m, e.point)
+      const f = features[0]
+      if (!f || f.geometry.type !== 'Point') {
+        return
+      }
+      if (features.length === 1) {
+        toggle(f.properties?.id as number)
+        return
+      }
+      popup?.remove()
+      chooser?.remove()
+      chooser = new maplibre.Popup({ closeButton: true, closeOnClick: true, offset: 12, maxWidth: '18rem' })
+        .setLngLat(f.geometry.coordinates as [number, number])
+        .setDOMContent(chooserContent(features))
+        .addTo(m)
     })
     // Shown in a panel just opened, the container may have had no size.
     m.resize()
@@ -322,11 +403,13 @@ function inRing (x: number, y: number, ring: [number, number][]): boolean {
 }
 
 watch([() => props.stops, selected], updateStops)
+watch(() => props.highlight, setHighlight)
 watch(() => props.fitKey, () => nextTick(fit))
 
 onMounted(() => nextTick(initMap))
 onBeforeUnmount(() => {
   popup?.remove()
+  chooser?.remove()
   map?.remove()
   map = undefined
 })
@@ -374,6 +457,27 @@ onBeforeUnmount(() => {
   top: 0.5rem;
   left: 0.5rem;
   z-index: 3;
+}
+
+:deep(.cal-transfer-stops-map-chooser) {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+
+  label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  input {
+    margin-top: 0.2rem;
+  }
+}
+
+:deep(.cal-transfer-stops-map-routes) {
+  color: #5b6470;
 }
 
 .cal-transfer-stops-map-hint {
