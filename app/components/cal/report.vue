@@ -4,10 +4,15 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <cal-geojson-download
-        :data="downloadFeatures"
-        variant="primary"
-      />
+      <!-- The page's downloads in one place: a tab that downloads its own
+           table (Transfer Analyst) puts its button in the target. -->
+      <div class="cal-report-downloads">
+        <div id="cal-report-tab-downloads" />
+        <cal-geojson-download
+          :data="downloadFeatures"
+          variant="primary"
+        />
+      </div>
     </div>
 
     <div class="cal-report-header mb-4">
@@ -548,6 +553,12 @@ const activeTableReport = computed((): TableReport => {
     min-height: 0;
     overflow: hidden;
     padding-bottom: 1rem;
+  }
+
+  .cal-report-downloads,
+  #cal-report-tab-downloads {
+    display: flex;
+    gap: 0.5rem;
   }
 
   .cal-report-title-row {

@@ -21,18 +21,11 @@
         </cat-select>
       </cat-field>
       <template v-if="subjectKind">
-        <cat-field label="View">
-          <div class="buttons has-addons mb-0" role="group" aria-label="View">
-            <cat-button
-              v-for="v of views"
-              :key="v.value"
-              :variant="view === v.value ? 'primary' : undefined"
-              v-bind="{ 'aria-pressed': view === v.value }"
-              @click="view = v.value"
-            >
-              {{ v.label }}
-            </cat-button>
-          </div>
+        <!-- Two views of the same transfers, as a toggle of tabs. -->
+        <cat-field label="View" class="cal-transfer-report-view">
+          <cat-tabs v-model="view" type="toggle">
+            <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" />
+          </cat-tabs>
         </cat-field>
         <!-- Which arrivals to show: the Summary covers every date unless one
              is picked; Individual shows one date at a time. -->
@@ -56,23 +49,41 @@
             </option>
           </cat-select>
         </cat-field>
-        <cat-button
-          class="cal-transfer-report-settings-toggle"
-          icon-left="tune"
-          :variant="settingsOpen ? 'primary' : undefined"
-          :outlined="settingsOpen"
-          v-bind="{ 'aria-expanded': settingsOpen, 'aria-controls': settingsId }"
-          @click="settingsOpen = !settingsOpen"
-        >
-          Settings
-        </cat-button>
+        <!-- Each opens its settings below the toolbar, one at a time. -->
+        <cat-field label="Settings" class="cal-transfer-report-settings-field">
+          <div class="cal-transfer-report-settings-toggles">
+            <cat-button
+              v-for="t of settingsToggles"
+              :key="t.section"
+              :icon-left="t.icon"
+              :variant="openSection === t.section ? 'primary' : undefined"
+              :outlined="openSection === t.section"
+              v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId }"
+              @click="openSection = openSection === t.section ? undefined : t.section"
+            >
+              {{ t.label }}
+              <span v-if="t.badge" class="tag is-rounded is-info is-light ml-2">{{ t.badge }}</span>
+            </cat-button>
+          </div>
+        </cat-field>
       </template>
     </div>
 
+    <!-- The table's CSV, beside the page's other downloads. -->
+    <Teleport v-if="subjectKind" defer to="#cal-report-tab-downloads">
+      <cal-csv-download
+        :data="view === 'summary' ? summaryRows : individualRows"
+        :disabled="detailsLoading"
+        :filename="view === 'summary' ? `transfers-summary-${title}` : `transfers-${individualDate}-${title}`"
+        :button-text="view === 'summary' ? 'Download summary as CSV' : 'Download transfers as CSV'"
+      />
+    </Teleport>
+
     <cal-transfer-settings
-      v-if="subjectKind && settingsOpen"
+      v-if="subjectKind && openSection"
       v-bind="{ id: settingsId }"
       v-model="settings"
+      :section="openSection"
       :route-choices="routeChoices"
       :unknown-pairs="unknownPairs"
     />
@@ -114,6 +125,7 @@
           fill
           dense
           :searchable="false"
+          :downloadable="false"
           :per-page="100"
           :table-report="summaryReport"
           :loading="detailsLoading"
@@ -160,6 +172,7 @@
             fill
             dense
             :searchable="false"
+            :downloadable="false"
             :per-page="100"
             :table-report="individualReport"
             :loading="detailsLoading"
@@ -211,6 +224,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
+import type { TransferSettingsSection } from './transfer-settings.vue'
 import * as Plot from '@observablehq/plot'
 import {
   TRANSFER_TIME_BANDS,
@@ -271,8 +285,15 @@ const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
 const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
 const settings = defineModel<TransferSettings>('settings', { required: true })
-const settingsOpen = ref(false)
+const openSection = ref<TransferSettingsSection>()
 const settingsId = useId()
+
+// How many headsigns trip filtering leaves out, on its button.
+const excludedCount = computed(() => settings.value.excludedFrom.length + settings.value.excludedTo.length)
+const settingsToggles = computed((): { section: TransferSettingsSection, label: string, icon: string, badge?: string }[] => [
+  { section: 'wait-walk', label: 'Wait & walking', icon: 'tune' },
+  { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: excludedCount.value > 0 ? `${excludedCount.value} excluded` : undefined },
+])
 
 const views: { value: TransferReportView, label: string }[] = [
   { value: 'summary', label: 'Summary' },
@@ -405,8 +426,8 @@ const individualReport = computed((): TableReport => {
 }
 
 .cal-transfer-report-subject :deep(select) {
-  min-width: 18rem;
-  max-width: 28rem;
+  // Not as wide as its longest option, so the toolbar keeps to one line.
+  width: 16rem;
 }
 
 // The primary fields, labeled, at full size; the settings toggle at the end
@@ -415,7 +436,7 @@ const individualReport = computed((): TableReport => {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.5rem 1.5rem;
+  gap: 0.5rem 1rem;
   margin-bottom: 0.75rem;
   flex: 0 0 auto;
 
@@ -428,8 +449,17 @@ const individualReport = computed((): TableReport => {
   }
 }
 
-.cal-transfer-report-settings-toggle {
+.cal-transfer-report-view :deep(.cat-tabs) {
+  margin-bottom: 0;
+}
+
+.cal-transfer-report-settings-field {
   margin-left: auto;
+}
+
+.cal-transfer-report-settings-toggles {
+  display: flex;
+  gap: 0.5rem;
 }
 
 // The figures and the grade bar, one row.

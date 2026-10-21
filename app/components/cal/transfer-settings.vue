@@ -1,6 +1,6 @@
 <template>
-  <section class="cal-transfer-settings" aria-label="Transfer settings">
-    <cat-fieldset label="Walking between stops">
+  <section class="cal-transfer-settings" :aria-label="section === 'trips' ? 'Trip filtering' : 'Wait and walking settings'">
+    <cat-fieldset v-if="section === 'wait-walk'" label="Walking between stops">
       <cat-field v-for="o of walkOptions" :key="o.value">
         <cat-radio
           :model-value="settings.walkDistance"
@@ -34,7 +34,7 @@
       </p>
     </cat-fieldset>
 
-    <cat-fieldset label="Connections and grades">
+    <cat-fieldset v-if="section === 'wait-walk'" label="Connections and grades">
       <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
         <cat-tooltip text="By default, each arrival shows its first connection on each route and direction, and any it just missed." position="right">
           Show every connection
@@ -66,7 +66,7 @@
       </p>
     </cat-fieldset>
 
-    <cat-fieldset label="Routes and headsigns">
+    <cat-fieldset v-if="section === 'trips'" label="Routes and headsigns">
       <div class="cal-transfer-settings-sides">
         <div v-for="side of sides" :key="side.key" role="group" :aria-label="`${side.legend} routes`">
           <div class="cal-transfer-settings-route-actions">
@@ -122,7 +122,11 @@
 import { computed, ref } from 'vue'
 import { DEFAULT_TRANSFER_SETTINGS, validBreakpoints, type TransferRouteChoice, type TransferSettings } from '~~/src/scenario'
 
+export type TransferSettingsSection = 'wait-walk' | 'trips'
+
 const props = defineProps<{
+  // Which settings to show: waits and walking, or the trips to include.
+  section: TransferSettingsSection
   // The routes arriving and departing at the stops.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
   // Pairs of the stops with no distance between them.
@@ -304,9 +308,9 @@ function setHeadsigns (side: Side, keys: string[], included: boolean) {
 }
 
 .cal-transfer-settings-tree {
-  max-height: 7.5rem;
+  max-height: 10rem;
   overflow-y: auto;
-  min-width: 13rem;
+  min-width: 18rem;
   margin: 0;
   list-style: none;
 }

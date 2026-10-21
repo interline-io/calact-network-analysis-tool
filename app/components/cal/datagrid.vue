@@ -1,6 +1,6 @@
 <template>
   <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
-    <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
+    <div v-if="props.searchable !== false || props.downloadable !== false" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
            other filters.
@@ -30,7 +30,7 @@
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
-      <cat-field style="margin-left: auto;">
+      <cat-field v-if="props.downloadable !== false" style="margin-left: auto;">
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
@@ -201,6 +201,9 @@ const props = defineProps<{
   // A text filter over the rows; true by default. A view that filters its
   // rows by its own controls can leave it out.
   searchable?: boolean
+  // A CSV download button; true by default. A view that downloads its rows
+  // from elsewhere on the page can leave it out.
+  downloadable?: boolean
   // Smaller type and padding, for more rows in view.
   dense?: boolean
 }>()
