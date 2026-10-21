@@ -123,7 +123,7 @@ function emitView () {
 
 // A marker: a circle for a stop, a rounded square for a platform; filled
 // when picked, hollow otherwise.
-const MARKER_SIZE = 16
+const MARKER_SIZE = 20
 const PICKED = '#7a4dda'
 const UNPICKED = '#5b6470'
 function marker (platform: boolean, picked: boolean): ImageData {
@@ -203,9 +203,9 @@ function initMap () {
       source: 'stops',
       layout: {
         'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], '-', ['case', ['get', 'selected'], 'picked', 'other']],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 1.1],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.7, 16, 1, 18, 1.2],
+        // Always drawn, and kept clear of the names, which move aside.
         'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
         'symbol-sort-key': ['case', ['get', 'selected'], 1, 0],
       },
     })
@@ -219,8 +219,9 @@ function initMap () {
         'text-field': ['get', 'name'],
         'text-font': ['Noto Sans Regular'],
         'text-size': 11,
-        'text-offset': [0, 1.1],
-        'text-anchor': 'top',
+        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+        'text-radial-offset': 0.9,
+        'text-justify': 'auto',
         'text-optional': true,
         'symbol-sort-key': ['case', ['get', 'selected'], 0, 1],
       },
