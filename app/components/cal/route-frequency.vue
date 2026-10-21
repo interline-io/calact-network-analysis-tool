@@ -484,7 +484,7 @@ import type { TripDetailsTab } from './trip-details.vue'
 import type { StopTimeCacheItem } from '~~/src/tl/departure-cache'
 
 // The trip details tab this shows: the route's calculations, or its stops.
-type Tab = Exclude<TripDetailsTab, 'trips' | 'transfers'>
+type Tab = Exclude<TripDetailsTab, 'trips'>
 
 interface FrequencyRow {
   serviceDate: string

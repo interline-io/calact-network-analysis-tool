@@ -1,129 +1,170 @@
 <template>
   <div class="cal-transfer-report">
-    <p class="cal-transfer-report-about">
-      Each trip arriving here is paired with the trips leaving on other routes
-      (or the same route in the other direction) from {{ minutes(bp[0]) }} to
-      {{ minutes(bp[4]) }} minutes later, after walking between stops. Waits
-      from {{ minutes(bp[1]) }} to {{ minutes(bp[2]) }} minutes are good,
-      {{ minutes(bp[2]) }} to {{ minutes(bp[3]) }} OK, and {{ minutes(bp[3]) }}
-      to {{ minutes(bp[4]) }} a long wait; a departure up to
-      {{ minutes(-bp[0]) }} minutes before the rider can reach it is missed.
-    </p>
-
     <div class="cal-transfer-report-controls">
-      <div class="buttons has-addons mb-0">
-        <cat-button
-          v-for="v of views"
-          :key="v.value"
-          size="small"
-          :variant="view === v.value ? 'primary' : undefined"
-          v-bind="{ 'aria-pressed': view === v.value }"
-          @click="view = v.value"
-        >
-          {{ v.label }}
-        </cat-button>
-      </div>
-      <cat-field v-if="view === 'individual' && individualDates.length > 0" label="Date" horizontal>
-        <cat-select v-model="date" size="small">
-          <option v-for="d of individualDates" :key="d" :value="d">
-            {{ formatServiceDate(d) }}
+      <label class="cal-transfer-report-label">
+        Transfers at
+        <cat-select v-model="subject" size="small" class="cal-transfer-report-subject">
+          <option value="" disabled>
+            Pick a stop or stop cluster
           </option>
+          <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
+            <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
+              {{ o.label }}
+            </option>
+          </optgroup>
+          <optgroup label="Stops">
+            <option v-for="o of subjectOptions.stops" :key="o.key" :value="o.key">
+              {{ o.label }}
+            </option>
+          </optgroup>
         </cat-select>
-      </cat-field>
-      <cat-field grouped>
-        <label class="cal-transfer-report-walk">
-          <cat-tooltip text="Time allowed to walk between two different stops. A transfer at the same stop has no walk.">
-            Walk between stops (min)
-            <cat-icon size="small" icon="information" />
-          </cat-tooltip>
-          <cat-input
-            v-model="walkMinutes"
-            :model-modifiers="{ lazy: true }"
-            type="number"
-            min="0"
-            step="0.5"
-            size="small"
-            v-bind="{ ariaLabel: 'Walk between stops, in minutes' }"
-          />
-        </label>
-      </cat-field>
-      <cat-checkbox v-model="allConnections">
-        <cat-tooltip text="By default, each arrival shows its first connection on each route and direction, and any it just missed. Check to show every later departure as well.">
-          Show every connection
-        </cat-tooltip>
-      </cat-checkbox>
+      </label>
+      <cat-tooltip :text="about" position="bottom">
+        How transfers are graded
+        <cat-icon size="small" icon="information" />
+      </cat-tooltip>
     </div>
 
-    <p v-if="detailsError" class="cal-transfer-report-error">
-      Could not load details for some trips: {{ detailsError }}
-      <cat-button size="small" class="ml-2" @click="$emit('retry')">
-        Retry
-      </cat-button>
+    <p v-if="!subjectKind" class="cal-transfer-report-note">
+      Pick a stop or stop cluster to see its transfers, or use "Transfers here"
+      in a stop's or cluster's trip information on the map.
     </p>
-    <p v-else-if="detailsLoading || missingDetails > 0" class="cal-transfer-report-note">
-      Loading trip details{{ missingDetails > 0 ? `: ${missingDetails.toLocaleString()} trips to go` : '' }}…
-    </p>
-
-    <template v-if="view === 'summary'">
-      <cal-plot :options="summaryChart" :label="gradeChartLabel(summaryCounts)" />
-      <cal-datagrid
-        :table-report="summaryReport"
-        :loading="detailsLoading"
-        caption="Transfers by route"
-        :filename="`transfers-summary-${title}`"
-      >
-        <template #column-from_route_name="{ row }">
-          <cal-route-badge :label="row.from_route_name" :color="row.from_route_color" :text-color="row.from_route_text_color" :title="row.from_agency_name" />
-        </template>
-        <template #column-to_route_name="{ row }">
-          <cal-route-badge :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
-        </template>
-        <template #column-good_or_ok_share="{ value }">
-          {{ value }}%
-        </template>
-      </cal-datagrid>
-    </template>
 
     <template v-else>
-      <p v-if="individualDates.length === 0" class="cal-transfer-report-note">
-        No trips arrive here within the filters.
+      <div class="cal-transfer-report-controls">
+        <div class="buttons has-addons mb-0">
+          <cat-button
+            v-for="v of views"
+            :key="v.value"
+            size="small"
+            :variant="view === v.value ? 'primary' : undefined"
+            v-bind="{ 'aria-pressed': view === v.value }"
+            @click="view = v.value"
+          >
+            {{ v.label }}
+          </cat-button>
+        </div>
+        <label v-if="view === 'individual' && individualDates.length > 0" class="cal-transfer-report-label">
+          Date
+          <cat-select :model-value="individualDate" size="small" @update:model-value="date = $event">
+            <option v-for="d of individualDates" :key="d" :value="d">
+              {{ formatServiceDate(d) }}
+            </option>
+          </cat-select>
+        </label>
+        <cat-field grouped>
+          <label class="cal-transfer-report-label">
+            <cat-tooltip text="Time allowed to walk between two different stops. A transfer at the same stop has no walk.">
+              Walk between stops (min)
+              <cat-icon size="small" icon="information" />
+            </cat-tooltip>
+            <cat-input
+              v-model="walkMinutes"
+              :model-modifiers="{ lazy: true }"
+              type="number"
+              min="0"
+              step="0.5"
+              size="small"
+              v-bind="{ ariaLabel: 'Walk between stops, in minutes' }"
+            />
+          </label>
+        </cat-field>
+        <cat-checkbox v-model="allConnections">
+          <cat-tooltip text="By default, each arrival shows its first connection on each route and direction, and any it just missed. Check to show every later departure as well.">
+            Show every connection
+          </cat-tooltip>
+        </cat-checkbox>
+      </div>
+
+      <p v-if="detailsError" class="cal-transfer-report-error">
+        Could not load details for some trips: {{ detailsError }}
+        <cat-button size="small" class="ml-2" @click="$emit('retry')">
+          Retry
+        </cat-button>
       </p>
-      <template v-else>
+      <p v-else-if="detailsLoading || missingDetails > 0" class="cal-transfer-report-note">
+        Loading trip details{{ missingDetails > 0 ? `: ${missingDetails.toLocaleString()} trips to go` : '' }}…
+      </p>
+
+      <template v-if="view === 'summary'">
         <div class="cal-transfer-report-charts">
-          <cal-plot :options="individualChart" :label="gradeChartLabel(individualCounts)" />
-          <cal-plot :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
+          <cal-plot :options="summaryChart" :label="gradeChartLabel(summaryCounts)" />
         </div>
         <cal-datagrid
-          :table-report="individualReport"
+          fill
+          :table-report="summaryReport"
           :loading="detailsLoading"
-          caption="Transfers"
-          :filename="`transfers-${individualDate}-${title}`"
-          :row-class="row => row.grade === 'No connection' ? 'cal-transfer-report-none' : undefined"
+          caption="Transfers by route"
+          :filename="`transfers-summary-${title}`"
         >
-          <template #column-arrival_time="{ value }">
-            <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
-          </template>
-          <template #column-departure_time="{ value }">
-            <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
-          </template>
           <template #column-from_route_name="{ row }">
             <cal-route-badge :label="row.from_route_name" :color="row.from_route_color" :text-color="row.from_route_text_color" :title="row.from_agency_name" />
+            <span class="cal-transfer-report-headsign cal-transfer-report-wrap">{{ row.from_headsign }}</span>
           </template>
           <template #column-to_route_name="{ row }">
-            <cal-route-badge v-if="row.to_route_name" :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
+            <cal-route-badge :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
+            <span class="cal-transfer-report-headsign cal-transfer-report-wrap">{{ row.to_headsign }}</span>
           </template>
-          <template #column-walk_seconds="{ value }">
-            <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
-          </template>
-          <template #column-wait_seconds="{ row }">
-            <span
-              v-if="row.wait_seconds !== ''"
-              class="cal-transfer-report-wait"
-              :style="gradeStyle(row.grade)"
-              :title="row.grade"
-            >{{ formatWait(row.wait_seconds) }}</span>
+          <template #column-good_or_ok_share="{ value }">
+            {{ value }}%
           </template>
         </cal-datagrid>
+      </template>
+
+      <template v-else>
+        <p v-if="individualDates.length === 0" class="cal-transfer-report-note">
+          No trips arrive here within the filters.
+        </p>
+        <template v-else>
+          <div class="cal-transfer-report-charts">
+            <cal-plot :options="individualChart" :label="gradeChartLabel(individualCounts)" />
+            <cal-plot :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
+          </div>
+          <cal-datagrid
+            fill
+            :table-report="individualReport"
+            :loading="detailsLoading"
+            caption="Transfers"
+            :filename="`transfers-${individualDate}-${title}`"
+            :row-class="row => row.grade === 'No connection' ? 'cal-transfer-report-none' : undefined"
+          >
+            <template #column-arrival_time="{ value }">
+              <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
+            </template>
+            <template #column-departure_time="{ value }">
+              <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
+            </template>
+            <template #column-from_route_name="{ row }">
+              <cal-route-badge :label="row.from_route_name" :color="row.from_route_color" :text-color="row.from_route_text_color" :title="row.from_agency_name" />
+              <span class="cal-transfer-report-headsign cal-transfer-report-wrap">{{ row.from_headsign }}</span>
+            </template>
+            <template #column-to_route_name="{ row }">
+              <template v-if="row.to_route_name">
+                <cal-route-badge :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
+                <span class="cal-transfer-report-headsign cal-transfer-report-wrap">{{ row.to_headsign }}</span>
+              </template>
+            </template>
+            <template #column-walk_seconds="{ value }">
+              <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
+            </template>
+            <template #column-from_stop_name="{ value }">
+              <span class="cal-transfer-report-wrap">{{ value }}</span>
+            </template>
+            <template #column-to_stop_name="{ value }">
+              <span class="cal-transfer-report-wrap">{{ value }}</span>
+            </template>
+            <!-- The grade is the wait's color, and text for screen readers. -->
+            <template #column-wait_seconds="{ row }">
+              <span
+                v-if="row.wait_seconds !== ''"
+                class="cal-transfer-report-wait"
+                :style="gradeStyle(row.grade)"
+                :title="row.grade"
+              >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade }}</span></span>
+              <span v-else>{{ row.grade }}</span>
+            </template>
+          </cal-datagrid>
+        </template>
       </template>
     </template>
   </div>
@@ -150,7 +191,8 @@ export type TransferReportView = 'summary' | 'individual'
 const props = defineProps<{
   // What the transfers are at, as the downloads' file names.
   title: string
-  subjectKind: 'stop' | 'cluster'
+  // The stops and clusters the report can be about, as picker options.
+  subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
   summaryRows: TransferSummaryRow[]
   summaryCounts: TransferGradeCount[]
   individualDates: string[]
@@ -168,6 +210,9 @@ defineEmits<{
   retry: []
 }>()
 
+// The picked stop or cluster, as "stop:<id>" or "cluster:<id>"; blank for none.
+const subject = defineModel<string>('subject', { required: true })
+const subjectKind = computed(() => (subject.value.startsWith('cluster:') ? 'cluster' : subject.value.startsWith('stop:') ? 'stop' : undefined))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
 const walkMinutes = defineModel<number>('walkMinutes', { required: true })
@@ -182,6 +227,8 @@ const bp = TRANSFER_GRADE_BREAKPOINTS
 function minutes (seconds: number): number {
   return seconds / 60
 }
+
+const about = `Each trip arriving at the stops is paired with the trips leaving on other routes from ${minutes(bp[0])} to ${minutes(bp[4])} minutes later, after walking between stops. Waits from ${minutes(bp[1])} to ${minutes(bp[2])} minutes are good, ${minutes(bp[2])} to ${minutes(bp[3])} OK, and ${minutes(bp[3])} to ${minutes(bp[4])} a long wait; a departure up to ${minutes(-bp[0])} minutes before the rider can reach it is missed.`
 
 const gradeByLabel = new Map(TRANSFER_GRADES.map(g => [TRANSFER_GRADE_LABELS[g], g]))
 function gradeStyle (label: string) {
@@ -239,10 +286,8 @@ const waitChart = computed(() => (_width: number): Plot.PlotOptions => ({
 }))
 
 const summaryColumns: TableColumn[] = [
-  { key: 'from_route_name', label: 'From route', sortable: true },
-  { key: 'from_headsign', label: 'From headsign', sortable: true },
-  { key: 'to_route_name', label: 'To route', sortable: true },
-  { key: 'to_headsign', label: 'To headsign', sortable: true },
+  { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
+  { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.' },
   { key: 'missed', label: 'Missed', sortable: true, numeric: true },
   { key: 'good', label: 'Good', sortable: true, numeric: true },
@@ -258,29 +303,33 @@ const summaryReport = computed((): TableReport => ({
 }))
 
 const individualReport = computed((): TableReport => {
-  const cluster = props.subjectKind === 'cluster'
+  const cluster = subjectKind.value === 'cluster'
   const columns: TableColumn[] = [
     { key: 'arrival_time', label: 'Arrival', sortable: true },
-    { key: 'from_route_name', label: 'From route', sortable: true },
-    { key: 'from_headsign', label: 'From headsign', sortable: true },
+    { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
     ...(cluster ? [{ key: 'from_stop_name', label: 'Arrives at', sortable: true }] : []),
     { key: 'departure_time', label: 'Departure', sortable: true },
-    { key: 'to_route_name', label: 'To route', sortable: true },
-    { key: 'to_headsign', label: 'To headsign', sortable: true },
+    { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
     ...(cluster ? [{ key: 'to_stop_name', label: 'Departs from', sortable: true }] : []),
     { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true },
     { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure (minutes:seconds), colored by grade. Negative when missed.' },
-    { key: 'grade', label: 'Grade', sortable: true },
   ]
   return { columns, data: props.individualRows }
 })
 </script>
 
 <style scoped lang="scss">
-.cal-transfer-report-about {
-  font-size: 0.875rem;
-  color: var(--bulma-text-weak);
-  margin-bottom: 0.75rem;
+// Fills the Reports tab's height: the controls and charts at their own
+// height, and the table the rest, scrolling inside.
+.cal-transfer-report {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cal-transfer-report-subject :deep(select) {
+  max-width: 28rem;
 }
 
 .cal-transfer-report-controls {
@@ -295,7 +344,7 @@ const individualReport = computed((): TableReport => {
   }
 }
 
-.cal-transfer-report-walk {
+.cal-transfer-report-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -307,9 +356,14 @@ const individualReport = computed((): TableReport => {
 }
 
 .cal-transfer-report-charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  flex: 0 0 auto;
+
+  > * {
+    flex: 1 1 22rem;
+  }
 }
 
 .cal-transfer-report-error {
@@ -325,6 +379,15 @@ const individualReport = computed((): TableReport => {
 .cal-transfer-report-time {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.cal-transfer-report-headsign {
+  margin-left: 0.4em;
+}
+
+// Long headsigns and stop names wrap, so the table fits the modal.
+.cal-transfer-report-wrap {
+  white-space: normal;
 }
 
 .cal-transfer-report-wait {

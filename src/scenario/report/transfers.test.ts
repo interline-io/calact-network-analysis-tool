@@ -144,11 +144,12 @@ describe('transferEvents', () => {
 describe('calculateTransfers', () => {
   it('pairs an arrival with departures on other routes, walking between stops', () => {
     const [group] = calculateTransfers([event(1, 10, hms(7))], [
-      // The same trip and the same route and direction are not transfers.
+      // The same trip, and the same route either way, are not transfers.
       event(1, 10, hms(7, 1)),
       event(2, 10, hms(7, 3)),
-      // The same route the other way is.
       event(3, 10, hms(7, 4), 1, 1),
+      // Another route at the same stop is.
+      event(7, 50, hms(7, 4)),
       // At another stop, 2 minutes' walk: a 3 minute wait.
       event(4, 20, hms(7, 5), 2),
       // Outside -5 to 20 minutes.
@@ -157,7 +158,7 @@ describe('calculateTransfers', () => {
     ], walk)
     expect(group!.connections.map(c => [c.departure.tripId, c.walk, c.wait, c.grade])).toEqual([
       [4, 120, hms(0, 3), 'good'],
-      [3, 0, hms(0, 4), 'good'],
+      [7, 0, hms(0, 4), 'good'],
     ])
   })
 

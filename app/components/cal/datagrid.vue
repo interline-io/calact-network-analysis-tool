@@ -1,5 +1,5 @@
 <template>
-  <div class="mb-6">
+  <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
     <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
@@ -193,6 +193,9 @@ const props = defineProps<{
   caption: string
   // A class for a row, such as one marking it apart from the rest.
   rowClass?: (row: any) => string | undefined
+  // Fill the parent's height (a flex column), with the table scrolling inside
+  // and its header row pinned, so its scrollbars stay in view.
+  fill?: boolean
 }>()
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
@@ -412,6 +415,26 @@ const filterStatus = computed(() => {
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
   position: relative;
+}
+
+.cal-datagrid-fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+
+  .table-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin-bottom: 0;
+  }
+
+  .cal-report-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
 }
 
 .cal-report-table {

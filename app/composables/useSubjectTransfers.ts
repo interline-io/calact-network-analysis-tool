@@ -1,5 +1,5 @@
-// Transfers at the trip table's stop or stop cluster: its arrivals paired with
-// the departures soon after, graded, as the Transfers reports show them.
+// Transfers at a stop or stop cluster: its arrivals paired with the departures
+// soon after, graded, as the Reports tab's Transfers report shows them.
 //
 // Called from tne.vue, which passes the results to <cal-transfer-report> as
 // props. Trip details come from the store the trip panel and table share.
@@ -9,6 +9,7 @@ import { format } from 'date-fns'
 import {
   calculateTransfers,
   calendarTime,
+  clusterDisplayName,
   resolveEffectiveWeekdays,
   summarizeTransfers,
   transferEvents,
@@ -16,8 +17,8 @@ import {
   transferRows,
   transferSummaryRows,
   transferTripIds,
-  type ResolvedTripSubject,
   type ScenarioFilterResult,
+  type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
 import { TRANSFER_WALK_SECONDS, dateToSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
@@ -25,7 +26,8 @@ import { routesById, type Stop } from '~~/src/tl'
 import type { TripDetailsStore } from './useTripPanel'
 
 export interface UseSubjectTransfersDeps {
-  subject: MaybeRefOrGetter<ResolvedTripSubject | undefined>
+  // A stop or cluster; a route has no transfers of its own.
+  subject: MaybeRefOrGetter<TripSubject | undefined>
   scenarioFilterResult: MaybeRefOrGetter<ScenarioFilterResult | undefined>
   selectedDateRange: MaybeRefOrGetter<Date[]>
   selectedWeekdays: MaybeRefOrGetter<Weekday[] | undefined>
@@ -43,12 +45,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const selectedDate = ref<string>()
 
   const result = computed(() => toValue(deps.scenarioFilterResult))
+  const routes = computed(() => routesById(result.value?.routes || []))
+  const stops = computed(() => new Map<number, Stop>((result.value?.stops || []).map(s => [s.id, s])))
+  const cluster = computed(() => {
+    const s = toValue(deps.subject)
+    return s?.kind === 'cluster' ? result.value?.stopClusters?.find(c => c.id === s.clusterId) : undefined
+  })
+  // A cluster's members follow the filters, as the trip panel's do.
   const stopIds = computed((): number[] => {
     const s = toValue(deps.subject)
     if (s?.kind === 'stop') {
-      return [s.stopId]
+      return stops.value.has(s.stopId) ? [s.stopId] : []
     }
-    return s?.kind === 'cluster' ? s.stopIds : []
+    return cluster.value?.memberStopIds ?? []
   })
   // Scoped as the reports scope them.
   const dates = computed(() => scopeDatesToWeekdays(
@@ -92,9 +101,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     })
   })
 
-  const routes = computed(() => routesById(result.value?.routes || []))
-  const stops = computed(() => new Map<number, Stop>((result.value?.stops || []).map(s => [s.id, s])))
-
   const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(groups.value), routes.value))
   const summaryCounts = computed(() => transferGradeCounts(groups.value))
 
@@ -134,7 +140,35 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }))
   }
 
+  // The subject by name, as the report's heading and download names.
+  const title = computed(() => {
+    const s = toValue(deps.subject)
+    if (s?.kind === 'stop') {
+      const stop = stops.value.get(s.stopId)
+      return stop?.stop_name || stop?.stop_id || ''
+    }
+    return cluster.value ? clusterDisplayName(cluster.value.name, cluster.value.nearName) : ''
+  })
+
+  // What the report can be about: the scenario's clusters, then its stops
+  // with service, each by name.
+  const subjectOptions = computed(() => {
+    const r = result.value
+    const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
+    return {
+      clusters: (r?.stopClusters || [])
+        .map(c => ({ key: transferSubjectKey({ kind: 'cluster', clusterId: c.id }), label: clusterDisplayName(c.name, c.nearName) }))
+        .sort(byLabel),
+      stops: (r?.stops || [])
+        .filter(s => s.marked)
+        .map(s => ({ key: transferSubjectKey({ kind: 'stop', stopId: s.id }), label: s.stop_name || s.stop_id }))
+        .sort(byLabel),
+    }
+  })
+
   return {
+    title,
+    subjectOptions,
     walkMinutes,
     allConnections,
     selectedDate,
@@ -152,4 +186,20 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     detailsError,
     loadDetails,
   }
+}
+
+// A stop or cluster as a picker's value, and back.
+export function transferSubjectKey (subject: TripSubject | undefined): string {
+  if (subject?.kind === 'stop') {
+    return `stop:${subject.stopId}`
+  }
+  return subject?.kind === 'cluster' ? `cluster:${subject.clusterId}` : ''
+}
+
+export function transferSubjectFromKey (key: string): TripSubject | undefined {
+  const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)]
+  if (kind === 'stop' && Number.isFinite(Number(id))) {
+    return { kind: 'stop', stopId: Number(id) }
+  }
+  return kind === 'cluster' && id ? { kind: 'cluster', clusterId: id } : undefined
 }

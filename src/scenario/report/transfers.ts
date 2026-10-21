@@ -230,9 +230,10 @@ function lowerBound (events: TransferEvent[], time: number): number {
 }
 
 /**
- * Each arrival's connections: departures on another route, or the same route
- * in the other direction, whose wait after walking falls within the
- * breakpoints. Unless `allConnections`, a route and direction shows its first
+ * Each arrival's connections: departures on another route whose wait after
+ * walking falls within the breakpoints. The same route either way is not a
+ * transfer: in the other direction it is often the same vehicle turning
+ * back at the end of its run. Unless `allConnections`, a route and direction shows its first
  * connection a rider makes and any missed just before it, as later departures
  * on it are not where riders transfer.
  */
@@ -250,7 +251,7 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
       if (departure.tripId === arrival.tripId) {
         continue
       }
-      if (departure.routeId === arrival.routeId && departure.directionId === arrival.directionId) {
+      if (departure.routeId === arrival.routeId) {
         continue
       }
       const walk = opts.walkSeconds(arrival.stopId, departure.stopId)
