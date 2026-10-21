@@ -92,7 +92,6 @@
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
-                :stop-options="transfers.stopOptions"
                 :map-stops="transfers.mapStops"
                 :stops-edited="transfers.stopsEdited"
                 :subject-stop-count="transfers.subjectStopCount"

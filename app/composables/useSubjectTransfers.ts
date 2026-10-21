@@ -131,20 +131,25 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       removed: subjectStopIds.value.filter(id => !picked.has(id)),
     }
   }
-  // Every stop with service, by name, with its routes to tell apart stops
-  // that share a name; for adding stops to the subject.
-  const stopChoices = computed(() => (result.value?.stops || [])
+  // Every stop with service, for adding to the subject: its name, operators,
+  // and routes, and whether it is a platform in a station.
+  const mapStops = computed(() => (result.value?.stops || [])
     .filter(s => s.marked)
     .map((s) => {
-      const routeNames = [...new Set(s.route_stops.map(rs => routes.value.get(rs.route_id)?.route_short_name || routes.value.get(rs.route_id)?.route_long_name).filter(Boolean))].join(', ')
-      const name = s.stop_name || s.stop_id
+      const stopRoutes = s.route_stops.map(rs => routes.value.get(rs.route_id))
+      const names = (values: (string | null | undefined)[]) => [...new Set(values.filter((v): v is string => !!v))].join(', ')
       const [lon, lat] = s.geometry.coordinates
-      return { id: s.id, name, routes: routeNames, lon: lon!, lat: lat!, label: `${name}${routeNames ? ` · ${routeNames}` : ''}` }
+      return {
+        id: s.id,
+        name: s.stop_name || s.stop_id,
+        operator: names(stopRoutes.map(r => r?.agency?.agency_name)),
+        routes: names(stopRoutes.map(r => r?.route_short_name || r?.route_long_name)),
+        platform: !!s.parent?.stop_id,
+        lon: lon!,
+        lat: lat!,
+      }
     })
-    .sort((a, b) => a.label.localeCompare(b.label)))
-  // As picker options, and as the map's stops.
-  const stopOptions = computed(() => stopChoices.value.map(s => ({ value: s.id, label: s.label })))
-  const mapStops = computed(() => stopChoices.value.map(({ label: _, ...s }) => s))
+    .sort((a, b) => a.name.localeCompare(b.name)))
   // Scoped as the reports scope them.
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
@@ -392,7 +397,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     subjectOptions,
     stopIds,
     setStopIds,
-    stopOptions,
     mapStops,
     // The subject's own stops, and whether they have been changed.
     subjectStopCount: computed(() => subjectStopIds.value.length),

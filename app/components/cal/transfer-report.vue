@@ -81,7 +81,6 @@
       v-if="subjectKind && openSection === 'stops'"
       v-bind="{ id: settingsId }"
       :model-value="stops"
-      :stop-options="stopOptions"
       :map-stops="mapStops"
       :fit-key="subject"
       :edited="stopsEdited"
@@ -257,7 +256,6 @@ const props = defineProps<{
   // The stops the transfers are at: the subject's, as changed; and every stop
   // that can be added.
   stops: number[]
-  stopOptions: { value: number, label: string }[]
   mapStops: TransferMapStop[]
   // Whether the stops differ from the subject's own, and how many those are.
   stopsEdited: boolean

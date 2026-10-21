@@ -29,7 +29,9 @@
       </cat-button>
     </div>
     <p class="cal-transfer-stops-map-hint">
-      {{ lassoOn ? 'Drag around stops to add them.' : 'Click a stop to add or remove it.' }}
+      <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-stop" />Stop</span>
+      <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-platform" />Platform</span>
+      <span>{{ lassoOn ? 'Drag around stops to add them.' : 'Click a stop to add or remove it.' }}</span>
     </p>
   </div>
 </template>
@@ -40,11 +42,14 @@ import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
 
-// A stop on the map: where it is, its name, and its routes.
+// A stop on the map: where it is, its name, its operators and routes, and
+// whether it is a platform in a station (has a parent station).
 export interface TransferMapStop {
   id: number
   name: string
+  operator: string
   routes: string
+  platform: boolean
   lon: number
   lat: number
 }
@@ -60,6 +65,11 @@ const props = defineProps<{
 // The stops picked.
 const selected = defineModel<number[]>({ required: true })
 
+const emit = defineEmits<{
+  // The map's view, as west, south, east, north, when it settles.
+  view: [bounds: [number, number, number, number]]
+}>()
+
 const config = useRuntimeConfig()
 const frame = ref<HTMLDivElement>()
 const mapContainer = ref<HTMLDivElement>()
@@ -73,7 +83,7 @@ function stopFeatures (): GeoJSON.FeatureCollection {
     features: props.stops.map(s => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-      properties: { id: s.id, name: s.name, routes: s.routes, selected: picked.has(s.id) },
+      properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform, selected: picked.has(s.id) },
     })),
   }
 }
@@ -102,6 +112,40 @@ function fit () {
 
 function toggle (id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
+}
+
+function emitView () {
+  const b = map?.getBounds()
+  if (b) {
+    emit('view', [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
+  }
+}
+
+// A marker: a circle for a stop, a rounded square for a platform; filled
+// when picked, hollow otherwise.
+const MARKER_SIZE = 16
+const PICKED = '#7a4dda'
+const UNPICKED = '#5b6470'
+function marker (platform: boolean, picked: boolean): ImageData {
+  const ratio = 2
+  const size = MARKER_SIZE * ratio
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const inset = 3 * ratio
+  ctx.beginPath()
+  if (platform) {
+    ctx.roundRect(inset, inset, size - 2 * inset, size - 2 * inset, 2 * ratio)
+  } else {
+    ctx.arc(size / 2, size / 2, size / 2 - inset, 0, Math.PI * 2)
+  }
+  ctx.fillStyle = picked ? PICKED : '#ffffff'
+  ctx.fill()
+  ctx.lineWidth = 2 * ratio
+  ctx.strokeStyle = picked ? '#ffffff' : UNPICKED
+  ctx.stroke()
+  return ctx.getImageData(0, 0, size, size)
 }
 
 function escapeHtml (s: string): string {
@@ -146,17 +190,23 @@ function initMap () {
   m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
   m.on('load', () => {
     m.addSource('stops', { type: 'geojson', data: stopFeatures() })
-    // Picked stops filled, the rest hollow; picked ones drawn on top.
+    for (const platform of [false, true]) {
+      for (const picked of [false, true]) {
+        m.addImage(`marker-${platform ? 'platform' : 'stop'}-${picked ? 'picked' : 'other'}`, marker(platform, picked), { pixelRatio: 2 })
+      }
+    }
+    // Stops as circles and platforms as squares, picked ones filled and
+    // drawn on top.
     m.addLayer({
       id: 'stops',
-      type: 'circle',
+      type: 'symbol',
       source: 'stops',
-      layout: { 'circle-sort-key': ['case', ['get', 'selected'], 1, 0] },
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 4, 17, 8],
-        'circle-color': ['case', ['get', 'selected'], '#7a4dda', '#ffffff'],
-        'circle-stroke-color': ['case', ['get', 'selected'], '#ffffff', '#5b6470'],
-        'circle-stroke-width': 2,
+      layout: {
+        'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], '-', ['case', ['get', 'selected'], 'picked', 'other']],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 17, 1.1],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'symbol-sort-key': ['case', ['get', 'selected'], 1, 0],
       },
     })
     // Names close in, where platforms sit apart; the picked ones first.
@@ -190,7 +240,11 @@ function initMap () {
         popup?.remove()
         popup = new maplibre.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
           .setLngLat(f.geometry.coordinates as [number, number])
-          .setHTML(`<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.routes ? `<br>${escapeHtml(String(p.routes))}` : ''}`)
+          .setHTML([
+            `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.platform ? ' (platform)' : ''}`,
+            p.operator ? escapeHtml(String(p.operator)) : '',
+            p.routes ? escapeHtml(String(p.routes)) : '',
+          ].filter(Boolean).join('<br>'))
           .addTo(m)
       }
     })
@@ -201,7 +255,9 @@ function initMap () {
     // Shown in a panel just opened, the container may have had no size.
     m.resize()
     fit()
+    emitView()
   })
+  m.on('moveend', emitView)
 }
 
 // The lasso, in the map's screen pixels, while drawn.
@@ -320,8 +376,36 @@ onBeforeUnmount(() => {
 }
 
 .cal-transfer-stops-map-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
   margin: 0.25rem 0 0;
   font-size: 0.75rem;
   color: var(--bulma-text-weak);
+}
+
+// The legend's shapes, as the map draws them, unpicked.
+.cal-transfer-stops-map-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cal-transfer-stops-map-key-stop,
+.cal-transfer-stops-map-key-platform {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid #5b6470;
+  background: #ffffff;
+}
+
+.cal-transfer-stops-map-key-stop {
+  border-radius: 50%;
+}
+
+.cal-transfer-stops-map-key-platform {
+  border-radius: 2px;
 }
 </style>
