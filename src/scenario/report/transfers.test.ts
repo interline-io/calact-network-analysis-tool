@@ -211,6 +211,8 @@ describe('summarizeTransfers and transferGradeCounts', () => {
     const [row] = summarizeTransfers(groups)
     expect(row).toMatchObject({ fromRouteId: 10, toRouteId: 20, arrivals: 3, good: 1, long: 1, missed: 0, ok: 0 })
     expect(row!.goodOrOkShare).toBeCloseTo(1 / 3)
+    expect(row!.goodShare).toBeCloseTo(1 / 3)
+    expect(row!.okShare).toBe(0)
     expect(row!.medianWait).toBe((hms(0, 3) + hms(0, 15)) / 2)
   })
 

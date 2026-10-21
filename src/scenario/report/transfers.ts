@@ -539,8 +539,10 @@ export interface TransferPairSummary {
   ok: number
   long: number
   // Arrivals whose first connection made to the outgoing route and direction
-  // is good or OK, of all its arrivals.
+  // is good or OK, of all its arrivals; and good, and OK, apart.
   goodOrOkShare: number
+  goodShare: number
+  okShare: number
   // The wait for the first connection made, over arrivals that make one.
   medianWait?: number
 }
@@ -557,7 +559,8 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
     fromHeadsigns: (string | undefined)[]
     toHeadsigns: (string | undefined)[]
     firstWaits: number[]
-    goodOrOk: number
+    firstGood: number
+    firstOk: number
   }>()
   for (const { arrival, connections } of groups) {
     const fromKey = `${arrival.routeId}|${arrival.directionId}`
@@ -583,11 +586,14 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
             ok: 0,
             long: 0,
             goodOrOkShare: 0,
+            goodShare: 0,
+            okShare: 0,
           },
           fromHeadsigns: [],
           toHeadsigns: [],
           firstWaits: [],
-          goodOrOk: 0,
+          firstGood: 0,
+          firstOk: 0,
         }
         pairs.set(key, pair)
       }
@@ -597,20 +603,24 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferPairSummar
         firstMade.add(toKey)
         pair.fromHeadsigns.push(arrival.headsign)
         pair.firstWaits.push(c.wait)
-        if (c.grade === 'good' || c.grade === 'ok') {
-          pair.goodOrOk += 1
+        if (c.grade === 'good') {
+          pair.firstGood += 1
+        } else if (c.grade === 'ok') {
+          pair.firstOk += 1
         }
       }
     }
   }
-  return [...pairs.values()].map(({ summary, fromHeadsigns, toHeadsigns, firstWaits, goodOrOk }) => {
+  return [...pairs.values()].map(({ summary, fromHeadsigns, toHeadsigns, firstWaits, firstGood, firstOk }) => {
     const arrivals = arrivalsByRoute.get(`${summary.fromRouteId}|${summary.fromDirectionId}`) || 0
     return {
       ...summary,
       fromHeadsign: mostCommon(fromHeadsigns),
       toHeadsign: mostCommon(toHeadsigns),
       arrivals,
-      goodOrOkShare: arrivals > 0 ? goodOrOk / arrivals : 0,
+      goodOrOkShare: arrivals > 0 ? (firstGood + firstOk) / arrivals : 0,
+      goodShare: arrivals > 0 ? firstGood / arrivals : 0,
+      okShare: arrivals > 0 ? firstOk / arrivals : 0,
       medianWait: median(firstWaits.sort((a, b) => a - b)),
     }
   }).sort((a, b) => b.arrivals - a.arrivals || a.key.localeCompare(b.key))
@@ -651,6 +661,9 @@ export interface TransferSummaryRow {
   ok: number
   long_wait: number
   good_or_ok_share: number
+  // The good and OK parts of good_or_ok_share, in percent.
+  good_share: number
+  ok_share: number
   // Seconds; blank where no arrival makes a connection.
   median_wait_seconds: number | ''
 }
@@ -680,6 +693,8 @@ export function transferSummaryRows (summaries: TransferPairSummary[], routes: M
       ok: s.ok,
       long_wait: s.long,
       good_or_ok_share: Math.round(s.goodOrOkShare * 1000) / 10,
+      good_share: Math.round(s.goodShare * 1000) / 10,
+      ok_share: Math.round(s.okShare * 1000) / 10,
       median_wait_seconds: s.medianWait ?? '',
     }
   })

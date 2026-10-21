@@ -155,8 +155,20 @@
           <template #column-median_wait_seconds="{ value }">
             <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
           </template>
-          <template #column-good_or_ok_share="{ value }">
-            {{ value }}%
+          <!-- The share as a bar on a 0 to 100% track: the good part, then
+               the OK part, in their grade colors. -->
+          <template #column-good_or_ok_share="{ value, row }">
+            <span class="cal-transfer-report-share">
+              <span
+                class="cal-transfer-report-share-track"
+                :title="`Good ${row.good_share}%, OK ${row.ok_share}%`"
+                aria-hidden="true"
+              >
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.good_share}%`, background: TRANSFER_GRADE_COLORS.good.fill }" />
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.ok_share}%`, background: TRANSFER_GRADE_COLORS.ok.fill }" />
+              </span>
+              <span class="cal-transfer-report-time">{{ value }}%</span>
+            </span>
           </template>
         </cal-datagrid>
       </template>
@@ -608,6 +620,26 @@ const individualReport = computed((): TableReport => {
 
 .cal-transfer-report-stop {
   max-width: 12rem;
+}
+
+.cal-transfer-report-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cal-transfer-report-share-track {
+  display: inline-flex;
+  width: 4rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--bulma-scheme-main-ter);
+  overflow: hidden;
+}
+
+.cal-transfer-report-share-bar {
+  display: block;
+  height: 100%;
 }
 
 .cal-transfer-report-count {
