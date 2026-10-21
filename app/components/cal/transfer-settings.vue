@@ -266,7 +266,8 @@ function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] 
   const out: Omit<Row, 'state'>[] = []
   const tripSide = side === 'excludedFrom' ? 'from' : 'to'
   const about = (d: TransferTripDestination | undefined) => ({
-    origin: tripSide === 'from' ? d?.run.origin : undefined,
+    // Named "From" its origin, a destination needs no origin beside.
+    origin: tripSide === 'from' && !d?.label.startsWith('From ') ? d?.run.origin : undefined,
     tags: transferTripTags(d, tripSide),
   })
   for (const route of routes) {
