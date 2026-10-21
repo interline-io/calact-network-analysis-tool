@@ -30,11 +30,18 @@ const emit = defineEmits([
   'showTrips',
   'popupShown',
   'popupClosed',
+  // Open an isochrone: from a stop's popup (featureId), or from a point picked
+  // with the map's context menu.
+  'isochroneFromStop',
+  'isochroneFromPoint',
+  'isochroneOriginMoved',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
 const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: () => [] })
 const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: () => [] })
+// Isochrone bands, longest first.
+const isochroneFeatures = defineModel<Feature[]>('isochroneFeatures', { default: () => [] })
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: () => [] })
 const features = defineModel<Feature[]>('features', { default: () => [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: () => [] })
@@ -64,6 +71,13 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // Draw isochrone bands as outlines only, as while the census choropleth
+  // has the fill.
+  isochroneOutlineOnly?: boolean
+  // The open isochrone's place, as a draggable marker.
+  isochroneOrigin?: Point
+  // Increment to fit the map to the isochrone bands.
+  fitIsochroneKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -98,6 +112,26 @@ watch(() => choroplethFeatures.value, (v) => {
   nextTick(() => {
     updateChoroplethFeatures(v)
   })
+})
+
+watch(() => isochroneFeatures.value, (v) => {
+  nextTick(() => {
+    updateIsochroneFeatures(v)
+  })
+})
+
+watch(() => props.isochroneOutlineOnly, () => {
+  applyIsochroneFill()
+})
+
+watch(() => props.isochroneOrigin, (v) => {
+  drawIsochroneOrigin(v)
+})
+
+watch(() => props.fitIsochroneKey, () => {
+  if (map && isochroneFeatures.value.length) {
+    fitFeatures(isochroneFeatures.value)
+  }
 })
 
 watch(() => selectableGeographies.value, (v) => {
@@ -206,6 +240,10 @@ onBeforeUnmount(() => {
     currentPopupApp.unmount()
     currentPopupApp = undefined
   }
+  isochroneMenu?.remove()
+  isochroneMenu = undefined
+  isochroneOriginMarker?.remove()
+  isochroneOriginMarker = undefined
   map?.remove()
   map = undefined
 })
@@ -263,6 +301,8 @@ function initMap () {
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
   map.addControl(new maplibre.NavigationControl())
+  // Needs no layers, so it works while the basemap is still loading.
+  map.on('contextmenu', mapContextMenu)
 
   // Create choropleth tooltip element (must be in mounted context, not module scope)
   choroplethTooltip = document.createElement('div')
@@ -283,6 +323,9 @@ function initMap () {
     updateOverlayFeatures(overlayFeatures.value)
     updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
+    updateIsochroneFeatures(isochroneFeatures.value)
+    applyIsochroneFill()
+    drawIsochroneOrigin(props.isochroneOrigin)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
@@ -472,6 +515,10 @@ function createSources () {
     data: { type: 'FeatureCollection', features: [] },
     promoteId: 'geoid',
   })
+  map?.addSource('isochrone', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  })
   map?.addSource('selectableGeographies', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
@@ -550,6 +597,31 @@ function createLayers () {
         1.0,
         ['coalesce', ['get', 'stroke-opacity'], 0.7]
       ],
+    }
+  })
+
+  // Isochrone bands: above the choropleth, below the scenario's service so
+  // its stops and routes stay on top. Nested bands, each translucent, drawn
+  // longest first so the shorter ones darken toward the place. Not among
+  // the layers a click or hover queries, so they never take a click meant
+  // for a stop or route.
+  map?.addLayer({
+    id: 'isochrone-fill',
+    type: 'fill',
+    source: 'isochrone',
+    paint: {
+      'fill-color': ['coalesce', ['get', 'fill'], '#2171b5'],
+      'fill-opacity': ISOCHRONE_FILL_OPACITY,
+    }
+  })
+  map?.addLayer({
+    id: 'isochrone-outline',
+    type: 'line',
+    source: 'isochrone',
+    paint: {
+      'line-color': ['coalesce', ['get', 'fill'], '#2171b5'],
+      'line-width': 1.5,
+      'line-opacity': 0.9,
     }
   })
 
@@ -842,6 +914,19 @@ function updateChoroplethFeatures (features: Feature[]) {
   setSourceData('choropleth', features, isPolygon)
 }
 
+function updateIsochroneFeatures (features: Feature[]) {
+  setSourceData('isochrone', features, isPolygon)
+}
+
+const ISOCHRONE_FILL_OPACITY = 0.2
+
+function applyIsochroneFill () {
+  if (map?.getLayer('isochrone-fill')) {
+    map.setPaintProperty('isochrone-fill', 'fill-opacity', props.isochroneOutlineOnly ? 0 : ISOCHRONE_FILL_OPACITY)
+    map.setPaintProperty('isochrone-outline', 'line-width', props.isochroneOutlineOnly ? 2.5 : 1.5)
+  }
+}
+
 function updateOverlayFeatures (features: Feature[]) {
   setSourceData('overlayPolygons', features, isPolygon)
 }
@@ -1080,6 +1165,13 @@ function showPopupAtIndex (index: number) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
       },
+      onTravelTime: (featureId: string | number) => {
+        // The isochrone panel takes over; its marker shows the place.
+        removePopup()
+        updateHighlight(undefined)
+        emit('popupClosed')
+        emit('isochroneFromStop', featureId)
+      },
       onShowTrips: (featureType: string, featureId: string | number) => {
         emit('showTrips', featureType, featureId)
         // The trip panel takes over from the popup. The feature stays
@@ -1206,6 +1298,70 @@ function mapClick (e: maplibre.MapMouseEvent) {
   }
 }
 
+// Right-click on the map offers an isochrone from or to that point, except
+// over a geography the query tab is selecting, where right-click deselects.
+let isochroneMenu: maplibre.Popup | undefined
+function mapContextMenu (e: maplibre.MapMouseEvent) {
+  isochroneMenu?.remove()
+  isochroneMenu = undefined
+  if (!map || (map.getLayer('selectable-geo-fill') && map.queryRenderedFeatures(e.point, { layers: ['selectable-geo-fill'] }).length > 0)) {
+    return
+  }
+  e.preventDefault()
+  const point: Point = { lon: e.lngLat.lng, lat: e.lngLat.lat }
+  const menu = document.createElement('div')
+  menu.className = 'cal-isochrone-menu'
+  menu.setAttribute('role', 'menu')
+  for (const [label, arriveBy] of [['Travel time from here', false], ['Travel time to here', true]] as const) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'cal-isochrone-menu-item'
+    button.setAttribute('role', 'menuitem')
+    const icon = document.createElement('i')
+    icon.className = `mdi ${arriveBy ? 'mdi-map-marker-down' : 'mdi-map-marker-up'}`
+    button.append(icon, document.createTextNode(` ${label}`))
+    button.addEventListener('click', () => {
+      isochroneMenu?.remove()
+      isochroneMenu = undefined
+      emit('isochroneFromPoint', point, arriveBy)
+    })
+    menu.appendChild(button)
+  }
+  isochroneMenu = new maplibre.Popup({ closeButton: false, className: 'cal-isochrone-menu-popup', offset: 4, anchor: 'top-left' })
+    .setLngLat(e.lngLat)
+    .setDOMContent(menu)
+    .addTo(map)
+}
+
+// The open isochrone's place, dragged to move it.
+let isochroneOriginMarker: maplibre.Marker | undefined
+function drawIsochroneOrigin (p: Point | undefined) {
+  if (!map) {
+    return
+  }
+  if (!p) {
+    isochroneOriginMarker?.remove()
+    isochroneOriginMarker = undefined
+    return
+  }
+  if (!isochroneOriginMarker) {
+    const el = document.createElement('div')
+    el.className = 'cal-isochrone-origin'
+    el.title = 'Drag to move'
+    isochroneOriginMarker = new maplibre.Marker({ element: el, draggable: true })
+      .setLngLat([p.lon, p.lat])
+      .addTo(map)
+    isochroneOriginMarker.on('dragend', () => {
+      const ll = isochroneOriginMarker?.getLngLat()
+      if (ll) {
+        emit('isochroneOriginMoved', { lon: ll.lng, lat: ll.lat })
+      }
+    })
+    return
+  }
+  isochroneOriginMarker.setLngLat([p.lon, p.lat])
+}
+
 function mapZoom () {
   emit('setZoom', map?.getZoom())
 }
@@ -1271,6 +1427,42 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     max-width: 250px;
+  }
+
+  /* Right-click menu: open an isochrone from or to the point */
+  .cal-isochrone-menu-popup .maplibregl-popup-content {
+    padding: 4px 0;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  .cal-isochrone-menu-popup .maplibregl-popup-tip {
+    display: none;
+  }
+  .cal-isochrone-menu-item {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .cal-isochrone-menu-item:hover,
+  .cal-isochrone-menu-item:focus {
+    background: #f0f4fa;
+  }
+
+  /* The open isochrone's place */
+  .cal-isochrone-origin {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #08306b;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px #08306b, 0 2px 4px rgba(0, 0, 0, 0.4);
+    cursor: grab;
   }
 
   /* Hover tooltip for selectable geographies */
