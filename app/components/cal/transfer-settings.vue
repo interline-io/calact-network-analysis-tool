@@ -97,7 +97,7 @@
                   :indeterminate="routeState(side.key, route) === 'some'"
                   @update:model-value="setHeadsigns(side.key, route.headsigns.map(h => h.key), !!$event)"
                 >
-                  <cal-route-badge :label="route.label" :color="route.color" :text-color="route.textColor" :title="route.longName" />
+                  <cal-route-badge :label="route.label" :title="route.longName" />
                 </cat-checkbox>
               </div>
               <ul v-if="isOpen(side.key, route.id)" class="cal-transfer-settings-tree-headsigns">

@@ -133,11 +133,11 @@
           :filename="`transfers-summary-${title}`"
         >
           <template #column-from_route_name="{ row }">
-            <cal-route-badge :label="row.from_route_name" :color="row.from_route_color" :text-color="row.from_route_text_color" :title="row.from_agency_name" />
+            <cal-route-badge :label="row.from_route_name" :title="row.from_agency_name" />
             <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.from_headsign">{{ row.from_headsign }}</span>
           </template>
           <template #column-to_route_name="{ row }">
-            <cal-route-badge :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
+            <cal-route-badge :label="row.to_route_name" :title="row.to_agency_name" />
             <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.to_headsign">{{ row.to_headsign }}</span>
           </template>
           <template #column-good_or_ok_share="{ value }">
@@ -187,12 +187,12 @@
               <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
             </template>
             <template #column-from_route_name="{ row }">
-              <cal-route-badge :label="row.from_route_name" :color="row.from_route_color" :text-color="row.from_route_text_color" :title="row.from_agency_name" />
+              <cal-route-badge :label="row.from_route_name" :title="row.from_agency_name" />
               <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.from_headsign">{{ row.from_headsign }}</span>
             </template>
             <template #column-to_route_name="{ row }">
               <template v-if="row.to_route_name">
-                <cal-route-badge :label="row.to_route_name" :color="row.to_route_color" :text-color="row.to_route_text_color" :title="row.to_agency_name" />
+                <cal-route-badge :label="row.to_route_name" :title="row.to_agency_name" />
                 <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.to_headsign">{{ row.to_headsign }}</span>
               </template>
             </template>
@@ -386,10 +386,10 @@ const summaryColumns: TableColumn[] = [
   { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
   { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.' },
-  { key: 'missed', label: 'Missed', sortable: true, numeric: true },
-  { key: 'good', label: 'Good', sortable: true, numeric: true },
-  { key: 'ok', label: 'OK', sortable: true, numeric: true },
-  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true },
+  { key: 'missed', label: 'Missed', sortable: true, numeric: true, headerStyle: gradeStyle('Missed') },
+  { key: 'good', label: 'Good', sortable: true, numeric: true, headerStyle: gradeStyle('Good') },
+  { key: 'ok', label: 'OK', sortable: true, numeric: true, headerStyle: gradeStyle('OK') },
+  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, headerStyle: gradeStyle('Long wait') },
   { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection to the To route and direction is good or OK.' },
   { key: 'median_wait', label: 'Median wait', sortable: true, tooltip: 'Median wait for the first connection, over arrivals that make one (minutes:seconds).' },
 ]
