@@ -463,7 +463,7 @@ import { format } from 'date-fns'
 import type { Route } from '~~/src/tl'
 import type { ScenarioFilterResult } from '~~/src/scenario'
 import { resolveEffectiveWeekdays } from '~~/src/scenario'
-import { dateToSeconds, formatGtfsTimeFull, formatDuration, dowValues } from '~~/src/core'
+import { dateToSeconds, formatGtfsTimeFull, formatDuration, formatServiceDate, dowValues } from '~~/src/core'
 import type { Weekday, WeekdayMode } from '~~/src/core'
 import {
   pickRepresentativeStop,
@@ -484,7 +484,7 @@ import type { TripDetailsTab } from './trip-details.vue'
 import type { StopTimeCacheItem } from '~~/src/tl/departure-cache'
 
 // The trip details tab this shows: the route's calculations, or its stops.
-type Tab = Exclude<TripDetailsTab, 'trips'>
+type Tab = Exclude<TripDetailsTab, 'trips' | 'transfers'>
 
 interface FrequencyRow {
   serviceDate: string
@@ -792,12 +792,6 @@ function stopName (id: number): string {
 }
 function tripIdLabel (numericId: number): string {
   return props.scenarioFilterResult.tripIdStrings?.get(numericId) ?? String(numericId)
-}
-
-function formatServiceDate (dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(y!, m! - 1, d!)
-  return format(date, 'EEE dd, MMM, yyyy')
 }
 
 function scrollTo (id: string) {

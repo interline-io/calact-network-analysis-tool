@@ -157,7 +157,8 @@
       </cat-modal>
 
       <!-- Every trip behind the trip panel, or behind a Reports row, at full
-           size; for a route, with how its report numbers are worked out -->
+           size; for a stop or cluster, with its transfers; for a route, with
+           how its report numbers are worked out -->
       <cat-modal
         v-model="showTripTable"
         :title="tripTableTitle"
@@ -181,7 +182,29 @@
           :start-time="startTime"
           :end-time="endTime"
           @retry="tripTable.loadDetails('all')"
-        />
+        >
+          <template v-if="transferSubjectKind" #transfers>
+            <cal-transfer-report
+              v-model:view="transferView"
+              v-model:date="transfers.selectedDate"
+              v-model:walk-minutes="transfers.walkMinutes"
+              v-model:all-connections="transfers.allConnections"
+              :title="tripTable.title"
+              :subject-kind="transferSubjectKind"
+              :summary-rows="transfers.summaryRows"
+              :summary-counts="transfers.summaryCounts"
+              :individual-dates="transfers.individualDates"
+              :individual-date="transfers.individualDate"
+              :individual-rows="transfers.individualRows"
+              :individual-counts="transfers.individualCounts"
+              :individual-points="transfers.individualPoints"
+              :missing-details="transfers.missingDetails"
+              :details-loading="transfers.detailsLoading"
+              :details-error="transfers.detailsError"
+              @retry="transfers.loadDetails()"
+            />
+          </template>
+        </cal-trip-details>
       </cat-modal>
 
       <cat-modal
@@ -228,6 +251,8 @@ import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
+import type { TransferReportView } from '~/components/cal/transfer-report.vue'
+import { useSubjectTransfers } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
@@ -881,6 +906,29 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
     tripTable.loadDetails('all')
   }
 })
+
+// Transfers at the trip table's stop or cluster, in its Transfers tab.
+const transfers = reactive(useSubjectTransfers({
+  subject: () => tripTable.resolvedSubject,
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+}, tripDetailsStore))
+const transferView = ref<TransferReportView>('summary')
+const transferSubjectKind = computed(() => {
+  const kind = tripTable.resolvedSubject?.kind
+  return kind === 'stop' || kind === 'cluster' ? kind : undefined
+})
+// The details the transfers need while their tab is shown, as the filters or
+// the walk allowance change which trips those are.
+watch([() => tripTable.trips, showTripTable, tripTableTab, () => transfers.walkMinutes], () => {
+  if (showTripTable.value && tripTableTab.value === 'transfers') {
+    transfers.loadDetails()
+  }
+})
 function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTab = 'trips') {
   tripTable.open(subject)
   tripTableFromPanel = fromPanel
@@ -888,9 +936,12 @@ function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTa
   tripTableIncludeExcluded.value = false
   showTripTable.value = true
   // Also asked for here: reopening on the same subject changes nothing the
-  // watch below sees. Details already asked for are not fetched again.
+  // watches above see. Details already asked for are not fetched again.
   if (tab === 'trips') {
     tripTable.loadDetails('all')
+  }
+  if (tab === 'transfers') {
+    transfers.loadDetails()
   }
 }
 function openTripTable (tab: TripDetailsTab = 'trips') {

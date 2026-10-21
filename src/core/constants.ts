@@ -169,6 +169,13 @@ export const MIN_GAPS_FOR_IRREGULAR = 3
 // than this ratio (1.5 = one direction's average gap is at least 50% longer).
 export const FREQUENCY_DIRECTION_DIVERGENCE_RATIO = 1.5
 
+// Transfer grades, by wait in seconds after walking time: missed from -5 to 0
+// minutes, good to 6, OK to 10, long wait to 20. A connection outside -5 to 20
+// minutes is not a transfer.
+export const TRANSFER_GRADE_BREAKPOINTS = [-5 * 60, 0, 6 * 60, 10 * 60, 20 * 60] as const
+// Walking time allowed between two different stops; none at the same stop.
+export const TRANSFER_WALK_SECONDS = 2 * 60
+
 export const DEFAULT_TIME_WINDOW = {
   start: '06:00:00',
   end: '10:00:00',

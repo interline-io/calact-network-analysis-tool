@@ -66,7 +66,8 @@
           </table>
           <!-- How a route's numbers, and any caveat on its frequency, are
                worked out, in the full table's Calculations tab. Every route
-               has it, with or without a frequency. -->
+               has it, with or without a frequency. A stop or cluster links
+               to its transfers instead. -->
           <button
             v-if="subject.kind === 'route'"
             type="button"
@@ -74,6 +75,14 @@
             @click="$emit('expandTrips', 'calculations')"
           >
             How these are calculated
+          </button>
+          <button
+            v-else
+            type="button"
+            class="cal-trip-panel-link cal-trip-panel-how"
+            @click="$emit('expandTrips', 'transfers')"
+          >
+            Transfers here
           </button>
 
           <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">

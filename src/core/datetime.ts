@@ -272,6 +272,12 @@ export function dateToSeconds (time: Date | undefined): number | undefined {
  * after-midnight service day semantics. Use a separate helper if wall-clock
  * rendering is needed later.
  */
+// A yyyy-MM-dd date as "Mon 19, Oct, 2026".
+export function formatServiceDate (dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return format(new Date(y!, m! - 1, d!), 'EEE dd, MMM, yyyy')
+}
+
 export function formatGtfsTime (value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     return ''

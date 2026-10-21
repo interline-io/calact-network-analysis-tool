@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { parseTripDetails, tripHeadsignAt } from './trip-details'
+import { gql } from 'graphql-tag'
+import { apiFetch, BasicGraphQLClient } from '../core'
+import { parseTripDetails, tripDetailsQuery, tripHeadsignAt, type TripDetailsResponse } from './trip-details'
 
 describe('parseTripDetails', () => {
   it('spans a trip from its earliest departure to its latest arrival', () => {
@@ -73,5 +75,35 @@ describe('parseTripDetails', () => {
 
   it('returns nothing for an empty response', () => {
     expect(parseTripDetails(undefined)).toEqual([])
+  })
+})
+
+// Against the fixture transitland-server (docker/docker-compose.services.yaml):
+// the details query's stop times, with pickup and drop-off types, as the
+// server answers them.
+describe('tripDetailsQuery (integration)', () => {
+  const client = new BasicGraphQLClient(
+    (process.env.TRANSITLAND_API_BASE || 'http://localhost:28080') + '/query',
+    apiFetch(''),
+  )
+
+  it('reads every stop time of a trip, in order, with its pickup and drop-off types', async () => {
+    const found = await client.query<{ trips: { id: number }[] }>(gql`
+      query { trips(limit: 3, where: { feed_onestop_id: "f-c20-trimet" }) { id } }
+    `, {})
+    const ids = (found.data?.trips || []).map(t => t.id)
+    expect(ids.length).toBeGreaterThan(0)
+    const result = await client.query<TripDetailsResponse>(tripDetailsQuery, { ids, limit: ids.length })
+    const details = parseTripDetails(result.data)
+    expect(details.map(d => d.id).sort()).toEqual([...ids].sort())
+    for (const d of details) {
+      expect(d.stopTimes.length).toBe(d.stopCount)
+      const departures = d.stopTimes.map(st => st.departure ?? st.arrival).filter(t => t !== undefined)
+      expect(departures).toEqual([...departures].sort((a, b) => a - b))
+      for (const st of d.stopTimes) {
+        expect(st.pickupType === null || typeof st.pickupType === 'number').toBe(true)
+        expect(st.dropOffType === null || typeof st.dropOffType === 'number').toBe(true)
+      }
+    }
   })
 })
