@@ -9,7 +9,7 @@
            one — cat-tabs uses v-show (display:none drops it from the
            accessibility tree) and census-details uses v-if — so keep that
            invariant if a layout ever puts two datagrids side by side. -->
-      <div class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
+      <div v-if="props.searchable !== false" class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
         <!-- ariaLabel/aria-controls passed via a v-bind object: cat-search-bar
              sets inheritAttrs:false, so vue-tsc checks attributes against its
              declared props and rejects a plain :aria-controls; the object also
@@ -198,6 +198,9 @@ const props = defineProps<{
   fill?: boolean
   // Rows per page; 20 by default.
   perPage?: number
+  // A text filter over the rows; true by default. A view that filters its
+  // rows by its own controls can leave it out.
+  searchable?: boolean
   // Smaller type and padding, for more rows in view.
   dense?: boolean
 }>()

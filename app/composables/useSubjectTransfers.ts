@@ -13,6 +13,7 @@ import {
   calculateTransfers,
   calendarTime,
   clusterDisplayName,
+  filterTransferGroups,
   resolveEffectiveWeekdays,
   summarizeTransfers,
   transferEvents,
@@ -20,10 +21,14 @@ import {
   transferOverview,
   transferRows,
   transferSummaryRows,
+  transferRouteKey,
   transferTripIds,
   validBreakpoints,
   type ScenarioFilterResult,
+  type TransferEvent,
+  type TransferRouteChoice,
   type TransferSettings,
+  type TransferTimeBand,
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
@@ -57,8 +62,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
   // Breakpoints that cannot grade waits are not applied.
   const breakpoints = computed(() => (validBreakpoints(settings.value.breakpoints) ? settings.value.breakpoints : DEFAULT_TRANSFER_SETTINGS.breakpoints))
-  // The date the Individual report shows.
+  // The arrivals shown: on one date (all, when unset, in the Summary), and in
+  // one time band.
   const selectedDate = ref<string>()
+  const timeBand = ref<TransferTimeBand>('all')
 
   const result = computed(() => toValue(deps.scenarioFilterResult))
   const routes = computed(() => routesById(result.value?.routes || []))
@@ -166,21 +173,33 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     })
   })
 
-  // The routes arriving and departing, for the settings' route choices.
+  // The routes arriving and departing, each with its headsigns and how many
+  // trips each has, for the settings' route tree.
   const routeChoices = computed(() => {
-    const choices = (ids: Set<number>) => [...ids].map((id) => {
-      const route = routes.value.get(id)
-      return {
-        id,
-        label: route?.route_short_name || route?.route_long_name || route?.route_id || String(id),
-        longName: route?.route_long_name ?? '',
-        color: route?.route_color ?? '',
-        textColor: route?.route_text_color ?? '',
+    const tree = (events: TransferEvent[]): TransferRouteChoice[] => {
+      const byRoute = new Map<number, Map<string, number>>()
+      for (const e of events) {
+        const headsigns = byRoute.get(e.routeId) ?? new Map<string, number>()
+        headsigns.set(e.headsign ?? '', (headsigns.get(e.headsign ?? '') || 0) + 1)
+        byRoute.set(e.routeId, headsigns)
       }
-    }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+      return [...byRoute].map(([id, headsigns]) => {
+        const route = routes.value.get(id)
+        return {
+          id,
+          label: route?.route_short_name || route?.route_long_name || route?.route_id || String(id),
+          longName: route?.route_long_name ?? '',
+          color: route?.route_color ?? '',
+          textColor: route?.route_text_color ?? '',
+          headsigns: [...headsigns]
+            .map(([headsign, count]) => ({ key: transferRouteKey({ routeId: id, headsign }), label: headsign || '(no headsign)', count }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        }
+      }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    }
     return {
-      from: choices(new Set((events.value?.arrivals ?? []).map(e => e.routeId))),
-      to: choices(new Set((events.value?.departures ?? []).map(e => e.routeId))),
+      from: tree(events.value?.arrivals ?? []),
+      to: tree(events.value?.departures ?? []),
     }
   })
 
@@ -189,12 +208,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     if (!e) {
       return []
     }
-    const fromOut = new Set(settings.value.excludedFromRoutes)
-    const toOut = new Set(settings.value.excludedToRoutes)
+    const fromOut = new Set(settings.value.excludedFrom)
+    const toOut = new Set(settings.value.excludedTo)
     const spm = secondsPerMeter.value
     return calculateTransfers(
-      e.arrivals.filter(a => !fromOut.has(a.routeId)),
-      e.departures.filter(d => !toOut.has(d.routeId)),
+      e.arrivals.filter(a => !fromOut.has(transferRouteKey(a))),
+      e.departures.filter(d => !toOut.has(transferRouteKey(d))),
       {
         walkSeconds: (from, to) => (from === to ? 0 : (walkMeters(from, to) ?? Number.NaN) * spm),
         maxWalkSeconds: maxWalkSeconds.value,
@@ -204,17 +223,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     )
   })
 
-  const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(groups.value), routes.value))
-  const summaryCounts = computed(() => transferGradeCounts(groups.value))
-  const summaryOverview = computed(() => transferOverview(groups.value))
-
-  // The dates with arrivals, for the Individual report's date picker.
+  // The dates with arrivals, for the date picker.
   const individualDates = computed(() => dates.value.filter(d => groups.value.some(g => calendarTime(g.arrival.time).date === d)))
-  const individualDate = computed(() => {
-    const picked = selectedDate.value
-    return picked && individualDates.value.includes(picked) ? picked : individualDates.value[0]
-  })
-  const individualGroups = computed(() => groups.value.filter(g => calendarTime(g.arrival.time).date === individualDate.value))
+  const pickedDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : undefined))
+
+  // The Summary covers every date unless one is picked.
+  const summaryGroups = computed(() => filterTransferGroups(groups.value, pickedDate.value, timeBand.value))
+  const summaryRows = computed(() => transferSummaryRows(summarizeTransfers(summaryGroups.value), routes.value))
+  const summaryCounts = computed(() => transferGradeCounts(summaryGroups.value))
+  const summaryOverview = computed(() => transferOverview(summaryGroups.value))
+
+  // The Individual report shows one date: the one picked, or the first.
+  const individualDate = computed(() => pickedDate.value ?? individualDates.value[0])
+  const individualGroups = computed(() => filterTransferGroups(groups.value, individualDate.value, timeBand.value))
   const individualRows = computed(() => transferRows(individualGroups.value, {
     routes: routes.value,
     stops: stops.value,
@@ -285,6 +306,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     breakpoints,
     routeChoices,
     selectedDate,
+    summaryDate: pickedDate,
+    timeBand,
     available: computed(() => stopIds.value.length > 0),
     arrivalCount: computed(() => events.value?.arrivals.length ?? 0),
     missingDetails: computed(() => events.value?.missingDetails ?? 0),

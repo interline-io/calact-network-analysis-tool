@@ -34,10 +34,25 @@
             </cat-button>
           </div>
         </cat-field>
-        <cat-field v-if="view === 'individual' && individualDates.length > 0" label="Date">
-          <cat-select :model-value="individualDate" @update:model-value="date = $event">
+        <!-- Which arrivals to show: the Summary covers every date unless one
+             is picked; Individual shows one date at a time. -->
+        <cat-field v-if="individualDates.length > 0" label="Date">
+          <cat-select
+            :model-value="view === 'summary' ? (summaryDate ?? '') : individualDate"
+            @update:model-value="date = $event || undefined"
+          >
+            <option v-if="view === 'summary'" value="">
+              All dates
+            </option>
             <option v-for="d of individualDates" :key="d" :value="d">
               {{ formatServiceDate(d) }}
+            </option>
+          </cat-select>
+        </cat-field>
+        <cat-field label="Time of day">
+          <cat-select v-model="timeBand">
+            <option v-for="b of TRANSFER_TIME_BANDS" :key="b.key" :value="b.key">
+              {{ b.label }}
             </option>
           </cat-select>
         </cat-field>
@@ -98,6 +113,7 @@
         <cal-datagrid
           fill
           dense
+          :searchable="false"
           :per-page="100"
           :table-report="summaryReport"
           :loading="detailsLoading"
@@ -143,6 +159,7 @@
           <cal-datagrid
             fill
             dense
+            :searchable="false"
             :per-page="100"
             :table-report="individualReport"
             :loading="detailsLoading"
@@ -196,6 +213,7 @@
 import { computed, ref, useId } from 'vue'
 import * as Plot from '@observablehq/plot'
 import {
+  TRANSFER_TIME_BANDS,
   type TransferOverview,
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
@@ -205,8 +223,10 @@ import {
   type TransferGrade,
   type TransferGradeCount,
   type TransferRow,
+  type TransferRouteChoice,
   type TransferSettings,
   type TransferSummaryRow,
+  type TransferTimeBand,
 } from '~~/src/scenario'
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
@@ -222,6 +242,8 @@ const props = defineProps<{
   summaryOverview: TransferOverview
   individualDates: string[]
   individualDate?: string
+  // The date the Summary is narrowed to; every date when undefined.
+  summaryDate?: string
   individualRows: TransferRow[]
   individualCounts: TransferGradeCount[]
   individualOverview: TransferOverview
@@ -230,7 +252,7 @@ const props = defineProps<{
   breakpoints: number[]
   // The routes arriving and departing, and pairs of stops with no distance
   // between them, for the settings.
-  routeChoices: { from: { id: number, label: string, longName: string, color: string, textColor: string }[], to: { id: number, label: string, longName: string, color: string, textColor: string }[] }
+  routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
   unknownPairs: number
   missingDetails: number
   detailsLoading: boolean
@@ -247,6 +269,7 @@ const subject = defineModel<string>('subject', { required: true })
 const subjectKind = computed(() => (subject.value.startsWith('cluster:') ? 'cluster' : subject.value.startsWith('stop:') ? 'stop' : undefined))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
+const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
 const settings = defineModel<TransferSettings>('settings', { required: true })
 const settingsOpen = ref(false)
 const settingsId = useId()

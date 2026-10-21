@@ -6,6 +6,7 @@ import {
   calendarTime,
   dayNumber,
   dayString,
+  filterTransferGroups,
   formatWait,
   summarizeTransfers,
   transferEvents,
@@ -225,6 +226,16 @@ describe('summarizeTransfers and transferGradeCounts', () => {
       ['07:30:00', '07:45:00', 'Long wait'],
       ['08:00:00', '', 'No connection'],
     ])
+  })
+})
+
+describe('filterTransferGroups', () => {
+  it('keeps arrivals on a date and in a time band', () => {
+    const groups = calculateTransfers([event(1, 10, hms(6, 30)), event(2, 10, hms(8)), event(3, 10, hms(8) + 86400)], [], walk)
+    expect(filterTransferGroups(groups, undefined, 'all').length).toBe(3)
+    expect(filterTransferGroups(groups, undefined, 'am').map(g => g.arrival.tripId)).toEqual([2, 3])
+    expect(filterTransferGroups(groups, MON, 'am').map(g => g.arrival.tripId)).toEqual([2])
+    expect(filterTransferGroups(groups, TUE, 'early').length).toBe(0)
   })
 })
 

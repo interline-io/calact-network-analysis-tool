@@ -34,17 +34,12 @@
       </p>
     </cat-fieldset>
 
-    <cat-fieldset label="Connections">
+    <cat-fieldset label="Connections and grades">
       <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
-        Show every connection
+        <cat-tooltip text="By default, each arrival shows its first connection on each route and direction, and any it just missed." position="right">
+          Show every connection
+        </cat-tooltip>
       </cat-checkbox>
-      <p class="cal-transfer-settings-help">
-        By default, each arrival shows its first connection on each route and
-        direction, and any it just missed.
-      </p>
-    </cat-fieldset>
-
-    <cat-fieldset label="Grades (minutes of wait)">
       <div class="cal-transfer-settings-grades">
         <label v-for="(b, i) of gradeBounds" :key="b.label" class="cal-transfer-settings-grade">
           <span>{{ b.label }}</span>
@@ -63,51 +58,73 @@
         Each must be more than the one before; the defaults apply until then.
       </p>
       <p class="cal-transfer-settings-help">
-        A wait below the first, or above the last, is not a transfer.
+        Minutes of wait. A wait below the first, or above the last, is not a
+        transfer.
         <button type="button" class="cal-transfer-settings-link" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
           Reset
         </button>
       </p>
     </cat-fieldset>
 
-    <cat-fieldset v-for="side of sides" :key="side.key" :label="side.legend">
-      <div class="cal-transfer-settings-route-actions">
-        <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [] })">
-          All
-        </button>
-        <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: side.routes.map(r => r.id) })">
-          None
-        </button>
-      </div>
-      <div class="cal-transfer-settings-routes">
-        <cat-checkbox
-          v-for="route of side.routes"
-          :key="route.id"
-          :model-value="!settings[side.key].includes(route.id)"
-          @update:model-value="toggleRoute(side.key, route.id, !!$event)"
-        >
-          <cal-route-badge :label="route.label" :color="route.color" :text-color="route.textColor" :title="route.longName" />
-        </cat-checkbox>
+    <cat-fieldset label="Routes and headsigns">
+      <div class="cal-transfer-settings-sides">
+        <div v-for="side of sides" :key="side.key" role="group" :aria-label="`${side.legend} routes`">
+          <div class="cal-transfer-settings-route-actions">
+            <span>{{ side.legend }}</span>
+            <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [] })">
+              All
+            </button>
+            <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: side.routes.flatMap(r => r.headsigns.map(h => h.key)) })">
+              None
+            </button>
+          </div>
+          <!-- A route, checked when all its headsigns are, and its headsigns
+               below it once opened. -->
+          <ul class="cal-transfer-settings-tree">
+            <li v-for="route of side.routes" :key="route.id">
+              <div class="cal-transfer-settings-tree-route">
+                <button
+                  type="button"
+                  class="cal-transfer-settings-tree-toggle"
+                  :aria-expanded="isOpen(side.key, route.id)"
+                  :aria-label="`${isOpen(side.key, route.id) ? 'Hide' : 'Show'} headsigns for ${route.label}`"
+                  @click="toggleOpen(side.key, route.id)"
+                >
+                  <cat-icon size="small" :icon="isOpen(side.key, route.id) ? 'chevron-down' : 'chevron-right'" />
+                </button>
+                <cat-checkbox
+                  :model-value="routeState(side.key, route) !== 'none'"
+                  :indeterminate="routeState(side.key, route) === 'some'"
+                  @update:model-value="setHeadsigns(side.key, route.headsigns.map(h => h.key), !!$event)"
+                >
+                  <cal-route-badge :label="route.label" :color="route.color" :text-color="route.textColor" :title="route.longName" />
+                </cat-checkbox>
+              </div>
+              <ul v-if="isOpen(side.key, route.id)" class="cal-transfer-settings-tree-headsigns">
+                <li v-for="h of route.headsigns" :key="h.key">
+                  <cat-checkbox
+                    :model-value="!settings[side.key].includes(h.key)"
+                    @update:model-value="setHeadsigns(side.key, [h.key], !!$event)"
+                  >
+                    {{ h.label }} <span class="cal-transfer-settings-count">{{ h.count.toLocaleString() }}</span>
+                  </cat-checkbox>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </div>
       </div>
     </cat-fieldset>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { DEFAULT_TRANSFER_SETTINGS, validBreakpoints, type TransferSettings } from '~~/src/scenario'
-
-interface RouteChoice {
-  id: number
-  label: string
-  longName: string
-  color: string
-  textColor: string
-}
+import { computed, ref } from 'vue'
+import { DEFAULT_TRANSFER_SETTINGS, validBreakpoints, type TransferRouteChoice, type TransferSettings } from '~~/src/scenario'
 
 const props = defineProps<{
   // The routes arriving and departing at the stops.
-  routeChoices: { from: RouteChoice[], to: RouteChoice[] }
+  routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
   // Pairs of the stops with no distance between them.
   unknownPairs: number
 }>()
@@ -154,19 +171,44 @@ function setBreakpoint (index: number, mins: number) {
 
 const breakpointsValid = computed(() => validBreakpoints(settings.value.breakpoints))
 
+type Side = 'excludedFrom' | 'excludedTo'
+
 const sides = computed(() => [
-  { key: 'excludedFromRoutes' as const, legend: 'Arriving routes', routes: props.routeChoices.from },
-  { key: 'excludedToRoutes' as const, legend: 'Departing routes', routes: props.routeChoices.to },
+  { key: 'excludedFrom' as const, legend: 'Arriving', routes: props.routeChoices.from },
+  { key: 'excludedTo' as const, legend: 'Departing', routes: props.routeChoices.to },
 ])
 
-function toggleRoute (key: 'excludedFromRoutes' | 'excludedToRoutes', routeId: number, included: boolean) {
-  const excluded = new Set(settings.value[key])
-  if (included) {
-    excluded.delete(routeId)
-  } else {
-    excluded.add(routeId)
+// Routes opened to show their headsigns, by side and route id.
+const opened = ref(new Set<string>())
+function isOpen (side: Side, routeId: number): boolean {
+  return opened.value.has(`${side}|${routeId}`)
+}
+function toggleOpen (side: Side, routeId: number) {
+  const key = `${side}|${routeId}`
+  const next = new Set(opened.value)
+  if (!next.delete(key)) {
+    next.add(key)
   }
-  set({ [key]: [...excluded] })
+  opened.value = next
+}
+
+// Whether all, some, or none of a route's headsigns are included.
+function routeState (side: Side, route: TransferRouteChoice): 'all' | 'some' | 'none' {
+  const excluded = new Set(settings.value[side])
+  const out = route.headsigns.filter(h => excluded.has(h.key)).length
+  return out === 0 ? 'all' : out === route.headsigns.length ? 'none' : 'some'
+}
+
+function setHeadsigns (side: Side, keys: string[], included: boolean) {
+  const excluded = new Set(settings.value[side])
+  for (const key of keys) {
+    if (included) {
+      excluded.delete(key)
+    } else {
+      excluded.add(key)
+    }
+  }
+  set({ [side]: [...excluded] })
 }
 </script>
 
@@ -175,7 +217,7 @@ function toggleRoute (key: 'excludedFromRoutes' | 'excludedToRoutes', routeId: n
 .cal-transfer-settings {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 2rem;
+  gap: 0.75rem 1.75rem;
   padding: 0.75rem 1rem;
   margin-bottom: 0.75rem;
   border: 1px solid var(--bulma-border);
@@ -225,7 +267,7 @@ function toggleRoute (key: 'excludedFromRoutes' | 'excludedToRoutes', routeId: n
   color: var(--bulma-text-weak);
   font-size: 0.75rem;
   margin-top: 0.25rem;
-  max-width: 22rem;
+  max-width: 18rem;
 }
 
 .cal-transfer-settings-warning {
@@ -245,18 +287,52 @@ function toggleRoute (key: 'excludedFromRoutes' | 'excludedToRoutes', routeId: n
   text-decoration: underline;
 }
 
+.cal-transfer-settings-sides {
+  display: flex;
+  gap: 1.25rem;
+}
+
 .cal-transfer-settings-route-actions {
   display: flex;
   gap: 0.75rem;
   font-size: 0.75rem;
   margin-bottom: 0.25rem;
+
+  span {
+    font-weight: 600;
+  }
 }
 
-.cal-transfer-settings-routes {
-  display: flex;
-  flex-direction: column;
-  max-height: 9rem;
+.cal-transfer-settings-tree {
+  max-height: 7.5rem;
   overflow-y: auto;
-  min-width: 10rem;
+  min-width: 13rem;
+  margin: 0;
+  list-style: none;
+}
+
+.cal-transfer-settings-tree-route {
+  display: flex;
+  align-items: center;
+}
+
+.cal-transfer-settings-tree-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  width: 1.25rem;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+}
+
+.cal-transfer-settings-tree-headsigns {
+  margin: 0 0 0.25rem 1.75rem;
+  list-style: none;
+  font-size: 0.75rem;
+}
+
+.cal-transfer-settings-count {
+  color: var(--bulma-text-weak);
+  font-variant-numeric: tabular-nums;
 }
 </style>

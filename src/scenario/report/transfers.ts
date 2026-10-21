@@ -77,9 +77,26 @@ export interface TransferSettings {
   allConnections: boolean
   // Five increasing wait breakpoints, in seconds.
   breakpoints: number[]
-  // Routes whose arrivals, or departures, are left out.
-  excludedFromRoutes: number[]
-  excludedToRoutes: number[]
+  // Route and headsign pairs (transferRouteKey) whose arrivals, or
+  // departures, are left out.
+  excludedFrom: string[]
+  excludedTo: string[]
+}
+
+// A route at the stops, with its headsigns, as the settings offer them.
+export interface TransferRouteChoice {
+  id: number
+  label: string
+  longName: string
+  color: string
+  textColor: string
+  // Each headsign's transferRouteKey, label, and trip count.
+  headsigns: { key: string, label: string, count: number }[]
+}
+
+// A trip's route and headsign, as the settings exclude them.
+export function transferRouteKey (e: Pick<TransferEvent, 'routeId' | 'headsign'>): string {
+  return `${e.routeId}|${e.headsign ?? ''}`
 }
 
 export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
@@ -87,8 +104,33 @@ export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
   secondsPerMeter: TRANSFER_WALK_SECONDS_PER_METER,
   allConnections: false,
   breakpoints: [...TRANSFER_GRADE_BREAKPOINTS],
-  excludedFromRoutes: [],
-  excludedToRoutes: [],
+  excludedFrom: [],
+  excludedTo: [],
+}
+
+// Times of day to narrow arrivals to, as Transfer Analyst bands them, in
+// seconds from midnight; the end is exclusive.
+export const TRANSFER_TIME_BANDS = [
+  { key: 'all', label: 'All day', start: 0, end: 24 * 3600 },
+  { key: 'owl', label: 'Owl (0:00–5:00)', start: 0, end: 5 * 3600 },
+  { key: 'early', label: 'Early AM (5:00–7:00)', start: 5 * 3600, end: 7 * 3600 },
+  { key: 'am', label: 'AM peak (7:00–9:00)', start: 7 * 3600, end: 9 * 3600 },
+  { key: 'midday', label: 'Midday (9:00–14:00)', start: 9 * 3600, end: 14 * 3600 },
+  { key: 'afternoon', label: 'Afternoon (14:00–16:00)', start: 14 * 3600, end: 16 * 3600 },
+  { key: 'pm', label: 'PM peak (16:00–19:00)', start: 16 * 3600, end: 19 * 3600 },
+  { key: 'night', label: 'Night (19:00–24:00)', start: 19 * 3600, end: 24 * 3600 },
+] as const
+
+export type TransferTimeBand = typeof TRANSFER_TIME_BANDS[number]['key']
+
+// The groups whose arrival falls on a date (all dates when undefined) and in
+// a time band.
+export function filterTransferGroups (groups: TransferGroup[], date: string | undefined, band: TransferTimeBand): TransferGroup[] {
+  const { start, end } = TRANSFER_TIME_BANDS.find(b => b.key === band) ?? TRANSFER_TIME_BANDS[0]
+  return groups.filter((g) => {
+    const t = calendarTime(g.arrival.time)
+    return (date === undefined || t.date === date) && t.seconds >= start && t.seconds < end
+  })
 }
 
 // Whether breakpoints can grade waits: five, strictly increasing.
