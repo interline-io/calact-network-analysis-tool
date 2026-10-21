@@ -75,7 +75,7 @@
               <cat-button
                 size="small"
                 fullwidth
-                :variant="params.cutoffs.includes(m) ? 'primary' : undefined"
+                :style="cutoffStyle(m)"
                 v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
                 :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
                 @click="toggleCutoff(m)"
@@ -189,6 +189,7 @@ import {
   ISOCHRONE_MAX_CUTOFFS,
   ISOCHRONE_MAX_WALK_CHOICES,
   ISOCHRONE_ROUTE_TYPES,
+  isochroneBandColor,
   isochroneModeParam,
   type IsochroneBand,
   type IsochroneParams,
@@ -270,6 +271,30 @@ function toggleRouteType (rt: RouteType, on: boolean) {
 
 function setWalkOnly (walkOnly: boolean) {
   update({ mode: walkOnly ? { walkOnly: true } : { walkOnly: false } })
+}
+
+// A chosen travel time wears its band's color, so the row keys the map.
+function cutoffStyle (m: number): Record<string, string> | undefined {
+  const rank = props.params.cutoffs.indexOf(m)
+  if (rank < 0) {
+    return undefined
+  }
+  const color = isochroneBandColor(rank, props.params.cutoffs.length)
+  return { background: color, borderColor: color, color: readableTextOn(color) }
+}
+
+// White or the ramp's darkest blue, whichever contrasts more (WCAG).
+const DARK_TEXT = '#08306b'
+function luminance (hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }) as [number, number, number]
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+function readableTextOn (hex: string): string {
+  const l = luminance(hex)
+  return 1.05 / (l + 0.05) >= (l + 0.05) / (luminance(DARK_TEXT) + 0.05) ? '#fff' : DARK_TEXT
 }
 
 // "15m", "1h", "1h30m".
