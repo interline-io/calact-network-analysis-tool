@@ -146,6 +146,12 @@
             <cal-route-badge :label="row.to_route_name" :title="row.to_agency_name" />
             <span class="cal-transfer-report-headsign cal-transfer-report-clip" :title="row.to_headsign">{{ row.to_headsign }}</span>
           </template>
+          <!-- A grade's count highlighted in its color; blank where none. -->
+          <template v-for="g of gradeColumns" :key="g.key" #[`column-${g.key}`]="{ value }">
+            <span v-if="value > 0" class="cal-transfer-report-count" :style="{ background: gradeTint(g.grade) }">{{ value.toLocaleString() }}</span>
+            <!-- Something rendered, or the grid falls back to printing the 0. -->
+            <span v-else />
+          </template>
           <template #column-good_or_ok_share="{ value }">
             {{ value }}%
           </template>
@@ -334,6 +340,19 @@ function minutes (seconds: number): number {
 }
 
 const gradeByLabel = new Map(TRANSFER_GRADES.map(g => [TRANSFER_GRADE_LABELS[g], g]))
+// The summary's count columns and their grades.
+const gradeColumns: { key: string, grade: TransferGrade }[] = [
+  { key: 'missed', grade: 'missed' },
+  { key: 'good', grade: 'good' },
+  { key: 'ok', grade: 'ok' },
+  { key: 'long_wait', grade: 'long' },
+]
+
+// A grade's color, faint enough to read text on in either theme.
+function gradeTint (grade: TransferGrade): string {
+  return `${TRANSFER_GRADE_COLORS[grade].fill}40`
+}
+
 function gradeStyle (label: string) {
   const grade = gradeByLabel.get(label)
   return grade ? { background: TRANSFER_GRADE_COLORS[grade].fill, color: TRANSFER_GRADE_COLORS[grade].text } : undefined
@@ -415,10 +434,10 @@ const summaryColumns: TableColumn[] = [
   { key: 'from_route_name', label: 'From', sortable: true, tooltip: 'The arriving route, and its headsign.' },
   { key: 'to_route_name', label: 'To', sortable: true, tooltip: 'The departing route, and its headsign.' },
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on the From route and direction.' },
-  { key: 'missed', label: 'Missed', sortable: true, numeric: true, headerStyle: gradeStyle('Missed') },
-  { key: 'good', label: 'Good', sortable: true, numeric: true, headerStyle: gradeStyle('Good') },
-  { key: 'ok', label: 'OK', sortable: true, numeric: true, headerStyle: gradeStyle('OK') },
-  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, headerStyle: gradeStyle('Long wait') },
+  { key: 'missed', label: 'Missed', sortable: true, numeric: true },
+  { key: 'good', label: 'Good', sortable: true, numeric: true },
+  { key: 'ok', label: 'OK', sortable: true, numeric: true },
+  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true },
   { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection to the To route and direction is good or OK.' },
   { key: 'median_wait', label: 'Median wait', sortable: true, tooltip: 'Median wait for the first connection, over arrivals that make one (minutes:seconds).' },
 ]
@@ -586,6 +605,15 @@ const individualReport = computed((): TableReport => {
 
 .cal-transfer-report-stop {
   max-width: 12rem;
+}
+
+.cal-transfer-report-count {
+  display: inline-block;
+  min-width: 2.25em;
+  padding: 0 0.4em;
+  border-radius: 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .cal-transfer-report-wait {

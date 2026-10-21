@@ -57,7 +57,6 @@
               :key="column.key"
               scope="col"
               :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
-              :style="column.headerStyle"
               :aria-sort="ariaSort(column)"
             >
               <!-- Sortable columns render the header as a real <button> so

@@ -14,8 +14,6 @@ export interface TableColumn {
   // numeric columns rendered through a slot rather than formatCensusValue,
   // where string collation would order negative values incorrectly.
   numeric?: boolean
-  // Inline style for the column's header cell, such as a color it is keyed to.
-  headerStyle?: Record<string, string>
 }
 
 export interface TableReport {
