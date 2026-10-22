@@ -531,7 +531,7 @@ function rowClass (row: TransferGridTrip): string | undefined {
 
 // Narrower, the stop picker narrows and the settings toggles show only their
 // icons, so the controls stay on one row; on a phone, they wrap.
-@container (max-width: 72rem) {
+@container (max-width: 84rem) {
   .cal-transfer-report-subject :deep(select) {
     width: 12rem;
   }
@@ -557,6 +557,22 @@ function rowClass (row: TransferGridTrip): string | undefined {
 .cal-transfer-report-toolbar {
   display: flex;
   flex-wrap: nowrap;
+
+  // The controls at their own width; only the stop picker gives way.
+  > * {
+    flex-shrink: 0;
+  }
+
+  > .cal-transfer-report-subject {
+    flex-shrink: 1;
+    min-width: 9rem;
+
+    :deep(.select),
+    :deep(select) {
+      max-width: 100%;
+    }
+  }
+
   align-items: flex-end;
   gap: 0.5rem 1rem;
   margin-bottom: 0.75rem;
