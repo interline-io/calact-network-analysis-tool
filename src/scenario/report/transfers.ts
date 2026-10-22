@@ -11,7 +11,7 @@
 import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatDuration, formatGtfsTimeFull } from '../../core'
 import type { StopDepartureCache } from '../../tl/departure-cache'
 import { isoToOrdinal, ordinalToIso } from '../../tl/feed-version'
-import { tripHeadsignAt, type TripDetail } from '../../tl/trip-details'
+import { tripHeadsignAt, type TripDetail, type TripStopTime } from '../../tl/trip-details'
 import { summarizeGaps } from '../route-headway'
 import type { TripTableRoute, TripTableStop } from './subject-trips'
 
@@ -120,6 +120,9 @@ export interface TransferTripDestination {
   label: string
   count: number
   run: TransferTripRun
+  // Named "From" its origin, as its trips all end at the stops, so needing
+  // no origin shown beside.
+  namedByOrigin: boolean
   // Its trips that end at the stops (arriving) or start there (departing).
   terminal: number
   // Where its run is shorter than its direction's main one, between other
@@ -206,11 +209,12 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       const destinations: (TransferTripDestination & { sign: string })[] = [...destinationMap]
         .map(([headsign, t]) => {
           const run = { origin: mostCommon(t.origins), terminus: mostCommon(t.termini), stopCount: mostCommon(t.stopCounts) }
-          const fromOrigin = side === 'from' && t.terminal === t.count && run.origin
+          const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
           return {
             key: transferTripKey({ routeId: id, directionId, headsign }),
             sign: signLabel(headsign),
-            label: fromOrigin ? `From ${run.origin}` : signLabel(headsign),
+            label: namedByOrigin ? `From ${run.origin}` : signLabel(headsign),
+            namedByOrigin,
             count: t.count,
             run,
             terminal: t.terminal,
@@ -230,13 +234,14 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       for (const d of destinations) {
         signs.set(d.sign, (signs.get(d.sign) || 0) + d.count)
       }
+      const byEnd = mainOf(countsOf(tallies.flatMap(t => t.termini)), count)
       const name = side === 'from' && terminal * 2 > count
         ? prefixed('From', mainOf(countsOf(tallies.flatMap(t => t.origins)), count))
-        : prefixed('Toward', mainOf(signs, count) ?? mainOf(countsOf(tallies.flatMap(t => t.termini)), count))
+        : prefixed('Toward', mainOf(signs, count) ?? byEnd)
       return {
         directionId,
         name,
-        byEnd: prefixed('Toward', mainOf(countsOf(tallies.flatMap(t => t.termini)), count)),
+        byEnd: prefixed('Toward', byEnd),
         count,
         destinations,
       }
@@ -281,8 +286,8 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
   return choices.sort((a, b) => sortOrder(a.id) - sortOrder(b.id) || a.label.localeCompare(b.label, undefined, { numeric: true }))
 }
 
-function countsOf (values: string[]): Map<string, number> {
-  const counts = new Map<string, number>()
+function countsOf<T extends string | number> (values: T[]): Map<T, number> {
+  const counts = new Map<T, number>()
   for (const v of values) {
     counts.set(v, (counts.get(v) || 0) + 1)
   }
@@ -432,6 +437,45 @@ export interface TransferEvents {
   missingTripIds: number[]
 }
 
+interface TripCall {
+  stopTime: TripStopTime
+  // Whether the trip calls anywhere else before the stop, and after it.
+  comesFrom: boolean
+  goesOn: boolean
+  // What the trip is signed for there.
+  headsign?: string
+}
+
+// A trip's call at a stop: where it calls more than once, the call nearest
+// the departure, as a call may have no departure time of its own in the
+// details.
+function findCall (detail: TripDetail, stopId: number, departureTime: number, atStops: Set<number>): TripCall | null {
+  const stopTimes = detail.stopTimes
+  let index = -1
+  for (let i = 0; i < stopTimes.length; i++) {
+    const s = stopTimes[i]!
+    if (s.stopId === stopId && (index < 0 || Math.abs((s.departure ?? Infinity) - departureTime) < Math.abs((stopTimes[index]!.departure ?? Infinity) - departureTime))) {
+      index = i
+    }
+  }
+  const stopTime = stopTimes[index]
+  if (!stopTime) {
+    return null
+  }
+  let comesFrom = false
+  let goesOn = false
+  for (let i = 0; i < stopTimes.length; i++) {
+    if (i !== index && !atStops.has(stopTimes[i]!.stopId)) {
+      if (i < index) {
+        comesFrom = true
+      } else {
+        goesOn = true
+      }
+    }
+  }
+  return { stopTime, comesFrom, goesOn, headsign: tripHeadsignAt(detail, stopId) }
+}
+
 /**
  * The arrivals and departures at a subject's stops. A trip arrives where it
  * lets riders off, coming from somewhere else, and departs where it picks
@@ -448,6 +492,9 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   const departures = new Map<string, TransferEvent>()
   const missing = new Set<number>()
   const atStops = new Set(opts.stopIds)
+  // Each trip's call at a stop, worked out once though read for each day;
+  // null where the trip does not call there.
+  const calls = new Map<string, TripCall | null>()
   // A handful of days recur, so each day's date is worked out once.
   const dateCache = new Map<number, string>()
   const dateOf = (day: number) => {
@@ -494,21 +541,17 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           missing.add(st.tripId)
           continue
         }
-        // A trip calling at the stop more than once is matched to the call
-        // nearest the departure, as a call may have no departure time of its
-        // own in the details.
-        const stopTimes = detail.stopTimes
-        let index = -1
-        for (let i = 0; i < stopTimes.length; i++) {
-          const s = stopTimes[i]!
-          if (s.stopId === stopId && (index < 0 || Math.abs((s.departure ?? Infinity) - st.departureTime) < Math.abs((stopTimes[index]!.departure ?? Infinity) - st.departureTime))) {
-            index = i
-          }
+        const callKey = `${st.tripId}|${stopId}|${st.departureTime}`
+        let call = calls.get(callKey)
+        if (call === undefined) {
+          call = findCall(detail, stopId, st.departureTime, atStops)
+          calls.set(callKey, call)
         }
-        const stopTime = stopTimes[index]
-        if (!stopTime) {
+        if (!call) {
           continue
         }
+        const { stopTime, comesFrom, goesOn, headsign } = call
+        const stopTimes = detail.stopTimes
         const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
         const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
@@ -516,7 +559,6 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
         // day under one id, each run offset from its stated times.
         const runOffset = st.departureTime - (stopTime.departure ?? st.departureTime)
         const key = `${st.tripId}|${serviceDate}|${runOffset}`
-        const headsign = tripHeadsignAt(detail, stopId)
         const event = (time: number): TransferEvent => ({
           tripId: st.tripId,
           routeId: st.routeId,
@@ -530,18 +572,6 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           terminus: detail.lastStopName,
           stopCount: stopTimes.length,
         })
-        // Whether the trip calls anywhere else before the stop, and after it.
-        let comesFrom = false
-        let goesOn = false
-        for (let i = 0; i < stopTimes.length; i++) {
-          if (i !== index && !atStops.has(stopTimes[i]!.stopId)) {
-            if (i < index) {
-              comesFrom = true
-            } else {
-              goesOn = true
-            }
-          }
-        }
         if (comesFrom && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
           const time = base + st.departureTime - Math.max(0, dwell)
@@ -719,13 +749,9 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
 
 // The most common of some values.
 function mostCommon<T extends string | number> (values: T[]): T | undefined {
-  const counts = new Map<T, number>()
-  for (const v of values) {
-    counts.set(v, (counts.get(v) || 0) + 1)
-  }
   let best: T | undefined
   let bestCount = 0
-  for (const [v, n] of counts) {
+  for (const [v, n] of countsOf(values)) {
     if (n > bestCount) {
       best = v
       bestCount = n
@@ -875,24 +901,38 @@ function percent (share: number): number {
 }
 
 // A row per pair of arriving and departing destinations, for the CSV.
+type Side = 'from' | 'to'
+type RouteColumns<P extends Side> = Record<`${P}_route_id` | `${P}_route_name` | `${P}_route_color` | `${P}_route_text_color` | `${P}_agency_name`, string>
+type StopColumns<P extends Side> = Record<`${P}_stop_id` | `${P}_stop_name`, string>
+
+// A side's route, as CSV columns; blank without one.
+function routeColumns<P extends Side> (side: P, route: TripTableRoute | undefined): RouteColumns<P> {
+  return {
+    [`${side}_route_id`]: route?.route_id ?? '',
+    [`${side}_route_name`]: routeLabel(route),
+    [`${side}_route_color`]: route?.route_color ?? '',
+    [`${side}_route_text_color`]: route?.route_text_color ?? '',
+    [`${side}_agency_name`]: route?.agency_name ?? '',
+  } as RouteColumns<P>
+}
+
+// A side's stop, as CSV columns; blank without one.
+function stopColumns<P extends Side> (side: P, stop: TripTableStop | undefined): StopColumns<P> {
+  return {
+    [`${side}_stop_id`]: stop?.stop_id ?? '',
+    [`${side}_stop_name`]: stop?.stop_name ?? '',
+  } as StopColumns<P>
+}
+
 export function transferSummaryRows (summaries: TransferArrivalSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
   return summaries.flatMap(({ from: f, overview, pairs }) => {
-    const from = routes.get(f.routeId)
+    const from = routeColumns('from', routes.get(f.routeId))
     return pairs.map((s) => {
-      const to = routes.get(s.to.routeId)
       return {
-        from_route_id: from?.route_id ?? '',
-        from_route_name: routeLabel(from),
-        from_route_color: from?.route_color ?? '',
-        from_route_text_color: from?.route_text_color ?? '',
-        from_agency_name: from?.agency_name ?? '',
+        ...from,
         from_direction_id: f.directionId,
         from_headsign: f.headsign ?? '',
-        to_route_id: to?.route_id ?? '',
-        to_route_name: routeLabel(to),
-        to_route_color: to?.route_color ?? '',
-        to_route_text_color: to?.route_text_color ?? '',
-        to_agency_name: to?.agency_name ?? '',
+        ...routeColumns('to', routes.get(s.to.routeId)),
         to_direction_id: s.to.directionId,
         to_headsign: s.to.headsign ?? '',
         arrivals: overview.arrivals,
@@ -986,7 +1026,7 @@ function gridTrip (
     agency_name: route?.agency_name ?? '',
     headsign: info?.label ?? e.headsign ?? '',
     // Named "From" its origin, an arriving trip needs no origin beside.
-    origin: side === 'from' && !info?.label.startsWith('From ') ? (e.origin ?? info?.run.origin ?? '') : '',
+    origin: side === 'from' && !info?.namedByOrigin ? (e.origin ?? info?.run.origin ?? '') : '',
     tags: [...transferTripTags(info, side, e.terminal), ...extraTags],
   }
 }
@@ -1098,34 +1138,22 @@ export function transferRows (
   for (const { arrival, connections } of groups) {
     const { date, seconds } = arrival
     const dayStart = arrival.time - seconds
-    const from = opts.routes.get(arrival.routeId)
-    const fromStop = opts.stops.get(arrival.stopId)
     const incoming = {
       date,
       arrival_time: formatGtfsTimeFull(seconds),
-      from_route_id: from?.route_id ?? '',
-      from_route_name: routeLabel(from),
-      from_route_color: from?.route_color ?? '',
-      from_route_text_color: from?.route_text_color ?? '',
-      from_agency_name: from?.agency_name ?? '',
+      ...routeColumns('from', opts.routes.get(arrival.routeId)),
       from_trip_id: opts.tripDetails.get(arrival.tripId)?.tripId ?? '',
       from_headsign: arrival.headsign ?? '',
-      from_stop_id: fromStop?.stop_id ?? '',
-      from_stop_name: fromStop?.stop_name ?? '',
+      ...stopColumns('from', opts.stops.get(arrival.stopId)),
     }
     if (connections.length === 0) {
       rows.push({
         ...incoming,
         departure_time: '',
-        to_route_id: '',
-        to_route_name: '',
-        to_route_color: '',
-        to_route_text_color: '',
-        to_agency_name: '',
+        ...routeColumns('to', undefined),
         to_trip_id: '',
         to_headsign: '',
-        to_stop_id: '',
-        to_stop_name: '',
+        ...stopColumns('to', undefined),
         walk_seconds: '',
         wait_seconds: '',
         grade: 'none',
@@ -1134,20 +1162,13 @@ export function transferRows (
       continue
     }
     for (const c of connections) {
-      const to = opts.routes.get(c.departure.routeId)
-      const toStop = opts.stops.get(c.departure.stopId)
       rows.push({
         ...incoming,
         departure_time: formatGtfsTimeFull(c.departure.time - dayStart),
-        to_route_id: to?.route_id ?? '',
-        to_route_name: routeLabel(to),
-        to_route_color: to?.route_color ?? '',
-        to_route_text_color: to?.route_text_color ?? '',
-        to_agency_name: to?.agency_name ?? '',
+        ...routeColumns('to', opts.routes.get(c.departure.routeId)),
         to_trip_id: opts.tripDetails.get(c.departure.tripId)?.tripId ?? '',
         to_headsign: c.departure.headsign ?? '',
-        to_stop_id: toStop?.stop_id ?? '',
-        to_stop_name: toStop?.stop_name ?? '',
+        ...stopColumns('to', opts.stops.get(c.departure.stopId)),
         walk_seconds: c.walk,
         wait_seconds: c.wait,
         grade: c.grade,

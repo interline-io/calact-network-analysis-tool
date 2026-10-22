@@ -334,7 +334,7 @@ function routeRows (side: Side, routes: TransferRouteChoice[], base = 0): Omit<R
   const tripSide = side === 'excludedFrom' ? 'from' : 'to'
   const about = (d: TransferTripDestination | undefined) => ({
     // Named "From" its origin, a destination needs no origin beside.
-    origin: tripSide === 'from' && !d?.label.startsWith('From ') ? d?.run.origin : undefined,
+    origin: tripSide === 'from' && !d?.namedByOrigin ? d?.run.origin : undefined,
     tags: transferTripTags(d, tripSide),
   })
   for (const route of routes) {
