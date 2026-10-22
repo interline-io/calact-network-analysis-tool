@@ -547,7 +547,8 @@ function rowClass (row: TransferGridTrip): string | undefined {
 }
 
 @container (max-width: 52rem) {
-  .cal-transfer-report-toolbar {
+  // Over the toolbar's own no-wrap, which comes later.
+  .cal-transfer-report .cal-transfer-report-toolbar {
     flex-wrap: wrap;
   }
 }
