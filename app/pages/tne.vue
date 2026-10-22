@@ -951,7 +951,8 @@ const {
 } = useIsochrone(isochroneParams, isochroneFetcher(useApiEndpoint('/routing/isochrone', 'default')))
 const isochroneFeatures = computed(() => isochroneMapFeatures(isochroneBands.value))
 // In the map legend, which stays open beside the panel to key the bands.
-const isochroneLegendRows = computed(() => isochroneLegend(isochroneBands.value))
+// Nothing reachable draws nothing, so there's nothing to key.
+const isochroneLegendRows = computed(() => isochroneEmpty.value ? [] : isochroneLegend(isochroneBands.value))
 const fitIsochroneKey = ref(0)
 // The stop it was opened from, until the place moves off it. Not in the URL:
 // a link reopens it by its coordinates.

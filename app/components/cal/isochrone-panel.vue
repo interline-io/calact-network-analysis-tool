@@ -271,7 +271,8 @@ const placeText = computed(() => formatIsochronePlace(props.params.place))
 
 // Typed coordinates that don't parse stay in the box, flagged, until fixed.
 const placeInvalid = ref(false)
-watch(() => props.params.place, () => {
+// By value: params are rebuilt on any URL change, the place with them.
+watch(placeText, () => {
   placeInvalid.value = false
 })
 
@@ -326,6 +327,14 @@ const cutoffChoices = computed(() => [...new Set([...ISOCHRONE_CUTOFF_CHOICES, .
 
 // As many as the router takes: none more can be chosen.
 const cutoffsFull = computed(() => props.params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS)
+
+// Filled while typing one in: there's no room for it.
+watch(cutoffsFull, (full) => {
+  if (full) {
+    addingCutoff.value = false
+    cutoffInvalid.value = false
+  }
+})
 
 // Compact, to fit the row: "1h30m".
 function cutoffLabel (m: number): string {

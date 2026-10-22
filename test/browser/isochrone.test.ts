@@ -140,6 +140,50 @@ test.describe('Isochrone panel', () => {
     await expect(date).toHaveValue('2026-10-27')
   })
 
+  test('falls back from a time a clock can\'t show', async ({ page }) => {
+    const requests = await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}&isoTime=99:99`)
+    await expect(panel(page).locator('input[type="time"]')).toHaveValue('08:00', { timeout: 15000 })
+    await expect.poll(() => requests.at(-1)?.searchParams.get('time')).toBe('08:00:00')
+  })
+
+  test('keeps flagging unreadable coordinates through other changes', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}`)
+    const input = panel(page).getByLabel('Latitude, longitude')
+    await expect(input).toBeVisible({ timeout: 15000 })
+    await input.fill('45.5,')
+    await input.press('Enter')
+    await expect(input).toHaveClass(/is-danger/)
+    await expect(page).toHaveURL(new RegExp(`isoPlace=${PLACE.replace(',', '(%2C|,)')}`))
+    await panel(page).getByRole('button', { name: '60 minutes' }).click()
+    await expect(page).toHaveURL(/isoCutoffs=/)
+    await expect(input).toHaveClass(/is-danger/)
+  })
+
+  test('closes the typed travel time once there\'s no room for it', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}&isoCutoffs=10,15,30,45,60,100,120`)
+    await panel(page).getByRole('button', { name: 'Add a travel time' }).click({ timeout: 15000 })
+    await expect(panel(page).getByLabel('Travel time to add')).toBeVisible()
+    await panel(page).getByRole('button', { name: '90 minutes' }).click()
+    await expect(panel(page).getByLabel('Travel time to add')).toHaveCount(0)
+  })
+
+  test('keys nothing when nothing is reachable', async ({ page }) => {
+    await page.route('**/routing/isochrone?**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', geometry: { type: 'MultiPolygon', coordinates: [] }, properties: { contour: 15, time: 900 } }],
+      }),
+    }))
+    await page.goto(`/tne?isoPlace=${PLACE}&isoCutoffs=15`)
+    await expect(panel(page).getByText('Nothing reachable within these settings.')).toBeVisible({ timeout: 15000 })
+    await expect(legend(page).getByText('Within 15 min')).toHaveCount(0)
+  })
+
   test('shows the router error', async ({ page }) => {
     await routeIsochrone(page, 'bad-date')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)

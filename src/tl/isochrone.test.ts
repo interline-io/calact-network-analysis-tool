@@ -165,6 +165,11 @@ describe('parseIsochroneResponse', () => {
     expect(bands[1]!.color).toBe(isochroneBandColors(2, 3).fill)
   })
 
+  it('colors a band timed off a travel time asked for as the nearest one', () => {
+    expect(isochroneCutoffColors(31, [15, 30, 45])).toEqual(isochroneCutoffColors(30, [15, 30, 45]))
+    expect(isochroneCutoffColors(44, [15, 30, 45])).toEqual(isochroneBandColors(2, 3))
+  })
+
   it('skips a band with no travel time', () => {
     const poly = { type: 'MultiPolygon', coordinates: [[[[0, 0], [1, 0], [1, 1], [0, 0]]]] }
     const body = JSON.stringify({
@@ -231,6 +236,10 @@ describe('parseIsochronePlace', () => {
     expect(parseIsochronePlace('45.5')).toBeUndefined()
     expect(parseIsochronePlace('abc,def')).toBeUndefined()
     expect(parseIsochronePlace('95,0')).toBeUndefined()
+    // Number('') is 0: an empty part isn't the equator or prime meridian.
+    expect(parseIsochronePlace('45.5,')).toBeUndefined()
+    expect(parseIsochronePlace(',-122.6')).toBeUndefined()
+    expect(parseIsochronePlace('45.5,-122.6,9')).toBeUndefined()
     expect(parseIsochronePlace(undefined)).toBeUndefined()
   })
 })

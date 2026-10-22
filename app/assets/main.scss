@@ -73,3 +73,47 @@ $duration: 1000ms;
     padding: 8px 10px;
   }
 }
+
+// The open isochrone's place: a dot to leave from, a flag to arrive at. The
+// map's marker (map-viewer-ts.vue) and its key in the legend (-small) share
+// it, so it lives here. #08306b is ISOCHRONE_INK.
+.cal-isochrone-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 3px solid #08306b;
+  box-shadow: 0 0 0 1px #08306b, 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  color: #08306b;
+  line-height: 1;
+}
+.cal-isochrone-glyph-origin {
+  width: 18px;
+  height: 18px;
+  background: #08306b;
+  border-color: #fff;
+}
+.cal-isochrone-glyph-destination {
+  width: 26px;
+  height: 26px;
+  background: #fff;
+  font-size: 15px;
+}
+.cal-isochrone-glyph-small {
+  border-width: 2px;
+  box-shadow: 0 0 0 1px #08306b;
+  cursor: default;
+}
+// Three classes, to win over the legend's own .legend-item sizes.
+.cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-origin {
+  width: 12px;
+  height: 12px;
+  margin: 0 4px;
+}
+.cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-destination {
+  width: 18px;
+  height: 18px;
+  margin: 0 1px;
+  font-size: 11px;
+}

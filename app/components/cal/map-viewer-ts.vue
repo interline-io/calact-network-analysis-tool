@@ -1102,6 +1102,13 @@ function removePopup () {
   }
 }
 
+// Dismissed: the popup, its highlight, and the selection it stood for.
+function closePopup () {
+  removePopup()
+  updateHighlight(undefined)
+  emit('popupClosed')
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1145,11 +1152,7 @@ function showPopupAtIndex (index: number) {
       },
       currentIndex: currentPopupIndex,
       total: total,
-      onClose: () => {
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
-      },
+      onClose: closePopup,
       onPrev: () => {
         if (currentPopupIndex > 0) {
           showPopupAtIndex(currentPopupIndex - 1)
@@ -1162,9 +1165,7 @@ function showPopupAtIndex (index: number) {
       },
       onTravelTime: (featureId: string | number) => {
         // The isochrone panel takes over; its marker shows the place.
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
+        closePopup()
         emit('isochroneFromStop', featureId)
       },
       onShowTrips: (featureType: string, featureId: string | number) => {
@@ -1472,50 +1473,6 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   .cal-isochrone-menu-item:hover,
   .cal-isochrone-menu-item:focus {
     background: #f0f4fa;
-  }
-
-  /* The open isochrone's place: a dot to leave from, a flag to arrive at.
-     The map's marker, and its key in legend.vue (glyph-small). #08306b is
-     ISOCHRONE_INK. */
-  .cal-isochrone-glyph {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 3px solid #08306b;
-    box-shadow: 0 0 0 1px #08306b, 0 2px 4px rgba(0, 0, 0, 0.4);
-    cursor: grab;
-    color: #08306b;
-    line-height: 1;
-  }
-  .cal-isochrone-glyph-origin {
-    width: 18px;
-    height: 18px;
-    background: #08306b;
-    border-color: #fff;
-  }
-  .cal-isochrone-glyph-destination {
-    width: 26px;
-    height: 26px;
-    background: #fff;
-    font-size: 15px;
-  }
-  .cal-isochrone-glyph-small {
-    border-width: 2px;
-    box-shadow: 0 0 0 1px #08306b;
-    cursor: default;
-  }
-  /* Three classes, to win over the legend's own .legend-item sizes. */
-  .cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-origin {
-    width: 12px;
-    height: 12px;
-    margin: 0 4px;
-  }
-  .cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-destination {
-    width: 18px;
-    height: 18px;
-    margin: 0 1px;
-    font-size: 11px;
   }
 
   /* Hover tooltip for selectable geographies */

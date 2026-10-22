@@ -167,11 +167,17 @@ export function isochroneBandColors (rank: number, total: number): { fill: strin
 }
 
 // The colors of the band for `minutes` among the travel times asked for, so
-// a travel time's button and its band on the map always match.
+// a travel time's button and its band on the map always match. A band the
+// router timed a little differently takes the nearest one asked for.
 export function isochroneCutoffColors (minutes: number, cutoffs: number[]): { fill: string, text: string } {
   const asked = [...new Set(cutoffs)].sort((a, b) => a - b)
-  const rank = asked.indexOf(minutes)
-  return rank < 0 ? isochroneBandColors(asked.length, asked.length + 1) : isochroneBandColors(rank, asked.length)
+  let rank = 0
+  asked.forEach((c, i) => {
+    if (Math.abs(c - minutes) < Math.abs(asked[rank]! - minutes)) {
+      rank = i
+    }
+  })
+  return isochroneBandColors(rank, asked.length)
 }
 
 function isPolygonal (f: any): boolean {
@@ -253,8 +259,14 @@ export function parseIsochronePlace (s: string | undefined): Point | undefined {
   if (!s) {
     return undefined
   }
-  const [lat, lon] = s.split(',').map(Number)
-  if (lat === undefined || lon === undefined || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+  // Exactly two numbers: Number('') is 0, so an empty part would read as
+  // the equator or the prime meridian.
+  const parts = s.split(',')
+  if (parts.length !== 2 || parts.some(p => p.trim() === '')) {
+    return undefined
+  }
+  const [lat, lon] = parts.map(Number) as [number, number]
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return undefined
   }
   if (Math.abs(lat) > 90 || Math.abs(lon) > 180) {
