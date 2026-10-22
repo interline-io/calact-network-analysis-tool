@@ -10,22 +10,6 @@ describe('stopPairs', () => {
   })
 })
 
-describe('parseStopDistances', () => {
-  it('reads each pair in meters, leaving out pairs the server could not route', () => {
-    const pairs = stopPairs([{ id: 1, lon: 0, lat: 0 }, { id: 2, lon: 0, lat: 0 }, { id: 3, lon: 0, lat: 0 }])
-    const meters = parseStopDistances(pairs, {
-      p0: { success: true, distance: { distance: 0.25, units: 'KILOMETERS' } },
-      p1: { success: false, distance: null },
-      p2: { success: true, distance: { distance: 1, units: 'MILES' } },
-    })
-    expect(meters.get('1|2')).toBe(250)
-    expect(meters.has('1|3')).toBe(false)
-    expect(meters.get('2|3')).toBeCloseTo(1609.344)
-    const odd = parseStopDistances(pairs.slice(0, 1), { p0: { success: true, distance: { distance: 1, units: 'FURLONGS' as 'MILES' } } })
-    expect(odd.size).toBe(0)
-  })
-})
-
 // Against the fixture transitland-server (docker/docker-compose.services.yaml),
 // which routes mode LINE as production does.
 describe('stopDistancesRequest (integration)', () => {

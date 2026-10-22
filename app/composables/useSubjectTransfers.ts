@@ -28,7 +28,7 @@ import {
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { chunkArray, fmtDate, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import { chunkArray, fmtDate, groupBy, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
 import {
   STOP_DISTANCE_BATCH_SIZE,
   parseStopDistances,
@@ -59,6 +59,9 @@ export interface UseSubjectTransfersDeps {
   // station's other platform can join a cluster. Held by the page (in the
   // URL), which clears them for each subject.
   stopEdits: Ref<TransferStopEdits>
+  // The date whose arrivals both views show (yyyy-MM-dd); the first with
+  // service when unset. Held by the page, in the URL.
+  selectedDate: MaybeRefOrGetter<string | undefined>
 }
 
 export interface TransferStopEdits {
@@ -70,9 +73,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
   // Breakpoints that cannot grade waits are not applied.
   const breakpoints = computed(() => (validBreakpoints(settings.value.breakpoints) ? settings.value.breakpoints : DEFAULT_TRANSFER_SETTINGS.breakpoints))
-  // The date whose arrivals both views show; the first with arrivals when
-  // unset. The time of day is the scenario's.
-  const selectedDate = ref<string>()
 
   const result = computed(() => toValue(deps.scenarioFilterResult))
   const routes = computed(() => routesById(result.value?.routes || []))
@@ -83,21 +83,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   })
   // Stops by their parent station (its feed version and GTFS id).
   const parentKey = (stop: Stop | undefined) => (stop?.parent?.stop_id ? `${stop.feed_version.sha1}|${stop.parent.stop_id}` : undefined)
-  const stopsByParent = computed(() => {
-    const byParent = new Map<string, number[]>()
-    for (const stop of stops.value.values()) {
-      const key = parentKey(stop)
-      if (key) {
-        const list = byParent.get(key)
-        if (list) {
-          list.push(stop.id)
-        } else {
-          byParent.set(key, [stop.id])
-        }
-      }
-    }
-    return byParent
-  })
+  const stopsByParent = computed(() => groupBy([...stops.value.values()].filter(parentKey), s => parentKey(s)!))
   // The subject's own stops: a cluster's members follow the filters, as the
   // trip panel's do. With them, the other stops of their parent stations, as
   // a station's other platforms, which a cluster of one stop per agency
@@ -111,16 +97,20 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     for (const id of own) {
       const key = parentKey(stops.value.get(id))
       for (const sibling of (key && stopsByParent.value.get(key)) || []) {
-        ids.add(sibling)
+        ids.add(sibling.id)
       }
     }
     return [...ids]
   })
-  const stopIds = computed((): number[] => {
+  // The same array while its stops stay the same, so what follows them (the
+  // Individual table's columns and sort, among others) is left be by URL
+  // writes that change nothing here.
+  const stopIds = computed((previous?: number[]): number[] => {
     const { added, removed } = deps.stopEdits.value
     const out = new Set(removed)
     const own = subjectStopIds.value.filter(id => !out.has(id))
-    return [...own, ...added.filter(id => stops.value.has(id) && !own.includes(id))]
+    const next = [...own, ...added.filter(id => stops.value.has(id) && !own.includes(id))]
+    return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
   })
   // The stops picked, as added to and taken from the subject's own.
   function setStopIds (ids: number[]) {
@@ -257,14 +247,34 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const missedReach = computed(() => breakpoints.value[0]!)
   const waitReach = computed(() => breakpoints.value[breakpoints.value.length - 1]!)
   const mostWalk = computed(() => walkTable.value.most)
+  // The dates with service at the stops in the time of day, from the
+  // departures alone, for the date picker: both views show one date.
+  const individualDates = computed(() => {
+    const cache = result.value?.stopDepartureCache
+    const { startTime, endTime } = timeWindow.value
+    return cache
+      ? dates.value.filter(d => stopIds.value.some(id => cache.get(id, d).some((st) => {
+          const t = st.departureTime % 86400
+          return t >= startTime && t <= endTime
+        })))
+      : []
+  })
+  // The one picked, or the first.
+  const individualDate = computed(() => {
+    const picked = toValue(deps.selectedDate)
+    return picked && individualDates.value.includes(picked) ? picked : individualDates.value[0]
+  })
+
+  // The date's arrivals, and the departures they can reach, which is all the
+  // views show, so all the trip details fetched are for.
   const events = computed(() => {
     const r = result.value
-    if (!r || stopIds.value.length === 0) {
+    if (!r || stopIds.value.length === 0 || !individualDate.value) {
       return undefined
     }
     return transferEvents({
       stopIds: stopIds.value,
-      dates: dates.value,
+      dates: [individualDate.value],
       ...timeWindow.value,
       stopDepartureCache: r.stopDepartureCache,
       tripDetails: store.details.value,
@@ -294,14 +304,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const excludedTo = computed(() => new Set(excludedToKeys.value))
   const arrivals = computed(() => (events.value?.arrivals ?? []).filter(a => !excludedFrom.value.has(transferTripKey(a))))
 
-  // The dates with arrivals, for the date picker.
-  const individualDates = computed(() => {
-    const withArrivals = new Set(arrivals.value.map(a => a.date))
-    return dates.value.filter(d => withArrivals.has(d))
-  })
-  // Both views show one date: the one picked, or the first.
-  const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
-
   // The date's arrivals and their connections, worked out for that date
   // alone. Departures left out are dropped after: each destination's first
   // connection stands apart from the others', so dropping some leaves the
@@ -313,7 +315,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     const { table } = walkTable.value
     return calculateTransfers(
-      arrivals.value.filter(a => a.date === individualDate.value),
+      arrivals.value,
       e.departures,
       {
         walkSeconds: (from, to) => (from === to ? 0 : (table.get(from)?.get(to) ?? Number.NaN)),
@@ -376,8 +378,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // Nothing is read while hidden, so the report does no work then; each
   // source compared by value, so a recompute that changes nothing loads
   // nothing.
+  const active = () => toValue(deps.active)
   watch(
-    [() => toValue(deps.active), pairs, distanceModes, () => (events.value?.missingTripIds ?? []).join(',')],
+    [active, () => (active() ? pairs.value : undefined), () => (active() ? distanceModes.value : undefined), () => (active() ? (events.value?.missingTripIds ?? []).join(',') : '')],
     () => load(),
   )
 
@@ -423,13 +426,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stopIds,
     setStopIds,
     mapStops,
-    // Whether the scenario found stop clusters; it finds none with clustering
-    // off.
-    hasClusters: computed(() => (result.value?.stopClusters?.length ?? 0) > 0),
     settings,
     breakpoints,
     routeChoices,
-    selectedDate,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     csvRows,
     summaryGrid,
@@ -450,15 +449,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 // Clusters whose names are the same, each told apart by a member's name the
 // others lack.
 function distinctLabels (clusters: { key: string, label: string, memberNames: string[] }[]): { key: string, label: string }[] {
-  const byLabel = new Map<string, typeof clusters>()
-  for (const c of clusters) {
-    const list = byLabel.get(c.label)
-    if (list) {
-      list.push(c)
-    } else {
-      byLabel.set(c.label, [c])
-    }
-  }
+  const byLabel = groupBy(clusters, c => c.label)
   return clusters.map((c) => {
     const same = byLabel.get(c.label)!.filter(o => o !== c)
     if (same.length === 0) {

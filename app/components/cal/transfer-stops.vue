@@ -56,6 +56,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { TransferMapStop } from './transfer-stops-map.vue'
+import { compareNamesBlankLast, groupBy } from '~~/src/core'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
@@ -85,17 +86,8 @@ const listed = computed(() => props.mapStops.filter((s) => {
 
 // By operator, then name.
 const groups = computed(() => {
-  const byOperator = new Map<string, TransferMapStop[]>()
-  for (const s of listed.value) {
-    const list = byOperator.get(s.operator)
-    if (list) {
-      list.push(s)
-    } else {
-      byOperator.set(s.operator, [s])
-    }
-  }
-  return [...byOperator]
-    .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
+  return [...groupBy(listed.value, s => s.operator)]
+    .sort(([a], [b]) => compareNamesBlankLast(a, b))
     .map(([operator, list]) => ({ operator, stops: list }))
 })
 

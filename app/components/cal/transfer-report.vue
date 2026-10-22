@@ -133,11 +133,11 @@
 
     <!-- Without clusters, only single stops can be picked, and a station's
          stops seldom serve both sides of a transfer. -->
-    <p v-if="!hasClusters" class="cal-transfer-report-note">
+    <p v-if="clusteringOff" class="cal-transfer-report-note">
       Stop clusters are off, so only single stops are listed; pick one and
       add other stops to it under Stops & platforms, or
       <cat-button size="small" class="ml-1" @click="$emit('enableClusters')">
-        Turn on stop clusters and rerun
+        Turn on stop clusters
       </cat-button>
     </p>
     <p v-if="!hasSubject" class="cal-transfer-report-note">
@@ -159,7 +159,10 @@
         Details for {{ missingDetails.toLocaleString() }} {{ missingDetails === 1 ? 'trip' : 'trips' }} could not be found, so {{ missingDetails === 1 ? 'its' : 'their' }} transfers are left out.
       </p>
 
-      <p v-if="view === 'individual' && individualDates.length === 0" class="cal-transfer-report-note">
+      <p v-if="stops.length === 0" class="cal-transfer-report-note">
+        No stops are picked; pick some under Stops & platforms.
+      </p>
+      <p v-else-if="individualDates.length === 0" class="cal-transfer-report-note">
         No trips arrive here within the filters.
       </p>
       <template v-else>
@@ -295,8 +298,8 @@ const props = defineProps<{
   mapStops: TransferMapStop[]
   // The query's area, which the stops were loaded from.
   extent: GeoJSON.Feature[]
-  // Whether the scenario has stop clusters.
-  hasClusters: boolean
+  // Whether stop clustering is off, so only single stops can be picked.
+  clusteringOff: boolean
   // Each view's rows, nested: an arriving trip (or destination), then the
   // departing ones it connects to.
   summaryGrid: TransferSummaryGridRow[]
@@ -844,10 +847,14 @@ const grid = computed(() => (view.value === 'summary'
   font-weight: normal;
 }
 
+// The route and destination, then where it comes from and its tags, which
+// wrap below where the table is narrow, rather than widening it.
 .cal-transfer-report-trip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4em;
+  gap: 0.15em 0.4em;
+  white-space: normal;
 }
 
 .cal-transfer-report-origin {

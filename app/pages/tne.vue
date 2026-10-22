@@ -79,14 +79,14 @@
                 v-model:subject="transferSubject"
                 v-model:view="transferView"
                 v-model:section="transferSection"
-                v-model:date="transfers.selectedDate"
+                v-model:date="transferDate"
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
                 :map-stops="transfers.mapStops"
                 :extent="transferExtent"
-                :has-clusters="transfers.hasClusters"
+                :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
@@ -261,7 +261,6 @@
 <script lang="ts" setup>
 import { computed, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
-import { until } from '@vueuse/core'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
@@ -934,6 +933,11 @@ const transferSubject = computed({
   get: () => query.value.transferAt?.toString() ?? '',
   set: (v: string) => { setQuery({ transferAt: v || undefined, transferStops: undefined }) },
 })
+// The date shown ("transferDate"), in the URL too.
+const transferDate = computed({
+  get: () => query.value.transferDate?.toString() || undefined,
+  set: (v: string | undefined) => { setQuery({ transferDate: v || undefined }) },
+})
 const transferStopEdits = computed<TransferStopEdits>({
   get: () => {
     const parts = (query.value.transferStops?.toString() ?? '').split(',').filter(Boolean)
@@ -955,6 +959,7 @@ const transfers = reactive(useSubjectTransfers({
   endTime,
   active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
   stopEdits: transferStopEdits,
+  selectedDate: transferDate,
 }, tripDetailsStore))
 // The query's area, as the stops map outlines it: the chosen boundaries, or
 // the bounding box.
@@ -973,13 +978,10 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
 })
 const transferView = ref<TransferReportView>('summary')
 const transferSection = ref<TransferReportSection | undefined>('trips')
-// Stop clustering on at its default distance, and the scenario run again,
-// staying on the Transfer Analyst; once the URL holds the distance, which
-// the run reads.
-async function enableClustersForTransfers () {
+// Stop clustering on at its default distance; the clusters alone are then
+// fetched again, the rest of the scenario kept.
+function enableClustersForTransfers () {
   clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
-  await until(clusterDistance).toMatch(v => v > 0)
-  await runScenarioQuery('Stop clusters found.')
 }
 // Entered from a cluster, Stops & platforms opens first, as a cluster's
 // stops are the first thing to check.

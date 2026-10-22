@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   TRANSFER_GRADES,
@@ -190,6 +190,7 @@ import {
   type TransferTripDestination,
   type TransferTripTag,
 } from '~~/src/scenario'
+import { compareNamesBlankLast, groupBy } from '~~/src/core'
 
 export type TransferSettingsSection = 'wait-walk' | 'trips'
 
@@ -209,8 +210,15 @@ const emit = defineEmits<{
   openTrips: [routeId: number]
 }>()
 
+// Each change merged onto the last, which the model reads back only once
+// the page has taken it: two changes in one tick would otherwise lose one.
+let latest: TransferSettings | undefined
 function set (change: Partial<TransferSettings>) {
-  settings.value = { ...settings.value, ...change }
+  latest = { ...(latest ?? settings.value), ...change }
+  settings.value = latest
+  nextTick(() => {
+    latest = undefined
+  })
 }
 
 const walkOptions: { value: TransferSettings['walkDistance'], label: string, tooltip: string, disabled?: boolean }[] = [
@@ -293,20 +301,12 @@ const toggleOpen = (key: string) => toggleIn(opened, key)
 // Where the routes come from more than one operator, each operator's routes
 // under a row for it, operators by name; otherwise the routes alone.
 function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
-  const byOperator = new Map<string, TransferRouteChoice[]>()
-  for (const route of routes) {
-    const list = byOperator.get(route.operator)
-    if (list) {
-      list.push(route)
-    } else {
-      byOperator.set(route.operator, [route])
-    }
-  }
+  const byOperator = groupBy(routes, r => r.operator)
   if (byOperator.size < 2) {
     return routeRows(side, routes)
   }
   return [...byOperator]
-    .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
+    .sort(([a], [b]) => compareNamesBlankLast(a, b))
     .flatMap(([operator, list]) => {
       const collapseKey = `${side}|${operator}`
       return [
