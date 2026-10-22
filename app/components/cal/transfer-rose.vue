@@ -68,7 +68,8 @@
           @mouseenter="hover = { id: `place:${p.name}`, flows: placeFlows(p.name), text: placeText(p.name) }"
           @mouseleave="hover = undefined"
         >
-          <span v-if="p.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[p.color] }" />{{ p.name }}
+          <span v-if="p.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[p.color] }" />
+          <span class="cal-transfer-rose-label-name">{{ p.name }}</span>
         </button>
       </div>
       <figcaption class="cal-transfer-rose-caption">
@@ -505,8 +506,6 @@ function at (x: number, y: number) {
   align-items: center;
   gap: 0.25rem;
   max-width: 11rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   background: none;
   border: 0;
@@ -520,6 +519,12 @@ function at (x: number, y: number) {
   &:focus-visible {
     text-decoration: underline;
   }
+}
+
+.cal-transfer-rose-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cal-transfer-rose-label-left {
