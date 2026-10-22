@@ -154,9 +154,7 @@
               <cal-route-badge v-if="row.badge" :label="row.badge" :title="row.title" />
               <span class="cal-transfer-settings-item-label" :title="row.title">{{ row.label }}</span>
               <span v-if="row.origin" class="cal-transfer-settings-origin" :title="`From ${row.origin}`">from {{ row.origin }}</span>
-              <span v-for="tag of row.tags" :key="tag.label" class="tag is-light cal-transfer-settings-tag" :title="tag.title">
-                {{ tag.label }}<span class="is-sr-only">: {{ tag.title }}</span>
-              </span>
+              <cal-transfer-trip-tags :tags="row.tags" />
             </cat-checkbox>
             <button
               v-if="row.routeId !== undefined"
@@ -661,12 +659,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--bulma-text-weak);
-}
-
-.cal-transfer-settings-tag {
-  flex: 0 0 auto;
-  height: 1.4em;
-  font-size: 0.7rem;
 }
 
 .cal-transfer-settings-view-trips {

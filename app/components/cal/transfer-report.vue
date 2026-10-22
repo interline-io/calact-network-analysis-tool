@@ -197,16 +197,16 @@
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
           v-bind="grid"
         >
-          <!-- The trip: its route, its destination, where an arriving one
-               comes from, and its tags. The grid's hidden sizing row carries
-               no tags, so is guarded. -->
+          <!-- The trip: its route, then its destination, where an arriving one
+               comes from, and its tags as icons, wrapping beside the route.
+               The grid's hidden sizing row carries no tags, so is guarded. -->
           <template #column-route_name="{ row }">
             <span v-if="row.route_name" class="cal-transfer-report-trip">
               <cal-route-badge :label="row.route_name" :title="row.agency_name" />
-              <span class="cal-transfer-report-clip" :title="row.headsign">{{ row.headsign }}</span>
-              <span v-if="row.origin" class="cal-transfer-report-origin cal-transfer-report-clip" :title="`From ${row.origin}`">from {{ row.origin }}</span>
-              <span v-for="tag of row.tags ?? []" :key="tag.label" class="tag is-light cal-transfer-report-tag" :title="tag.title">
-                {{ tag.label }}<span class="is-sr-only">: {{ tag.title }}</span>
+              <span class="cal-transfer-report-trip-name">
+                <span :title="row.sign && row.sign !== row.headsign ? `Signed ${row.sign}` : undefined">{{ row.headsign }}</span>
+                <span v-if="row.origin" class="cal-transfer-report-origin">from {{ row.origin }}</span>
+                <cal-transfer-trip-tags :tags="row.tags ?? []" />
               </span>
             </span>
           </template>
@@ -847,25 +847,25 @@ const grid = computed(() => (view.value === 'summary'
   font-weight: normal;
 }
 
-// The route and destination, then where it comes from and its tags, which
-// wrap below where the table is narrow, rather than widening it.
+// The route, and beside it the destination, where it comes from and its
+// tags, which wrap within their own column where the table is narrow.
 .cal-transfer-report-trip {
+  display: inline-flex;
+  align-items: first baseline;
+  gap: 0.4em;
+  white-space: normal;
+}
+
+.cal-transfer-report-trip-name {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.15em 0.4em;
-  white-space: normal;
+  gap: 0 0.35em;
+  min-width: 0;
 }
 
 .cal-transfer-report-origin {
   color: var(--bulma-text-weak);
   font-weight: normal;
-  max-width: 12rem;
-}
-
-.cal-transfer-report-tag {
-  font-weight: normal;
-  height: 1.5em;
-  font-size: 0.75rem;
 }
 </style>

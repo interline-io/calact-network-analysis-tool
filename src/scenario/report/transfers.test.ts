@@ -382,13 +382,14 @@ describe('transferTripChoices', () => {
     ])
   })
 
-  it('tells apart destinations of a route that would read the same', () => {
+  it('names destinations signed the same both ways by where they end', () => {
     const ending = (directionId: number, terminus: string) => ({ ...trip(10, directionId, 'SFO / SF / Antioch'), terminus })
     const [route] = transferTripChoices([ending(0, 'Antioch'), ending(1, 'SFO')], routes)
     expect(route!.directions.flatMap(d => d.destinations.map(x => x.label))).toEqual([
-      'SFO / SF / Antioch (Toward Antioch)',
-      'SFO / SF / Antioch (Toward SFO)',
+      'Antioch',
+      'SFO',
     ])
+    expect(route!.directions.flatMap(d => d.destinations.map(x => x.sign))).toEqual(['SFO / SF / Antioch', 'SFO / SF / Antioch'])
   })
 
   it('names each route\'s operator', () => {

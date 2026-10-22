@@ -118,6 +118,8 @@ export interface TransferTripRun {
 export interface TransferTripDestination {
   key: string
   label: string
+  // Its trips' sign, or the route's long name.
+  sign: string
   count: number
   run: TransferTripRun
   // Named "From" its origin, as its trips all end at the stops, so needing
@@ -172,7 +174,9 @@ export interface TransferChoiceRoute {
  *
  * A destination is its sign, or the route's long name; an arriving one whose
  * trips all end at the stops is "From" its origin. Destinations of a route that
- * would read the same are told apart by their direction, else their sign.
+ * would read the same in both directions, as a line signed for both its ends,
+ * are named for where each ends, else told apart by their direction; in one
+ * direction, by their sign.
  * Routes go by their GTFS sort order, then name.
  *
  * A destination whose trips most often make fewer stops than those of its
@@ -206,7 +210,7 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     const label = routeLabel(route) || String(id)
     const signLabel = (headsign: string) => headsign || route?.route_long_name || 'No destination'
     const directions = [...directionMap].map(([directionId, destinationMap]) => {
-      const destinations: (TransferTripDestination & { sign: string })[] = [...destinationMap]
+      const destinations: TransferTripDestination[] = [...destinationMap]
         .map(([headsign, t]) => {
           const run = { origin: mostCommon(t.origins), terminus: mostCommon(t.termini), stopCount: mostCommon(t.stopCounts) }
           const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
@@ -268,7 +272,13 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       if (same.length < 2) {
         return x.label
       }
-      return same.some(o => o.direction !== direction) ? `${x.label} (${direction.label})` : `${x.label} (${x.sign})`
+      if (same.some(o => o.direction !== direction)) {
+        const ends = new Set(same.map(o => o.x.namedByOrigin ? undefined : o.x.run.terminus))
+        return x.run.terminus && !x.namedByOrigin && !ends.has(undefined) && ends.size === same.length
+          ? x.run.terminus
+          : `${x.label} (${direction.label})`
+      }
+      return `${x.label} (${x.sign})`
     })
     all.forEach(({ x }, i) => {
       x.label = renamed[i]!
@@ -279,7 +289,7 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       longName: route?.route_long_name ?? '',
       operator: route?.agency?.agency_name ?? '',
       count: labeled.reduce((n, d) => n + d.count, 0),
-      directions: labeled.map(d => ({ ...d, destinations: d.destinations.map(({ sign: _, ...x }) => x) })),
+      directions: labeled,
     }
   })
   const sortOrder = (id: number) => routes.get(id)?.route_sort_order ?? Number.POSITIVE_INFINITY
@@ -318,9 +328,12 @@ export function transferTripInfo (choices: TransferRouteChoice[]): Map<string, T
   return new Map(choices.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => [x.key, { ...x, routeId: r.id }] as const))))
 }
 
-// A note on a trip: whether it ends (or starts) at the stops, or is a short
-// run; said in full in `title`.
+// A note on a trip: whether it ends (or starts) at the stops, is a short
+// run, or is likely the arriving vehicle turning back; named in `label`, said
+// in full in `title`. `partial` where it holds for only some of the trips.
 export interface TransferTripTag {
+  kind: 'ends' | 'starts' | 'short' | 'turnback'
+  partial?: boolean
   label: string
   title: string
 }
@@ -331,9 +344,9 @@ function runText (run: TransferTripRun): string {
   return [ends, stops].filter(Boolean).join(', ')
 }
 
-const TERMINAL_TEXT = {
-  from: { all: 'Ends here', some: 'Some end here', trips: 'end', trip: 'ends', so: 'every rider gets off here' },
-  to: { all: 'Starts here', some: 'Some start here', trips: 'start', trip: 'starts', so: 'it brings no one here' },
+const TERMINAL_TEXT: Record<'from' | 'to', { kind: TransferTripTag['kind'], all: string, some: string, trips: string, trip: string, so: string }> = {
+  from: { kind: 'ends', all: 'Ends here', some: 'Some end here', trips: 'end', trip: 'ends', so: 'every rider gets off here' },
+  to: { kind: 'starts', all: 'Starts here', some: 'Some start here', trips: 'start', trip: 'starts', so: 'it brings no one here' },
 }
 
 /**
@@ -345,14 +358,14 @@ export function transferTripTags (d: TransferTripDestination | undefined, side: 
   const text = TERMINAL_TEXT[side]
   const tags: TransferTripTag[] = []
   if (terminal) {
-    tags.push({ label: text.all, title: `This trip ${text.trip} at the stops, so ${text.so}.` })
+    tags.push({ kind: text.kind, label: text.all, title: `This trip ${text.trip} at the stops, so ${text.so}.` })
   } else if (terminal === undefined && d && d.terminal > 0) {
     tags.push(d.terminal === d.count
-      ? { label: text.all, title: `These trips ${text.trips} at the stops, so ${text.so}.` }
-      : { label: text.some, title: `${d.terminal.toLocaleString()} of ${d.count.toLocaleString()} of these trips ${text.trips} at the stops.` })
+      ? { kind: text.kind, label: text.all, title: `These trips ${text.trips} at the stops, so ${text.so}.` }
+      : { kind: text.kind, partial: true, label: text.some, title: `${d.terminal.toLocaleString()} of ${d.count.toLocaleString()} of these trips ${text.trips} at the stops.` })
   }
   if (d?.shortOf) {
-    tags.push({ label: 'Short run', title: `Runs ${runText(d.run)}; most trips this way run ${runText(d.shortOf)}.` })
+    tags.push({ kind: 'short', label: 'Short run', title: `Runs ${runText(d.run)}; most trips this way run ${runText(d.shortOf)}.` })
   }
   return tags
 }
@@ -950,8 +963,11 @@ export interface TransferGridTrip {
   route_id: number
   route_name: string
   agency_name: string
-  // The destination's name: its sign, else the route's long name.
+  // The destination's name: its sign, else the route's long name, or where
+  // it ends or comes from (transferTripChoices).
   headsign: string
+  // Its trips' sign.
+  sign: string
   // Where an arriving trip comes from.
   origin: string
   tags: TransferTripTag[]
@@ -992,6 +1008,8 @@ interface GridTripOptions {
 // The tag for connections that are likely the arriving vehicle turning back.
 function turnbackTag (count: number, of: number): TransferTripTag {
   return {
+    kind: 'turnback',
+    partial: count < of,
     label: 'Likely same vehicle',
     title: of === 1
       ? 'This trip ends here and this one starts from the same stop, on the same agency: likely the same vehicle turning back.'
@@ -1015,6 +1033,7 @@ function gridTrip (
     route_name: routeLabel(route),
     agency_name: route?.agency_name ?? '',
     headsign: info?.label ?? e.headsign ?? '',
+    sign: info?.sign ?? e.headsign ?? '',
     // Named "From" its origin, an arriving trip needs no origin beside.
     origin: side === 'from' && !info?.namedByOrigin ? (e.origin ?? info?.run.origin ?? '') : '',
     tags: [...transferTripTags(info, side, e.terminal), ...extraTags],
