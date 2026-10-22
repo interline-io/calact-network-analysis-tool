@@ -4,7 +4,7 @@
          bar; the settings open below it, hung from it, on request. -->
     <div
       class="cal-transfer-report-bar"
-      :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection, 'cal-transfer-report-bar-large': panelLarge }"
+      :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection }"
     >
       <div class="cal-transfer-report-toolbar">
         <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
@@ -123,22 +123,11 @@
         @open-trips="$emit('openTrips', $event)"
       />
       <!-- The open panel closes from a slim strip along its bottom edge. -->
-      <!-- The open panel hides, or grows and shrinks, from a slim strip
-           along its bottom edge. -->
+      <!-- The open panel hides from a slim strip along its bottom edge. -->
       <div v-if="subjectKind && openSection" class="cal-transfer-report-panel-strip">
         <button type="button" :aria-controls="settingsId" @click="openSection = null">
           <cat-icon icon="chevron-up" size="small" />
           Hide settings
-        </button>
-        <button
-          v-if="openSection !== 'wait-walk'"
-          type="button"
-          :aria-controls="settingsId"
-          :aria-expanded="panelLarge"
-          @click="panelLarge = !panelLarge"
-        >
-          <cat-icon :icon="panelLarge ? 'arrow-collapse-vertical' : 'arrow-expand-vertical'" size="small" />
-          {{ panelLarge ? 'Shrink' : 'Expand' }}
         </button>
       </div>
     </div>
@@ -356,9 +345,6 @@ const settings = defineModel<TransferSettings>('settings', { required: true })
 // None open is null, not undefined, which would read as the default.
 const openSection = defineModel<TransferReportSection | null>('section', { default: 'trips' })
 const settingsId = useId()
-// The open panel at its usual size, or taller, for longer lists and a
-// larger map.
-const panelLarge = ref(false)
 
 // The share of trips, arriving and departing, that trip filtering keeps, on
 // its button while it keeps less than all of them.
@@ -676,10 +662,6 @@ function rowClass (row: TransferGridTrip): string | undefined {
     font-size: 0.75rem;
     cursor: pointer;
 
-    + button {
-      border-left: 1px solid var(--bulma-border);
-    }
-
     &:hover {
       background: var(--bulma-scheme-main-ter);
       color: var(--bulma-text-strong);
@@ -689,21 +671,6 @@ function rowClass (row: TransferGridTrip): string | undefined {
       outline: 2px solid var(--bulma-primary);
       outline-offset: -2px;
     }
-  }
-}
-
-// The taller panel: its lists and map at about twice their height.
-.cal-transfer-report-bar-large {
-  :deep(.cal-transfer-settings-list) {
-    max-height: 26rem;
-  }
-
-  :deep(.cal-transfer-stops-map-frame) {
-    height: 32rem;
-  }
-
-  :deep(.cal-transfer-stops-list) {
-    max-height: 33.5rem;
   }
 }
 
