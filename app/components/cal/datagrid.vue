@@ -45,7 +45,7 @@
          since live regions inserted at announcement time are unreliable. -->
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
-    <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
+    <div ref="tableContainer" class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
       <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'cal-report-table-dense': props.dense }">
         <caption class="is-sr-only">
           {{ props.caption }}
@@ -203,11 +203,20 @@
               </slot>
             </td>
           </tr>
+          <!-- Scrolling: more rows load as this comes into view. -->
+          <tr v-if="props.scroll && shownCount < total" ref="more" class="cal-datagrid-more">
+            <td :colspan="tableReport.columns.length">
+              Loading more…
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
 
-    <div v-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+    <div v-if="total > 0 && props.scroll" class="has-text-grey mt-4">
+      {{ shownCount < total ? `Showing ${shownCount.toLocaleString()} of ${total.toLocaleString()} ${itemsLabel}; scroll for more` : `${total.toLocaleString()} ${itemsLabel}` }}
+    </div>
+    <div v-else-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
       <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
       <cat-pagination
         v-model:current="current"
@@ -270,6 +279,10 @@ const props = withDefaults(defineProps<{
   groupKey?: string
   // A group's heading row in words, naming its open and close button.
   groupLabel?: (row: any) => string
+  // Rows load perPage at a time as the table scrolls, in place of pages.
+  scroll?: boolean
+  // What the count counts, one and many: rows, or grouped, groups.
+  itemLabel?: [string, string]
 }>(), {
   // Vue reads a missing boolean prop as false; these default to shown.
   searchable: true,
@@ -504,16 +517,50 @@ watch(() => tableReport.value?.columns, () => {
 // Reset pagination when data changes (e.g. tab switch, filter update)
 watch(() => tableReport.value?.data, () => {
   current.value = 1
+  shown.value = props.perPage
 })
 
 // Reset pagination when sort changes so the user sees the new top of the list
 watch([sortKey, sortDir], () => {
   current.value = 1
+  shown.value = props.perPage
 })
 
+// Scrolling: the rows (or groups) shown so far, and more as the last row
+// nears the table's bottom edge.
+const shown = ref(props.perPage)
+const shownCount = computed(() => Math.min(shown.value, total.value))
+const itemsLabel = computed(() => (props.itemLabel ?? ['result', 'results'])[total.value === 1 ? 0 : 1])
+const tableContainer = ref<HTMLElement>()
+const more = ref<HTMLElement>()
+let observer: IntersectionObserver | undefined
+watch(more, (el) => {
+  observer?.disconnect()
+  if (!el) {
+    return
+  }
+  // The table scrolls inside its container where it fills its parent, and
+  // with the page otherwise.
+  observer = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) {
+      shown.value += props.perPage
+    }
+  }, { root: props.fill ? tableContainer.value : null, rootMargin: '200px' })
+  observer.observe(el)
+})
+// After each load, looked at again: still in view, it loads more, as the
+// observer reports only changes.
+watch(shown, () => {
+  if (observer && more.value) {
+    observer.unobserve(more.value)
+    observer.observe(more.value)
+  }
+}, { flush: 'post' })
+onBeforeUnmount(() => observer?.disconnect())
+
 const currentRows = computed(() => {
-  const start = (current.value - 1) * props.perPage
-  const end = start + props.perPage
+  const start = props.scroll ? 0 : (current.value - 1) * props.perPage
+  const end = props.scroll ? shown.value : start + props.perPage
   if (props.groupKey) {
     return groups.value.slice(start, end).flatMap(rows => (closed.value.has(groupOf(rows[0]!)) ? rows.slice(0, 1) : rows))
   }
@@ -796,6 +843,13 @@ const filterStatus = computed(() => {
       z-index: 3;
     }
   }
+}
+
+// Scrolling: the row that loads more, quietly.
+.cal-datagrid-more td {
+  text-align: center;
+  color: var(--bulma-text-weak);
+  font-size: 0.8em;
 }
 
 // Grouped rows: a heading's open and close button, and the rows under it

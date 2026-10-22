@@ -171,6 +171,8 @@
           :searchable="false"
           :downloadable="false"
           :per-page="100"
+          scroll
+          :item-label="['incoming trip', 'incoming trips']"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
