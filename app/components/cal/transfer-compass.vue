@@ -324,8 +324,8 @@ function at (x: number, y: number) {
 }
 
 .cal-transfer-compass-line-none {
-  stroke: #9aa1ab;
-  stroke-dasharray: 2 2;
+  stroke: #c9cdd2;
+  stroke-width: 1;
 }
 
 .cal-transfer-compass-dot {
@@ -421,6 +421,5 @@ function at (x: number, y: number) {
 
 .cal-transfer-compass-label-none button {
   color: var(--bulma-text-weak);
-  text-decoration: line-through;
 }
 </style>
