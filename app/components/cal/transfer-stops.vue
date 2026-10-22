@@ -6,6 +6,7 @@
     <cal-transfer-stops-map
       v-model="stops"
       :stops="mapStops"
+      :routes="mapRoutes"
       :extent="extent"
       :fit-key="fitKey"
       :highlight="rowHover"
@@ -55,11 +56,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { TransferMapStop } from './transfer-stops-map.vue'
+import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
+  mapRoutes: TransferMapRoute[]
   // The query's area, which the stops were loaded from.
   extent: GeoJSON.Feature[]
   // Frames the map anew when it changes: the subject.

@@ -109,6 +109,7 @@
         v-bind="{ id: settingsId }"
         :model-value="stops"
         :map-stops="mapStops"
+        :map-routes="mapRoutes"
         :extent="extent"
         :fit-key="subject"
         @update:model-value="$emit('update:stops', $event)"
@@ -263,7 +264,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
-import type { TransferMapStop } from './transfer-stops-map.vue'
+import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
 import {
   type TransferOverview,
@@ -297,6 +298,7 @@ const props = defineProps<{
   // that can be added.
   stops: number[]
   mapStops: TransferMapStop[]
+  mapRoutes: TransferMapRoute[]
   // The query's area, which the stops were loaded from.
   extent: GeoJSON.Feature[]
   // Whether stop clustering is off, so only single stops can be picked.

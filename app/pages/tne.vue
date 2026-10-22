@@ -85,6 +85,7 @@
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
                 :map-stops="transfers.mapStops"
+                :map-routes="transfers.mapRoutes"
                 :extent="transferExtent"
                 :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"

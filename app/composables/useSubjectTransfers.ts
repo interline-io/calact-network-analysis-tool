@@ -135,11 +135,23 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         operator: names(stopRoutes.map(r => r?.agency?.agency_name)),
         routes: names(stopRoutes.map(r => r?.route_short_name || r?.route_long_name)),
         platform: !!s.parent?.stop_id,
+        routeIds: s.route_stops.map(rs => rs.route_id),
         lon: lon!,
         lat: lat!,
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name)))
+  // The routes at those stops, with their representative lines.
+  const mapRoutes = computed(() => [...new Set(mapStops.value.flatMap(s => s.routeIds))]
+    .map(id => routes.value.get(id))
+    .filter(r => !!r?.geometry)
+    .map(r => ({
+      id: r!.id,
+      name: r!.route_short_name || r!.route_long_name || r!.route_id,
+      operator: r!.agency?.agency_name ?? '',
+      color: r!.route_color || undefined,
+      geometry: r!.geometry!,
+    })))
   // Scoped as the reports scope them.
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
@@ -426,6 +438,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     stopIds,
     setStopIds,
     mapStops,
+    mapRoutes,
     settings,
     breakpoints,
     routeChoices,

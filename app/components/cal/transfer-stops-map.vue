@@ -37,6 +37,8 @@
     <p class="cal-transfer-stops-map-hint">
       <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-stop" />Stop</span>
       <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-platform" />Platform</span>
+      <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route" />Route at a picked stop</span>
+      <span v-if="routes.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-route cal-transfer-stops-map-key-route-other" />Other route</span>
       <span v-if="extent.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-extent" />Query area</span>
       <span>{{ lassoOn ? 'Drag around stops to add them.' : 'Click a stop to add or remove it.' }}</span>
     </p>
@@ -58,13 +60,27 @@ export interface TransferMapStop {
   operator: string
   routes: string
   platform: boolean
+  // The routes that serve it.
+  routeIds: number[]
   lon: number
   lat: number
+}
+
+// A route at the stops, drawn by its representative line in its color.
+export interface TransferMapRoute {
+  id: number
+  name: string
+  operator: string
+  // GTFS route_color: hex without the '#'.
+  color?: string
+  geometry: GeoJSON.MultiLineString
 }
 
 const props = defineProps<{
   // Every stop that can be picked.
   stops: TransferMapStop[]
+  // The routes at those stops.
+  routes: TransferMapRoute[]
   // The query's area, outlined, as no stops outside it are loaded; and the
   // map pans no further than a little past it.
   extent: GeoJSON.Feature[]
@@ -112,6 +128,28 @@ function pickedFilter (picked: boolean): maplibre.FilterSpecification {
   return picked ? isPicked : ['!', isPicked]
 }
 
+// Every route's line, set on the map only when the routes change.
+function routeFeatures (): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: props.routes.map(r => ({
+      type: 'Feature',
+      geometry: r.geometry,
+      properties: { id: r.id, name: r.name, operator: r.operator, color: r.color ? `#${r.color}` : UNPICKED },
+    })),
+  }
+}
+
+// The routes at a picked stop, drawn full; the rest, dimmed.
+const pickedRoutes = computed(() => {
+  const picked = new Set(selected.value)
+  return [...new Set(props.stops.filter(s => picked.has(s.id)).flatMap(s => s.routeIds))]
+})
+function routeFilter (picked: boolean): maplibre.FilterSpecification {
+  const isPicked: maplibre.FilterSpecification = ['in', ['get', 'id'], ['literal', pickedRoutes.value]]
+  return picked ? isPicked : ['!', isPicked]
+}
+
 // The extent's bounding box, padded by a fifth of its size (and at least
 // about 500 m), for the map's panning bounds; none without an extent.
 function extentBounds (): maplibre.LngLatBounds | undefined {
@@ -148,10 +186,17 @@ function updateStops () {
   source?.setData(stopFeatures())
 }
 
+function updateRoutes () {
+  const source = map?.getSource('routes') as maplibre.GeoJSONSource | undefined
+  source?.setData(routeFeatures())
+}
+
 function updatePicked () {
   if (map?.getLayer('stops-picked')) {
     map.setFilter('stops', pickedFilter(false))
     map.setFilter('stops-picked', pickedFilter(true))
+    map.setFilter('routes', routeFilter(false))
+    map.setFilter('routes-picked', routeFilter(true))
   }
 }
 
@@ -247,6 +292,17 @@ function stopsAt (m: maplibre.Map, point: maplibre.Point): maplibre.MapGeoJSONFe
     })
 }
 
+// The routes under a point, within a few pixels, as text: each one's name
+// and operator; empty for none.
+function routesAt (m: maplibre.Map, e: maplibre.MapMouseEvent): string {
+  const r = 4
+  const features = m.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers: ['routes-picked', 'routes'] })
+  const names = new Map(features.map(f => [f.properties?.id as number, f.properties ?? {}]))
+  return [...names.values()]
+    .map(p => `<strong>${escapeHtml(String(p.name ?? ''))}</strong>${p.operator ? ` ${escapeHtml(String(p.operator))}` : ''}`)
+    .join('<br>')
+}
+
 // A list of the stops at a point, each with a checkbox, to pick among stops
 // drawn on top of one another.
 function chooserContent (features: maplibre.MapGeoJSONFeature[]): HTMLElement {
@@ -307,6 +363,23 @@ function initMap () {
   map = m
   m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
   m.on('load', () => {
+    // The routes' lines under all else: those at a picked stop in full, the
+    // rest dimmed.
+    m.addSource('routes', { type: 'geojson', data: routeFeatures() })
+    for (const picked of [false, true]) {
+      m.addLayer({
+        id: picked ? 'routes-picked' : 'routes',
+        type: 'line',
+        source: 'routes',
+        filter: routeFilter(picked),
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': picked ? 4 : 2,
+          'line-opacity': picked ? 0.9 : 0.25,
+        },
+      })
+    }
     // The query's area, dashed, under the stops.
     m.addSource('extent', { type: 'geojson', data: { type: 'FeatureCollection', features: props.extent } })
     m.addLayer({
@@ -358,6 +431,7 @@ function initMap () {
     // it; clicking several zooms in on them, to set them apart, and once
     // zoomed all the way in, opens a list to pick among them.
     let hovered: number | undefined
+    let hoveredRoutes = ''
     m.on('mousemove', (e) => {
       const features = stopsAt(m, e.point)
       const id = features[0]?.properties?.id as number | undefined
@@ -366,15 +440,28 @@ function initMap () {
         hovered = id
         emit('hover', id)
         setHighlight(id)
-        if (id === undefined) {
-          popup?.remove()
-        } else {
+        hoveredRoutes = ''
+        popup?.remove()
+        if (id !== undefined) {
           showHover(m, features)
+        }
+      }
+      // Off the stops, the routes under the pointer, named.
+      const names = id === undefined ? routesAt(m, e) : ''
+      if (names !== hoveredRoutes) {
+        hoveredRoutes = names
+        popup?.remove()
+        if (names && !chooser?.isOpen()) {
+          popup = new maplibre.Popup({ closeButton: false, closeOnClick: false, offset: 8, maxWidth: '18rem' })
+            .setLngLat(e.lngLat)
+            .setHTML(names)
+            .addTo(m)
         }
       }
     })
     m.getCanvas().addEventListener('mouseleave', () => {
       hovered = undefined
+      hoveredRoutes = ''
       emit('hover', undefined)
       setHighlight(props.highlight)
       popup?.remove()
@@ -470,6 +557,7 @@ function inRing (x: number, y: number, ring: [number, number][]): boolean {
 }
 
 watch(() => props.stops, updateStops)
+watch(() => props.routes, updateRoutes)
 watch(selected, updatePicked)
 watch(() => props.highlight, setHighlight)
 watch(() => props.extent, updateExtent)
@@ -575,6 +663,19 @@ onBeforeUnmount(() => {
   height: 0.65rem;
   border: 2px solid #5b6470;
   background: #ffffff;
+}
+
+.cal-transfer-stops-map-key-route {
+  display: inline-block;
+  width: 1rem;
+  height: 4px;
+  border-radius: 2px;
+  background: #5b6470;
+}
+
+.cal-transfer-stops-map-key-route-other {
+  height: 2px;
+  opacity: 0.35;
 }
 
 .cal-transfer-stops-map-key-extent {
