@@ -184,14 +184,16 @@
         </div>
         <!-- Where the connections come from and go, as flows around the
              stops. -->
-        <div v-if="view === 'summary'" class="cal-transfer-report-compasses">
+        <div v-if="view === 'compass'" class="cal-transfer-report-compasses">
           <cal-transfer-compass title="Connections by where trips arrive from" side="from" :places="compass.from" :flows="compassFlows.from" />
           <cal-transfer-compass title="Connections by where trips depart to" side="to" :places="compass.to" :flows="compassFlows.to" />
         </div>
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
-        <!-- One grid for either view, keyed so each starts on its first page
-             and its own sort; slots for columns it lacks go unused. -->
+        <!-- One grid for Summary or Individual, keyed so each starts on its
+             first page and its own sort; slots for columns it lacks go
+             unused. -->
         <cal-datagrid
+          v-if="view !== 'compass'"
           :key="view"
           fill
           dense
@@ -295,7 +297,7 @@ import { transferSubjectFromKey } from '~/composables/useSubjectTransfers'
 import { csvString } from '~/utils/download'
 import { useDownload } from '@interline-io/catenary'
 
-export type TransferReportView = 'summary' | 'individual'
+export type TransferReportView = 'summary' | 'individual' | 'compass'
 export type TransferReportSection = TransferSettingsSection | 'stops'
 
 const props = defineProps<{
@@ -401,6 +403,7 @@ const settingsToggles = computed((): { section: TransferReportSection, label: st
 const views: { value: TransferReportView, label: string }[] = [
   { value: 'summary', label: 'Summary' },
   { value: 'individual', label: 'Individual' },
+  { value: 'compass', label: 'Compass' },
 ]
 
 function minutes (seconds: number): number {
