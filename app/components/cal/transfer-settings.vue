@@ -116,7 +116,7 @@
           </button>
         </div>
         <cal-transfer-compass
-          :title="`Where trips ${side.trip === 'from' ? 'arrive from' : 'depart to'}`"
+          :label="`Where trips ${side.trip === 'from' ? 'arrive from' : 'depart to'}`"
           :side="side.trip"
           :places="compass[side.trip]"
           :excluded="settings[side.key]"

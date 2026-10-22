@@ -2,10 +2,7 @@
   <!-- Places trips come from or go to, around the stops by bearing and
        distance, to pick trips by: each place and each compass point
        toggles its trips. -->
-  <figure class="cal-transfer-compass">
-    <figcaption class="cal-transfer-compass-title">
-      {{ title }}
-    </figcaption>
+  <figure class="cal-transfer-compass" :aria-label="label">
     <p v-if="layout.length === 0" class="cal-transfer-compass-empty">
       No places to show.
     </p>
@@ -91,7 +88,8 @@ import { computed, ref, useId } from 'vue'
 import type { TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
-  title: string
+  // Named for the screen reader; the list beside it says the rest.
+  label: string
   places: TransferCompassPlace[]
   // Where trips arrive from ('from') or depart to ('to').
   side: 'from' | 'to'
@@ -274,11 +272,6 @@ function at (x: number, y: number) {
 .cal-transfer-compass {
   margin: 0;
   font-size: 0.75rem;
-}
-
-.cal-transfer-compass-title {
-  font-weight: 600;
-  font-size: 0.8rem;
 }
 
 .cal-transfer-compass-empty {

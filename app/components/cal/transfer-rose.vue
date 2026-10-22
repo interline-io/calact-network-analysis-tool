@@ -35,7 +35,7 @@
               :marker-end="emphasis ? undefined : `url(#${uid}-${f.color})`"
               @mouseenter="hover = { id: f.id, flows: new Set(f.flows), text: flowsText(f.flows) }"
               @mouseleave="hover = undefined"
-              @click="setFocus(f.id, f.flows, undefined, `${f.flows[0]!.from} to ${f.flows[0]!.to}`)"
+              @click="setFocus(f.id, f.flows)"
             />
             <path
               v-if="emphasis && f.emphasized > 0"
@@ -108,7 +108,7 @@
           >
             <cat-icon size="small" :icon="opened.has(row.id) ? 'chevron-down' : 'chevron-right'" />
           </button>
-          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text, row.focusLabel)">
+          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text)">
             <span v-if="row.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[row.color] }" />
             <cal-route-badge v-if="row.route" :label="row.route" :title="row.agency" />
             <span class="cal-transfer-rose-text">{{ row.label }}</span>
@@ -127,7 +127,7 @@
         </span>
         <span role="cell" class="cal-transfer-rose-view">
           <cat-tooltip text="Show in Individual">
-            <button type="button" aria-label="Show in Individual" @click="show(row.flows, row.focusLabel)">
+            <button type="button" aria-label="Show in Individual" @click="show(row.flows)">
               <cat-icon size="small" icon="table-arrow-right" />
             </button>
           </cat-tooltip>
@@ -312,13 +312,13 @@ const drawn = computed(() => {
 
 // The flows focused, by a click, and those under the pointer; the latter
 // shows first.
-interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string, label?: string }
+interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string }
 const focus = ref<Emphasis>()
 const hover = ref<Emphasis>()
 const emphasis = computed(() => (hover.value ?? focus.value)?.flows)
 
-function setFocus (id: string, flows: TransferRoseFlow[], text?: string, label?: string) {
-  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows), label }
+function setFocus (id: string, flows: TransferRoseFlow[], text?: string) {
+  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows) }
 }
 
 // The focus's arrivals and connections, for the Individual view to narrow
@@ -326,13 +326,12 @@ function setFocus (id: string, flows: TransferRoseFlow[], text?: string, label?:
 function showFocus () {
   const f = focus.value
   if (f) {
-    show([...f.flows], f.label ?? f.text)
+    show([...f.flows])
   }
 }
 
-function show (flows: TransferRoseFlow[], label: string) {
+function show (flows: TransferRoseFlow[]) {
   emit('show', {
-    label,
     from: [...new Set(flows.map(x => x.fromKey))],
     to: [...new Set(flows.map(x => x.toKey))],
   })
@@ -343,7 +342,7 @@ function placeFlows (name: string) {
 }
 
 function focusPlace (name: string) {
-  setFocus(`place:${name}`, [...placeFlows(name)], placeText(name), `From or to ${name}`)
+  setFocus(`place:${name}`, [...placeFlows(name)], placeText(name))
 }
 
 function sumOf (flows: TransferRoseFlow[]): { total: number, grades: TransferGradeCounts } {
@@ -407,8 +406,6 @@ interface Row {
   total: number
   grades: TransferGradeCounts
   text: string
-  // What the Individual view says it shows, once shown there.
-  focusLabel: string
 }
 
 function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => K): [K, TransferRoseFlow[]][] {
@@ -422,7 +419,7 @@ function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => 
 
 const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMap(([origin, flows]) => {
   const id = `from:${origin}`
-  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '', focusLabel: `From ${origin}` }
+  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '' }
   row.text = `From ${origin}: ${connections(row.total)} (${gradesText(row.grades)}).`
   if (!opened.value.has(id)) {
     return [row]
@@ -430,16 +427,14 @@ const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMa
   return [row, ...byTotal(flows, f => f.fromKey).flatMap(([fromKey, arrivals]) => {
     const trip = props.rose.from.get(fromKey)
     const arrivalId = `${id}|${fromKey}`
-    const name = `${trip?.route ?? ''} ${trip?.label ?? ''}`.trim()
-    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '', focusLabel: `${name} from ${origin}` }
+    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '' }
     arrival.text = `${trip?.route ?? ''} ${trip?.label ?? ''} from ${origin}: ${connections(arrival.total)} (${gradesText(arrival.grades)}).`
     if (!opened.value.has(arrivalId)) {
       return [arrival]
     }
     return [arrival, ...byTotal(arrivals, f => f.toKey).map(([toKey, pair]): Row => {
       const to = props.rose.to.get(toKey)
-      const toName = `${to?.route ?? ''} ${to?.label ?? ''}`.trim()
-      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!), focusLabel: `${name} to ${toName}` }
+      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
     })]
   })]
 }))

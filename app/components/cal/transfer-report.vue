@@ -32,7 +32,7 @@
             </cat-tabs>
           </cat-field>
           <!-- Which arrivals to show: one date at a time, in either view. -->
-          <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-shrink">
+          <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-date">
             <cat-select
               :model-value="individualDate"
               @update:model-value="date = $event || undefined"
@@ -168,16 +168,6 @@
         No trips arrive here within the filters.
       </p>
       <template v-else>
-        <!-- The trip filters as a View link narrowed them, until undone or
-             changed by hand. -->
-        <div v-if="narrowed" class="cal-transfer-report-focus">
-          <cat-tooltip text="The trip filters are narrowed to these trips; clear to restore them as they were.">
-            <span class="tag is-medium cal-transfer-report-focus-tag">
-              Filtered to {{ narrowed.label }}
-              <button type="button" class="delete is-small" aria-label="Restore the trip filters" @click="restoreFilters" />
-            </span>
-          </cat-tooltip>
-        </div>
         <!-- The view's key figures beside a bar of its connections by grade. -->
         <div class="cal-transfer-report-overview">
           <dl class="cal-transfer-report-figures">
@@ -208,7 +198,7 @@
           :downloadable="false"
           :per-page="100"
           scroll
-          :reset-key="`${subject}|${individualDate ?? ''}|${narrowed?.label ?? ''}`"
+          :reset-key="`${subject}|${individualDate ?? ''}`"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
@@ -286,7 +276,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
 import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
@@ -454,9 +444,7 @@ function percent (share: number): string {
 // The overview's figures, by name.
 function figures (o: TransferOverview) {
   return [
-    { label: 'Arrivals', value: o.arrivals.toLocaleString(), tooltip: 'Trips arriving at the stops within the filters.' },
     { label: 'Connections', value: o.connections.toLocaleString(), tooltip: 'Connections shown, by grade in the bar.' },
-    { label: 'Close or acceptable', value: percent(o.closeOrAcceptableShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is close or acceptable.' },
     { label: 'Median wait', value: formatWait(o.medianWait) || '—', tooltip: 'Median wait for each arrival\'s soonest connection, over arrivals that make one.' },
   ]
 }
@@ -502,49 +490,17 @@ function hourLabel (hour: number): string {
 // The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
-// The trip filters as a View link last narrowed them, and as they were
-// before any link did, to restore.
-type Exclusions = Pick<TransferSettings, 'excludedFrom' | 'excludedTo'>
-const narrowed = ref<{ label: string, applied: Exclusions, previous: Exclusions }>()
-
+// The trip filters narrowed to some trips, within those already set, and
+// Individual shown.
 function showInIndividual (f: TransferFocus) {
-  const current = { excludedFrom: settings.value.excludedFrom, excludedTo: settings.value.excludedTo }
-  const applied = focusFilters(f, props.routeChoices, current)
-  narrowed.value = { label: f.label, applied, previous: narrowed.value?.previous ?? current }
-  settings.value = { ...settings.value, ...applied }
+  settings.value = { ...settings.value, ...focusFilters(f, props.routeChoices, settings.value) }
   view.value = 'individual'
 }
-
-function restoreFilters () {
-  if (narrowed.value) {
-    settings.value = { ...settings.value, ...narrowed.value.previous }
-    narrowed.value = undefined
-  }
-}
-
-// Filters changed by hand, or a new subject, leave nothing to restore.
-watch(() => [settings.value.excludedFrom, settings.value.excludedTo] as const, ([from, to]) => {
-  const n = narrowed.value
-  const same = (a: readonly string[], b: string[]) => a.length === b.length && a.every((k, i) => k === b[i])
-  if (n && (!same(from, n.applied.excludedFrom) || !same(to, n.applied.excludedTo))) {
-    narrowed.value = undefined
-  }
-})
-watch(subject, () => {
-  narrowed.value = undefined
-})
 
 // A Summary row in Individual: an arriving destination's arrivals, or under
 // one, only their connections onto the departing destination.
 function showRow (row: TransferSummaryGridRow) {
-  const name = (r: TransferGridTrip) => `${r.route_name} ${r.headsign}`
-  if (row.head) {
-    showInIndividual({ label: name(row), from: [row.group] })
-    return
-  }
-  const head = props.summaryGrid.find(r => r.id === row.group)
-  const to = row.id.slice(row.group.length + 1)
-  showInIndividual({ label: `${head ? name(head) : ''} to ${name(row)}`, from: [row.group], to: [to] })
+  showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
 }
 
 // The Compass view's rose, which draws its own SVG for download.
@@ -753,8 +709,7 @@ const grid = computed(() => (view.value === 'summary'
     flex-shrink: 0;
   }
 
-  > .cal-transfer-report-subject,
-  > .cal-transfer-report-shrink {
+  > .cal-transfer-report-subject {
     flex-shrink: 1;
     min-width: 7rem;
 
@@ -766,6 +721,12 @@ const grid = computed(() => (view.value === 'summary'
 
   > .cal-transfer-report-subject {
     min-width: 9rem;
+  }
+
+  // Wide enough for its date in full.
+  > .cal-transfer-report-date {
+    flex: none;
+    min-width: 10.5rem;
   }
 
   :deep(.field) {
@@ -792,7 +753,7 @@ const grid = computed(() => (view.value === 'summary'
   }
 
   :deep(input) {
-    width: 7.5rem;
+    width: 6.25rem;
   }
 }
 
@@ -958,20 +919,6 @@ const grid = computed(() => (view.value === 'summary'
   gap: 0 0.35em;
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.cal-transfer-report-focus {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.cal-transfer-report-focus-tag {
-  white-space: normal;
-  height: auto;
-  min-height: 2em;
 }
 
 // A Summary row's link to Individual, quiet until hovered.

@@ -465,13 +465,13 @@ describe('focusFilters', () => {
   const none = { excludedFrom: [], excludedTo: [] }
 
   it('leaves out every arriving destination outside the focus', () => {
-    expect(focusFilters({ label: 'a', from: [transferTripKey(a)] }, choices, none))
+    expect(focusFilters({ from: [transferTripKey(a)] }, choices, none))
       .toEqual({ excludedFrom: [transferTripKey(b), transferTripKey(c)], excludedTo: [] })
   })
 
   it('narrows departing ones where named, within the filters already set', () => {
     const current = { excludedFrom: [transferTripKey(c)], excludedTo: [] }
-    expect(focusFilters({ label: 'a to y', from: [transferTripKey(a), transferTripKey(c)], to: [transferTripKey(y)] }, choices, current))
+    expect(focusFilters({ from: [transferTripKey(a), transferTripKey(c)], to: [transferTripKey(y)] }, choices, current))
       .toEqual({ excludedFrom: [transferTripKey(c), transferTripKey(b)], excludedTo: [transferTripKey(x)] })
   })
 })

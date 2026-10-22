@@ -834,7 +834,6 @@ export interface TransferArrivalSummary {
 // Arriving destinations (transferTripKey) picked out from a Summary row or
 // the Compass, and where set, departing ones, to narrow the trip filters to.
 export interface TransferFocus {
-  label: string
   from: string[]
   to?: string[]
 }
