@@ -22,9 +22,9 @@ defineProps<{
 }>()
 
 const ICONS: Record<TransferTripTag['kind'], string> = {
-  ends: 'ray-end',
-  starts: 'ray-start',
-  short: 'arrow-collapse-horizontal',
+  ends: 'arrow-collapse-right',
+  starts: 'arrow-expand-right',
+  short: 'ray-start-end',
   turnback: 'arrow-u-left-top',
 }
 </script>

@@ -342,9 +342,9 @@ function runText (run: TransferTripRun): string {
   return [ends, stops].filter(Boolean).join(', ')
 }
 
-const TERMINAL_TEXT: Record<'from' | 'to', { kind: TransferTripTag['kind'], all: string, some: string, trips: string, trip: string, so: string }> = {
-  from: { kind: 'ends', all: 'Ends here', some: 'Some end here', trips: 'end', trip: 'ends', so: 'every rider gets off here' },
-  to: { kind: 'starts', all: 'Starts here', some: 'Some start here', trips: 'start', trip: 'starts', so: 'it brings no one here' },
+const TERMINAL_TEXT: Record<'from' | 'to', { kind: TransferTripTag['kind'], all: string, some: string, trips: string, trip: string, so: (them: string) => string }> = {
+  from: { kind: 'ends', all: 'Ends here', some: 'Some end here', trips: 'end', trip: 'ends', so: () => 'every rider gets off here' },
+  to: { kind: 'starts', all: 'Starts here', some: 'Some start here', trips: 'start', trip: 'starts', so: them => `no one rides in on ${them}` },
 }
 
 /**
@@ -356,10 +356,10 @@ export function transferTripTags (d: TransferTripDestination | undefined, side: 
   const text = TERMINAL_TEXT[side]
   const tags: TransferTripTag[] = []
   if (terminal) {
-    tags.push({ kind: text.kind, label: text.all, title: `This trip ${text.trip} at the stops, so ${text.so}.` })
+    tags.push({ kind: text.kind, label: text.all, title: `This trip ${text.trip} at the stops, so ${text.so('it')}.` })
   } else if (terminal === undefined && d && d.terminal > 0) {
     tags.push(d.terminal === d.count
-      ? { kind: text.kind, label: text.all, title: `These trips ${text.trips} at the stops, so ${text.so}.` }
+      ? { kind: text.kind, label: text.all, title: `These trips ${text.trips} at the stops, so ${text.so('them')}.` }
       : { kind: text.kind, partial: true, label: text.some, title: `${d.terminal.toLocaleString()} of ${d.count.toLocaleString()} of these trips ${text.trips} at the stops.` })
   }
   if (d?.shortOf) {
