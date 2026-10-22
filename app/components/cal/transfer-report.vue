@@ -620,8 +620,8 @@ const grid = computed(() => (view.value === 'summary'
 
 // Narrower, the stop picker narrows and the settings toggles show only
 // their icons, then narrower still, the view toggle too (their names still
-// read aloud), so the controls stay on one row; on a phone, they wrap.
-@container (max-width: 80rem) {
+// read aloud), so the controls stay on one row; narrower still, they wrap.
+@container (max-width: 84rem) {
   .cal-transfer-report-view :deep(.cat-tab > span:not(.icon)) {
     position: absolute;
     width: 1px;
@@ -711,8 +711,8 @@ const grid = computed(() => (view.value === 'summary'
   border-radius: var(--bulma-radius);
   background: var(--bulma-scheme-main-bis);
 
-  // On a phone, the controls wrap.
-  @container (max-width: 52rem) {
+  // Narrower than the controls at their smallest, they wrap.
+  @container (max-width: 72rem) {
     flex-wrap: wrap;
   }
 
