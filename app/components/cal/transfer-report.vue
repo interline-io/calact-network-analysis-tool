@@ -620,7 +620,7 @@ const grid = computed(() => (view.value === 'summary'
 
 // Narrower, the stop picker narrows and the settings toggles show only their
 // icons, so the controls stay on one row; on a phone, they wrap.
-@container (max-width: 84rem) {
+@container (max-width: 96rem) {
   .cal-transfer-report-subject :deep(select) {
     width: 12rem;
   }
@@ -711,16 +711,12 @@ const grid = computed(() => (view.value === 'summary'
 
   > .cal-transfer-report-subject {
     flex-shrink: 1;
-    min-width: 7rem;
+    min-width: 9rem;
 
     :deep(.select),
     :deep(select) {
       max-width: 100%;
     }
-  }
-
-  > .cal-transfer-report-subject {
-    min-width: 9rem;
   }
 
   // Wide enough for its date in full.
