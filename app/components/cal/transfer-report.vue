@@ -77,13 +77,6 @@
                   <span class="is-sr-only">{{ t.badge.title }}</span>
                 </span>
               </cat-button>
-              <!-- Whichever panel is open, closed. -->
-              <cat-button
-                v-if="openSection"
-                icon-left="chevron-up"
-                v-bind="{ 'title': 'Hide settings', 'aria-label': 'Hide settings', 'aria-controls': settingsId }"
-                @click="openSection = null"
-              />
             </div>
           </cat-field>
         </template>
@@ -109,6 +102,17 @@
         :unknown-pairs="unknownPairs"
         @open-trips="$emit('openTrips', $event)"
       />
+      <!-- The open panel closes from a slim strip along its bottom edge. -->
+      <button
+        v-if="subjectKind && openSection"
+        type="button"
+        class="cal-transfer-report-panel-hide"
+        :aria-controls="settingsId"
+        @click="openSection = null"
+      >
+        <cat-icon icon="chevron-up" size="small" />
+        Hide settings
+      </button>
     </div>
 
     <!-- Without clusters, only single stops can be picked, and a station's
@@ -583,14 +587,40 @@ function rowClass (row: TransferGridTrip): string | undefined {
   > .cal-transfer-stops {
     margin-bottom: 0;
     border-top: 0;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
+    border-radius: 0;
     background: var(--bulma-scheme-main);
   }
 
   &.cal-transfer-report-bar-open .cal-transfer-report-toolbar {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+  }
+}
+
+.cal-transfer-report-panel-hide {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0;
+  border: 1px solid var(--bulma-border);
+  border-top: 0;
+  border-radius: 0 0 var(--bulma-radius) var(--bulma-radius);
+  background: var(--bulma-scheme-main-bis);
+  color: var(--bulma-text-weak);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bulma-scheme-main-ter);
+    color: var(--bulma-text-strong);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+    outline-offset: -2px;
   }
 }
 
