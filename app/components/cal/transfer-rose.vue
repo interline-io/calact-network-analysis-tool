@@ -23,19 +23,29 @@
               <text :x="ring.r * Math.SQRT1_2 + 2" :y="-ring.r * Math.SQRT1_2 - 2">{{ ring.km }} km</text>
             </template>
           </g>
-          <path
-            v-for="f of drawn"
-            :key="f.id"
-            class="cal-transfer-rose-flow"
-            :class="{ 'cal-transfer-rose-faded': emphasis && !emphasis.has(f.flow), 'cal-transfer-rose-strong': emphasis?.has(f.flow) }"
-            :d="f.d"
-            :stroke="PALETTE[f.color]"
-            :stroke-width="f.width"
-            :marker-end="`url(#${uid}-${f.color})`"
-            @mouseenter="hover = { id: f.id, flows: new Set([f.flow]), text: flowText(f.flow) }"
-            @mouseleave="hover = undefined"
-            @click="setFocus(`pair:${f.flow.from}>${f.flow.to}`, rose.flows.filter(x => x.from === f.flow.from && x.to === f.flow.to))"
-          />
+          <!-- One ribbon per pair of places; where some of its flows are
+               focused, a narrower one over it, as wide as those. -->
+          <template v-for="f of drawn" :key="f.id">
+            <path
+              class="cal-transfer-rose-flow"
+              :class="{ 'cal-transfer-rose-faded': emphasis }"
+              :d="f.d"
+              :stroke="PALETTE[f.color]"
+              :stroke-width="f.width"
+              :marker-end="emphasis ? undefined : `url(#${uid}-${f.color})`"
+              @mouseenter="hover = { id: f.id, flows: new Set(f.flows), text: flowsText(f.flows) }"
+              @mouseleave="hover = undefined"
+              @click="setFocus(f.id, f.flows)"
+            />
+            <path
+              v-if="emphasis && f.emphasized > 0"
+              class="cal-transfer-rose-flow cal-transfer-rose-strong"
+              :d="f.d"
+              :stroke="PALETTE[f.color]"
+              :stroke-width="Math.max(1, f.emphasized * scale)"
+              :marker-end="`url(#${uid}-${f.color})`"
+            />
+          </template>
           <line
             v-for="p of placed"
             :key="`port-${p.name}`"
@@ -131,7 +141,7 @@ const props = defineProps<{
 }>()
 
 const uid = useId()
-const WIDTH = 560
+const WIDTH = 680
 const HEIGHT = 420
 // Places lie between these radii, by the square root of their distance.
 const INNER = 70
@@ -250,26 +260,30 @@ const drawn = computed(() => {
     return used + width / 2 - Math.sqrt(total) / 2
   }
   const angleOf = (name: string) => at.get(name)?.angle ?? 0
-  const leaving = [...props.rose.flows].sort((a, b) => angleOf(a.to) - angleOf(b.to))
-  const reaching = [...props.rose.flows].sort((a, b) => angleOf(a.from) - angleOf(b.from))
+  const pairs = [...byTotal(props.rose.flows, f => `${f.from}>${f.to}`)].map(([id, flows]) => ({ id: `pair:${id}`, from: flows[0]!.from, to: flows[0]!.to, flows, total: sumOf(flows).total }))
+  const leaving = [...pairs].sort((a, b) => angleOf(a.to) - angleOf(b.to))
+  const reaching = [...pairs].sort((a, b) => angleOf(a.from) - angleOf(b.from))
   const starts = new Map(leaving.map(f => [f, offset(f.from, Math.max(1, f.total * scale.value))]))
   const ends = new Map(reaching.map(f => [f, offset(f.to, Math.max(1, f.total * scale.value))]))
-  return props.rose.flows.map((f, i) => {
+  const focused = emphasis.value
+  return pairs.map((f) => {
     const a = at.get(f.from)!
     const b = at.get(f.to)!
     const point = (p: typeof a, o: number, k: number): [number, number] => {
       const [ux, uy] = along(p.angle)
       return [ux * p.r * k - uy * o, uy * p.r * k + ux * o]
     }
+    // Through the stops: drawn in close to them from either end.
     const s = point(a, starts.get(f)!, 1)
-    const c1 = point(a, starts.get(f)! * 0.4, 0.3)
-    const c2 = point(b, ends.get(f)! * 0.4, 0.3)
+    const c1 = point(a, starts.get(f)! * 0.3, 0.08)
+    const c2 = point(b, ends.get(f)! * 0.3, 0.08)
     // Short of the bar, for the arrowhead.
     const e = point(b, ends.get(f)!, 1 - 6 / b.r)
     const n = (v: number) => v.toFixed(1)
     return {
-      id: `f${i}`,
-      flow: f,
+      id: f.id,
+      flows: f.flows,
+      emphasized: focused ? f.flows.reduce((n, x) => n + (focused.has(x) ? x.total : 0), 0) : 0,
       color: colors.value.get(f.from) ?? 0,
       width: Math.max(1, f.total * scale.value),
       d: `M${n(s[0])},${n(s[1])} C${n(c1[0])},${n(c1[1])} ${n(c2[0])},${n(c2[1])} ${n(e[0])},${n(e[1])}`,
@@ -458,6 +472,8 @@ function at (x: number, y: number) {
 
 .cal-transfer-rose-strong {
   opacity: 0.9;
+  // The ribbon under it takes the pointer.
+  pointer-events: none;
 }
 
 .cal-transfer-rose-faded {
