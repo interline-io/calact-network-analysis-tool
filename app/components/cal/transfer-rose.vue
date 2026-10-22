@@ -155,7 +155,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  // Show these arrivals and connections in the Individual view.
+  // Narrow the trip filters to these flows' trips, and show Individual.
   show: [focus: TransferFocus]
 }>()
 
@@ -334,7 +334,7 @@ function show (flows: TransferRoseFlow[], label: string) {
   emit('show', {
     label,
     from: [...new Set(flows.map(x => x.fromKey))],
-    pairs: flows.map(x => ({ from: x.fromKey, to: x.toKey })),
+    to: [...new Set(flows.map(x => x.toKey))],
   })
 }
 

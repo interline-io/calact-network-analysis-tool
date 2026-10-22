@@ -831,48 +831,30 @@ export interface TransferArrivalSummary {
   pairs: TransferPairSummary[]
 }
 
-// Some arrivals and connections picked out to look at closely: arrivals on
-// the `from` destinations (transferTripKey), and where `pairs` is set, only
-// their connections onto those pairs' departing destinations.
+// Arriving destinations (transferTripKey) picked out from a Summary row or
+// the Compass, and where set, departing ones, to narrow the trip filters to.
 export interface TransferFocus {
   label: string
   from: string[]
-  pairs?: { from: string, to: string }[]
+  to?: string[]
 }
 
-function pairKey (from: string, to: string): string {
-  return `${from}\u0000${to}`
-}
+type TransferExclusions = Pick<TransferSettings, 'excludedFrom' | 'excludedTo'>
 
-// The arrivals and connections in a focus.
-export function focusTransfers (groups: TransferGroup[], focus: TransferFocus | undefined): TransferGroup[] {
-  if (!focus) {
-    return groups
-  }
-  const from = new Set(focus.from)
-  const pairs = focus.pairs ? new Set(focus.pairs.map(p => pairKey(p.from, p.to))) : undefined
-  return groups
-    .filter(g => from.has(transferTripKey(g.arrival)))
-    .map((g) => {
-      if (!pairs) {
-        return g
-      }
-      const key = transferTripKey(g.arrival)
-      return { ...g, connections: g.connections.filter(c => pairs.has(pairKey(key, transferTripKey(c.departure)))) }
-    })
-}
-
-// A focus as trip filters: every arriving destination outside it left out,
-// and where it names pairs, every departing one outside them.
-export function focusFilters (focus: TransferFocus, choices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }): Pick<TransferSettings, 'excludedFrom'> & Partial<Pick<TransferSettings, 'excludedTo'>> {
+// The trip filters narrowed to a focus: every arriving destination outside
+// it left out too, and where it names departing ones, every departing one
+// outside them. Arriving and departing trips are filtered apart, so a focus
+// of several pairs keeps any pair among them.
+export function focusFilters (focus: TransferFocus, choices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }, current: TransferExclusions): TransferExclusions {
   const keys = (routes: TransferRouteChoice[]) => routes.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key)))
-  const from = new Set(focus.from)
-  const out: ReturnType<typeof focusFilters> = { excludedFrom: keys(choices.from).filter(k => !from.has(k)) }
-  if (focus.pairs) {
-    const to = new Set(focus.pairs.map(p => p.to))
-    out.excludedTo = keys(choices.to).filter(k => !to.has(k))
+  const outside = (all: string[], kept: string[], excluded: string[]) => {
+    const keep = new Set(kept)
+    return [...new Set([...excluded, ...all.filter(k => !keep.has(k))])]
   }
-  return out
+  return {
+    excludedFrom: outside(keys(choices.from), focus.from, current.excludedFrom),
+    excludedTo: focus.to ? outside(keys(choices.to), focus.to, current.excludedTo) : current.excludedTo,
+  }
 }
 
 /**

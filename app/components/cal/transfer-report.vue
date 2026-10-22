@@ -168,6 +168,16 @@
         No trips arrive here within the filters.
       </p>
       <template v-else>
+        <!-- The trip filters as a View link narrowed them, until undone or
+             changed by hand. -->
+        <div v-if="narrowed" class="cal-transfer-report-focus">
+          <cat-tooltip text="The trip filters are narrowed to these trips; clear to restore them as they were.">
+            <span class="tag is-medium cal-transfer-report-focus-tag">
+              Filtered to {{ narrowed.label }}
+              <button type="button" class="delete is-small" aria-label="Restore the trip filters" @click="restoreFilters" />
+            </span>
+          </cat-tooltip>
+        </div>
         <!-- The view's key figures beside a bar of its connections by grade. -->
         <div class="cal-transfer-report-overview">
           <dl class="cal-transfer-report-figures">
@@ -185,19 +195,6 @@
         <!-- Where the connections come from and go, as flows around the
              stops. -->
         <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" @show="showInIndividual" />
-        <!-- What Individual narrows to, from Summary or Compass: cleared, or
-             made the trip filters. -->
-        <div v-if="view === 'individual' && focus" class="cal-transfer-report-focus">
-          <span class="tag is-medium cal-transfer-report-focus-tag">
-            Showing {{ focus.label }}
-            <button type="button" class="delete is-small" aria-label="Show every arrival" @click="focus = undefined" />
-          </span>
-          <cat-tooltip :text="focus.pairs ? 'Set the arriving and departing trip filters to just these trips.' : 'Set the arriving trip filter to just these trips.'">
-            <cat-button size="small" @click="filterToFocus">
-              Filter to these trips
-            </cat-button>
-          </cat-tooltip>
-        </div>
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
@@ -211,7 +208,7 @@
           :downloadable="false"
           :per-page="100"
           scroll
-          :reset-key="`${subject}|${individualDate ?? ''}|${focus?.label ?? ''}`"
+          :reset-key="`${subject}|${individualDate ?? ''}|${narrowed?.label ?? ''}`"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
@@ -289,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
 import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
@@ -376,8 +373,6 @@ defineEmits<{
 const subject = defineModel<string>('subject', { required: true })
 const hasSubject = computed(() => !!transferSubjectFromKey(subject.value))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
-// The arrivals and connections Individual narrows to.
-const focus = defineModel<TransferFocus | undefined>('focus')
 const date = defineModel<string | undefined>('date')
 // The scenario's time of day, shared with the Filter tab, through the URL.
 const { startTime, endTime } = useScenarioFilters()
@@ -507,10 +502,37 @@ function hourLabel (hour: number): string {
 // The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
+// The trip filters as a View link last narrowed them, and as they were
+// before any link did, to restore.
+type Exclusions = Pick<TransferSettings, 'excludedFrom' | 'excludedTo'>
+const narrowed = ref<{ label: string, applied: Exclusions, previous: Exclusions }>()
+
 function showInIndividual (f: TransferFocus) {
-  focus.value = f
+  const current = { excludedFrom: settings.value.excludedFrom, excludedTo: settings.value.excludedTo }
+  const applied = focusFilters(f, props.routeChoices, current)
+  narrowed.value = { label: f.label, applied, previous: narrowed.value?.previous ?? current }
+  settings.value = { ...settings.value, ...applied }
   view.value = 'individual'
 }
+
+function restoreFilters () {
+  if (narrowed.value) {
+    settings.value = { ...settings.value, ...narrowed.value.previous }
+    narrowed.value = undefined
+  }
+}
+
+// Filters changed by hand, or a new subject, leave nothing to restore.
+watch(() => [settings.value.excludedFrom, settings.value.excludedTo] as const, ([from, to]) => {
+  const n = narrowed.value
+  const same = (a: readonly string[], b: string[]) => a.length === b.length && a.every((k, i) => k === b[i])
+  if (n && (!same(from, n.applied.excludedFrom) || !same(to, n.applied.excludedTo))) {
+    narrowed.value = undefined
+  }
+})
+watch(subject, () => {
+  narrowed.value = undefined
+})
 
 // A Summary row in Individual: an arriving destination's arrivals, or under
 // one, only their connections onto the departing destination.
@@ -522,15 +544,7 @@ function showRow (row: TransferSummaryGridRow) {
   }
   const head = props.summaryGrid.find(r => r.id === row.group)
   const to = row.id.slice(row.group.length + 1)
-  showInIndividual({ label: `${head ? name(head) : ''} to ${name(row)}`, from: [row.group], pairs: [{ from: row.group, to }] })
-}
-
-// The focus made the trip filters, so every view and figure follows it.
-function filterToFocus () {
-  if (focus.value) {
-    settings.value = { ...settings.value, ...focusFilters(focus.value, props.routeChoices) }
-    focus.value = undefined
-  }
+  showInIndividual({ label: `${head ? name(head) : ''} to ${name(row)}`, from: [row.group], to: [to] })
 }
 
 // The Compass view's rose, which draws its own SVG for download.
