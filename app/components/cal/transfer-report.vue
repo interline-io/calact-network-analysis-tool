@@ -618,15 +618,25 @@ const grid = computed(() => (view.value === 'summary'
   width: 16rem;
 }
 
-// Narrower, the stop picker narrows and the view and settings toggles show
-// only their icons (their names still read aloud), so the controls stay on
-// one row; on a phone, they wrap.
+// Narrower, the stop picker narrows and the settings toggles show only
+// their icons, then narrower still, the view toggle too (their names still
+// read aloud), so the controls stay on one row; on a phone, they wrap.
+@container (max-width: 80rem) {
+  .cal-transfer-report-view :deep(.cat-tab > span:not(.icon)) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 @container (max-width: 96rem) {
   .cal-transfer-report-subject :deep(select) {
     width: 12rem;
   }
 
-  .cal-transfer-report-view :deep(.cat-tab > span:not(.icon)),
   .cal-transfer-report-toggle-label {
     position: absolute;
     width: 1px;
