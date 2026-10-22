@@ -589,11 +589,11 @@ const grid = computed(() => (view.value === 'summary'
   flex: 0 0 auto;
   margin-bottom: 0.75rem;
 
+  // The panels framed here, as they only ever open from the bar.
   > .cal-transfer-settings,
   > .cal-transfer-stops {
-    margin-bottom: 0;
+    border: 1px solid var(--bulma-border);
     border-top: 0;
-    border-radius: 0;
     background: var(--bulma-scheme-main);
   }
 

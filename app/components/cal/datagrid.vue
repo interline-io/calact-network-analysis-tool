@@ -71,13 +71,13 @@
                 v-else
                 scope="col"
                 :rowspan="cell.rowspan"
-                :class="[cell.column!.class, columnClass(cell.column!), { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': props.groupKey && cell.column! === tableReport.columns[0] }]"
+                :class="[cell.column!.class, columnClass(cell.column!), { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': isGroupColumn(cell.column!) }]"
                 :aria-sort="ariaSort(cell.column!)"
               >
                 <!-- Grouped: every group open or closed at once, from the first
                      column's header. -->
                 <button
-                  v-if="props.groupKey && cell.column! === tableReport.columns[0]"
+                  v-if="isGroupColumn(cell.column!)"
                   type="button"
                   class="cal-datagrid-group-toggle cal-datagrid-group-toggle-all"
                   :aria-label="anyOpen ? 'Collapse all groups' : 'Expand all groups'"
@@ -149,7 +149,7 @@
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
             <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <div class="cal-datagrid-shim-cell">
-                <span v-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-indent" />
+                <span v-if="isGroupColumn(column)" class="cal-datagrid-group-indent" />
                 <slot
                   :name="`column-${column.key}`"
                   :row="layoutShimRow"
@@ -171,7 +171,7 @@
                    it. -->
               <template v-if="hidesValue(row, column)" />
               <!-- A group's heading opens and closes it. -->
-              <span v-else-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-cell">
+              <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
                 <button
                   v-if="opensGroup(row)"
                   type="button"
@@ -388,14 +388,16 @@ function matches (row: Record<string, any>, query: string): boolean {
   return Object.values(row).some(val => String(val ?? '').toLowerCase().includes(query))
 }
 
+// The filter as typed, trimmed and in lower case.
+const query = computed(() => (searchQuery.value || '').trim().toLowerCase())
+
 // Grouped, the filter keeps whole groups, so is applied to them below.
 const filteredData = computed(() => {
   const data = tableReport?.value?.data || []
-  const query = (searchQuery.value || '').trim().toLowerCase()
-  if (!query || props.groupKey) {
+  if (!query.value || props.groupKey) {
     return data
   }
-  return data.filter(row => matches(row, query))
+  return data.filter(row => matches(row, query.value))
 })
 
 // The sort's comparison, if any. Nullish values are pushed to the end
@@ -454,10 +456,9 @@ const groups = computed((): Record<string, any>[][] => {
       byGroup.set(id, [row])
     }
   }
-  const query = (searchQuery.value || '').trim().toLowerCase()
   let list = [...byGroup.values()]
-  if (query) {
-    list = list.filter(rows => rows.some(row => matches(row, query)))
+  if (query.value) {
+    list = list.filter(rows => rows.some(row => matches(row, query.value)))
   }
   const compare = compareRows.value
   if (compare) {
@@ -487,6 +488,11 @@ const anyOpen = computed(() => groups.value.some(rows => rows.length > 1 && !clo
 function setAllOpen (open: boolean) {
   closed.value = open ? new Set() : new Set(groups.value.map(rows => groupOf(rows[0]!)))
 }
+// The grouped grid's first column, which holds the open and close buttons.
+function isGroupColumn (column: TableColumn): boolean {
+  return !!props.groupKey && column === tableReport.value.columns[0]
+}
+
 // A column's alignment and width, as classes on its header and cells.
 function columnClass (column: TableColumn) {
   return { 'cal-datagrid-col-center': column.align === 'center', 'cal-datagrid-col-shrink': column.shrink }
@@ -517,24 +523,22 @@ watch(() => tableReport.value?.columns, () => {
   sortStatus.value = ''
 })
 
+// Back to the first page, or scrolling, the first rows.
+function resetPaging () {
+  current.value = 1
+  shown.value = props.perPage
+}
+
 // Reset pagination when data changes (e.g. tab switch, filter update).
 // Scrolling, a refresh of the same rows keeps those loaded; resetKey says
 // when the rows are new.
 watch(() => tableReport.value?.data, () => {
   current.value = 1
-  if (!props.scroll) {
-    shown.value = props.perPage
-  }
-})
-watch(() => props.resetKey, () => {
-  shown.value = props.perPage
 })
 
-// Reset pagination when sort changes so the user sees the new top of the list
-watch([sortKey, sortDir], () => {
-  current.value = 1
-  shown.value = props.perPage
-})
+// Reset when the sort changes, so the user sees the new top of the list, or
+// when the rows are new.
+watch([sortKey, sortDir, () => props.resetKey], resetPaging)
 
 // Scrolling: the rows (or groups) shown so far, and more as the last row
 // nears the table's bottom edge.

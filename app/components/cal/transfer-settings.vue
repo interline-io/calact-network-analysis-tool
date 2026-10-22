@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   TRANSFER_GRADES,
@@ -276,32 +276,31 @@ interface Row {
   openKey?: string
 }
 
-// Operators closed to hide their routes; all open to begin with.
+// Operators closed to hide their routes, all open to begin with; and rows
+// opened to show their destinations, all closed to begin with.
 const collapsed = ref(new Set<string>())
-function toggleCollapsed (key: string) {
-  const next = new Set(collapsed.value)
-  if (!next.delete(key)) {
-    next.add(key)
-  }
-  collapsed.value = next
-}
-
-// Rows opened to show their destinations.
 const opened = ref(new Set<string>())
-function toggleOpen (key: string) {
-  const next = new Set(opened.value)
+function toggleIn (keys: Ref<Set<string>>, key: string) {
+  const next = new Set(keys.value)
   if (!next.delete(key)) {
     next.add(key)
   }
-  opened.value = next
+  keys.value = next
 }
+const toggleCollapsed = (key: string) => toggleIn(collapsed, key)
+const toggleOpen = (key: string) => toggleIn(opened, key)
 
 // Where the routes come from more than one operator, each operator's routes
 // under a row for it, operators by name; otherwise the routes alone.
 function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
   const byOperator = new Map<string, TransferRouteChoice[]>()
   for (const route of routes) {
-    byOperator.set(route.operator, [...(byOperator.get(route.operator) ?? []), route])
+    const list = byOperator.get(route.operator)
+    if (list) {
+      list.push(route)
+    } else {
+      byOperator.set(route.operator, [route])
+    }
   }
   if (byOperator.size < 2) {
     return routeRows(side, routes)
@@ -405,12 +404,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   display: grid;
   gap: 0.75rem 2rem;
   padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--bulma-border);
-  border-radius: var(--bulma-radius);
-  background: var(--bulma-scheme-main-bis);
   font-size: 0.875rem;
-  flex: 0 0 auto;
 
   // Sized by its own width, which the page's sidebar changes too.
   &.cal-transfer-settings-wait-walk {
@@ -434,9 +428,8 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   }
 }
 
-// Walking and the grade scale at their own width, connections the rest, in
-// one row where the panel is wide. Narrower, connections take a row of their
-// own, their two options side by side; narrower still, everything stacks.
+// Walking at its own width beside connections, and the grade bar across
+// the panel below; narrower, everything stacks.
 .cal-transfer-settings-wait-walk-grid {
   display: grid;
   gap: 0.75rem 2rem;

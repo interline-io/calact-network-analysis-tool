@@ -1,21 +1,19 @@
 <template>
-  <div class="cal-report" :class="{ 'cal-report-fill': activeReportTab === 'transfers' }">
+  <div class="cal-report" :class="{ 'cal-report-fill': isTransfers }">
     <div class="cal-report-title-row">
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
       <!-- The scenario's features, which say nothing of transfers, so not on
            the Transfer Analyst, which has its own downloads. -->
-      <div class="cal-report-downloads">
-        <cal-geojson-download
-          v-if="activeReportTab !== 'transfers'"
-          :data="downloadFeatures"
-          variant="primary"
-        />
-      </div>
+      <cal-geojson-download
+        v-if="!isTransfers"
+        :data="downloadFeatures"
+        variant="primary"
+      />
     </div>
 
-    <div class="cal-report-header" :class="activeReportTab === 'transfers' ? 'cal-report-header-tight' : 'mb-4'">
+    <div class="cal-report-header" :class="isTransfers ? 'cal-report-header-tight' : 'mb-4'">
       <div class="cal-report-filter-tags mb-3">
         <span
           v-for="tag of filterTags"
@@ -76,7 +74,7 @@
 
     <!-- Transfers at one stop or cluster, given by the page: it fills the
          tab's height, its table scrolling inside. -->
-    <slot v-if="activeReportTab === 'transfers'" name="transfers" />
+    <slot v-if="isTransfers" name="transfers" />
 
     <cal-datagrid
       v-else
@@ -186,7 +184,7 @@
         </span>
       </template>
     </cal-datagrid>
-    <div v-if="activeReportTab !== 'transfers'" class="cal-report-spacer" />
+    <div v-if="!isTransfers" class="cal-report-spacer" />
   </div>
 </template>
 
@@ -358,6 +356,10 @@ const reportHeading = computed(() => {
 export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
 const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
+// The Transfer Analyst fills the tab with its own controls, table, and
+// downloads, in a slot the page fills, and keeps out of the map's display
+// mode.
+const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
   'routes': 'Routes',
@@ -414,14 +416,14 @@ watch(hasClusterData, (has) => {
 // Without fixed-route service the Transfer Analyst tab goes, so leave it
 // for Flex Areas, the one tab left.
 watch(fixedRouteEnabled, (enabled) => {
-  if (!enabled && activeReportTab.value === 'transfers') {
+  if (!enabled && isTransfers.value) {
     activeReportTab.value = 'flex'
   }
 })
 
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
-  if (activeReportTab.value === 'transfers') {
+  if (isTransfers.value) {
     return
   }
   if (mode === 'Transit mode' || mode === 'Route frequency') {
@@ -566,11 +568,6 @@ const activeTableReport = computed((): TableReport => {
     :deep(.tabs) {
       margin-bottom: 0;
     }
-  }
-
-  .cal-report-downloads {
-    display: flex;
-    gap: 0.5rem;
   }
 
   .cal-report-title-row {

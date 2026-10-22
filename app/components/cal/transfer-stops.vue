@@ -87,7 +87,12 @@ const listed = computed(() => props.mapStops.filter((s) => {
 const groups = computed(() => {
   const byOperator = new Map<string, TransferMapStop[]>()
   for (const s of listed.value) {
-    byOperator.set(s.operator, [...(byOperator.get(s.operator) ?? []), s])
+    const list = byOperator.get(s.operator)
+    if (list) {
+      list.push(s)
+    } else {
+      byOperator.set(s.operator, [s])
+    }
   }
   return [...byOperator]
     .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
@@ -112,12 +117,7 @@ function setPicked (id: number, on: boolean) {
   grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
   gap: 0.75rem 1.5rem;
   padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--bulma-border);
-  border-radius: var(--bulma-radius);
-  background: var(--bulma-scheme-main-bis);
   font-size: 0.875rem;
-  flex: 0 0 auto;
 
   @media (max-width: 48rem) {
     grid-template-columns: minmax(0, 1fr);
