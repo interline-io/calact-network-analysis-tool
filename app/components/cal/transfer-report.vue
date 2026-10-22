@@ -457,16 +457,18 @@ const TRIP_COLUMN: TableColumn = {
   tooltip: 'Each incoming trip by route and destination, and where it comes from, with the outgoing trips riders connect to beneath it. Sorting orders the incoming trips, and the outgoing trips under each.',
 }
 
-// The departures each arrival could take, by how long the wait; and the
-// first connection made.
+// The trips, incoming and outgoing, and the incoming trips' arrivals; the
+// departures each arrival could take, by how long the wait; and the first
+// connection made.
+const TRIPS = { key: 'trips', label: 'Trips' }
 const CONNECTIONS = { key: 'connections', label: 'Connections by wait', tooltip: 'Departures within reach of each arrival, counted by the grade of the wait.' }
 const FIRST = { key: 'first', label: 'First connection', tooltip: 'The soonest departure each arrival makes: for an incoming trip, on any route; for an outgoing trip, on it.' }
 
 // An incoming trip's figures sum up the outgoing trips under it, so show only
 // while its group is closed.
 const summaryColumns: TableColumn[] = [
-  TRIP_COLUMN,
-  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', class: NARROW },
+  { ...TRIP_COLUMN, group: TRIPS },
+  { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', class: NARROW, group: TRIPS },
   { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
   { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
   { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
@@ -477,12 +479,15 @@ const summaryColumns: TableColumn[] = [
 
 // The Individual table's columns, with the stops for a cluster. Apart from
 // its rows, so the grid keeps its sort as rows change.
+// Each trip, when and where; then the transfer to it, walking and waiting.
+const TRIP = { key: 'trip', label: 'Trip' }
+const TRANSFER = { key: 'transfer', label: 'Transfer', tooltip: 'From the incoming trip to the outgoing one: the walk between their stops, then the wait.' }
 const individualColumns = computed((): TableColumn[] => [
-  { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', class: NARROW },
-  { ...TRIP_COLUMN, tooltip: 'Each incoming trip, and where it comes from, with its connections beneath it.' },
-  ...(subjectKind.value === 'cluster' ? [{ key: 'stop_name', label: 'Stop', sortable: true }] : []),
-  { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW },
-  { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW },
+  { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', class: NARROW, group: TRIP },
+  { ...TRIP_COLUMN, tooltip: 'Each incoming trip, and where it comes from, with its connections beneath it.', group: TRIP },
+  ...(subjectKind.value === 'cluster' ? [{ key: 'stop_name', label: 'Stop', sortable: true, group: TRIP }] : []),
+  { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW, group: TRANSFER },
+  { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW, group: TRANSFER },
 ])
 
 // The shown view's table. Its CSV download, flat, is the Reports tab's, by
