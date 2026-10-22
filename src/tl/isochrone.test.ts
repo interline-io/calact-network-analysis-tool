@@ -4,6 +4,7 @@ import { isochroneRecording } from '../../test/isochrone-recordings'
 import {
   ISOCHRONE_MAX_CUTOFFS,
   isochroneBandColors,
+  isochroneCutoffColors,
   parseIsochroneCutoff,
   isochroneIsEmpty,
   isochroneLegend,
@@ -11,6 +12,7 @@ import {
   isochroneModeFromRouteTypes,
   isochroneModeParam,
   isochroneQuery,
+  normalizeIsochroneMode,
   parseIsochronePlace,
   parseIsochroneResponse,
   type IsochroneParams,
@@ -20,7 +22,7 @@ const recording = isochroneRecording
 
 function parseRecording (name: string) {
   const r = recording(name)
-  return parseIsochroneResponse(r.status, r.body)
+  return parseIsochroneResponse(r.status, r.body, r.params.cutoffs)
 }
 
 const params: IsochroneParams = {
@@ -91,11 +93,22 @@ describe('isochroneModeParam', () => {
   })
 })
 
+describe('normalizeIsochroneMode', () => {
+  it('has one form for each choice', () => {
+    expect(normalizeIsochroneMode({ walkOnly: false, routeTypes: [3, 0] })).toEqual({ walkOnly: false, routeTypes: [0, 3] })
+    expect(normalizeIsochroneMode({ walkOnly: false, routeTypes: [4, 3, 2, 1, 0] })).toEqual({ walkOnly: false })
+    expect(normalizeIsochroneMode({ walkOnly: false, routeTypes: [] })).toEqual({ walkOnly: true })
+    // Types the router doesn't know (cable tram, 5) leave nothing to ride.
+    expect(normalizeIsochroneMode({ walkOnly: false, routeTypes: [5 as RouteType] })).toEqual({ walkOnly: true })
+  })
+})
+
 describe('isochroneModeFromRouteTypes', () => {
   it('follows the scenario route type filter', () => {
     expect(isochroneModeFromRouteTypes(undefined)).toEqual({ walkOnly: false })
     expect(isochroneModeFromRouteTypes([])).toEqual({ walkOnly: true })
     expect(isochroneModeFromRouteTypes([3, 0])).toEqual({ walkOnly: false, routeTypes: [0, 3] })
+    expect(isochroneModeFromRouteTypes([5 as RouteType])).toEqual({ walkOnly: true })
   })
 })
 
@@ -139,11 +152,33 @@ describe('parseIsochroneResponse', () => {
   })
 
   it('reports a non-JSON error page by status', () => {
-    expect(parseIsochroneResponse(502, '<html>Bad gateway</html>')).toEqual({ error: 'Travel time request failed (HTTP 502)' })
+    expect(parseIsochroneResponse(502, '<html>Bad gateway</html>', [15])).toEqual({ error: 'Travel time request failed (HTTP 502)' })
+  })
+
+  it('colors each band as its travel time among those asked for', () => {
+    // The 30 minute band went missing: the others keep their colors.
+    const leaving = JSON.parse(isochroneRecording('leaving-from').body)
+    const without30 = { ...leaving, features: leaving.features.filter((f: any) => f.properties.contour !== 30) }
+    const bands = parseIsochroneResponse(200, JSON.stringify(without30), [15, 30, 45]).bands!
+    expect(bands.map(b => b.minutes)).toEqual([15, 45])
+    expect(bands.map(b => b.color)).toEqual([isochroneCutoffColors(15, [15, 30, 45]).fill, isochroneCutoffColors(45, [15, 30, 45]).fill])
+    expect(bands[1]!.color).toBe(isochroneBandColors(2, 3).fill)
+  })
+
+  it('skips a band with no travel time', () => {
+    const poly = { type: 'MultiPolygon', coordinates: [[[[0, 0], [1, 0], [1, 1], [0, 0]]]] }
+    const body = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: poly, properties: {} },
+        { type: 'Feature', geometry: poly, properties: { time: 900, contour: 15 } },
+      ],
+    })
+    expect(parseIsochroneResponse(200, body, [15]).bands!.map(b => b.minutes)).toEqual([15])
   })
 
   it('reads an empty collection as nothing reachable', () => {
-    const result = parseIsochroneResponse(200, JSON.stringify({ type: 'FeatureCollection', features: [] }))
+    const result = parseIsochroneResponse(200, JSON.stringify({ type: 'FeatureCollection', features: [] }), [15])
     expect(result.bands).toEqual([])
     expect(isochroneIsEmpty(result.bands!)).toBe(true)
   })

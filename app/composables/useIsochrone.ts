@@ -80,12 +80,19 @@ export function useIsochrone (
     empty.value = false
   }
 
+  // Whatever is in flight answers settings that have changed: drop it, so
+  // it can't draw bands for those while the next request waits.
+  function supersede () {
+    seq++
+    controller?.abort()
+    controller = undefined
+  }
+
   async function compute () {
     // Claimed before anything else, so whatever is in flight is superseded
     // even when this run has nothing to ask.
-    const mySeq = ++seq
-    controller?.abort()
-    controller = undefined
+    supersede()
+    const mySeq = seq
     const p = toValue(params)
     if (!p || p.cutoffs.length === 0) {
       setLoading(false)
@@ -100,7 +107,7 @@ export function useIsochrone (
       if (mySeq !== seq) {
         return
       }
-      const result = parseIsochroneResponse(status, body)
+      const result = parseIsochroneResponse(status, body, p.cutoffs)
       reset()
       if (result.error !== undefined) {
         error.value = result.error
@@ -132,6 +139,7 @@ export function useIsochrone (
       clearTimeout(debounceTimer)
       const open = !!toValue(params)
       if (open && wasOpen) {
+        supersede()
         debounceTimer = setTimeout(compute, ISOCHRONE_DEBOUNCE_MS)
       } else {
         compute()

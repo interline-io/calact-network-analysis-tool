@@ -44,7 +44,7 @@
             Travel time:
           </div>
           <div>
-            <div class="legend-item cal-isochrone-glyph is-small" :class="props.isochroneArriveBy ? 'is-destination' : 'is-origin'">
+            <div class="legend-item cal-isochrone-glyph cal-isochrone-glyph-small" :class="props.isochroneArriveBy ? 'cal-isochrone-glyph-destination' : 'cal-isochrone-glyph-origin'">
               <i v-if="props.isochroneArriveBy" class="mdi mdi-flag-checkered" />
             </div>
             <div>{{ props.isochroneArriveBy ? 'Arriving here' : 'Leaving from here' }}</div>

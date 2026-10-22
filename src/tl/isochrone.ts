@@ -81,16 +81,26 @@ export function isochroneModeParam (mode: IsochroneMode): string {
   return ['TRANSIT', ...subtypes].join(',')
 }
 
-// The rider's options as the scenario's route type filter sets them: unset
-// is every type, and an empty selection leaves only walking.
-export function isochroneModeFromRouteTypes (routeTypes: RouteType[] | undefined): IsochroneMode {
-  if (routeTypes === undefined) {
-    return { walkOnly: false }
+// A mode in one form for each choice: route types the router knows, in
+// order; none is walking alone, and all is every type (none named), as the
+// router reads them.
+export function normalizeIsochroneMode (mode: IsochroneMode): IsochroneMode {
+  if (mode.walkOnly || !mode.routeTypes) {
+    return mode.walkOnly ? { walkOnly: true } : { walkOnly: false }
   }
+  const types = mode.routeTypes
+  const routeTypes = ISOCHRONE_ROUTE_TYPES.filter(t => types.includes(t))
   if (routeTypes.length === 0) {
     return { walkOnly: true }
   }
-  return { walkOnly: false, routeTypes: ISOCHRONE_ROUTE_TYPES.filter(t => routeTypes.includes(t)) }
+  return routeTypes.length === ISOCHRONE_ROUTE_TYPES.length ? { walkOnly: false } : { walkOnly: false, routeTypes }
+}
+
+// The rider's options as the scenario's route type filter sets them: unset
+// is every type, and a selection with none the router knows leaves only
+// walking.
+export function isochroneModeFromRouteTypes (routeTypes: RouteType[] | undefined): IsochroneMode {
+  return normalizeIsochroneMode({ walkOnly: false, routeTypes })
 }
 
 // The query string for GET /isochrone.
@@ -156,22 +166,32 @@ export function isochroneBandColors (rank: number, total: number): { fill: strin
   return { fill: interpolateBlues(t), text: t >= BAND_WHITE_TEXT_FROM ? '#fff' : ISOCHRONE_INK }
 }
 
+// The colors of the band for `minutes` among the travel times asked for, so
+// a travel time's button and its band on the map always match.
+export function isochroneCutoffColors (minutes: number, cutoffs: number[]): { fill: string, text: string } {
+  const asked = [...new Set(cutoffs)].sort((a, b) => a - b)
+  const rank = asked.indexOf(minutes)
+  return rank < 0 ? isochroneBandColors(asked.length, asked.length + 1) : isochroneBandColors(rank, asked.length)
+}
+
 function isPolygonal (f: any): boolean {
   return f?.geometry?.type === 'MultiPolygon' || f?.geometry?.type === 'Polygon'
 }
 
-function bandSeconds (f: any): number {
+// A band's travel time in seconds; undefined for a feature that has none.
+function bandSeconds (f: any): number | undefined {
   const t = f?.properties?.time
   if (typeof t === 'number') {
     return t
   }
   const c = f?.properties?.contour
-  return typeof c === 'number' ? c * 60 : 0
+  return typeof c === 'number' ? c * 60 : undefined
 }
 
-// Read a response: its bands shortest first, colored, or the router's error.
-// A body that isn't JSON (a proxy's HTML error page) is reported by status.
-export function parseIsochroneResponse (status: number, body: string): IsochroneResult {
+// Read a response for the travel times asked for (minutes): its bands
+// shortest first, colored, or the router's error. A body that isn't JSON
+// (a proxy's HTML error page) is reported by status.
+export function parseIsochroneResponse (status: number, body: string, cutoffs: number[]): IsochroneResult {
   let json: any
   try {
     json = JSON.parse(body)
@@ -187,12 +207,15 @@ export function parseIsochroneResponse (status: number, body: string): Isochrone
   if (json?.type !== 'FeatureCollection' || !Array.isArray(json.features)) {
     return { error: 'Travel time response was not a FeatureCollection' }
   }
-  const polys = (json.features as any[]).filter(isPolygonal).sort((a, b) => bandSeconds(a) - bandSeconds(b))
-  const bands = polys.map((f, rank): IsochroneBand => {
-    const seconds = bandSeconds(f)
-    const color = isochroneBandColors(rank, polys.length).fill
+  const polys = (json.features as any[])
+    .filter(f => isPolygonal(f) && bandSeconds(f) !== undefined)
+    .sort((a, b) => bandSeconds(a)! - bandSeconds(b)!)
+  const bands = polys.map((f): IsochroneBand => {
+    const seconds = bandSeconds(f)!
+    const minutes = Math.round(seconds / 60)
+    const color = isochroneCutoffColors(minutes, cutoffs).fill
     return {
-      minutes: Math.round(seconds / 60),
+      minutes,
       color,
       feature: {
         type: 'Feature',

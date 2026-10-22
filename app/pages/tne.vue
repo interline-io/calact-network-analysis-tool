@@ -119,6 +119,7 @@
               v-if="isochroneParams"
               :params="isochroneParams"
               :stop-name="isochroneStopName"
+              :default-mode="isochroneDefaultMode"
               :bands="isochroneBands"
               :loading="isochroneShowLoading"
               :error="isochroneError"
@@ -937,6 +938,7 @@ function onTripPanelClose () {
 // in the URL; it needs no scenario, but takes its defaults from one.
 const {
   params: isochroneParams,
+  defaultMode: isochroneDefaultMode,
   update: updateIsochroneParams,
   close: closeIsochroneParams,
 } = useIsochroneParams()

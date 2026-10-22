@@ -28,7 +28,7 @@ test.describe('Isochrone panel', () => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
     // Coordinates go in the place box, not the heading.
-    await expect(panel(page).getByLabel('Latitude, longitude')).toHaveValue('45.51890, -122.67930', { timeout: 15000 })
+    await expect(panel(page).getByLabel('Latitude, longitude')).toHaveValue(PLACE, { timeout: 15000 })
     await expect(panel(page)).not.toContainText('Travel time: 45')
     // The bands are keyed in the map legend.
     for (const m of [15, 30, 45]) {
@@ -105,6 +105,39 @@ test.describe('Isochrone panel', () => {
     await expect(added).toHaveAttribute('aria-pressed', 'true')
     // The longest of four bands: the lightest blue, with dark text.
     await expect(added).toHaveCSS('background-color', 'rgb(109, 174, 213)')
+  })
+
+  test('never drops a travel time for another, at the router\'s limit of eight', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}&isoCutoffs=10,15,30,45,60,100,120,240`)
+    await expect(panel(page).getByRole('button', { name: '240 minutes' })).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
+    await expect(panel(page).getByRole('button', { name: '90 minutes' })).toBeDisabled()
+    await expect(panel(page).getByRole('button', { name: 'Add a travel time' })).toBeDisabled()
+    // Unchoosing one makes room again.
+    await panel(page).getByRole('button', { name: '100 minutes' }).click()
+    await expect(panel(page).getByRole('button', { name: '90 minutes' })).toBeEnabled()
+  })
+
+  test('returns to the scenario\'s route types from walking alone', async ({ page }) => {
+    const requests = await routeIsochrone(page, 'bus-only')
+    // The scenario is filtered to buses.
+    await page.goto(`/tne?isoPlace=${PLACE}&selectedRouteTypes=3`)
+    await expect.poll(() => requests.at(-1)?.searchParams.get('mode'), { timeout: 15000 }).toBe('TRANSIT,bus')
+    await panel(page).getByRole('button', { name: 'Walk only' }).click()
+    await expect.poll(() => requests.at(-1)?.searchParams.get('mode')).toBe('WALK')
+    await panel(page).getByRole('button', { name: 'Transit' }).click()
+    await expect.poll(() => requests.at(-1)?.searchParams.get('mode')).toBe('TRANSIT,bus')
+    await expect(page).not.toHaveURL(/isoMode/)
+  })
+
+  test('shows the date in use again when the date is cleared', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
+    const date = panel(page).locator('input[type="date"]')
+    await expect(date).toHaveValue('2026-10-27', { timeout: 15000 })
+    await date.fill('')
+    await date.blur()
+    await expect(date).toHaveValue('2026-10-27')
   })
 
   test('shows the router error', async ({ page }) => {

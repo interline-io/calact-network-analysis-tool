@@ -110,6 +110,24 @@ describe('useIsochrone', () => {
     scope.stop()
   })
 
+  it('drops the request in flight as soon as the settings change', async () => {
+    const { calls, fetcher } = controlledFetcher()
+    const { params, state, scope } = setup(base, fetcher)
+    params.value = { ...base, time: '09:00' }
+    await nextTick()
+    // Aborted now, not when the debounce ends; its answer, if it still comes,
+    // draws nothing.
+    expect(calls[0]!.signal.aborted).toBe(true)
+    calls[0]!.resolve(recorded('leaving-from'))
+    await nextTick()
+    await nextTick()
+    expect(state.bands.value).toEqual([])
+    expect(state.loading.value).toBe(true)
+    await settle()
+    expect(calls).toHaveLength(2)
+    scope.stop()
+  })
+
   it('shows the router error, and clears it with the next answer', async () => {
     const { calls, fetcher } = controlledFetcher()
     const { params, state, scope } = setup({ ...base, date: '2026-13-45' }, fetcher)

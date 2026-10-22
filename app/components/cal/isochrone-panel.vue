@@ -87,7 +87,7 @@
                 fullwidth
                 :style="cutoffStyle(m)"
                 v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
-                :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
+                :disabled="params.cutoffs.includes(m) ? params.cutoffs.length === 1 : cutoffsFull"
                 @click="toggleCutoff(m)"
               >
                 {{ cutoffLabel(m) }}
@@ -98,8 +98,8 @@
                 size="small"
                 icon-left="plus"
                 v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
-                :title="params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
-                :disabled="params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS"
+                :title="cutoffsFull ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
+                :disabled="cutoffsFull"
                 @click="startAddingCutoff"
               />
             </div>
@@ -227,11 +227,13 @@ import {
   ISOCHRONE_MAX_WALK_CHOICES,
   ISOCHRONE_ROUTE_TYPES,
   ISOCHRONE_INK,
-  isochroneBandColors,
+  formatIsochronePlace,
+  isochroneCutoffColors,
   isochroneModeParam,
   parseIsochroneCutoff,
   parseIsochronePlace,
   type IsochroneBand,
+  type IsochroneMode,
   type IsochroneParams,
   type IsochroneRenderOptions,
 } from '~~/src/tl'
@@ -240,6 +242,8 @@ const props = defineProps<{
   params: IsochroneParams
   // The stop it was opened from, while the place is still there.
   stopName?: string
+  // What Transit returns to after Walk only: the scenario's route types.
+  defaultMode: IsochroneMode
   // Shortest time first.
   bands: IsochroneBand[]
   loading: boolean
@@ -262,7 +266,8 @@ const emit = defineEmits<{
 const { unitSystem } = useScenarioDisplay()
 const debug = useDebugMenu()
 
-const placeText = computed(() => `${props.params.place.lat.toFixed(5)}, ${props.params.place.lon.toFixed(5)}`)
+// As the URL holds it, so a copy pastes into either.
+const placeText = computed(() => formatIsochronePlace(props.params.place))
 
 // Typed coordinates that don't parse stay in the box, flagged, until fixed.
 const placeInvalid = ref(false)
@@ -296,22 +301,31 @@ function update (next: Partial<IsochroneParams>) {
   emit('update', next)
 }
 
+// A cleared field has nothing to send, so it shows the date and time in use
+// again.
 function onDate (e: Event) {
-  const v = (e.target as HTMLInputElement).value
-  if (v) {
-    update({ date: v })
+  const input = e.target as HTMLInputElement
+  if (input.value) {
+    update({ date: input.value })
+  } else {
+    input.value = props.params.date
   }
 }
 
 function onTime (e: Event) {
-  const v = (e.target as HTMLInputElement).value.slice(0, 5)
-  if (v) {
-    update({ time: v })
+  const input = e.target as HTMLInputElement
+  if (input.value) {
+    update({ time: input.value.slice(0, 5) })
+  } else {
+    input.value = props.params.time
   }
 }
 
 // Offered cutoffs, plus any a link asked for that aren't among them.
 const cutoffChoices = computed(() => [...new Set([...ISOCHRONE_CUTOFF_CHOICES, ...props.params.cutoffs])].sort((a, b) => a - b))
+
+// As many as the router takes: none more can be chosen.
+const cutoffsFull = computed(() => props.params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS)
 
 // Compact, to fit the row: "1h30m".
 function cutoffLabel (m: number): string {
@@ -348,13 +362,14 @@ function addCutoff (text: string | number) {
   }
 }
 
+// Never drops one travel time to make room for another: at the limit, a
+// new one isn't added.
 function toggleCutoff (m: number) {
-  const cutoffs = props.params.cutoffs.includes(m)
-    ? props.params.cutoffs.filter(c => c !== m)
-    : [...props.params.cutoffs, m].sort((a, b) => a - b).slice(0, ISOCHRONE_MAX_CUTOFFS)
-  if (cutoffs.length > 0) {
-    update({ cutoffs })
+  const chosen = props.params.cutoffs.includes(m)
+  if (chosen ? props.params.cutoffs.length === 1 : cutoffsFull.value) {
+    return
   }
+  update({ cutoffs: chosen ? props.params.cutoffs.filter(c => c !== m) : [...props.params.cutoffs, m].sort((a, b) => a - b) })
 }
 
 // Unlimited transit is every type the panel offers.
@@ -373,19 +388,25 @@ const rides = [
   { label: 'Walk only', icon: 'walk', walkOnly: true },
 ]
 
+// Transit returns to what the scenario rides, or all of it if the scenario
+// rides nothing.
 function setWalkOnly (walkOnly: boolean) {
-  if (walkOnly !== props.params.mode.walkOnly) {
-    update({ mode: walkOnly ? { walkOnly: true } : { walkOnly: false } })
+  if (walkOnly === props.params.mode.walkOnly) {
+    return
+  }
+  if (walkOnly) {
+    update({ mode: { walkOnly: true } })
+  } else {
+    update({ mode: props.defaultMode.walkOnly ? { walkOnly: false } : props.defaultMode })
   }
 }
 
 // A chosen travel time wears its band's color, so the row keys the map.
 function cutoffStyle (m: number): Record<string, string> | undefined {
-  const rank = props.params.cutoffs.indexOf(m)
-  if (rank < 0) {
+  if (!props.params.cutoffs.includes(m)) {
     return undefined
   }
-  const { fill, text } = isochroneBandColors(rank, props.params.cutoffs.length)
+  const { fill, text } = isochroneCutoffColors(m, props.params.cutoffs)
   return { background: fill, borderColor: fill, color: text }
 }
 

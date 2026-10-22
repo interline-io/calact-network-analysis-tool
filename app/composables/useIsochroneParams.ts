@@ -15,6 +15,7 @@ import {
   formatIsochronePlace,
   isochroneModeFromRouteTypes,
   isochroneModeParam,
+  normalizeIsochroneMode,
   parseIsochronePlace,
   type IsochroneMode,
   type IsochroneParams,
@@ -28,6 +29,8 @@ const ISOCHRONE_KEYS = ['isoPlace', 'isoArriveBy', 'isoDate', 'isoTime', 'isoCut
 export interface IsochroneParamsState {
   // undefined while no isochrone is open; set isoPlace through update to open one.
   params: ComputedRef<IsochroneParams | undefined>
+  // What the scenario's route type filter rides, which Transit returns to.
+  defaultMode: ComputedRef<IsochroneMode>
   update: (next: Partial<IsochroneParams>) => Promise<void>
   close: () => Promise<void>
 }
@@ -57,15 +60,15 @@ function parseMode (s: string | undefined): IsochroneMode | undefined {
     return undefined
   }
   const types = s.split(',').map(Number).filter(n => ISOCHRONE_ROUTE_TYPES.includes(n as RouteType)) as RouteType[]
-  return types.length ? { walkOnly: false, routeTypes: types } : undefined
+  return types.length ? normalizeIsochroneMode({ walkOnly: false, routeTypes: types }) : undefined
 }
 
-// Every route type is all of transit, so a link reads the same either way.
 function formatMode (mode: IsochroneMode): string {
-  if (mode.walkOnly) {
+  const m = normalizeIsochroneMode(mode)
+  if (m.walkOnly) {
     return 'walk'
   }
-  return mode.routeTypes && isochroneModeParam(mode) !== 'TRANSIT' ? mode.routeTypes.join(',') : 'transit'
+  return m.routeTypes ? m.routeTypes.join(',') : 'transit'
 }
 
 export function useIsochroneParams (): IsochroneParamsState {
@@ -135,5 +138,5 @@ export function useIsochroneParams (): IsochroneParamsState {
     return setQuery(Object.fromEntries(ISOCHRONE_KEYS.map(k => [k, undefined])))
   }
 
-  return { params, update, close }
+  return { params, defaultMode: computed(() => defaults.value.mode), update, close }
 }

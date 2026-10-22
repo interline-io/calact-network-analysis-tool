@@ -1371,8 +1371,8 @@ function styleIsochroneOrigin () {
   // classList, not className: the marker's own maplibregl-marker classes
   // position it.
   el.classList.add('cal-isochrone-glyph')
-  el.classList.toggle('is-destination', arriveBy)
-  el.classList.toggle('is-origin', !arriveBy)
+  el.classList.toggle('cal-isochrone-glyph-destination', arriveBy)
+  el.classList.toggle('cal-isochrone-glyph-origin', !arriveBy)
   el.title = arriveBy ? 'Arriving here. Drag to move.' : 'Leaving from here. Drag to move.'
   el.replaceChildren()
   if (arriveBy) {
@@ -1475,7 +1475,7 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
   }
 
   /* The open isochrone's place: a dot to leave from, a flag to arrive at.
-     The map's marker, and its key in legend.vue (is-small). #08306b is
+     The map's marker, and its key in legend.vue (glyph-small). #08306b is
      ISOCHRONE_INK. */
   .cal-isochrone-glyph {
     display: flex;
@@ -1488,29 +1488,30 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     color: #08306b;
     line-height: 1;
   }
-  .cal-isochrone-glyph.is-origin {
+  .cal-isochrone-glyph-origin {
     width: 18px;
     height: 18px;
     background: #08306b;
     border-color: #fff;
   }
-  .cal-isochrone-glyph.is-destination {
+  .cal-isochrone-glyph-destination {
     width: 26px;
     height: 26px;
     background: #fff;
     font-size: 15px;
   }
-  .cal-isochrone-glyph.is-small {
+  .cal-isochrone-glyph-small {
     border-width: 2px;
     box-shadow: 0 0 0 1px #08306b;
     cursor: default;
   }
-  .cal-isochrone-glyph.is-small.is-origin {
+  /* Three classes, to win over the legend's own .legend-item sizes. */
+  .cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-origin {
     width: 12px;
     height: 12px;
     margin: 0 4px;
   }
-  .cal-isochrone-glyph.is-small.is-destination {
+  .cal-isochrone-glyph.cal-isochrone-glyph-small.cal-isochrone-glyph-destination {
     width: 18px;
     height: 18px;
     margin: 0 1px;
