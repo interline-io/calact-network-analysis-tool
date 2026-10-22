@@ -103,7 +103,6 @@
                 :summary-overview="transfers.summaryOverview"
                 :individual-dates="transfers.individualDates"
                 :individual-date="transfers.individualDate"
-                :summary-date="transfers.summaryDate"
                 :individual-grid="transfers.individualGrid"
                 :individual-overview="transfers.individualOverview"
                 :individual-points="transfers.individualPoints"
@@ -985,7 +984,7 @@ const transferView = ref<TransferReportView>('summary')
 const transferSection = ref<TransferReportSection | undefined>('trips')
 // The view's table, as the Reports tab's CSV download.
 const transferCsv = computed(() => (transferView.value === 'summary'
-  ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.title}`, label: 'Download summary as CSV' }
+  ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.individualDate}-${transfers.title}`, label: 'Download summary as CSV' }
   : { data: transfers.individualRows, filename: `transfers-${transfers.individualDate}-${transfers.title}`, label: 'Download transfers as CSV' }))
 // Stop clustering on at its default distance, and the scenario run again,
 // staying on the Transfer Analyst; once the URL holds the distance, which

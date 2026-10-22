@@ -303,17 +303,15 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const withArrivals = new Set(groups.value.map(g => g.arrival.date))
     return dates.value.filter(d => withArrivals.has(d))
   })
-  const pickedDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : undefined))
+  // Both views show one date: the one picked, or the first.
+  const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
 
-  // The Summary covers every date unless one is picked.
-  const summaryGroups = computed(() => filterTransferGroups(groups.value, pickedDate.value, timeBand.value))
+  const summaryGroups = computed(() => filterTransferGroups(groups.value, individualDate.value, timeBand.value))
   const summary = computed(() => summarizeTransfers(summaryGroups.value))
   const summaryRows = computed(() => transferSummaryRows(summary.value, routes.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
   const summaryOverview = computed(() => transferOverview(summaryGroups.value))
 
-  // The Individual report shows one date: the one picked, or the first.
-  const individualDate = computed(() => pickedDate.value ?? individualDates.value[0])
   const individualGroups = computed(() => filterTransferGroups(groups.value, individualDate.value, timeBand.value))
   const individualRows = computed(() => transferRows(individualGroups.value, {
     routes: routes.value,
@@ -405,7 +403,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     breakpoints,
     routeChoices,
     selectedDate,
-    summaryDate: pickedDate,
     timeBand,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     summaryRows,

@@ -27,16 +27,12 @@
             <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" />
           </cat-tabs>
         </cat-field>
-        <!-- Which arrivals to show: the Summary covers every date unless one
-             is picked; Individual shows one date at a time. -->
+        <!-- Which arrivals to show: one date at a time, in either view. -->
         <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-shrink">
           <cat-select
-            :model-value="view === 'summary' ? (summaryDate ?? '') : individualDate"
+            :model-value="individualDate"
             @update:model-value="date = $event || undefined"
           >
-            <option v-if="view === 'summary'" value="">
-              All dates
-            </option>
             <option v-for="d of individualDates" :key="d" :value="d">
               {{ formatServiceDate(d) }}
             </option>
@@ -268,8 +264,6 @@ const props = defineProps<{
   summaryOverview: TransferOverview
   individualDates: string[]
   individualDate?: string
-  // The date the Summary is narrowed to; every date when undefined.
-  summaryDate?: string
   individualGrid: TransferGridRow[]
   individualOverview: TransferOverview
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
