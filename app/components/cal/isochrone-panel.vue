@@ -1,7 +1,7 @@
 <template>
   <div class="cal-sidebar-panel cal-isochrone-panel">
     <cat-msg
-      :title="`Travel time: ${placeLabel}`"
+      :title="stopName ? `Travel time: ${stopName}` : 'Travel time'"
       expandable
       closable
       :open="true"
@@ -25,11 +25,21 @@
             </div>
           </cat-field>
         </div>
-        <!-- As the map draws the place. -->
-        <span class="cal-isochrone-place" :title="`${placeLabel}. Drag the marker to move it.`">
-          <i class="mdi" :class="params.arriveBy ? 'mdi-flag-checkered' : 'mdi-circle'" />
-          {{ placeLabel }}
-        </span>
+        <!-- Typed, pasted or copied; the icon is the map's marker. -->
+        <cat-input
+          class="cal-isochrone-place"
+          size="small"
+          :model-value="placeText"
+          :model-modifiers="{ lazy: true, trim: true }"
+          :icon="params.arriveBy ? 'flag-checkered' : 'circle'"
+          icon-right="content-copy"
+          icon-right-clickable
+          icon-right-aria-label="Copy coordinates"
+          :variant="placeInvalid ? 'danger' : undefined"
+          v-bind="{ ariaLabel: 'Latitude, longitude' }"
+          @update:model-value="onPlace"
+          @icon-right-click="copyPlace"
+        />
       </div>
 
       <div class="cal-isochrone-row">
@@ -182,8 +192,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { routeTypeIcons, routeTypeNames, type Feature, type RouteType } from '~~/src/core'
+import { computed, ref, watch } from 'vue'
+import { routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
   ISOCHRONE_MAX_CUTOFFS,
@@ -191,6 +201,7 @@ import {
   ISOCHRONE_ROUTE_TYPES,
   isochroneBandColor,
   isochroneModeParam,
+  parseIsochronePlace,
   type IsochroneBand,
   type IsochroneParams,
   type IsochroneRenderOptions,
@@ -198,8 +209,8 @@ import {
 
 const props = defineProps<{
   params: IsochroneParams
-  // The place by name: its stop's, or its coordinates.
-  placeLabel: string
+  // The stop it was opened from, while the place is still there.
+  stopName?: string
   // Shortest time first.
   bands: IsochroneBand[]
   loading: boolean
@@ -212,6 +223,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'close': []
   'update': [next: Partial<IsochroneParams>]
+  // The place was typed in.
+  'move': [place: Point]
   'update:render': [next: IsochroneRenderOptions]
   // Fit the map to the bands.
   'zoom': []
@@ -219,6 +232,31 @@ const emit = defineEmits<{
 
 const { unitSystem } = useScenarioDisplay()
 const debug = useDebugMenu()
+
+const placeText = computed(() => `${props.params.place.lat.toFixed(5)}, ${props.params.place.lon.toFixed(5)}`)
+
+// Typed coordinates that don't parse stay in the box, flagged, until fixed.
+const placeInvalid = ref(false)
+watch(() => props.params.place, () => {
+  placeInvalid.value = false
+})
+
+function onPlace (text: string | number) {
+  const place = parseIsochronePlace(String(text).replace(/\s+/g, ''))
+  placeInvalid.value = !place
+  if (place) {
+    emit('move', place)
+  }
+}
+
+async function copyPlace () {
+  try {
+    await navigator.clipboard.writeText(placeText.value)
+    useToastNotification().showToast('Copied to clipboard')
+  } catch (err) {
+    console.warn('clipboard write failed', err)
+  }
+}
 
 const directions = [
   { label: 'Leaving from', arriveBy: false },
@@ -325,7 +363,7 @@ const downloadFeatures = computed((): Feature[] => [
     id: 'isochrone-place',
     geometry: { type: 'Point', coordinates: [props.params.place.lon, props.params.place.lat] },
     properties: {
-      name: props.placeLabel,
+      name: props.stopName ?? placeText.value,
       arrive_by: props.params.arriveBy,
       date: props.params.date,
       time: props.params.time,
@@ -368,15 +406,11 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 }
 
 .cal-isochrone-place {
-  align-self: center;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
   flex: 1;
+  min-width: 0;
 
-  .mdi {
+  // The marker's color, as on the map; the copy button keeps its own.
+  :deep(.icon.is-left) {
     color: #08306b;
   }
 }

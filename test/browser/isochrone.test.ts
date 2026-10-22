@@ -32,7 +32,9 @@ test.describe('Isochrone panel', () => {
   test('opens from the URL and shows the bands', async ({ page }) => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
-    await expect(panel(page).getByText('Travel time: 45.51890, -122.67930')).toBeVisible({ timeout: 15000 })
+    // Coordinates go in the place box, not the heading.
+    await expect(panel(page).getByLabel('Latitude, longitude')).toHaveValue('45.51890, -122.67930', { timeout: 15000 })
+    await expect(panel(page)).not.toContainText('Travel time: 45')
     // The bands are keyed in the map legend.
     for (const m of [15, 30, 45]) {
       await expect(legend(page).getByText(`Within ${m} min`)).toBeVisible()
@@ -68,6 +70,20 @@ test.describe('Isochrone panel', () => {
     await panel(page).getByRole('button', { name: 'Walk only' }).click()
     await expect(page).toHaveURL(/isoMode=walk/)
     await expect.poll(() => requests.at(-1)!.searchParams.get('mode')).toBe('WALK')
+  })
+
+  test('moves to typed coordinates, and refuses ones that do not parse', async ({ page }) => {
+    const requests = await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}`)
+    const input = panel(page).getByLabel('Latitude, longitude')
+    await expect(input).toBeVisible({ timeout: 15000 })
+    await input.fill('45.53, -122.66')
+    await input.press('Enter')
+    await expect(page).toHaveURL(/isoPlace=45\.530000(%2C|,)-122\.660000/)
+    await expect.poll(() => requests.at(-1)?.searchParams.get('fromPlace')).toBe('45.530000,-122.660000')
+    await input.fill('not a place')
+    await input.press('Enter')
+    await expect(page).toHaveURL(/isoPlace=45\.530000(%2C|,)-122\.660000/)
   })
 
   test('shows the router error', async ({ page }) => {

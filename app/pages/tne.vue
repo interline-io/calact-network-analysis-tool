@@ -118,13 +118,14 @@
             <cal-isochrone-panel
               v-if="isochroneParams"
               :params="isochroneParams"
-              :place-label="isochronePlaceLabel"
+              :stop-name="isochroneStopName"
               :bands="isochroneBands"
               :loading="isochroneShowLoading"
               :error="isochroneError"
               :empty="isochroneEmpty"
               :render="isochroneRender"
               @update="updateIsochroneParams"
+              @move="moveIsochrone"
               @update:render="Object.assign(isochroneRender, $event)"
               @zoom="fitIsochroneKey++"
               @close="closeIsochrone"
@@ -954,13 +955,6 @@ const fitIsochroneKey = ref(0)
 // The stop it was opened from, until the place moves off it. Not in the URL:
 // a link reopens it by its coordinates.
 const isochroneStopName = ref<string | undefined>(undefined)
-const isochronePlaceLabel = computed(() => {
-  const p = isochroneParams.value?.place
-  if (isochroneStopName.value) {
-    return isochroneStopName.value
-  }
-  return p ? `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : ''
-})
 
 // The isochrone panel and the trip panel share the sidebar: opening one
 // closes the other.
