@@ -94,16 +94,20 @@
                 <cat-button icon-left="share-variant" v-bind="{ 'title': 'Share', 'aria-label': 'Share' }" />
               </template>
               <cat-dropdown-item value="link">
-                Copy link
+                Copy link to this view
               </cat-dropdown-item>
               <cat-dropdown-item value="summary" :disabled="detailsLoading">
-                Summary as CSV
+                Download summary report (CSV)
               </cat-dropdown-item>
               <cat-dropdown-item value="connections" :disabled="detailsLoading">
-                Every connection as CSV
+                Download individual report (CSV)
               </cat-dropdown-item>
-              <cat-dropdown-item value="chart" :disabled="view === 'summary' || detailsLoading">
-                {{ view === 'compass' ? 'Compass as SVG' : view === 'individual' ? 'Wait chart as SVG' : 'Chart as SVG (Individual or Compass view)' }}
+              <!-- Each chart as shown, so from its own view. -->
+              <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
+                Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
+              </cat-dropdown-item>
+              <cat-dropdown-item value="compass-chart" :disabled="view !== 'compass' || detailsLoading">
+                Download compass chart (SVG){{ view === 'compass' ? '' : ' (Compass view)' }}
               </cat-dropdown-item>
             </cat-dropdown>
           </cat-field>
@@ -535,7 +539,7 @@ const roseChart = ref<{ toSvg: () => string }>()
 
 const { showToast } = useToastNotification()
 
-async function download (what: 'link' | 'summary' | 'connections' | 'chart') {
+async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart' | 'compass-chart') {
   if (what === 'link') {
     try {
       await navigator.clipboard.writeText(props.shareUrl())
@@ -545,22 +549,51 @@ async function download (what: 'link' | 'summary' | 'connections' | 'chart') {
     }
     return
   }
-  const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
+  const name = (kind: string) => `transfers-${kind}-${props.individualDate ?? ''}-${props.title}`
   if (what === 'summary' || what === 'connections') {
-    save({ filename: `${name}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })
-  } else if (view.value === 'compass') {
+    save({ filename: `${name(what === 'summary' ? 'summary' : 'individual')}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })
+  } else if (what === 'compass-chart') {
     const svg = roseChart.value?.toSvg()
     if (svg) {
-      save({ filename: `transfers-compass-${props.individualDate ?? ''}-${props.title}.svg`, data: svg, mimeType: 'image/svg+xml' })
+      save({ filename: `${name('compass')}.svg`, data: svg, mimeType: 'image/svg+xml' })
     }
   } else {
-    const svg = root.value?.querySelector('.cal-transfer-report-wait-chart svg')
-    if (svg) {
-      const clone = svg.cloneNode(true) as SVGElement
-      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      save({ filename: `${name}.svg`, data: new XMLSerializer().serializeToString(clone), mimeType: 'image/svg+xml' })
+    // The bar of connections by grade over the chart, as its legend.
+    const svgs = ['.cal-transfer-report-grades svg', '.cal-transfer-report-wait-chart svg']
+      .map(selector => root.value?.querySelector<SVGSVGElement>(selector))
+      .filter((svg): svg is SVGSVGElement => !!svg)
+    if (svgs.length > 0) {
+      save({ filename: `${name('wait-chart')}.svg`, data: stackedSvg(svgs), mimeType: 'image/svg+xml' })
     }
   }
+}
+
+// Charts one above another as one SVG, at their drawn sizes, on white.
+function stackedSvg (svgs: SVGSVGElement[], gap = 12): string {
+  const sizes = svgs.map(svg => svg.getBoundingClientRect())
+  const width = Math.ceil(Math.max(...sizes.map(r => r.width)))
+  const height = Math.ceil(sizes.reduce((h, r) => h + r.height, 0) + gap * (svgs.length - 1))
+  const out = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  out.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  out.setAttribute('width', String(width))
+  out.setAttribute('height', String(height))
+  out.setAttribute('viewBox', `0 0 ${width} ${height}`)
+  const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+  background.setAttribute('width', '100%')
+  background.setAttribute('height', '100%')
+  background.setAttribute('fill', '#ffffff')
+  out.append(background)
+  let y = 0
+  svgs.forEach((svg, i) => {
+    const clone = svg.cloneNode(true) as SVGSVGElement
+    clone.setAttribute('x', '0')
+    clone.setAttribute('y', String(y))
+    clone.setAttribute('width', String(sizes[i]!.width))
+    clone.setAttribute('height', String(sizes[i]!.height))
+    out.append(clone)
+    y += sizes[i]!.height + gap
+  })
+  return new XMLSerializer().serializeToString(out)
 }
 
 // Each connection's wait by the time its trip arrives. The points and
