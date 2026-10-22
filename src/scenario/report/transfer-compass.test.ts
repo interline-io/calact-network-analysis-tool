@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bearingAndDistance, centerOf, compassRings, compassScale, transferCompassPlaces, transferRose } from './transfer-compass'
+import { bearingAndDistance, centerOf, compassRings, compassScale, quietBearing, transferCompassPlaces, transferRose } from './transfer-compass'
 import type { TransferArrivalSummary, TransferRouteChoice, TransferTripDestination } from './transfers'
 
 const MILLBRAE: [number, number] = [-122.387, 37.600]
@@ -84,5 +84,13 @@ describe('compassScale', () => {
     expect(compassScale(160, 160)).toBe(1)
     expect(compassScale(10, 160)).toBeGreaterThan(0.45)
     expect(compassRings(160)).toEqual([3, 10, 30, 100])
+  })
+})
+
+describe('quietBearing', () => {
+  it('finds the middle of the widest gap between bearings, across north too', () => {
+    expect(quietBearing([0, 90, 180])).toBe(270)
+    expect(quietBearing([300, 60])).toBe(180)
+    expect(quietBearing([])).toBe(45)
   })
 })

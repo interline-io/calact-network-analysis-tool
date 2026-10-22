@@ -20,7 +20,7 @@
           <g class="cal-transfer-rose-rings">
             <template v-for="ring of rings" :key="ring.km">
               <circle :r="ring.r" />
-              <text :x="ring.r * Math.SQRT1_2 + 2" :y="-ring.r * Math.SQRT1_2 - 2">{{ ring.km }} km</text>
+              <text :x="ring.x" :y="ring.y" text-anchor="middle" dominant-baseline="middle">{{ ring.km }} km</text>
             </template>
           </g>
           <!-- One ribbon per pair of places; where some of its flows are
@@ -146,6 +146,7 @@ import {
   TRANSFER_GRADE_LABELS,
   compassRings,
   compassScale,
+  quietBearing,
   type TransferFocus,
   type TransferGradeCounts,
   type TransferRose,
@@ -185,7 +186,14 @@ const maxKm = computed(() => Math.max(0.1, ...props.rose.places.map(p => p.km)))
 function radius (km: number): number {
   return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
 }
-const rings = computed(() => compassRings(maxKm.value).map(km => ({ km, r: radius(km) })))
+// Rings, labeled along the widest gap between places.
+const rings = computed(() => {
+  const [ux, uy] = along(quietBearing(placed.value.map(p => p.angle)))
+  return compassRings(maxKm.value).map((km) => {
+    const r = radius(km)
+    return { km, r, x: ux * r, y: uy * r }
+  })
+})
 
 // Each origin's color, by bearing.
 const colors = computed(() => {
@@ -450,7 +458,7 @@ function toSvg (): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}" width="${WIDTH * 1.5}" height="${HEIGHT * 1.5}" font-family="sans-serif" font-size="11">`,
     `<defs>${PALETTE.map((_, i) => marker(i)).join('')}</defs>`,
     `<rect x="${-WIDTH / 2}" y="${-HEIGHT / 2}" width="${WIDTH}" height="${HEIGHT}" fill="#ffffff"/>`,
-    ...rings.value.map(r => `<circle r="${n(r.r)}" fill="none" stroke="#d5d8dc" stroke-dasharray="2 3"/><text x="${n(r.r * Math.SQRT1_2 + 2)}" y="${n(-r.r * Math.SQRT1_2 - 2)}" font-size="8" fill="#6b7280">${r.km} km</text>`),
+    ...rings.value.map(r => `<circle r="${n(r.r)}" fill="none" stroke="#d5d8dc" stroke-dasharray="2 3"/><text x="${n(r.x)}" y="${n(r.y)}" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#6b7280" stroke="#ffffff" stroke-width="3" paint-order="stroke">${r.km} km</text>`),
     ...drawn.value.flatMap(f => [
       ribbon(f.d, f.color, f.width, focused ? 0.08 : 0.55, !focused),
       ...(focused && f.emphasized > 0 ? [ribbon(f.d, f.color, Math.max(1, f.emphasized * scale.value), 0.9, true)] : []),
@@ -531,6 +539,9 @@ function at (x: number, y: number) {
   text {
     font-size: 8px;
     fill: var(--bulma-text-weak);
+    stroke: var(--bulma-scheme-main);
+    stroke-width: 3px;
+    paint-order: stroke;
   }
 }
 

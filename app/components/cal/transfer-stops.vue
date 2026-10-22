@@ -23,6 +23,19 @@
           Unselect all
         </button>
       </div>
+      <!-- Stops close to those picked but not picked, as a station's stops
+           on another feed that its cluster left out. -->
+      <p v-if="nearby.length > 0" class="cal-transfer-stops-nearby">
+        Nearby, not picked:
+        <template v-for="(s, i) of nearby" :key="s.id">
+          <button type="button" class="cal-transfer-stops-link" :title="`Add ${s.name} (${s.operator})`" @click="setPicked(s.id, true)">
+            {{ s.name }}
+          </button><span class="cal-transfer-stops-nearby-operator"> ({{ s.operator || 'unknown operator' }}){{ i < nearby.length - 1 ? ',' : '' }}</span>
+        </template>
+        <button v-if="nearby.length > 1" type="button" class="cal-transfer-stops-link" @click="stops = [...stops, ...nearby.map(s => s.id)]">
+          Add all
+        </button>
+      </p>
       <div v-for="group of groups" :key="group.operator" class="cal-transfer-stops-group">
         <div class="cal-transfer-stops-operator">
           {{ group.operator || 'Unknown operator' }}
@@ -58,6 +71,7 @@
 import { computed, ref } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
+import { bearingAndDistance } from '~~/src/scenario'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
@@ -85,6 +99,15 @@ const listed = computed(() => props.mapStops.filter((s) => {
   const v = view.value
   return !!v && s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]
 }))
+
+// Stops within a short walk of one picked, not picked themselves, by name.
+const NEARBY_KM = 0.15
+const nearby = computed(() => {
+  const chosen = props.mapStops.filter(s => picked.value.has(s.id))
+  return props.mapStops
+    .filter(s => !picked.value.has(s.id) && chosen.some(c => bearingAndDistance([c.lon, c.lat], [s.lon, s.lat]).km <= NEARBY_KM))
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
 
 // By operator, then name.
 const groups = computed(() => {
@@ -134,6 +157,22 @@ function setPicked (id: number, on: boolean) {
     font-weight: 600;
     color: var(--bulma-text-strong);
   }
+}
+
+.cal-transfer-stops-nearby {
+  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  background: var(--bulma-scheme-main-ter);
+  font-size: 0.8rem;
+
+  .cal-transfer-stops-link {
+    font-size: inherit;
+  }
+}
+
+.cal-transfer-stops-nearby-operator {
+  color: var(--bulma-text-weak);
 }
 
 .cal-transfer-stops-link {

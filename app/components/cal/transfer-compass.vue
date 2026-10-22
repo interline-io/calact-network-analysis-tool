@@ -17,7 +17,7 @@
         <g class="cal-transfer-compass-rings">
           <template v-for="ring of rings" :key="ring.km">
             <circle :r="ring.r" />
-            <text :x="ring.r * Math.SQRT1_2 + 2" :y="-ring.r * Math.SQRT1_2 - 2">{{ ring.km }} km</text>
+            <text :x="ring.x" :y="ring.y" text-anchor="middle" dominant-baseline="middle">{{ ring.km }} km</text>
           </template>
         </g>
         <!-- Leaders from a place to its label, where the label moved off it. -->
@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import { compassRings, compassScale, type TransferCompassPlace } from '~~/src/scenario'
+import { compassRings, compassScale, quietBearing, type TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
   // Named for the screen reader; the list beside it says the rest.
@@ -127,7 +127,14 @@ const maxKm = computed(() => Math.max(0.1, ...props.places.map(p => p.km)))
 function radius (km: number): number {
   return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
 }
-const rings = computed(() => compassRings(maxKm.value).map(km => ({ km, r: radius(km) })))
+// Rings, labeled along the widest gap between places.
+const rings = computed(() => {
+  const [ux, uy] = along(quietBearing(layout.value.map(p => p.angle)))
+  return compassRings(maxKm.value).map((km) => {
+    const r = radius(km)
+    return { km, r, x: ux * r, y: uy * r }
+  })
+})
 
 // A unit vector along a bearing, in the SVG's frame (y down).
 function along (bearing: number): [number, number] {
@@ -297,6 +304,9 @@ function at (x: number, y: number) {
   text {
     font-size: 8px;
     fill: var(--bulma-text-weak);
+    stroke: var(--bulma-scheme-main);
+    stroke-width: 3px;
+    paint-order: stroke;
   }
 }
 

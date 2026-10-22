@@ -49,6 +49,22 @@ export function compassRings (maxKm: number): number[] {
   return [1, 3, 10, 30, 100, 300, 1000, 3000].filter(km => km <= maxKm).slice(-4)
 }
 
+// The middle of the widest gap between bearings (degrees), where a
+// compass's ring labels keep out of its places' way.
+export function quietBearing (bearings: number[]): number {
+  const sorted = bearings.map(b => ((b % 360) + 360) % 360).sort((a, b) => a - b)
+  let widest = 0
+  let at = 45
+  sorted.forEach((b, i) => {
+    const next = i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + 360
+    if (next - b > widest) {
+      widest = next - b
+      at = (b + widest / 2) % 360
+    }
+  })
+  return at
+}
+
 // The middle of some [lon, lat] points; none for no points.
 export function centerOf (points: [number, number][]): [number, number] | undefined {
   if (points.length === 0) {
