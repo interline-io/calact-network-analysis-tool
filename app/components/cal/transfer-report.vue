@@ -94,8 +94,8 @@
               <cat-dropdown-item value="connections">
                 Every connection as CSV
               </cat-dropdown-item>
-              <cat-dropdown-item value="chart" :disabled="view !== 'individual'">
-                Wait chart as SVG{{ view === 'individual' ? '' : ' (Individual view)' }}
+              <cat-dropdown-item value="chart" :disabled="view === 'summary'">
+                {{ view === 'compass' ? 'Compass as SVG' : view === 'individual' ? 'Wait chart as SVG' : 'Chart as SVG (Individual or Compass view)' }}
               </cat-dropdown-item>
             </cat-dropdown>
           </cat-field>
@@ -184,7 +184,7 @@
         </div>
         <!-- Where the connections come from and go, as flows around the
              stops. -->
-        <cal-transfer-rose v-if="view === 'compass'" :rose="rose" />
+        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" />
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
@@ -482,10 +482,18 @@ function hourLabel (hour: number): string {
 // The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
+// The Compass view's rose, which draws its own SVG for download.
+const roseChart = ref<{ toSvg: () => string }>()
+
 function download (what: 'summary' | 'connections' | 'chart') {
   const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
   if (what === 'summary' || what === 'connections') {
     save({ filename: `${name}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })
+  } else if (view.value === 'compass') {
+    const svg = roseChart.value?.toSvg()
+    if (svg) {
+      save({ filename: `transfers-compass-${props.individualDate ?? ''}-${props.title}.svg`, data: svg, mimeType: 'image/svg+xml' })
+    }
   } else {
     const svg = root.value?.querySelector('.cal-transfer-report-wait-chart svg')
     if (svg) {

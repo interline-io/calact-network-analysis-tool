@@ -128,6 +128,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
+import { escapeHtml } from '~~/src/core'
 import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
@@ -404,6 +405,39 @@ const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMa
     })]
   })]
 }))
+
+// The rose as a standalone SVG, as it shows (any focus too), its labels as
+// text and its colors fixed, for download.
+function toSvg (): string {
+  const n = (v: number) => v.toFixed(1)
+  const focused = emphasis.value
+  const marker = (i: number) => `<marker id="m${i}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${PALETTE[i]}"/></marker>`
+  const ribbon = (d: string, color: number, width: number, opacity: number, arrow: boolean) =>
+    `<path d="${d}" fill="none" stroke="${PALETTE[color]}" stroke-width="${n(width)}" opacity="${opacity}"${arrow ? ` marker-end="url(#m${color})"` : ''}/>`
+  const parts = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}" width="${WIDTH * 1.5}" height="${HEIGHT * 1.5}" font-family="sans-serif" font-size="11">`,
+    `<defs>${PALETTE.map((_, i) => marker(i)).join('')}</defs>`,
+    `<rect x="${-WIDTH / 2}" y="${-HEIGHT / 2}" width="${WIDTH}" height="${HEIGHT}" fill="#ffffff"/>`,
+    ...rings.value.map(r => `<circle r="${n(r.r)}" fill="none" stroke="#d5d8dc" stroke-dasharray="2 3"/><text x="${n(r.r * Math.SQRT1_2 + 2)}" y="${n(-r.r * Math.SQRT1_2 - 2)}" font-size="8" fill="#6b7280">${r.km} km</text>`),
+    ...drawn.value.flatMap(f => [
+      ribbon(f.d, f.color, f.width, focused ? 0.08 : 0.55, !focused),
+      ...(focused && f.emphasized > 0 ? [ribbon(f.d, f.color, Math.max(1, f.emphasized * scale.value), 0.9, true)] : []),
+    ]),
+    ...placed.value.map(p => `<line x1="${n(p.port.x1)}" y1="${n(p.port.y1)}" x2="${n(p.port.x2)}" y2="${n(p.port.y2)}" stroke="#363636" stroke-width="3" stroke-linecap="round"/>`),
+    '<circle r="5" fill="#363636"/>',
+    `<text x="0" y="${-HEIGHT / 2 + 12}" text-anchor="middle" font-weight="600" fill="#6b7280">N</text>`,
+    ...placed.value.map((p) => {
+      const left = p.labelX < 0
+      const swatch = p.color === undefined ? '' : `<rect x="${n(left ? p.labelX - 8 : p.labelX)}" y="${n(p.labelY - 4)}" width="8" height="8" rx="1.5" fill="${PALETTE[p.color]}"/>`
+      const x = p.color === undefined ? p.labelX : p.labelX + (left ? -11 : 11)
+      return `${swatch}<text x="${n(x)}" y="${n(p.labelY)}" dy="0.35em" text-anchor="${left ? 'end' : 'start'}" fill="#363636">${escapeHtml(p.name)}</text>`
+    }),
+    '</svg>',
+  ]
+  return parts.join('')
+}
+
+defineExpose({ toSvg })
 
 // A point in the SVG's frame as a position over it.
 function at (x: number, y: number) {
