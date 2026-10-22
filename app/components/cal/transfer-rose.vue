@@ -1,19 +1,45 @@
 <template>
   <!-- Connections as flows around the stops: from the places arriving trips
-       come from, through the stops, to the places departing trips go; one
-       color per place of origin, each flow as wide as its connections. A
-       table beside breaks the flows down by origin, arriving trip, and
-       departing trip, with their connections by grade. Clicking a place, a
-       flow, or a row focuses its flows; clicking it again clears. -->
+       come from, through the stops, to the places departing trips go, each
+       flow as wide as its connections; neutral unless colored by origin, as
+       a color says nothing more. A table beside breaks the flows down by
+       origin, arriving trip, and departing trip, with their connections by
+       grade. Clicking a place, a flow, or a row focuses its flows, hiding the
+       rest, until cleared. -->
   <div class="cal-transfer-rose">
     <figure class="cal-transfer-rose-figure">
+      <div class="cal-transfer-rose-controls">
+        <cat-field label="Show">
+          <cat-tabs v-model="showTop" type="toggle">
+            <cat-tab-item v-for="o of SHOW" :key="o.value" :value="o.value" :label="o.label" />
+          </cat-tabs>
+        </cat-field>
+        <cat-field label="Color">
+          <cat-tabs v-model="colorBy" type="toggle">
+            <cat-tab-item value="none" label="None" />
+            <cat-tab-item value="origin" label="By origin" />
+          </cat-tabs>
+        </cat-field>
+        <!-- What is focused, to clear; for a place, its trips from it or to
+             it. -->
+        <div v-if="focus" class="cal-transfer-rose-focused">
+          <span class="tag is-medium">
+            Focused: {{ focus.label }}
+            <button type="button" class="delete is-small" aria-label="Clear focus" @click="focus = undefined" />
+          </span>
+          <cat-tabs v-if="focus.place" :model-value="focus.side" type="toggle" @update:model-value="focusPlace(focus.place, $event as 'from' | 'to', true)">
+            <cat-tab-item value="from" label="Trips from here" />
+            <cat-tab-item value="to" label="Trips to here" />
+          </cat-tabs>
+        </div>
+      </div>
       <p v-if="rose.flows.length === 0" class="cal-transfer-rose-empty">
         No connections to show.
       </p>
       <div v-else class="cal-transfer-rose-frame" :style="{ aspectRatio: `${WIDTH} / ${HEIGHT}` }">
         <svg :viewBox="`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`" aria-hidden="true">
           <defs>
-            <marker v-for="(color, i) of PALETTE" :id="`${uid}-${i}`" :key="color" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto">
+            <marker v-for="(color, i) of MARKER_COLORS" :id="`${uid}-${i}`" :key="color" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto">
               <path d="M0,0 L10,5 L0,10 z" :fill="color" />
             </marker>
           </defs>
@@ -30,20 +56,20 @@
               class="cal-transfer-rose-flow"
               :class="{ 'cal-transfer-rose-faded': emphasis }"
               :d="f.d"
-              :stroke="PALETTE[f.color]"
+              :stroke="MARKER_COLORS[f.base]"
               :stroke-width="f.width"
-              :marker-end="emphasis ? undefined : `url(#${uid}-${f.color})`"
+              :marker-end="emphasis ? undefined : `url(#${uid}-${f.base})`"
               @mouseenter="hover = { id: f.id, flows: new Set(f.flows), text: flowsText(f.flows) }"
               @mouseleave="hover = undefined"
-              @click="setFocus(f.id, f.flows)"
+              @click="setFocus(f.id, f.flows, undefined, `${f.from} to ${f.to}`)"
             />
             <path
               v-if="emphasis && f.emphasized > 0"
               class="cal-transfer-rose-flow cal-transfer-rose-strong"
               :d="f.d"
-              :stroke="PALETTE[f.color]"
+              :stroke="MARKER_COLORS[f.strong]"
               :stroke-width="Math.max(1, f.emphasized * scale)"
-              :marker-end="`url(#${uid}-${f.color})`"
+              :marker-end="`url(#${uid}-${f.strong})`"
             />
           </template>
           <line
@@ -61,22 +87,33 @@
           :key="`label-${p.name}`"
           type="button"
           class="cal-transfer-rose-label"
-          :class="[`cal-transfer-rose-label-${p.labelX < 0 ? 'left' : 'right'}`, { 'cal-transfer-rose-label-focused': focus?.id === `place:${p.name}` }]"
+          :class="[`cal-transfer-rose-label-${p.labelX < 0 ? 'left' : 'right'}`, { 'cal-transfer-rose-label-focused': focus?.place === p.name, 'cal-transfer-rose-label-faded': emphasis && !p.involved }]"
           :style="at(p.labelX, p.labelY)"
-          :aria-pressed="focus?.id === `place:${p.name}`"
+          :aria-pressed="focus?.place === p.name"
           @click="focusPlace(p.name)"
-          @mouseenter="hover = { id: `place:${p.name}`, flows: placeFlows(p.name), text: placeText(p.name) }"
+          @mouseenter="hover = { id: `place:${p.name}`, flows: placeFlows(p.name), text: placeText(p.name), label: p.name }"
           @mouseleave="hover = undefined"
         >
-          <span v-if="p.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[p.color] }" />
+          <span v-if="colorBy === 'origin' && p.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[p.color] }" />
           <span class="cal-transfer-rose-label-name">{{ p.name }}</span>
         </button>
       </div>
       <figcaption class="cal-transfer-rose-caption">
-        {{ hover?.text ?? (focus ? focus.text : 'Connections from where arriving trips come from to where departing trips go, each as wide as its number. Click a place, flow, or row to focus it.') }}
-        <cat-button v-if="focus && !hover" size="small" class="cal-transfer-rose-show" @click="showFocus">
-          Show in Individual
-        </cat-button>
+        <template v-if="hover || focus">
+          {{ (hover ?? focus)!.text }}
+        </template>
+        <template v-else>
+          Each band pairs where arriving trips come from with where departing
+          trips go, as wide as the connections the schedule offers between
+          them, not riders.
+          <cat-tooltip text="Places sit in their direction from the stops; distance is on a log scale, and crowded places are spread apart. Hover a place or band for its counts.">
+            <cat-icon icon="information" size="small" /><span class="is-sr-only">How to read the compass</span>
+          </cat-tooltip>
+          <template v-if="pairings.shown < pairings.all">
+            Showing the {{ pairings.shown }} largest of {{ pairings.all }} pairings; the table has them all.
+          </template>
+          Click a place, band, or row to focus it.
+        </template>
       </figcaption>
     </figure>
 
@@ -108,8 +145,8 @@
           >
             <cat-icon size="small" :icon="opened.has(row.id) ? 'chevron-down' : 'chevron-right'" />
           </button>
-          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text)">
-            <span v-if="row.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[row.color] }" />
+          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text, row.focusLabel)">
+            <span v-if="colorBy === 'origin' && row.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[row.color] }" />
             <cal-route-badge v-if="row.route" :label="row.route" :title="row.agency" />
             <span class="cal-transfer-rose-text">{{ row.label }}</span>
             <span v-if="row.place" class="cal-transfer-rose-place">to {{ row.place }}</span>
@@ -175,6 +212,16 @@ const MIN_SPREAD = 10
 // One color per place of origin: none of the grades' colors, which the
 // table uses.
 const PALETTE = ['#7a4dda', '#2a9d8f', '#c2185b', '#8c6d31', '#5b6470', '#9e9d24', '#00838f', '#6d4c41', '#ad1457', '#3949ab']
+// Uncolored: a neutral band, and the accent for what is focused or under
+// the pointer; after the palette, as markers are drawn for each color.
+const NEUTRAL = PALETTE.length
+const ACCENT = PALETTE.length + 1
+const MARKER_COLORS = [...PALETTE, '#9aa1ab', '#7a4dda']
+
+// How many of the largest pairings to draw, and whether to color by origin.
+const SHOW = [{ value: 'all', label: 'All' }, { value: '10', label: 'Top 10' }, { value: '5', label: 'Top 5' }]
+const showTop = ref('all')
+const colorBy = ref<'none' | 'origin'>('none')
 
 // A unit vector along a bearing, in the SVG's frame (y down); and across it.
 function along (bearing: number): [number, number] {
@@ -182,7 +229,19 @@ function along (bearing: number): [number, number] {
   return [Math.sin(a), -Math.cos(a)]
 }
 
-const maxKm = computed(() => Math.max(0.1, ...props.rose.places.map(p => p.km)))
+// The pairings of places, largest first; those shown; and their flows and
+// places, which the drawing is of.
+const allPairs = computed(() => byTotal(props.rose.flows, f => `${f.from}>${f.to}`)
+  .map(([id, flows]) => ({ id: `pair:${id}`, from: flows[0]!.from, to: flows[0]!.to, flows, total: sumOf(flows).total })))
+const shownPairs = computed(() => (showTop.value === 'all' ? allPairs.value : allPairs.value.slice(0, Number(showTop.value))))
+const pairings = computed(() => ({ shown: shownPairs.value.length, all: allPairs.value.length }))
+const visibleFlows = computed(() => shownPairs.value.flatMap(p => p.flows))
+const visiblePlaces = computed(() => {
+  const names = new Set(shownPairs.value.flatMap(p => [p.from, p.to]))
+  return props.rose.places.filter(p => names.has(p.name))
+})
+
+const maxKm = computed(() => Math.max(0.1, ...visiblePlaces.value.map(p => p.km)))
 function radius (km: number): number {
   return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
 }
@@ -203,7 +262,7 @@ const colors = computed(() => {
 
 // Each place's flows out (from it) and in (to it), and their width.
 const scale = computed(() => {
-  const totals = props.rose.places.map(p => props.rose.flows.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0))
+  const totals = visiblePlaces.value.map(p => visibleFlows.value.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0))
   return MOST_WIDTH / Math.max(1, ...totals)
 })
 
@@ -233,12 +292,13 @@ function spread (bearings: number[]): number[] {
 // Places on the rose: where, the bar where their flows meet them, and their
 // labels, spread apart down each side.
 const placed = computed(() => {
-  const angles = spread(props.rose.places.map(p => p.bearing))
-  const out = props.rose.places.map((p, i) => {
+  const angles = spread(visiblePlaces.value.map(p => p.bearing))
+  const focused = emphasis.value
+  const out = visiblePlaces.value.map((p, i) => {
     const angle = angles[i]!
     const [ux, uy] = along(angle)
     const r = radius(p.km)
-    const total = props.rose.flows.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0)
+    const total = visibleFlows.value.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0)
     const half = Math.max(2, (total * scale.value) / 2)
     const [tx, ty] = [-uy, ux]
     const x = ux * r
@@ -251,6 +311,7 @@ const placed = computed(() => {
       x,
       y,
       color: colors.value.get(p.name),
+      involved: !focused || [...focused].some(f => f.from === p.name || f.to === p.name),
       port: { x1: x - tx * half, y1: y - ty * half, x2: x + tx * half, y2: y + ty * half },
       labelX: ux * labelR + (ux < 0 ? -2 : 2),
       labelY: uy * labelR,
@@ -286,7 +347,7 @@ const drawn = computed(() => {
     return used + width / 2 - Math.sqrt(total) / 2
   }
   const angleOf = (name: string) => at.get(name)?.angle ?? 0
-  const pairs = [...byTotal(props.rose.flows, f => `${f.from}>${f.to}`)].map(([id, flows]) => ({ id: `pair:${id}`, from: flows[0]!.from, to: flows[0]!.to, flows, total: sumOf(flows).total }))
+  const pairs = shownPairs.value
   const leaving = [...pairs].sort((a, b) => angleOf(a.to) - angleOf(b.to))
   const reaching = [...pairs].sort((a, b) => angleOf(a.from) - angleOf(b.from))
   const starts = new Map(leaving.map(f => [f, offset(f.from, Math.max(1, f.total * scale.value))]))
@@ -309,8 +370,12 @@ const drawn = computed(() => {
     return {
       id: f.id,
       flows: f.flows,
+      from: f.from,
+      to: f.to,
       emphasized: focused ? f.flows.reduce((n, x) => n + (focused.has(x) ? x.total : 0), 0) : 0,
-      color: colors.value.get(f.from) ?? 0,
+      // The band's color, and over it, the focused part's.
+      base: colorBy.value === 'origin' ? colors.value.get(f.from) ?? 0 : NEUTRAL,
+      strong: colorBy.value === 'origin' ? colors.value.get(f.from) ?? 0 : ACCENT,
       width: Math.max(1, f.total * scale.value),
       d: `M${n(s[0])},${n(s[1])} C${n(c1[0])},${n(c1[1])} ${n(c2[0])},${n(c2[1])} ${n(e[0])},${n(e[1])}`,
     }
@@ -319,22 +384,14 @@ const drawn = computed(() => {
 
 // The flows focused, by a click, and those under the pointer; the latter
 // shows first.
-interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string }
+// A place focused shows its trips from it or to it.
+interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string, label?: string, place?: string, side?: 'from' | 'to' }
 const focus = ref<Emphasis>()
 const hover = ref<Emphasis>()
 const emphasis = computed(() => (hover.value ?? focus.value)?.flows)
 
-function setFocus (id: string, flows: TransferRoseFlow[], text?: string) {
-  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows) }
-}
-
-// The focus's arrivals and connections, for the Individual view to narrow
-// to.
-function showFocus () {
-  const f = focus.value
-  if (f) {
-    show([...f.flows])
-  }
+function setFocus (id: string, flows: TransferRoseFlow[], text?: string, label?: string) {
+  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows), label: label ?? text }
 }
 
 function show (flows: TransferRoseFlow[]) {
@@ -348,8 +405,24 @@ function placeFlows (name: string) {
   return new Set(props.rose.flows.filter(f => f.from === name || f.to === name))
 }
 
-function focusPlace (name: string) {
-  setFocus(`place:${name}`, [...placeFlows(name)], placeText(name))
+// A place's trips from it, where it has any, else to it; or the side asked
+// for. Clicking the place focused clears it, unless switching sides.
+function focusPlace (name: string, side?: 'from' | 'to', switching = false) {
+  if (!switching && focus.value?.place === name) {
+    focus.value = undefined
+    return
+  }
+  const pick = side ?? (props.rose.flows.some(f => f.from === name) ? 'from' : 'to')
+  const flows = props.rose.flows.filter(f => (pick === 'from' ? f.from : f.to) === name)
+  const { total, grades } = sumOf(flows)
+  focus.value = {
+    id: `place:${name}`,
+    flows: new Set(flows),
+    text: `${pick === 'from' ? 'From' : 'To'} ${name}: ${connections(total)} (${gradesText(grades)}).`,
+    label: name,
+    place: name,
+    side: pick,
+  }
 }
 
 function sumOf (flows: TransferRoseFlow[]): { total: number, grades: TransferGradeCounts } {
@@ -413,6 +486,8 @@ interface Row {
   total: number
   grades: TransferGradeCounts
   text: string
+  // What the focus chip calls it.
+  focusLabel: string
 }
 
 function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => K): [K, TransferRoseFlow[]][] {
@@ -426,7 +501,7 @@ function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => 
 
 const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMap(([origin, flows]) => {
   const id = `from:${origin}`
-  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '' }
+  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '', focusLabel: `From ${origin}` }
   row.text = `From ${origin}: ${connections(row.total)} (${gradesText(row.grades)}).`
   if (!opened.value.has(id)) {
     return [row]
@@ -434,14 +509,15 @@ const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMa
   return [row, ...byTotal(flows, f => f.fromKey).flatMap(([fromKey, arrivals]) => {
     const trip = props.rose.from.get(fromKey)
     const arrivalId = `${id}|${fromKey}`
-    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '' }
+    const name = `${trip?.route ?? ''} ${trip?.label ?? ''}`.trim()
+    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '', focusLabel: `${name} from ${origin}` }
     arrival.text = `${trip?.route ?? ''} ${trip?.label ?? ''} from ${origin}: ${connections(arrival.total)} (${gradesText(arrival.grades)}).`
     if (!opened.value.has(arrivalId)) {
       return [arrival]
     }
     return [arrival, ...byTotal(arrivals, f => f.toKey).map(([toKey, pair]): Row => {
       const to = props.rose.to.get(toKey)
-      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
+      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!), focusLabel: `${name} to ${`${to?.route ?? ''} ${to?.label ?? ''}`.trim()}` }
     })]
   })]
 }))
@@ -451,25 +527,25 @@ const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMa
 function toSvg (): string {
   const n = (v: number) => v.toFixed(1)
   const focused = emphasis.value
-  const marker = (i: number) => `<marker id="m${i}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${PALETTE[i]}"/></marker>`
+  const marker = (i: number) => `<marker id="m${i}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${MARKER_COLORS[i]}"/></marker>`
   const ribbon = (d: string, color: number, width: number, opacity: number, arrow: boolean) =>
-    `<path d="${d}" fill="none" stroke="${PALETTE[color]}" stroke-width="${n(width)}" opacity="${opacity}"${arrow ? ` marker-end="url(#m${color})"` : ''}/>`
+    `<path d="${d}" fill="none" stroke="${MARKER_COLORS[color]}" stroke-width="${n(width)}" opacity="${opacity}"${arrow ? ` marker-end="url(#m${color})"` : ''}/>`
   const parts = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}" width="${WIDTH * 1.5}" height="${HEIGHT * 1.5}" font-family="sans-serif" font-size="11">`,
-    `<defs>${PALETTE.map((_, i) => marker(i)).join('')}</defs>`,
+    `<defs>${MARKER_COLORS.map((_, i) => marker(i)).join('')}</defs>`,
     `<rect x="${-WIDTH / 2}" y="${-HEIGHT / 2}" width="${WIDTH}" height="${HEIGHT}" fill="#ffffff"/>`,
     ...rings.value.map(r => `<circle r="${n(r.r)}" fill="none" stroke="#d5d8dc" stroke-dasharray="2 3"/><text x="${n(r.x)}" y="${n(r.y)}" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#6b7280" stroke="#ffffff" stroke-width="3" paint-order="stroke">${r.km} km</text>`),
     ...drawn.value.flatMap(f => [
-      ribbon(f.d, f.color, f.width, focused ? 0.08 : 0.55, !focused),
-      ...(focused && f.emphasized > 0 ? [ribbon(f.d, f.color, Math.max(1, f.emphasized * scale.value), 0.9, true)] : []),
+      ribbon(f.d, f.base, f.width, focused ? 0.04 : 0.55, !focused),
+      ...(focused && f.emphasized > 0 ? [ribbon(f.d, f.strong, Math.max(1, f.emphasized * scale.value), 0.9, true)] : []),
     ]),
     ...placed.value.map(p => `<line x1="${n(p.port.x1)}" y1="${n(p.port.y1)}" x2="${n(p.port.x2)}" y2="${n(p.port.y2)}" stroke="#363636" stroke-width="3" stroke-linecap="round"/>`),
     '<circle r="5" fill="#363636"/>',
     `<text x="0" y="${-HEIGHT / 2 + 12}" text-anchor="middle" font-weight="600" fill="#6b7280">N</text>`,
     ...placed.value.map((p) => {
       const left = p.labelX < 0
-      const swatch = p.color === undefined ? '' : `<rect x="${n(left ? p.labelX - 8 : p.labelX)}" y="${n(p.labelY - 4)}" width="8" height="8" rx="1.5" fill="${PALETTE[p.color]}"/>`
-      const x = p.color === undefined ? p.labelX : p.labelX + (left ? -11 : 11)
+      const swatch = colorBy.value !== 'origin' || p.color === undefined ? '' : `<rect x="${n(left ? p.labelX - 8 : p.labelX)}" y="${n(p.labelY - 4)}" width="8" height="8" rx="1.5" fill="${PALETTE[p.color]}"/>`
+      const x = !swatch ? p.labelX : p.labelX + (left ? -11 : 11)
       return `${swatch}<text x="${n(x)}" y="${n(p.labelY)}" dy="0.35em" text-anchor="${left ? 'end' : 'start'}" fill="#363636">${escapeHtml(p.name)}</text>`
     }),
     '</svg>',
@@ -508,8 +584,32 @@ function at (x: number, y: number) {
   color: var(--bulma-text-weak);
 }
 
-.cal-transfer-rose-show {
-  margin-left: 0.5rem;
+.cal-transfer-rose-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+
+  :deep(.field) {
+    margin-bottom: 0;
+  }
+
+  :deep(.label) {
+    font-size: 0.7rem;
+    margin-bottom: 0.15rem;
+  }
+
+  :deep(.cat-tabs) {
+    margin-bottom: 0;
+  }
+}
+
+.cal-transfer-rose-focused {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .cal-transfer-rose-caption {
@@ -559,7 +659,11 @@ function at (x: number, y: number) {
 }
 
 .cal-transfer-rose-faded {
-  opacity: 0.08;
+  opacity: 0.04;
+}
+
+.cal-transfer-rose-label-faded {
+  opacity: 0.35;
 }
 
 .cal-transfer-rose-port {
