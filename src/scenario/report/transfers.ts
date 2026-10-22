@@ -367,12 +367,6 @@ export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
   excludedTo: [],
 }
 
-// The groups whose arrival falls on a date (all dates when undefined). The
-// time of day is the scenario's, which transferEvents already keeps to.
-export function filterTransferGroups (groups: TransferGroup[], date: string | undefined): TransferGroup[] {
-  return groups.filter(({ arrival: a }) => date === undefined || a.date === date)
-}
-
 // Whether breakpoints can grade waits: five, strictly increasing.
 export function validBreakpoints (breakpoints: readonly number[]): boolean {
   return breakpoints.length === 5 && breakpoints.every((b, i) => Number.isFinite(b) && (i === 0 || b > breakpoints[i - 1]!))

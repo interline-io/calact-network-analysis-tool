@@ -11,7 +11,6 @@ import {
   DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
   clusterDisplayName,
-  filterTransferGroups,
   resolveEffectiveWeekdays,
   summarizeTransfers,
   transferEvents,
@@ -83,12 +82,18 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return s?.kind === 'cluster' ? result.value?.stopClusters?.find(c => c.id === s.clusterId) : undefined
   })
   // Stops by their parent station (its feed version and GTFS id).
+  const parentKey = (stop: Stop | undefined) => (stop?.parent?.stop_id ? `${stop.feed_version.sha1}|${stop.parent.stop_id}` : undefined)
   const stopsByParent = computed(() => {
     const byParent = new Map<string, number[]>()
     for (const stop of stops.value.values()) {
-      if (stop.parent?.stop_id) {
-        const key = `${stop.feed_version.sha1}|${stop.parent.stop_id}`
-        byParent.set(key, [...(byParent.get(key) ?? []), stop.id])
+      const key = parentKey(stop)
+      if (key) {
+        const list = byParent.get(key)
+        if (list) {
+          list.push(stop.id)
+        } else {
+          byParent.set(key, [stop.id])
+        }
       }
     }
     return byParent
@@ -104,21 +109,18 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       : (cluster.value?.memberStopIds ?? [])
     const ids = new Set(own)
     for (const id of own) {
-      const stop = stops.value.get(id)
-      if (stop?.parent?.stop_id) {
-        for (const sibling of stopsByParent.value.get(`${stop.feed_version.sha1}|${stop.parent.stop_id}`) ?? []) {
-          ids.add(sibling)
-        }
+      const key = parentKey(stops.value.get(id))
+      for (const sibling of (key && stopsByParent.value.get(key)) || []) {
+        ids.add(sibling)
       }
     }
     return [...ids]
   })
-  const addedStopIds = computed(() => deps.stopEdits.value.added)
-  const removedStopIds = computed(() => deps.stopEdits.value.removed)
   const stopIds = computed((): number[] => {
-    const removed = new Set(removedStopIds.value)
-    const own = subjectStopIds.value.filter(id => !removed.has(id))
-    return [...own, ...addedStopIds.value.filter(id => stops.value.has(id) && !own.includes(id))]
+    const { added, removed } = deps.stopEdits.value
+    const out = new Set(removed)
+    const own = subjectStopIds.value.filter(id => !out.has(id))
+    return [...own, ...added.filter(id => stops.value.has(id) && !own.includes(id))]
   })
   // The stops picked, as added to and taken from the subject's own.
   function setStopIds (ids: number[]) {
@@ -249,6 +251,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return { table, unknown, most }
   })
 
+  // How far the departures read reach: only the outer breakpoints and the
+  // longest walk, so editing a grade's bounds or loading a distance under
+  // the longest leaves the events be.
+  const missedReach = computed(() => breakpoints.value[0]!)
+  const waitReach = computed(() => breakpoints.value[breakpoints.value.length - 1]!)
+  const mostWalk = computed(() => walkTable.value.most)
   const events = computed(() => {
     const r = result.value
     if (!r || stopIds.value.length === 0) {
@@ -260,8 +268,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       ...timeWindow.value,
       stopDepartureCache: r.stopDepartureCache,
       tripDetails: store.details.value,
-      maxWalkSeconds: walkTable.value.most,
-      breakpoints: breakpoints.value,
+      maxWalkSeconds: mostWalk.value,
+      breakpoints: [missedReach.value, waitReach.value],
     })
   })
 
@@ -278,20 +286,38 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     to: transferTripInfo(routeChoices.value.to),
   }))
 
-  const groups = computed(() => {
+  // The trips left out, each read through its own setting, so other
+  // settings changing leave what follows them be.
+  const excludedFromKeys = computed(() => settings.value.excludedFrom)
+  const excludedToKeys = computed(() => settings.value.excludedTo)
+  const excludedFrom = computed(() => new Set(excludedFromKeys.value))
+  const excludedTo = computed(() => new Set(excludedToKeys.value))
+  const arrivals = computed(() => (events.value?.arrivals ?? []).filter(a => !excludedFrom.value.has(transferTripKey(a))))
+
+  // The dates with arrivals, for the date picker.
+  const individualDates = computed(() => {
+    const withArrivals = new Set(arrivals.value.map(a => a.date))
+    return dates.value.filter(d => withArrivals.has(d))
+  })
+  // Both views show one date: the one picked, or the first.
+  const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
+
+  // The date's arrivals and their connections, worked out for that date
+  // alone. Departures left out are dropped after: each destination's first
+  // connection stands apart from the others', so dropping some leaves the
+  // rest as they were.
+  const allDateGroups = computed(() => {
     const e = events.value
     if (!e) {
       return []
     }
-    const fromOut = new Set(settings.value.excludedFrom)
-    const toOut = new Set(settings.value.excludedTo)
-    const { table, most } = walkTable.value
+    const { table } = walkTable.value
     return calculateTransfers(
-      e.arrivals.filter(a => !fromOut.has(transferTripKey(a))),
-      e.departures.filter(d => !toOut.has(transferTripKey(d))),
+      arrivals.value.filter(a => a.date === individualDate.value),
+      e.departures,
       {
         walkSeconds: (from, to) => (from === to ? 0 : (table.get(from)?.get(to) ?? Number.NaN)),
-        maxWalkSeconds: most,
+        maxWalkSeconds: mostWalk.value,
         breakpoints: breakpoints.value,
         allConnections: settings.value.allConnections,
         agencyOf: routeId => routes.value.get(routeId)?.agency?.id,
@@ -299,28 +325,23 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       },
     )
   })
-
-  // The dates with arrivals, for the date picker.
-  const individualDates = computed(() => {
-    const withArrivals = new Set(groups.value.map(g => g.arrival.date))
-    return dates.value.filter(d => withArrivals.has(d))
+  const dateGroups = computed(() => {
+    const out = excludedTo.value
+    return out.size === 0
+      ? allDateGroups.value
+      : allDateGroups.value.map(g => ({ ...g, connections: g.connections.filter(c => !out.has(transferTripKey(c.departure))) }))
   })
-  // Both views show one date: the one picked, or the first.
-  const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
-
-  // The date's arrivals, and their figures, for both views.
-  const dateGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
   const overview = computed(() => transferOverview(dateGroups.value))
 
   const summary = computed(() => summarizeTransfers(dateGroups.value))
-  const summaryRows = computed(() => transferSummaryRows(summary.value, routes.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
 
-  const individualRows = computed(() => transferRows(dateGroups.value, {
-    routes: routes.value,
-    stops: stops.value,
-    tripDetails: store.details.value,
-  }))
+  // The views' rows, flat, as CSV: built when asked for.
+  function csvRows (kind: 'summary' | 'connections'): Record<string, unknown>[] {
+    return kind === 'summary'
+      ? transferSummaryRows(summary.value, routes.value) as unknown as Record<string, unknown>[]
+      : transferRows(dateGroups.value, { routes: routes.value, stops: stops.value, tripDetails: store.details.value }) as unknown as Record<string, unknown>[]
+  }
   const individualGrid = computed(() => transferGrid(dateGroups.value, { ...tripInfo.value, stops: stops.value }))
   // Each connection on the date by the arrival's time of day, for the chart.
   const individualPoints = computed(() => dateGroups.value.flatMap((g) => {
@@ -352,9 +373,11 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     distancesError.value = null
     return load()
   }
-  // Nothing is read while hidden, so the report does no work then.
+  // Nothing is read while hidden, so the report does no work then; each
+  // source compared by value, so a recompute that changes nothing loads
+  // nothing.
   watch(
-    () => (toValue(deps.active) ? [pairs.value, distanceModes.value, events.value?.missingTripIds] : undefined),
+    [() => toValue(deps.active), pairs, distanceModes, () => (events.value?.missingTripIds ?? []).join(',')],
     () => load(),
   )
 
@@ -369,7 +392,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     } else if (cluster.value) {
       name = clusterDisplayName(cluster.value.name, cluster.value.nearName)
     }
-    const edited = addedStopIds.value.length > 0 || removedStopIds.value.length > 0
+    const edited = deps.stopEdits.value.added.length > 0 || deps.stopEdits.value.removed.length > 0
     return edited ? `${name} (${stopIds.value.length} stops)` : name
   })
 
@@ -408,12 +431,11 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     routeChoices,
     selectedDate,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
-    summaryRows,
+    csvRows,
     summaryGrid,
     overview,
     individualDates,
     individualDate,
-    individualRows,
     individualGrid,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
@@ -428,8 +450,17 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 // Clusters whose names are the same, each told apart by a member's name the
 // others lack.
 function distinctLabels (clusters: { key: string, label: string, memberNames: string[] }[]): { key: string, label: string }[] {
+  const byLabel = new Map<string, typeof clusters>()
+  for (const c of clusters) {
+    const list = byLabel.get(c.label)
+    if (list) {
+      list.push(c)
+    } else {
+      byLabel.set(c.label, [c])
+    }
+  }
   return clusters.map((c) => {
-    const same = clusters.filter(o => o.label === c.label && o !== c)
+    const same = byLabel.get(c.label)!.filter(o => o !== c)
     if (same.length === 0) {
       return { key: c.key, label: c.label }
     }

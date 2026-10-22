@@ -5,7 +5,6 @@ import type { TripDetail, TripStopTime } from '../../tl/trip-details'
 import {
   calculateTransfers,
   calendarTime,
-  filterTransferGroups,
   formatWait,
   summarizeTransfers,
   transferEvents,
@@ -317,15 +316,6 @@ describe('summarizeTransfers and transferOverview', () => {
       ['07:30:00', '07:45:00', 'unacceptable', 'Unacceptable'],
       ['08:00:00', '', 'none', 'No connection'],
     ])
-  })
-})
-
-describe('filterTransferGroups', () => {
-  it('keeps arrivals on a date and in a time band', () => {
-    const groups = calculateTransfers([event(1, 10, hms(6, 30)), event(2, 10, hms(8)), event(3, 10, hms(8) + 86400)], [], walk)
-    expect(filterTransferGroups(groups, undefined).length).toBe(3)
-    expect(filterTransferGroups(groups, MON).map(g => g.arrival.tripId)).toEqual([1, 2])
-    expect(filterTransferGroups(groups, TUE).map(g => g.arrival.tripId)).toEqual([3])
   })
 })
 

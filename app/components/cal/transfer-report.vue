@@ -277,8 +277,6 @@ import {
   type TransferRouteChoice,
   type TransferSettings,
   type TransferSummaryGridRow,
-  type TransferSummaryRow,
-  type TransferRow,
 } from '~~/src/scenario'
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
@@ -301,9 +299,9 @@ const props = defineProps<{
   // Each view's rows, nested: an arriving trip (or destination), then the
   // departing ones it connects to.
   summaryGrid: TransferSummaryGridRow[]
-  // Both views' rows, flat, for download.
-  summaryRows: TransferSummaryRow[]
-  individualRows: TransferRow[]
+  // Each view's rows, flat, as CSV, built when asked for. Only the view
+  // shown has its grid and chart points.
+  csvRows: (kind: 'summary' | 'connections') => Record<string, unknown>[]
   // The date's figures, as both views show them.
   overview: TransferOverview
   individualDates: string[]
@@ -473,10 +471,8 @@ function hourLabel (hour: number): string {
 const root = ref<HTMLElement>()
 function download (what: 'summary' | 'connections' | 'chart') {
   const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
-  if (what === 'summary') {
-    saveBlob(csvBlob(props.summaryRows as unknown as Record<string, unknown>[]), `${name}.csv`)
-  } else if (what === 'connections') {
-    saveBlob(csvBlob(props.individualRows as unknown as Record<string, unknown>[]), `${name}.csv`)
+  if (what === 'summary' || what === 'connections') {
+    saveBlob(csvBlob(props.csvRows(what)), `${name}.csv`)
   } else {
     const svg = root.value?.querySelector('.cal-transfer-report-wait-chart svg')
     if (svg) {
