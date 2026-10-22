@@ -363,8 +363,8 @@ function initMap () {
   map = m
   m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
   m.on('load', () => {
-    // The routes' lines under all else: those at a picked stop in full, the
-    // rest dimmed.
+    // The routes' lines under all else, for orientation only, so thin and
+    // faint: those at a picked stop less so than the rest.
     m.addSource('routes', { type: 'geojson', data: routeFeatures() })
     for (const picked of [false, true]) {
       m.addLayer({
@@ -375,8 +375,8 @@ function initMap () {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': ['get', 'color'],
-          'line-width': picked ? 4 : 2,
-          'line-opacity': picked ? 0.9 : 0.25,
+          'line-width': picked ? 2 : 1,
+          'line-opacity': picked ? 0.5 : 0.2,
         },
       })
     }
@@ -668,14 +668,14 @@ onBeforeUnmount(() => {
 .cal-transfer-stops-map-key-route {
   display: inline-block;
   width: 1rem;
-  height: 4px;
-  border-radius: 2px;
+  height: 2px;
   background: #5b6470;
+  opacity: 0.5;
 }
 
 .cal-transfer-stops-map-key-route-other {
-  height: 2px;
-  opacity: 0.35;
+  height: 1px;
+  opacity: 0.25;
 }
 
 .cal-transfer-stops-map-key-extent {
