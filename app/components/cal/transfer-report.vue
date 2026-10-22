@@ -58,10 +58,12 @@
               :icon-left="t.icon"
               :variant="openSection === t.section ? 'primary' : undefined"
               :outlined="openSection === t.section"
-              v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId }"
+              v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId, 'title': t.label }"
               @click="openSection = openSection === t.section ? undefined : t.section"
             >
-              {{ t.label }}
+              <!-- Hidden but still read out where the toolbar is narrow, so
+                   the toggles keep to its row as icons. -->
+              <span class="cal-transfer-report-toggle-label">{{ t.label }}</span>
               <!-- The share of trips the filters keep, on the button's corner,
                    so it shows at a glance without widening the button; said
                    in full on hover and to screen readers. -->
@@ -518,6 +520,8 @@ function rowClass (row: TransferGridTrip): string | undefined {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  // The toolbar fits its controls to this width.
+  container-type: inline-size;
 }
 
 .cal-transfer-report-subject :deep(select) {
@@ -525,11 +529,34 @@ function rowClass (row: TransferGridTrip): string | undefined {
   width: 16rem;
 }
 
+// Narrower, the stop picker narrows and the settings toggles show only their
+// icons, so the controls stay on one row; on a phone, they wrap.
+@container (max-width: 72rem) {
+  .cal-transfer-report-subject :deep(select) {
+    width: 12rem;
+  }
+
+  .cal-transfer-report-toggle-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@container (max-width: 48rem) {
+  .cal-transfer-report-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
 // The primary fields, labeled, at full size; the settings toggle at the end
 // of the row.
 .cal-transfer-report-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
   gap: 0.5rem 1rem;
   margin-bottom: 0.75rem;
