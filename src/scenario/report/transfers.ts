@@ -8,7 +8,7 @@
  * compares correctly with an arrival the evening before.
  */
 
-import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatDuration, formatGtfsTimeFull } from '../../core'
+import { TRANSFER_GRADE_BREAKPOINTS, TRANSFER_WALK_SECONDS_PER_METER, formatDuration, formatGtfsTimeFull, groupBy } from '../../core'
 import type { StopDepartureCache } from '../../tl/departure-cache'
 import { isoToOrdinal, ordinalToIso } from '../../tl/feed-version'
 import { tripHeadsignAt, type TripDetail, type TripStopTime } from '../../tl/trip-details'
@@ -546,7 +546,6 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           continue
         }
         const { stopTime, comesFrom, goesOn, headsign } = call
-        const stopTimes = detail.stopTimes
         const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
         const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
@@ -565,7 +564,7 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           headsign,
           origin: detail.firstStopName,
           terminus: detail.lastStopName,
-          stopCount: stopTimes.length,
+          stopCount: detail.stopCount,
         })
         if (comesFrom && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
@@ -710,6 +709,11 @@ export interface TransferOverview {
 }
 
 // The figures over all of the groups' arrivals.
+// Connections by departure, earliest first; by wait where two leave at once.
+function inDepartureOrder (connections: TransferConnection[]): TransferConnection[] {
+  return [...connections].sort((a, b) => a.departure.time - b.departure.time || a.wait - b.wait)
+}
+
 export function transferOverview (groups: TransferGroup[]): TransferOverview {
   const counts: Record<TransferGrade, number> = { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
   let connections = 0
@@ -721,9 +725,9 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
       counts[c.grade] += 1
     }
     connections += g.connections.length
-    // Connections are sorted by wait, so the first made (not missed) is the
-    // soonest.
-    const soonest = g.connections.find(c => c.grade !== 'missed')
+    // The soonest made (not missed) is the earliest departure a rider can
+    // take, which from a nearer stop may have the longer wait.
+    const soonest = inDepartureOrder(g.connections).find(c => c.grade !== 'missed')
     if (soonest) {
       waits.push(soonest.wait)
       close += soonest.grade === 'close' ? 1 : 0
@@ -802,22 +806,14 @@ export interface TransferArrivalSummary {
  * connections made.
  */
 export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSummary[] {
-  const byFrom = new Map<string, TransferGroup[]>()
-  for (const g of groups) {
-    const key = transferTripKey(g.arrival)
-    const list = byFrom.get(key)
-    if (list) {
-      list.push(g)
-    } else {
-      byFrom.set(key, [g])
-    }
-  }
-  return [...byFrom.values()].map((fromGroups) => {
+  return [...groupBy(groups, g => transferTripKey(g.arrival)).values()].map((fromGroups) => {
     const arrivals = fromGroups.length
     const pairs = new Map<string, { pair: TransferPairSummary, firstWaits: number[], firstClose: number, firstAcceptable: number }>()
     for (const { connections } of fromGroups) {
+      // In departure order, so each destination's first made is the earliest
+      // a rider can take.
       const firstMade = new Set<string>()
-      for (const c of connections) {
+      for (const c of inDepartureOrder(connections)) {
         const to = tripRef(c.departure)
         let p = pairs.get(to.key)
         if (!p) {

@@ -248,6 +248,13 @@ describe('calculateTransfers', () => {
     expect(group!.connections.map(c => c.departure.tripId)).toEqual([3])
   })
 
+  it('sums up each arrival by its earliest departure made, not its shortest wait', () => {
+    // At the same stop at 07:04 (a 4 minute wait), and 2 minutes' walk away
+    // at 07:05 (a 3 minute wait).
+    const [group] = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 4)), event(3, 30, hms(7, 5), 2)], walk)
+    expect(transferOverview([group!]).medianWait).toBe(hms(0, 4))
+  })
+
   it('counts a connection made only once it is better than missed, whatever the breakpoints', () => {
     // Close from 1 minute: a 30 s wait is missed, so the later close one shows.
     const deps = [event(2, 20, hms(7) + 30), event(3, 20, hms(7, 3))]
