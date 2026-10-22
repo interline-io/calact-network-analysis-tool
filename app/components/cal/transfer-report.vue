@@ -29,7 +29,7 @@
         </cat-field>
         <!-- Which arrivals to show: the Summary covers every date unless one
              is picked; Individual shows one date at a time. -->
-        <cat-field v-if="individualDates.length > 0" label="Date">
+        <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-shrink">
           <cat-select
             :model-value="view === 'summary' ? (summaryDate ?? '') : individualDate"
             @update:model-value="date = $event || undefined"
@@ -42,7 +42,7 @@
             </option>
           </cat-select>
         </cat-field>
-        <cat-field label="Time of day">
+        <cat-field label="Time of day" class="cal-transfer-report-shrink">
           <cat-select v-model="timeBand">
             <option v-for="b of TRANSFER_TIME_BANDS" :key="b.key" :value="b.key">
               {{ b.label }}
@@ -546,7 +546,7 @@ function rowClass (row: TransferGridTrip): string | undefined {
   }
 }
 
-@container (max-width: 48rem) {
+@container (max-width: 52rem) {
   .cal-transfer-report-toolbar {
     flex-wrap: wrap;
   }
@@ -558,19 +558,24 @@ function rowClass (row: TransferGridTrip): string | undefined {
   display: flex;
   flex-wrap: nowrap;
 
-  // The controls at their own width; only the stop picker gives way.
+  // The controls at their own width; only the selects give way.
   > * {
     flex-shrink: 0;
   }
 
-  > .cal-transfer-report-subject {
+  > .cal-transfer-report-subject,
+  > .cal-transfer-report-shrink {
     flex-shrink: 1;
-    min-width: 9rem;
+    min-width: 7rem;
 
     :deep(.select),
     :deep(select) {
       max-width: 100%;
     }
+  }
+
+  > .cal-transfer-report-subject {
+    min-width: 9rem;
   }
 
   align-items: flex-end;
