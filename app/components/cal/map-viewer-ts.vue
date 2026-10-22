@@ -1314,15 +1314,15 @@ function mapContextMenu (e: maplibre.MapMouseEvent) {
   }
   const point: Point = { lon: e.lngLat.lng, lat: e.lngLat.lat }
   const menu = document.createElement('div')
+  // Bulma's dropdown menu, as a popup at the point.
+  menu.className = 'dropdown-content'
   menu.setAttribute('role', 'menu')
   for (const [label, arriveBy] of [['Travel time from here', false], ['Travel time to here', true]] as const) {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'cal-isochrone-menu-item'
+    button.className = 'dropdown-item'
     button.setAttribute('role', 'menuitem')
-    const icon = document.createElement('i')
-    icon.className = `mdi ${arriveBy ? 'mdi-map-marker-down' : 'mdi-map-marker-up'}`
-    button.append(icon, document.createTextNode(` ${label}`))
+    button.textContent = label
     button.addEventListener('click', () => {
       isochroneMenu?.remove()
       isochroneMenu = undefined
@@ -1450,29 +1450,15 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     max-width: 250px;
   }
 
-  /* Right-click menu: open an isochrone from or to the point */
+  /* Right-click menu: Bulma's dropdown-content draws it, so the popup adds
+     no box of its own. */
   .cal-isochrone-menu-popup .maplibregl-popup-content {
-    padding: 4px 0;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    padding: 0;
+    background: none;
+    box-shadow: none;
   }
   .cal-isochrone-menu-popup .maplibregl-popup-tip {
     display: none;
-  }
-  .cal-isochrone-menu-item {
-    display: block;
-    width: 100%;
-    padding: 6px 12px;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-  }
-  .cal-isochrone-menu-item:hover,
-  .cal-isochrone-menu-item:focus {
-    background: #f0f4fa;
   }
 
   /* Hover tooltip for selectable geographies */

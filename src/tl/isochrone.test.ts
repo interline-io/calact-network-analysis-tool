@@ -7,7 +7,6 @@ import {
   isochroneCutoffColors,
   parseIsochroneCutoff,
   isochroneIsEmpty,
-  isochroneLegend,
   isochroneMapFeatures,
   isochroneModeFromRouteTypes,
   isochroneModeParam,
@@ -190,10 +189,9 @@ describe('parseIsochroneResponse', () => {
 })
 
 describe('band display', () => {
-  it('draws longest first, and lists shortest first', () => {
+  it('draws longest first', () => {
     const bands = parseRecording('leaving-from').bands!
     expect(isochroneMapFeatures(bands).map(f => f.properties.time)).toEqual([2700, 1800, 900])
-    expect(isochroneLegend(bands).map(r => r.label)).toEqual(['Within 15 min', 'Within 30 min', 'Within 45 min'])
   })
 
   it('spans the ramp whatever the band count', () => {

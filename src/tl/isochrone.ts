@@ -245,11 +245,6 @@ export function isochroneMapFeatures (bands: IsochroneBand[]): Feature[] {
   return [...bands].reverse().map(b => b.feature)
 }
 
-// Legend rows, shortest time first.
-export function isochroneLegend (bands: IsochroneBand[]): { color: string, label: string }[] {
-  return bands.map(b => ({ color: b.color, label: `Within ${b.minutes} min` }))
-}
-
 // "lat,lon" as the URL holds a place.
 export function formatIsochronePlace (p: Point): string {
   return `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`

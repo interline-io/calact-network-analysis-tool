@@ -12,7 +12,7 @@
            reads the hyphenated attributes lint asks for as native ones. -->
       <div class="cal-isochrone-row">
         <div role="group" aria-label="Direction">
-          <cat-field addons class="cal-isochrone-group">
+          <cat-field addons>
             <div v-for="d of directions" :key="d.label" class="control">
               <cat-button
                 size="small"
@@ -43,26 +43,29 @@
       </div>
 
       <div class="cal-isochrone-row">
-        <label class="cal-isochrone-field cal-isochrone-date">
-          <span class="cal-isochrone-label">Date</span>
+        <cat-field label="Date" label-size="small" class="cal-isochrone-date">
           <cat-datepicker
             :key="dateKey"
             size="small"
             :model-value="parseDate(params.date)"
             @update:model-value="onDate"
           />
-        </label>
-        <label class="cal-isochrone-field cal-isochrone-time">
-          <span class="cal-isochrone-label">{{ params.arriveBy ? 'Arrive by' : 'Leave at' }}</span>
+        </cat-field>
+        <cat-field :label="params.arriveBy ? 'Arrive by' : 'Leave at'" label-size="small" class="cal-isochrone-time">
           <cal-timepicker
             size="small"
             icon="clock"
             :model-value="parseTime(`${params.time}:00`)"
             @update:model-value="onTime"
           />
-        </label>
-        <label class="cal-isochrone-field cal-isochrone-walk" title="Farthest walk to the first stop, or from the last">
-          <span class="cal-isochrone-label">Max walk</span>
+        </cat-field>
+        <cat-field label-size="small" class="cal-isochrone-walk">
+          <template #label>
+            Max walk
+            <cat-tooltip text="The farthest walk to the first stop, or from the last." position="left">
+              <i class="mdi mdi-information-outline" />
+            </cat-tooltip>
+          </template>
           <cat-select
             size="small"
             :model-value="String(params.maxWalk)"
@@ -72,41 +75,38 @@
               {{ formatDistance(m) }}
             </option>
           </cat-select>
-        </label>
+        </cat-field>
       </div>
 
-      <div class="cal-isochrone-field">
-        <span class="cal-isochrone-label">Travel time</span>
-        <div role="group" aria-label="Travel time">
-          <cat-field addons class="cal-isochrone-group">
-            <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
-              <cat-button
-                size="small"
-                fullwidth
-                :style="cutoffStyle(m)"
-                v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
-                :disabled="params.cutoffs.includes(m) ? params.cutoffs.length === 1 : cutoffsFull"
-                @click="toggleCutoff(m)"
-              >
-                {{ cutoffLabel(m) }}
-              </cat-button>
-            </div>
-            <div class="control">
-              <cat-button
-                size="small"
-                icon-left="plus"
-                v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
-                :title="cutoffsFull ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
-                :disabled="cutoffsFull"
-                @click="startAddingCutoff"
-              />
-            </div>
-          </cat-field>
-        </div>
+      <div role="group" aria-label="Travel time">
+        <cat-field label="Travel time" label-size="small" addons>
+          <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
+            <cat-button
+              size="small"
+              fullwidth
+              :style="cutoffStyle(m)"
+              v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
+              :disabled="params.cutoffs.includes(m) ? params.cutoffs.length === 1 : cutoffsFull"
+              @click="toggleCutoff(m)"
+            >
+              {{ cutoffLabel(m) }}
+            </cat-button>
+          </div>
+          <div class="control">
+            <cat-button
+              size="small"
+              icon-left="plus"
+              v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
+              :title="cutoffsFull ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
+              :disabled="cutoffsFull"
+              @click="startAddingCutoff"
+            />
+          </div>
+        </cat-field>
+      </div>
+      <cat-field v-if="addingCutoff">
         <cat-input
-          v-if="addingCutoff"
           ref="cutoffInput"
-          class="cal-isochrone-add-cutoff"
           size="small"
           placeholder="Add a time: 90, 1h30m, 2h"
           :model-value="''"
@@ -115,47 +115,44 @@
           v-bind="{ ariaLabel: 'Travel time to add' }"
           @update:model-value="addCutoff"
         />
-        <p v-if="cutoffInvalid" class="cal-isochrone-error">
-          A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
-        </p>
-      </div>
+      </cat-field>
+      <p v-if="cutoffInvalid" class="cal-isochrone-error">
+        A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
+      </p>
 
-      <div class="cal-isochrone-field">
-        <span class="cal-isochrone-label">Ride</span>
-        <div class="cal-isochrone-row">
-          <!-- Transit (of the route types beside it) or walking alone. -->
-          <div role="group" aria-label="Ride">
-            <cat-field addons class="cal-isochrone-group">
-              <div v-for="r of rides" :key="r.label" class="control">
-                <cat-button
-                  size="small"
-                  :icon-left="r.icon"
-                  :variant="params.mode.walkOnly === r.walkOnly ? 'primary' : undefined"
-                  v-bind="{ ariaPressed: params.mode.walkOnly === r.walkOnly }"
-                  @click="setWalkOnly(r.walkOnly)"
-                >
-                  {{ r.label }}
-                </cat-button>
-              </div>
-            </cat-field>
-          </div>
-          <div role="group" aria-label="Route types">
-            <cat-field addons class="cal-isochrone-group">
-              <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
-                <cat-button
-                  size="small"
-                  :icon-left="routeTypeIcons.get(rt)"
-                  :variant="selectedRouteTypes.includes(rt) ? 'primary' : undefined"
-                  v-bind="{ ariaPressed: selectedRouteTypes.includes(rt), ariaLabel: routeTypeNames.get(rt) }"
-                  :title="routeTypeNames.get(rt)"
-                  :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
-                  @click="toggleRouteType(rt, !selectedRouteTypes.includes(rt))"
-                />
-              </div>
-            </cat-field>
-          </div>
+      <!-- Transit (of the route types beside it) or walking alone. -->
+      <cat-field label="Ride" label-size="small" grouped>
+        <div class="control" role="group" aria-label="Ride">
+          <cat-field addons>
+            <div v-for="r of rides" :key="r.label" class="control">
+              <cat-button
+                size="small"
+                :icon-left="r.icon"
+                :variant="params.mode.walkOnly === r.walkOnly ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.mode.walkOnly === r.walkOnly }"
+                @click="setWalkOnly(r.walkOnly)"
+              >
+                {{ r.label }}
+              </cat-button>
+            </div>
+          </cat-field>
         </div>
-      </div>
+        <div class="control" role="group" aria-label="Route types">
+          <cat-field addons>
+            <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
+              <cat-button
+                size="small"
+                :icon-left="routeTypeIcons.get(rt)"
+                :variant="selectedRouteTypes.includes(rt) ? 'primary' : undefined"
+                v-bind="{ ariaPressed: selectedRouteTypes.includes(rt), ariaLabel: routeTypeNames.get(rt) }"
+                :title="routeTypeNames.get(rt)"
+                :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
+                @click="toggleRouteType(rt, !selectedRouteTypes.includes(rt))"
+              />
+            </div>
+          </cat-field>
+        </div>
+      </cat-field>
 
       <p v-if="error || empty || loading" class="cal-isochrone-status" aria-live="polite">
         <span v-if="error" class="cal-isochrone-error">Could not calculate travel times: {{ error }}</span>
@@ -182,10 +179,9 @@
 
       <!-- Contouring knobs, for tuning against the router; blank is the
            router's default. -->
-      <details v-if="debug" class="cal-isochrone-debug">
+      <details v-if="debug">
         <summary>Rendering (debug)</summary>
-        <label class="cal-isochrone-field">
-          <span class="cal-isochrone-label">expansion</span>
+        <cat-field label="expansion" label-size="small">
           <cat-select
             size="small"
             :model-value="render.expansion ?? ''"
@@ -201,16 +197,15 @@
               disk
             </option>
           </cat-select>
-        </label>
-        <label v-for="k of numericRenderKeys" :key="k" class="cal-isochrone-field">
-          <span class="cal-isochrone-label">{{ k }}</span>
+        </cat-field>
+        <cat-field v-for="k of numericRenderKeys" :key="k" :label="k" label-size="small">
           <input
             class="input is-small"
             type="number"
             :value="render[k] ?? ''"
             @change="setRender(k, numberOrUndefined(($event.target as HTMLInputElement).value))"
           >
-        </label>
+        </cat-field>
       </details>
     </cat-msg>
   </div>
@@ -457,35 +452,21 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 </script>
 
 <style scoped lang="scss">
-.cal-isochrone-panel {
-  font-size: 12px;
-}
-
+// Fields side by side; Bulma spaces fields one under another.
 .cal-isochrone-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-end;
-  gap: 6px 8px;
-  margin-bottom: 6px;
-}
+  gap: 8px;
+  margin-bottom: 0.75rem;
 
-// Bulma's field margin, inside a row that spaces its own items.
-.cal-isochrone-group {
-  margin-bottom: 0 !important;
+  > .field {
+    margin-bottom: 0;
+  }
 }
 
 .cal-isochrone-place {
   flex: 1;
   min-width: 0;
-}
-
-.cal-isochrone-field {
-  display: block;
-  margin-bottom: 6px;
-
-  .cal-isochrone-row & {
-    margin-bottom: 0;
-  }
 }
 
 .cal-isochrone-date {
@@ -500,18 +481,11 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
   flex: 0.9;
 }
 
-.cal-isochrone-add-cutoff {
-  margin-top: 4px;
-}
-
-.cal-isochrone-label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.cal-isochrone-status {
-  margin: 4px 0 6px;
+// As the trip panel's empty and error notes.
+.cal-isochrone-status,
+.cal-isochrone-error {
+  font-size: 12px;
+  margin: 6px 0;
 }
 
 .cal-isochrone-error {
@@ -521,14 +495,5 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 .cal-isochrone-actions {
   display: flex;
   gap: 6px;
-}
-
-.cal-isochrone-debug {
-  margin-top: 8px;
-
-  summary {
-    cursor: pointer;
-    margin-bottom: 4px;
-  }
 }
 </style>

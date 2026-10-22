@@ -30,7 +30,6 @@
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
         :has-cluster-data="hasClusterData"
-        :isochrone-legend="props.isochroneLegend"
         :isochrone-arrive-by="props.isochroneArriveBy"
         @view-details="emit('viewCensusDetails')"
         @update:open="onLegendToggle"
@@ -133,8 +132,6 @@ const props = defineProps<{
   isochroneFeatures?: Feature[]
   isochroneOrigin?: Point
   isochroneArriveBy?: boolean
-  // Its bands' legend rows, shortest first.
-  isochroneLegend?: { color: string, label: string }[]
   // Increment to fit the map to the isochrone bands.
   fitIsochroneKey?: number
 }>()

@@ -102,7 +102,6 @@
           :isochrone-features="isochroneFeatures"
           :isochrone-origin="isochroneParams?.place"
           :isochrone-arrive-by="isochroneParams?.arriveBy"
-          :isochrone-legend="isochroneLegendRows"
           :fit-isochrone-key="fitIsochroneKey"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
@@ -264,7 +263,6 @@ import {
   parseFvids,
   fareCategoryLabels,
   formatFareAmount,
-  isochroneLegend,
   isochroneMapFeatures,
 } from '~~/src/tl'
 import type {
@@ -950,9 +948,6 @@ const {
   render: isochroneRender,
 } = useIsochrone(isochroneParams, isochroneFetcher(useApiEndpoint('/routing/isochrone', 'default')))
 const isochroneFeatures = computed(() => isochroneMapFeatures(isochroneBands.value))
-// In the map legend, which stays open beside the panel to key the bands.
-// Nothing reachable draws nothing, so there's nothing to key.
-const isochroneLegendRows = computed(() => isochroneEmpty.value ? [] : isochroneLegend(isochroneBands.value))
 const fitIsochroneKey = ref(0)
 // The stop it was opened from, until the place moves off it. Not in the URL:
 // a link reopens it by its coordinates.

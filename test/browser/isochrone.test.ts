@@ -30,11 +30,12 @@ test.describe('Isochrone panel', () => {
     // Coordinates go in the place box, not the heading.
     await expect(panel(page).getByLabel('Latitude, longitude')).toHaveValue(PLACE, { timeout: 15000 })
     await expect(panel(page)).not.toContainText('Travel time: 45')
-    // The bands are keyed in the map legend.
-    for (const m of [15, 30, 45]) {
-      await expect(legend(page).getByText(`Within ${m} min`)).toBeVisible()
-    }
+    // The bands arrived; the travel time buttons key them, darkest first, and
+    // the legend keys only the place.
+    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeEnabled()
+    await expect(panel(page).getByRole('button', { name: '15 minutes' })).toHaveCSS('background-color', 'rgb(8, 48, 107)')
     await expect(legend(page).getByText('Leaving from here')).toBeVisible()
+    await expect(legend(page)).not.toContainText('Within')
     const q = requests.at(-1)!.searchParams
     expect(q.get('fromPlace')).toBe(PLACE)
     expect(q.get('date')).toBe('2026-10-27')
@@ -46,7 +47,7 @@ test.describe('Isochrone panel', () => {
   test('settings change the request and the URL', async ({ page }) => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
-    await expect(legend(page).getByText('Within 15 min')).toBeVisible({ timeout: 15000 })
+    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeEnabled({ timeout: 15000 })
 
     await panel(page).getByRole('button', { name: '60 minutes' }).click()
     await expect(page).toHaveURL(/isoCutoffs=15%2C30%2C45%2C60|isoCutoffs=15,30,45,60/)
@@ -170,7 +171,7 @@ test.describe('Isochrone panel', () => {
     await expect(panel(page).getByLabel('Travel time to add')).toHaveCount(0)
   })
 
-  test('keys nothing when nothing is reachable', async ({ page }) => {
+  test('says when nothing is reachable', async ({ page }) => {
     await page.route('**/routing/isochrone?**', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -181,7 +182,7 @@ test.describe('Isochrone panel', () => {
     }))
     await page.goto(`/tne?isoPlace=${PLACE}&isoCutoffs=15`)
     await expect(panel(page).getByText('Nothing reachable within these settings.')).toBeVisible({ timeout: 15000 })
-    await expect(legend(page).getByText('Within 15 min')).toHaveCount(0)
+    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeDisabled()
   })
 
   test('shows the router error', async ({ page }) => {
@@ -208,6 +209,7 @@ test.describe('Isochrone panel', () => {
     const box = (await canvas.boundingBox())!
     // Right of the query panel, left of the sidebar.
     await canvas.click({ button: 'right', position: { x: box.width * 0.55, y: box.height * 0.5 } })
+    await expect(page.locator('.cal-isochrone-menu-popup .dropdown-item')).toHaveCount(2)
     await page.getByRole('menuitem', { name: 'Travel time to here' }).click()
     await expect(panel(page)).toBeVisible()
     await expect(page).toHaveURL(/isoPlace=.*isoArriveBy=true|isoArriveBy=true.*isoPlace=/)

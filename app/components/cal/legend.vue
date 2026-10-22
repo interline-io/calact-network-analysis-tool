@@ -38,8 +38,9 @@
           </div>
         </div>
 
-        <!-- Isochrone: its place, and its bands, shortest first -->
-        <div v-if="props.isochroneLegend?.length" class="cal-map-legend-section">
+        <!-- Isochrone: its place. The panel's travel time buttons key its
+             bands. -->
+        <div v-if="props.isochroneArriveBy !== undefined" class="cal-map-legend-section">
           <div class="legend-heading">
             Travel time:
           </div>
@@ -48,13 +49,6 @@
               <i v-if="props.isochroneArriveBy" class="mdi mdi-flag-checkered" />
             </div>
             <div>{{ props.isochroneArriveBy ? 'Arriving here' : 'Leaving from here' }}</div>
-          </div>
-          <div v-for="row of props.isochroneLegend" :key="row.label">
-            <div
-              class="legend-item legend-marker-square cal-legend-iso-band"
-              :style="props.hasChoroplethData ? { borderColor: row.color } : { background: row.color, borderColor: row.color }"
-            />
-            <div>{{ row.label }}</div>
           </div>
         </div>
 
@@ -218,9 +212,8 @@ const props = defineProps<{
   choroplethClassification?: ChoroplethClassification
   // Stop clusters
   hasClusterData?: boolean
-  // The open isochrone's bands (drawn as outlines over a choropleth), and
-  // whether its place is a destination.
-  isochroneLegend?: { color: string, label: string }[]
+  // Whether the open isochrone's place is a destination; undefined while
+  // none is open.
   isochroneArriveBy?: boolean
 }>()
 
@@ -236,7 +229,7 @@ const { geomSource } = useScenarioInputs()
 
 const showChoropleth = computed(() => showAggAreas.value && props.hasChoroplethData)
 
-const shouldShowLegend = computed(() => !!props.isochroneLegend?.length || props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
+const shouldShowLegend = computed(() => props.isochroneArriveBy !== undefined || props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification
@@ -292,12 +285,6 @@ function bucketLabel (i: number): string {
 
 .legend-heading {
   font-weight: bold;
-}
-
-// Translucent as on the map, or an outline over a choropleth.
-.cal-legend-iso-band {
-  border: 2px solid;
-  opacity: 0.75;
 }
 
 .cal-legend-unit-suffix {
