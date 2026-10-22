@@ -115,6 +115,13 @@
             None
           </button>
         </div>
+        <cal-transfer-compass
+          :title="`Where trips ${side.trip === 'from' ? 'arrive from' : 'depart to'}`"
+          :side="side.trip"
+          :places="compass[side.trip]"
+          :excluded="settings[side.key]"
+          @toggle="(keys, included) => setKeys(side.key, keys, included)"
+        />
         <ul class="cal-transfer-settings-list">
           <li
             v-for="row of side.rows"
@@ -183,6 +190,7 @@ import {
   TRANSFER_GRADE_LABELS,
   validBreakpoints,
   transferTripTags,
+  type TransferCompassPlace,
   type TransferRouteChoice,
   type TransferSettings,
   type TransferTripDestination,
@@ -197,6 +205,8 @@ const props = defineProps<{
   section: TransferSettingsSection
   // The routes arriving and departing at the stops.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
+  // Where trips arrive from and depart to, around the stops.
+  compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }
   // Pairs of the stops with no distance between them.
   unknownPairs: number
 }>()
@@ -379,7 +389,7 @@ const sides = computed(() => [
     const out = row.keys.filter(k => excluded.has(k)).length
     return { ...row, state: out === 0 ? 'all' as const : out === row.keys.length ? 'none' as const : 'some' as const }
   })
-  return { key: side.key, legend: side.legend, rows: rowsWithState }
+  return { key: side.key, trip: side.key === 'excludedFrom' ? 'from' as const : 'to' as const, legend: side.legend, rows: rowsWithState }
 }))
 
 function setKeys (side: Side, keys: string[], included: boolean) {

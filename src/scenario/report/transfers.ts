@@ -35,6 +35,9 @@ export interface TransferEvent {
   // Where the trip starts and ends, by station, and how many stops it makes.
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   stopCount?: number
   // An arrival on a trip that ends at the stops, or a departure on one that
   // starts there.
@@ -112,6 +115,9 @@ export function transferTripKey (e: Pick<TransferEvent, 'routeId' | 'directionId
 export interface TransferTripRun {
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   stopCount?: number
 }
 
@@ -183,20 +189,26 @@ export interface TransferChoiceRoute {
  * direction's busiest destination, between other ends, is a short run.
  */
 export function transferTripChoices (events: TransferEvent[], routes: Map<number, TransferChoiceRoute>, side: 'from' | 'to' = 'to'): TransferRouteChoice[] {
-  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[] }
+  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[], points: Map<string, [number, number]> }
   const byRoute = new Map<number, Map<number, Map<string, Tally>>>()
   for (const e of events) {
     const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, Tally>>()
     const destinations = directions.get(e.directionId) ?? new Map<string, Tally>()
     const headsign = e.headsign ?? ''
-    const tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [] }
+    const tally: Tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [], points: new Map() }
     tally.count += 1
     tally.terminal += e.terminal ? 1 : 0
     if (e.origin) {
       tally.origins.push(e.origin)
+      if (e.originPoint && !tally.points.has(e.origin)) {
+        tally.points.set(e.origin, e.originPoint)
+      }
     }
     if (e.terminus) {
       tally.termini.push(e.terminus)
+      if (e.terminusPoint && !tally.points.has(e.terminus)) {
+        tally.points.set(e.terminus, e.terminusPoint)
+      }
     }
     if (e.stopCount !== undefined) {
       tally.stopCounts.push(e.stopCount)
@@ -212,7 +224,15 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     const directions = [...directionMap].map(([directionId, destinationMap]) => {
       const destinations: TransferTripDestination[] = [...destinationMap]
         .map(([headsign, t]) => {
-          const run = { origin: mostCommon(t.origins), terminus: mostCommon(t.termini), stopCount: mostCommon(t.stopCounts) }
+          const origin = mostCommon(t.origins)
+          const terminus = mostCommon(t.termini)
+          const run = {
+            origin,
+            terminus,
+            originPoint: origin === undefined ? undefined : t.points.get(origin),
+            terminusPoint: terminus === undefined ? undefined : t.points.get(terminus),
+            stopCount: mostCommon(t.stopCounts),
+          }
           const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
           return {
             key: transferTripKey({ routeId: id, directionId, headsign }),
@@ -575,6 +595,8 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           headsign,
           origin: detail.firstStopName,
           terminus: detail.lastStopName,
+          originPoint: detail.firstStopPoint,
+          terminusPoint: detail.lastStopPoint,
           stopCount: detail.stopCount,
         })
         if (comesFrom && stopTime.dropOffType !== 1) {

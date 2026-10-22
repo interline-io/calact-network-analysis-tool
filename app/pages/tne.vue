@@ -90,6 +90,8 @@
                 :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
+                :compass="transfers.compass"
+                :compass-flows="transfers.compassFlows"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-grid="transferView === 'summary' ? transfers.summaryGrid : []"
                 :csv-rows="transfers.csvRows"
