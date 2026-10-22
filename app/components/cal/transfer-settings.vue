@@ -115,10 +115,22 @@
             v-for="row of side.rows"
             :key="row.id"
             class="cal-transfer-settings-item"
-            :class="row.operator ? 'cal-transfer-settings-operator' : `cal-transfer-settings-depth-${row.depth}`"
+            :class="row.operator ? 'cal-transfer-settings-operator' : [`cal-transfer-settings-depth-${row.depth}`, { 'cal-transfer-settings-sub': !row.badge }]"
           >
+            <!-- An operator's routes show unless closed; a direction's
+                 destinations, once opened. -->
             <button
-              v-if="row.openKey"
+              v-if="row.collapseKey"
+              type="button"
+              class="cal-transfer-settings-caret"
+              :aria-expanded="!collapsed.has(row.collapseKey)"
+              :aria-label="`${collapsed.has(row.collapseKey) ? 'Show' : 'Hide'} routes of ${row.label}`"
+              @click="toggleCollapsed(row.collapseKey)"
+            >
+              <cat-icon size="small" :icon="collapsed.has(row.collapseKey) ? 'chevron-right' : 'chevron-down'" />
+            </button>
+            <button
+              v-else-if="row.openKey"
               type="button"
               class="cal-transfer-settings-caret"
               :aria-expanded="opened.has(row.openKey)"
@@ -244,12 +256,23 @@ interface Row {
   tags: TransferTripTag[]
   // On a route's first row, the route, to show its trips.
   routeId?: number
-  // An operator's row, over its routes.
+  // An operator's row, over its routes; and the key that closes it.
   operator?: boolean
+  collapseKey?: string
   // Whether all, some, or none of the keys are included.
   state: 'all' | 'some' | 'none'
   // Set where the row opens to destinations.
   openKey?: string
+}
+
+// Operators closed to hide their routes; all open to begin with.
+const collapsed = ref(new Set<string>())
+function toggleCollapsed (key: string) {
+  const next = new Set(collapsed.value)
+  if (!next.delete(key)) {
+    next.add(key)
+  }
+  collapsed.value = next
 }
 
 // Rows opened to show their destinations.
@@ -274,23 +297,28 @@ function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] 
   }
   return [...byOperator]
     .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
-    .flatMap(([operator, list]) => [
-      {
-        id: `o${operator}`,
-        depth: 0,
-        label: operator || 'Unknown operator',
-        count: list.reduce((n, r) => n + r.count, 0),
-        keys: list.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key))),
-        tags: [],
-        operator: true,
-      },
-      ...routeRows(side, list),
-    ])
+    .flatMap(([operator, list]) => {
+      const collapseKey = `${side}|${operator}`
+      return [
+        {
+          id: `o${operator}`,
+          depth: 0,
+          label: operator || 'Unknown operator',
+          count: list.reduce((n, r) => n + r.count, 0),
+          keys: list.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key))),
+          tags: [],
+          operator: true,
+          collapseKey,
+        },
+        // A level in from the operator.
+        ...(collapsed.value.has(collapseKey) ? [] : routeRows(side, list, 1)),
+      ]
+    })
 }
 
 // A route with one direction at the stops is one row; with two, a row and a
 // row per direction. A direction with several destinations opens to them.
-function routeRows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
+function routeRows (side: Side, routes: TransferRouteChoice[], base = 0): Omit<Row, 'state'>[] {
   const out: Omit<Row, 'state'>[] = []
   const tripSide = side === 'excludedFrom' ? 'from' : 'to'
   const about = (d: TransferTripDestination | undefined) => ({
@@ -303,12 +331,12 @@ function routeRows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state
     const routeKeys = route.directions.flatMap(d => d.destinations.map(x => x.key))
     const title = route.longName || route.label
     for (const [i, dir] of route.directions.entries()) {
-      const depth = single ? 0 : 1
+      const depth = base + (single ? 0 : 1)
       const openKey = dir.destinations.length > 1 ? `${side}|${route.id}|${dir.directionId}` : undefined
       if (i === 0 && !single) {
         // The long name beside the badge, where it says more than the badge.
         const label = route.longName !== route.label ? route.longName : ''
-        out.push({ id: `r${route.id}`, depth: 0, badge: route.label, label, title, count: route.count, keys: routeKeys, tags: [], routeId: route.id })
+        out.push({ id: `r${route.id}`, depth: base, badge: route.label, label, title, count: route.count, keys: routeKeys, tags: [], routeId: route.id })
       }
       out.push({
         id: `d${route.id}|${dir.directionId}`,
@@ -508,7 +536,12 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     padding-left: 3rem;
   }
 
-  &:not(.cal-transfer-settings-depth-0) {
+  &.cal-transfer-settings-depth-3 {
+    padding-left: 4.25rem;
+  }
+
+  // A direction or destination, under its route.
+  &.cal-transfer-settings-sub {
     font-size: 0.8125rem;
   }
 }
