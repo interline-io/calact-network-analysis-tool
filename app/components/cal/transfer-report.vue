@@ -632,7 +632,7 @@ const grid = computed(() => (view.value === 'summary'
   }
 }
 
-@container (max-width: 96rem) {
+@container (max-width: 104rem) {
   .cal-transfer-report-subject :deep(select) {
     width: 12rem;
   }
