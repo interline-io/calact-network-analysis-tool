@@ -36,6 +36,19 @@ export function bearingAndDistance (from: [number, number], to: [number, number]
   return { bearing, km: Math.hypot(dx, dy) * KM_PER_DEGREE }
 }
 
+// A distance as a share of a compass's radius, 0 at the stops and 1 at the
+// farthest place, on a log scale: places nearby spread out, and one far
+// away, a long-distance train's end, still fits.
+export function compassScale (km: number, maxKm: number): number {
+  return maxKm > 0 ? Math.log1p(Math.min(km, maxKm)) / Math.log1p(maxKm) : 0
+}
+
+// Rings for a compass at round distances inside its farthest place, at most
+// four.
+export function compassRings (maxKm: number): number[] {
+  return [1, 3, 10, 30, 100, 300, 1000, 3000].filter(km => km <= maxKm).slice(-4)
+}
+
 // The middle of some [lon, lat] points; none for no points.
 export function centerOf (points: [number, number][]): [number, number] | undefined {
   if (points.length === 0) {

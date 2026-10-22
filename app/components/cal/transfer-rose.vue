@@ -144,6 +144,8 @@ import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  compassRings,
+  compassScale,
   type TransferFocus,
   type TransferGradeCounts,
   type TransferRose,
@@ -181,12 +183,9 @@ function along (bearing: number): [number, number] {
 
 const maxKm = computed(() => Math.max(0.1, ...props.rose.places.map(p => p.km)))
 function radius (km: number): number {
-  return INNER + (OUTER - INNER) * Math.sqrt(Math.min(km, maxKm.value) / maxKm.value)
+  return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
 }
-const rings = computed(() => [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
-  .filter(km => km <= maxKm.value)
-  .slice(-3)
-  .map(km => ({ km, r: radius(km) })))
+const rings = computed(() => compassRings(maxKm.value).map(km => ({ km, r: radius(km) })))
 
 // Each origin's color, by bearing.
 const colors = computed(() => {

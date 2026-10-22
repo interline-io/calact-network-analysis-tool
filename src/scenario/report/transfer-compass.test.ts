@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bearingAndDistance, centerOf, transferCompassPlaces, transferRose } from './transfer-compass'
+import { bearingAndDistance, centerOf, compassRings, compassScale, transferCompassPlaces, transferRose } from './transfer-compass'
 import type { TransferArrivalSummary, TransferRouteChoice, TransferTripDestination } from './transfers'
 
 const MILLBRAE: [number, number] = [-122.387, 37.600]
@@ -75,5 +75,14 @@ describe('transferRose', () => {
     expect(rose.flows.map(f => [f.from, f.to, f.total])).toEqual([['San Jose', 'San Francisco', 3], ['San Jose', 'Tamien', 1]])
     expect(rose.places.map(p => p.name)).toEqual(['San Francisco', 'San Jose', 'Tamien'])
     expect(rose.from.get('in')).toEqual({ route: 'Local', agency: 'Caltrain', label: 'San Francisco' })
+  })
+})
+
+describe('compassScale', () => {
+  it('spreads near places out on a log scale, the farthest at the edge', () => {
+    expect(compassScale(0, 160)).toBe(0)
+    expect(compassScale(160, 160)).toBe(1)
+    expect(compassScale(10, 160)).toBeGreaterThan(0.45)
+    expect(compassRings(160)).toEqual([3, 10, 30, 100])
   })
 })

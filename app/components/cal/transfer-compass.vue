@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import type { TransferCompassPlace } from '~~/src/scenario'
+import { compassRings, compassScale, type TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
   // Named for the screen reader; the list beside it says the rest.
@@ -123,15 +123,11 @@ const NAMES = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 
 
 const hoveredSector = ref<number>()
 
-// Rings at round distances, up to three, inside the farthest place.
 const maxKm = computed(() => Math.max(0.1, ...props.places.map(p => p.km)))
 function radius (km: number): number {
-  return INNER + (OUTER - INNER) * Math.sqrt(Math.min(km, maxKm.value) / maxKm.value)
+  return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
 }
-const rings = computed(() => [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
-  .filter(km => km <= maxKm.value)
-  .slice(-3)
-  .map(km => ({ km, r: radius(km) })))
+const rings = computed(() => compassRings(maxKm.value).map(km => ({ km, r: radius(km) })))
 
 // A unit vector along a bearing, in the SVG's frame (y down).
 function along (bearing: number): [number, number] {
