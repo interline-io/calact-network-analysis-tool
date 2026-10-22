@@ -28,7 +28,7 @@
           <!-- Two views of the same transfers, as a toggle of tabs. -->
           <cat-field label="View" class="cal-transfer-report-view">
             <cat-tabs v-model="view" type="toggle">
-              <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" />
+              <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" :icon="v.icon" />
             </cat-tabs>
           </cat-field>
           <!-- Which arrivals to show: one date at a time, in either view. -->
@@ -407,10 +407,10 @@ const settingsToggles = computed((): { section: TransferReportSection, label: st
   { section: 'trips', label: 'Trip filtering', icon: 'filter-variant', badge: tripsKeptBadge.value },
 ])
 
-const views: { value: TransferReportView, label: string }[] = [
-  { value: 'summary', label: 'Summary' },
-  { value: 'individual', label: 'Individual' },
-  { value: 'compass', label: 'Compass' },
+const views: { value: TransferReportView, label: string, icon: string }[] = [
+  { value: 'summary', label: 'Summary', icon: 'table-large' },
+  { value: 'individual', label: 'Individual', icon: 'clock-outline' },
+  { value: 'compass', label: 'Compass', icon: 'compass-rose' },
 ]
 
 function minutes (seconds: number): number {
@@ -618,13 +618,15 @@ const grid = computed(() => (view.value === 'summary'
   width: 16rem;
 }
 
-// Narrower, the stop picker narrows and the settings toggles show only their
-// icons, so the controls stay on one row; on a phone, they wrap.
+// Narrower, the stop picker narrows and the view and settings toggles show
+// only their icons (their names still read aloud), so the controls stay on
+// one row; on a phone, they wrap.
 @container (max-width: 96rem) {
   .cal-transfer-report-subject :deep(select) {
     width: 12rem;
   }
 
+  .cal-transfer-report-view :deep(.cat-tab > span:not(.icon)),
   .cal-transfer-report-toggle-label {
     position: absolute;
     width: 1px;
