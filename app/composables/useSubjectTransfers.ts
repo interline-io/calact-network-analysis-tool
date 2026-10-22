@@ -71,8 +71,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
   // Breakpoints that cannot grade waits are not applied.
   const breakpoints = computed(() => (validBreakpoints(settings.value.breakpoints) ? settings.value.breakpoints : DEFAULT_TRANSFER_SETTINGS.breakpoints))
-  // The arrivals shown: on one date (all, when unset, in the Summary), and in
-  // one time band.
+  // The date whose arrivals both views show; the first with arrivals when
+  // unset. The time of day is the scenario's.
   const selectedDate = ref<string>()
 
   const result = computed(() => toValue(deps.scenarioFilterResult))
@@ -167,6 +167,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
     return lon !== undefined && lat !== undefined ? [{ id, lon, lat }] : []
   }))
+  // Every pair of the stops, each asked for once. That grows as the square
+  // of the stops: a large station's many platforms (40 make 780 pairs,
+  // routed one by one on the street network) would call for asking only
+  // pairs within a plausible walk.
   const pairs = computed(() => stopPairs(stopPoints.value))
   // The sources the walk reads: a straight line always, as the street
   // network's fallback where it cannot route a pair. Read through the one
@@ -304,22 +308,22 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // Both views show one date: the one picked, or the first.
   const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
 
-  const summaryGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
-  const summary = computed(() => summarizeTransfers(summaryGroups.value))
+  // The date's arrivals, and their figures, for both views.
+  const dateGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
+  const overview = computed(() => transferOverview(dateGroups.value))
+
+  const summary = computed(() => summarizeTransfers(dateGroups.value))
   const summaryRows = computed(() => transferSummaryRows(summary.value, routes.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
-  const summaryOverview = computed(() => transferOverview(summaryGroups.value))
 
-  const individualGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
-  const individualRows = computed(() => transferRows(individualGroups.value, {
+  const individualRows = computed(() => transferRows(dateGroups.value, {
     routes: routes.value,
     stops: stops.value,
     tripDetails: store.details.value,
   }))
-  const individualGrid = computed(() => transferGrid(individualGroups.value, { ...tripInfo.value, stops: stops.value }))
-  const individualOverview = computed(() => transferOverview(individualGroups.value))
+  const individualGrid = computed(() => transferGrid(dateGroups.value, { ...tripInfo.value, stops: stops.value }))
   // Each connection on the date by the arrival's time of day, for the chart.
-  const individualPoints = computed(() => individualGroups.value.flatMap((g) => {
+  const individualPoints = computed(() => dateGroups.value.flatMap((g) => {
     const hour = g.arrival.seconds / 3600
     return g.connections.map(c => ({ hour, waitMinutes: c.wait / 60, grade: c.grade }))
   }))
@@ -328,17 +332,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // distances between its stops. Each widens what the other needs (a longer
   // walk reaches later departures), so both follow their own inputs. After a
   // failure, loading waits for a retry rather than asking again at once.
+  // Each waits on its own failure, so one failing leaves the other loading.
   const detailsError = ref<string | null>(null)
-  const failed = computed(() => !!detailsError.value || !!distancesError.value)
   async function load (): Promise<void> {
-    if (!toValue(deps.active) || stopIds.value.length === 0 || failed.value) {
+    if (!toValue(deps.active) || stopIds.value.length === 0) {
       return
     }
     await Promise.all([
-      loadDistances(),
-      store.load(events.value?.missingTripIds ?? []).then((err) => {
-        detailsError.value = err
-      }),
+      distancesError.value ? undefined : loadDistances(),
+      detailsError.value
+        ? undefined
+        : store.load(events.value?.missingTripIds ?? []).then((err) => {
+            detailsError.value = err
+          }),
     ])
   }
   function retry (): Promise<void> {
@@ -404,12 +410,11 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     summaryRows,
     summaryGrid,
-    summaryOverview,
+    overview,
     individualDates,
     individualDate,
     individualRows,
     individualGrid,
-    individualOverview,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
     detailsError: computed(() => detailsError.value ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)),

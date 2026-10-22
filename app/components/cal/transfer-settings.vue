@@ -84,7 +84,7 @@
             </cat-checkbox>
             <p class="cal-transfer-settings-help">
               Otherwise each arrival shows its first connection to each route,
-              direction, and destination, and any it just missed.
+              direction, and destination, and any it missed before then.
             </p>
           </div>
           <div>

@@ -205,6 +205,16 @@ describe('calculateTransfers', () => {
     expect(counted!.connections.map(c => [c.departure.tripId, !!c.turnback])).toEqual([[3, false], [2, true], [4, false]])
   })
 
+  it('takes the earliest departure a rider can make on a destination, not the shortest wait', () => {
+    // Stop 2 is 2 minutes' walk away; stop 1 is where the arrival is.
+    const far = event(2, 20, hms(7, 3), 2)
+    const near = event(3, 20, hms(7, 2))
+    const [group] = calculateTransfers([event(1, 10, hms(7))], [near, far], walk)
+    // The nearer departure leaves first (a 2 minute wait), though the far
+    // one waits only 1 minute after the walk.
+    expect(group!.connections.map(c => [c.departure.tripId, c.wait])).toEqual([[3, hms(0, 2)]])
+  })
+
   it('counts a short run apart from the full one on its route and direction', () => {
     const full = { ...event(2, 20, hms(7, 8)), headsign: 'Airport' }
     const short = { ...event(3, 20, hms(7, 4)), headsign: 'Downtown' }
@@ -406,6 +416,17 @@ describe('transferEvents reach', () => {
     ])
     const events = transferEvents({ stopIds: [1], dates: [MON], startTime: hms(7), endTime: hms(8), stopDepartureCache: cache, tripDetails: new Map(), ...reach })
     expect(events.missingTripIds.sort()).toEqual([2, 3])
+  })
+
+  it('reads the night before a date for departures an arrival just after midnight misses', () => {
+    const cache = cacheOf([
+      // Sunday 23:58, two minutes before Monday's window opens.
+      [1, '2026-10-18', hms(23, 58), 1, 0, 10],
+      // Sunday's own evening trip, not within reach.
+      [1, '2026-10-18', hms(20), 2, 0, 10],
+    ])
+    const events = transferEvents({ stopIds: [1], dates: [MON], startTime: 0, endTime: hms(1), stopDepartureCache: cache, tripDetails: new Map(), ...reach })
+    expect(events.missingTripIds).toEqual([1])
   })
 
   it('reads the day after a date only for departures past midnight', () => {

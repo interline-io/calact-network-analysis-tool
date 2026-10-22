@@ -411,6 +411,14 @@ watch(hasClusterData, (has) => {
   }
 })
 
+// Without fixed-route service the Transfer Analyst tab goes, so leave it
+// for Flex Areas, the one tab left.
+watch(fixedRouteEnabled, (enabled) => {
+  if (!enabled && activeReportTab.value === 'transfers') {
+    activeReportTab.value = 'flex'
+  }
+})
+
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
   if (activeReportTab.value === 'transfers') {

@@ -383,7 +383,7 @@ export interface TransferOptions {
   // and unacceptable fall between consecutive pairs.
   breakpoints: readonly number[]
   // Every connection, rather than the first on each route, direction, and
-  // destination (and any missed just before it).
+  // destination (and any missed before it).
   allConnections?: boolean
   // A route's agency, to tell a likely turnback; and whether to count them.
   agencyOf?: (routeId: number) => number | undefined
@@ -461,28 +461,32 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   // Departures that can matter: from the window's start, less the earliest
   // a missed connection reaches back, to its end plus the longest walk and
   // wait. One early in a day may connect from an arrival late the day
-  // before, so is also read as a day later.
+  // before, so is also read as a day later; one late in a day may be missed
+  // by an arrival just after midnight, so is also read as a day earlier.
   const bp = opts.breakpoints
   const from = opts.startTime + Math.min(0, bp[0]!)
   const until = opts.endTime + opts.maxWalkSeconds + bp[bp.length - 1]!
-  const sameDay = (t: number) => t >= from && t <= until
-  const dayLater = (t: number) => t + SECONDS_PER_DAY >= from && t + SECONDS_PER_DAY <= until
-  // The dates, and the day after each for connections past midnight, which
-  // reads only those.
+  const inReach = (t: number) => t >= from && t <= until
+  const crossesMidnight = (t: number) => inReach(t + SECONDS_PER_DAY) || inReach(t - SECONDS_PER_DAY)
+  // The dates, whose departures all count, and the days either side, read
+  // only for those across midnight.
   const days = new Map<number, boolean>()
   for (const d of opts.dates) {
-    const day = isoToOrdinal(d)
-    days.set(day, false)
-    if (!days.has(day + 1)) {
-      days.set(day + 1, true)
+    days.set(isoToOrdinal(d), false)
+  }
+  for (const day of [...days.keys()]) {
+    for (const edge of [day - 1, day + 1]) {
+      if (!days.has(edge)) {
+        days.set(edge, true)
+      }
     }
   }
-  for (const [day, afterMidnightOnly] of days) {
+  for (const [day, acrossMidnightOnly] of days) {
     const date = dateOf(day)
     for (const stopId of opts.stopIds) {
       for (const st of opts.stopDepartureCache.get(stopId, date)) {
         const t = st.departureTime % SECONDS_PER_DAY
-        if (!(dayLater(t) || (!afterMidnightOnly && sameDay(t)))) {
+        if (!(crossesMidnight(t) || (!acrossMidnightOnly && inReach(t)))) {
           continue
         }
         const detail = opts.tripDetails.get(st.tripId)
@@ -597,8 +601,9 @@ function lowerBound (events: TransferEvent[], time: number): number {
  * walking falls within the breakpoints. The same route either way is not a
  * transfer: in the other direction it is often the same vehicle turning
  * back at the end of its run. Unless `allConnections`, each route, direction,
- * and destination shows its first connection a rider makes and any missed
- * just before it, as later departures on it are not where riders transfer. A
+ * and destination shows its first connection a rider makes (the earliest
+ * departure, not the shortest wait) and any it missed before then, as later
+ * departures on it are not where riders transfer. A
  * short run counts apart from the full one, as it may not go where a rider is
  * headed.
  *
@@ -638,24 +643,23 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
       }
       connections.push({ departure, walk, wait, grade: transferGrade(wait, bp), ...(turnback ? { turnback } : {}) })
     }
-    connections.sort((a, b) => a.wait - b.wait || a.departure.routeId - b.departure.routeId)
-    if (opts.allConnections) {
-      return { arrival, connections }
-    }
+    // In departure order, as gathered: a destination's first connection
+    // made is the earliest departure a rider can take, which from a nearer
+    // stop may have the longer wait.
     made.clear()
-    return {
-      arrival,
-      connections: connections.filter((c) => {
-        const key = transferTripKey(c.departure)
-        if (made.has(key)) {
-          return false
-        }
-        if (c.grade !== 'missed') {
-          made.add(key)
-        }
-        return true
-      }),
-    }
+    const kept = opts.allConnections
+      ? connections
+      : connections.filter((c) => {
+          const key = transferTripKey(c.departure)
+          if (made.has(key)) {
+            return false
+          }
+          if (c.grade !== 'missed') {
+            made.add(key)
+          }
+          return true
+        })
+    return { arrival, connections: kept.sort((a, b) => a.wait - b.wait || a.departure.routeId - b.departure.routeId) }
   })
 }
 
@@ -781,7 +785,12 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSum
   const byFrom = new Map<string, TransferGroup[]>()
   for (const g of groups) {
     const key = transferTripKey(g.arrival)
-    byFrom.set(key, [...(byFrom.get(key) ?? []), g])
+    const list = byFrom.get(key)
+    if (list) {
+      list.push(g)
+    } else {
+      byFrom.set(key, [g])
+    }
   }
   return [...byFrom.values()].map((fromGroups) => {
     const arrivals = fromGroups.length

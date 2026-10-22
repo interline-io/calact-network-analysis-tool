@@ -279,6 +279,8 @@ const props = withDefaults(defineProps<{
   groupLabel?: (row: any) => string
   // Rows load perPage at a time as the table scrolls, in place of pages.
   scroll?: boolean
+  // Scrolling, what the rows are of: when it changes, loading starts over.
+  resetKey?: string
 }>(), {
   // Vue reads a missing boolean prop as false; these default to shown.
   searchable: true,
@@ -510,9 +512,16 @@ watch(() => tableReport.value?.columns, () => {
   sortStatus.value = ''
 })
 
-// Reset pagination when data changes (e.g. tab switch, filter update)
+// Reset pagination when data changes (e.g. tab switch, filter update).
+// Scrolling, a refresh of the same rows keeps those loaded; resetKey says
+// when the rows are new.
 watch(() => tableReport.value?.data, () => {
   current.value = 1
+  if (!props.scroll) {
+    shown.value = props.perPage
+  }
+})
+watch(() => props.resetKey, () => {
   shown.value = props.perPage
 })
 

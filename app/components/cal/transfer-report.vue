@@ -189,6 +189,7 @@
           :downloadable="false"
           :per-page="100"
           scroll
+          :reset-key="`${subject}|${individualDate ?? ''}`"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
@@ -303,11 +304,11 @@ const props = defineProps<{
   // Both views' rows, flat, for download.
   summaryRows: TransferSummaryRow[]
   individualRows: TransferRow[]
-  summaryOverview: TransferOverview
+  // The date's figures, as both views show them.
+  overview: TransferOverview
   individualDates: string[]
   individualDate?: string
   individualGrid: TransferGridRow[]
-  individualOverview: TransferOverview
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
   // The breakpoints in use, in seconds.
   breakpoints: number[]
@@ -455,9 +456,8 @@ function gradeChart (counts: TransferGradeCount[]) {
   })
 }
 
-// The view shown's figures and its grade bar, which redraws when they change.
-const overview = computed(() => (view.value === 'summary' ? props.summaryOverview : props.individualOverview))
-const gradeBar = computed(() => gradeChart(overview.value.grades))
+// The date's grade bar, which redraws when its figures change.
+const gradeBar = computed(() => gradeChart(props.overview.grades))
 
 function gradeChartLabel (counts: TransferGradeCount[]): string {
   return `Connections by grade: ${counts.map(c => `${TRANSFER_GRADE_LABELS[c.grade]} ${c.count} (${percent(c.share)})`).join(', ')}`
@@ -540,15 +540,15 @@ const summaryColumns: TableColumn[] = [
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', class: NARROW, group: FIRST, groupSummary: true },
 ]
 
-// The Individual table's columns, with the stops for a cluster. Apart from
-// its rows, so the grid keeps its sort as rows change.
+// The Individual table's columns, with the stop where there are several.
+// Apart from its rows, so the grid keeps its sort as rows change.
 // Each trip, when and where; then the transfer to it, walking and waiting.
 const TRIP = { key: 'trip', label: 'Trip' }
 const TRANSFER = { key: 'transfer', label: 'Transfer', tooltip: 'From the incoming trip to the outgoing one: the walk between their stops, then the wait.' }
 const individualColumns = computed((): TableColumn[] => [
   { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', class: NARROW, group: TRIP },
   { ...TRIP_COLUMN, tooltip: 'Each incoming trip, and where it comes from, with its connections beneath it.', group: TRIP },
-  ...(subjectKind.value === 'cluster' ? [{ key: 'stop_name', label: 'Stop', sortable: true, group: TRIP }] : []),
+  ...(props.stops.length > 1 ? [{ key: 'stop_name', label: 'Stop', sortable: true, group: TRIP }] : []),
   { key: 'walk_seconds', label: 'Walk', sortable: true, numeric: true, class: NARROW, group: TRANSFER },
   { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', class: NARROW, group: TRANSFER },
 ])
