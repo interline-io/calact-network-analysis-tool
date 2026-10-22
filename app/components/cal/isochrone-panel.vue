@@ -90,11 +90,36 @@
                 :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
                 @click="toggleCutoff(m)"
               >
-                {{ formatDuration(m * 60) }}
+                {{ cutoffLabel(m) }}
               </cat-button>
+            </div>
+            <div class="control">
+              <cat-button
+                size="small"
+                icon-left="plus"
+                v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
+                :title="params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
+                :disabled="params.cutoffs.length >= ISOCHRONE_MAX_CUTOFFS"
+                @click="startAddingCutoff"
+              />
             </div>
           </cat-field>
         </div>
+        <cat-input
+          v-if="addingCutoff"
+          ref="cutoffInput"
+          class="cal-isochrone-add-cutoff"
+          size="small"
+          placeholder="Add a time: 90, 1h30m, 2h"
+          :model-value="''"
+          :model-modifiers="{ lazy: true, trim: true }"
+          :variant="cutoffInvalid ? 'danger' : undefined"
+          v-bind="{ ariaLabel: 'Travel time to add' }"
+          @update:model-value="addCutoff"
+        />
+        <p v-if="cutoffInvalid" class="cal-isochrone-error">
+          A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
+        </p>
       </div>
 
       <div class="cal-isochrone-field">
@@ -188,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { formatDuration, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
@@ -198,6 +223,7 @@ import {
   ISOCHRONE_INK,
   isochroneBandColors,
   isochroneModeParam,
+  parseIsochroneCutoff,
   parseIsochronePlace,
   type IsochroneBand,
   type IsochroneParams,
@@ -280,6 +306,41 @@ function onTime (e: Event) {
 
 // Offered cutoffs, plus any a link asked for that aren't among them.
 const cutoffChoices = computed(() => [...new Set([...ISOCHRONE_CUTOFF_CHOICES, ...props.params.cutoffs])].sort((a, b) => a - b))
+
+// Compact, to fit the row: "1h30m".
+function cutoffLabel (m: number): string {
+  return formatDuration(m * 60).replace(' ', '')
+}
+
+// Typing a travel time in; it joins the row, chosen, and leaves it once
+// unchosen, as presets don't.
+const addingCutoff = ref(false)
+const cutoffInvalid = ref(false)
+const cutoffInput = ref<{ focus: () => void } | null>(null)
+
+async function startAddingCutoff () {
+  addingCutoff.value = !addingCutoff.value
+  cutoffInvalid.value = false
+  await nextTick()
+  cutoffInput.value?.focus()
+}
+
+function addCutoff (text: string | number) {
+  if (String(text) === '') {
+    addingCutoff.value = false
+    cutoffInvalid.value = false
+    return
+  }
+  const m = parseIsochroneCutoff(String(text))
+  cutoffInvalid.value = m === undefined
+  if (m === undefined) {
+    return
+  }
+  addingCutoff.value = false
+  if (!props.params.cutoffs.includes(m)) {
+    toggleCutoff(m)
+  }
+}
 
 function toggleCutoff (m: number) {
   const cutoffs = props.params.cutoffs.includes(m)
@@ -404,6 +465,10 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 
 .cal-isochrone-walk {
   flex: 0.9;
+}
+
+.cal-isochrone-add-cutoff {
+  margin-top: 4px;
 }
 
 .cal-isochrone-label {

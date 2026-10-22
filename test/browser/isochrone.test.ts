@@ -81,6 +81,25 @@ test.describe('Isochrone panel', () => {
     await expect(page).toHaveURL(/isoPlace=45\.530000(%2C|,)-122\.660000/)
   })
 
+  test('adds a typed travel time, colored as its band', async ({ page }) => {
+    const requests = await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}`)
+    await panel(page).getByRole('button', { name: 'Add a travel time' }).click({ timeout: 15000 })
+    const input = panel(page).getByLabel('Travel time to add')
+    await input.fill('soon')
+    await input.press('Enter')
+    await expect(panel(page).getByText('A time from 1 minute to 4 hours')).toBeVisible()
+    await input.fill('2h')
+    await input.press('Enter')
+    await expect(page).toHaveURL(/isoCutoffs=15(%2C|,)30(%2C|,)45(%2C|,)120/)
+    await expect.poll(() => requests.at(-1)?.searchParams.getAll('cutoff')).toEqual(['15m', '30m', '45m', '120m'])
+    const added = panel(page).getByRole('button', { name: '120 minutes' })
+    await expect(added).toHaveText('2h')
+    await expect(added).toHaveAttribute('aria-pressed', 'true')
+    // The longest of four bands: the lightest blue, with dark text.
+    await expect(added).toHaveCSS('background-color', 'rgb(109, 174, 213)')
+  })
+
   test('shows the router error', async ({ page }) => {
     await routeIsochrone(page, 'bad-date')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)

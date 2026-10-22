@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { RouteType } from '~~/src/core'
 import { isochroneRecording } from '../../test/isochrone-recordings'
 import {
+  ISOCHRONE_MAX_CUTOFFS,
   isochroneBandColors,
+  parseIsochroneCutoff,
   isochroneIsEmpty,
   isochroneLegend,
   isochroneMapFeatures,
@@ -155,9 +157,36 @@ describe('band display', () => {
   })
 
   it('spans the ramp whatever the band count', () => {
-    expect(isochroneBandColors(0, 1).fill).toBe('#08306b')
-    expect(isochroneBandColors(0, 2).fill).toBe('#08306b')
-    expect(isochroneBandColors(1, 2)).toEqual({ fill: '#6baed6', text: '#08306b' })
+    // d3's Blues at 1 is #08306b; at 0.5, #6daed5.
+    expect(isochroneBandColors(0, 1)).toEqual({ fill: 'rgb(8, 48, 107)', text: '#fff' })
+    expect(isochroneBandColors(0, 2).fill).toBe('rgb(8, 48, 107)')
+    expect(isochroneBandColors(1, 2)).toEqual({ fill: 'rgb(109, 174, 213)', text: '#08306b' })
+  })
+
+  it('gives every band its own shade, up to the most the router takes', () => {
+    for (let total = 1; total <= ISOCHRONE_MAX_CUTOFFS; total++) {
+      const fills = Array.from({ length: total }, (_, rank) => isochroneBandColors(rank, total).fill)
+      expect(new Set(fills).size).toBe(total)
+    }
+  })
+})
+
+describe('parseIsochroneCutoff', () => {
+  it('reads minutes, or hours and minutes', () => {
+    expect(parseIsochroneCutoff('90')).toBe(90)
+    expect(parseIsochroneCutoff('45m')).toBe(45)
+    expect(parseIsochroneCutoff('2h')).toBe(120)
+    expect(parseIsochroneCutoff('1h30m')).toBe(90)
+    expect(parseIsochroneCutoff(' 1h 30 ')).toBe(90)
+    expect(parseIsochroneCutoff('4H')).toBe(240)
+  })
+
+  it('refuses what the router would', () => {
+    expect(parseIsochroneCutoff('')).toBeUndefined()
+    expect(parseIsochroneCutoff('0')).toBeUndefined()
+    expect(parseIsochroneCutoff('4h1m')).toBeUndefined()
+    expect(parseIsochroneCutoff('1.5h')).toBeUndefined()
+    expect(parseIsochroneCutoff('soon')).toBeUndefined()
   })
 })
 

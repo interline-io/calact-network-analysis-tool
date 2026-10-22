@@ -5,12 +5,15 @@
 // Pure helpers: building the request, reading the response, and styling the
 // bands. The fetch itself lives in app/composables/useIsochrone.ts.
 
+import { interpolateBlues } from 'd3-scale-chromatic'
 import { RouteType, type Feature, type Point } from '../core'
 
-// Cutoffs offered in the panel, in minutes; the router takes at most 8.
-export const ISOCHRONE_CUTOFF_CHOICES = [10, 15, 20, 30, 45, 60]
+// Cutoffs offered in the panel, in minutes; more can be typed in, within the
+// router's limits: at most 8, each 1 minute to 4 hours.
+export const ISOCHRONE_CUTOFF_CHOICES = [10, 15, 30, 45, 60, 90]
 export const ISOCHRONE_DEFAULT_CUTOFFS = [15, 30, 45]
 export const ISOCHRONE_MAX_CUTOFFS = 8
+export const ISOCHRONE_MAX_CUTOFF_MINUTES = 240
 
 // Meters from the origin to the first stop (or the last stop to the
 // destination). The router's own default.
@@ -133,26 +136,24 @@ type IsochroneResult
     | { bands?: undefined, error: string }
 
 // Sequential single hue, darkest for the shortest time, so nearer reads as
-// more intense while the outer band stays visible on a light basemap.
-// ColorBrewer Blues with its light end trimmed, as the router's playground.
-// Each with the text color (white or the darkest blue) that contrasts more.
-const BAND_RAMP = [
-  { fill: '#08306b', text: '#fff' },
-  { fill: '#08519c', text: '#fff' },
-  { fill: '#2171b5', text: '#fff' },
-  { fill: '#4292c6', text: '#08306b' },
-  { fill: '#6baed6', text: '#08306b' },
-]
+// more intense while the outer band stays visible on a light basemap: d3's
+// Blues with its light half trimmed, as the router's playground. A
+// continuous scale, so every band of up to ISOCHRONE_MAX_CUTOFFS has its own
+// shade; five bands land on ColorBrewer's five darkest Blues.
+const BAND_DARKEST = 1
+const BAND_LIGHTEST = 0.5
+
+// White text down to the 3rd of those five (#2171b5), the darkest blue on
+// lighter ones: whichever contrasts more.
+const BAND_WHITE_TEXT_FROM = 0.7
 
 // The darkest blue: the isochrone's place marker, and its text on light bands.
-export const ISOCHRONE_INK = BAND_RAMP[0]!.fill
+export const ISOCHRONE_INK = '#08306b'
 
 // Band `rank` of `total`'s colors, rank 0 being the shortest time.
 export function isochroneBandColors (rank: number, total: number): { fill: string, text: string } {
-  if (total <= 1) {
-    return BAND_RAMP[0]!
-  }
-  return BAND_RAMP[Math.round((rank / (total - 1)) * (BAND_RAMP.length - 1))]!
+  const t = total <= 1 ? BAND_DARKEST : BAND_DARKEST - (BAND_DARKEST - BAND_LIGHTEST) * (rank / (total - 1))
+  return { fill: interpolateBlues(t), text: t >= BAND_WHITE_TEXT_FROM ? '#fff' : ISOCHRONE_INK }
 }
 
 function isPolygonal (f: any): boolean {
@@ -237,4 +238,15 @@ export function parseIsochronePlace (s: string | undefined): Point | undefined {
     return undefined
   }
   return { lat, lon }
+}
+
+// A travel time as typed: minutes ("90"), or hours and minutes ("1h30m",
+// "1h 30m", "2h", "45m"). Undefined unless it's within the router's range.
+export function parseIsochroneCutoff (text: string): number | undefined {
+  const m = /^\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m?)?\s*$/i.exec(text)
+  if (!m || (m[1] === undefined && m[2] === undefined)) {
+    return undefined
+  }
+  const minutes = Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)
+  return minutes >= 1 && minutes <= ISOCHRONE_MAX_CUTOFF_MINUTES ? minutes : undefined
 }

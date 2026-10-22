@@ -10,6 +10,7 @@ import {
   ISOCHRONE_DEFAULT_MAX_WALK,
   ISOCHRONE_DEFAULT_TIME,
   ISOCHRONE_MAX_CUTOFFS,
+  ISOCHRONE_MAX_CUTOFF_MINUTES,
   ISOCHRONE_ROUTE_TYPES,
   formatIsochronePlace,
   isochroneModeFromRouteTypes,
@@ -38,7 +39,7 @@ function parseCutoffs (s: string | undefined): number[] | undefined {
     return undefined
   }
   const cutoffs = [...new Set(s.split(',').map(Number))]
-    .filter(n => Number.isInteger(n) && n >= 1 && n <= 240)
+    .filter(n => Number.isInteger(n) && n >= 1 && n <= ISOCHRONE_MAX_CUTOFF_MINUTES)
     .sort((a, b) => a - b)
     .slice(0, ISOCHRONE_MAX_CUTOFFS)
   return cutoffs.length ? cutoffs : undefined
