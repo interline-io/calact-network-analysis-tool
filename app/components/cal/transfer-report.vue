@@ -278,6 +278,8 @@ import {
 } from '~~/src/scenario'
 import { formatGtfsTime, formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 import { transferSubjectFromKey } from '~/composables/useSubjectTransfers'
+import { csvString } from '~/utils/download'
+import { useDownload } from '@interline-io/catenary'
 
 export type TransferReportView = 'summary' | 'individual'
 export type TransferReportSection = TransferSettingsSection | 'stops'
@@ -460,16 +462,17 @@ function hourLabel (hour: number): string {
 
 // The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
+const { download: save } = useDownload()
 function download (what: 'summary' | 'connections' | 'chart') {
   const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
   if (what === 'summary' || what === 'connections') {
-    saveBlob(csvBlob(props.csvRows(what)), `${name}.csv`)
+    save({ filename: `${name}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })
   } else {
     const svg = root.value?.querySelector('.cal-transfer-report-wait-chart svg')
     if (svg) {
       const clone = svg.cloneNode(true) as SVGElement
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      saveBlob(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }), `${name}.svg`)
+      save({ filename: `${name}.svg`, data: new XMLSerializer().serializeToString(clone), mimeType: 'image/svg+xml' })
     }
   }
 }

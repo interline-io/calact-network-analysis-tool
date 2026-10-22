@@ -311,7 +311,7 @@ const hasTransfersAction = computed(() => ['stop', 'cluster'].includes(props.fea
   border-top: 1px solid #e0e0e0;
 }
 
-// Full width; a route's two actions share the row.
+// Full width, the actions one above another.
 .cal-popup-actions {
   display: flex;
   flex-direction: column;

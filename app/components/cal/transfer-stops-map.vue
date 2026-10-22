@@ -46,7 +46,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
+import { escapeHtml } from '~~/src/core'
+import { basemapStyle } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
 
 // A stop on the map: where it is, its name, its operators and routes, and
@@ -92,16 +93,23 @@ let popup: maplibre.Popup | undefined
 // Open while picking among stops drawn on top of one another.
 let chooser: maplibre.Popup | undefined
 
+// Every stop, set on the map only when the stops change; which are picked
+// is a filter on the layers that draw them.
 function stopFeatures (): GeoJSON.FeatureCollection {
-  const picked = new Set(selected.value)
   return {
     type: 'FeatureCollection',
     features: props.stops.map(s => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-      properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform, selected: picked.has(s.id) },
+      properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform },
     })),
   }
+}
+
+// The layers' filters: the stops picked, and the rest.
+function pickedFilter (picked: boolean): maplibre.FilterSpecification {
+  const isPicked: maplibre.FilterSpecification = ['in', ['get', 'id'], ['literal', selected.value]]
+  return picked ? isPicked : ['!', isPicked]
 }
 
 // The extent's bounding box, padded by a fifth of its size (and at least
@@ -138,6 +146,13 @@ function updateExtent () {
 function updateStops () {
   const source = map?.getSource('stops') as maplibre.GeoJSONSource | undefined
   source?.setData(stopFeatures())
+}
+
+function updatePicked () {
+  if (map?.getLayer('stops-picked')) {
+    map.setFilter('stops', pickedFilter(false))
+    map.setFilter('stops-picked', pickedFilter(true))
+  }
 }
 
 // The picked stops framed, close enough to tell platforms apart.
@@ -211,10 +226,6 @@ function marker (platform: boolean, picked: boolean): ImageData {
   return ctx.getImageData(0, 0, size, size)
 }
 
-function escapeHtml (s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c] || c))
-}
-
 // A stop as text: its name, a platform's note, operator, and routes.
 function stopHtml (p: Record<string, any>): string {
   return [
@@ -229,7 +240,7 @@ function stopHtml (p: Record<string, any>): string {
 function stopsAt (m: maplibre.Map, point: maplibre.Point): maplibre.MapGeoJSONFeature[] {
   const r = 8
   const seen = new Set<number>()
-  return m.queryRenderedFeatures([[point.x - r, point.y - r], [point.x + r, point.y + r]], { layers: ['stops'] })
+  return m.queryRenderedFeatures([[point.x - r, point.y - r], [point.x + r, point.y + r]], { layers: ['stops-picked', 'stops'] })
     .filter((f) => {
       const id = f.properties?.id as number
       return !seen.has(id) && !!seen.add(id)
@@ -277,21 +288,10 @@ function setHighlight (id: number | undefined) {
   }
 }
 
-// The basemap without its labels, as the census map draws it, so the stops'
-// own names read clearly.
-function protomapsBaseLayers () {
-  const labelIds = new Set(
-    protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true }).map(l => l.id),
-  )
-  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
-    .filter(l => !labelIds.has(l.id))
-}
-
 function initMap () {
   if (map || !mapContainer.value) {
     return
   }
-  const assetOrigin = window.location.origin
   const m = new maplibre.Map({
     container: mapContainer.value,
     zoom: 15,
@@ -301,20 +301,8 @@ function initMap () {
     // The map data's credits only, not MapLibre's own, which the control
     // adds by default.
     attributionControl: { compact: true },
-    style: {
-      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
-      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
-      version: 8,
-      sources: {
-        'protomaps-base': {
-          type: 'vector',
-          tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.public.tlv2.protomapsApikey}`],
-          maxzoom: 15,
-          attribution: '<a href="https://protomaps.com">Protomaps</a> | &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        },
-      },
-      layers: protomapsBaseLayers(),
-    },
+    // Without the basemap's labels, so the stops read clearly.
+    style: basemapStyle(config.public.tlv2.protomapsApikey),
   })
   map = m
   m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
@@ -348,20 +336,22 @@ function initMap () {
         'circle-stroke-width': 2,
       },
     })
-    // Stops as circles and platforms as squares, picked ones filled and
-    // drawn on top.
-    m.addLayer({
-      id: 'stops',
-      type: 'symbol',
-      source: 'stops',
-      layout: {
-        'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], '-', ['case', ['get', 'selected'], 'picked', 'other']],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.7, 16, 1, 18, 1.2],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'symbol-sort-key': ['case', ['get', 'selected'], 1, 0],
-      },
-    })
+    // Stops as circles and platforms as squares, picked ones filled, in a
+    // layer of their own drawn on top.
+    for (const picked of [false, true]) {
+      m.addLayer({
+        id: picked ? 'stops-picked' : 'stops',
+        type: 'symbol',
+        source: 'stops',
+        filter: pickedFilter(picked),
+        layout: {
+          'icon-image': ['concat', 'marker-', ['case', ['get', 'platform'], 'platform', 'stop'], picked ? '-picked' : '-other'],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.7, 16, 1, 18, 1.2],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      })
+    }
     // No names drawn: they crowd a station's stops. Hovering a stop, or its
     // row in the list, names it.
     // Several stops under the pointer are listed together. Clicking one picks
@@ -439,7 +429,7 @@ function startLasso (e: PointerEvent) {
 }
 function moveLasso (e: PointerEvent) {
   if (drawing) {
-    lassoPoints.value = [...lassoPoints.value, point(e)]
+    lassoPoints.value.push(point(e))
   }
 }
 // The stops inside the lasso, by where the map draws them, added to those
@@ -479,7 +469,8 @@ function inRing (x: number, y: number, ring: [number, number][]): boolean {
   return inside
 }
 
-watch([() => props.stops, selected], updateStops)
+watch(() => props.stops, updateStops)
+watch(selected, updatePicked)
 watch(() => props.highlight, setHighlight)
 watch(() => props.extent, updateExtent)
 watch(() => props.fitKey, () => nextTick(fit))

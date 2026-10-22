@@ -5,7 +5,8 @@
 </template>
 
 <script>
-import { csvBlob, saveBlob } from '~/utils/download'
+import { useDownload } from '@interline-io/catenary'
+import { csvString } from '~/utils/download'
 
 export default {
   props: {
@@ -17,7 +18,7 @@ export default {
   },
   methods: {
     saveFile () {
-      saveBlob(csvBlob(this.data), this.filename + '.csv')
+      useDownload().download({ filename: this.filename + '.csv', data: csvString(this.data), mimeType: 'text/csv' })
     }
   }
 }

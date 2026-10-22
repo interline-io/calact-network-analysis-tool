@@ -474,8 +474,9 @@ function findCall (detail: TripDetail, stopId: number, departureTime: number, at
  * The arrivals and departures at a subject's stops. A trip arrives where it
  * lets riders off, coming from somewhere else, and departs where it picks
  * them up, going on somewhere else; a trip moving only between the stops
- * does neither. Each says whether the trip ends (or starts) at the stops. A trip at several of the stops arrives at
- * the first of them and departs from the last, the most time it gives a rider.
+ * does neither. Each says whether the trip ends (or starts) at the stops. A
+ * trip at several of the stops arrives at the first of them and departs from
+ * the last, the most time it gives a rider.
  *
  * The departure cache gives each departure's time; the trip's details give its
  * arrival there (by the scheduled gap between the two), its place in the trip,
@@ -627,9 +628,8 @@ function lowerBound (events: TransferEvent[], time: number): number {
  * back at the end of its run. Unless `allConnections`, each route, direction,
  * and destination shows its first connection a rider makes (the earliest
  * departure, not the shortest wait) and any it missed before then, as later
- * departures on it are not where riders transfer. A
- * short run counts apart from the full one, as it may not go where a rider is
- * headed.
+ * departures on it are not where riders transfer. A short run counts apart
+ * from the full one, as it may not go where a rider is headed.
  *
  * A departure that starts at the same stop where an arrival of the same agency
  * ends is likely that vehicle turning back, as where a feed models each
