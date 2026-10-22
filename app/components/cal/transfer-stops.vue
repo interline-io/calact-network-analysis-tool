@@ -30,7 +30,7 @@
         <template v-for="(s, i) of nearby" :key="s.id">
           <button type="button" class="cal-transfer-stops-link" :title="`Add ${s.name} (${s.operator})`" @click="setPicked(s.id, true)">
             {{ s.name }}
-          </button><span class="cal-transfer-stops-nearby-operator"> ({{ s.operator || 'unknown operator' }}){{ i < nearby.length - 1 ? ',' : '' }}</span>
+          </button><span class="cal-transfer-stops-nearby-operator"> ({{ s.operator || 'unknown operator' }})</span>{{ i < nearby.length - 1 ? ', ' : ' ' }}
         </template>
         <button v-if="nearby.length > 1" type="button" class="cal-transfer-stops-link" @click="stops = [...stops, ...nearby.map(s => s.id)]">
           Add all
