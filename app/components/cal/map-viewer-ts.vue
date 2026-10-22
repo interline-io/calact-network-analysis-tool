@@ -1313,10 +1313,17 @@ function mapContextMenu (e: maplibre.MapMouseEvent) {
     return
   }
   const point: Point = { lon: e.lngLat.lng, lat: e.lngLat.lat }
+  // Bulma's dropdown, open, as a popup at the point: its styles hang off the
+  // whole .dropdown > .dropdown-menu > .dropdown-content structure.
+  const dropdown = document.createElement('div')
+  dropdown.className = 'dropdown is-active'
+  const dropdownMenu = document.createElement('div')
+  dropdownMenu.className = 'dropdown-menu'
+  dropdownMenu.setAttribute('role', 'menu')
   const menu = document.createElement('div')
-  // Bulma's dropdown menu, as a popup at the point.
   menu.className = 'dropdown-content'
-  menu.setAttribute('role', 'menu')
+  dropdownMenu.appendChild(menu)
+  dropdown.appendChild(dropdownMenu)
   for (const [label, arriveBy] of [['Travel time from here', false], ['Travel time to here', true]] as const) {
     const button = document.createElement('button')
     button.type = 'button'
@@ -1332,7 +1339,7 @@ function mapContextMenu (e: maplibre.MapMouseEvent) {
   }
   isochroneMenu = new maplibre.Popup({ closeButton: false, className: 'cal-isochrone-menu-popup', offset: 4, anchor: 'top-left' })
     .setLngLat(e.lngLat)
-    .setDOMContent(menu)
+    .setDOMContent(dropdown)
     .addTo(map)
 }
 
@@ -1450,8 +1457,8 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     max-width: 250px;
   }
 
-  /* Right-click menu: Bulma's dropdown-content draws it, so the popup adds
-     no box of its own. */
+  /* Right-click menu: Bulma's dropdown draws it, so the popup adds no box of
+     its own. */
   .cal-isochrone-menu-popup .maplibregl-popup-content {
     padding: 0;
     background: none;
