@@ -273,10 +273,8 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
         return x.label
       }
       if (same.some(o => o.direction !== direction)) {
-        const ends = new Set(same.map(o => o.x.namedByOrigin ? undefined : o.x.run.terminus))
-        return x.run.terminus && !x.namedByOrigin && !ends.has(undefined) && ends.size === same.length
-          ? x.run.terminus
-          : `${x.label} (${direction.label})`
+        const ends = same.map(o => o.x.namedByOrigin ? '' : o.x.run.terminus ?? '')
+        return ends.every(Boolean) && new Set(ends).size === ends.length ? x.run.terminus! : `${x.label} (${direction.label})`
       }
       return `${x.label} (${x.sign})`
     })

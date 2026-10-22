@@ -204,7 +204,8 @@
             <span v-if="row.route_name" class="cal-transfer-report-trip">
               <cal-route-badge :label="row.route_name" :title="row.agency_name" />
               <span class="cal-transfer-report-trip-name">
-                <span :title="row.sign && row.sign !== row.headsign ? `Signed ${row.sign}` : undefined">{{ row.headsign }}</span>
+                <cat-tooltip v-if="row.sign && row.sign !== row.headsign" :text="`Signed ${row.sign}`">{{ row.headsign }}</cat-tooltip>
+                <span v-else>{{ row.headsign }}</span>
                 <span v-if="row.origin" class="cal-transfer-report-origin">from {{ row.origin }}</span>
                 <cal-transfer-trip-tags :tags="row.tags ?? []" />
               </span>
@@ -854,6 +855,11 @@ const grid = computed(() => (view.value === 'summary'
   align-items: first baseline;
   gap: 0.4em;
   white-space: normal;
+
+  // The route keeps its width; the rest wraps.
+  > :first-child {
+    flex: none;
+  }
 }
 
 .cal-transfer-report-trip-name {
@@ -861,6 +867,7 @@ const grid = computed(() => (view.value === 'summary'
   flex-wrap: wrap;
   align-items: center;
   gap: 0 0.35em;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
