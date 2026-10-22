@@ -86,6 +86,7 @@
         <span role="columnheader">From / arriving trip / departing trip</span>
         <span role="columnheader" class="cal-transfer-rose-num">Connections</span>
         <span role="columnheader">By wait</span>
+        <span role="columnheader" class="cal-transfer-rose-view">View</span>
       </div>
       <div
         v-for="row of rows"
@@ -122,6 +123,13 @@
               :key="g"
               :style="{ flexGrow: row.grades[g], background: TRANSFER_GRADE_COLORS[g].fill }"
             />
+          </cat-tooltip>
+        </span>
+        <span role="cell" class="cal-transfer-rose-view">
+          <cat-tooltip text="Show in Individual">
+            <button type="button" aria-label="Show in Individual" @click="show(row.flows, row.focusLabel)">
+              <cat-icon size="small" icon="table-arrow-right" />
+            </button>
           </cat-tooltip>
         </span>
       </div>
@@ -317,12 +325,14 @@ function setFocus (id: string, flows: TransferRoseFlow[], text?: string, label?:
 // to.
 function showFocus () {
   const f = focus.value
-  if (!f) {
-    return
+  if (f) {
+    show([...f.flows], f.label ?? f.text)
   }
-  const flows = [...f.flows]
+}
+
+function show (flows: TransferRoseFlow[], label: string) {
   emit('show', {
-    label: f.label ?? f.text,
+    label,
     from: [...new Set(flows.map(x => x.fromKey))],
     pairs: flows.map(x => ({ from: x.fromKey, to: x.toKey })),
   })
@@ -620,7 +630,7 @@ function at (x: number, y: number) {
 
 .cal-transfer-rose-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 5.5rem 5rem;
+  grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 2.5rem;
   gap: 0.5rem;
   align-items: center;
   padding: 0.2rem 0.5rem;
@@ -705,6 +715,24 @@ function at (x: number, y: number) {
 .cal-transfer-rose-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.cal-transfer-rose-view {
+  text-align: center;
+
+  button {
+    display: inline-flex;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--bulma-text-weak);
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--bulma-link);
+    }
+  }
 }
 
 .cal-transfer-rose-bar {
