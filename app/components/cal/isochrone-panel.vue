@@ -125,6 +125,22 @@
       <div class="cal-isochrone-field">
         <span class="cal-isochrone-label">Ride</span>
         <div class="cal-isochrone-row">
+          <!-- Transit (of the route types beside it) or walking alone. -->
+          <div role="group" aria-label="Ride">
+            <cat-field addons class="cal-isochrone-group">
+              <div v-for="r of rides" :key="r.label" class="control">
+                <cat-button
+                  size="small"
+                  :icon-left="r.icon"
+                  :variant="params.mode.walkOnly === r.walkOnly ? 'primary' : undefined"
+                  v-bind="{ ariaPressed: params.mode.walkOnly === r.walkOnly }"
+                  @click="setWalkOnly(r.walkOnly)"
+                >
+                  {{ r.label }}
+                </cat-button>
+              </div>
+            </cat-field>
+          </div>
           <div role="group" aria-label="Route types">
             <cat-field addons class="cal-isochrone-group">
               <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
@@ -140,16 +156,6 @@
               </div>
             </cat-field>
           </div>
-          <cat-button
-            size="small"
-            icon-left="walk"
-            :variant="params.mode.walkOnly ? 'primary' : undefined"
-            v-bind="{ ariaPressed: params.mode.walkOnly }"
-            title="Walk only, without transit"
-            @click="setWalkOnly(!params.mode.walkOnly)"
-          >
-            Walk only
-          </cat-button>
         </div>
       </div>
 
@@ -362,8 +368,15 @@ function toggleRouteType (rt: RouteType, on: boolean) {
   update({ mode: { walkOnly: false, routeTypes: on ? [...current, rt] : current.filter(t => t !== rt) } })
 }
 
+const rides = [
+  { label: 'Transit', icon: 'bus-multiple', walkOnly: false },
+  { label: 'Walk only', icon: 'walk', walkOnly: true },
+]
+
 function setWalkOnly (walkOnly: boolean) {
-  update({ mode: walkOnly ? { walkOnly: true } : { walkOnly: false } })
+  if (walkOnly !== props.params.mode.walkOnly) {
+    update({ mode: walkOnly ? { walkOnly: true } : { walkOnly: false } })
+  }
 }
 
 // A chosen travel time wears its band's color, so the row keys the map.

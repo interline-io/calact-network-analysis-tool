@@ -63,8 +63,15 @@ test.describe('Isochrone panel', () => {
     await expect(panel(page).getByRole('button', { name: 'Bus' })).toHaveAttribute('aria-pressed', 'false')
 
     await panel(page).getByRole('button', { name: 'Walk only' }).click()
+    await expect(panel(page).getByRole('button', { name: 'Transit' })).toHaveAttribute('aria-pressed', 'false')
+    await expect(panel(page).getByRole('button', { name: 'Bus' })).toBeDisabled()
     await expect(page).toHaveURL(/isoMode=walk/)
     await expect.poll(() => requests.at(-1)!.searchParams.get('mode')).toBe('WALK')
+
+    await panel(page).getByRole('button', { name: 'Transit' }).click()
+    await expect(page).not.toHaveURL(/isoMode/)
+    await expect.poll(() => requests.at(-1)!.searchParams.get('mode')).toBe('TRANSIT')
+    await expect(panel(page).getByRole('button', { name: 'Bus' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('moves to typed coordinates, and refuses ones that do not parse', async ({ page }) => {
