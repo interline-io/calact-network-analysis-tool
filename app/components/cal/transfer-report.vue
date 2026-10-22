@@ -41,15 +41,17 @@
         <!-- The scenario's time of day, as the Filter tab sets it: arrivals
              between the two; either left empty, from or to the day's end. -->
         <cat-fieldset label="Time of day" class="cal-transfer-report-times">
-          <label class="cal-transfer-report-time-input">
-            <span class="is-sr-only">Arrivals from</span>
-            <cal-timepicker v-model="startTime" />
-          </label>
-          <span aria-hidden="true">to</span>
-          <label class="cal-transfer-report-time-input">
-            <span class="is-sr-only">Arrivals until</span>
-            <cal-timepicker v-model="endTime" />
-          </label>
+          <div class="cal-transfer-report-times-row">
+            <label>
+              <span class="is-sr-only">Arrivals from</span>
+              <cal-timepicker v-model="startTime" />
+            </label>
+            <span aria-hidden="true">to</span>
+            <label>
+              <span class="is-sr-only">Arrivals until</span>
+              <cal-timepicker v-model="endTime" />
+            </label>
+          </div>
         </cat-fieldset>
         <!-- Each opens its settings below the toolbar, one at a time. -->
         <cat-field label="Settings" class="cal-transfer-report-settings-field">
@@ -596,8 +598,7 @@ function rowClass (row: TransferGridTrip): string | undefined {
   margin-bottom: 0;
 
   // The two times on one line, with "to" between.
-  :deep(.cat-fieldset-content),
-  > :last-child {
+  .cal-transfer-report-times-row {
     display: flex;
     align-items: center;
     gap: 0.35rem;
