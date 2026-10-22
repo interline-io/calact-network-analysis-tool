@@ -4,8 +4,8 @@
     :class="section === 'trips' ? 'cal-transfer-settings-trips' : 'cal-transfer-settings-wait-walk'"
     :aria-label="section === 'trips' ? 'Trip filtering' : 'Wait and walking settings'"
   >
-    <template v-if="section === 'wait-walk'">
-      <cat-fieldset label="Walking between stops">
+    <div v-if="section === 'wait-walk'" class="cal-transfer-settings-wait-walk-grid">
+      <cat-fieldset label="Walking between stops" class="cal-transfer-settings-walk">
         <div class="cal-transfer-settings-row">
           <cat-radio
             v-for="o of walkOptions"
@@ -42,7 +42,7 @@
 
       <!-- The grades as a scale: each between the two waits, in minutes, that
            bound it, in its color. -->
-      <cat-fieldset label="Grades (minutes of wait)">
+      <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
         <div class="cal-transfer-settings-scale">
           <template v-for="(bound, i) of bounds" :key="bound">
             <cat-input
@@ -77,24 +77,30 @@
         </p>
       </cat-fieldset>
 
-      <cat-fieldset label="Connections">
-        <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
-          Show every connection
-        </cat-checkbox>
-        <p class="cal-transfer-settings-help">
-          Otherwise each arrival shows its first connection to each route,
-          direction, and destination, and any it just missed.
-        </p>
-        <cat-checkbox :model-value="settings.countTurnbacks" @update:model-value="set({ countTurnbacks: !!$event })">
-          Count likely turnbacks
-        </cat-checkbox>
-        <p class="cal-transfer-settings-help">
-          A trip ending here and one of the same agency starting from the same
-          stop are likely one vehicle turning back, so are not counted as a
-          transfer unless checked.
-        </p>
+      <cat-fieldset label="Connections" class="cal-transfer-settings-connections">
+        <div class="cal-transfer-settings-options">
+          <div>
+            <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
+              Show every connection
+            </cat-checkbox>
+            <p class="cal-transfer-settings-help">
+              Otherwise each arrival shows its first connection to each route,
+              direction, and destination, and any it just missed.
+            </p>
+          </div>
+          <div>
+            <cat-checkbox :model-value="settings.countTurnbacks" @update:model-value="set({ countTurnbacks: !!$event })">
+              Count likely turnbacks
+            </cat-checkbox>
+            <p class="cal-transfer-settings-help">
+              A trip ending here and one of the same agency starting from the
+              same stop are likely one vehicle turning back, so are not counted
+              as a transfer unless checked.
+            </p>
+          </div>
+        </div>
       </cat-fieldset>
-    </template>
+    </div>
 
     <!-- Arriving and departing trips side by side, as www groups a stop's
          departures: each route, its directions ("Toward X"), and their
@@ -401,14 +407,10 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   font-size: 0.875rem;
   flex: 0 0 auto;
 
-  // Walking and the grade scale at their own width; connections, the rest.
+  // Sized by its own width, which the page's sidebar changes too.
   &.cal-transfer-settings-wait-walk {
-    display: flex;
-    flex-wrap: wrap;
-
-    > :last-child {
-      flex: 1 1 14rem;
-    }
+    display: block;
+    container-type: inline-size;
   }
 
   // Arriving and departing side by side; one above the other on narrow
@@ -424,6 +426,56 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   > * {
     margin-bottom: 0;
     min-width: 0;
+  }
+}
+
+// Walking and the grade scale at their own width, connections the rest, in
+// one row where the panel is wide. Narrower, connections take a row of their
+// own, their two options side by side; narrower still, everything stacks.
+.cal-transfer-settings-wait-walk-grid {
+  display: grid;
+  gap: 0.75rem 2rem;
+  grid-template-columns: max-content max-content minmax(16rem, 1fr);
+
+  > * {
+    margin-bottom: 0;
+    min-width: 0;
+  }
+
+  @container (max-width: 84rem) {
+    grid-template-columns: max-content minmax(0, 1fr);
+
+    .cal-transfer-settings-connections {
+      grid-column: 1 / -1;
+    }
+
+    .cal-transfer-settings-options {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 64rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @container (max-width: 40rem) {
+    .cal-transfer-settings-options {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+// The grade scale's help wraps at the scale's width, rather than widening it.
+.cal-transfer-settings-grades .cal-transfer-settings-help {
+  contain: inline-size;
+}
+
+.cal-transfer-settings-options {
+  display: grid;
+  gap: 0.25rem 1.5rem;
+
+  p {
+    margin-bottom: 0.4rem;
   }
 }
 
