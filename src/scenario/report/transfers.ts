@@ -886,7 +886,7 @@ export function formatWait (seconds: number | undefined): string {
   return seconds < 0 ? `-${formatDuration(-seconds)}` : formatDuration(seconds)
 }
 
-function routeLabel (route: Pick<TripTableRoute, 'route_id' | 'route_short_name' | 'route_long_name'> | undefined): string {
+export function routeLabel (route: Pick<TripTableRoute, 'route_id' | 'route_short_name' | 'route_long_name'> | undefined): string {
   return route?.route_short_name || route?.route_long_name || route?.route_id || ''
 }
 

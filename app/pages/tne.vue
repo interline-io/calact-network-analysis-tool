@@ -91,7 +91,7 @@
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
                 :compass="transfers.compass"
-                :compass-flows="transfers.compassFlows"
+                :rose="transferView === 'compass' ? transfers.rose : EMPTY_ROSE"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-grid="transferView === 'summary' ? transfers.summaryGrid : []"
                 :csv-rows="transfers.csvRows"
@@ -312,7 +312,7 @@ import {
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -980,6 +980,8 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
   return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
 })
 const transferView = ref<TransferReportView>('summary')
+// The Compass view's flows, worked out only while it shows.
+const EMPTY_ROSE: TransferRose = { places: [], flows: [], from: new Map(), to: new Map() }
 const transferSection = ref<TransferReportSection | undefined>('trips')
 // Stop clustering on at its default distance; the clusters alone are then
 // fetched again, the rest of the scenario kept.

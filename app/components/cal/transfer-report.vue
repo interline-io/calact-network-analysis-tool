@@ -184,10 +184,7 @@
         </div>
         <!-- Where the connections come from and go, as flows around the
              stops. -->
-        <div v-if="view === 'compass'" class="cal-transfer-report-compasses">
-          <cal-transfer-compass title="Connections by where trips arrive from" side="from" :places="compass.from" :flows="compassFlows.from" />
-          <cal-transfer-compass title="Connections by where trips depart to" side="to" :places="compass.to" :flows="compassFlows.to" />
-        </div>
+        <cal-transfer-rose v-if="view === 'compass'" :rose="rose" />
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
@@ -285,7 +282,7 @@ import {
   type TransferCompassPlace,
   type TransferGrade,
   type TransferGradeCount,
-  type TransferGradeCounts,
+  type TransferRose,
   type TransferGridRow,
   type TransferGridTrip,
   type TransferRouteChoice,
@@ -331,10 +328,10 @@ const props = defineProps<{
   // The routes arriving and departing, and pairs of stops with no distance
   // between them, for the settings.
   routeChoices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }
-  // Where trips arrive from and depart to, around the stops; and the
-  // connections by grade by destination, arriving and departing.
+  // Where trips arrive from and depart to, around the stops, for picking;
+  // and the connections as flows between them, for the Compass view.
   compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }
-  compassFlows: { from: Map<string, TransferGradeCounts>, to: Map<string, TransferGradeCounts> }
+  rose: TransferRose
   unknownPairs: number
   missingDetails: number
   detailsLoading: boolean
@@ -765,17 +762,6 @@ const grid = computed(() => (view.value === 'summary'
   gap: 0.5rem 2rem;
   margin-bottom: 0.75rem;
   flex: 0 0 auto;
-}
-
-.cal-transfer-report-compasses {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem 2rem;
-  margin-bottom: 0.75rem;
-
-  @media (max-width: 48rem) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .cal-transfer-report-figures {

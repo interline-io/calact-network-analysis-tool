@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bearingAndDistance, centerOf, sumGrades, transferCompassFlows, transferCompassPlaces } from './transfer-compass'
+import { bearingAndDistance, centerOf, transferCompassPlaces, transferRose } from './transfer-compass'
 import type { TransferArrivalSummary, TransferRouteChoice, TransferTripDestination } from './transfers'
 
 const MILLBRAE: [number, number] = [-122.387, 37.600]
@@ -51,20 +51,29 @@ describe('transferCompassPlaces', () => {
   })
 })
 
-describe('transferCompassFlows', () => {
+describe('transferRose', () => {
   const ref = (key: string) => ({ key, routeId: 1, directionId: 0 })
   const summaries = [{
     from: ref('in'),
-    overview: { grades: [{ grade: 'close', count: 3 }, { grade: 'missed', count: 1 }] },
+    overview: { grades: [] },
     pairs: [
-      { to: ref('out1'), missed: 1, close: 2, acceptable: 0, unacceptable: 0 },
-      { to: ref('out2'), missed: 0, close: 1, acceptable: 0, unacceptable: 0 },
+      { to: ref('north'), missed: 1, close: 2, acceptable: 0, unacceptable: 0 },
+      { to: ref('south'), missed: 0, close: 1, acceptable: 0, unacceptable: 0 },
+      { to: ref('unplaced'), missed: 0, close: 5, acceptable: 0, unacceptable: 0 },
     ],
   }] as unknown as TransferArrivalSummary[]
+  const place = (name: string, bearing: number, keys: string[]) => ({ name, bearing, km: 10, keys, count: 1 })
+  const compass = { from: [place('San Jose', 135, ['in'])], to: [place('San Francisco', 0, ['north']), place('Tamien', 140, ['south'])] }
+  const info = {
+    routes: new Map([[1, { route_id: 'R1', route_short_name: 'Local', agency_name: 'Caltrain' }]]),
+    from: new Map([['in', { ...destination('in', 1, {}), label: 'San Francisco', routeId: 1 }]]),
+    to: new Map(),
+  }
 
-  it('counts connections by grade from arriving destinations and onto departing ones', () => {
-    expect(transferCompassFlows(summaries, 'from').get('in')).toEqual({ missed: 1, close: 3, acceptable: 0, unacceptable: 0 })
-    const to = transferCompassFlows(summaries, 'to')
-    expect(sumGrades(to, ['out1', 'out2', 'none'])).toEqual({ missed: 1, close: 3, acceptable: 0, unacceptable: 0 })
+  it('flows from where arriving trips start to where departing ones end, leaving out unplaced ones', () => {
+    const rose = transferRose(summaries, compass, info)
+    expect(rose.flows.map(f => [f.from, f.to, f.total])).toEqual([['San Jose', 'San Francisco', 3], ['San Jose', 'Tamien', 1]])
+    expect(rose.places.map(p => p.name)).toEqual(['San Francisco', 'San Jose', 'Tamien'])
+    expect(rose.from.get('in')).toEqual({ route: 'Local', agency: 'Caltrain', label: 'San Francisco' })
   })
 })

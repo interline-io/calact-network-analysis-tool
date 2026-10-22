@@ -14,8 +14,8 @@ import {
   clusterDisplayName,
   resolveEffectiveWeekdays,
   summarizeTransfers,
-  transferCompassFlows,
   transferCompassPlaces,
+  transferRose,
   transferEvents,
   transferGrid,
   transferOverview,
@@ -364,10 +364,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       to: center ? transferCompassPlaces(routeChoices.value.to, 'to', center) : [],
     }
   })
-  const compassFlows = computed(() => ({
-    from: transferCompassFlows(summary.value, 'from'),
-    to: transferCompassFlows(summary.value, 'to'),
-  }))
+  const rose = computed(() => transferRose(summary.value, compass.value, tripInfo.value))
 
   // The views' rows, flat, as CSV: built when asked for.
   function csvRows (kind: 'summary' | 'connections'): Record<string, unknown>[] {
@@ -462,7 +459,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     breakpoints,
     routeChoices,
     compass,
-    compassFlows,
+    rose,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     csvRows,
     summaryGrid,

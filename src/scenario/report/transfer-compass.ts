@@ -7,7 +7,8 @@
  * reported as figures.
  */
 
-import { TRANSFER_GRADES, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice } from './transfers'
+import type { TripTableRoute } from './subject-trips'
+import { TRANSFER_GRADES, routeLabel, type TransferArrivalSummary, type TransferGrade, type TransferRouteChoice, type TransferTripDestination } from './transfers'
 
 const KM_PER_DEGREE = 111.32
 
@@ -66,44 +67,77 @@ export function transferCompassPlaces (choices: TransferRouteChoice[], side: 'fr
   return [...places.values()].sort((a, b) => a.bearing - b.bearing)
 }
 
-function noGrades (): TransferGradeCounts {
-  return { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
+// A flow on the rose: the connections from arrivals on one destination to
+// departures on another, with the places their trips come from and go to.
+export interface TransferRoseFlow {
+  from: string
+  to: string
+  fromKey: string
+  toKey: string
+  grades: TransferGradeCounts
+  total: number
+}
+
+// A destination as the rose's table names it: its route and its name.
+export interface TransferRoseTrip {
+  route: string
+  agency: string
+  label: string
+}
+
+export interface TransferRose {
+  // Every place a flow comes from or goes to, by bearing.
+  places: { name: string, bearing: number, km: number }[]
+  // By most connections.
+  flows: TransferRoseFlow[]
+  // The destinations by key, arriving and departing.
+  from: Map<string, TransferRoseTrip>
+  to: Map<string, TransferRoseTrip>
+}
+
+interface RoseTripInfo {
+  routes: Map<number, TripTableRoute>
+  from: Map<string, TransferTripDestination & { routeId: number }>
+  to: Map<string, TransferTripDestination & { routeId: number }>
 }
 
 /**
- * Connections by grade for each destination: for arriving ones ('from'), the
- * connections their trips make; for departing ones ('to'), those made onto
- * their trips.
+ * Connections as flows from where arriving trips come from to where
+ * departing trips go, for one compass rose: each pair of arriving and
+ * departing destinations, placed by the compass places their trips start
+ * and end at. Pairs with an unplaced end are left out.
  */
-export function transferCompassFlows (summaries: TransferArrivalSummary[], side: 'from' | 'to'): Map<string, TransferGradeCounts> {
-  const flows = new Map<string, TransferGradeCounts>()
-  const add = (key: string, counts: Partial<TransferGradeCounts>) => {
-    const total = flows.get(key) ?? noGrades()
-    for (const g of TRANSFER_GRADES) {
-      total[g] += counts[g] ?? 0
-    }
-    flows.set(key, total)
-  }
-  for (const { from, overview, pairs } of summaries) {
-    if (side === 'from') {
-      add(from.key, Object.fromEntries(overview.grades.map(g => [g.grade, g.count])))
-    } else {
-      for (const p of pairs) {
-        add(p.to.key, p)
+export function transferRose (summaries: TransferArrivalSummary[], compass: { from: TransferCompassPlace[], to: TransferCompassPlace[] }, info: RoseTripInfo): TransferRose {
+  const placeOf = (places: TransferCompassPlace[]) => new Map(places.flatMap(p => p.keys.map(k => [k, p] as const)))
+  const fromPlace = placeOf(compass.from)
+  const toPlace = placeOf(compass.to)
+  const flows: TransferRoseFlow[] = []
+  for (const { from, pairs } of summaries) {
+    const origin = fromPlace.get(from.key)
+    for (const p of pairs) {
+      const destination = toPlace.get(p.to.key)
+      const grades = { missed: p.missed, close: p.close, acceptable: p.acceptable, unacceptable: p.unacceptable }
+      const total = TRANSFER_GRADES.reduce((n, g) => n + grades[g], 0)
+      if (origin && destination && total > 0) {
+        flows.push({ from: origin.name, to: destination.name, fromKey: from.key, toKey: p.to.key, grades, total })
       }
     }
   }
-  return flows
-}
-
-// Connections by grade summed over some destinations.
-export function sumGrades (flows: Map<string, TransferGradeCounts>, keys: string[]): TransferGradeCounts {
-  const total = noGrades()
-  for (const key of keys) {
-    const counts = flows.get(key)
-    for (const g of TRANSFER_GRADES) {
-      total[g] += counts?.[g] ?? 0
+  const places = new Map<string, { name: string, bearing: number, km: number }>()
+  for (const p of [...compass.from, ...compass.to]) {
+    if (!places.has(p.name) && flows.some(f => f.from === p.name || f.to === p.name)) {
+      places.set(p.name, { name: p.name, bearing: p.bearing, km: p.km })
     }
   }
-  return total
+  const trips = (byKey: RoseTripInfo['from'], keys: Set<string>) => new Map([...keys].map((key) => {
+    const d = byKey.get(key)
+    const route = d ? info.routes.get(d.routeId) : undefined
+    return [key, { route: routeLabel(route), agency: route?.agency_name ?? '', label: d?.label ?? '' }] as const
+  }))
+  return {
+    places: [...places.values()].sort((a, b) => a.bearing - b.bearing),
+    flows: flows.sort((a, b) => b.total - a.total),
+    from: trips(info.from, new Set(flows.map(f => f.fromKey))),
+    to: trips(info.to, new Set(flows.map(f => f.toKey))),
+  }
 }

@@ -1,9 +1,8 @@
 <template>
   <!-- Places trips come from or go to, around the stops by bearing and
-       distance. To pick trips, each place and each compass point toggles
-       its trips; to show results, each place's connections flow as a band,
-       as wide as their number, striped by grade. -->
-  <figure class="cal-transfer-compass" :class="{ 'cal-transfer-compass-select': selectable }">
+       distance, to pick trips by: each place and each compass point
+       toggles its trips. -->
+  <figure class="cal-transfer-compass">
     <figcaption class="cal-transfer-compass-title">
       {{ title }}
     </figcaption>
@@ -28,68 +27,49 @@
         <template v-for="p of layout" :key="`leader-${p.name}`">
           <line v-if="Math.abs(p.labelY - p.y) > 2" class="cal-transfer-compass-leader" :x1="p.x" :y1="p.y" :x2="p.labelX" :y2="p.labelY" />
         </template>
-        <!-- To pick: a line to each place, arrowed in the trips' direction. -->
-        <template v-if="!flows">
-          <line
-            v-for="p of layout"
-            :key="`line-${p.name}`"
-            class="cal-transfer-compass-line"
-            :class="`cal-transfer-compass-line-${p.state}`"
-            v-bind="arrowEnds(p)"
-            :marker-end="`url(#${uid}-${p.state === 'none' ? 'off' : 'on'})`"
-          />
-          <circle
-            v-for="p of layout"
-            :key="`dot-${p.name}`"
-            class="cal-transfer-compass-dot"
-            :class="`cal-transfer-compass-dot-${p.state}`"
-            :cx="p.x"
-            :cy="p.y"
-            :r="p.dot"
-            @click="toggle(p)"
-          />
-        </template>
-        <!-- Results: each place's connections as a band striped by grade. -->
-        <template v-else>
-          <g v-for="p of layout" :key="`band-${p.name}`">
-            <line
-              v-for="s of p.stripes"
-              :key="s.grade"
-              v-bind="s.ends"
-              :stroke="TRANSFER_GRADE_COLORS[s.grade].fill"
-              :stroke-width="s.width"
-            />
-            <path v-if="p.total > 0" class="cal-transfer-compass-head" :d="p.head" />
-            <circle class="cal-transfer-compass-dot cal-transfer-compass-dot-place" :cx="p.x" :cy="p.y" r="2.5" />
-          </g>
-        </template>
+        <!-- A line to each place, arrowed in the trips' direction. -->
+        <line
+          v-for="p of layout"
+          :key="`line-${p.name}`"
+          class="cal-transfer-compass-line"
+          :class="`cal-transfer-compass-line-${p.state}`"
+          v-bind="arrowEnds(p)"
+          :marker-end="`url(#${uid}-${p.state === 'none' ? 'off' : 'on'})`"
+        />
+        <circle
+          v-for="p of layout"
+          :key="`dot-${p.name}`"
+          class="cal-transfer-compass-dot"
+          :class="`cal-transfer-compass-dot-${p.state}`"
+          :cx="p.x"
+          :cy="p.y"
+          :r="p.dot"
+          @click="toggle(p)"
+        />
         <circle class="cal-transfer-compass-center" r="5" />
       </svg>
       <!-- Compass points, each toggling the trips of the places that way. -->
-      <template v-if="selectable">
-        <cat-tooltip
-          v-for="(point, i) of POINTS"
-          :key="point.short"
-          :text="sectorText(i)"
-          class="cal-transfer-compass-point"
-          :style="at(point.x, point.y)"
+      <cat-tooltip
+        v-for="(point, i) of POINTS"
+        :key="point.short"
+        :text="sectorText(i)"
+        class="cal-transfer-compass-point"
+        :style="at(point.x, point.y)"
+      >
+        <button
+          type="button"
+          :disabled="sectorPlaces(i).length === 0"
+          :aria-label="sectorText(i)"
+          @click="toggleSector(i)"
+          @mouseenter="hoveredSector = i"
+          @mouseleave="hoveredSector = undefined"
+          @focus="hoveredSector = i"
+          @blur="hoveredSector = undefined"
         >
-          <button
-            type="button"
-            :disabled="sectorPlaces(i).length === 0"
-            :aria-label="sectorText(i)"
-            @click="toggleSector(i)"
-            @mouseenter="hoveredSector = i"
-            @mouseleave="hoveredSector = undefined"
-            @focus="hoveredSector = i"
-            @blur="hoveredSector = undefined"
-          >
-            {{ point.short }}
-          </button>
-        </cat-tooltip>
-      </template>
-      <span v-else class="cal-transfer-compass-north" :style="at(0, -HEIGHT / 2 + 8)">N</span>
-      <!-- Each place's name, toggling its trips where picking. -->
+          {{ point.short }}
+        </button>
+      </cat-tooltip>
+      <!-- Each place's name, toggling its trips. -->
       <cat-tooltip
         v-for="p of layout"
         :key="`label-${p.name}`"
@@ -98,39 +78,25 @@
         :class="[`cal-transfer-compass-label-${p.labelX < 0 ? 'left' : 'right'}`, `cal-transfer-compass-label-${p.state}`]"
         :style="at(p.labelX, p.labelY)"
       >
-        <button v-if="selectable" type="button" :aria-pressed="p.state === 'all' ? 'true' : p.state === 'some' ? 'mixed' : 'false'" @click="toggle(p)">
+        <button type="button" :aria-pressed="p.state === 'all' ? 'true' : p.state === 'some' ? 'mixed' : 'false'" @click="toggle(p)">
           {{ p.name }}
         </button>
-        <span v-else>{{ p.name }}</span>
       </cat-tooltip>
     </div>
-    <p v-if="flows && layout.length > 0" class="cal-transfer-compass-key">
-      <span v-for="g of TRANSFER_GRADES" :key="g"><span class="cal-transfer-compass-swatch" :style="{ background: TRANSFER_GRADE_COLORS[g].fill }" />{{ TRANSFER_GRADE_LABELS[g] }}</span>
-    </p>
   </figure>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import {
-  TRANSFER_GRADES,
-  TRANSFER_GRADE_COLORS,
-  TRANSFER_GRADE_LABELS,
-  sumGrades,
-  type TransferCompassPlace,
-  type TransferGrade,
-  type TransferGradeCounts,
-} from '~~/src/scenario'
+import type { TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
   title: string
   places: TransferCompassPlace[]
   // Where trips arrive from ('from') or depart to ('to').
   side: 'from' | 'to'
-  // To pick: the destinations left out. Its absence means no picking.
-  excluded?: string[]
-  // Results: connections by grade by destination.
-  flows?: Map<string, TransferGradeCounts>
+  // The destinations left out.
+  excluded: string[]
 }>()
 
 const emit = defineEmits<{
@@ -157,7 +123,6 @@ const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((short, i) => {
 })
 const NAMES = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest']
 
-const selectable = computed(() => props.excluded !== undefined)
 const hoveredSector = ref<number>()
 
 // Rings at round distances, up to three, inside the farthest place.
@@ -176,15 +141,10 @@ function along (bearing: number): [number, number] {
   return [Math.sin(a), -Math.cos(a)]
 }
 
-interface Stripe { grade: TransferGrade, width: number, ends: { x1: number, y1: number, x2: number, y2: number } }
-
 const layout = computed(() => {
-  const excluded = new Set(props.excluded ?? [])
+  const excluded = new Set(props.excluded)
   const maxCount = Math.max(1, ...props.places.map(p => p.count))
-  const totals = props.places.map(p => (props.flows ? sumGrades(props.flows, p.keys) : undefined))
-  const maxTotal = Math.max(1, ...totals.map(t => (t ? TRANSFER_GRADES.reduce((n, g) => n + t[g], 0) : 0)))
-  const widths = totals.map(t => (t ? bandWidth(TRANSFER_GRADES.reduce((n, g) => n + t[g], 0), maxTotal) : 0))
-  const angles = spread(props.places.map(p => p.bearing), widths)
+  const angles = spread(props.places.map(p => p.bearing))
   const placed = props.places.map((p, i) => {
     const angle = angles[i]!
     const [ux, uy] = along(angle)
@@ -193,8 +153,6 @@ const layout = computed(() => {
     const y = uy * r
     const out = p.keys.filter(k => excluded.has(k)).length
     const state = out === 0 ? 'all' as const : out === p.keys.length ? 'none' as const : 'some' as const
-    const grades = totals[i]
-    const total = grades ? TRANSFER_GRADES.reduce((n, g) => n + grades[g], 0) : 0
     return {
       ...p,
       x,
@@ -202,10 +160,8 @@ const layout = computed(() => {
       r,
       state,
       dot: 3 + 4 * Math.sqrt(p.count / maxCount),
-      total,
       angle,
-      ...bandOf(angle, r, grades, total, maxTotal),
-      text: placeText(p, state, grades, total),
+      text: placeText(p, state),
       labelX: x + (x < 0 ? -8 : 8),
       labelY: y,
     }
@@ -230,26 +186,20 @@ const layout = computed(() => {
   return placed
 })
 
-function bandWidth (total: number, maxTotal: number): number {
-  return total > 0 ? Math.max(1.5, 16 * (total / maxTotal)) : 0
-}
-
 // The angles to draw places at: their bearings, fanned apart where they
-// would draw on top of one another, at least MIN_SPREAD degrees, and more
-// for wide bands, which leave the stops side by side.
+// would draw on top of one another, at least MIN_SPREAD degrees apart.
 const MIN_SPREAD = 8
-function spread (bearings: number[], widths: number[]): number[] {
+function spread (bearings: number[]): number[] {
   const order = bearings.map((b, i) => i).sort((a, b) => bearings[a]! - bearings[b]!)
   const angles = [...bearings]
-  const gap = (i: number, j: number) => Math.max(MIN_SPREAD, ((widths[i]! + widths[j]!) / 2 + 3) * 0.95)
   for (let pass = 0; pass < 60; pass++) {
     let moved = false
     for (let k = 0; k < order.length - 1; k++) {
       const [i, j] = [order[k]!, order[k + 1]!]
-      const short = gap(i, j) - (angles[j]! - angles[i]!)
+      const short = MIN_SPREAD - (angles[j]! - angles[i]!)
       if (short > 0.01) {
-        angles[i]! -= short / 2
-        angles[j]! += short / 2
+        angles[i] = angles[i]! - short / 2
+        angles[j] = angles[j]! + short / 2
         moved = true
       }
     }
@@ -258,40 +208,6 @@ function spread (bearings: number[], widths: number[]): number[] {
     }
   }
   return angles
-}
-
-// A band from the stops to a place, as wide as its share of the most
-// connections at any place, in stripes by grade; and its arrowhead, at the
-// place for departing trips, at the stops for arriving ones.
-function bandOf (bearing: number, r: number, grades: TransferGradeCounts | undefined, total: number, maxTotal: number): { stripes: Stripe[], head: string } {
-  if (!grades || total === 0) {
-    return { stripes: [], head: '' }
-  }
-  const [ux, uy] = along(bearing)
-  const [nx, ny] = [-uy, ux]
-  const width = bandWidth(total, maxTotal)
-  const headLength = Math.min(8, Math.max(4, width * 0.6))
-  const outward = props.side === 'to'
-  const start = outward ? 7 : 7 + headLength
-  const end = outward ? r - headLength : r
-  const stripes: Stripe[] = []
-  let offset = -width / 2
-  for (const grade of TRANSFER_GRADES) {
-    const w = (width * grades[grade]) / total
-    if (w > 0) {
-      const o = offset + w / 2
-      stripes.push({ grade, width: w, ends: { x1: ux * start + nx * o, y1: uy * start + ny * o, x2: ux * end + nx * o, y2: uy * end + ny * o } })
-      offset += w
-    }
-  }
-  const half = width / 2 + 2
-  const [base, tip] = outward ? [r - headLength, r] : [7 + headLength, 7]
-  const head = [
-    [ux * base + nx * half, uy * base + ny * half],
-    [ux * tip, uy * tip],
-    [ux * base - nx * half, uy * base - ny * half],
-  ].map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x!.toFixed(1)},${y!.toFixed(1)}`).join(' ') + ' Z'
-  return { stripes, head }
 }
 
 // A line from the stops to a place, arrowed toward the stops for arriving
@@ -306,13 +222,9 @@ function arrowEnds (p: { angle: number, r: number, dot: number }) {
 
 const DIRECTION = { from: 'Arriving from', to: 'Departing to' }
 
-function placeText (p: TransferCompassPlace, state: 'all' | 'some' | 'none', grades: TransferGradeCounts | undefined, total: number): string {
+function placeText (p: TransferCompassPlace, state: 'all' | 'some' | 'none'): string {
   const trips = `${p.count.toLocaleString()} ${p.count === 1 ? 'trip' : 'trips'}`
   const where = `${DIRECTION[props.side]} ${p.name}, ${Math.round(p.km)} km ${NAMES[sectorOf(p.bearing)]}`
-  if (grades) {
-    const byGrade = TRANSFER_GRADES.filter(g => grades[g] > 0).map(g => `${grades[g].toLocaleString()} ${TRANSFER_GRADE_LABELS[g].toLowerCase()}`).join(', ')
-    return `${where}: ${total.toLocaleString()} ${total === 1 ? 'connection' : 'connections'}${byGrade ? ` (${byGrade})` : ''}, on ${trips}.`
-  }
   const included = { all: 'included', some: 'some included', none: 'left out' }[state]
   return `${where}: ${trips}, ${included}. Click to ${state === 'all' ? 'leave them out' : 'include them'}.`
 }
@@ -343,9 +255,7 @@ function sectorPath (i: number): string {
 }
 
 function toggle (p: { keys: string[], state: 'all' | 'some' | 'none' }) {
-  if (selectable.value) {
-    emit('toggle', p.keys, p.state !== 'all')
-  }
+  emit('toggle', p.keys, p.state !== 'all')
 }
 
 function toggleSector (i: number) {
@@ -431,7 +341,7 @@ function at (x: number, y: number) {
   fill: #7a4dda;
 }
 
-.cal-transfer-compass-select .cal-transfer-compass-dot {
+.cal-transfer-compass-dot {
   cursor: pointer;
 }
 
@@ -444,15 +354,6 @@ function at (x: number, y: number) {
   fill: var(--bulma-scheme-main);
 }
 
-.cal-transfer-compass-dot-place {
-  stroke: none;
-  fill: #5b6470;
-}
-
-.cal-transfer-compass-head {
-  fill: #5b6470;
-}
-
 .cal-transfer-compass-center {
   fill: var(--bulma-text);
 }
@@ -460,14 +361,12 @@ function at (x: number, y: number) {
 // Labels and compass points sit over the drawing, centered on their point
 // (a label, beside it).
 .cal-transfer-compass-point,
-.cal-transfer-compass-north,
 .cal-transfer-compass-label {
   position: absolute;
   line-height: 1;
 }
 
-.cal-transfer-compass-point,
-.cal-transfer-compass-north {
+.cal-transfer-compass-point {
   transform: translate(-50%, -50%);
   font-weight: 600;
   color: var(--bulma-text-weak);
@@ -530,25 +429,5 @@ function at (x: number, y: number) {
 .cal-transfer-compass-label-none button {
   color: var(--bulma-text-weak);
   text-decoration: line-through;
-}
-
-.cal-transfer-compass-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  color: var(--bulma-text-weak);
-
-  > span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-}
-
-.cal-transfer-compass-swatch {
-  display: inline-block;
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 2px;
 }
 </style>
