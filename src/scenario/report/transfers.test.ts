@@ -384,6 +384,12 @@ describe('transferTripChoices', () => {
     ])
   })
 
+  it('names each route\'s operator', () => {
+    const withAgency = new Map([[10, { route_id: 'R10', route_short_name: '10', agency: { agency_name: 'Caltrain' } }]])
+    const [route] = transferTripChoices([trip(10, 0, 'San Francisco')], withAgency)
+    expect(route!.operator).toBe('Caltrain')
+  })
+
   it('numbers both directions where they would read the same', () => {
     const [route] = transferTripChoices([trip(10, 0, 'Loop'), trip(10, 1, 'Loop')], routes)
     expect(route!.directions.map(d => d.label)).toEqual(['Direction 0', 'Direction 1'])

@@ -142,6 +142,8 @@ export interface TransferRouteChoice {
   id: number
   label: string
   longName: string
+  // The route's operator (its GTFS agency), by name.
+  operator: string
   count: number
   directions: TransferTripDirection[]
 }
@@ -151,6 +153,7 @@ export interface TransferChoiceRoute {
   route_short_name?: string | null
   route_long_name?: string | null
   route_sort_order?: number | null
+  agency?: { agency_name?: string | null } | null
 }
 
 /**
@@ -269,6 +272,7 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       id,
       label,
       longName: route?.route_long_name ?? '',
+      operator: route?.agency?.agency_name ?? '',
       count: labeled.reduce((n, d) => n + d.count, 0),
       directions: labeled.map(d => ({ ...d, destinations: d.destinations.map(({ sign: _, ...x }) => x) })),
     }

@@ -106,7 +106,7 @@
           <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [] })">
             All
           </button>
-          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: side.rows.filter(r => r.depth === 0).flatMap(r => r.keys) })">
+          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [...new Set(side.rows.flatMap(r => r.keys))] })">
             None
           </button>
         </div>
@@ -115,7 +115,7 @@
             v-for="row of side.rows"
             :key="row.id"
             class="cal-transfer-settings-item"
-            :class="`cal-transfer-settings-depth-${row.depth}`"
+            :class="row.operator ? 'cal-transfer-settings-operator' : `cal-transfer-settings-depth-${row.depth}`"
           >
             <button
               v-if="row.openKey"
@@ -244,6 +244,8 @@ interface Row {
   tags: TransferTripTag[]
   // On a route's first row, the route, to show its trips.
   routeId?: number
+  // An operator's row, over its routes.
+  operator?: boolean
   // Whether all, some, or none of the keys are included.
   state: 'all' | 'some' | 'none'
   // Set where the row opens to destinations.
@@ -260,9 +262,35 @@ function toggleOpen (key: string) {
   opened.value = next
 }
 
+// Where the routes come from more than one operator, each operator's routes
+// under a row for it, operators by name; otherwise the routes alone.
+function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
+  const byOperator = new Map<string, TransferRouteChoice[]>()
+  for (const route of routes) {
+    byOperator.set(route.operator, [...(byOperator.get(route.operator) ?? []), route])
+  }
+  if (byOperator.size < 2) {
+    return routeRows(side, routes)
+  }
+  return [...byOperator]
+    .sort(([a], [b]) => (a ? (b ? a.localeCompare(b) : -1) : 1))
+    .flatMap(([operator, list]) => [
+      {
+        id: `o${operator}`,
+        depth: 0,
+        label: operator || 'Unknown operator',
+        count: list.reduce((n, r) => n + r.count, 0),
+        keys: list.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key))),
+        tags: [],
+        operator: true,
+      },
+      ...routeRows(side, list),
+    ])
+}
+
 // A route with one direction at the stops is one row; with two, a row and a
 // row per direction. A direction with several destinations opens to them.
-function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
+function routeRows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
   const out: Omit<Row, 'state'>[] = []
   const tripSide = side === 'excludedFrom' ? 'from' : 'to'
   const about = (d: TransferTripDestination | undefined) => ({
@@ -460,6 +488,16 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 
   &:last-child {
     border-bottom: 0;
+  }
+
+  // An operator's row: a heading over its routes, which keep their indent.
+  &.cal-transfer-settings-operator {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--bulma-text-weak);
+    background: var(--bulma-scheme-main-bis);
   }
 
   &.cal-transfer-settings-depth-1 {
