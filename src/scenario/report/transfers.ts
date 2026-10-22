@@ -38,6 +38,8 @@ export interface TransferEvent {
   // Where those stations are, as [lon, lat].
   originPoint?: [number, number]
   terminusPoint?: [number, number]
+  // The first stop's own name and its station's.
+  originNames?: string[]
   stopCount?: number
   // An arrival on a trip that ends at the stops, or a departure on one that
   // starts there.
@@ -190,15 +192,18 @@ export interface TransferChoiceRoute {
  * direction's busiest destination, between other ends, is a short run.
  */
 export function transferTripChoices (events: TransferEvent[], routes: Map<number, TransferChoiceRoute>, side: 'from' | 'to' = 'to'): TransferRouteChoice[] {
-  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[], points: Map<string, [number, number]> }
+  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[], points: Map<string, [number, number]>, originNames: Set<string> }
   const byRoute = new Map<number, Map<number, Map<string, Tally>>>()
   for (const e of events) {
     const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, Tally>>()
     const destinations = directions.get(e.directionId) ?? new Map<string, Tally>()
     const headsign = e.headsign ?? ''
-    const tally: Tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [], points: new Map() }
+    const tally: Tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [], points: new Map(), originNames: new Set() }
     tally.count += 1
     tally.terminal += e.terminal ? 1 : 0
+    for (const name of e.originNames ?? []) {
+      tally.originNames.add(name)
+    }
     if (e.origin) {
       tally.origins.push(e.origin)
       if (e.originPoint && !tally.points.has(e.origin)) {
@@ -237,7 +242,7 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
           const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
           // A departing trip signed for where it starts says nothing of where
           // it goes, so goes by where it ends.
-          const signedForStart = side === 'to' && !!run.terminus && headsign === run.origin && run.terminus !== run.origin
+          const signedForStart = side === 'to' && !!run.terminus && run.terminus !== run.origin && (headsign === run.origin || t.originNames.has(headsign))
           return {
             key: transferTripKey({ routeId: id, directionId, headsign }),
             sign: signLabel(headsign),
@@ -649,6 +654,7 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           origin: detail.firstStopName,
           terminus: detail.lastStopName,
           originPoint: detail.firstStopPoint,
+          originNames: detail.firstStopNames,
           terminusPoint: detail.lastStopPoint,
           stopCount: detail.stopCount,
         })

@@ -68,6 +68,8 @@ export interface TripDetail {
   // parent station's name, else the stop's own.
   firstStopName?: string
   lastStopName?: string
+  // The first stop's own name and its station's, as a sign may name either.
+  firstStopNames?: string[]
   // And where those stops are, as [lon, lat].
   firstStopPoint?: [number, number]
   lastStopPoint?: [number, number]
@@ -145,6 +147,7 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       stopHeadsigns,
       firstStopName: stationName(stopTimes[0]?.stop),
       lastStopName: stationName(stopTimes[stopTimes.length - 1]?.stop),
+      firstStopNames: [stopTimes[0]?.stop?.stop_name, stopTimes[0]?.stop?.parent?.stop_name].filter((n): n is string => !!n),
       firstStopPoint: stopPoint(stopTimes[0]?.stop),
       lastStopPoint: stopPoint(stopTimes[stopTimes.length - 1]?.stop),
       startTime,

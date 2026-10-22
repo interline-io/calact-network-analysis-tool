@@ -387,7 +387,8 @@ describe('transferTripChoices', () => {
   })
 
   it('names departing trips signed for where they start by where they end', () => {
-    const starting = { ...trip(10, 0, 'San Jose'), origin: 'San Jose', terminus: 'Sacramento' }
+    // Signed with the stop's own name, under a station named otherwise.
+    const starting = { ...trip(10, 0, 'San Jose'), origin: 'San Jose Diridon', originNames: ['San Jose', 'San Jose Diridon'], terminus: 'Sacramento' }
     const [route] = transferTripChoices([starting], routes, 'to')
     expect(route!.directions[0]!.destinations.map(x => [x.label, x.sign])).toEqual([['Sacramento', 'San Jose']])
   })
