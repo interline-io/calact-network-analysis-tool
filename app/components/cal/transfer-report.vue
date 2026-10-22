@@ -2,7 +2,10 @@
   <div ref="root" class="cal-transfer-report">
     <!-- What the report is about and how it is viewed come first, in one
          bar; the settings open below it, hung from it, on request. -->
-    <div class="cal-transfer-report-bar" :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection }">
+    <div
+      class="cal-transfer-report-bar"
+      :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection, 'cal-transfer-report-bar-large': panelLarge }"
+    >
       <div class="cal-transfer-report-toolbar">
         <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
           <cat-select v-model="subject">
@@ -80,10 +83,10 @@
             </div>
           </cat-field>
           <!-- What the report can be saved as, from one menu. -->
-          <cat-field label="Download" class="cal-transfer-report-download">
+          <cat-field label="Export" class="cal-transfer-report-download">
             <cat-dropdown position="bottom-right" @select="download">
               <template #trigger>
-                <cat-button icon-left="download" :disabled="detailsLoading" v-bind="{ 'title': 'Download', 'aria-label': 'Download' }" />
+                <cat-button icon-left="download" :disabled="detailsLoading" v-bind="{ 'title': 'Export', 'aria-label': 'Export' }" />
               </template>
               <cat-dropdown-item value="summary">
                 Summary as CSV
@@ -120,16 +123,24 @@
         @open-trips="$emit('openTrips', $event)"
       />
       <!-- The open panel closes from a slim strip along its bottom edge. -->
-      <button
-        v-if="subjectKind && openSection"
-        type="button"
-        class="cal-transfer-report-panel-hide"
-        :aria-controls="settingsId"
-        @click="openSection = null"
-      >
-        <cat-icon icon="chevron-up" size="small" />
-        Hide settings
-      </button>
+      <!-- The open panel hides, or grows and shrinks, from a slim strip
+           along its bottom edge. -->
+      <div v-if="subjectKind && openSection" class="cal-transfer-report-panel-strip">
+        <button type="button" :aria-controls="settingsId" @click="openSection = null">
+          <cat-icon icon="chevron-up" size="small" />
+          Hide settings
+        </button>
+        <button
+          v-if="openSection !== 'wait-walk'"
+          type="button"
+          :aria-controls="settingsId"
+          :aria-expanded="panelLarge"
+          @click="panelLarge = !panelLarge"
+        >
+          <cat-icon :icon="panelLarge ? 'arrow-collapse-vertical' : 'arrow-expand-vertical'" size="small" />
+          {{ panelLarge ? 'Shrink' : 'Expand' }}
+        </button>
+      </div>
     </div>
 
     <!-- Without clusters, only single stops can be picked, and a station's
@@ -345,6 +356,9 @@ const settings = defineModel<TransferSettings>('settings', { required: true })
 // None open is null, not undefined, which would read as the default.
 const openSection = defineModel<TransferReportSection | null>('section', { default: 'trips' })
 const settingsId = useId()
+// The open panel at its usual size, or taller, for longer lists and a
+// larger map.
+const panelLarge = ref(false)
 
 // The share of trips, arriving and departing, that trip filtering keeps, on
 // its button while it keeps less than all of them.
@@ -640,30 +654,56 @@ function rowClass (row: TransferGridTrip): string | undefined {
   }
 }
 
-.cal-transfer-report-panel-hide {
+.cal-transfer-report-panel-strip {
   display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0;
   border: 1px solid var(--bulma-border);
   border-top: 0;
   border-radius: 0 0 var(--bulma-radius) var(--bulma-radius);
   background: var(--bulma-scheme-main-bis);
-  color: var(--bulma-text-weak);
-  font: inherit;
-  font-size: 0.75rem;
-  cursor: pointer;
+  overflow: hidden;
 
-  &:hover {
-    background: var(--bulma-scheme-main-ter);
-    color: var(--bulma-text-strong);
+  button {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0;
+    border: 0;
+    background: none;
+    color: var(--bulma-text-weak);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+
+    + button {
+      border-left: 1px solid var(--bulma-border);
+    }
+
+    &:hover {
+      background: var(--bulma-scheme-main-ter);
+      color: var(--bulma-text-strong);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--bulma-primary);
+      outline-offset: -2px;
+    }
+  }
+}
+
+// The taller panel: its lists and map at about twice their height.
+.cal-transfer-report-bar-large {
+  :deep(.cal-transfer-settings-list) {
+    max-height: 26rem;
   }
 
-  &:focus-visible {
-    outline: 2px solid var(--bulma-primary);
-    outline-offset: -2px;
+  :deep(.cal-transfer-stops-map-frame) {
+    height: 32rem;
+  }
+
+  :deep(.cal-transfer-stops-list) {
+    max-height: 33.5rem;
   }
 }
 
