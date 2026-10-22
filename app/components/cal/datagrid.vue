@@ -51,78 +51,94 @@
           {{ props.caption }}
         </caption>
         <thead>
-          <tr>
-            <th
-              v-for="column in tableReport.columns"
-              :key="column.key"
-              scope="col"
-              :class="[column.class, { 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key, 'cal-datagrid-group-th': props.groupKey && column === tableReport.columns[0] }]"
-              :aria-sort="ariaSort(column)"
-            >
-              <!-- Grouped: every group open or closed at once, from the first
-                   column's header. -->
-              <button
-                v-if="props.groupKey && column === tableReport.columns[0]"
-                type="button"
-                class="cal-datagrid-group-toggle cal-datagrid-group-toggle-all"
-                :aria-label="anyOpen ? 'Collapse all groups' : 'Expand all groups'"
-                :title="anyOpen ? 'Collapse all' : 'Expand all'"
-                @click="setAllOpen(!anyOpen)"
+          <!-- With column groups, a row of their headings over the grouped
+               columns; the others span both rows. -->
+          <tr v-for="(headerRow, r) in headerRows" :key="r">
+            <template v-for="cell in headerRow" :key="cell.column?.key ?? cell.group!.key">
+              <th
+                v-if="cell.group"
+                scope="colgroup"
+                :colspan="cell.colspan"
+                class="cal-datagrid-colgroup"
               >
-                <cat-icon size="small" :icon="anyOpen ? 'chevron-down' : 'chevron-right'" />
-              </button>
-              <!-- Sortable columns render the header as a real <button> so
-                   sorting is keyboard-operable (Enter/Space) and announced as a
-                   button; aria-sort on the <th> conveys the current direction.
-                   When the column also has a tooltip, the button lives inside
-                   cat-tooltip — cat-tooltip detects the focusable button and
-                   describes it (aria-describedby) rather than adding its own tab
-                   stop, so there's no nested interactive content. -->
-              <cat-tooltip
-                v-if="column.sortable && column.tooltip"
-                :text="column.tooltip"
-                position="bottom"
-                class="cal-datagrid-sort-tooltip"
-              >
-                <button type="button" class="cal-datagrid-sort-button" @click="cycleSort(column)">
-                  {{ column.label }}
+                <cat-tooltip v-if="cell.group.tooltip" :text="cell.group.tooltip" position="bottom" class="col-header-tooltip">
+                  {{ cell.group.label }}
                   <cat-icon icon="information" size="small" />
+                </cat-tooltip>
+                <span v-else>{{ cell.group.label }}</span>
+              </th>
+              <th
+                v-else
+                scope="col"
+                :rowspan="cell.rowspan"
+                :class="[cell.column!.class, { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': props.groupKey && cell.column! === tableReport.columns[0] }]"
+                :aria-sort="ariaSort(cell.column!)"
+              >
+                <!-- Grouped: every group open or closed at once, from the first
+                     column's header. -->
+                <button
+                  v-if="props.groupKey && cell.column! === tableReport.columns[0]"
+                  type="button"
+                  class="cal-datagrid-group-toggle cal-datagrid-group-toggle-all"
+                  :aria-label="anyOpen ? 'Collapse all groups' : 'Expand all groups'"
+                  :title="anyOpen ? 'Collapse all' : 'Expand all'"
+                  @click="setAllOpen(!anyOpen)"
+                >
+                  <cat-icon size="small" :icon="anyOpen ? 'chevron-down' : 'chevron-right'" />
+                </button>
+                <!-- Sortable columns render the header as a real <button> so
+                     sorting is keyboard-operable (Enter/Space) and announced as a
+                     button; aria-sort on the <th> conveys the current direction.
+                     When the column also has a tooltip, the button lives inside
+                     cat-tooltip — cat-tooltip detects the focusable button and
+                     describes it (aria-describedby) rather than adding its own tab
+                     stop, so there's no nested interactive content. -->
+                <cat-tooltip
+                  v-if="cell.column!.sortable && cell.column!.tooltip"
+                  :text="cell.column!.tooltip"
+                  position="bottom"
+                  class="cal-datagrid-sort-tooltip"
+                >
+                  <button type="button" class="cal-datagrid-sort-button" @click="cycleSort(cell.column!)">
+                    {{ cell.column!.label }}
+                    <cat-icon icon="information" size="small" />
+                    <span class="cal-datagrid-sort-icon">
+                      <cat-icon
+                        :icon="sortIcon(cell.column!)"
+                        size="small"
+                        :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== cell.column!.key }"
+                      />
+                    </span>
+                  </button>
+                </cat-tooltip>
+                <button
+                  v-else-if="cell.column!.sortable"
+                  type="button"
+                  class="cal-datagrid-sort-button"
+                  @click="cycleSort(cell.column!)"
+                >
+                  {{ cell.column!.label }}
+                  <!-- Sort indicator. Always rendered for sortable columns so
+                       toggling the active chevron doesn't change column width;
+                       the inactive state shows a hidden chevron as a spacer. -->
                   <span class="cal-datagrid-sort-icon">
                     <cat-icon
-                      :icon="sortIcon(column)"
+                      :icon="sortIcon(cell.column!)"
                       size="small"
-                      :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
+                      :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== cell.column!.key }"
                     />
                   </span>
                 </button>
-              </cat-tooltip>
-              <button
-                v-else-if="column.sortable"
-                type="button"
-                class="cal-datagrid-sort-button"
-                @click="cycleSort(column)"
-              >
-                {{ column.label }}
-                <!-- Sort indicator. Always rendered for sortable columns so
-                     toggling the active chevron doesn't change column width;
-                     the inactive state shows a hidden chevron as a spacer. -->
-                <span class="cal-datagrid-sort-icon">
-                  <cat-icon
-                    :icon="sortIcon(column)"
-                    size="small"
-                    :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
-                  />
+                <!-- Non-sortable columns: plain header content. -->
+                <span v-else class="th-content">
+                  <cat-tooltip v-if="cell.column!.tooltip" :text="cell.column!.tooltip" position="bottom" class="col-header-tooltip">
+                    {{ cell.column!.label }}
+                    <cat-icon icon="information" size="small" />
+                  </cat-tooltip>
+                  <span v-else>{{ cell.column!.label }}</span>
                 </span>
-              </button>
-              <!-- Non-sortable columns: plain header content. -->
-              <span v-else class="th-content">
-                <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
-                  {{ column.label }}
-                  <cat-icon icon="information" size="small" />
-                </cat-tooltip>
-                <span v-else>{{ column.label }}</span>
-              </span>
-            </th>
+              </th>
+            </template>
           </tr>
         </thead>
         <tbody>
@@ -151,8 +167,11 @@
             :class="[rowClass?.(row), groupRowClass(row)]"
           >
             <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
+              <!-- An open group's heading leaves its sums to the rows under
+                   it. -->
+              <template v-if="hidesValue(row, column)" />
               <!-- A group's heading opens and closes it. -->
-              <span v-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-cell">
+              <span v-else-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-cell">
                 <button
                   v-if="opensGroup(row)"
                   type="button"
@@ -204,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatCensusValue, toFiniteNumber, type TableColumn, type TableReport } from '~~/src/core'
+import { formatCensusValue, toFiniteNumber, type TableColumn, type TableColumnGroup, type TableReport } from '~~/src/core'
 
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
@@ -312,6 +331,38 @@ function cycleSort (column: TableColumn) {
     ? `Sorted by ${column.label}, ${sortDir.value === 'asc' ? 'ascending' : 'descending'}`
     : `Sort by ${column.label} removed`)
 }
+
+// The header's rows: the columns; or with column groups, the groups'
+// headings and the ungrouped columns, spanning both rows, over the grouped
+// columns.
+interface HeaderCell {
+  column?: TableColumn
+  group?: TableColumnGroup
+  rowspan?: number
+  colspan?: number
+}
+const headerRows = computed((): HeaderCell[][] => {
+  const columns = tableReport.value?.columns ?? []
+  if (!columns.some(c => c.group)) {
+    return [columns.map(column => ({ column }))]
+  }
+  const top: HeaderCell[] = []
+  const bottom: HeaderCell[] = []
+  for (const column of columns) {
+    if (!column.group) {
+      top.push({ column, rowspan: 2 })
+      continue
+    }
+    const last = top[top.length - 1]
+    if (last?.group?.key === column.group.key) {
+      last.colspan = (last.colspan ?? 1) + 1
+    } else {
+      top.push({ group: column.group, colspan: 1 })
+    }
+    bottom.push({ column })
+  }
+  return [top, bottom]
+})
 
 const sortStatus = ref('')
 function announceSort (message: string) {
@@ -425,6 +476,11 @@ const anyOpen = computed(() => groups.value.some(rows => rows.length > 1 && !clo
 function setAllOpen (open: boolean) {
   closed.value = open ? new Set() : new Set(groups.value.map(rows => groupOf(rows[0]!)))
 }
+// An open group's heading row, in a column that sums up the rows under it.
+function hidesValue (row: Record<string, any>, column: TableColumn): boolean {
+  return !!props.groupKey && !!column.groupSummary && opensGroup(row) && !closed.value.has(groupOf(row))
+}
+
 function groupRowClass (row: Record<string, any>): string | undefined {
   if (!props.groupKey) {
     return undefined
@@ -567,7 +623,8 @@ const filterStatus = computed(() => {
     margin-bottom: 0;
   }
 
-  .cal-report-table thead th {
+  // The whole header, with any row of column groups, pinned as one.
+  .cal-report-table thead {
     position: sticky;
     top: 0;
     z-index: 3;
@@ -582,6 +639,13 @@ const filterStatus = computed(() => {
     // Floor so short-header + short-data columns (e.g. "ID" / "1") stay
     // readable instead of collapsing to a few pixels wide.
     min-width: 4rem;
+  }
+
+  // A column group's heading, centered over its columns.
+  th.cal-datagrid-colgroup {
+    text-align: center;
+    font-size: 0.8em;
+    border-bottom-width: 1px;
   }
 
   th {

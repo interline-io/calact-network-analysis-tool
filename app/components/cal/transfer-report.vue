@@ -457,15 +457,22 @@ const TRIP_COLUMN: TableColumn = {
   tooltip: 'Each incoming trip by route and destination, and where it comes from, with the outgoing trips riders connect to beneath it. Sorting orders the incoming trips, and the outgoing trips under each.',
 }
 
+// The departures each arrival could take, by how long the wait; and the
+// first connection made.
+const CONNECTIONS = { key: 'connections', label: 'Connections by wait', tooltip: 'Departures within reach of each arrival, counted by the grade of the wait.' }
+const FIRST = { key: 'first', label: 'First connection', tooltip: 'The soonest departure each arrival makes: for an incoming trip, on any route; for an outgoing trip, on it.' }
+
+// An incoming trip's figures sum up the outgoing trips under it, so show only
+// while its group is closed.
 const summaryColumns: TableColumn[] = [
   TRIP_COLUMN,
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', class: NARROW },
-  { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT },
-  { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT },
-  { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT },
-  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, class: COUNT },
-  { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'For an arriving trip, the share of its arrivals whose soonest connection, on any route, is good or OK; for a departing trip, whose first connection to it is.' },
-  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'For an arriving trip, the median wait for its soonest connection; for a departing trip, for the first connection to it. Over arrivals that make one.', class: NARROW },
+  { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection is good or OK.', group: FIRST, groupSummary: true },
+  { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', class: NARROW, group: FIRST, groupSummary: true },
 ]
 
 // The Individual table's columns, with the stops for a cluster. Apart from
