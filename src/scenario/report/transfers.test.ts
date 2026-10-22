@@ -277,7 +277,7 @@ describe('summarizeTransfers and transferOverview', () => {
   it('nests each arriving destination\'s figures over the departing ones it connects to', () => {
     const empty = { routes: new Map(), from: new Map(), to: new Map() }
     const rows = transferSummaryGrid(summarizeTransfers(groups), empty)
-    expect(rows.map(r => [r.head, r.group === rows[0]!.id, r.arrivals, r.good, r.long_wait])).toEqual([
+    expect(rows.map(r => [r.head, r.group === rows[0]!.id, r.arrivals, r.close, r.unacceptable])).toEqual([
       [true, true, 3, 1, 1],
       [false, true, '', 1, 1],
     ])
@@ -302,8 +302,8 @@ describe('summarizeTransfers and transferOverview', () => {
   it('writes a row per connection, and one for an arrival with none', () => {
     const rows = transferRows(groups, { routes: new Map(), stops: new Map(), tripDetails: new Map() })
     expect(rows.map(r => [r.arrival_time, r.departure_time, r.grade, r.grade_label])).toEqual([
-      ['07:00:00', '07:03:00', 'good', 'Good'],
-      ['07:30:00', '07:45:00', 'long', 'Long wait'],
+      ['07:00:00', '07:03:00', 'good', 'Close'],
+      ['07:30:00', '07:45:00', 'long', 'Unacceptable'],
       ['08:00:00', '', 'none', 'No connection'],
     ])
   })

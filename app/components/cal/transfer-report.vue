@@ -225,17 +225,17 @@
           <template #column-arrivals="{ value }">
             <span class="cal-transfer-report-time">{{ value === '' ? '' : value.toLocaleString() }}</span>
           </template>
-          <!-- The share as a bar on a 0 to 100% track: the good part, then
-               the OK part, in their grade colors. -->
-          <template #column-good_or_ok_share="{ value, row }">
+          <!-- The share as a bar on a 0 to 100% track: the close part, then
+               the acceptable part, in their grade colors. -->
+          <template #column-close_or_acceptable_share="{ value, row }">
             <span class="cal-transfer-report-share">
               <span
                 class="cal-transfer-report-share-track"
-                :title="`Good ${row.good_share}%, OK ${row.ok_share}%`"
+                :title="`Close ${row.close_share}%, acceptable ${row.acceptable_share}%`"
                 aria-hidden="true"
               >
-                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.good_share}%`, background: TRANSFER_GRADE_COLORS.good.fill }" />
-                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.ok_share}%`, background: TRANSFER_GRADE_COLORS.ok.fill }" />
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.close_share}%`, background: TRANSFER_GRADE_COLORS.good.fill }" />
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.acceptable_share}%`, background: TRANSFER_GRADE_COLORS.ok.fill }" />
               </span>
               <span class="cal-transfer-report-time">{{ value }}%</span>
             </span>
@@ -394,9 +394,9 @@ const DURATION_COLUMNS = ['walk_seconds', 'median_wait_seconds']
 // The summary's count columns and their grades.
 const GRADE_COLUMNS: { key: string, grade: TransferGrade }[] = [
   { key: 'missed', grade: 'missed' },
-  { key: 'good', grade: 'good' },
-  { key: 'ok', grade: 'ok' },
-  { key: 'long_wait', grade: 'long' },
+  { key: 'close', grade: 'good' },
+  { key: 'acceptable', grade: 'ok' },
+  { key: 'unacceptable', grade: 'long' },
 ]
 
 // A wait's colors by its grade; none for an arrival's own row.
@@ -424,7 +424,7 @@ function figures (o: TransferOverview) {
   return [
     { label: 'Arrivals', value: o.arrivals.toLocaleString(), tooltip: 'Trips arriving at the stops within the filters.' },
     { label: 'Connections', value: o.connections.toLocaleString(), tooltip: 'Connections shown, by grade in the bar.' },
-    { label: 'Good or OK', value: percent(o.goodOrOkShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is good or OK.' },
+    { label: 'Close or acceptable', value: percent(o.goodOrOkShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is close or acceptable.' },
     { label: 'Median wait', value: formatWait(o.medianWait) || '—', tooltip: 'Median wait for each arrival\'s soonest connection, over arrivals that make one.' },
   ]
 }
@@ -533,10 +533,10 @@ const summaryColumns: TableColumn[] = [
   { ...TRIP_COLUMN, group: TRIPS },
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', class: NARROW, group: TRIPS },
   { key: 'missed', label: 'Missed', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
-  { key: 'good', label: 'Good', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
-  { key: 'ok', label: 'OK', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
-  { key: 'long_wait', label: 'Long wait', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
-  { key: 'good_or_ok_share', label: 'Good or OK', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection is good or OK.', group: FIRST, groupSummary: true },
+  { key: 'close', label: 'Close', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'acceptable', label: 'Acceptable', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'unacceptable', label: 'Unacceptable', sortable: true, numeric: true, class: COUNT, group: CONNECTIONS, groupSummary: true },
+  { key: 'close_or_acceptable_share', label: 'Close or acceptable', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection is close or acceptable.', group: FIRST, groupSummary: true },
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', class: NARROW, group: FIRST, groupSummary: true },
 ]
 
