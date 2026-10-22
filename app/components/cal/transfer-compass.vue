@@ -183,8 +183,11 @@ const layout = computed(() => {
   const maxCount = Math.max(1, ...props.places.map(p => p.count))
   const totals = props.places.map(p => (props.flows ? sumGrades(props.flows, p.keys) : undefined))
   const maxTotal = Math.max(1, ...totals.map(t => (t ? TRANSFER_GRADES.reduce((n, g) => n + t[g], 0) : 0)))
+  const widths = totals.map(t => (t ? bandWidth(TRANSFER_GRADES.reduce((n, g) => n + t[g], 0), maxTotal) : 0))
+  const angles = spread(props.places.map(p => p.bearing), widths)
   const placed = props.places.map((p, i) => {
-    const [ux, uy] = along(p.bearing)
+    const angle = angles[i]!
+    const [ux, uy] = along(angle)
     const r = radius(p.km)
     const x = ux * r
     const y = uy * r
@@ -200,7 +203,8 @@ const layout = computed(() => {
       state,
       dot: 3 + 4 * Math.sqrt(p.count / maxCount),
       total,
-      ...bandOf(p.bearing, r, grades, total, maxTotal),
+      angle,
+      ...bandOf(angle, r, grades, total, maxTotal),
       text: placeText(p, state, grades, total),
       labelX: x + (x < 0 ? -8 : 8),
       labelY: y,
@@ -226,6 +230,36 @@ const layout = computed(() => {
   return placed
 })
 
+function bandWidth (total: number, maxTotal: number): number {
+  return total > 0 ? Math.max(1.5, 16 * (total / maxTotal)) : 0
+}
+
+// The angles to draw places at: their bearings, fanned apart where they
+// would draw on top of one another, at least MIN_SPREAD degrees, and more
+// for wide bands, which leave the stops side by side.
+const MIN_SPREAD = 8
+function spread (bearings: number[], widths: number[]): number[] {
+  const order = bearings.map((b, i) => i).sort((a, b) => bearings[a]! - bearings[b]!)
+  const angles = [...bearings]
+  const gap = (i: number, j: number) => Math.max(MIN_SPREAD, ((widths[i]! + widths[j]!) / 2 + 3) * 0.95)
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false
+    for (let k = 0; k < order.length - 1; k++) {
+      const [i, j] = [order[k]!, order[k + 1]!]
+      const short = gap(i, j) - (angles[j]! - angles[i]!)
+      if (short > 0.01) {
+        angles[i]! -= short / 2
+        angles[j]! += short / 2
+        moved = true
+      }
+    }
+    if (!moved) {
+      break
+    }
+  }
+  return angles
+}
+
 // A band from the stops to a place, as wide as its share of the most
 // connections at any place, in stripes by grade; and its arrowhead, at the
 // place for departing trips, at the stops for arriving ones.
@@ -235,7 +269,7 @@ function bandOf (bearing: number, r: number, grades: TransferGradeCounts | undef
   }
   const [ux, uy] = along(bearing)
   const [nx, ny] = [-uy, ux]
-  const width = Math.max(1.5, 16 * (total / maxTotal))
+  const width = bandWidth(total, maxTotal)
   const headLength = Math.min(8, Math.max(4, width * 0.6))
   const outward = props.side === 'to'
   const start = outward ? 7 : 7 + headLength
@@ -262,8 +296,8 @@ function bandOf (bearing: number, r: number, grades: TransferGradeCounts | undef
 
 // A line from the stops to a place, arrowed toward the stops for arriving
 // trips and toward the place for departing ones.
-function arrowEnds (p: { bearing: number, r: number, dot: number }) {
-  const [ux, uy] = along(p.bearing)
+function arrowEnds (p: { angle: number, r: number, dot: number }) {
+  const [ux, uy] = along(p.angle)
   const near = 8
   const far = p.r - p.dot - 1
   const [a, b] = props.side === 'to' ? [near, far] : [far, near]
