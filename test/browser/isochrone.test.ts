@@ -133,7 +133,7 @@ test.describe('Isochrone panel', () => {
   test('shows the date in use again when the date is cleared', async ({ page }) => {
     await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
-    const date = panel(page).locator('input[type="date"]')
+    const date = panel(page).getByPlaceholder('YYYY-MM-DD')
     await expect(date).toHaveValue('2026-10-27', { timeout: 15000 })
     await date.fill('')
     await date.blur()

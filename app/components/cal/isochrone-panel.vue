@@ -45,23 +45,21 @@
       <div class="cal-isochrone-row">
         <label class="cal-isochrone-field cal-isochrone-date">
           <span class="cal-isochrone-label">Date</span>
-          <input
-            class="input is-small"
-            type="date"
-            :value="params.date"
-            required
-            @change="onDate"
-          >
+          <cat-datepicker
+            :key="dateKey"
+            size="small"
+            :model-value="parseDate(params.date)"
+            @update:model-value="onDate"
+          />
         </label>
         <label class="cal-isochrone-field cal-isochrone-time">
           <span class="cal-isochrone-label">{{ params.arriveBy ? 'Arrive by' : 'Leave at' }}</span>
-          <input
-            class="input is-small"
-            type="time"
-            :value="params.time"
-            required
-            @change="onTime"
-          >
+          <cal-timepicker
+            size="small"
+            icon="clock"
+            :model-value="parseTime(`${params.time}:00`)"
+            @update:model-value="onTime"
+          />
         </label>
         <label class="cal-isochrone-field cal-isochrone-walk" title="Farthest walk to the first stop, or from the last">
           <span class="cal-isochrone-label">Max walk</span>
@@ -162,20 +160,20 @@
       <p v-if="error || empty || loading" class="cal-isochrone-status" aria-live="polite">
         <span v-if="error" class="cal-isochrone-error">Could not calculate travel times: {{ error }}</span>
         <span v-else-if="empty">Nothing reachable within these settings.</span>
-        <span v-else><i class="mdi mdi-loading mdi-spin" /> Calculating…</span>
+        <span v-else class="has-text-grey">Calculating…</span>
       </p>
 
       <div class="cal-isochrone-actions">
         <cat-button
+          variant="ghost"
           size="small"
-          icon-left="magnify-expand"
           :disabled="!bands.length || empty"
           @click="$emit('zoom')"
         >
-          Zoom to
+          Show on map
         </cat-button>
         <cal-geojson-download
-          button-text="Download GeoJSON"
+          size="small"
           :disabled="!bands.length || empty"
           :filename="downloadFilename"
           :data="downloadFeatures"
@@ -220,13 +218,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { formatDuration, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
+import { fmtDate, fmtTime, formatDuration, parseDate, parseTime, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
   ISOCHRONE_MAX_CUTOFFS,
   ISOCHRONE_MAX_WALK_CHOICES,
   ISOCHRONE_ROUTE_TYPES,
-  ISOCHRONE_INK,
   formatIsochronePlace,
   isochroneCutoffColors,
   isochroneModeParam,
@@ -302,23 +299,21 @@ function update (next: Partial<IsochroneParams>) {
   emit('update', next)
 }
 
-// A cleared field has nothing to send, so it shows the date and time in use
+// A cleared date has nothing to send, so the picker shows the one in use
 // again.
-function onDate (e: Event) {
-  const input = e.target as HTMLInputElement
-  if (input.value) {
-    update({ date: input.value })
+const dateKey = ref(0)
+function onDate (d: Date | null | undefined) {
+  if (d) {
+    update({ date: fmtDate(d) })
   } else {
-    input.value = props.params.date
+    dateKey.value++
   }
 }
 
-function onTime (e: Event) {
-  const input = e.target as HTMLInputElement
-  if (input.value) {
-    update({ time: input.value.slice(0, 5) })
-  } else {
-    input.value = props.params.time
+// Undefined while a time is half typed: wait for the rest.
+function onTime (d: Date | undefined) {
+  if (d) {
+    update({ time: fmtTime(d, 'HH:mm') })
   }
 }
 
@@ -482,11 +477,6 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 .cal-isochrone-place {
   flex: 1;
   min-width: 0;
-
-  // The marker's color, as on the map; the copy button keeps its own.
-  :deep(.icon.is-left) {
-    color: v-bind(ISOCHRONE_INK);
-  }
 }
 
 .cal-isochrone-field {
@@ -531,10 +521,6 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 .cal-isochrone-actions {
   display: flex;
   gap: 6px;
-
-  :deep(.button) {
-    font-size: 12px;
-  }
 }
 
 .cal-isochrone-debug {
