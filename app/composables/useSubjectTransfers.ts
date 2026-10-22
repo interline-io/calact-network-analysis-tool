@@ -26,7 +26,6 @@ import {
   validBreakpoints,
   type ScenarioFilterResult,
   type TransferSettings,
-  type TransferTimeBand,
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
@@ -75,7 +74,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // The arrivals shown: on one date (all, when unset, in the Summary), and in
   // one time band.
   const selectedDate = ref<string>()
-  const timeBand = ref<TransferTimeBand>('all')
 
   const result = computed(() => toValue(deps.scenarioFilterResult))
   const routes = computed(() => routesById(result.value?.routes || []))
@@ -306,13 +304,13 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // Both views show one date: the one picked, or the first.
   const individualDate = computed(() => (selectedDate.value && individualDates.value.includes(selectedDate.value) ? selectedDate.value : individualDates.value[0]))
 
-  const summaryGroups = computed(() => filterTransferGroups(groups.value, individualDate.value, timeBand.value))
+  const summaryGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
   const summary = computed(() => summarizeTransfers(summaryGroups.value))
   const summaryRows = computed(() => transferSummaryRows(summary.value, routes.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
   const summaryOverview = computed(() => transferOverview(summaryGroups.value))
 
-  const individualGroups = computed(() => filterTransferGroups(groups.value, individualDate.value, timeBand.value))
+  const individualGroups = computed(() => filterTransferGroups(groups.value, individualDate.value))
   const individualRows = computed(() => transferRows(individualGroups.value, {
     routes: routes.value,
     stops: stops.value,
@@ -403,7 +401,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     breakpoints,
     routeChoices,
     selectedDate,
-    timeBand,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     summaryRows,
     summaryGrid,

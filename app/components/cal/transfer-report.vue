@@ -38,13 +38,19 @@
             </option>
           </cat-select>
         </cat-field>
-        <cat-field label="Time of day" class="cal-transfer-report-shrink">
-          <cat-select v-model="timeBand">
-            <option v-for="b of TRANSFER_TIME_BANDS" :key="b.key" :value="b.key">
-              {{ b.label }}
-            </option>
-          </cat-select>
-        </cat-field>
+        <!-- The scenario's time of day, as the Filter tab sets it: arrivals
+             between the two; either left empty, from or to the day's end. -->
+        <cat-fieldset label="Time of day" class="cal-transfer-report-times">
+          <label class="cal-transfer-report-time-input">
+            <span class="is-sr-only">Arrivals from</span>
+            <cal-timepicker v-model="startTime" />
+          </label>
+          <span aria-hidden="true">to</span>
+          <label class="cal-transfer-report-time-input">
+            <span class="is-sr-only">Arrivals until</span>
+            <cal-timepicker v-model="endTime" />
+          </label>
+        </cat-fieldset>
         <!-- Each opens its settings below the toolbar, one at a time. -->
         <cat-field label="Settings" class="cal-transfer-report-settings-field">
           <div class="cal-transfer-report-settings-toggles">
@@ -224,7 +230,6 @@ import type { TransferSettingsSection } from './transfer-settings.vue'
 import type { TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
 import {
-  TRANSFER_TIME_BANDS,
   type TransferOverview,
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
@@ -238,7 +243,6 @@ import {
   type TransferRouteChoice,
   type TransferSettings,
   type TransferSummaryGridRow,
-  type TransferTimeBand,
 } from '~~/src/scenario'
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
@@ -294,7 +298,8 @@ const subject = defineModel<string>('subject', { required: true })
 const subjectKind = computed(() => (subject.value.startsWith('cluster:') ? 'cluster' : subject.value.startsWith('stop:') ? 'stop' : undefined))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
-const timeBand = defineModel<TransferTimeBand>('timeBand', { required: true })
+// The scenario's time of day, shared with the Filter tab, through the URL.
+const { startTime, endTime } = useScenarioFilters()
 const settings = defineModel<TransferSettings>('settings', { required: true })
 // The settings panel open, one at a time: by default Trip filtering, as which
 // trips count is the first thing to set; the page opens Stops & platforms on
@@ -584,6 +589,22 @@ function rowClass (row: TransferGridTrip): string | undefined {
 
   :deep(.label) {
     margin-bottom: 0.25rem;
+  }
+}
+
+.cal-transfer-report-times {
+  margin-bottom: 0;
+
+  // The two times on one line, with "to" between.
+  :deep(.cat-fieldset-content),
+  > :last-child {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  :deep(input) {
+    width: 7.5rem;
   }
 }
 

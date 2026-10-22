@@ -312,10 +312,9 @@ describe('summarizeTransfers and transferOverview', () => {
 describe('filterTransferGroups', () => {
   it('keeps arrivals on a date and in a time band', () => {
     const groups = calculateTransfers([event(1, 10, hms(6, 30)), event(2, 10, hms(8)), event(3, 10, hms(8) + 86400)], [], walk)
-    expect(filterTransferGroups(groups, undefined, 'all').length).toBe(3)
-    expect(filterTransferGroups(groups, undefined, 'am').map(g => g.arrival.tripId)).toEqual([2, 3])
-    expect(filterTransferGroups(groups, MON, 'am').map(g => g.arrival.tripId)).toEqual([2])
-    expect(filterTransferGroups(groups, TUE, 'early').length).toBe(0)
+    expect(filterTransferGroups(groups, undefined).length).toBe(3)
+    expect(filterTransferGroups(groups, MON).map(g => g.arrival.tripId)).toEqual([1, 2])
+    expect(filterTransferGroups(groups, TUE).map(g => g.arrival.tripId)).toEqual([3])
   })
 })
 

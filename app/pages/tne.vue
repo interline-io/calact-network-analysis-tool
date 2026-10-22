@@ -88,7 +88,6 @@
                 v-model:view="transferView"
                 v-model:section="transferSection"
                 v-model:date="transfers.selectedDate"
-                v-model:time-band="transfers.timeBand"
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
