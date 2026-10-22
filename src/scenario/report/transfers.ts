@@ -41,25 +41,25 @@ export interface TransferEvent {
   terminal?: boolean
 }
 
-export type TransferGrade = 'missed' | 'good' | 'ok' | 'long'
+export type TransferGrade = 'missed' | 'close' | 'acceptable' | 'unacceptable'
 
 // In order of wait, shortest first.
-export const TRANSFER_GRADES: readonly TransferGrade[] = ['missed', 'good', 'ok', 'long']
+export const TRANSFER_GRADES: readonly TransferGrade[] = ['missed', 'close', 'acceptable', 'unacceptable']
 
 export const TRANSFER_GRADE_LABELS: Record<TransferGrade, string> = {
   missed: 'Missed',
-  good: 'Close',
-  ok: 'Acceptable',
-  long: 'Unacceptable',
+  close: 'Close',
+  acceptable: 'Acceptable',
+  unacceptable: 'Unacceptable',
 }
 
 // Distinguishable with common forms of color blindness (Okabe-Ito), and
 // readable in light and dark themes. `text` is the color for text on `fill`.
 export const TRANSFER_GRADE_COLORS: Record<TransferGrade, { fill: string, text: string }> = {
   missed: { fill: '#D55E00', text: '#1a1a1a' },
-  good: { fill: '#0072B2', text: '#ffffff' },
-  ok: { fill: '#56B4E9', text: '#1a1a1a' },
-  long: { fill: '#E69F00', text: '#1a1a1a' },
+  close: { fill: '#0072B2', text: '#ffffff' },
+  acceptable: { fill: '#56B4E9', text: '#1a1a1a' },
+  unacceptable: { fill: '#E69F00', text: '#1a1a1a' },
 }
 
 export interface TransferConnection {
@@ -379,8 +379,8 @@ export interface TransferOptions {
   walkSeconds: (fromStopId: number, toStopId: number) => number
   // The most walkSeconds returns, to bound the search.
   maxWalkSeconds: number
-  // Five increasing wait breakpoints, in seconds: missed, close (good),
-  // acceptable (OK), and unacceptable (long) fall between consecutive pairs.
+  // Five increasing wait breakpoints, in seconds: missed, close, acceptable,
+  // and unacceptable fall between consecutive pairs.
   breakpoints: readonly number[]
   // Every connection, rather than the first on each route, direction, and
   // destination (and any missed just before it).
@@ -401,12 +401,12 @@ export function transferGrade (wait: number, breakpoints: readonly number[] = TR
     return 'missed'
   }
   if (wait < breakpoints[2]!) {
-    return 'good'
+    return 'close'
   }
   if (wait < breakpoints[3]!) {
-    return 'ok'
+    return 'acceptable'
   }
-  return 'long'
+  return 'unacceptable'
 }
 
 export interface TransferEventsOptions {
@@ -672,11 +672,10 @@ export interface TransferOverview {
   // Connections by grade, in order of wait.
   grades: TransferGradeCount[]
   // Arrivals whose soonest connection made, on any route, is close or
-  // acceptable (graded good or OK); and
-  // good, and OK, apart.
-  goodOrOkShare: number
-  goodShare: number
-  okShare: number
+  // acceptable; and close, and acceptable, apart.
+  closeOrAcceptableShare: number
+  closeShare: number
+  acceptableShare: number
   // The wait for each arrival's soonest connection made, over arrivals that
   // make one.
   medianWait?: number
@@ -684,10 +683,10 @@ export interface TransferOverview {
 
 // The figures over all of the groups' arrivals.
 export function transferOverview (groups: TransferGroup[]): TransferOverview {
-  const counts: Record<TransferGrade, number> = { missed: 0, good: 0, ok: 0, long: 0 }
+  const counts: Record<TransferGrade, number> = { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
   let connections = 0
-  let good = 0
-  let ok = 0
+  let close = 0
+  let acceptable = 0
   const waits: number[] = []
   for (const g of groups) {
     for (const c of g.connections) {
@@ -699,17 +698,17 @@ export function transferOverview (groups: TransferGroup[]): TransferOverview {
     const soonest = g.connections.find(c => c.grade !== 'missed')
     if (soonest) {
       waits.push(soonest.wait)
-      good += soonest.grade === 'good' ? 1 : 0
-      ok += soonest.grade === 'ok' ? 1 : 0
+      close += soonest.grade === 'close' ? 1 : 0
+      acceptable += soonest.grade === 'acceptable' ? 1 : 0
     }
   }
   return {
     arrivals: groups.length,
     connections,
     grades: TRANSFER_GRADES.map(grade => ({ grade, count: counts[grade], share: connections > 0 ? counts[grade] / connections : 0 })),
-    goodOrOkShare: groups.length > 0 ? (good + ok) / groups.length : 0,
-    goodShare: groups.length > 0 ? good / groups.length : 0,
-    okShare: groups.length > 0 ? ok / groups.length : 0,
+    closeOrAcceptableShare: groups.length > 0 ? (close + acceptable) / groups.length : 0,
+    closeShare: groups.length > 0 ? close / groups.length : 0,
+    acceptableShare: groups.length > 0 ? acceptable / groups.length : 0,
     medianWait: summarizeGaps(waits)?.median,
   }
 }
@@ -750,15 +749,15 @@ export interface TransferPairSummary {
   turnbacks: number
   // Connections by grade.
   missed: number
-  good: number
-  ok: number
-  long: number
+  close: number
+  acceptable: number
+  unacceptable: number
   // Arrivals whose first connection made to the departing destination is
-  // close or acceptable (good or OK), of all the arriving destination's
+  // close or acceptable, of all the arriving destination's
   // arrivals; and close, and acceptable, apart.
-  goodOrOkShare: number
-  goodShare: number
-  okShare: number
+  closeOrAcceptableShare: number
+  closeShare: number
+  acceptableShare: number
   // The wait for the first connection made, over arrivals that make one.
   medianWait?: number
 }
@@ -786,14 +785,14 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSum
   }
   return [...byFrom.values()].map((fromGroups) => {
     const arrivals = fromGroups.length
-    const pairs = new Map<string, { pair: TransferPairSummary, firstWaits: number[], firstGood: number, firstOk: number }>()
+    const pairs = new Map<string, { pair: TransferPairSummary, firstWaits: number[], firstClose: number, firstAcceptable: number }>()
     for (const { connections } of fromGroups) {
       const firstMade = new Set<string>()
       for (const c of connections) {
         const to = tripRef(c.departure)
         let p = pairs.get(to.key)
         if (!p) {
-          p = { pair: { to, turnbacks: 0, missed: 0, good: 0, ok: 0, long: 0, goodOrOkShare: 0, goodShare: 0, okShare: 0 }, firstWaits: [], firstGood: 0, firstOk: 0 }
+          p = { pair: { to, turnbacks: 0, missed: 0, close: 0, acceptable: 0, unacceptable: 0, closeOrAcceptableShare: 0, closeShare: 0, acceptableShare: 0 }, firstWaits: [], firstClose: 0, firstAcceptable: 0 }
           pairs.set(to.key, p)
         }
         p.pair[c.grade] += 1
@@ -801,21 +800,21 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSum
         if (c.grade !== 'missed' && !firstMade.has(to.key)) {
           firstMade.add(to.key)
           p.firstWaits.push(c.wait)
-          p.firstGood += c.grade === 'good' ? 1 : 0
-          p.firstOk += c.grade === 'ok' ? 1 : 0
+          p.firstClose += c.grade === 'close' ? 1 : 0
+          p.firstAcceptable += c.grade === 'acceptable' ? 1 : 0
         }
       }
     }
     return {
       from: tripRef(fromGroups[0]!.arrival),
       overview: transferOverview(fromGroups),
-      pairs: [...pairs.values()].map(({ pair, firstWaits, firstGood, firstOk }) => ({
+      pairs: [...pairs.values()].map(({ pair, firstWaits, firstClose, firstAcceptable }) => ({
         ...pair,
-        goodOrOkShare: (firstGood + firstOk) / arrivals,
-        goodShare: firstGood / arrivals,
-        okShare: firstOk / arrivals,
+        closeOrAcceptableShare: (firstClose + firstAcceptable) / arrivals,
+        closeShare: firstClose / arrivals,
+        acceptableShare: firstAcceptable / arrivals,
         medianWait: summarizeGaps(firstWaits)?.median,
-      })).sort((a, b) => b.good + b.ok + b.long - (a.good + a.ok + a.long) || a.to.key.localeCompare(b.to.key)),
+      })).sort((a, b) => b.close + b.acceptable + b.unacceptable - (a.close + a.acceptable + a.unacceptable) || a.to.key.localeCompare(b.to.key)),
     }
   }).sort((a, b) => b.overview.arrivals - a.overview.arrivals || a.from.key.localeCompare(b.from.key))
 }
@@ -889,12 +888,12 @@ export function transferSummaryRows (summaries: TransferArrivalSummary[], routes
         to_headsign: s.to.headsign ?? '',
         arrivals: overview.arrivals,
         missed: s.missed,
-        close: s.good,
-        acceptable: s.ok,
-        unacceptable: s.long,
-        close_or_acceptable_share: percent(s.goodOrOkShare),
-        close_share: percent(s.goodShare),
-        acceptable_share: percent(s.okShare),
+        close: s.close,
+        acceptable: s.acceptable,
+        unacceptable: s.unacceptable,
+        close_or_acceptable_share: percent(s.closeOrAcceptableShare),
+        close_share: percent(s.closeShare),
+        acceptable_share: percent(s.acceptableShare),
         median_wait_seconds: s.medianWait ?? '',
       }
     })
@@ -994,24 +993,24 @@ export function transferSummaryGrid (summaries: TransferArrivalSummary[], opts: 
         ...gridTrip(from, 'from', opts, { id: group, group }),
         arrivals: overview.arrivals,
         missed: count('missed'),
-        close: count('good'),
-        acceptable: count('ok'),
-        unacceptable: count('long'),
-        close_or_acceptable_share: percent(overview.goodOrOkShare),
-        close_share: percent(overview.goodShare),
-        acceptable_share: percent(overview.okShare),
+        close: count('close'),
+        acceptable: count('acceptable'),
+        unacceptable: count('unacceptable'),
+        close_or_acceptable_share: percent(overview.closeOrAcceptableShare),
+        close_share: percent(overview.closeShare),
+        acceptable_share: percent(overview.acceptableShare),
         median_wait_seconds: overview.medianWait ?? '',
       },
       ...pairs.map((p): TransferSummaryGridRow => ({
-        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.turnbacks > 0 ? [turnbackTag(p.turnbacks, p.missed + p.good + p.ok + p.long)] : []),
+        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.turnbacks > 0 ? [turnbackTag(p.turnbacks, p.missed + p.close + p.acceptable + p.unacceptable)] : []),
         arrivals: '',
         missed: p.missed,
-        close: p.good,
-        acceptable: p.ok,
-        unacceptable: p.long,
-        close_or_acceptable_share: percent(p.goodOrOkShare),
-        close_share: percent(p.goodShare),
-        acceptable_share: percent(p.okShare),
+        close: p.close,
+        acceptable: p.acceptable,
+        unacceptable: p.unacceptable,
+        close_or_acceptable_share: percent(p.closeOrAcceptableShare),
+        close_share: percent(p.closeShare),
+        acceptable_share: percent(p.acceptableShare),
         median_wait_seconds: p.medianWait ?? '',
       })),
     ]

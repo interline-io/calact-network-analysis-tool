@@ -234,8 +234,8 @@
                 :title="`Close ${row.close_share}%, acceptable ${row.acceptable_share}%`"
                 aria-hidden="true"
               >
-                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.close_share}%`, background: TRANSFER_GRADE_COLORS.good.fill }" />
-                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.acceptable_share}%`, background: TRANSFER_GRADE_COLORS.ok.fill }" />
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.close_share}%`, background: TRANSFER_GRADE_COLORS.close.fill }" />
+                <span class="cal-transfer-report-share-bar" :style="{ width: `${row.acceptable_share}%`, background: TRANSFER_GRADE_COLORS.acceptable.fill }" />
               </span>
               <span class="cal-transfer-report-time">{{ value }}%</span>
             </span>
@@ -394,9 +394,9 @@ const DURATION_COLUMNS = ['walk_seconds', 'median_wait_seconds']
 // The summary's count columns and their grades.
 const GRADE_COLUMNS: { key: string, grade: TransferGrade }[] = [
   { key: 'missed', grade: 'missed' },
-  { key: 'close', grade: 'good' },
-  { key: 'acceptable', grade: 'ok' },
-  { key: 'unacceptable', grade: 'long' },
+  { key: 'close', grade: 'close' },
+  { key: 'acceptable', grade: 'acceptable' },
+  { key: 'unacceptable', grade: 'unacceptable' },
 ]
 
 // A wait's colors by its grade; none for an arrival's own row.
@@ -424,7 +424,7 @@ function figures (o: TransferOverview) {
   return [
     { label: 'Arrivals', value: o.arrivals.toLocaleString(), tooltip: 'Trips arriving at the stops within the filters.' },
     { label: 'Connections', value: o.connections.toLocaleString(), tooltip: 'Connections shown, by grade in the bar.' },
-    { label: 'Close or acceptable', value: percent(o.goodOrOkShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is close or acceptable.' },
+    { label: 'Close or acceptable', value: percent(o.closeOrAcceptableShare), tooltip: 'Share of arrivals whose soonest connection, on any route, is close or acceptable.' },
     { label: 'Median wait', value: formatWait(o.medianWait) || '—', tooltip: 'Median wait for each arrival\'s soonest connection, over arrivals that make one.' },
   ]
 }

@@ -230,7 +230,7 @@ const pace = computed(() => {
 })
 
 // The five breakpoints, by what each starts or ends, and the grades between.
-const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.long} up to`]
+const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.unacceptable} up to`]
 
 // A grade's range, between the breakpoints either side of it: "-5 to 0 min".
 function range (i: number): string {

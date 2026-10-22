@@ -74,10 +74,10 @@ describe('dates and times', () => {
 describe('transferGrade', () => {
   it('grades by the default breakpoints, lower bound inclusive', () => {
     expect(transferGrade(-60)).toBe('missed')
-    expect(transferGrade(0)).toBe('good')
-    expect(transferGrade(hms(0, 6))).toBe('ok')
-    expect(transferGrade(hms(0, 10))).toBe('long')
-    expect(transferGrade(hms(0, 20))).toBe('long')
+    expect(transferGrade(0)).toBe('close')
+    expect(transferGrade(hms(0, 6))).toBe('acceptable')
+    expect(transferGrade(hms(0, 10))).toBe('unacceptable')
+    expect(transferGrade(hms(0, 20))).toBe('unacceptable')
   })
 })
 
@@ -186,8 +186,8 @@ describe('calculateTransfers', () => {
       event(6, 40, hms(7, 25)),
     ], walk)
     expect(group!.connections.map(c => [c.departure.tripId, c.walk, c.wait, c.grade])).toEqual([
-      [4, 120, hms(0, 3), 'good'],
-      [7, 0, hms(0, 4), 'good'],
+      [4, 120, hms(0, 3), 'close'],
+      [7, 0, hms(0, 4), 'close'],
     ])
   })
 
@@ -223,8 +223,8 @@ describe('calculateTransfers', () => {
     const [first] = calculateTransfers([event(1, 10, hms(7))], deps, walk)
     expect(first!.connections.map(c => [c.departure.tripId, c.grade])).toEqual([
       [2, 'missed'],
-      [3, 'good'],
-      [5, 'ok'],
+      [3, 'close'],
+      [5, 'acceptable'],
     ])
     const [all] = calculateTransfers([event(1, 10, hms(7))], deps, { ...walk, allConnections: true })
     expect(all!.connections.map(c => c.departure.tripId)).toEqual([2, 3, 5, 4])
@@ -240,23 +240,24 @@ describe('calculateTransfers', () => {
   })
 
   it('counts a connection made only once it is better than missed, whatever the breakpoints', () => {
-    // Good from 1 minute: a 30 s wait is missed, so the later good one shows.
+    // Close from 1 minute: a 30 s wait is missed, so the later close one shows.
     const deps = [event(2, 20, hms(7) + 30), event(3, 20, hms(7, 3))]
     const [group] = calculateTransfers([event(1, 10, hms(7))], deps, { ...walk, breakpoints: [-300, 60, 360, 600, 1200] })
-    expect(group!.connections.map(c => [c.departure.tripId, c.grade])).toEqual([[2, 'missed'], [3, 'good']])
+    expect(group!.connections.map(c => [c.departure.tripId, c.grade])).toEqual([[2, 'missed'], [3, 'close']])
     expect(transferOverview([group!]).medianWait).toBe(hms(0, 3))
   })
 
   it('takes other breakpoints', () => {
     const [group] = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 25))], { ...walk, breakpoints: [-600, 0, 600, 1200, 1800] })
-    expect(group!.connections.map(c => c.grade)).toEqual(['long'])
+    expect(group!.connections.map(c => c.grade)).toEqual(['unacceptable'])
   })
 })
 
 describe('summarizeTransfers and transferOverview', () => {
   const arrivals = [event(1, 10, hms(7)), event(2, 10, hms(7, 30)), event(3, 10, hms(8))]
   const departures = [
-    // Good after the first arrival, long after the second, none after the third.
+    // Close after the first arrival, unacceptable after the second, none after
+    // the third.
     event(11, 20, hms(7, 3)),
     event(12, 20, hms(7, 45)),
   ]
@@ -267,10 +268,10 @@ describe('summarizeTransfers and transferOverview', () => {
     expect(from!.from).toMatchObject({ routeId: 10 })
     expect(from!.overview.arrivals).toBe(3)
     const [row] = from!.pairs
-    expect(row).toMatchObject({ to: { routeId: 20 }, good: 1, long: 1, missed: 0, ok: 0 })
-    expect(row!.goodOrOkShare).toBeCloseTo(1 / 3)
-    expect(row!.goodShare).toBeCloseTo(1 / 3)
-    expect(row!.okShare).toBe(0)
+    expect(row).toMatchObject({ to: { routeId: 20 }, close: 1, unacceptable: 1, missed: 0, acceptable: 0 })
+    expect(row!.closeOrAcceptableShare).toBeCloseTo(1 / 3)
+    expect(row!.closeShare).toBeCloseTo(1 / 3)
+    expect(row!.acceptableShare).toBe(0)
     expect(row!.medianWait).toBe((hms(0, 3) + hms(0, 15)) / 2)
   })
 
@@ -284,26 +285,26 @@ describe('summarizeTransfers and transferOverview', () => {
     const individual = transferGrid(groups, { ...empty, stops: new Map() })
     expect(individual.map(r => [r.head, r.time, r.grade])).toEqual([
       [true, '07:00:00', ''],
-      [false, '07:03:00', 'good'],
+      [false, '07:03:00', 'close'],
       [true, '07:30:00', ''],
-      [false, '07:45:00', 'long'],
+      [false, '07:45:00', 'unacceptable'],
       [true, '08:00:00', 'none'],
     ])
   })
 
   it('sums up every arrival by its soonest connection', () => {
-    expect(transferOverview(groups)).toMatchObject({ arrivals: 3, connections: 2, goodOrOkShare: 1 / 3, medianWait: (hms(0, 3) + hms(0, 15)) / 2 })
+    expect(transferOverview(groups)).toMatchObject({ arrivals: 3, connections: 2, closeOrAcceptableShare: 1 / 3, medianWait: (hms(0, 3) + hms(0, 15)) / 2 })
   })
 
   it('counts connections by grade', () => {
-    expect(transferOverview(groups).grades.map(c => [c.grade, c.count])).toEqual([['missed', 0], ['good', 1], ['ok', 0], ['long', 1]])
+    expect(transferOverview(groups).grades.map(c => [c.grade, c.count])).toEqual([['missed', 0], ['close', 1], ['acceptable', 0], ['unacceptable', 1]])
   })
 
   it('writes a row per connection, and one for an arrival with none', () => {
     const rows = transferRows(groups, { routes: new Map(), stops: new Map(), tripDetails: new Map() })
     expect(rows.map(r => [r.arrival_time, r.departure_time, r.grade, r.grade_label])).toEqual([
-      ['07:00:00', '07:03:00', 'good', 'Close'],
-      ['07:30:00', '07:45:00', 'long', 'Unacceptable'],
+      ['07:00:00', '07:03:00', 'close', 'Close'],
+      ['07:30:00', '07:45:00', 'unacceptable', 'Unacceptable'],
       ['08:00:00', '', 'none', 'No connection'],
     ])
   })
