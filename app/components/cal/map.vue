@@ -46,7 +46,6 @@
       :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
       :isochrone-features="props.isochroneFeatures || []"
-      :isochrone-outline-only="!!props.choroplethFeatures?.length"
       :isochrone-origin="props.isochroneOrigin"
       :isochrone-arrive-by="props.isochroneArriveBy"
       :fit-isochrone-key="props.fitIsochroneKey"
@@ -101,7 +100,7 @@ const emit = defineEmits<{
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
   // Open an isochrone at a point: a stop's (named), or one picked on the map.
-  openIsochrone: [point: Point, opts: { arriveBy?: boolean, stopName?: string }]
+  openIsochrone: [point: Point, opts: { arriveBy: boolean, stopName?: string }]
   // The open isochrone's marker was dragged here.
   moveIsochrone: [point: Point]
 }>()

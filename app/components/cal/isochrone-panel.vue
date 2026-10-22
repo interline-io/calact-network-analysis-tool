@@ -90,7 +90,7 @@
                 :disabled="params.cutoffs.length === 1 && params.cutoffs.includes(m)"
                 @click="toggleCutoff(m)"
               >
-                {{ formatCutoff(m) }}
+                {{ formatDuration(m * 60) }}
               </cat-button>
             </div>
           </cat-field>
@@ -115,20 +115,16 @@
               </div>
             </cat-field>
           </div>
-          <cat-field addons class="cal-isochrone-group">
-            <div class="control">
-              <cat-button
-                size="small"
-                icon-left="walk"
-                :variant="params.mode.walkOnly ? 'primary' : undefined"
-                v-bind="{ ariaPressed: params.mode.walkOnly }"
-                title="Walk only, without transit"
-                @click="setWalkOnly(!params.mode.walkOnly)"
-              >
-                Walk only
-              </cat-button>
-            </div>
-          </cat-field>
+          <cat-button
+            size="small"
+            icon-left="walk"
+            :variant="params.mode.walkOnly ? 'primary' : undefined"
+            v-bind="{ ariaPressed: params.mode.walkOnly }"
+            title="Walk only, without transit"
+            @click="setWalkOnly(!params.mode.walkOnly)"
+          >
+            Walk only
+          </cat-button>
         </div>
       </div>
 
@@ -193,13 +189,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
+import { formatDuration, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
   ISOCHRONE_MAX_CUTOFFS,
   ISOCHRONE_MAX_WALK_CHOICES,
   ISOCHRONE_ROUTE_TYPES,
-  isochroneBandColor,
+  ISOCHRONE_INK,
+  isochroneBandColors,
   isochroneModeParam,
   parseIsochronePlace,
   type IsochroneBand,
@@ -301,10 +298,7 @@ const selectedRouteTypes = computed((): RouteType[] => {
 
 function toggleRouteType (rt: RouteType, on: boolean) {
   const current = selectedRouteTypes.value
-  const next = on ? [...current, rt] : current.filter(t => t !== rt)
-  const mode = { walkOnly: false as const, routeTypes: next }
-  // Every type is all of transit, so a link reads the same either way.
-  update({ mode: isochroneModeParam(mode) === 'TRANSIT' ? { walkOnly: false } : mode })
+  update({ mode: { walkOnly: false, routeTypes: on ? [...current, rt] : current.filter(t => t !== rt) } })
 }
 
 function setWalkOnly (walkOnly: boolean) {
@@ -317,32 +311,8 @@ function cutoffStyle (m: number): Record<string, string> | undefined {
   if (rank < 0) {
     return undefined
   }
-  const color = isochroneBandColor(rank, props.params.cutoffs.length)
-  return { background: color, borderColor: color, color: readableTextOn(color) }
-}
-
-// White or the ramp's darkest blue, whichever contrasts more (WCAG).
-const DARK_TEXT = '#08306b'
-function luminance (hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }) as [number, number, number]
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-function readableTextOn (hex: string): string {
-  const l = luminance(hex)
-  return 1.05 / (l + 0.05) >= (l + 0.05) / (luminance(DARK_TEXT) + 0.05) ? '#fff' : DARK_TEXT
-}
-
-// "15m", "1h", "1h30m".
-function formatCutoff (m: number): string {
-  const h = Math.floor(m / 60)
-  const rest = m % 60
-  if (h === 0) {
-    return `${m}m`
-  }
-  return rest ? `${h}h${rest}m` : `${h}h`
+  const { fill, text } = isochroneBandColors(rank, props.params.cutoffs.length)
+  return { background: fill, borderColor: fill, color: text }
 }
 
 const maxWalkChoices = computed(() => [...new Set([...ISOCHRONE_MAX_WALK_CHOICES, props.params.maxWalk])].sort((a, b) => a - b))
@@ -411,7 +381,7 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 
   // The marker's color, as on the map; the copy button keeps its own.
   :deep(.icon.is-left) {
-    color: #08306b;
+    color: v-bind(ISOCHRONE_INK);
   }
 }
 

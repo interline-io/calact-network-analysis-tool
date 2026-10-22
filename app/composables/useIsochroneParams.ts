@@ -4,7 +4,7 @@
 // date, its filter's start time, and its route type filter.
 
 import { computed, type ComputedRef } from 'vue'
-import { fmtDate, fmtTime, type Point, type RouteType } from '~~/src/core'
+import { fmtDate, fmtTime, parseDate, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_DEFAULT_CUTOFFS,
   ISOCHRONE_DEFAULT_MAX_WALK,
@@ -25,16 +25,12 @@ import { useScenarioFilters } from './useScenarioFilters'
 const ISOCHRONE_KEYS = ['isoPlace', 'isoArriveBy', 'isoDate', 'isoTime', 'isoCutoffs', 'isoMode', 'isoMaxWalk'] as const
 
 export interface IsochroneParamsState {
-  // undefined while no isochrone is open.
+  // undefined while no isochrone is open; set isoPlace through update to open one.
   params: ComputedRef<IsochroneParams | undefined>
-  // The settings with nothing set, as the scenario seeds them.
-  defaults: ComputedRef<Omit<IsochroneParams, 'place' | 'arriveBy'>>
-  open: (place: Point, arriveBy?: boolean) => Promise<void>
   update: (next: Partial<IsochroneParams>) => Promise<void>
   close: () => Promise<void>
 }
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const timePattern = /^\d{2}:\d{2}$/
 
 function parseCutoffs (s: string | undefined): number[] | undefined {
@@ -63,11 +59,12 @@ function parseMode (s: string | undefined): IsochroneMode | undefined {
   return types.length ? { walkOnly: false, routeTypes: types } : undefined
 }
 
+// Every route type is all of transit, so a link reads the same either way.
 function formatMode (mode: IsochroneMode): string {
   if (mode.walkOnly) {
     return 'walk'
   }
-  return mode.routeTypes ? mode.routeTypes.join(',') : 'transit'
+  return mode.routeTypes && isochroneModeParam(mode) !== 'TRANSIT' ? mode.routeTypes.join(',') : 'transit'
 }
 
 export function useIsochroneParams (): IsochroneParamsState {
@@ -90,13 +87,13 @@ export function useIsochroneParams (): IsochroneParamsState {
       return undefined
     }
     const d = defaults.value
-    const date = q.isoDate?.toString()
+    const date = parseDate(q.isoDate?.toString())
     const time = q.isoTime?.toString()
     const maxWalk = Number(q.isoMaxWalk)
     return {
       place,
       arriveBy: q.isoArriveBy === 'true',
-      date: date && datePattern.test(date) ? date : d.date,
+      date: date ? fmtDate(date) : d.date,
       time: time && timePattern.test(time) ? time : d.time,
       cutoffs: parseCutoffs(q.isoCutoffs?.toString()) ?? d.cutoffs,
       mode: parseMode(q.isoMode?.toString()) ?? d.mode,
@@ -133,15 +130,9 @@ export function useIsochroneParams (): IsochroneParamsState {
     return setQuery(out)
   }
 
-  // A new place keeps the other settings, so moving the origin, or opening
-  // from another stop, compares like with like.
-  function open (place: Point, arriveBy?: boolean): Promise<void> {
-    return update(arriveBy === undefined ? { place } : { place, arriveBy })
-  }
-
   function close (): Promise<void> {
     return setQuery(Object.fromEntries(ISOCHRONE_KEYS.map(k => [k, undefined])))
   }
 
-  return { params, defaults, open, update, close }
+  return { params, update, close }
 }

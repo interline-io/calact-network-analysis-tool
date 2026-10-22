@@ -1,16 +1,12 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useIsochrone, type IsochroneFetcher } from '../../app/composables/useIsochrone'
 import type { IsochroneParams } from '../../src/tl'
+import { isochroneRecording } from '../isochrone-recordings'
 
 // The router can't run in the test stack, so the one fetch is replaced with
-// recorded responses (scripts/record-isochrone-fixtures.ts).
-function recorded (name: string): { status: number, body: string } {
-  const r = JSON.parse(readFileSync(resolve(__dirname, '../../testdata/isochrone', `${name}.json`), 'utf8'))
-  return { status: r.status, body: typeof r.body === 'string' ? r.body : JSON.stringify(r.body) }
-}
+// recorded responses.
+const recorded = isochroneRecording
 
 const base: IsochroneParams = {
   place: { lat: 45.5189, lon: -122.6793 },
@@ -66,21 +62,30 @@ describe('useIsochrone', () => {
     scope.stop()
   })
 
-  it('fetches once the settings stop changing, and shows the bands', async () => {
+  it('fetches at once when opened', async () => {
+    const { calls, fetcher } = controlledFetcher()
+    const { params, scope } = setup(undefined, fetcher)
+    params.value = base
+    await nextTick()
+    expect(calls).toHaveLength(1)
+    scope.stop()
+  })
+
+  it('fetches changes once they stop, and shows the bands', async () => {
     const { calls, fetcher } = controlledFetcher()
     const { params, state, scope } = setup(base, fetcher)
+    expect(calls).toHaveLength(1)
     params.value = { ...base, time: '08:05' }
     params.value = { ...base, time: '08:10' }
     await settle()
-    expect(calls).toHaveLength(1)
-    expect(calls[0]!.query.get('time')).toBe('08:10:00')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.query.get('time')).toBe('08:10:00')
     expect(state.loading.value).toBe(true)
-    calls[0]!.resolve(recorded('leaving-from'))
+    calls[1]!.resolve(recorded('leaving-from'))
     await nextTick()
     await nextTick()
     expect(state.loading.value).toBe(false)
     expect(state.bands.value.map(b => b.minutes)).toEqual([15, 30, 45])
-    expect(state.bandsParams.value?.time).toBe('08:10')
     expect(state.error.value).toBeNull()
     expect(state.empty.value).toBe(false)
     scope.stop()
@@ -102,7 +107,6 @@ describe('useIsochrone', () => {
     await nextTick()
     await nextTick()
     expect(state.bands.value.map(b => b.minutes)).toEqual([10, 20])
-    expect(state.bandsParams.value?.place.lat).toBe(45.53)
     scope.stop()
   })
 
@@ -128,10 +132,10 @@ describe('useIsochrone', () => {
   it('shows loading only once a request has taken a while', async () => {
     const { calls, fetcher } = controlledFetcher()
     const { state, scope } = setup(base, fetcher)
-    await vi.advanceTimersByTimeAsync(360)
+    await vi.advanceTimersByTimeAsync(200)
     expect(state.loading.value).toBe(true)
     expect(state.showLoading.value).toBe(false)
-    await vi.advanceTimersByTimeAsync(300)
+    await vi.advanceTimersByTimeAsync(100)
     expect(state.showLoading.value).toBe(true)
     calls[0]!.resolve(recorded('leaving-from'))
     await nextTick()

@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import * as maplibre from 'maplibre-gl'
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
 import { useRuntimeConfig } from '#imports'
@@ -71,9 +71,6 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
-  // Draw isochrone bands as outlines only, as while the census choropleth
-  // has the fill.
-  isochroneOutlineOnly?: boolean
   // The open isochrone's place, as a draggable marker: drawn as an origin,
   // or as a destination for arrive-by.
   isochroneOrigin?: Point
@@ -122,16 +119,15 @@ watch(() => isochroneFeatures.value, (v) => {
   })
 })
 
-watch(() => props.isochroneOutlineOnly, () => {
+// Bands are outlines only while the census choropleth has the fill.
+const isochroneOutlineOnly = computed(() => choroplethFeatures.value.length > 0)
+watch(isochroneOutlineOnly, () => {
   applyIsochroneFill()
 })
 
-watch(() => props.isochroneOrigin, (v) => {
-  drawIsochroneOrigin(v)
-})
-
-watch(() => props.isochroneArriveBy, () => {
-  styleIsochroneOrigin()
+// By value: the params behind the place are rebuilt on any URL change.
+watch(() => props.isochroneOrigin && `${props.isochroneOrigin.lon},${props.isochroneOrigin.lat},${!!props.isochroneArriveBy}`, () => {
+  drawIsochroneOrigin(props.isochroneOrigin)
 })
 
 watch(() => props.fitIsochroneKey, () => {
@@ -349,9 +345,9 @@ function initMap () {
     let overlayDragActive = false
     map?.on('mousedown', 'overlay-polygons', (e: maplibre.MapLayerMouseEvent) => {
       if (markers.value.length === 0 || e.originalEvent.button !== 0) { return }
-      // A press on a marker over the bbox (the isochrone origin) drags that
-      // marker, not the bbox.
-      if (!(e.originalEvent.target as HTMLElement | null)?.classList?.contains('maplibregl-canvas')) { return }
+      // A press on a marker or popup over the bbox is that element's, not
+      // the bbox's.
+      if (e.originalEvent.target !== map!.getCanvas()) { return }
       e.preventDefault()
       overlayDragActive = true
       map!.dragPan.disable()
@@ -469,17 +465,7 @@ function initMap () {
         }
       }
     })
-    // Right-click to remove from selection
-    map?.on('contextmenu', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
-      e.preventDefault()
-      const feature = e.features?.[0]
-      if (feature) {
-        const geoId = feature.properties?.['geography-id']
-        if (geoId != null) {
-          emit('selectableGeoRightClick', geoId.toString())
-        }
-      }
-    })
+    // Right-click to remove from selection: see mapContextMenu.
     // Hover: show feature name tooltip and pointer cursor (pointer only for clickable)
     // geoHoverPopup is declared at module scope so onBeforeUnmount can clean it up
     map?.on('mousemove', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
@@ -619,7 +605,7 @@ function createLayers () {
     type: 'fill',
     source: 'isochrone',
     paint: {
-      'fill-color': ['coalesce', ['get', 'fill'], '#2171b5'],
+      'fill-color': ['get', 'fill'],
       'fill-opacity': ISOCHRONE_FILL_OPACITY,
     }
   })
@@ -628,7 +614,7 @@ function createLayers () {
     type: 'line',
     source: 'isochrone',
     paint: {
-      'line-color': ['coalesce', ['get', 'fill'], '#2171b5'],
+      'line-color': ['get', 'fill'],
       'line-width': 1.5,
       'line-opacity': 0.9,
     }
@@ -931,8 +917,8 @@ const ISOCHRONE_FILL_OPACITY = 0.2
 
 function applyIsochroneFill () {
   if (map?.getLayer('isochrone-fill')) {
-    map.setPaintProperty('isochrone-fill', 'fill-opacity', props.isochroneOutlineOnly ? 0 : ISOCHRONE_FILL_OPACITY)
-    map.setPaintProperty('isochrone-outline', 'line-width', props.isochroneOutlineOnly ? 2.5 : 1.5)
+    map.setPaintProperty('isochrone-fill', 'fill-opacity', isochroneOutlineOnly.value ? 0 : ISOCHRONE_FILL_OPACITY)
+    map.setPaintProperty('isochrone-outline', 'line-width', isochroneOutlineOnly.value ? 2.5 : 1.5)
   }
 }
 
@@ -1307,19 +1293,26 @@ function mapClick (e: maplibre.MapMouseEvent) {
   }
 }
 
-// Right-click on the map offers an isochrone from or to that point, except
-// over a geography the query tab is selecting, where right-click deselects.
+// Right-click deselects a geography the query tab is selecting; anywhere
+// else it offers an isochrone from or to that point.
 let isochroneMenu: maplibre.Popup | undefined
 function mapContextMenu (e: maplibre.MapMouseEvent) {
   isochroneMenu?.remove()
   isochroneMenu = undefined
-  if (!map || (map.getLayer('selectable-geo-fill') && map.queryRenderedFeatures(e.point, { layers: ['selectable-geo-fill'] }).length > 0)) {
+  if (!map) {
     return
   }
   e.preventDefault()
+  const geo = map.getLayer('selectable-geo-fill') ? map.queryRenderedFeatures(e.point, { layers: ['selectable-geo-fill'] })[0] : undefined
+  if (geo) {
+    const geoId = geo.properties?.['geography-id']
+    if (geoId != null) {
+      emit('selectableGeoRightClick', geoId.toString())
+    }
+    return
+  }
   const point: Point = { lon: e.lngLat.lng, lat: e.lngLat.lat }
   const menu = document.createElement('div')
-  menu.className = 'cal-isochrone-menu'
   menu.setAttribute('role', 'menu')
   for (const [label, arriveBy] of [['Travel time from here', false], ['Travel time to here', true]] as const) {
     const button = document.createElement('button')
@@ -1363,10 +1356,9 @@ function drawIsochroneOrigin (p: Point | undefined) {
         emit('isochroneOriginMoved', { lon: ll.lng, lat: ll.lat })
       }
     })
-    styleIsochroneOrigin()
-    return
   }
   isochroneOriginMarker.setLngLat([p.lon, p.lat])
+  styleIsochroneOrigin()
 }
 
 // A solid dot to leave from; a flag to arrive at.
@@ -1378,7 +1370,7 @@ function styleIsochroneOrigin () {
   const arriveBy = !!props.isochroneArriveBy
   // classList, not className: the marker's own maplibregl-marker classes
   // position it.
-  el.classList.add('cal-isochrone-origin')
+  el.classList.add('cal-isochrone-glyph')
   el.classList.toggle('is-destination', arriveBy)
   el.classList.toggle('is-origin', !arriveBy)
   el.title = arriveBy ? 'Arriving here. Drag to move.' : 'Leaving from here. Drag to move.'
@@ -1482,29 +1474,47 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     background: #f0f4fa;
   }
 
-  /* The open isochrone's place */
-  .cal-isochrone-origin {
+  /* The open isochrone's place: a dot to leave from, a flag to arrive at.
+     The map's marker, and its key in legend.vue (is-small). #08306b is
+     ISOCHRONE_INK. */
+  .cal-isochrone-glyph {
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
+    border: 3px solid #08306b;
     box-shadow: 0 0 0 1px #08306b, 0 2px 4px rgba(0, 0, 0, 0.4);
     cursor: grab;
+    color: #08306b;
+    line-height: 1;
   }
-  .cal-isochrone-origin.is-origin {
+  .cal-isochrone-glyph.is-origin {
     width: 18px;
     height: 18px;
     background: #08306b;
-    border: 3px solid #fff;
+    border-color: #fff;
   }
-  .cal-isochrone-origin.is-destination {
+  .cal-isochrone-glyph.is-destination {
     width: 26px;
     height: 26px;
     background: #fff;
-    border: 3px solid #08306b;
-    color: #08306b;
     font-size: 15px;
-    line-height: 1;
+  }
+  .cal-isochrone-glyph.is-small {
+    border-width: 2px;
+    box-shadow: 0 0 0 1px #08306b;
+    cursor: default;
+  }
+  .cal-isochrone-glyph.is-small.is-origin {
+    width: 12px;
+    height: 12px;
+    margin: 0 4px;
+  }
+  .cal-isochrone-glyph.is-small.is-destination {
+    width: 18px;
+    height: 18px;
+    margin: 0 1px;
+    font-size: 11px;
   }
 
   /* Hover tooltip for selectable geographies */

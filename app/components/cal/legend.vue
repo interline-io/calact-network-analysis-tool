@@ -44,7 +44,7 @@
             Travel time:
           </div>
           <div>
-            <div class="legend-item cal-legend-iso-place" :class="props.isochroneArriveBy ? 'is-destination' : 'is-origin'">
+            <div class="legend-item cal-isochrone-glyph is-small" :class="props.isochroneArriveBy ? 'is-destination' : 'is-origin'">
               <i v-if="props.isochroneArriveBy" class="mdi mdi-flag-checkered" />
             </div>
             <div>{{ props.isochroneArriveBy ? 'Arriving here' : 'Leaving from here' }}</div>
@@ -292,33 +292,6 @@ function bucketLabel (i: number): string {
 
 .legend-heading {
   font-weight: bold;
-}
-
-// The isochrone's place, as map-viewer-ts.vue draws it.
-.cal-legend-iso-place {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px #08306b;
-
-  &.is-origin {
-    width: 12px;
-    height: 12px;
-    margin: 0 4px;
-    background: #08306b;
-    border: 2px solid #fff;
-  }
-
-  &.is-destination {
-    width: 18px;
-    height: 18px;
-    margin: 0 1px;
-    background: #fff;
-    border: 2px solid #08306b;
-    color: #08306b;
-    font-size: 11px;
-  }
 }
 
 // Translucent as on the map, or an outline over a choropleth.

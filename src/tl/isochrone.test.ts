@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { RouteType } from '~~/src/core'
+import { isochroneRecording } from '../../test/isochrone-recordings'
 import {
-  isochroneBandColor,
+  isochroneBandColors,
   isochroneIsEmpty,
   isochroneLegend,
   isochroneMapFeatures,
@@ -15,22 +14,11 @@ import {
   type IsochroneParams,
 } from './isochrone'
 
-// Real router responses, from scripts/record-isochrone-fixtures.ts.
-interface Recording {
-  params: IsochroneParams
-  query: string
-  status: number
-  body: unknown
-}
-
-function recording (name: string): Recording {
-  const path = resolve(__dirname, '../../testdata/isochrone', `${name}.json`)
-  return JSON.parse(readFileSync(path, 'utf8'))
-}
+const recording = isochroneRecording
 
 function parseRecording (name: string) {
   const r = recording(name)
-  return parseIsochroneResponse(r.status, typeof r.body === 'string' ? r.body : JSON.stringify(r.body))
+  return parseIsochroneResponse(r.status, r.body)
 }
 
 const params: IsochroneParams = {
@@ -115,7 +103,7 @@ describe('parseIsochroneResponse', () => {
     expect(result.error).toBeUndefined()
     const bands = result.bands!
     expect(bands.map(b => b.minutes)).toEqual([15, 30, 45])
-    expect(bands.map(b => b.color)).toEqual([isochroneBandColor(0, 3), isochroneBandColor(1, 3), isochroneBandColor(2, 3)])
+    expect(bands.map(b => b.color)).toEqual([0, 1, 2].map(rank => isochroneBandColors(rank, 3).fill))
     for (const b of bands) {
       expect(b.feature.geometry.type).toBe('MultiPolygon')
       expect(b.feature.properties.fill).toBe(b.color)
@@ -167,9 +155,9 @@ describe('band display', () => {
   })
 
   it('spans the ramp whatever the band count', () => {
-    expect(isochroneBandColor(0, 1)).toBe('#08306b')
-    expect(isochroneBandColor(0, 2)).toBe('#08306b')
-    expect(isochroneBandColor(1, 2)).toBe('#6baed6')
+    expect(isochroneBandColors(0, 1).fill).toBe('#08306b')
+    expect(isochroneBandColors(0, 2).fill).toBe('#08306b')
+    expect(isochroneBandColors(1, 2)).toEqual({ fill: '#6baed6', text: '#08306b' })
   })
 })
 

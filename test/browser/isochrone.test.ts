@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { test, expect, type Page, type Route } from '@playwright/test'
+import { isochroneRecording } from '../isochrone-recordings'
 
 // Isochrones (#486). tlrouter can't run in the test stack, so its one
 // endpoint answers with responses recorded from the real router
@@ -8,16 +8,11 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 
 const PLACE = '45.518898,-122.679303'
 
-function recorded (name: string): { status: number, body: string } {
-  const r = JSON.parse(readFileSync(new URL(`../../testdata/isochrone/${name}.json`, import.meta.url), 'utf8'))
-  return { status: r.status, body: typeof r.body === 'string' ? r.body : JSON.stringify(r.body) }
-}
-
 // Answer every isochrone request with `name`'s recording, and keep the
 // requests for the test to read.
 async function routeIsochrone (page: Page, name: string): Promise<URL[]> {
   const requests: URL[] = []
-  const { status, body } = recorded(name)
+  const { status, body } = isochroneRecording(name)
   await page.route('**/routing/isochrone?**', async (route: Route) => {
     requests.push(new URL(route.request().url()))
     await route.fulfill({ status, contentType: 'application/json', body })

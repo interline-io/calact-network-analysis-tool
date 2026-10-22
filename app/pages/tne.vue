@@ -937,7 +937,6 @@ function onTripPanelClose () {
 // in the URL; it needs no scenario, but takes its defaults from one.
 const {
   params: isochroneParams,
-  open: openIsochroneAt,
   update: updateIsochroneParams,
   close: closeIsochroneParams,
 } = useIsochroneParams()
@@ -958,12 +957,13 @@ const isochroneStopName = ref<string | undefined>(undefined)
 
 // The isochrone panel and the trip panel share the sidebar: opening one
 // closes the other.
-function openIsochrone (point: Point, opts: { arriveBy?: boolean, stopName?: string }) {
+function openIsochrone (point: Point, opts: { arriveBy: boolean, stopName?: string }) {
   if (tripPanelOpenedSubject.value) {
     onTripPanelClose()
   }
   isochroneStopName.value = opts.stopName
-  openIsochroneAt(point, opts.arriveBy)
+  // Other settings stay, so opening from another stop compares like with like.
+  updateIsochroneParams({ place: point, arriveBy: opts.arriveBy })
 }
 function moveIsochrone (point: Point) {
   isochroneStopName.value = undefined

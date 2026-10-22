@@ -95,7 +95,7 @@ export function isochroneQuery (p: IsochroneParams, render: IsochroneRenderOptio
   const q = new URLSearchParams()
   // The router searches backwards from toPlace for arrive-by, so the one
   // point goes in whichever place the direction names.
-  q.set(p.arriveBy ? 'toPlace' : 'fromPlace', `${p.place.lat.toFixed(6)},${p.place.lon.toFixed(6)}`)
+  q.set(p.arriveBy ? 'toPlace' : 'fromPlace', formatIsochronePlace(p.place))
   if (p.arriveBy) {
     q.set('arriveBy', 'true')
   }
@@ -124,22 +124,31 @@ export function isochroneQuery (p: IsochroneParams, render: IsochroneRenderOptio
 // One band: the area within `minutes` of the place.
 export interface IsochroneBand {
   minutes: number
-  seconds: number
   color: string
   feature: Feature
 }
 
-export type IsochroneResult
+type IsochroneResult
   = | { bands: IsochroneBand[], error?: undefined }
     | { bands?: undefined, error: string }
 
 // Sequential single hue, darkest for the shortest time, so nearer reads as
 // more intense while the outer band stays visible on a light basemap.
 // ColorBrewer Blues with its light end trimmed, as the router's playground.
-const BAND_RAMP = ['#08306b', '#08519c', '#2171b5', '#4292c6', '#6baed6']
+// Each with the text color (white or the darkest blue) that contrasts more.
+const BAND_RAMP = [
+  { fill: '#08306b', text: '#fff' },
+  { fill: '#08519c', text: '#fff' },
+  { fill: '#2171b5', text: '#fff' },
+  { fill: '#4292c6', text: '#08306b' },
+  { fill: '#6baed6', text: '#08306b' },
+]
 
-// The color of band `rank` of `total`, rank 0 being the shortest time.
-export function isochroneBandColor (rank: number, total: number): string {
+// The darkest blue: the isochrone's place marker, and its text on light bands.
+export const ISOCHRONE_INK = BAND_RAMP[0]!.fill
+
+// Band `rank` of `total`'s colors, rank 0 being the shortest time.
+export function isochroneBandColors (rank: number, total: number): { fill: string, text: string } {
   if (total <= 1) {
     return BAND_RAMP[0]!
   }
@@ -180,9 +189,8 @@ export function parseIsochroneResponse (status: number, body: string): Isochrone
   const polys = (json.features as any[]).filter(isPolygonal).sort((a, b) => bandSeconds(a) - bandSeconds(b))
   const bands = polys.map((f, rank): IsochroneBand => {
     const seconds = bandSeconds(f)
-    const color = isochroneBandColor(rank, polys.length)
+    const color = isochroneBandColors(rank, polys.length).fill
     return {
-      seconds,
       minutes: Math.round(seconds / 60),
       color,
       feature: {

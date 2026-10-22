@@ -33,8 +33,6 @@ export function isochroneFetcher (url: string): IsochroneFetcher {
 export interface UseIsochroneReturn {
   // Shortest time first; empty while none are open, or none have arrived.
   bands: ShallowRef<IsochroneBand[]>
-  // The settings the bands are for.
-  bandsParams: ShallowRef<IsochroneParams | undefined>
   loading: Ref<boolean>
   // loading, once it has lasted long enough to show.
   showLoading: Ref<boolean>
@@ -50,7 +48,6 @@ export function useIsochrone (
   fetcher: IsochroneFetcher,
 ): UseIsochroneReturn {
   const bands = shallowRef<IsochroneBand[]>([])
-  const bandsParams = shallowRef<IsochroneParams | undefined>(undefined)
   const loading = ref(false)
   const showLoading = ref(false)
   const error = ref<string | null>(null)
@@ -75,8 +72,10 @@ export function useIsochrone (
   }
 
   function reset () {
-    bands.value = []
-    bandsParams.value = undefined
+    // Only when there are bands to drop, so the map isn't redrawn for nothing.
+    if (bands.value.length) {
+      bands.value = []
+    }
     error.value = null
     empty.value = false
   }
@@ -102,23 +101,18 @@ export function useIsochrone (
         return
       }
       const result = parseIsochroneResponse(status, body)
+      reset()
       if (result.error !== undefined) {
-        bands.value = []
-        bandsParams.value = undefined
         error.value = result.error
-        empty.value = false
       } else {
         bands.value = result.bands
-        bandsParams.value = p
-        error.value = null
         empty.value = isochroneIsEmpty(result.bands)
       }
     } catch (err: any) {
       if (mySeq !== seq || err?.name === 'AbortError') {
         return
       }
-      bands.value = []
-      bandsParams.value = undefined
+      reset()
       error.value = err?.message || String(err)
     } finally {
       if (mySeq === seq) {
@@ -129,16 +123,20 @@ export function useIsochrone (
   }
 
   // Keyed by value, so a recomputed but equal settings object asks nothing.
+  // Opening or closing acts at once; changes to an open one, such as a
+  // dragged origin, wait for the next.
+  let wasOpen = false
   watch(
     () => JSON.stringify([toValue(params) ?? null, render]),
     () => {
       clearTimeout(debounceTimer)
-      if (!toValue(params)) {
-        // Closed: drop the bands now, not after the debounce.
+      const open = !!toValue(params)
+      if (open && wasOpen) {
+        debounceTimer = setTimeout(compute, ISOCHRONE_DEBOUNCE_MS)
+      } else {
         compute()
-        return
       }
-      debounceTimer = setTimeout(compute, ISOCHRONE_DEBOUNCE_MS)
+      wasOpen = open
     },
     { immediate: true },
   )
@@ -150,5 +148,5 @@ export function useIsochrone (
     controller?.abort()
   })
 
-  return { bands, bandsParams, loading, showLoading, error, empty, render }
+  return { bands, loading, showLoading, error, empty, render }
 }
