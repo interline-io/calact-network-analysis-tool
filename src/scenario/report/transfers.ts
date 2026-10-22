@@ -44,6 +44,10 @@ export interface TransferEvent {
   // An arrival on a trip that ends at the stops, or a departure on one that
   // starts there.
   terminal?: boolean
+  // The stations (stationId) the trip calls at just before the stops and
+  // just after, where it does.
+  prevStation?: number
+  nextStation?: number
 }
 
 export type TransferGrade = 'missed' | 'close' | 'acceptable' | 'unacceptable'
@@ -74,8 +78,8 @@ export interface TransferConnection {
   // missed connection.
   wait: number
   grade: TransferGrade
-  // Likely the arriving vehicle itself, turning back (see calculateTransfers).
-  turnback?: boolean
+  // Back the way the arrival came, or on its own way (see calculateTransfers).
+  way?: TransferWay
 }
 
 export interface TransferGroup {
@@ -96,7 +100,8 @@ export interface TransferSettings {
   allConnections: boolean
   // Connections that are likely the arriving vehicle turning back, which are
   // otherwise left out.
-  countTurnbacks: boolean
+  // Count connections back the way an arrival came or on its own way.
+  countSameWay: boolean
   // Five increasing wait breakpoints, in seconds.
   breakpoints: number[]
   // Route, direction, and destination keys (transferTripKey) whose
@@ -361,7 +366,7 @@ export function transferTripInfo (choices: TransferRouteChoice[]): Map<string, T
 // run, or is likely the arriving vehicle turning back; named in `label`, said
 // in full in `title`. `partial` where it holds for only some of the trips.
 export interface TransferTripTag {
-  kind: 'ends' | 'starts' | 'short' | 'turnback'
+  kind: 'ends' | 'starts' | 'short' | 'back' | 'same'
   partial?: boolean
   label: string
   title: string
@@ -403,7 +408,7 @@ export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
   walkDistance: 'line',
   secondsPerMeter: TRANSFER_WALK_SECONDS_PER_METER,
   allConnections: false,
-  countTurnbacks: false,
+  countSameWay: false,
   breakpoints: [...TRANSFER_GRADE_BREAKPOINTS],
   excludedFrom: [],
   excludedTo: [],
@@ -441,8 +446,8 @@ export function decodeTransferSettings (json: string | undefined): TransferSetti
   if (typeof raw.allConnections === 'boolean') {
     out.allConnections = raw.allConnections
   }
-  if (typeof raw.countTurnbacks === 'boolean') {
-    out.countTurnbacks = raw.countTurnbacks
+  if (typeof raw.countSameWay === 'boolean') {
+    out.countSameWay = raw.countSameWay
   }
   if (Array.isArray(raw.breakpoints) && raw.breakpoints.every(b => typeof b === 'number') && validBreakpoints(raw.breakpoints as number[])) {
     out.breakpoints = raw.breakpoints as number[]
@@ -473,9 +478,9 @@ export interface TransferOptions {
   // Every connection, rather than the first on each route, direction, and
   // destination (and any missed before it).
   allConnections?: boolean
-  // A route's agency, to tell a likely turnback; and whether to count them.
-  agencyOf?: (routeId: number) => number | undefined
-  countTurnbacks?: boolean
+  // Whether to count connections back the way an arrival came or on its own
+  // way.
+  countSameWay?: boolean
 }
 
 // The calendar date an absolute time falls on, and its seconds into that day.
@@ -525,6 +530,9 @@ interface TripCall {
   // Whether the trip calls anywhere else before the stop, and after it.
   comesFrom: boolean
   goesOn: boolean
+  // The stations it calls at just before the stops and just after.
+  prevStation?: number
+  nextStation?: number
   // What the trip is signed for there.
   headsign?: string
 }
@@ -545,18 +553,19 @@ function findCall (detail: TripDetail, stopId: number, departureTime: number, at
   if (!stopTime) {
     return null
   }
-  let comesFrom = false
-  let goesOn = false
+  let prev: TripStopTime | undefined
+  let next: TripStopTime | undefined
   for (let i = 0; i < stopTimes.length; i++) {
     if (i !== index && !atStops.has(stopTimes[i]!.stopId)) {
       if (i < index) {
-        comesFrom = true
+        prev = stopTimes[i]
       } else {
-        goesOn = true
+        next ??= stopTimes[i]
       }
     }
   }
-  return { stopTime, comesFrom, goesOn, headsign: tripHeadsignAt(detail, stopId) }
+  const station = (s: TripStopTime | undefined) => s && (s.stationId ?? s.stopId)
+  return { stopTime, comesFrom: !!prev, goesOn: !!next, prevStation: station(prev), nextStation: station(next), headsign: tripHeadsignAt(detail, stopId) }
 }
 
 /**
@@ -634,7 +643,7 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
         if (!call) {
           continue
         }
-        const { stopTime, comesFrom, goesOn, headsign } = call
+        const { stopTime, comesFrom, goesOn, headsign, prevStation, nextStation } = call
         const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
         const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
@@ -657,6 +666,8 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           originNames: detail.firstStopNames,
           terminusPoint: detail.lastStopPoint,
           stopCount: detail.stopCount,
+          prevStation,
+          nextStation,
         })
         if (comesFrom && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
@@ -687,14 +698,18 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   }
 }
 
-// Whether a departure is likely the arriving vehicle turning back: the
-// arrival ends at the stop the departure starts from, on the same agency.
-function isTurnback (arrival: TransferEvent, departure: TransferEvent, agencyOf?: (routeId: number) => number | undefined): boolean {
-  if (!arrival.terminal || !departure.terminal || arrival.stopId !== departure.stopId || !agencyOf) {
-    return false
+// A departure back the way an arrival came, its next station the one the
+// arrival came from, as a vehicle turning back or the line the other way; or
+// on the arrival's own way, its next station the arrival's next, as another
+// line along the same track. Neither is a change a rider needs.
+export type TransferWay = 'back' | 'same'
+
+function sharedWay (arrival: TransferEvent, departure: TransferEvent): TransferWay | undefined {
+  const next = departure.nextStation
+  if (next === undefined) {
+    return undefined
   }
-  const agency = agencyOf(arrival.routeId)
-  return agency !== undefined && agency === agencyOf(departure.routeId)
+  return next === arrival.prevStation ? 'back' : next === arrival.nextStation ? 'same' : undefined
 }
 
 // The first index in sorted events at or after time.
@@ -722,10 +737,11 @@ function lowerBound (events: TransferEvent[], time: number): number {
  * departures on it are not where riders transfer. A short run counts apart
  * from the full one, as it may not go where a rider is headed.
  *
- * A departure that starts at the same stop where an arrival of the same agency
- * ends is likely that vehicle turning back, as where a feed models each
- * direction as its own route; such connections are left out unless
- * `countTurnbacks`, and marked when counted.
+ * A departure back the way an arrival came, or on along its own way, by the
+ * stations each calls at next to the stops, is no change a rider needs, as
+ * where a feed models each direction as its own route, or two lines share a
+ * track; such connections are left out unless `countSameWay`, and marked when
+ * counted.
  */
 export function calculateTransfers (arrivals: TransferEvent[], departures: TransferEvent[], opts: TransferOptions): TransferGroup[] {
   const bp = opts.breakpoints
@@ -752,11 +768,11 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
       if (wait < minWait || wait > maxWait) {
         continue
       }
-      const turnback = isTurnback(arrival, departure, opts.agencyOf)
-      if (turnback && !opts.countTurnbacks) {
+      const way = sharedWay(arrival, departure)
+      if (way && !opts.countSameWay) {
         continue
       }
-      connections.push({ departure, walk, wait, grade: transferGrade(wait, bp), ...(turnback ? { turnback } : {}) })
+      connections.push({ departure, walk, wait, grade: transferGrade(wait, bp), ...(way ? { way } : {}) })
     }
     // In departure order, as gathered: a destination's first connection
     // made is the earliest departure a rider can take, which from a nearer
@@ -865,8 +881,9 @@ function tripRef (e: TransferEvent): TransferTripRef {
 // Connections from one arriving destination to one departing one.
 export interface TransferPairSummary {
   to: TransferTripRef
-  // Connections that are likely turnbacks, where they are counted.
-  turnbacks: number
+  // Connections back the way the arrival came or on its own way, where they
+  // are counted.
+  sameWay: number
   // Connections by grade.
   missed: number
   close: number
@@ -934,11 +951,11 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSum
         const to = tripRef(c.departure)
         let p = pairs.get(to.key)
         if (!p) {
-          p = { pair: { to, turnbacks: 0, missed: 0, close: 0, acceptable: 0, unacceptable: 0, closeOrAcceptableShare: 0, closeShare: 0, acceptableShare: 0 }, firstWaits: [], firstClose: 0, firstAcceptable: 0 }
+          p = { pair: { to, sameWay: 0, missed: 0, close: 0, acceptable: 0, unacceptable: 0, closeOrAcceptableShare: 0, closeShare: 0, acceptableShare: 0 }, firstWaits: [], firstClose: 0, firstAcceptable: 0 }
           pairs.set(to.key, p)
         }
         p.pair[c.grade] += 1
-        p.pair.turnbacks += c.turnback ? 1 : 0
+        p.pair.sameWay += c.way ? 1 : 0
         if (c.grade !== 'missed' && !firstMade.has(to.key)) {
           firstMade.add(to.key)
           p.firstWaits.push(c.wait)
@@ -1109,15 +1126,18 @@ interface GridTripOptions {
   to: Map<string, TransferTripDestination>
 }
 
-// The tag for connections that are likely the arriving vehicle turning back.
-function turnbackTag (count: number, of: number): TransferTripTag {
+// The tag for connections back the way the arrival came or on its own way.
+function sameWayTag (way: TransferWay | undefined, count: number, of: number): TransferTripTag {
+  const text = way === 'back'
+    ? 'It goes back the way the arriving trip came'
+    : way === 'same'
+      ? 'It goes on the way the arriving trip goes'
+      : 'They go back the way the arriving trip came, or on its way'
   return {
-    kind: 'turnback',
+    kind: way === 'same' ? 'same' : 'back',
     partial: count < of,
-    label: 'Likely same vehicle',
-    title: of === 1
-      ? 'This trip ends here and this one starts from the same stop, on the same agency: likely the same vehicle turning back.'
-      : `${count.toLocaleString()} of these ${of.toLocaleString()} connections are likely the arriving vehicle turning back: it ends here and the departing trip starts from the same stop, on the same agency.`,
+    label: way === 'same' ? 'Same way' : 'Back the way it came',
+    title: of === 1 ? `${text}: not a change a rider needs.` : `${count.toLocaleString()} of these ${of.toLocaleString()} connections go back the way the arriving trip came, or on its way: not changes a rider needs.`,
   }
 }
 
@@ -1164,7 +1184,7 @@ export function transferSummaryGrid (summaries: TransferArrivalSummary[], opts: 
         median_wait_seconds: overview.medianWait ?? '',
       },
       ...pairs.map((p): TransferSummaryGridRow => ({
-        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.turnbacks > 0 ? [turnbackTag(p.turnbacks, p.missed + p.close + p.acceptable + p.unacceptable)] : []),
+        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.sameWay > 0 ? [sameWayTag(undefined, p.sameWay, p.missed + p.close + p.acceptable + p.unacceptable)] : []),
         arrivals: '',
         missed: p.missed,
         close: p.close,
@@ -1195,7 +1215,7 @@ export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & {
         grade_label: connections.length > 0 ? '' : 'No connection',
       },
       ...connections.map((c, i) => ({
-        ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }, c.turnback ? [turnbackTag(1, 1)] : []),
+        ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }, c.way ? [sameWayTag(c.way, 1, 1)] : []),
         time: formatGtfsTimeFull(c.departure.time - dayStart),
         stop_name: opts.stops.get(c.departure.stopId)?.stop_name ?? '',
         walk_seconds: c.walk,

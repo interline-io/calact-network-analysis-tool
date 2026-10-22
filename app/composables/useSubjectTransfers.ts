@@ -337,8 +337,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         maxWalkSeconds: mostWalk.value,
         breakpoints: breakpoints.value,
         allConnections: settings.value.allConnections,
-        agencyOf: routeId => routes.value.get(routeId)?.agency?.id,
-        countTurnbacks: settings.value.countTurnbacks,
+        countSameWay: settings.value.countSameWay,
       },
     )
   })

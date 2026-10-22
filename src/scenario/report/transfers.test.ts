@@ -156,13 +156,16 @@ describe('transferEvents', () => {
       // A morning arrival outside a 20:00 to 24:00 window.
       [1, MON, hms(8), 300, 0, 30],
     ])
-    const through = (id: number, t: number) => detail(id, [{ stopId: 9, departure: t - 600 }, { stopId: 1, arrival: t, departure: t }, { stopId: 8, arrival: t + 600 }])
-    const tripDetails = new Map([[100, through(100, hms(23, 55))], [200, through(200, hms(24, 5))], [300, through(300, hms(8))]])
+    // Each from stop 9 through stop 1; trip 200 then goes elsewhere, so is a
+    // change, not the same way.
+    const through = (id: number, t: number, next = 8) => detail(id, [{ stopId: 9, departure: t - 600 }, { stopId: 1, arrival: t, departure: t }, { stopId: next, arrival: t + 600 }])
+    const tripDetails = new Map([[100, through(100, hms(23, 55))], [200, through(200, hms(24, 5), 7)], [300, through(300, hms(8))]])
     const events = transferEvents({ stopIds: [1], dates: [MON], startTime: hms(20), endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
     expect(events.arrivals.map(e => e.tripId)).toEqual([100])
     const [group] = calculateTransfers(events.arrivals, events.departures, walk)
     expect(group!.connections.map(c => [c.departure.tripId, c.wait])).toEqual([[200, 600]])
     expect(events.departures.find(e => e.tripId === 200)?.serviceDate).toBe(MON)
+    expect(events.arrivals.map(e => [e.prevStation, e.nextStation])).toEqual([[9, 8]])
   })
 
   it('leaves out trips whose details have not arrived', () => {
@@ -194,18 +197,25 @@ describe('calculateTransfers', () => {
     ])
   })
 
-  it('leaves out the arriving vehicle turning back, unless counted', () => {
-    // Route 10 ends at stop 1; route 11 of the same agency starts there, 12 at
-    // stop 2, and route 20 of another agency at stop 1.
-    const arrival = { ...event(1, 10, hms(7)), terminal: true }
-    const sameAgency = { ...event(2, 11, hms(7, 5)), terminal: true }
-    const otherStop = { ...event(3, 12, hms(7, 6), 2), terminal: true }
-    const otherAgency = { ...event(4, 20, hms(7, 7)), terminal: true }
-    const agencyOf = (routeId: number) => (routeId < 20 ? 1 : 2)
-    const [group] = calculateTransfers([arrival], [sameAgency, otherStop, otherAgency], { ...walk, agencyOf })
-    expect(group!.connections.map(c => c.departure.tripId)).toEqual([3, 4])
-    const [counted] = calculateTransfers([arrival], [sameAgency, otherStop, otherAgency], { ...walk, agencyOf, countTurnbacks: true })
-    expect(counted!.connections.map(c => [c.departure.tripId, !!c.turnback])).toEqual([[3, false], [2, true], [4, false]])
+  it('leaves out trips back the way an arrival came or on its way, unless counted', () => {
+    // The arrival came from station 100 and goes on to 200. Route 11 goes
+    // next to 100 (back), 12 to 200 (the same way), 13 to 300.
+    const arrival = { ...event(1, 10, hms(7)), prevStation: 100, nextStation: 200 }
+    const back = { ...event(2, 11, hms(7, 5)), prevStation: 200, nextStation: 100 }
+    const same = { ...event(3, 12, hms(7, 6)), prevStation: 100, nextStation: 200 }
+    const other = { ...event(4, 13, hms(7, 7)), nextStation: 300 }
+    const [group] = calculateTransfers([arrival], [back, same, other], walk)
+    expect(group!.connections.map(c => c.departure.tripId)).toEqual([4])
+    const [counted] = calculateTransfers([arrival], [back, same, other], { ...walk, countSameWay: true })
+    expect(counted!.connections.map(c => [c.departure.tripId, c.way])).toEqual([[2, 'back'], [3, 'same'], [4, undefined]])
+  })
+
+  it('takes a trip ending here back the way it came as no transfer', () => {
+    // A line ending here, and the other direction leaving from another
+    // platform of the station: back the way it came.
+    const arrival = { ...event(1, 10, hms(7)), terminal: true, prevStation: 100 }
+    const reverse = { ...event(2, 11, hms(7, 5), 2), terminal: true, nextStation: 100 }
+    expect(calculateTransfers([arrival], [reverse], walk)[0]!.connections).toEqual([])
   })
 
   it('takes the earliest departure a rider can make on a destination, not the shortest wait', () => {

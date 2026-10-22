@@ -25,6 +25,7 @@ query TripDetails($ids: [Int!], $limit: Int) {
         stop_name
         geometry
         parent {
+          id
           stop_name
         }
       }
@@ -51,7 +52,7 @@ export interface TripDetailsResponse {
       stop_headsign?: string | null
       pickup_type?: number | null
       drop_off_type?: number | null
-      stop?: { id: number, stop_name?: string | null, geometry?: GeoJSON.Point | null, parent?: { stop_name?: string | null } | null } | null
+      stop?: { id: number, stop_name?: string | null, geometry?: GeoJSON.Point | null, parent?: { id?: number | null, stop_name?: string | null } | null } | null
     } | null)[]
   }[]
 }
@@ -83,6 +84,9 @@ export interface TripDetail {
 
 export interface TripStopTime {
   stopId: number
+  // Its parent station, else the stop itself: so a station's platforms are
+  // one place.
+  stationId?: number
   // Seconds since midnight, as the feed gives them; either may be missing.
   arrival?: number
   departure?: number
@@ -155,6 +159,7 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       stopCount: t.stop_times.length,
       stopTimes: stopTimes.filter(st => st.stop).map(st => ({
         stopId: st.stop!.id,
+        stationId: st.stop!.parent?.id ?? st.stop!.id,
         arrival: toSeconds(st.arrival_time),
         departure: toSeconds(st.departure_time),
         pickupType: st.pickup_type,

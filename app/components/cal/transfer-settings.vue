@@ -88,13 +88,13 @@
             </p>
           </div>
           <div>
-            <cat-checkbox :model-value="settings.countTurnbacks" @update:model-value="set({ countTurnbacks: !!$event })">
-              Count likely turnbacks
+            <cat-checkbox :model-value="settings.countSameWay" @update:model-value="set({ countSameWay: !!$event })">
+              Count trips back or on the same way
             </cat-checkbox>
             <p class="cal-transfer-settings-help">
-              A trip ending here and one of the same agency starting from the
-              same stop are likely one vehicle turning back, so are not counted
-              as a transfer unless checked.
+              A trip going back the way the arriving one came, or on the way
+              it goes, is not a change a rider needs, so is not counted as a
+              transfer unless checked.
             </p>
           </div>
         </div>

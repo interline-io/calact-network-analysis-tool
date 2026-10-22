@@ -25,7 +25,8 @@ const ICONS: Record<TransferTripTag['kind'], string> = {
   ends: 'arrow-collapse-right',
   starts: 'arrow-expand-right',
   short: 'ray-start-end',
-  turnback: 'arrow-u-left-top',
+  back: 'arrow-u-left-top',
+  same: 'arrow-right-thick',
 }
 </script>
 
