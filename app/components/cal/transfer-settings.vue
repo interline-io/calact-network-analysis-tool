@@ -40,10 +40,12 @@
         </p>
       </cat-fieldset>
 
-      <!-- The grades as a scale: each between the two waits, in minutes, that
-           bound it, in its color. -->
+      <!-- The grades as a bar across the wait, as Transfer Analyst draws it:
+           each grade in its color, with its range, the waits that bound them
+           between, and beyond the ends, waits that are not transfers. -->
       <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
         <div class="cal-transfer-settings-scale">
+          <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
           <template v-for="(bound, i) of bounds" :key="bound">
             <cat-input
               :model-value="minutes(settings.breakpoints[i])"
@@ -57,20 +59,17 @@
             />
             <span
               v-if="TRANSFER_GRADES[i]"
-              class="cal-transfer-settings-grade"
+              class="cal-transfer-settings-band"
               :style="{ background: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].fill, color: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].text }"
-            >{{ TRANSFER_GRADE_LABELS[TRANSFER_GRADES[i]!] }}</span>
+            >
+              <strong>{{ TRANSFER_GRADE_LABELS[TRANSFER_GRADES[i]!] }}</strong>
+              <span>{{ range(i) }}</span>
+            </span>
           </template>
+          <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
         </div>
         <p class="cal-transfer-settings-help">
-          <template v-if="!breakpointsValid">
-            <span class="cal-transfer-settings-warning">Each must be more than the one before; the defaults apply until then.</span>
-          </template>
-          <template v-else>
-            A wait below the first, or above the last, is not a transfer.
-            Services every 15 minutes or more, as on many rail lines, grade
-            mostly long wait at these; widen them to compare such services.
-          </template>
+          <span v-if="!breakpointsValid" class="cal-transfer-settings-warning">Each must be more than the one before; the defaults apply until then.</span>
           <button type="button" class="cal-transfer-settings-link" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
             Reset
           </button>
@@ -232,6 +231,12 @@ const pace = computed(() => {
 
 // The five breakpoints, by what each starts or ends, and the grades between.
 const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.long} up to`]
+
+// A grade's range, between the breakpoints either side of it: "-5 to 0 min".
+function range (i: number): string {
+  const [from, to] = [minutes(settings.value.breakpoints[i]), minutes(settings.value.breakpoints[i + 1])]
+  return `${from ?? ''} to ${to ?? ''} min`
+}
 
 function minutes (seconds: number | undefined): number | undefined {
   return seconds === undefined ? undefined : seconds / 60
@@ -435,27 +440,38 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-wait-walk-grid {
   display: grid;
   gap: 0.75rem 2rem;
-  grid-template-columns: max-content max-content minmax(16rem, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-areas:
+    'walk connections'
+    'grades grades';
 
   > * {
     margin-bottom: 0;
     min-width: 0;
   }
 
-  @container (max-width: 84rem) {
-    grid-template-columns: max-content minmax(0, 1fr);
+  .cal-transfer-settings-walk {
+    grid-area: walk;
+  }
 
-    .cal-transfer-settings-connections {
-      grid-column: 1 / -1;
-    }
+  .cal-transfer-settings-connections {
+    grid-area: connections;
+  }
 
-    .cal-transfer-settings-options {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .cal-transfer-settings-grades {
+    grid-area: grades;
+  }
+
+  .cal-transfer-settings-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   @container (max-width: 64rem) {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'walk'
+      'connections'
+      'grades';
   }
 
   @container (max-width: 40rem) {
@@ -463,11 +479,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
       grid-template-columns: minmax(0, 1fr);
     }
   }
-}
-
-// The grade scale's help wraps at the scale's width, rather than widening it.
-.cal-transfer-settings-grades .cal-transfer-settings-help {
-  contain: inline-size;
 }
 
 .cal-transfer-settings-options {
@@ -496,17 +507,41 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 // Inputs and grade chips alternating on one line.
 .cal-transfer-settings-scale {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.35rem;
   margin-bottom: 0.4rem;
+  overflow-x: auto;
+
+  .cal-transfer-settings-number {
+    align-self: center;
+  }
 }
 
-.cal-transfer-settings-grade {
-  padding: 0.15rem 0.5rem;
+// A grade's band, sharing the bar's width: its name over its range.
+.cal-transfer-settings-band {
+  flex: 1 1 0;
+  min-width: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
-  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
+
+  strong {
+    color: inherit;
+  }
+}
+
+// Beyond the ends, plainly.
+.cal-transfer-settings-band-none {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--bulma-text-weak);
+  border: 1px dashed var(--bulma-border);
 }
 
 .cal-transfer-settings-help {
