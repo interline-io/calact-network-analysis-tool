@@ -7,10 +7,10 @@
       :class="{ 'cal-transfer-report-bar-open': panelOpen }"
     >
       <div class="cal-transfer-report-toolbar">
-        <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
+        <cat-field label="Station or stop cluster" class="cal-transfer-report-subject">
           <cat-select v-model="subject">
             <option value="" disabled>
-              Pick a stop or stop cluster
+              Pick a station or stop cluster
             </option>
             <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
               <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
@@ -143,7 +143,7 @@
       </cat-button>
     </p>
     <p v-if="!hasSubject" class="cal-transfer-report-note">
-      Pick a stop or stop cluster to see its transfers, or use "Enter Transfer
+      Pick a station or stop cluster to see its transfers, or use "Enter Transfer
       Analyst" in a stop's or cluster's trip information on the map.
     </p>
 
@@ -228,13 +228,16 @@
                 <span v-else>{{ row.headsign }}</span>
                 <span v-if="row.origin" class="cal-transfer-report-origin">from {{ row.origin }}</span>
                 <cal-transfer-trip-tags :tags="row.tags ?? []" />
-                <cat-tooltip v-if="view === 'summary'" text="Show in Individual" class="cal-transfer-report-show">
-                  <button type="button" aria-label="Show in Individual" @click.stop="showRow(row as TransferSummaryGridRow)">
-                    <cat-icon size="small" icon="table-arrow-right" />
-                  </button>
-                </cat-tooltip>
               </span>
             </span>
+          </template>
+          <!-- Summary: a row's arrivals and connections in Individual. -->
+          <template #column-view="{ row }">
+            <cat-tooltip v-if="row.route_name" text="Show in Individual" class="cal-transfer-report-show">
+              <button type="button" aria-label="Show in Individual" @click.stop="showRow(row as TransferSummaryGridRow)">
+                <cat-icon size="small" icon="table-arrow-right" />
+              </button>
+            </cat-tooltip>
           </template>
           <template #column-stop_name="{ value }">
             <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
@@ -600,6 +603,7 @@ const summaryColumns: TableColumn[] = [
   ...TRANSFER_GRADES.map(g => ({ key: g, label: TRANSFER_GRADE_LABELS[g], sortable: true, numeric: true, ...COUNT, group: CONNECTIONS, groupSummary: true })),
   { key: 'close_or_acceptable_share', label: 'Close or acceptable', sortable: true, numeric: true, tooltip: 'Share of arrivals whose first connection is close or acceptable.', group: FIRST, groupSummary: true },
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', ...NARROW, group: FIRST, groupSummary: true },
+  { key: 'view', label: 'View', sortable: false, tooltip: 'Show a row\'s arrivals and connections in Individual.', shrink: true, align: 'center' },
 ]
 
 // The Individual table's columns, with the stop where there are several.
