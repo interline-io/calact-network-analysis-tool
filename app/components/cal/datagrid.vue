@@ -71,7 +71,7 @@
                 v-else
                 scope="col"
                 :rowspan="cell.rowspan"
-                :class="[cell.column!.class, { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': props.groupKey && cell.column! === tableReport.columns[0] }]"
+                :class="[cell.column!.class, columnClass(cell.column!), { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': props.groupKey && cell.column! === tableReport.columns[0] }]"
                 :aria-sort="ariaSort(cell.column!)"
               >
                 <!-- Grouped: every group open or closed at once, from the first
@@ -147,7 +147,7 @@
                sizes each column to the worst case and widths stay constant
                across pagination / sort. -->
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
-            <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
+            <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <div class="cal-datagrid-shim-cell">
                 <span v-if="props.groupKey && column === tableReport.columns[0]" class="cal-datagrid-group-indent" />
                 <slot
@@ -166,7 +166,7 @@
             :key="row.id ?? row.geoid ?? row.location_id ?? idx"
             :class="[rowClass?.(row), groupRowClass(row)]"
           >
-            <td v-for="column in tableReport.columns" :key="column.key" :class="column.class">
+            <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <!-- An open group's heading leaves its sums to the rows under
                    it. -->
               <template v-if="hidesValue(row, column)" />
@@ -487,6 +487,11 @@ const anyOpen = computed(() => groups.value.some(rows => rows.length > 1 && !clo
 function setAllOpen (open: boolean) {
   closed.value = open ? new Set() : new Set(groups.value.map(rows => groupOf(rows[0]!)))
 }
+// A column's alignment and width, as classes on its header and cells.
+function columnClass (column: TableColumn) {
+  return { 'cal-datagrid-col-center': column.align === 'center', 'cal-datagrid-col-shrink': column.shrink }
+}
+
 // An open group's heading row, in a column that sums up the rows under it.
 function hidesValue (row: Record<string, any>, column: TableColumn): boolean {
   return !!props.groupKey && !!column.groupSummary && opensGroup(row) && !closed.value.has(groupOf(row))
@@ -854,6 +859,30 @@ const filterStatus = computed(() => {
   text-align: center;
   color: var(--bulma-text-weak);
   font-size: 0.8em;
+}
+
+// A column only as wide as its content, and one centered, its sort button
+// too.
+.cal-report-table {
+  .cal-datagrid-col-shrink {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .cal-datagrid-col-center {
+    text-align: center;
+
+    .cal-datagrid-sort-button {
+      justify-content: center;
+    }
+  }
+
+  // A group's heading row, set apart from the rows under it.
+  tr.cal-datagrid-group-head td {
+    background: var(--bulma-scheme-main-bis);
+    font-weight: 600;
+    border-top: 2px solid var(--bulma-border);
+  }
 }
 
 // Grouped rows: a heading's open and close button, and the rows under it

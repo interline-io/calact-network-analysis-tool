@@ -972,7 +972,7 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
   return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
 })
 const transferView = ref<TransferReportView>('summary')
-const transferSection = ref<TransferReportSection | null>('trips')
+const transferSection = ref<TransferReportSection | undefined>('trips')
 // Stop clustering on at its default distance, and the scenario run again,
 // staying on the Transfer Analyst; once the URL holds the distance, which
 // the run reads.
