@@ -980,7 +980,7 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
   return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
 })
 const transferView = ref<TransferReportView>('summary')
-const transferSection = ref<TransferReportSection | undefined>('trips')
+const transferSection = ref<TransferReportSection | null>('trips')
 // The view's table, as the Reports tab's CSV download.
 const transferCsv = computed(() => (transferView.value === 'summary'
   ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.individualDate}-${transfers.title}`, label: 'Download summary as CSV' }

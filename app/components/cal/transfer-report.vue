@@ -64,7 +64,7 @@
                 :variant="openSection === t.section ? 'primary' : undefined"
                 :outlined="openSection === t.section"
                 v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId, 'title': t.label }"
-                @click="openSection = openSection === t.section ? undefined : t.section"
+                @click="openSection = openSection === t.section ? null : t.section"
               >
                 <!-- Hidden but still read out where the toolbar is narrow, so
                    the toggles keep to its row as icons. -->
@@ -82,7 +82,7 @@
                 v-if="openSection"
                 icon-left="chevron-up"
                 v-bind="{ 'title': 'Hide settings', 'aria-label': 'Hide settings', 'aria-controls': settingsId }"
-                @click="openSection = undefined"
+                @click="openSection = null"
               />
             </div>
           </cat-field>
@@ -315,7 +315,8 @@ const settings = defineModel<TransferSettings>('settings', { required: true })
 // The settings panel open, one at a time: by default Trip filtering, as which
 // trips count is the first thing to set; the page opens Stops & platforms on
 // entering from a cluster.
-const openSection = defineModel<TransferReportSection | undefined>('section', { default: 'trips' })
+// None open is null, not undefined, which would read as the default.
+const openSection = defineModel<TransferReportSection | null>('section', { default: 'trips' })
 const settingsId = useId()
 
 // The share of trips, arriving and departing, that trip filtering keeps, on
