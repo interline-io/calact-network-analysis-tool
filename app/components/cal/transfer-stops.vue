@@ -6,6 +6,7 @@
     <cal-transfer-stops-map
       v-model="stops"
       :stops="mapStops"
+      :extent="extent"
       :fit-key="fitKey"
       :highlight="rowHover"
       @view="view = $event"
@@ -58,6 +59,8 @@ import type { TransferMapStop } from './transfer-stops-map.vue'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
+  // The query's area, which the stops were loaded from.
+  extent: GeoJSON.Feature[]
   // Frames the map anew when it changes: the subject.
   fitKey: string
 }>()

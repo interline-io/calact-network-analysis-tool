@@ -37,6 +37,7 @@
     <p class="cal-transfer-stops-map-hint">
       <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-stop" />Stop</span>
       <span class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-platform" />Platform</span>
+      <span v-if="extent.length > 0" class="cal-transfer-stops-map-key"><span class="cal-transfer-stops-map-key-extent" />Query area</span>
       <span>{{ lassoOn ? 'Drag around stops to add them.' : 'Click a stop to add or remove it.' }}</span>
     </p>
   </div>
@@ -63,6 +64,9 @@ export interface TransferMapStop {
 const props = defineProps<{
   // Every stop that can be picked.
   stops: TransferMapStop[]
+  // The query's area, outlined, as no stops outside it are loaded; and the
+  // map pans no further than a little past it.
+  extent: GeoJSON.Feature[]
   // What the map frames when it changes: the subject, say, rather than each
   // stop added.
   fitKey: string
@@ -98,6 +102,37 @@ function stopFeatures (): GeoJSON.FeatureCollection {
       properties: { id: s.id, name: s.name, operator: s.operator, routes: s.routes, platform: s.platform, selected: picked.has(s.id) },
     })),
   }
+}
+
+// The extent's bounding box, padded by a fifth of its size (and at least
+// about 500 m), for the map's panning bounds; none without an extent.
+function extentBounds (): maplibre.LngLatBounds | undefined {
+  const b = new maplibre.LngLatBounds()
+  const visit = (c: any) => {
+    if (typeof c[0] === 'number') {
+      b.extend([c[0], c[1]])
+    } else {
+      c.forEach(visit)
+    }
+  }
+  for (const f of props.extent) {
+    visit((f.geometry as { coordinates?: unknown }).coordinates ?? [])
+  }
+  if (b.isEmpty()) {
+    return undefined
+  }
+  const padLon = Math.max((b.getEast() - b.getWest()) / 5, 0.006)
+  const padLat = Math.max((b.getNorth() - b.getSouth()) / 5, 0.0045)
+  return new maplibre.LngLatBounds([b.getWest() - padLon, b.getSouth() - padLat], [b.getEast() + padLon, b.getNorth() + padLat])
+}
+
+function updateExtent () {
+  if (!map) {
+    return
+  }
+  const source = map.getSource('extent') as maplibre.GeoJSONSource | undefined
+  source?.setData({ type: 'FeatureCollection', features: props.extent })
+  map.setMaxBounds(extentBounds() ?? null)
 }
 
 function updateStops () {
@@ -148,8 +183,10 @@ function emitView () {
 // A marker: a circle for a stop, a rounded square for a platform; filled
 // when picked, hollow otherwise.
 const MARKER_SIZE = 20
-// As close as the map goes, a few meters across a marker.
+// As close as the map goes, a few meters across a marker; and as far out,
+// a couple of kilometers across, past any walk between stops.
 const MAX_ZOOM = 21
+const MIN_ZOOM = 14
 const PICKED = '#7a4dda'
 const UNPICKED = '#5b6470'
 function marker (platform: boolean, picked: boolean): ImageData {
@@ -259,6 +296,7 @@ function initMap () {
     container: mapContainer.value,
     zoom: 15,
     maxZoom: MAX_ZOOM,
+    minZoom: MIN_ZOOM,
     center: [-122.4, 45.5],
     // The map data's credits only, not MapLibre's own, which the control
     // adds by default.
@@ -281,6 +319,15 @@ function initMap () {
   map = m
   m.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
   m.on('load', () => {
+    // The query's area, dashed, under the stops.
+    m.addSource('extent', { type: 'geojson', data: { type: 'FeatureCollection', features: props.extent } })
+    m.addLayer({
+      id: 'extent',
+      type: 'line',
+      source: 'extent',
+      paint: { 'line-color': '#5b6470', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.8 },
+    })
+    m.setMaxBounds(extentBounds() ?? null)
     m.addSource('stops', { type: 'geojson', data: stopFeatures() })
     for (const platform of [false, true]) {
       for (const picked of [false, true]) {
@@ -434,6 +481,7 @@ function inRing (x: number, y: number, ring: [number, number][]): boolean {
 
 watch([() => props.stops, selected], updateStops)
 watch(() => props.highlight, setHighlight)
+watch(() => props.extent, updateExtent)
 watch(() => props.fitKey, () => nextTick(fit))
 
 onMounted(() => nextTick(initMap))
@@ -536,6 +584,12 @@ onBeforeUnmount(() => {
   height: 0.65rem;
   border: 2px solid #5b6470;
   background: #ffffff;
+}
+
+.cal-transfer-stops-map-key-extent {
+  display: inline-block;
+  width: 1rem;
+  border-top: 2px dashed #5b6470;
 }
 
 .cal-transfer-stops-map-key-stop {

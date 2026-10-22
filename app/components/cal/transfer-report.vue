@@ -82,6 +82,7 @@
       v-bind="{ id: settingsId }"
       :model-value="stops"
       :map-stops="mapStops"
+      :extent="extent"
       :fit-key="subject"
       @update:model-value="$emit('update:stops', $event)"
     />
@@ -255,6 +256,8 @@ const props = defineProps<{
   // that can be added.
   stops: number[]
   mapStops: TransferMapStop[]
+  // The query's area, which the stops were loaded from.
+  extent: GeoJSON.Feature[]
   // Whether the scenario has stop clusters.
   hasClusters: boolean
   // Each view's rows, nested: an arriving trip (or destination), then the

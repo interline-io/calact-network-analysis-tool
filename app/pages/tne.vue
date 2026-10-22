@@ -94,6 +94,7 @@
                 :subject-options="transfers.subjectOptions"
                 :stops="transfers.stopIds"
                 :map-stops="transfers.mapStops"
+                :extent="transferExtent"
                 :has-clusters="transfers.hasClusters"
                 :breakpoints="transfers.breakpoints"
                 :route-choices="transfers.routeChoices"
@@ -965,6 +966,21 @@ const transfers = reactive(useSubjectTransfers({
   active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
   stopEdits: transferStopEdits,
 }, tripDetailsStore))
+// The query's area, as the stops map outlines it: the chosen boundaries, or
+// the bounding box.
+const transferExtent = computed((): GeoJSON.Feature[] => {
+  if (geographyIds.value.length > 0) {
+    return (censusGeographiesSelected.value || [])
+      .filter(g => g.geometry)
+      .map(g => ({ type: 'Feature' as const, geometry: g.geometry as GeoJSON.Geometry, properties: {} }))
+  }
+  const b = bbox.value
+  if (!b?.valid) {
+    return []
+  }
+  const ring = [[b.sw.lon, b.sw.lat], [b.ne.lon, b.sw.lat], [b.ne.lon, b.ne.lat], [b.sw.lon, b.ne.lat], [b.sw.lon, b.sw.lat]]
+  return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
+})
 const transferView = ref<TransferReportView>('summary')
 const transferSection = ref<TransferReportSection | undefined>('trips')
 // The view's table, as the Reports tab's CSV download.
