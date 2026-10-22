@@ -74,14 +74,6 @@
             @open-trips="openReportTrips"
             @open-transfers="openTransfers"
           >
-            <template v-if="transferSubject" #downloads>
-              <cal-csv-download
-                :data="transferCsv.data"
-                :disabled="transfers.detailsLoading"
-                :filename="transferCsv.filename"
-                :button-text="transferCsv.label"
-              />
-            </template>
             <template #transfers>
               <cal-transfer-report
                 v-model:subject="transferSubject"
@@ -99,6 +91,8 @@
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-grid="transfers.summaryGrid"
+                :summary-rows="transfers.summaryRows"
+                :individual-rows="transfers.individualRows"
                 :summary-overview="transfers.summaryOverview"
                 :individual-dates="transfers.individualDates"
                 :individual-date="transfers.individualDate"
@@ -981,10 +975,6 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
 })
 const transferView = ref<TransferReportView>('summary')
 const transferSection = ref<TransferReportSection | null>('trips')
-// The view's table, as the Reports tab's CSV download.
-const transferCsv = computed(() => (transferView.value === 'summary'
-  ? { data: transfers.summaryRows, filename: `transfers-summary-${transfers.individualDate}-${transfers.title}`, label: 'Download summary as CSV' }
-  : { data: transfers.individualRows, filename: `transfers-${transfers.individualDate}-${transfers.title}`, label: 'Download transfers as CSV' }))
 // Stop clustering on at its default distance, and the scenario run again,
 // staying on the Transfer Analyst; once the URL holds the distance, which
 // the run reads.

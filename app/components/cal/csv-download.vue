@@ -5,25 +5,7 @@
 </template>
 
 <script>
-import { stringify } from 'csv-stringify/browser/esm/sync'
-import { sanitizeFilename } from '@interline-io/catenary'
-
-function dataToBlob (csvData) {
-  const keys = {}
-  if (csvData.length > 0) {
-    for (const k of Object.keys(csvData[0])) {
-      keys[k] = k
-    }
-  }
-  const data = stringify(
-    csvData,
-    {
-      header: true,
-      columns: keys
-    })
-  const blob = new Blob([data], { type: 'application/csv' })
-  return blob
-}
+import { csvBlob, saveBlob } from '~/utils/download'
 
 export default {
   props: {
@@ -34,15 +16,8 @@ export default {
     data: { type: Array, default () { return [] } }
   },
   methods: {
-    async saveFile () {
-      const blob = await dataToBlob(this.data)
-      const e = document.createEvent('MouseEvents')
-      const a = document.createElement('a')
-      a.download = sanitizeFilename(this.filename + '.csv')
-      a.href = window.URL.createObjectURL(blob)
-      a.dataset.downloadurl = ['text/csv', a.download, a.href].join(':')
-      e.initEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null)
-      a.dispatchEvent(e)
+    saveFile () {
+      saveBlob(csvBlob(this.data), this.filename + '.csv')
     }
   }
 }

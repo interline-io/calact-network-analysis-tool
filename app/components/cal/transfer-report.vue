@@ -1,5 +1,5 @@
 <template>
-  <div class="cal-transfer-report">
+  <div ref="root" class="cal-transfer-report">
     <!-- What the report is about and how it is viewed come first, in one
          bar; the settings open below it, hung from it, on request. -->
     <div class="cal-transfer-report-bar" :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection }">
@@ -78,6 +78,23 @@
                 </span>
               </cat-button>
             </div>
+          </cat-field>
+          <!-- What the report can be saved as, from one menu. -->
+          <cat-field label="Download" class="cal-transfer-report-download">
+            <cat-dropdown position="bottom-right" @select="download">
+              <template #trigger>
+                <cat-button icon-left="download" :disabled="detailsLoading" v-bind="{ 'title': 'Download', 'aria-label': 'Download' }" />
+              </template>
+              <cat-dropdown-item value="summary">
+                Summary as CSV
+              </cat-dropdown-item>
+              <cat-dropdown-item value="connections">
+                Every connection as CSV
+              </cat-dropdown-item>
+              <cat-dropdown-item value="chart" :disabled="view !== 'individual'">
+                Wait chart as SVG{{ view === 'individual' ? '' : ' (Individual view)' }}
+              </cat-dropdown-item>
+            </cat-dropdown>
           </cat-field>
         </template>
       </div>
@@ -161,7 +178,7 @@
           </dl>
           <cal-plot class="cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
         </div>
-        <cal-plot v-if="view === 'individual'" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
+        <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for either view, keyed so each starts on its first page
              and its own sort; slots for columns it lacks go unused. -->
         <cal-datagrid
@@ -172,7 +189,6 @@
           :downloadable="false"
           :per-page="100"
           scroll
-          :item-label="['incoming trip', 'incoming trips']"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
@@ -242,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { TransferSettingsSection } from './transfer-settings.vue'
 import type { TransferMapStop } from './transfer-stops-map.vue'
 import * as Plot from '@observablehq/plot'
@@ -260,6 +276,8 @@ import {
   type TransferRouteChoice,
   type TransferSettings,
   type TransferSummaryGridRow,
+  type TransferSummaryRow,
+  type TransferRow,
 } from '~~/src/scenario'
 import { formatServiceDate, type TableColumn, type TableReport } from '~~/src/core'
 
@@ -282,6 +300,9 @@ const props = defineProps<{
   // Each view's rows, nested: an arriving trip (or destination), then the
   // departing ones it connects to.
   summaryGrid: TransferSummaryGridRow[]
+  // Both views' rows, flat, for download.
+  summaryRows: TransferSummaryRow[]
+  individualRows: TransferRow[]
   summaryOverview: TransferOverview
   individualDates: string[]
   individualDate?: string
@@ -442,8 +463,28 @@ function gradeChartLabel (counts: TransferGradeCount[]): string {
   return `Connections by grade: ${counts.map(c => `${TRANSFER_GRADE_LABELS[c.grade]} ${c.count} (${percent(c.share)})`).join(', ')}`
 }
 
+// An hour of the day, with its minutes: "09:30".
 function hourLabel (hour: number): string {
-  return `${String(Math.floor(hour)).padStart(2, '0')}:00`
+  const minutes = Math.round(hour * 60)
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+// The downloads, named for the subject and date.
+const root = ref<HTMLElement>()
+function download (what: 'summary' | 'connections' | 'chart') {
+  const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
+  if (what === 'summary') {
+    saveBlob(csvBlob(props.summaryRows as unknown as Record<string, unknown>[]), `${name}.csv`)
+  } else if (what === 'connections') {
+    saveBlob(csvBlob(props.individualRows as unknown as Record<string, unknown>[]), `${name}.csv`)
+  } else {
+    const svg = root.value?.querySelector('.cal-transfer-report-wait-chart svg')
+    if (svg) {
+      const clone = svg.cloneNode(true) as SVGElement
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+      saveBlob(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }), `${name}.svg`)
+    }
+  }
 }
 
 // Each connection's wait by the time its trip arrives. The points and

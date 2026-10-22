@@ -213,10 +213,8 @@
       </table>
     </div>
 
-    <div v-if="total > 0 && props.scroll" class="has-text-grey mt-4">
-      {{ shownCount < total ? `Showing ${shownCount.toLocaleString()} of ${total.toLocaleString()} ${itemsLabel}; scroll for more` : `${total.toLocaleString()} ${itemsLabel}` }}
-    </div>
-    <div v-else-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+    <!-- Scrolling, the table says no more than its rows do. -->
+    <div v-if="total > 0 && !props.scroll" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
       <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
       <cat-pagination
         v-model:current="current"
@@ -225,7 +223,7 @@
         style="margin-left: auto;"
       />
     </div>
-    <div v-else class="has-text-grey mt-4">
+    <div v-else-if="total === 0" class="has-text-grey mt-4">
       No results found
     </div>
   </div>
@@ -281,8 +279,6 @@ const props = withDefaults(defineProps<{
   groupLabel?: (row: any) => string
   // Rows load perPage at a time as the table scrolls, in place of pages.
   scroll?: boolean
-  // What the count counts, one and many: rows, or grouped, groups.
-  itemLabel?: [string, string]
 }>(), {
   // Vue reads a missing boolean prop as false; these default to shown.
   searchable: true,
@@ -530,7 +526,6 @@ watch([sortKey, sortDir], () => {
 // nears the table's bottom edge.
 const shown = ref(props.perPage)
 const shownCount = computed(() => Math.min(shown.value, total.value))
-const itemsLabel = computed(() => (props.itemLabel ?? ['result', 'results'])[total.value === 1 ? 0 : 1])
 const tableContainer = ref<HTMLElement>()
 const more = ref<HTMLElement>()
 let observer: IntersectionObserver | undefined

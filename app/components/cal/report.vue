@@ -4,20 +4,18 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <!-- The page's downloads in one place: on the Transfer Analyst, its
-           table's, given by the page, as the scenario's features say nothing
-           of transfers; elsewhere, the GeoJSON. -->
+      <!-- The scenario's features, which say nothing of transfers, so not on
+           the Transfer Analyst, which has its own downloads. -->
       <div class="cal-report-downloads">
-        <slot v-if="activeReportTab === 'transfers'" name="downloads" />
         <cal-geojson-download
-          v-else
+          v-if="activeReportTab !== 'transfers'"
           :data="downloadFeatures"
           variant="primary"
         />
       </div>
     </div>
 
-    <div class="cal-report-header mb-4">
+    <div class="cal-report-header" :class="activeReportTab === 'transfers' ? 'cal-report-header-tight' : 'mb-4'">
       <div class="cal-report-filter-tags mb-3">
         <span
           v-for="tag of filterTags"
@@ -551,6 +549,15 @@ const activeTableReport = computed((): TableReport => {
     min-height: 0;
     overflow: hidden;
     padding-bottom: 1rem;
+  }
+
+  // Over a report that fills the page, less space under the tabs.
+  .cal-report-header-tight {
+    margin-bottom: 0.5rem;
+
+    :deep(.tabs) {
+      margin-bottom: 0;
+    }
   }
 
   .cal-report-downloads {
