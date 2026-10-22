@@ -11,6 +11,7 @@ import {
   DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
   centerOf,
+  focusTransfers,
   clusterDisplayName,
   resolveEffectiveWeekdays,
   summarizeTransfers,
@@ -27,6 +28,7 @@ import {
   transferTripKey,
   validBreakpoints,
   type ScenarioFilterResult,
+  type TransferFocus,
   type TransferSettings,
   type TripSubject,
 } from '~~/src/scenario'
@@ -65,6 +67,8 @@ export interface UseSubjectTransfersDeps {
   // The date whose arrivals both views show (yyyy-MM-dd); the first with
   // service when unset. Held by the page, in the URL.
   selectedDate: MaybeRefOrGetter<string | undefined>
+  // The arrivals and connections the Individual view narrows to, if any.
+  focus: MaybeRefOrGetter<TransferFocus | undefined>
 }
 
 export interface TransferStopEdits {
@@ -372,9 +376,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       ? transferSummaryRows(summary.value, routes.value) as unknown as Record<string, unknown>[]
       : transferRows(dateGroups.value, { routes: routes.value, stops: stops.value, tripDetails: store.details.value }) as unknown as Record<string, unknown>[]
   }
-  const individualGrid = computed(() => transferGrid(dateGroups.value, { ...tripInfo.value, stops: stops.value }))
+  const individualGroups = computed(() => focusTransfers(dateGroups.value, toValue(deps.focus)))
+  const individualGrid = computed(() => transferGrid(individualGroups.value, { ...tripInfo.value, stops: stops.value }))
   // Each connection on the date by the arrival's time of day, for the chart.
-  const individualPoints = computed(() => dateGroups.value.flatMap((g) => {
+  const individualPoints = computed(() => individualGroups.value.flatMap((g) => {
     const hour = g.arrival.seconds / 3600
     return g.connections.map(c => ({ hour, waitMinutes: c.wait / 60, grade: c.grade }))
   }))

@@ -184,7 +184,20 @@
         </div>
         <!-- Where the connections come from and go, as flows around the
              stops. -->
-        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" />
+        <cal-transfer-rose v-if="view === 'compass'" ref="roseChart" :rose="rose" @show="showInIndividual" />
+        <!-- What Individual narrows to, from Summary or Compass: cleared, or
+             made the trip filters. -->
+        <div v-if="view === 'individual' && focus" class="cal-transfer-report-focus">
+          <span class="tag is-medium cal-transfer-report-focus-tag">
+            Showing {{ focus.label }}
+            <button type="button" class="delete is-small" aria-label="Show every arrival" @click="focus = undefined" />
+          </span>
+          <cat-tooltip :text="focus.pairs ? 'Set the arriving and departing trip filters to just these trips.' : 'Set the arriving trip filter to just these trips.'">
+            <cat-button size="small" @click="filterToFocus">
+              Filter to these trips
+            </cat-button>
+          </cat-tooltip>
+        </div>
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
              first page and its own sort; slots for columns it lacks go
@@ -198,7 +211,7 @@
           :downloadable="false"
           :per-page="100"
           scroll
-          :reset-key="`${subject}|${individualDate ?? ''}`"
+          :reset-key="`${subject}|${individualDate ?? ''}|${focus?.label ?? ''}`"
           :loading="detailsLoading"
           group-key="group"
           :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
@@ -215,6 +228,11 @@
                 <span v-else>{{ row.headsign }}</span>
                 <span v-if="row.origin" class="cal-transfer-report-origin">from {{ row.origin }}</span>
                 <cal-transfer-trip-tags :tags="row.tags ?? []" />
+                <cat-tooltip v-if="view === 'summary'" text="Show in Individual" class="cal-transfer-report-show">
+                  <button type="button" aria-label="Show in Individual" @click.stop="showRow(row as TransferSummaryGridRow)">
+                    <cat-icon size="small" icon="table-arrow-right" />
+                  </button>
+                </cat-tooltip>
               </span>
             </span>
           </template>
@@ -277,10 +295,12 @@ import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  focusFilters,
   formatWait,
   tripTimeLabel,
   type TransferCompassPlace,
   type TransferGrade,
+  type TransferFocus,
   type TransferGradeCount,
   type TransferRose,
   type TransferGridRow,
@@ -353,6 +373,8 @@ defineEmits<{
 const subject = defineModel<string>('subject', { required: true })
 const hasSubject = computed(() => !!transferSubjectFromKey(subject.value))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
+// The arrivals and connections Individual narrows to.
+const focus = defineModel<TransferFocus | undefined>('focus')
 const date = defineModel<string | undefined>('date')
 // The scenario's time of day, shared with the Filter tab, through the URL.
 const { startTime, endTime } = useScenarioFilters()
@@ -482,6 +504,32 @@ function hourLabel (hour: number): string {
 // The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
+function showInIndividual (f: TransferFocus) {
+  focus.value = f
+  view.value = 'individual'
+}
+
+// A Summary row in Individual: an arriving destination's arrivals, or under
+// one, only their connections onto the departing destination.
+function showRow (row: TransferSummaryGridRow) {
+  const name = (r: TransferGridTrip) => `${r.route_name} ${r.headsign}`
+  if (row.head) {
+    showInIndividual({ label: name(row), from: [row.group] })
+    return
+  }
+  const head = props.summaryGrid.find(r => r.id === row.group)
+  const to = row.id.slice(row.group.length + 1)
+  showInIndividual({ label: `${head ? name(head) : ''} to ${name(row)}`, from: [row.group], pairs: [{ from: row.group, to }] })
+}
+
+// The focus made the trip filters, so every view and figure follows it.
+function filterToFocus () {
+  if (focus.value) {
+    settings.value = { ...settings.value, ...focusFilters(focus.value, props.routeChoices) }
+    focus.value = undefined
+  }
+}
+
 // The Compass view's rose, which draws its own SVG for download.
 const roseChart = ref<{ toSvg: () => string }>()
 
@@ -892,6 +940,35 @@ const grid = computed(() => (view.value === 'summary'
   gap: 0 0.35em;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.cal-transfer-report-focus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cal-transfer-report-focus-tag {
+  white-space: normal;
+  height: auto;
+  min-height: 2em;
+}
+
+// A Summary row's link to Individual, quiet until hovered.
+.cal-transfer-report-show button {
+  display: inline-flex;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--bulma-link);
+  }
 }
 
 .cal-transfer-report-origin {

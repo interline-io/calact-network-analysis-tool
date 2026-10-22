@@ -80,6 +80,7 @@
                 v-model:view="transferView"
                 v-model:section="transferSection"
                 v-model:date="transferDate"
+                v-model:focus="transferFocus"
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
@@ -312,7 +313,7 @@ import {
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferFocus, type TransferRose, type TripSubject } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -952,6 +953,12 @@ const transferStopEdits = computed<TransferStopEdits>({
     setQuery({ transferStops: value || undefined })
   },
 })
+// What the Individual view narrows to, from Summary or Compass; cleared with
+// a new subject.
+const transferFocus = ref<TransferFocus>()
+watch(transferSubject, () => {
+  transferFocus.value = undefined
+})
 const transfers = reactive(useSubjectTransfers({
   subject: () => transferSubjectFromKey(transferSubject.value),
   scenarioFilterResult,
@@ -963,6 +970,7 @@ const transfers = reactive(useSubjectTransfers({
   active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
   stopEdits: transferStopEdits,
   selectedDate: transferDate,
+  focus: transferFocus,
 }, tripDetailsStore))
 // The query's area, as the stops map outlines it: the chosen boundaries, or
 // the bounding box.

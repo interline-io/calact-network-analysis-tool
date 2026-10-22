@@ -5,6 +5,8 @@ import type { TripDetail, TripStopTime } from '../../tl/trip-details'
 import {
   calculateTransfers,
   calendarTime,
+  focusFilters,
+  focusTransfers,
   formatWait,
   summarizeTransfers,
   transferEvents,
@@ -451,5 +453,32 @@ describe('transferEvents for a trip from frequencies.txt', () => {
     const events = transferEvents({ stopIds: [1], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
     expect(events.arrivals.map(e => e.seconds)).toEqual([hms(7), hms(7, 30), hms(8)])
     expect(events.departures.map(e => e.seconds)).toEqual([hms(7), hms(7, 30), hms(8)])
+  })
+})
+
+describe('focusTransfers', () => {
+  const connection = (departure: TransferEvent) => ({ departure, walk: 0, wait: 60, grade: 'close' as const })
+  const a = { ...event(1, 10, hms(8)), headsign: 'North' }
+  const b = { ...event(2, 11, hms(8)), headsign: 'South' }
+  const x = { ...event(3, 20, hms(8, 5)), headsign: 'East' }
+  const y = { ...event(4, 21, hms(8, 5)), headsign: 'West' }
+  const groups = [{ arrival: a, connections: [connection(x), connection(y)] }, { arrival: b, connections: [connection(x)] }]
+
+  it('keeps every arrival and connection without a focus', () => {
+    expect(focusTransfers(groups, undefined)).toBe(groups)
+  })
+
+  it('keeps the arrivals focused, and only the pairs focused where named', () => {
+    const fromA = focusTransfers(groups, { label: 'a', from: [transferTripKey(a)] })
+    expect(fromA.map(g => g.connections.length)).toEqual([2])
+    const pair = focusTransfers(groups, { label: 'a to y', from: [transferTripKey(a)], pairs: [{ from: transferTripKey(a), to: transferTripKey(y) }] })
+    expect(pair.map(g => g.connections.map(c => c.departure.tripId))).toEqual([[4]])
+  })
+
+  it('turns a focus into trip filters', () => {
+    const choices = { from: transferTripChoices([a, b], new Map()), to: transferTripChoices([x, y], new Map()) }
+    expect(focusFilters({ label: 'a', from: [transferTripKey(a)] }, choices)).toEqual({ excludedFrom: [transferTripKey(b)] })
+    expect(focusFilters({ label: 'a to y', from: [transferTripKey(a)], pairs: [{ from: transferTripKey(a), to: transferTripKey(y) }] }, choices))
+      .toEqual({ excludedFrom: [transferTripKey(b)], excludedTo: [transferTripKey(x)] })
   })
 })

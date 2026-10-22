@@ -35,7 +35,7 @@
               :marker-end="emphasis ? undefined : `url(#${uid}-${f.color})`"
               @mouseenter="hover = { id: f.id, flows: new Set(f.flows), text: flowsText(f.flows) }"
               @mouseleave="hover = undefined"
-              @click="setFocus(f.id, f.flows)"
+              @click="setFocus(f.id, f.flows, undefined, `${f.flows[0]!.from} to ${f.flows[0]!.to}`)"
             />
             <path
               v-if="emphasis && f.emphasized > 0"
@@ -74,6 +74,9 @@
       </div>
       <figcaption class="cal-transfer-rose-caption">
         {{ hover?.text ?? (focus ? focus.text : 'Connections from where arriving trips come from to where departing trips go, each as wide as its number. Click a place, flow, or row to focus it.') }}
+        <cat-button v-if="focus && !hover" size="small" class="cal-transfer-rose-show" @click="showFocus">
+          Show in Individual
+        </cat-button>
       </figcaption>
     </figure>
 
@@ -104,7 +107,7 @@
           >
             <cat-icon size="small" :icon="opened.has(row.id) ? 'chevron-down' : 'chevron-right'" />
           </button>
-          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text)">
+          <button type="button" class="cal-transfer-rose-focus" :aria-pressed="focus?.id === row.id" @click="setFocus(row.id, row.flows, row.text, row.focusLabel)">
             <span v-if="row.color !== undefined" class="cal-transfer-rose-swatch" :style="{ background: PALETTE[row.color] }" />
             <cal-route-badge v-if="row.route" :label="row.route" :title="row.agency" />
             <span class="cal-transfer-rose-text">{{ row.label }}</span>
@@ -133,6 +136,7 @@ import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  type TransferFocus,
   type TransferGradeCounts,
   type TransferRose,
   type TransferRoseFlow,
@@ -140,6 +144,11 @@ import {
 
 const props = defineProps<{
   rose: TransferRose
+}>()
+
+const emit = defineEmits<{
+  // Show these arrivals and connections in the Individual view.
+  show: [focus: TransferFocus]
 }>()
 
 const uid = useId()
@@ -295,13 +304,28 @@ const drawn = computed(() => {
 
 // The flows focused, by a click, and those under the pointer; the latter
 // shows first.
-interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string }
+interface Emphasis { id: string, flows: Set<TransferRoseFlow>, text: string, label?: string }
 const focus = ref<Emphasis>()
 const hover = ref<Emphasis>()
 const emphasis = computed(() => (hover.value ?? focus.value)?.flows)
 
-function setFocus (id: string, flows: TransferRoseFlow[], text?: string) {
-  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows) }
+function setFocus (id: string, flows: TransferRoseFlow[], text?: string, label?: string) {
+  focus.value = focus.value?.id === id ? undefined : { id, flows: new Set(flows), text: text ?? flowsText(flows), label }
+}
+
+// The focus's arrivals and connections, for the Individual view to narrow
+// to.
+function showFocus () {
+  const f = focus.value
+  if (!f) {
+    return
+  }
+  const flows = [...f.flows]
+  emit('show', {
+    label: f.label ?? f.text,
+    from: [...new Set(flows.map(x => x.fromKey))],
+    pairs: flows.map(x => ({ from: x.fromKey, to: x.toKey })),
+  })
 }
 
 function placeFlows (name: string) {
@@ -309,7 +333,7 @@ function placeFlows (name: string) {
 }
 
 function focusPlace (name: string) {
-  setFocus(`place:${name}`, [...placeFlows(name)], placeText(name))
+  setFocus(`place:${name}`, [...placeFlows(name)], placeText(name), `From or to ${name}`)
 }
 
 function sumOf (flows: TransferRoseFlow[]): { total: number, grades: TransferGradeCounts } {
@@ -373,6 +397,8 @@ interface Row {
   total: number
   grades: TransferGradeCounts
   text: string
+  // What the Individual view says it shows, once shown there.
+  focusLabel: string
 }
 
 function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => K): [K, TransferRoseFlow[]][] {
@@ -386,7 +412,7 @@ function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => 
 
 const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMap(([origin, flows]) => {
   const id = `from:${origin}`
-  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '' }
+  const row: Row = { id, depth: 0, label: origin, color: colors.value.get(origin), flows, ...sumOf(flows), text: '', focusLabel: `From ${origin}` }
   row.text = `From ${origin}: ${connections(row.total)} (${gradesText(row.grades)}).`
   if (!opened.value.has(id)) {
     return [row]
@@ -394,14 +420,16 @@ const rows = computed((): Row[] => byTotal(props.rose.flows, f => f.from).flatMa
   return [row, ...byTotal(flows, f => f.fromKey).flatMap(([fromKey, arrivals]) => {
     const trip = props.rose.from.get(fromKey)
     const arrivalId = `${id}|${fromKey}`
-    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '' }
+    const name = `${trip?.route ?? ''} ${trip?.label ?? ''}`.trim()
+    const arrival: Row = { id: arrivalId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: arrivals, ...sumOf(arrivals), text: '', focusLabel: `${name} from ${origin}` }
     arrival.text = `${trip?.route ?? ''} ${trip?.label ?? ''} from ${origin}: ${connections(arrival.total)} (${gradesText(arrival.grades)}).`
     if (!opened.value.has(arrivalId)) {
       return [arrival]
     }
     return [arrival, ...byTotal(arrivals, f => f.toKey).map(([toKey, pair]): Row => {
       const to = props.rose.to.get(toKey)
-      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
+      const toName = `${to?.route ?? ''} ${to?.label ?? ''}`.trim()
+      return { id: `${arrivalId}>${toKey}`, depth: 2, label: to?.label ?? '', route: to?.route, agency: to?.agency, place: pair[0]!.to, flows: pair, ...sumOf(pair), text: flowText(pair[0]!), focusLabel: `${name} to ${toName}` }
     })]
   })]
 }))
@@ -466,6 +494,10 @@ function at (x: number, y: number) {
 .cal-transfer-rose-empty,
 .cal-transfer-rose-caption {
   color: var(--bulma-text-weak);
+}
+
+.cal-transfer-rose-show {
+  margin-left: 0.5rem;
 }
 
 .cal-transfer-rose-caption {

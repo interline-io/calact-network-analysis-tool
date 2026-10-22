@@ -831,6 +831,50 @@ export interface TransferArrivalSummary {
   pairs: TransferPairSummary[]
 }
 
+// Some arrivals and connections picked out to look at closely: arrivals on
+// the `from` destinations (transferTripKey), and where `pairs` is set, only
+// their connections onto those pairs' departing destinations.
+export interface TransferFocus {
+  label: string
+  from: string[]
+  pairs?: { from: string, to: string }[]
+}
+
+function pairKey (from: string, to: string): string {
+  return `${from}\u0000${to}`
+}
+
+// The arrivals and connections in a focus.
+export function focusTransfers (groups: TransferGroup[], focus: TransferFocus | undefined): TransferGroup[] {
+  if (!focus) {
+    return groups
+  }
+  const from = new Set(focus.from)
+  const pairs = focus.pairs ? new Set(focus.pairs.map(p => pairKey(p.from, p.to))) : undefined
+  return groups
+    .filter(g => from.has(transferTripKey(g.arrival)))
+    .map((g) => {
+      if (!pairs) {
+        return g
+      }
+      const key = transferTripKey(g.arrival)
+      return { ...g, connections: g.connections.filter(c => pairs.has(pairKey(key, transferTripKey(c.departure)))) }
+    })
+}
+
+// A focus as trip filters: every arriving destination outside it left out,
+// and where it names pairs, every departing one outside them.
+export function focusFilters (focus: TransferFocus, choices: { from: TransferRouteChoice[], to: TransferRouteChoice[] }): Pick<TransferSettings, 'excludedFrom'> & Partial<Pick<TransferSettings, 'excludedTo'>> {
+  const keys = (routes: TransferRouteChoice[]) => routes.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key)))
+  const from = new Set(focus.from)
+  const out: ReturnType<typeof focusFilters> = { excludedFrom: keys(choices.from).filter(k => !from.has(k)) }
+  if (focus.pairs) {
+    const to = new Set(focus.pairs.map(p => p.to))
+    out.excludedTo = keys(choices.to).filter(k => !to.has(k))
+  }
+  return out
+}
+
 /**
  * Connections totaled by the arriving trips' destination (route, direction,
  * and sign), and under each, by the departing trips'. A pair's shares are of
