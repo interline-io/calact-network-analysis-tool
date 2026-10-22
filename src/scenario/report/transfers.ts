@@ -398,6 +398,53 @@ export const DEFAULT_TRANSFER_SETTINGS: TransferSettings = {
   excludedTo: [],
 }
 
+// The settings that differ from the defaults, as JSON for a link; none
+// where all are the defaults.
+export function encodeTransferSettings (settings: TransferSettings): string | undefined {
+  const diff: Partial<TransferSettings> = {}
+  for (const key of Object.keys(DEFAULT_TRANSFER_SETTINGS) as (keyof TransferSettings)[]) {
+    if (JSON.stringify(settings[key]) !== JSON.stringify(DEFAULT_TRANSFER_SETTINGS[key])) {
+      Object.assign(diff, { [key]: settings[key] })
+    }
+  }
+  return Object.keys(diff).length > 0 ? JSON.stringify(diff) : undefined
+}
+
+// Settings from a link's JSON, over the defaults; any value that is not
+// what its setting holds is left at its default.
+export function decodeTransferSettings (json: string | undefined): TransferSettings {
+  const out: TransferSettings = { ...DEFAULT_TRANSFER_SETTINGS, breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] }
+  let raw: Record<string, unknown>
+  try {
+    raw = json ? JSON.parse(json) : {}
+  } catch {
+    return out
+  }
+  const strings = (v: unknown) => Array.isArray(v) && v.every(x => typeof x === 'string')
+  if (raw.walkDistance === 'line' || raw.walkDistance === 'street') {
+    out.walkDistance = raw.walkDistance
+  }
+  if (typeof raw.secondsPerMeter === 'number' && raw.secondsPerMeter >= 0) {
+    out.secondsPerMeter = raw.secondsPerMeter
+  }
+  if (typeof raw.allConnections === 'boolean') {
+    out.allConnections = raw.allConnections
+  }
+  if (typeof raw.countTurnbacks === 'boolean') {
+    out.countTurnbacks = raw.countTurnbacks
+  }
+  if (Array.isArray(raw.breakpoints) && raw.breakpoints.every(b => typeof b === 'number') && validBreakpoints(raw.breakpoints as number[])) {
+    out.breakpoints = raw.breakpoints as number[]
+  }
+  if (strings(raw.excludedFrom)) {
+    out.excludedFrom = raw.excludedFrom as string[]
+  }
+  if (strings(raw.excludedTo)) {
+    out.excludedTo = raw.excludedTo as string[]
+  }
+  return out
+}
+
 // Whether breakpoints can grade waits: five, strictly increasing.
 export function validBreakpoints (breakpoints: readonly number[]): boolean {
   return breakpoints.length === 5 && breakpoints.every((b, i) => Number.isFinite(b) && (i === 0 || b > breakpoints[i - 1]!))

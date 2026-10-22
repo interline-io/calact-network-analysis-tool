@@ -8,9 +8,14 @@
     >
       <div class="cal-transfer-report-toolbar">
         <cat-field label="Station or stop cluster" class="cal-transfer-report-subject">
-          <cat-select v-model="subject">
+          <cat-select v-model="subjectChoice">
             <option value="" disabled>
               Pick a station or stop cluster
+            </option>
+            <!-- Stops picked apart from the subject's own; picking the
+                 subject again starts from its own stops. -->
+            <option v-if="customSubject" value="custom" disabled>
+              Custom: {{ customSubject.count }} {{ customSubject.count === 1 ? 'stop' : 'stops' }} (from {{ customSubject.from }})
             </option>
             <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
               <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
@@ -83,18 +88,21 @@
             </div>
           </cat-field>
           <!-- What the report can be saved as, from one menu. -->
-          <cat-field label="Export" class="cal-transfer-report-download">
+          <cat-field label="Share" class="cal-transfer-report-download">
             <cat-dropdown position="bottom-right" @select="download">
               <template #trigger>
-                <cat-button icon-left="download" :disabled="detailsLoading" v-bind="{ 'title': 'Export', 'aria-label': 'Export' }" />
+                <cat-button icon-left="share-variant" v-bind="{ 'title': 'Share', 'aria-label': 'Share' }" />
               </template>
-              <cat-dropdown-item value="summary">
+              <cat-dropdown-item value="link">
+                Copy link
+              </cat-dropdown-item>
+              <cat-dropdown-item value="summary" :disabled="detailsLoading">
                 Summary as CSV
               </cat-dropdown-item>
-              <cat-dropdown-item value="connections">
+              <cat-dropdown-item value="connections" :disabled="detailsLoading">
                 Every connection as CSV
               </cat-dropdown-item>
-              <cat-dropdown-item value="chart" :disabled="view === 'summary'">
+              <cat-dropdown-item value="chart" :disabled="view === 'summary' || detailsLoading">
                 {{ view === 'compass' ? 'Compass as SVG' : view === 'individual' ? 'Wait chart as SVG' : 'Chart as SVG (Individual or Compass view)' }}
               </cat-dropdown-item>
             </cat-dropdown>
@@ -303,6 +311,7 @@ import { formatGtfsTime, formatServiceDate, type TableColumn, type TableReport }
 import { transferSubjectFromKey } from '~/composables/useSubjectTransfers'
 import { csvString } from '~/utils/download'
 import { useDownload } from '@interline-io/catenary'
+import { useToastNotification } from '~/composables/useToastNotification'
 
 export type TransferReportView = 'summary' | 'individual' | 'compass'
 export type TransferReportSection = TransferSettingsSection | 'stops'
@@ -312,6 +321,10 @@ const props = defineProps<{
   title: string
   // The stops and clusters the report can be about, as picker options.
   subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
+  // Stops picked apart from the subject's own: how many, and from which.
+  customSubject?: { count: number, from: string }
+  // A link to the analysis as shown, to copy.
+  shareUrl: () => string
   // The stops the transfers are at: the subject's, as changed; and every stop
   // that can be added.
   stops: number[]
@@ -348,7 +361,7 @@ const props = defineProps<{
   detailsError: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   // Fetch the details that did not arrive.
   'retry': []
   // Show a route's trips.
@@ -357,10 +370,24 @@ defineEmits<{
   'update:stops': [stopIds: number[]]
   // Turn on stop clustering, and run the scenario again.
   'enableClusters': []
+  // The subject's own stops again, its edits dropped.
+  'resetStops': []
 }>()
 
 // The picked stop or cluster, as "stop:<id>" or "cluster:<id>"; blank for none.
 const subject = defineModel<string>('subject', { required: true })
+// The picker shows Custom while the stops are not the subject's own; picking
+// the subject again, or another, starts from its own stops.
+const subjectChoice = computed({
+  get: () => (props.customSubject ? 'custom' : subject.value),
+  set: (v: string) => {
+    if (v === subject.value) {
+      emit('resetStops')
+    } else if (v !== 'custom') {
+      subject.value = v
+    }
+  },
+})
 const hasSubject = computed(() => !!transferSubjectFromKey(subject.value))
 const view = defineModel<TransferReportView>('view', { default: 'summary' })
 const date = defineModel<string | undefined>('date')
@@ -506,7 +533,18 @@ function showRow (row: TransferSummaryGridRow) {
 // The Compass view's rose, which draws its own SVG for download.
 const roseChart = ref<{ toSvg: () => string }>()
 
-function download (what: 'summary' | 'connections' | 'chart') {
+const { showToast } = useToastNotification()
+
+async function download (what: 'link' | 'summary' | 'connections' | 'chart') {
+  if (what === 'link') {
+    try {
+      await navigator.clipboard.writeText(props.shareUrl())
+      showToast('Link copied: it opens this analysis, its view, and its settings.')
+    } catch {
+      showToast('Could not copy the link.', 'danger')
+    }
+    return
+  }
   const name = `transfers-${what}-${props.individualDate ?? ''}-${props.title}`
   if (what === 'summary' || what === 'connections') {
     save({ filename: `${name}.csv`, data: csvString(props.csvRows(what)), mimeType: 'text/csv' })

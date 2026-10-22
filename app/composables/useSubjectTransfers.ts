@@ -423,8 +423,18 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     } else if (cluster.value) {
       name = clusterDisplayName(cluster.value.name, cluster.value.nearName)
     }
-    const edited = deps.stopEdits.value.added.length > 0 || deps.stopEdits.value.removed.length > 0
-    return edited ? `${name} (${stopIds.value.length} stops)` : name
+    return custom.value ? `${name} (${stopIds.value.length} stops)` : name
+  })
+  // Stops picked apart from the subject's own: how many, and from which
+  // subject; none where they are its own.
+  const custom = computed(() => deps.stopEdits.value.added.length > 0 || deps.stopEdits.value.removed.length > 0)
+  const customSubject = computed(() => {
+    if (!custom.value) {
+      return undefined
+    }
+    const s = toValue(deps.subject)
+    const own = s?.kind === 'stop' ? stops.value.get(s.stopId)?.stop_name : cluster.value ? clusterDisplayName(cluster.value.name, cluster.value.nearName) : ''
+    return { count: stopIds.value.length, from: own ?? '' }
   })
 
   // What the report can be about: the scenario's clusters, then its stops
@@ -450,6 +460,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   return {
     title,
+    customSubject,
     subjectOptions,
     stopIds,
     setStopIds,

@@ -83,6 +83,8 @@
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
+                :custom-subject="transfers.customSubject"
+                :share-url="transferShareUrl"
                 :stops="transfers.stopIds"
                 :map-stops="transfers.mapStops"
                 :map-routes="transfers.mapRoutes"
@@ -106,6 +108,7 @@
                 @retry="transfers.retry()"
                 @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
                 @update:stops="transfers.setStopIds($event)"
+                @reset-stops="transferStopEdits = { added: [], removed: [] }"
                 @enable-clusters="enableClustersForTransfers"
               />
             </template>
@@ -312,7 +315,7 @@ import {
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -983,6 +986,34 @@ const transferView = ref<TransferReportView>('summary')
 // The Compass view's flows, worked out only while it shows.
 const EMPTY_ROSE: TransferRose = { places: [], flows: [], from: new Map(), to: new Map() }
 const transferSection = ref<TransferReportSection | undefined>('trips')
+// A link to the analysis as shown: the URL, which holds the subject, its
+// stops, the date, and the times; and besides, its view and its settings
+// where not the defaults, which are read back once when the link is opened.
+function transferShareUrl (): string {
+  const url = new URL(window.location.href)
+  const settings = encodeTransferSettings(transfers.settings)
+  for (const [key, value] of [['transferView', transferView.value === 'summary' ? undefined : transferView.value], ['transferSettings', settings]] as const) {
+    if (value) {
+      url.searchParams.set(key, value)
+    } else {
+      url.searchParams.delete(key)
+    }
+  }
+  return url.href
+}
+if (query.value.transferView || query.value.transferSettings) {
+  const shared = query.value.transferView?.toString()
+  if (shared === 'individual' || shared === 'compass') {
+    transferView.value = shared
+  }
+  if (query.value.transferSettings) {
+    transfers.settings = decodeTransferSettings(query.value.transferSettings.toString())
+  }
+  setQuery({ transferView: undefined, transferSettings: undefined })
+}
+if (query.value.transferAt) {
+  reportTab.value = 'transfers'
+}
 // Stop clustering on at its default distance; the clusters alone are then
 // fetched again, the rest of the scenario kept.
 function enableClustersForTransfers () {

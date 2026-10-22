@@ -5,6 +5,8 @@ import type { TripDetail, TripStopTime } from '../../tl/trip-details'
 import {
   calculateTransfers,
   calendarTime,
+  decodeTransferSettings,
+  encodeTransferSettings,
   focusFilters,
   formatWait,
   summarizeTransfers,
@@ -18,6 +20,7 @@ import {
   transferTripInfo,
   transferTripKey,
   transferTripTags,
+  DEFAULT_TRANSFER_SETTINGS,
   type TransferEvent,
 } from './transfers'
 
@@ -473,5 +476,21 @@ describe('focusFilters', () => {
     const current = { excludedFrom: [transferTripKey(c)], excludedTo: [] }
     expect(focusFilters({ from: [transferTripKey(a), transferTripKey(c)], to: [transferTripKey(y)] }, choices, current))
       .toEqual({ excludedFrom: [transferTripKey(c), transferTripKey(b)], excludedTo: [transferTripKey(x)] })
+  })
+})
+
+describe('encodeTransferSettings', () => {
+  it('holds only what differs from the defaults, and reads back', () => {
+    expect(encodeTransferSettings(DEFAULT_TRANSFER_SETTINGS)).toBeUndefined()
+    const changed = { ...DEFAULT_TRANSFER_SETTINGS, walkDistance: 'street' as const, excludedTo: ['1|0|North'] }
+    const json = encodeTransferSettings(changed)!
+    expect(JSON.parse(json)).toEqual({ walkDistance: 'street', excludedTo: ['1|0|North'] })
+    expect(decodeTransferSettings(json)).toEqual(changed)
+  })
+
+  it('leaves what it cannot read at the defaults', () => {
+    expect(decodeTransferSettings('not json')).toEqual(DEFAULT_TRANSFER_SETTINGS)
+    expect(decodeTransferSettings(JSON.stringify({ walkDistance: 'teleport', breakpoints: [3, 2, 1], secondsPerMeter: 1.5 })))
+      .toEqual({ ...DEFAULT_TRANSFER_SETTINGS, secondsPerMeter: 1.5 })
   })
 })
