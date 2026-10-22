@@ -179,7 +179,8 @@ export interface TransferChoiceRoute {
  * covers half, a direction is "Direction 0" or "Direction 1".
  *
  * A destination is its sign, or the route's long name; an arriving one whose
- * trips all end at the stops is "From" its origin. Destinations of a route that
+ * trips all end at the stops is "From" its origin, and a departing one signed
+ * for where its trips start is named for where they end. Destinations of a route that
  * would read the same in both directions, as a line signed for both its ends,
  * are named for where each ends, else told apart by their direction; in one
  * direction, by their sign.
@@ -234,10 +235,13 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
             stopCount: mostCommon(t.stopCounts),
           }
           const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
+          // A departing trip signed for where it starts says nothing of where
+          // it goes, so goes by where it ends.
+          const signedForStart = side === 'to' && !!run.terminus && headsign === run.origin && run.terminus !== run.origin
           return {
             key: transferTripKey({ routeId: id, directionId, headsign }),
             sign: signLabel(headsign),
-            label: namedByOrigin ? `From ${run.origin}` : signLabel(headsign),
+            label: namedByOrigin ? `From ${run.origin}` : signedForStart ? run.terminus! : signLabel(headsign),
             namedByOrigin,
             count: t.count,
             run,
@@ -256,7 +260,9 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
       const tallies = [...destinationMap.values()]
       const signs = new Map<string, number>()
       for (const d of destinations) {
-        signs.set(d.sign, (signs.get(d.sign) || 0) + d.count)
+        // Departing, by its name, which a sign for where it starts gives way to.
+        const named = side === 'to' ? d.label : d.sign
+        signs.set(named, (signs.get(named) || 0) + d.count)
       }
       const byEnd = mainOf(countsOf(tallies.flatMap(t => t.termini)), count)
       const name = side === 'from' && terminal * 2 > count

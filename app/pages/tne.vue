@@ -378,6 +378,10 @@ function clearScenario () {
   // Shared with the trip table, so this forgets both views' details.
   clearTripPanelDetails()
   clearAllResults()
+  // A new query starts the Transfer Analyst over too.
+  setQuery({ transferAt: undefined, transferStops: undefined, transferDate: undefined })
+  transfers.settings = decodeTransferSettings(undefined)
+  transferView.value = 'summary'
 }
 
 // Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
@@ -1206,6 +1210,19 @@ useClusterRefetch({
   refetchInFlight,
   runInFlight,
   fetchMode,
+})
+
+// A Transfer Analyst subject the loaded scenario does not have, as from a
+// link made for another area or older data, is dropped with its stop edits
+// once the scenario has finished loading.
+watch(() => [transfers.subjectOptions, runInFlight.value, refetchInFlight.value, !!scenarioFilterResult.value] as const, ([options, running, refetching, loaded]) => {
+  const key = transferSubject.value
+  if (!key || !loaded || running > 0 || refetching > 0) {
+    return
+  }
+  if (![...options.clusters, ...options.stops].some(o => o.key === key)) {
+    transferSubject.value = ''
+  }
 })
 
 // reload each stop's census geography when the Aggregate-by layer changes —

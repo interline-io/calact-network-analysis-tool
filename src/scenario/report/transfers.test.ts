@@ -386,6 +386,12 @@ describe('transferTripChoices', () => {
     ])
   })
 
+  it('names departing trips signed for where they start by where they end', () => {
+    const starting = { ...trip(10, 0, 'San Jose'), origin: 'San Jose', terminus: 'Sacramento' }
+    const [route] = transferTripChoices([starting], routes, 'to')
+    expect(route!.directions[0]!.destinations.map(x => [x.label, x.sign])).toEqual([['Sacramento', 'San Jose']])
+  })
+
   it('names destinations signed the same both ways by where they end', () => {
     const ending = (directionId: number, terminus: string) => ({ ...trip(10, directionId, 'SFO / SF / Antioch'), terminus })
     const [route] = transferTripChoices([ending(0, 'Antioch'), ending(1, 'SFO')], routes)
