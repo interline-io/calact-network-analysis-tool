@@ -1,106 +1,115 @@
 <template>
   <div class="cal-transfer-report">
-    <!-- What the report is about and how it is viewed come first; the
-         settings that tune walking and grading open below on request. -->
-    <div class="cal-transfer-report-toolbar">
-      <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
-        <cat-select v-model="subject">
-          <option value="" disabled>
-            Pick a stop or stop cluster
-          </option>
-          <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
-            <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
-              {{ o.label }}
+    <!-- What the report is about and how it is viewed come first, in one
+         bar; the settings open below it, hung from it, on request. -->
+    <div class="cal-transfer-report-bar" :class="{ 'cal-transfer-report-bar-open': subjectKind && openSection }">
+      <div class="cal-transfer-report-toolbar">
+        <cat-field label="Stop or cluster" class="cal-transfer-report-subject">
+          <cat-select v-model="subject">
+            <option value="" disabled>
+              Pick a stop or stop cluster
             </option>
-          </optgroup>
-          <optgroup label="Stops">
-            <option v-for="o of subjectOptions.stops" :key="o.key" :value="o.key">
-              {{ o.label }}
-            </option>
-          </optgroup>
-        </cat-select>
-      </cat-field>
-      <template v-if="subjectKind">
-        <!-- Two views of the same transfers, as a toggle of tabs. -->
-        <cat-field label="View" class="cal-transfer-report-view">
-          <cat-tabs v-model="view" type="toggle">
-            <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" />
-          </cat-tabs>
-        </cat-field>
-        <!-- Which arrivals to show: one date at a time, in either view. -->
-        <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-shrink">
-          <cat-select
-            :model-value="individualDate"
-            @update:model-value="date = $event || undefined"
-          >
-            <option v-for="d of individualDates" :key="d" :value="d">
-              {{ formatServiceDate(d) }}
-            </option>
+            <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
+              <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
+                {{ o.label }}
+              </option>
+            </optgroup>
+            <optgroup label="Stops">
+              <option v-for="o of subjectOptions.stops" :key="o.key" :value="o.key">
+                {{ o.label }}
+              </option>
+            </optgroup>
           </cat-select>
         </cat-field>
-        <!-- The scenario's time of day, as the Filter tab sets it: arrivals
-             between the two; either left empty, from or to the day's end. -->
-        <cat-fieldset label="Time of day" class="cal-transfer-report-times">
-          <div class="cal-transfer-report-times-row">
-            <label>
-              <span class="is-sr-only">Arrivals from</span>
-              <cal-timepicker v-model="startTime" />
-            </label>
-            <span aria-hidden="true">to</span>
-            <label>
-              <span class="is-sr-only">Arrivals until</span>
-              <cal-timepicker v-model="endTime" />
-            </label>
-          </div>
-        </cat-fieldset>
-        <!-- Each opens its settings below the toolbar, one at a time. -->
-        <cat-field label="Settings" class="cal-transfer-report-settings-field">
-          <div class="cal-transfer-report-settings-toggles">
-            <cat-button
-              v-for="t of settingsToggles"
-              :key="t.section"
-              :icon-left="t.icon"
-              :variant="openSection === t.section ? 'primary' : undefined"
-              :outlined="openSection === t.section"
-              v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId, 'title': t.label }"
-              @click="openSection = openSection === t.section ? undefined : t.section"
+        <template v-if="subjectKind">
+          <!-- Two views of the same transfers, as a toggle of tabs. -->
+          <cat-field label="View" class="cal-transfer-report-view">
+            <cat-tabs v-model="view" type="toggle">
+              <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" />
+            </cat-tabs>
+          </cat-field>
+          <!-- Which arrivals to show: one date at a time, in either view. -->
+          <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-shrink">
+            <cat-select
+              :model-value="individualDate"
+              @update:model-value="date = $event || undefined"
             >
-              <!-- Hidden but still read out where the toolbar is narrow, so
+              <option v-for="d of individualDates" :key="d" :value="d">
+                {{ formatServiceDate(d) }}
+              </option>
+            </cat-select>
+          </cat-field>
+          <!-- The scenario's time of day, as the Filter tab sets it: arrivals
+             between the two; either left empty, from or to the day's end. -->
+          <cat-fieldset label="Time of day" class="cal-transfer-report-times">
+            <div class="cal-transfer-report-times-row">
+              <label>
+                <span class="is-sr-only">Arrivals from</span>
+                <cal-timepicker v-model="startTime" />
+              </label>
+              <span aria-hidden="true">to</span>
+              <label>
+                <span class="is-sr-only">Arrivals until</span>
+                <cal-timepicker v-model="endTime" />
+              </label>
+            </div>
+          </cat-fieldset>
+          <!-- Each opens its settings below the toolbar, one at a time. -->
+          <cat-field label="Settings" class="cal-transfer-report-settings-field">
+            <div class="cal-transfer-report-settings-toggles">
+              <cat-button
+                v-for="t of settingsToggles"
+                :key="t.section"
+                :icon-left="t.icon"
+                :variant="openSection === t.section ? 'primary' : undefined"
+                :outlined="openSection === t.section"
+                v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId, 'title': t.label }"
+                @click="openSection = openSection === t.section ? undefined : t.section"
+              >
+                <!-- Hidden but still read out where the toolbar is narrow, so
                    the toggles keep to its row as icons. -->
-              <span class="cal-transfer-report-toggle-label">{{ t.label }}</span>
-              <!-- The share of trips the filters keep, on the button's corner,
+                <span class="cal-transfer-report-toggle-label">{{ t.label }}</span>
+                <!-- The share of trips the filters keep, on the button's corner,
                    so it shows at a glance without widening the button; said
                    in full on hover and to screen readers. -->
-              <span v-if="t.badge" class="tag is-rounded cal-transfer-report-badge" :title="t.badge.title">
-                <span aria-hidden="true">{{ t.badge.short }}</span>
-                <span class="is-sr-only">{{ t.badge.title }}</span>
-              </span>
-            </cat-button>
-          </div>
-        </cat-field>
-      </template>
-    </div>
+                <span v-if="t.badge" class="tag is-rounded cal-transfer-report-badge" :title="t.badge.title">
+                  <span aria-hidden="true">{{ t.badge.short }}</span>
+                  <span class="is-sr-only">{{ t.badge.title }}</span>
+                </span>
+              </cat-button>
+              <!-- Whichever panel is open, closed. -->
+              <cat-button
+                v-if="openSection"
+                icon-left="chevron-up"
+                v-bind="{ 'title': 'Hide settings', 'aria-label': 'Hide settings', 'aria-controls': settingsId }"
+                @click="openSection = undefined"
+              />
+            </div>
+          </cat-field>
+        </template>
+      </div>
 
-    <!-- The subject's stops, to add to or take from: a station's other
+      <!-- The subject's stops, to add to or take from: a station's other
          platform, say, that its cluster left out. -->
-    <cal-transfer-stops
-      v-if="subjectKind && openSection === 'stops'"
-      v-bind="{ id: settingsId }"
-      :model-value="stops"
-      :map-stops="mapStops"
-      :extent="extent"
-      :fit-key="subject"
-      @update:model-value="$emit('update:stops', $event)"
-    />
-    <cal-transfer-settings
-      v-else-if="subjectKind && openSection"
-      v-bind="{ id: settingsId }"
-      v-model="settings"
-      :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
-      :route-choices="routeChoices"
-      :unknown-pairs="unknownPairs"
-      @open-trips="$emit('openTrips', $event)"
-    />
+      <cal-transfer-stops
+        v-if="subjectKind && openSection === 'stops'"
+        v-bind="{ id: settingsId }"
+        :model-value="stops"
+        :map-stops="mapStops"
+        :extent="extent"
+        :fit-key="subject"
+        @update:model-value="$emit('update:stops', $event)"
+      />
+      <cal-transfer-settings
+        v-else-if="subjectKind && openSection"
+        v-bind="{ id: settingsId }"
+        v-model="settings"
+        :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
+        :route-choices="routeChoices"
+        :unknown-pairs="unknownPairs"
+        @open-trips="$emit('openTrips', $event)"
+      />
+    </div>
 
     <!-- Without clusters, only single stops can be picked, and a station's
          stops seldom serve both sides of a transfer. -->
@@ -556,6 +565,34 @@ function rowClass (row: TransferGridTrip): string | undefined {
 
 // The primary fields, labeled, at full size; the settings toggle at the end
 // of the row.
+// The controls as an action bar; an open panel hangs from it, the two as
+// one surface.
+.cal-transfer-report-bar {
+  flex: 0 0 auto;
+  margin-bottom: 0.75rem;
+
+  .cal-transfer-report-toolbar {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--bulma-border);
+    border-radius: var(--bulma-radius);
+    background: var(--bulma-scheme-main-bis);
+  }
+
+  > .cal-transfer-settings,
+  > .cal-transfer-stops {
+    margin-bottom: 0;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    background: var(--bulma-scheme-main);
+  }
+
+  &.cal-transfer-report-bar-open .cal-transfer-report-toolbar {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+
 .cal-transfer-report-toolbar {
   display: flex;
   flex-wrap: nowrap;
@@ -582,15 +619,17 @@ function rowClass (row: TransferGridTrip): string | undefined {
 
   align-items: flex-end;
   gap: 0.5rem 1rem;
-  margin-bottom: 0.75rem;
-  flex: 0 0 auto;
 
   :deep(.field) {
     margin-bottom: 0;
   }
 
+  // Small labels, as a bar's: the controls carry the weight.
   :deep(.label) {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bulma-text-weak);
   }
 }
 

@@ -4,11 +4,13 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <!-- The page's downloads in one place: the Transfer Analyst's table
-           download, given by the page, beside the GeoJSON. -->
+      <!-- The page's downloads in one place: on the Transfer Analyst, its
+           table's, given by the page, as the scenario's features say nothing
+           of transfers; elsewhere, the GeoJSON. -->
       <div class="cal-report-downloads">
         <slot v-if="activeReportTab === 'transfers'" name="downloads" />
         <cal-geojson-download
+          v-else
           :data="downloadFeatures"
           variant="primary"
         />
