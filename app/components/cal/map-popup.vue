@@ -112,6 +112,14 @@
           <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
           <span>Show trip information</span>
         </button>
+        <button
+          v-if="hasTransfersAction"
+          class="button is-small"
+          @click="$emit('openTransfers', feature.featureType, feature.featureId)"
+        >
+          <span class="icon is-small"><i class="mdi mdi-transit-transfer" /></span>
+          <span>Enter Transfer Analyst</span>
+        </button>
       </div>
 
       <!-- Navigation bar for multiple features -->
@@ -192,11 +200,14 @@ defineEmits<{
   prev: []
   next: []
   showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
+  // A stop's or cluster's transfers, in the Reports tab.
+  openTransfers: [featureType: PopupFeatureData['featureType'], featureId: string | number]
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
 
 const hasTripsAction = computed(() => ['stop', 'route', 'cluster'].includes(props.feature.featureType))
+const hasTransfersAction = computed(() => ['stop', 'cluster'].includes(props.feature.featureType))
 </script>
 
 <style scoped lang="scss">
@@ -300,14 +311,11 @@ const hasTripsAction = computed(() => ['stop', 'route', 'cluster'].includes(prop
   border-top: 1px solid #e0e0e0;
 }
 
-// Full width; a route's two actions share the row.
+// Full width, the actions one above another.
 .cal-popup-actions {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-
-  .button {
-    flex: 1;
-  }
 }
 
 .cal-cluster-members {
