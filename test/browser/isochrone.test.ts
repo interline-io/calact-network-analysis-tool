@@ -33,7 +33,7 @@ test.describe('Isochrone panel', () => {
     // The bands arrived; the travel time buttons key them, darkest first, and
     // the legend keys only the place.
     await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeEnabled()
-    await expect(panel(page).getByRole('button', { name: '15 minutes' })).toHaveCSS('background-color', 'rgb(8, 48, 107)')
+    await expect(panel(page).getByRole('button', { name: '15 minutes' })).toHaveCSS('background-color', 'rgb(0, 68, 27)')
     await expect(legend(page).getByText('Leaving from here')).toBeVisible()
     await expect(legend(page)).not.toContainText('Within')
     const q = requests.at(-1)!.searchParams
@@ -104,8 +104,8 @@ test.describe('Isochrone panel', () => {
     const added = panel(page).getByRole('button', { name: '120 minutes' })
     await expect(added).toHaveText('2h')
     await expect(added).toHaveAttribute('aria-pressed', 'true')
-    // The longest of four bands: the lightest blue, with dark text.
-    await expect(added).toHaveCSS('background-color', 'rgb(109, 174, 213)')
+    // The longest of four bands: the lightest green, with dark text.
+    await expect(added).toHaveCSS('background-color', 'rgb(115, 195, 120)')
   })
 
   test('never drops a travel time for another, at the router\'s limit of eight', async ({ page }) => {

@@ -195,10 +195,10 @@ describe('band display', () => {
   })
 
   it('spans the ramp whatever the band count', () => {
-    // d3's Blues at 1 is #08306b; at 0.5, #6daed5.
-    expect(isochroneBandColors(0, 1)).toEqual({ fill: 'rgb(8, 48, 107)', text: '#fff' })
-    expect(isochroneBandColors(0, 2).fill).toBe('rgb(8, 48, 107)')
-    expect(isochroneBandColors(1, 2)).toEqual({ fill: 'rgb(109, 174, 213)', text: '#08306b' })
+    // d3's Greens at 1 is #00441b; at 0.5, #73c378.
+    expect(isochroneBandColors(0, 1)).toEqual({ fill: 'rgb(0, 68, 27)', text: '#fff' })
+    expect(isochroneBandColors(0, 2).fill).toBe('rgb(0, 68, 27)')
+    expect(isochroneBandColors(1, 2)).toEqual({ fill: 'rgb(115, 195, 120)', text: '#00441b' })
   })
 
   it('gives every band its own shade, up to the most the router takes', () => {

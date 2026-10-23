@@ -5,7 +5,7 @@
 // Pure helpers: building the request, reading the response, and styling the
 // bands. The fetch itself lives in app/composables/useIsochrone.ts.
 
-import { interpolateBlues } from 'd3-scale-chromatic'
+import { interpolateGreens } from 'd3-scale-chromatic'
 import { RouteType, type Feature, type Point } from '../core'
 
 // Cutoffs offered in the panel, in minutes; more can be typed in, within the
@@ -147,23 +147,24 @@ type IsochroneResult
 
 // Sequential single hue, darkest for the shortest time, so nearer reads as
 // more intense while the outer band stays visible on a light basemap: d3's
-// Blues with its light half trimmed, as the router's playground. A
-// continuous scale, so every band of up to ISOCHRONE_MAX_CUTOFFS has its own
-// shade; five bands land on ColorBrewer's five darkest Blues.
+// Greens with its light half trimmed. Green, so access reads apart from the
+// census choropleth's blues. A continuous scale, so every band of up to
+// ISOCHRONE_MAX_CUTOFFS has its own shade.
 const BAND_DARKEST = 1
 const BAND_LIGHTEST = 0.5
 
-// White text down to the 3rd of those five (#2171b5), the darkest blue on
-// lighter ones: whichever contrasts more.
-const BAND_WHITE_TEXT_FROM = 0.7
+// White text on the darker greens, the darkest green on lighter ones:
+// whichever contrasts more.
+const BAND_WHITE_TEXT_FROM = 0.68
 
-// The darkest blue: the isochrone's place marker, and its text on light bands.
-export const ISOCHRONE_INK = '#08306b'
+// The darkest green: the isochrone's place marker, and its text on light
+// bands.
+export const ISOCHRONE_INK = '#00441b'
 
 // Band `rank` of `total`'s colors, rank 0 being the shortest time.
 export function isochroneBandColors (rank: number, total: number): { fill: string, text: string } {
   const t = total <= 1 ? BAND_DARKEST : BAND_DARKEST - (BAND_DARKEST - BAND_LIGHTEST) * (rank / (total - 1))
-  return { fill: interpolateBlues(t), text: t >= BAND_WHITE_TEXT_FROM ? '#fff' : ISOCHRONE_INK }
+  return { fill: interpolateGreens(t), text: t >= BAND_WHITE_TEXT_FROM ? '#fff' : ISOCHRONE_INK }
 }
 
 // The colors of the band for `minutes` among the travel times asked for, so
