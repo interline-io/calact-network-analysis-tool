@@ -6,25 +6,31 @@ export const BASEMAP_ATTRIBUTION = '<a href="https://protomaps.com">Protomaps</a
 
 // Protomaps basemap label layers (street/place labels), rendered above transit overlays.
 // The vendored font directories use hyphenated, space-free names (see
-// scripts/vendor-basemaps-assets.sh) so they serve reliably from static hosts —
-// spaces in the path can fall through to the SPA fallback — so rewrite the
-// text-font names to match the directories the glyphs URL requests.
+// scripts/vendor-basemaps-assets.sh) so they serve reliably from static hosts,
+// as spaces in the path can fall through to the SPA fallback; so rewrite the
+// text-font names to match the directories the glyphs URL requests. Built once,
+// as every map draws the same ones.
+let labelLayers: ReturnType<typeof protomapsLayers> | undefined
 export function protomapsLabelLayers () {
-  const labelLayers = protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
-  return JSON.parse(
-    JSON.stringify(labelLayers)
+  labelLayers ??= JSON.parse(
+    JSON.stringify(protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true }))
       .replaceAll('Noto Sans Regular', 'Noto-Sans-Regular')
       .replaceAll('Noto Sans Medium', 'Noto-Sans-Medium')
       .replaceAll('Noto Sans Italic', 'Noto-Sans-Italic'),
-  ) as typeof labelLayers
+  ) as ReturnType<typeof protomapsLayers>
+  return labelLayers
 }
 
 // Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
 // direct "no labels" generator, so derive it as the full set minus the labels-only set.
+let baseLayers: ReturnType<typeof protomapsLayers> | undefined
 export function protomapsBaseLayers () {
-  const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
-  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
-    .filter(l => !labelIds.has(l.id))
+  if (!baseLayers) {
+    const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
+    baseLayers = protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
+      .filter(l => !labelIds.has(l.id))
+  }
+  return baseLayers
 }
 
 // The basemap without its labels, as the app's maps draw it: Protomaps

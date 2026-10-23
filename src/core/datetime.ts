@@ -272,10 +272,10 @@ export function timeWindowSeconds (start: Date | undefined, end: Date | undefine
   return { startTime: dateToSeconds(start) ?? 0, endTime: dateToSeconds(end) ?? 86400 }
 }
 
-// A yyyy-MM-dd date as "Mon 19, Oct, 2026".
-export function formatServiceDate (dateStr: string): string {
+// A yyyy-MM-dd date as "Mon 19, Oct, 2026", or in another date-fns format.
+export function formatServiceDate (dateStr: string, fmt = 'EEE dd, MMM, yyyy'): string {
   const [y, m, d] = dateStr.split('-').map(Number)
-  return format(new Date(y!, m! - 1, d!), 'EEE dd, MMM, yyyy')
+  return format(new Date(y!, m! - 1, d!), fmt)
 }
 
 /**
