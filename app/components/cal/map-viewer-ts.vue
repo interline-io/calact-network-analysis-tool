@@ -5,7 +5,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
+import { BASEMAP_ATTRIBUTION, basemapStyle, protomapsLabelLayers } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
 import type { CensusFormat, Feature, PopupFeature, Point, MarkerFeature } from '~~/src/core'
 import { STOP_AGG_ELEMENT_IDS, STOP_CLUSTER_COLOR, densityUnitLabel, formatCensusValue } from '~~/src/core'
@@ -28,6 +28,7 @@ const emit = defineEmits([
   'selectableGeoClick',
   'selectableGeoRightClick',
   'showTrips',
+  'openTransfers',
   'popupShown',
   'popupClosed',
 ])
@@ -210,55 +211,16 @@ onBeforeUnmount(() => {
   map = undefined
 })
 
-// Protomaps basemap label layers (street/place labels), rendered above transit overlays.
-// The vendored font directories use hyphenated, space-free names (see
-// scripts/vendor-basemaps-assets.sh) so they serve reliably from static hosts —
-// spaces in the path can fall through to the SPA fallback — so rewrite the
-// text-font names to match the directories the glyphs URL requests.
-function protomapsLabelLayers () {
-  const labelLayers = protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true })
-  return JSON.parse(
-    JSON.stringify(labelLayers)
-      .replaceAll('Noto Sans Regular', 'Noto-Sans-Regular')
-      .replaceAll('Noto Sans Medium', 'Noto-Sans-Medium')
-      .replaceAll('Noto Sans Italic', 'Noto-Sans-Italic'),
-  ) as typeof labelLayers
-}
-
-// Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
-// direct "no labels" generator, so derive it as the full set minus the labels-only set.
-function protomapsBaseLayers () {
-  const labelIds = new Set(protomapsLabelLayers().map(l => l.id))
-  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
-    .filter(l => !labelIds.has(l.id))
-}
-
 function initMap () {
   if (map) {
     return
   }
-  // MapLibre requires an absolute sprite URL, so anchor the self-hosted assets
-  // to the app's own origin (also used for glyphs, for consistency).
-  const assetOrigin = window.location.origin
   const opts: maplibre.MapOptions = {
     interactive: true,
     container: 'mapelem',
     zoom: zoom.value,
     center: center.value,
-    style: {
-      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
-      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
-      version: 8,
-      sources: {
-        'protomaps-base': {
-          type: 'vector',
-          tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.public.tlv2.protomapsApikey}`],
-          maxzoom: 15,
-          attribution: '<a href="https://www.transit.land/terms">Transitland</a> | <a href="https://protomaps.com">Protomaps</a> | &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }
-      },
-      layers: protomapsBaseLayers()
-    }
+    style: basemapStyle(config.public.tlv2.protomapsApikey, `<a href="https://www.transit.land/terms">Transitland</a> | ${BASEMAP_ATTRIBUTION}`),
   }
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
@@ -1085,6 +1047,11 @@ function showPopupAtIndex (index: number) {
         // The trip panel takes over from the popup. The feature stays
         // highlighted, and a cluster stays selected, so the map still shows
         // what the panel describes.
+        removePopup()
+      },
+      onOpenTransfers: (featureType: string, featureId: string | number) => {
+        emit('openTransfers', featureType, featureId)
+        // The Reports tab replaces the map.
         removePopup()
       },
     })

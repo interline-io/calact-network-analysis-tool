@@ -266,6 +266,18 @@ export function dateToSeconds (time: Date | undefined): number | undefined {
   return time.getHours() * 3600 + time.getMinutes() * 60 + time.getSeconds()
 }
 
+// A time-of-day window as seconds since midnight: all day where a bound is
+// not set.
+export function timeWindowSeconds (start: Date | undefined, end: Date | undefined): { startTime: number, endTime: number } {
+  return { startTime: dateToSeconds(start) ?? 0, endTime: dateToSeconds(end) ?? 86400 }
+}
+
+// A yyyy-MM-dd date as "Mon 19, Oct, 2026".
+export function formatServiceDate (dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return format(new Date(y!, m! - 1, d!), 'EEE dd, MMM, yyyy')
+}
+
 /**
  * Render seconds-since-midnight as a GTFS-style HH:MM time.
  * Does NOT wrap at 24h — a value of 25:30:00 renders as "25:30" to preserve

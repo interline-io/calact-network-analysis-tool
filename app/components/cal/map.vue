@@ -65,6 +65,7 @@
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
       @show-trips="handleShowTrips"
+      @open-transfers="handleOpenTransfers"
       @popup-shown="onPopupShown"
       @popup-closed="onPopupClosed"
     />
@@ -85,6 +86,8 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   showTrips: [subject: TripSubject]
+  // A stop's or cluster's transfers, in the Reports tab.
+  openTransfers: [subject: TripSubject]
   // The selection the trip panel describes is gone: replaced by a new map
   // click, dismissed, or dropped by the filters.
   selectionCleared: []
@@ -1079,6 +1082,15 @@ function handleShowTrips (featureType: string, featureId: string | number) {
     emit('showTrips', { kind: 'route', routeId: id })
   } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
     emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
+  }
+}
+
+function handleOpenTransfers (featureType: string, featureId: string | number) {
+  const id = Number(featureId)
+  if (featureType === 'stop' && Number.isFinite(id)) {
+    emit('openTransfers', { kind: 'stop', stopId: id })
+  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
+    emit('openTransfers', { kind: 'cluster', clusterId: String(featureId) })
   }
 }
 </script>

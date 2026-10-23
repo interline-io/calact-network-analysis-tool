@@ -1,21 +1,24 @@
 <template>
-  <div class="cal-report">
+  <div class="cal-report" :class="{ 'cal-report-fill': isTransfers }">
     <div class="cal-report-title-row">
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
+      <!-- The scenario's features, which say nothing of transfers, so not on
+           the Transfer Analyst, which has its own downloads. -->
       <cal-geojson-download
+        v-if="!isTransfers"
         :data="downloadFeatures"
         variant="primary"
       />
     </div>
 
-    <div class="cal-report-header block">
-      <div class="cal-report-filter-tags mb-4">
+    <div class="cal-report-header" :class="isTransfers ? 'cal-report-header-tight' : 'mb-4'">
+      <div class="cal-report-filter-tags mb-3">
         <span
           v-for="tag of filterTags"
           :key="tag.label + tag.value"
-          class="tag is-medium"
+          class="tag"
           :class="tag.active ? 'is-primary' : 'is-light'"
         >
           {{ tag.label }}: {{ tag.value }}
@@ -29,6 +32,7 @@
         <cat-tab-item v-if="fixedRouteEnabled && hasClusterData" value="stop-clusters" label="Stop Clusters" />
         <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="hasFlexData" value="flex" label="Flex Areas" />
+        <cat-tab-item v-if="fixedRouteEnabled && $slots.transfers" value="transfers" label="Transfer Analyst" />
       </cat-tabs>
     </div>
 
@@ -68,7 +72,12 @@
       </p>
     </cat-msg>
 
+    <!-- Transfers at one stop or cluster, given by the page: it fills the
+         tab's height, its table scrolling inside. -->
+    <slot v-if="isTransfers" name="transfers" />
+
     <cal-datagrid
+      v-else
       :table-report="activeTableReport"
       :caption="activeReportTabLabel"
     >
@@ -138,6 +147,15 @@
           <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <span v-else>{{ value }}</span>
+        <button
+          v-if="value && row.id != null"
+          type="button"
+          class="cal-report-cell-button ml-3"
+          title="Open this cluster in Transfer Analyst"
+          @click="emit('openTransfers', { kind: 'cluster', clusterId: row.id })"
+        >
+          Transfer Analyst
+        </button>
       </template>
       <template
         v-for="key of fareAmountColumns"
@@ -166,7 +184,7 @@
         </span>
       </template>
     </cal-datagrid>
-    <div class="cal-report-spacer" />
+    <div v-if="!isTransfers" class="cal-report-spacer" />
   </div>
 </template>
 
@@ -192,6 +210,9 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
+  // Transfers at a stop or cluster, in the Transfer Analyst tab, which the
+  // page opens.
+  openTransfers: [subject: TripSubject]
 }>()
 
 // The trips/frequency columns all render a drill button into the route's trip
@@ -332,9 +353,13 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
-type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex'
+export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
-const activeReportTab = ref<ReportTab>('routes')
+const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
+// The Transfer Analyst fills the tab with its own controls, table, and
+// downloads, in a slot the page fills, and keeps out of the map's display
+// mode.
+const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
   'routes': 'Routes',
@@ -343,6 +368,7 @@ const reportTabLabels: Record<ReportTab, string> = {
   'stop-clusters': 'Stop Clusters',
   'agencies': 'Agencies',
   'flex': 'Flex Areas',
+  'transfers': 'Transfer Analyst',
 }
 
 const activeReportTabLabel = computed(() => reportTabLabels[activeReportTab.value])
@@ -357,8 +383,9 @@ const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?
 // areas shows an empty table instead of hiding the tab.
 const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
-// Sync dataDisplayMode when user switches tabs
-const modeMap: Record<ReportTab, DataDisplayMode> = {
+// Sync dataDisplayMode when user switches tabs. Transfer Analyst has no map
+// display mode of its own, so leaves it be, and the mode does not move off it.
+const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
   'stops-aggregated': 'Stop visits',
@@ -368,23 +395,39 @@ const modeMap: Record<ReportTab, DataDisplayMode> = {
 }
 
 watch(activeReportTab, (tab) => {
-  dataDisplayMode.value = modeMap[tab]
+  const mode = modeMap[tab]
+  if (mode) {
+    dataDisplayMode.value = mode
+  }
 })
 
+// Each immediate too, as the tab outlives this component: shown again with
+// its tab gone, it moves off it.
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
 
 watch(hasClusterData, (has) => {
   if (!has && activeReportTab.value === 'stop-clusters') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
+
+// Without fixed-route service the Transfer Analyst tab goes, so leave it
+// for Flex Areas, the one tab left.
+watch(fixedRouteEnabled, (enabled) => {
+  if (!enabled && isTransfers.value) {
+    activeReportTab.value = 'flex'
+  }
+}, { immediate: true })
 
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
+  if (isTransfers.value) {
+    return
+  }
   if (mode === 'Transit mode' || mode === 'Route frequency') {
     activeReportTab.value = 'routes'
   } else if (mode === 'Stop visits' && activeReportTab.value !== 'stops-aggregated' && activeReportTab.value !== 'stop-clusters') {
@@ -512,10 +555,33 @@ const activeTableReport = computed((): TableReport => {
     padding-right:20px;
   }
 
+  // The Transfer Analyst tab fills the page's height, rather than growing
+  // past it.
+  .cal-report-fill {
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 1rem;
+  }
+
+  // Over a report that fills the page, less space under the tabs.
+  .cal-report-header-tight {
+    margin-bottom: 0.5rem;
+
+    :deep(.tabs) {
+      margin-bottom: 0;
+    }
+  }
+
   .cal-report-title-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+    // Smaller than a page title, so the reports below get the room.
+    :deep(h1.title) {
+      font-size: 2rem;
+      margin: 0.75rem 0 0.5rem;
+    }
   }
 
   .cal-report-filter-tags {

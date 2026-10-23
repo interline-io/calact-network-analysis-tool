@@ -18,9 +18,16 @@ query TripDetails($ids: [Int!], $limit: Int) {
       arrival_time
       departure_time
       stop_headsign
+      pickup_type
+      drop_off_type
       stop {
         id
         stop_name
+        geometry
+        parent {
+          id
+          stop_name
+        }
       }
     }
   }
@@ -43,7 +50,9 @@ export interface TripDetailsResponse {
       arrival_time?: number | string | null
       departure_time?: number | string | null
       stop_headsign?: string | null
-      stop?: { id: number, stop_name?: string | null } | null
+      pickup_type?: number | null
+      drop_off_type?: number | null
+      stop?: { id: number, stop_name?: string | null, geometry?: GeoJSON.Point | null, parent?: { id?: number | null, stop_name?: string | null } | null } | null
     } | null)[]
   }[]
 }
@@ -56,11 +65,43 @@ export interface TripDetail {
   // headsign at that stop only. Feeds such as TriMet's leave the trip headsign
   // blank and sign every stop instead.
   stopHeadsigns: Map<number, string>
+  // Where the trip starts and ends, as stations a rider knows: each stop's
+  // parent station's name, else the stop's own.
+  firstStopName?: string
   lastStopName?: string
+  // The first stop's own name and its station's, as a sign may name either.
+  firstStopNames?: string[]
+  // And where those stops are, as [lon, lat].
+  firstStopPoint?: [number, number]
+  lastStopPoint?: [number, number]
   // Seconds since midnight; may run past 24:00 for after-midnight trips.
   startTime?: number
   endTime?: number
   stopCount: number
+  // The trip's stop times in order, those with a stop.
+  stopTimes: TripStopTime[]
+}
+
+export interface TripStopTime {
+  stopId: number
+  // Its parent station, else the stop itself: so a station's platforms are
+  // one place.
+  stationId?: number
+  // Seconds since midnight, as the feed gives them; either may be missing.
+  arrival?: number
+  departure?: number
+  // GTFS pickup_type and drop_off_type; 1 means none at this stop.
+  pickupType?: number | null
+  dropOffType?: number | null
+}
+
+function stopPoint (stop: { geometry?: GeoJSON.Point | null } | null | undefined): [number, number] | undefined {
+  const [lon, lat] = stop?.geometry?.coordinates ?? []
+  return lon === undefined || lat === undefined ? undefined : [lon, lat]
+}
+
+function stationName (stop: { stop_name?: string | null, parent?: { stop_name?: string | null } | null } | null | undefined): string | undefined {
+  return stop?.parent?.stop_name || stop?.stop_name || undefined
 }
 
 // The API returns Seconds as "HH:MM:SS"; accept a number too.
@@ -108,10 +149,22 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       tripId: t.trip_id,
       headsign: t.trip_headsign || undefined,
       stopHeadsigns,
-      lastStopName: stopTimes[stopTimes.length - 1]?.stop?.stop_name || undefined,
+      firstStopName: stationName(stopTimes[0]?.stop),
+      lastStopName: stationName(stopTimes[stopTimes.length - 1]?.stop),
+      firstStopNames: [stopTimes[0]?.stop?.stop_name, stopTimes[0]?.stop?.parent?.stop_name].filter((n): n is string => !!n),
+      firstStopPoint: stopPoint(stopTimes[0]?.stop),
+      lastStopPoint: stopPoint(stopTimes[stopTimes.length - 1]?.stop),
       startTime,
       endTime,
       stopCount: t.stop_times.length,
+      stopTimes: stopTimes.filter(st => st.stop).map(st => ({
+        stopId: st.stop!.id,
+        stationId: st.stop!.parent?.id ?? st.stop!.id,
+        arrival: toSeconds(st.arrival_time),
+        departure: toSeconds(st.departure_time),
+        pickupType: st.pickup_type,
+        dropOffType: st.drop_off_type,
+      })),
     }
   })
 }

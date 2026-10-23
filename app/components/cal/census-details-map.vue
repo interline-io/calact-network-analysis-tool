@@ -19,9 +19,9 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps'
+import { basemapStyle } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
-import type { CensusGeographyEntry } from '~~/src/core'
+import { escapeHtml, type CensusGeographyEntry } from '~~/src/core'
 
 const props = defineProps<{
   geographies: CensusGeographyEntry[]
@@ -59,10 +59,6 @@ function buildFeatureCollections () {
     base: { type: 'FeatureCollection' as const, features: baseFeatures },
     intersection: { type: 'FeatureCollection' as const, features: intersectionFeatures },
   }
-}
-
-function escapeHtml (s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c] || c))
 }
 
 function buildPopupHtml (p: Record<string, unknown>): string {
@@ -166,42 +162,16 @@ function updateFeatures () {
   }
 }
 
-// Protomaps basemap base layers (everything except labels). @protomaps/basemaps has no
-// direct "no labels" generator, so derive it as the full set minus the labels-only set.
-function protomapsBaseLayers () {
-  const labelIds = new Set(
-    protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en', labelsOnly: true }).map(l => l.id),
-  )
-  return protomapsLayers('protomaps-base', namedFlavor('white'), { lang: 'en' })
-    .filter(l => !labelIds.has(l.id))
-}
-
 function initMap () {
   if (map.value || !mapContainer.value) {
     return
   }
-  // MapLibre requires an absolute sprite URL, so anchor the self-hosted assets
-  // to the app's own origin (also used for glyphs, for consistency).
-  const assetOrigin = window.location.origin
   const newMap = new maplibre.Map({
     container: mapContainer.value,
     interactive: true,
     zoom: 12,
     center: [-122.4, 45.5],
-    style: {
-      glyphs: `${assetOrigin}/basemaps-assets/fonts/{fontstack}/{range}.pbf`,
-      sprite: `${assetOrigin}/basemaps-assets/sprites/v4/white`,
-      version: 8,
-      sources: {
-        'protomaps-base': {
-          type: 'vector',
-          tiles: [`https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=${config.public.tlv2.protomapsApikey}`],
-          maxzoom: 15,
-          attribution: '<a href="https://protomaps.com">Protomaps</a> | &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        },
-      },
-      layers: protomapsBaseLayers(),
-    },
+    style: basemapStyle(config.public.tlv2.protomapsApikey),
   })
   map.value = newMap
   newMap.addControl(new maplibre.NavigationControl(), 'top-right')
