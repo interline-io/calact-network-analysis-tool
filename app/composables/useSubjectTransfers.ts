@@ -297,22 +297,6 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return picked && individualDates.value.includes(picked) ? picked : individualDates.value[0]
   })
 
-  // Where the date is the query's last and connections reach past midnight,
-  // or its first and missed ones reach back before, the departures on the
-  // day beyond were not loaded, so those connections are missing.
-  const midnightCut = computed((): 'before' | 'after' | undefined => {
-    const date = individualDate.value
-    const range = toValue(deps.selectedDateRange)
-    if (!date || range.length === 0) {
-      return undefined
-    }
-    const { startTime, endTime } = timeWindow.value
-    if (date === fmtDate(range[range.length - 1]!) && endTime + mostWalk.value + waitReach.value > 86400) {
-      return 'after'
-    }
-    return date === fmtDate(range[0]!) && startTime + missedReach.value < 0 ? 'before' : undefined
-  })
-
   // The date's arrivals, and the departures they can reach, which is all the
   // views show, so all the trip details fetched are for.
   const events = computed(() => {
@@ -329,6 +313,23 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       maxWalkSeconds: mostWalk.value,
       breakpoints: [missedReach.value, waitReach.value],
     })
+  })
+
+  // Where the date is the query's last and an arrival's connections reach
+  // past midnight, or its first and an arrival's missed ones reach back
+  // before, the departures on the day beyond were not loaded, so those
+  // connections are missing.
+  const midnightCut = computed((): 'before' | 'after' | undefined => {
+    const date = individualDate.value
+    const range = toValue(deps.selectedDateRange)
+    const arrivals = events.value?.arrivals ?? []
+    if (!date || range.length === 0 || arrivals.length === 0) {
+      return undefined
+    }
+    if (date === fmtDate(range[range.length - 1]!) && arrivals.at(-1)!.seconds + mostWalk.value + waitReach.value > 86400) {
+      return 'after'
+    }
+    return date === fmtDate(range[0]!) && arrivals[0]!.seconds + missedReach.value < 0 ? 'before' : undefined
   })
 
   // The trips arriving and departing as routes, directions, and

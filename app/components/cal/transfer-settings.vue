@@ -23,8 +23,10 @@
         <label class="cal-transfer-settings-row">
           Seconds per meter
           <cat-input
+            :key="`pace-${emptied}`"
             :model-value="settings.secondsPerMeter"
             :model-modifiers="{ lazy: true }"
+            optional
             type="number"
             min="0.1"
             step="0.1"
@@ -48,8 +50,10 @@
           <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
           <template v-for="(bound, i) of bounds" :key="bound">
             <cat-input
+              :key="`${bound}-${emptied}`"
               :model-value="minutes(settings.breakpoints[i])"
               :model-modifiers="{ lazy: true }"
+              optional
               type="number"
               step="0.5"
               size="small"
@@ -249,11 +253,14 @@ function minutes (seconds: number | undefined): number | undefined {
 }
 
 // A field's number, applied; a field left empty, or not a number, changes
-// nothing, rather than reading as 0.
+// nothing, rather than reading as 0, and shows its value again.
+const emptied = ref(0)
 function ifNumber (value: unknown, apply: (n: number) => void) {
   const n = value === '' || value === null || value === undefined ? Number.NaN : Number(value)
   if (Number.isFinite(n)) {
     apply(n)
+  } else {
+    emptied.value++
   }
 }
 
