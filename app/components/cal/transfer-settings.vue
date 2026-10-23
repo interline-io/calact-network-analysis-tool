@@ -48,9 +48,8 @@
       <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
         <div class="cal-transfer-settings-scale">
           <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
-          <template v-for="(bound, i) of bounds" :key="bound">
+          <template v-for="(bound, i) of bounds" :key="`${bound}-${emptied}`">
             <cat-input
-              :key="`${bound}-${emptied}`"
               :model-value="minutes(settings.breakpoints[i])"
               :model-modifiers="{ lazy: true }"
               optional
