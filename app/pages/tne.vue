@@ -93,6 +93,8 @@
                 :breakpoints="transfers.breakpoints"
                 :midnight-cut="transfers.midnightCut"
                 :route-choices="transfers.routeChoices"
+                :compass="transfers.compass"
+                :rose="transferView === 'compass' ? transfers.rose : EMPTY_ROSE"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-grid="transferView === 'summary' ? transfers.summaryGrid : []"
                 :csv-rows="transfers.csvRows"
@@ -314,7 +316,7 @@ import {
   STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TransferRose, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -998,6 +1000,8 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
   return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
 })
 const transferView = ref<TransferReportView>('summary')
+// The Compass view's flows, worked out only while it shows.
+const EMPTY_ROSE: TransferRose = { places: [], flows: [], from: new Map(), to: new Map() }
 const transferSection = ref<TransferReportSection | undefined>('trips')
 // A link to the analysis as shown: the URL, which holds the subject, its
 // stops, the date, and the times; and besides, its view and its settings
@@ -1016,7 +1020,7 @@ function transferShareUrl (): string {
 }
 if (query.value.transferView || query.value.transferSettings) {
   const shared = query.value.transferView?.toString()
-  if (shared === 'individual') {
+  if (shared === 'individual' || shared === 'compass') {
     transferView.value = shared
   }
   if (query.value.transferSettings) {
