@@ -3,6 +3,7 @@ import { StopDepartureCache } from '../../tl/departure-cache'
 import { isoToOrdinal, ordinalToIso } from '../../tl/feed-version'
 import type { TripDetail, TripStopTime } from '../../tl/trip-details'
 import {
+  bearingAndDistance,
   calculateTransfers,
   calendarTime,
   decodeTransferSettings,
@@ -511,5 +512,18 @@ describe('encodeTransferSettings', () => {
     expect(decodeTransferSettings('not json')).toEqual(DEFAULT_TRANSFER_SETTINGS)
     expect(decodeTransferSettings(JSON.stringify({ walkDistance: 'teleport', breakpoints: [3, 2, 1], secondsPerMeter: 1.5 })))
       .toEqual({ ...DEFAULT_TRANSFER_SETTINGS, secondsPerMeter: 1.5 })
+  })
+})
+
+describe('bearingAndDistance', () => {
+  it('measures bearing clockwise from north, and distance in km', () => {
+    const millbrae: [number, number] = [-122.387, 37.600]
+    const north = bearingAndDistance(millbrae, [-122.395, 37.776])
+    expect(north.bearing > 355 || north.bearing < 5).toBe(true)
+    expect(north.km).toBeGreaterThan(18)
+    expect(north.km).toBeLessThan(21)
+    const southeast = bearingAndDistance(millbrae, [-121.903, 37.330])
+    expect(southeast.bearing).toBeGreaterThan(120)
+    expect(southeast.bearing).toBeLessThan(150)
   })
 })
