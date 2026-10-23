@@ -38,6 +38,9 @@ export interface TransferEvent {
   // Where the trip starts and ends, by station, and how many stops it makes.
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   // The first stop's own name and its station's.
   originNames?: string[]
   stopCount?: number
@@ -133,6 +136,9 @@ export function transferTripKey (e: Pick<TransferEvent, 'routeId' | 'directionId
 export interface TransferTripRun {
   origin?: string
   terminus?: string
+  // Where those stations are, as [lon, lat].
+  originPoint?: [number, number]
+  terminusPoint?: [number, number]
   stopCount?: number
 }
 
@@ -205,13 +211,13 @@ export interface TransferChoiceRoute {
  * direction's busiest destination, between other ends, is a short run.
  */
 export function transferTripChoices (events: TransferEvent[], routes: Map<number, TransferChoiceRoute>, side: 'from' | 'to' = 'to'): TransferRouteChoice[] {
-  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[], originNames: Set<string> }
+  interface Tally { count: number, terminal: number, origins: string[], termini: string[], stopCounts: number[], points: Map<string, [number, number]>, originNames: Set<string> }
   const byRoute = new Map<number, Map<number, Map<string, Tally>>>()
   for (const e of events) {
     const directions = byRoute.get(e.routeId) ?? new Map<number, Map<string, Tally>>()
     const destinations = directions.get(e.directionId) ?? new Map<string, Tally>()
     const headsign = e.headsign ?? ''
-    const tally: Tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [], originNames: new Set() }
+    const tally: Tally = destinations.get(headsign) ?? { count: 0, terminal: 0, origins: [], termini: [], stopCounts: [], points: new Map(), originNames: new Set() }
     tally.count += 1
     tally.terminal += e.terminal ? 1 : 0
     for (const name of e.originNames ?? []) {
@@ -219,9 +225,15 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     }
     if (e.origin) {
       tally.origins.push(e.origin)
+      if (e.originPoint && !tally.points.has(e.origin)) {
+        tally.points.set(e.origin, e.originPoint)
+      }
     }
     if (e.terminus) {
       tally.termini.push(e.terminus)
+      if (e.terminusPoint && !tally.points.has(e.terminus)) {
+        tally.points.set(e.terminus, e.terminusPoint)
+      }
     }
     if (e.stopCount !== undefined) {
       tally.stopCounts.push(e.stopCount)
@@ -237,9 +249,13 @@ export function transferTripChoices (events: TransferEvent[], routes: Map<number
     const directions = [...directionMap].map(([directionId, destinationMap]) => {
       const destinations: TransferTripDestination[] = [...destinationMap]
         .map(([headsign, t]) => {
+          const origin = mostCommon(t.origins)
+          const terminus = mostCommon(t.termini)
           const run = {
-            origin: mostCommon(t.origins),
-            terminus: mostCommon(t.termini),
+            origin,
+            terminus,
+            originPoint: origin === undefined ? undefined : t.points.get(origin),
+            terminusPoint: terminus === undefined ? undefined : t.points.get(terminus),
             stopCount: mostCommon(t.stopCounts),
           }
           const namedByOrigin = side === 'from' && t.terminal === t.count && !!run.origin
@@ -681,7 +697,9 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
           headsign,
           origin: detail.firstStopName,
           terminus: detail.lastStopName,
+          originPoint: detail.firstStopPoint,
           originNames: detail.firstStopNames,
+          terminusPoint: detail.lastStopPoint,
           stopCount: detail.stopCount,
           prevStation,
           nextStation,
@@ -958,8 +976,8 @@ export interface TransferArrivalSummary {
   pairs: TransferPairSummary[]
 }
 
-// Arriving destinations (transferTripKey) picked out from a Summary row,
-// and where set, departing ones, to narrow the trip filters to.
+// Arriving destinations (transferTripKey) picked out from a Summary row or
+// the Compass, and where set, departing ones, to narrow the trip filters to.
 export interface TransferFocus {
   from: string[]
   to?: string[]
@@ -1390,8 +1408,9 @@ export function transferRows (
 export const KM_PER_DEGREE = 111.32
 
 // The bearing (degrees clockwise from north) and distance (km) from one
-// [lon, lat] to another: flat-earth arithmetic, close enough over a short
-// walk to suggest a stop nearby, and never reported as a figure.
+// [lon, lat] to another: flat-earth arithmetic, close enough over a region
+// to suggest a stop nearby or place a mark on a diagram, and never reported
+// as a figure.
 export function bearingAndDistance (from: [number, number], to: [number, number]): { bearing: number, km: number } {
   const dx = (to[0] - from[0]) * Math.cos((from[1] * Math.PI) / 180)
   const dy = to[1] - from[1]

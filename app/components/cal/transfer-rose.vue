@@ -1,0 +1,825 @@
+<template>
+  <!-- Connections as flows around the stops: from the places arriving trips
+       come from, through the stops, to the places departing trips go, each
+       flow as wide as its connections, all one neutral color. A table beside
+       breaks them down from either end: by where trips come from, or go,
+       then by trip, with a checkbox on each row that highlights its flows in
+       the accent; clicking a place or band checks its rows. Highlighting
+       picks out flows to look at, and filters nothing. -->
+  <div class="cal-transfer-rose">
+    <figure class="cal-transfer-rose-figure">
+      <p v-if="rose.flows.length === 0" class="cal-transfer-rose-empty">
+        No connections to show.
+      </p>
+      <div v-else class="cal-transfer-rose-frame" :style="{ aspectRatio: `${WIDTH} / ${HEIGHT}` }">
+        <svg :viewBox="`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`" aria-hidden="true">
+          <defs>
+            <marker v-for="(color, key) of COLORS" :id="`${uid}-${key}`" :key="key" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" :fill="color" />
+            </marker>
+          </defs>
+          <g class="cal-transfer-rose-rings">
+            <template v-for="ring of rings" :key="ring.km">
+              <circle :r="ring.r" />
+              <text :x="ring.x" :y="ring.y" text-anchor="middle" dominant-baseline="middle">{{ ring.km }} km</text>
+            </template>
+          </g>
+          <!-- One ribbon per pair of places; where some of its flows are
+               focused, a narrower one over it, as wide as those. -->
+          <template v-for="f of drawn" :key="f.id">
+            <path
+              class="cal-transfer-rose-flow"
+              :class="{ 'cal-transfer-rose-faded': emphasis }"
+              :d="f.d"
+              :stroke="COLORS.band"
+              :stroke-width="f.width"
+              :marker-end="emphasis ? undefined : `url(#${uid}-band)`"
+              @mouseenter="hover = { flows: new Set(f.flows), text: flowsText(f.flows) }"
+              @mouseleave="hover = undefined"
+              @click="toggleFlows(f.flows, groupBy === 'from' ? f.flows[0]!.from : f.flows[0]!.to)"
+            />
+            <path
+              v-if="emphasis && f.emphasized > 0"
+              class="cal-transfer-rose-flow cal-transfer-rose-strong"
+              :d="f.d"
+              :stroke="COLORS.accent"
+              :stroke-width="Math.max(1, f.emphasized * scale)"
+              :marker-end="`url(#${uid}-accent)`"
+            />
+          </template>
+          <line
+            v-for="p of placed"
+            :key="`port-${p.key}`"
+            class="cal-transfer-rose-port"
+            v-bind="p.port"
+            @click="toggleFlows(placeFlows(p.key), p.key)"
+          />
+          <circle class="cal-transfer-rose-center" r="5" />
+        </svg>
+        <span class="cal-transfer-rose-north" :style="at(0, -HEIGHT / 2 + 8)">N</span>
+        <button
+          v-for="p of placed"
+          :key="`label-${p.key}`"
+          type="button"
+          class="cal-transfer-rose-label"
+          :class="[`cal-transfer-rose-label-${p.labelX < 0 ? 'left' : 'right'}`, { 'cal-transfer-rose-label-faded': emphasis && !p.involved }]"
+          :style="at(p.labelX, p.labelY)"
+          @click="toggleFlows(placeFlows(p.key), p.key)"
+          @mouseenter="hover = { flows: new Set(placeFlows(p.key)), text: placeText(p.key) }"
+          @mouseleave="hover = undefined"
+        >
+          <span class="cal-transfer-rose-label-name">{{ p.name }}</span>
+        </button>
+      </div>
+      <figcaption class="cal-transfer-rose-caption">
+        <template v-if="hover">
+          {{ hover.text }}
+        </template>
+        <template v-else-if="checkedFlows.length > 0">
+          Highlighted: {{ flowsText(checkedFlows) }}
+        </template>
+        <template v-else>
+          Each band pairs where arriving trips come from with where departing
+          trips go, as wide as the connections the schedule offers between
+          them, not riders.
+          <cat-tooltip text="Places sit in their direction from the stops; distance is on a log scale, and crowded places are spread apart. Hover a place or band for its counts.">
+            <cat-icon icon="information" size="small" /><span class="is-sr-only">How to read the compass</span>
+          </cat-tooltip>
+          Check rows, or click a place or band, to highlight their flows.
+        </template>
+      </figcaption>
+    </figure>
+
+    <!-- The flows from either end, each row checked to highlight its
+         flows. Waits by grade only mean something for one arriving trip and
+         one departing trip, so only those rows show them; a place shows its
+         connections, the width of its bands; the trips between, nothing. -->
+    <div class="cal-transfer-rose-list">
+      <div class="cal-transfer-rose-tools">
+        <cat-field label="Group by">
+          <cat-tabs v-model="groupBy" type="toggle">
+            <cat-tab-item value="from" label="From" />
+            <cat-tab-item value="to" label="To" />
+          </cat-tabs>
+        </cat-field>
+        <span class="cal-transfer-rose-links">
+          Highlight
+          <button type="button" class="cal-transfer-rose-link" @click="checked = new Set(rose.flows.map(flowKey))">All</button>
+          <button type="button" class="cal-transfer-rose-link" @click="checked = new Set()">None</button>
+        </span>
+      </div>
+      <div class="cal-transfer-rose-table" role="table" :aria-label="groupBy === 'from' ? 'Connections by where trips come from' : 'Connections by where trips go'">
+        <div class="cal-transfer-rose-row cal-transfer-rose-head" role="row">
+          <span role="columnheader">{{ groupBy === 'from' ? 'From / arriving trip / departing trip' : 'To / departing trip / arriving trip' }}</span>
+          <span role="columnheader" class="cal-transfer-rose-num">Connections</span>
+          <span role="columnheader">By wait</span>
+          <span role="columnheader" class="cal-transfer-rose-view">View</span>
+        </div>
+        <div
+          v-for="row of rows"
+          :key="row.id"
+          role="row"
+          class="cal-transfer-rose-row"
+          :class="[`cal-transfer-rose-depth-${row.depth}`, { 'cal-transfer-rose-row-hovered': hover?.flows && row.flows.every(f => hover!.flows.has(f)) }]"
+          @mouseenter="hover = { flows: new Set(row.flows), text: row.text }"
+          @mouseleave="hover = undefined"
+        >
+          <span role="cell" class="cal-transfer-rose-name">
+            <button
+              v-if="row.depth < 2"
+              type="button"
+              class="cal-transfer-rose-caret"
+              :aria-expanded="opened.has(row.id)"
+              :aria-label="`${opened.has(row.id) ? 'Hide' : 'Show'} what is under ${row.label}`"
+              @click="toggleOpen(row.id)"
+            >
+              <cat-icon size="small" :icon="opened.has(row.id) ? 'chevron-down' : 'chevron-right'" />
+            </button>
+            <cat-checkbox
+              class="cal-transfer-rose-check"
+              :model-value="stateOf(row) !== 'none'"
+              :indeterminate="stateOf(row) === 'some'"
+              @update:model-value="setChecked(row.flows, !!$event)"
+            >
+              <cal-route-badge v-if="row.route" :label="row.route" :title="row.agency" />
+              <span class="cal-transfer-rose-text">{{ row.label }}</span>
+              <span v-if="row.place" class="cal-transfer-rose-place">{{ groupBy === 'from' ? 'to' : 'from' }} {{ row.place }}</span>
+            </cat-checkbox>
+            <button type="button" class="cal-transfer-rose-link cal-transfer-rose-only" @click="checked = new Set(row.flows.map(flowKey))">
+              Only
+            </button>
+          </span>
+          <template v-if="row.depth !== 1">
+            <span role="cell" class="cal-transfer-rose-num">{{ row.total.toLocaleString() }}</span>
+            <span role="cell">
+              <cat-tooltip v-if="row.depth === 2" :text="gradesText(row.grades)" class="cal-transfer-rose-bar">
+                <span
+                  v-for="g of TRANSFER_GRADES"
+                  :key="g"
+                  :style="{ flexGrow: row.grades[g], background: TRANSFER_GRADE_COLORS[g].fill }"
+                />
+              </cat-tooltip>
+            </span>
+            <span role="cell" class="cal-transfer-rose-view">
+              <cat-tooltip text="Show in Individual">
+                <button type="button" aria-label="Show in Individual" @click="show(row.flows)">
+                  <cat-icon size="small" icon="table-arrow-right" />
+                </button>
+              </cat-tooltip>
+            </span>
+          </template>
+          <template v-else>
+            <span role="cell" /><span role="cell" /><span role="cell" />
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, useId } from 'vue'
+import { escapeHtml, groupBy as groupByKey } from '~~/src/core'
+import {
+  TRANSFER_GRADES,
+  TRANSFER_GRADE_COLORS,
+  TRANSFER_GRADE_LABELS,
+  along,
+  compassRings,
+  compassScale,
+  quietBearing,
+  spreadBearings,
+  spreadLabels,
+  type TransferFocus,
+  type TransferGradeCounts,
+  type TransferRose,
+  type TransferRoseFlow,
+} from '~~/src/scenario'
+
+const props = defineProps<{
+  rose: TransferRose
+}>()
+
+const emit = defineEmits<{
+  // Narrow the trip filters to these flows' trips, and show Individual.
+  show: [focus: TransferFocus]
+}>()
+
+const uid = useId()
+const WIDTH = 680
+const HEIGHT = 420
+// Places lie between these radii, by distance on a log scale.
+const INNER = 70
+const OUTER = 175
+// The widest place's flows, side by side, at most this wide.
+const MOST_WIDTH = 44
+const LABEL_GAP = 14
+const MIN_SPREAD = 10
+// One neutral color for every band, as a color would suggest more than which
+// pairing it is; and the accent for what is focused or under the pointer.
+const COLORS = { band: '#9aa1ab', accent: '#7a4dda' }
+
+const maxKm = computed(() => Math.max(0.1, ...props.rose.places.map(p => p.km)))
+function radius (km: number): number {
+  return INNER + (OUTER - INNER) * compassScale(km, maxKm.value)
+}
+// Rings, labeled along the widest gap between places.
+const rings = computed(() => {
+  const [ux, uy] = along(quietBearing(placed.value.map(p => p.angle)))
+  return compassRings(maxKm.value).map((km) => {
+    const r = radius(km)
+    return { km, r, x: ux * r, y: uy * r }
+  })
+})
+
+// Each place's flows out (from it) and in (to it), and their width.
+const scale = computed(() => {
+  const totals = props.rose.places.map(p => props.rose.flows.reduce((n, f) => n + (f.from === p.key ? f.total : 0) + (f.to === p.key ? f.total : 0), 0))
+  return MOST_WIDTH / Math.max(1, ...totals)
+})
+
+// Places on the rose: where, the bar where their flows meet them, and their
+// labels, spread apart down each side.
+const placed = computed(() => {
+  const angles = spreadBearings(props.rose.places.map(p => p.bearing), MIN_SPREAD)
+  const focused = emphasis.value
+  const out = props.rose.places.map((p, i) => {
+    const angle = angles[i]!
+    const [ux, uy] = along(angle)
+    const r = radius(p.km)
+    const total = props.rose.flows.reduce((n, f) => n + (f.from === p.key ? f.total : 0) + (f.to === p.key ? f.total : 0), 0)
+    const half = Math.max(2, (total * scale.value) / 2)
+    const [tx, ty] = [-uy, ux]
+    const x = ux * r
+    const y = uy * r
+    const labelR = r + 8
+    return {
+      ...p,
+      angle,
+      r,
+      x,
+      y,
+      involved: !focused || [...focused].some(f => f.from === p.key || f.to === p.key),
+      port: { x1: x - tx * half, y1: y - ty * half, x2: x + tx * half, y2: y + ty * half },
+      labelX: ux * labelR + (ux < 0 ? -2 : 2),
+      labelY: uy * labelR,
+    }
+  })
+  spreadLabels(out, -HEIGHT / 2 + LABEL_GAP, HEIGHT / 2 - LABEL_GAP / 2, LABEL_GAP)
+  return out
+})
+
+// Each flow as a curve from its origin's bar, by the stops, to its
+// destination's, side by side with the others at each bar: those leaving a
+// place first, then those reaching it, each in the order of the other end.
+const drawn = computed(() => {
+  const at = new Map(placed.value.map(p => [p.key, p]))
+  const slots = new Map<string, number>()
+  const offset = (place: string, width: number) => {
+    const p = at.get(place)!
+    const total = (p.port.x2 - p.port.x1) ** 2 + (p.port.y2 - p.port.y1) ** 2
+    const used = slots.get(place) ?? 0
+    slots.set(place, used + width)
+    return used + width / 2 - Math.sqrt(total) / 2
+  }
+  const angleOf = (name: string) => at.get(name)?.angle ?? 0
+  const pairs = byTotal(props.rose.flows, f => `${f.from}>${f.to}`)
+    .map(([id, flows]) => ({ id: `pair:${id}`, from: flows[0]!.from, to: flows[0]!.to, flows, total: sumOf(flows).total }))
+  const leaving = [...pairs].sort((a, b) => angleOf(a.to) - angleOf(b.to))
+  const reaching = [...pairs].sort((a, b) => angleOf(a.from) - angleOf(b.from))
+  const starts = new Map(leaving.map(f => [f, offset(f.from, Math.max(1, f.total * scale.value))]))
+  const ends = new Map(reaching.map(f => [f, offset(f.to, Math.max(1, f.total * scale.value))]))
+  const focused = emphasis.value
+  return pairs.map((f) => {
+    const a = at.get(f.from)!
+    const b = at.get(f.to)!
+    const point = (p: typeof a, o: number, k: number): [number, number] => {
+      const [ux, uy] = along(p.angle)
+      return [ux * p.r * k - uy * o, uy * p.r * k + ux * o]
+    }
+    // Through the stops: drawn in close to them from either end.
+    const s = point(a, starts.get(f)!, 1)
+    const c1 = point(a, starts.get(f)! * 0.3, 0.08)
+    const c2 = point(b, ends.get(f)! * 0.3, 0.08)
+    // Short of the bar, for the arrowhead.
+    const e = point(b, ends.get(f)!, 1 - 6 / b.r)
+    const n = (v: number) => v.toFixed(1)
+    return {
+      id: f.id,
+      flows: f.flows,
+      emphasized: focused ? f.flows.reduce((n, x) => n + (focused.has(x) ? x.total : 0), 0) : 0,
+      width: Math.max(1, f.total * scale.value),
+      d: `M${n(s[0])},${n(s[1])} C${n(c1[0])},${n(c1[1])} ${n(c2[0])},${n(c2[1])} ${n(e[0])},${n(e[1])}`,
+    }
+  })
+})
+
+// The flows highlighted, by checking rows or clicking places and bands; and
+// those under the pointer, which show first.
+// Checked by the trips each pairs, as the flows themselves are rebuilt as
+// trip details arrive or settings change.
+function flowKey (f: TransferRoseFlow): string {
+  return `${f.fromKey}\u0000${f.toKey}`
+}
+const checked = ref(new Set<string>())
+const checkedFlows = computed(() => props.rose.flows.filter(f => checked.value.has(flowKey(f))))
+const hover = ref<{ flows: Set<TransferRoseFlow>, text: string }>()
+const emphasis = computed(() => {
+  if (hover.value?.flows.size) {
+    return hover.value.flows
+  }
+  return checkedFlows.value.length > 0 ? new Set(checkedFlows.value) : undefined
+})
+
+function setChecked (flows: TransferRoseFlow[], on: boolean) {
+  const next = new Set(checked.value)
+  for (const f of flows) {
+    if (on) {
+      next.add(flowKey(f))
+    } else {
+      next.delete(flowKey(f))
+    }
+  }
+  checked.value = next
+}
+
+function stateOf (row: { flows: TransferRoseFlow[] }): 'all' | 'some' | 'none' {
+  const n = row.flows.filter(f => checked.value.has(flowKey(f))).length
+  return n === 0 ? 'none' : n === row.flows.length ? 'all' : 'some'
+}
+
+// A place or band clicked on the rose: its flows checked, or unchecked where
+// all were, and its group in the table opened to show them.
+function toggleFlows (flows: TransferRoseFlow[], group: string) {
+  setChecked(flows, stateOf({ flows }) !== 'all')
+  opened.value = new Set([...opened.value, `${groupBy.value}:${group}`])
+}
+
+function show (flows: TransferRoseFlow[]) {
+  emit('show', {
+    from: [...new Set(flows.map(x => x.fromKey))],
+    to: [...new Set(flows.map(x => x.toKey))],
+  })
+}
+
+// A place's flows: those from it, grouped by origin; those to it, by
+// destination; or the other way where it has none this way.
+function placeFlows (key: string) {
+  const way = (from: boolean) => props.rose.flows.filter(f => (from ? f.from : f.to) === key)
+  const flows = way(groupBy.value === 'from')
+  return flows.length > 0 ? flows : way(groupBy.value !== 'from')
+}
+
+// A place's name, by its key.
+const placeNames = computed(() => new Map(props.rose.places.map(p => [p.key, p.name])))
+function nameOf (key: string): string {
+  return placeNames.value.get(key) ?? key
+}
+
+function sumOf (flows: TransferRoseFlow[]): { total: number, grades: TransferGradeCounts } {
+  const grades: TransferGradeCounts = { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
+  for (const f of flows) {
+    for (const g of TRANSFER_GRADES) {
+      grades[g] += f.grades[g]
+    }
+  }
+  return { total: flows.reduce((n, f) => n + f.total, 0), grades }
+}
+
+function connections (n: number): string {
+  return `${n.toLocaleString()} ${n === 1 ? 'connection' : 'connections'}`
+}
+
+function gradesText (grades: TransferGradeCounts): string {
+  return TRANSFER_GRADES.filter(g => grades[g] > 0).map(g => `${grades[g].toLocaleString()} ${TRANSFER_GRADE_LABELS[g].toLowerCase()}`).join(', ')
+}
+
+// Flows as text: one, a trip pair, with its waits by grade; several, their
+// connections and how many pairs, as waits pooled over pairs describe no
+// rider's trip.
+function flowsText (flows: TransferRoseFlow[]): string {
+  if (flows.length === 1) {
+    return flowText(flows[0]!)
+  }
+  const first = flows[0]
+  const ends = first && flows.every(f => f.from === first.from && f.to === first.to) ? `From ${nameOf(first.from)} to ${nameOf(first.to)}: ` : ''
+  return `${ends}${connections(sumOf(flows).total)} across ${flows.length.toLocaleString()} trip pairs.`
+}
+
+function flowText (f: TransferRoseFlow): string {
+  const from = props.rose.from.get(f.fromKey)
+  const to = props.rose.to.get(f.toKey)
+  return `${from?.route ?? ''} ${from?.label ?? ''} from ${nameOf(f.from)}, to ${to?.route ?? ''} ${to?.label ?? ''} toward ${nameOf(f.to)}: ${connections(f.total)} (${gradesText(f.grades)}).`
+}
+
+function placeText (key: string): string {
+  const flows = placeFlows(key)
+  const from = flows[0]?.from === key
+  return `${from ? 'From' : 'To'} ${nameOf(key)}: ${flowsText(flows)}`
+}
+
+// The table's rows, grouped from where trips come from, or where they go:
+// each place, by most connections; under it, when opened, its trips that
+// way; under each, when opened, the trips paired with it the other way.
+const groupBy = ref<'from' | 'to'>('from')
+const opened = ref(new Set<string>())
+function toggleOpen (id: string) {
+  const next = new Set(opened.value)
+  if (!next.delete(id)) {
+    next.add(id)
+  }
+  opened.value = next
+}
+
+interface Row {
+  id: string
+  depth: number
+  label: string
+  route?: string
+  agency?: string
+  place?: string
+  flows: TransferRoseFlow[]
+  total: number
+  grades: TransferGradeCounts
+  text: string
+}
+
+// Flows grouped, by most connections.
+function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => K): [K, TransferRoseFlow[]][] {
+  return [...groupByKey(flows, keyOf)]
+    .map(([k, list]) => ({ k, list, total: list.reduce((n, f) => n + f.total, 0) }))
+    .sort((a, b) => b.total - a.total)
+    .map(({ k, list }): [K, TransferRoseFlow[]] => [k, list])
+}
+
+const rows = computed((): Row[] => {
+  const from = groupBy.value === 'from'
+  const placeOf = (f: TransferRoseFlow) => (from ? f.from : f.to)
+  const otherPlaceOf = (f: TransferRoseFlow) => (from ? f.to : f.from)
+  const keyOf = (f: TransferRoseFlow) => (from ? f.fromKey : f.toKey)
+  const otherKeyOf = (f: TransferRoseFlow) => (from ? f.toKey : f.fromKey)
+  const tripOf = (key: string, near: boolean) => (near === from ? props.rose.from : props.rose.to).get(key)
+  const way = from ? 'From' : 'To'
+  return byTotal(props.rose.flows, placeOf).flatMap(([place, flows]) => {
+    const id = `${groupBy.value}:${place}`
+    const totals = sumOf(flows)
+    const row: Row = { id, depth: 0, label: nameOf(place), flows, ...totals, text: `${way} ${nameOf(place)}: ${flowsText(flows)}` }
+    if (!opened.value.has(id)) {
+      return [row]
+    }
+    return [row, ...byTotal(flows, keyOf).flatMap(([key, trips]) => {
+      const trip = tripOf(key, true)
+      const tripId = `${id}|${key}`
+      const name = `${trip?.route ?? ''} ${trip?.label ?? ''}`.trim()
+      const tripRow: Row = { id: tripId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: trips, ...sumOf(trips), text: `${name} ${from ? 'from' : 'to'} ${nameOf(place)}.` }
+      if (!opened.value.has(tripId)) {
+        return [tripRow]
+      }
+      return [tripRow, ...byTotal(trips, otherKeyOf).map(([otherKey, pair]): Row => {
+        const other = tripOf(otherKey, false)
+        return { id: `${tripId}>${otherKey}`, depth: 2, label: other?.label ?? '', route: other?.route, agency: other?.agency, place: nameOf(otherPlaceOf(pair[0]!)), flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
+      })]
+    })]
+  })
+})
+
+// The rose as a standalone SVG, as it shows (any focus too), its labels as
+// text and its colors fixed, for download.
+function toSvg (): string {
+  const n = (v: number) => v.toFixed(1)
+  const focused = emphasis.value
+  const marker = (key: keyof typeof COLORS) => `<marker id="m-${key}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="1.4" markerHeight="1.4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${COLORS[key]}"/></marker>`
+  const ribbon = (d: string, key: keyof typeof COLORS, width: number, opacity: number, arrow: boolean) =>
+    `<path d="${d}" fill="none" stroke="${COLORS[key]}" stroke-width="${n(width)}" opacity="${opacity}"${arrow ? ` marker-end="url(#m-${key})"` : ''}/>`
+  const parts = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}" width="${WIDTH * 1.5}" height="${HEIGHT * 1.5}" font-family="sans-serif" font-size="11">`,
+    `<defs>${marker('band')}${marker('accent')}</defs>`,
+    `<rect x="${-WIDTH / 2}" y="${-HEIGHT / 2}" width="${WIDTH}" height="${HEIGHT}" fill="#ffffff"/>`,
+    ...rings.value.map(r => `<circle r="${n(r.r)}" fill="none" stroke="#d5d8dc" stroke-dasharray="2 3"/><text x="${n(r.x)}" y="${n(r.y)}" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#6b7280" stroke="#ffffff" stroke-width="3" paint-order="stroke">${r.km} km</text>`),
+    ...drawn.value.flatMap(f => [
+      ribbon(f.d, 'band', f.width, focused ? 0.04 : 0.55, !focused),
+      ...(focused && f.emphasized > 0 ? [ribbon(f.d, 'accent', Math.max(1, f.emphasized * scale.value), 0.9, true)] : []),
+    ]),
+    ...placed.value.map(p => `<line x1="${n(p.port.x1)}" y1="${n(p.port.y1)}" x2="${n(p.port.x2)}" y2="${n(p.port.y2)}" stroke="#363636" stroke-width="3" stroke-linecap="round"/>`),
+    '<circle r="5" fill="#363636"/>',
+    `<text x="0" y="${-HEIGHT / 2 + 12}" text-anchor="middle" font-weight="600" fill="#6b7280">N</text>`,
+    ...placed.value.map((p) => {
+      const left = p.labelX < 0
+      return `<text x="${n(p.labelX)}" y="${n(p.labelY)}" dy="0.35em" text-anchor="${left ? 'end' : 'start'}" fill="#363636">${escapeHtml(p.name)}</text>`
+    }),
+    '</svg>',
+  ]
+  return parts.join('')
+}
+
+defineExpose({ toSvg })
+
+// A point in the SVG's frame as a position over it.
+function at (x: number, y: number) {
+  return { left: `${((x + WIDTH / 2) / WIDTH) * 100}%`, top: `${((y + HEIGHT / 2) / HEIGHT) * 100}%` }
+}
+</script>
+
+<style scoped lang="scss">
+// The rose beside its table; one above the other where narrow.
+.cal-transfer-rose {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+  gap: 1rem 1.5rem;
+  align-items: start;
+  font-size: 0.8rem;
+
+  @media (max-width: 64rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cal-transfer-rose-figure {
+  margin: 0;
+}
+
+.cal-transfer-rose-empty,
+.cal-transfer-rose-caption {
+  color: var(--bulma-text-weak);
+}
+
+.cal-transfer-rose-list {
+  min-width: 0;
+}
+
+// Grouping and the highlight links, over the table.
+.cal-transfer-rose-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+
+  :deep(.field) {
+    margin-bottom: 0;
+  }
+
+  :deep(.label) {
+    font-size: 0.7rem;
+    margin-bottom: 0.15rem;
+  }
+
+  :deep(.cat-tabs) {
+    margin-bottom: 0;
+  }
+}
+
+.cal-transfer-rose-links {
+  display: inline-flex;
+  gap: 0.5rem;
+  color: var(--bulma-text-weak);
+}
+
+.cal-transfer-rose-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--bulma-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+// A row's Only link, shown as the row is hovered or the link focused.
+.cal-transfer-rose-only {
+  flex: none;
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  opacity: 0;
+
+  .cal-transfer-rose-row:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+.cal-transfer-rose-caption {
+  min-height: 2.5em;
+  margin-top: 0.25rem;
+}
+
+.cal-transfer-rose-frame {
+  position: relative;
+  width: 100%;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+}
+
+.cal-transfer-rose-rings {
+  circle {
+    fill: none;
+    stroke: var(--bulma-border);
+    stroke-dasharray: 2 3;
+  }
+
+  text {
+    font-size: 8px;
+    fill: var(--bulma-text-weak);
+    stroke: var(--bulma-scheme-main);
+    stroke-width: 3px;
+    paint-order: stroke;
+  }
+}
+
+.cal-transfer-rose-flow {
+  fill: none;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.cal-transfer-rose-strong {
+  opacity: 0.9;
+  // The ribbon under it takes the pointer.
+  pointer-events: none;
+}
+
+.cal-transfer-rose-faded {
+  opacity: 0.04;
+}
+
+.cal-transfer-rose-label-faded {
+  opacity: 0.35;
+}
+
+.cal-transfer-rose-port {
+  stroke: var(--bulma-text);
+  stroke-width: 3;
+  stroke-linecap: round;
+  cursor: pointer;
+}
+
+.cal-transfer-rose-center {
+  fill: var(--bulma-text);
+}
+
+.cal-transfer-rose-north {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 600;
+  color: var(--bulma-text-weak);
+}
+
+.cal-transfer-rose-label {
+  position: absolute;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 11rem;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  line-height: 1.1;
+  color: var(--bulma-text);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+.cal-transfer-rose-label-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-transfer-rose-label-left {
+  transform: translate(-100%, -50%);
+  flex-direction: row-reverse;
+}
+
+// The table, scrolling within the rose's height.
+.cal-transfer-rose-table {
+  max-height: 32rem;
+  overflow-y: auto;
+  border: 1px solid var(--bulma-border);
+  border-radius: 4px;
+}
+
+.cal-transfer-rose-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 2.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-top: 1px solid var(--bulma-border-weak);
+}
+
+.cal-transfer-rose-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-top: 0;
+  background: var(--bulma-scheme-main-bis);
+  font-weight: 600;
+}
+
+.cal-transfer-rose-depth-0 {
+  font-weight: 600;
+}
+
+.cal-transfer-rose-depth-1 .cal-transfer-rose-name {
+  padding-left: 1.25rem;
+}
+
+.cal-transfer-rose-depth-2 .cal-transfer-rose-name {
+  padding-left: 2.75rem;
+}
+
+.cal-transfer-rose-row-hovered {
+  background: var(--bulma-scheme-main-bis);
+}
+
+.cal-transfer-rose-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.cal-transfer-rose-caret {
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+}
+
+.cal-transfer-rose-check {
+  flex: 0 1 auto;
+  min-width: 0;
+
+  :deep(label),
+  :deep(.checkbox) {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+}
+
+.cal-transfer-rose-text,
+.cal-transfer-rose-place {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-transfer-rose-place {
+  color: var(--bulma-text-weak);
+  font-weight: normal;
+}
+
+.cal-transfer-rose-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-transfer-rose-view {
+  text-align: center;
+
+  button {
+    display: inline-flex;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--bulma-text-weak);
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--bulma-link);
+    }
+  }
+}
+
+.cal-transfer-rose-bar {
+  display: flex;
+  height: 0.6rem;
+  width: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bulma-scheme-main-ter);
+
+  > span {
+    flex-basis: 0;
+  }
+}
+</style>
