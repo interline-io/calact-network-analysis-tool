@@ -31,7 +31,7 @@
             size="small"
             class="cal-transfer-settings-number"
             v-bind="{ ariaLabel: 'Walking seconds per meter' }"
-            @update:model-value="set({ secondsPerMeter: Number($event) })"
+            @update:model-value="ifNumber($event, n => set({ secondsPerMeter: n }))"
           />
           <span class="cal-transfer-settings-help">{{ pace }}; no walk at the same stop</span>
         </label>
@@ -55,7 +55,7 @@
               size="small"
               class="cal-transfer-settings-number"
               v-bind="{ ariaLabel: `${bound}, in minutes` }"
-              @update:model-value="setBreakpoint(i, Number($event))"
+              @update:model-value="ifNumber($event, n => setBreakpoint(i, n))"
             />
             <span
               v-if="TRANSFER_GRADES[i]"
@@ -246,6 +246,15 @@ function range (i: number): string {
 
 function minutes (seconds: number | undefined): number | undefined {
   return seconds === undefined ? undefined : seconds / 60
+}
+
+// A field's number, applied; a field left empty, or not a number, changes
+// nothing, rather than reading as 0.
+function ifNumber (value: unknown, apply: (n: number) => void) {
+  const n = value === '' || value === null || value === undefined ? Number.NaN : Number(value)
+  if (Number.isFinite(n)) {
+    apply(n)
+  }
 }
 
 function setBreakpoint (index: number, mins: number) {

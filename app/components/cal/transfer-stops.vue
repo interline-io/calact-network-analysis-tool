@@ -104,8 +104,19 @@ const listed = computed(() => props.mapStops.filter((s) => {
 const NEARBY_KM = 0.15
 const nearby = computed(() => {
   const chosen = props.mapStops.filter(s => picked.value.has(s.id))
+  if (chosen.length === 0) {
+    return []
+  }
+  // Only stops in the picked ones' box, padded by the walk (a degree of
+  // latitude is about 111 km; of longitude, less), are measured.
+  const pad = NEARBY_KM / 111
+  const lats = chosen.map(c => c.lat)
+  const padLon = pad / Math.cos((Math.max(...lats.map(Math.abs)) * Math.PI) / 180)
+  const lons = chosen.map(c => c.lon)
+  const [west, east, south, north] = [Math.min(...lons) - padLon, Math.max(...lons) + padLon, Math.min(...lats) - pad, Math.max(...lats) + pad]
   return props.mapStops
-    .filter(s => !picked.value.has(s.id) && chosen.some(c => bearingAndDistance([c.lon, c.lat], [s.lon, s.lat]).km <= NEARBY_KM))
+    .filter(s => !picked.value.has(s.id) && s.lon >= west && s.lon <= east && s.lat >= south && s.lat <= north)
+    .filter(s => chosen.some(c => bearingAndDistance([c.lon, c.lat], [s.lon, s.lat]).km <= NEARBY_KM))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { StopDepartureCache } from '../../tl/departure-cache'
 import { isoToOrdinal, ordinalToIso } from '../../tl/feed-version'
 import type { TripDetail, TripStopTime } from '../../tl/trip-details'
+import type { TripTableStop } from './subject-trips'
 import {
   bearingAndDistance,
   calculateTransfers,
@@ -17,6 +18,7 @@ import {
   transferOverview,
   transferRows,
   transferSummaryGrid,
+  transferSummaryRows,
   transferTripChoices,
   transferTripInfo,
   transferTripKey,
@@ -121,8 +123,8 @@ describe('transferEvents', () => {
     const cache = cacheOf([
       [1, MON, hms(7), 100, 0, 10],
       [2, MON, hms(7, 2), 100, 0, 10],
-      // Trip 200 starts at stop 1 and goes on past stop 2: it departs from
-      // stop 2, starting here, and does not arrive.
+      // Trip 200 starts at stop 1 and goes on past stop 2: it departs,
+      // boarded at either, starting here, and does not arrive.
       [1, MON, hms(7), 200, 0, 20],
       [2, MON, hms(7, 2), 200, 0, 20],
     ])
@@ -132,10 +134,10 @@ describe('transferEvents', () => {
     ])
     const events = transferEvents({ stopIds: [1, 2], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
     expect(events.arrivals).toEqual([])
-    expect(events.departures.map(e => [e.tripId, e.stopId, e.terminal])).toEqual([[200, 2, true]])
+    expect(events.departures.map(e => [e.tripId, e.calls?.map(c => c.stopId), e.terminal])).toEqual([[200, [1, 2], true]])
   })
 
-  it('counts a trip at several of the stops once: arriving at the first, leaving from the last', () => {
+  it('counts a trip at several of the stops in a row once, with each call a rider could use', () => {
     const cache = cacheOf([
       [1, MON, hms(7), 100, 0, 10],
       [2, MON, hms(7, 2), 100, 0, 10],
@@ -144,8 +146,29 @@ describe('transferEvents', () => {
       [100, detail(100, [{ stopId: 9, departure: hms(6, 50) }, { stopId: 1, arrival: hms(7), departure: hms(7) }, { stopId: 2, arrival: hms(7, 2), departure: hms(7, 2) }, { stopId: 8, arrival: hms(7, 9) }])],
     ])
     const events = transferEvents({ stopIds: [1, 2], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
-    expect(events.arrivals.map(e => [e.stopId, calendarTime(e.time).seconds])).toEqual([[1, hms(7)]])
-    expect(events.departures.map(e => [e.stopId, calendarTime(e.time).seconds])).toEqual([[2, hms(7, 2)]])
+    const calls = (e: TransferEvent) => e.calls?.map(c => [c.stopId, calendarTime(c.time).seconds])
+    expect(events.arrivals.map(calls)).toEqual([[[1, hms(7)], [2, hms(7, 2)]]])
+    expect(events.departures.map(calls)).toEqual([[[1, hms(7)], [2, hms(7, 2)]]])
+  })
+
+  it('counts each visit of a trip that leaves the stops and comes back', () => {
+    // Loop trip 100: 9, 1 at 08:10, 8, 1 at 08:30, 7.
+    const cache = cacheOf([
+      [1, MON, hms(8, 10), 100, 0, 10],
+      [1, MON, hms(8, 30), 100, 0, 10],
+    ])
+    const tripDetails = new Map([
+      [100, detail(100, [
+        { stopId: 9, departure: hms(8) },
+        { stopId: 1, arrival: hms(8, 10), departure: hms(8, 10) },
+        { stopId: 8, arrival: hms(8, 20), departure: hms(8, 20) },
+        { stopId: 1, arrival: hms(8, 30), departure: hms(8, 30) },
+        { stopId: 7, arrival: hms(8, 40) },
+      ])],
+    ])
+    const events = transferEvents({ stopIds: [1], dates: [MON], startTime: 0, endTime: hms(24), stopDepartureCache: cache, tripDetails, ...reach })
+    expect(events.arrivals.map(e => [calendarTime(e.time).seconds, e.prevStation, e.nextStation])).toEqual([[hms(8, 10), 9, 8], [hms(8, 30), 8, 7]])
+    expect(events.departures.map(e => calendarTime(e.time).seconds)).toEqual([hms(8, 10), hms(8, 30)])
   })
 
   it('reads a departure past midnight on its service day, and counts arrivals only in the window', () => {
@@ -178,6 +201,24 @@ describe('transferEvents', () => {
 })
 
 describe('calculateTransfers', () => {
+  it('boards a trip at several of the stops at the call that serves the rider best', () => {
+    // Stops 1 and 2 are 300 s apart. Trip 2 leaves stop 1 at 08:02 and stop 2
+    // at 08:04; arriving at stop 1 at 08:00, a rider boards at stop 1.
+    const walkAB = { ...walk, walkSeconds: (a: number, b: number) => (a === b ? 0 : 300), maxWalkSeconds: 300 }
+    const departure = { ...event(2, 20, hms(8, 2), 1), calls: [{ stopId: 1, time: at(hms(8, 2)) }, { stopId: 2, time: at(hms(8, 4)) }] }
+    const [group] = calculateTransfers([event(1, 10, hms(8), 1)], [departure], walkAB)
+    expect(group!.connections.map(c => [c.departure.stopId, c.wait, c.grade])).toEqual([[1, 120, 'close']])
+    // Arriving at stop 2 at 08:00, and on to stop 1 at 08:03, a rider for a
+    // 08:04 departure at stop 1 stays on rather than walk and miss it.
+    const arrival = { ...event(1, 10, hms(8), 2), calls: [{ stopId: 2, time: at(hms(8)) }, { stopId: 1, time: at(hms(8, 3)) }] }
+    const [stayOn] = calculateTransfers([arrival], [{ ...event(2, 20, hms(8, 4), 1) }], walkAB)
+    expect(stayOn!.connections.map(c => [c.alight?.stopId, c.departure.stopId, c.walk, c.wait])).toEqual([[1, 1, 0, 60]])
+    // The CSV leaves the arriving trip where the rider does.
+    const stops = new Map([[1, { stop_id: 'A', stop_name: 'A' }], [2, { stop_id: 'B', stop_name: 'B' }]]) as unknown as Map<number, TripTableStop>
+    const [row] = transferRows([stayOn!], { routes: new Map(), stops, tripDetails: new Map() })
+    expect([row!.from_stop_id, row!.arrival_time, row!.to_stop_id]).toEqual(['A', '08:03:00', 'A'])
+  })
+
   it('pairs an arrival with departures on other routes, walking between stops', () => {
     const [group] = calculateTransfers([event(1, 10, hms(7))], [
       // The same trip, and the same route either way, are not transfers.
@@ -321,6 +362,24 @@ describe('summarizeTransfers and transferOverview', () => {
       [false, '07:45:00', 'unacceptable'],
       [true, '08:00:00', 'none'],
     ])
+  })
+
+  it('writes a summary row for an arriving destination with no connections', () => {
+    const lone = calculateTransfers([event(1, 30, hms(9))], departures, walk)
+    const rows = transferSummaryRows(summarizeTransfers(lone), new Map())
+    expect(rows.map(r => [r.arrivals, r.to_direction_id, r.close, r.median_wait_seconds])).toEqual([[1, '', 0, '']])
+  })
+
+  it('tags a pair by the way its connections go, or both where they differ', () => {
+    // Arriving from station 5 toward station 6.
+    const arrival = { ...event(1, 10, hms(7)), prevStation: 5, nextStation: 6 }
+    const on = (tripId: number, at: number, next: number) => ({ ...event(tripId, 20, at), nextStation: next })
+    const tag = (deps: TransferEvent[]) => {
+      const rows = transferSummaryGrid(summarizeTransfers(calculateTransfers([arrival], deps, { ...walk, countSameWay: true, allConnections: true })), { routes: new Map(), from: new Map(), to: new Map() })
+      return rows[1]!.tags.filter(t => t.kind === 'back' || t.kind === 'same').map(t => [t.kind, t.label])
+    }
+    expect(tag([on(2, hms(7, 2), 6), on(3, hms(7, 4), 6)])).toEqual([['same', 'Same way']])
+    expect(tag([on(2, hms(7, 2), 5), on(3, hms(7, 4), 6)])).toEqual([['back', 'Back or same way']])
   })
 
   it('sums up every arrival by its soonest connection', () => {
@@ -510,6 +569,8 @@ describe('encodeTransferSettings', () => {
 
   it('leaves what it cannot read at the defaults', () => {
     expect(decodeTransferSettings('not json')).toEqual(DEFAULT_TRANSFER_SETTINGS)
+    expect(decodeTransferSettings('null')).toEqual(DEFAULT_TRANSFER_SETTINGS)
+    expect(decodeTransferSettings('[1]')).toEqual(DEFAULT_TRANSFER_SETTINGS)
     expect(decodeTransferSettings(JSON.stringify({ walkDistance: 'teleport', breakpoints: [3, 2, 1], secondsPerMeter: 1.5 })))
       .toEqual({ ...DEFAULT_TRANSFER_SETTINGS, secondsPerMeter: 1.5 })
   })

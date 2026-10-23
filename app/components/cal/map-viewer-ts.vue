@@ -1051,8 +1051,11 @@ function showPopupAtIndex (index: number) {
       },
       onOpenTransfers: (featureType: string, featureId: string | number) => {
         emit('openTransfers', featureType, featureId)
-        // The Reports tab replaces the map.
+        // The Reports tab replaces the map, and no panel takes over the
+        // selection, so it closes as the popup's close button closes it.
         removePopup()
+        updateHighlight(undefined)
+        emit('popupClosed')
       },
     })
   })

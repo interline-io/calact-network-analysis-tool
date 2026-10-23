@@ -169,6 +169,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const distancesRequested = new Set<string>()
   const distancesLoading = ref(0)
   const distancesError = ref<string | null>(null)
+  // The pairs and sources the last load asked for, so pairs not yet asked
+  // for are not taken as having no distance.
+  const distancesFor = ref('')
   const { resolveClient } = useApolloClient()
 
   const stopPoints = computed((): StopPoint[] => stopIds.value.flatMap((id) => {
@@ -185,10 +188,12 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   // setting, so other settings changing leave it, and what follows it, be.
   const walkDistance = computed(() => settings.value.walkDistance)
   const distanceModes = computed((): StopDistanceMode[] => (walkDistance.value === 'street' ? ['WALK', 'LINE'] : ['LINE']))
+  const distancesKey = computed(() => `${distanceModes.value.join(',')}|${stopIds.value.join(',')}`)
 
   // Each mode's pairs not yet asked for, fetched in parallel batches, and
   // applied together.
   async function loadDistances (): Promise<void> {
+    const asked = distancesKey.value
     const requestKey = (mode: StopDistanceMode, a: StopPoint, b: StopPoint) => `${mode}|${stopPairKey(a.id, b.id)}`
     const batches = distanceModes.value.flatMap((mode) => {
       const wanted = pairs.value.filter(([a, b]) => !distancesRequested.has(requestKey(mode, a, b)))
@@ -198,6 +203,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       return chunkArray(wanted, STOP_DISTANCE_BATCH_SIZE).map(batch => ({ mode, batch }))
     })
     if (batches.length === 0) {
+      distancesFor.value = asked
       return
     }
     distancesLoading.value++
@@ -237,6 +243,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       }
     }
     triggerRef(distances)
+    distancesFor.value = asked
     distancesLoading.value--
   }
 
@@ -288,6 +295,22 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const individualDate = computed(() => {
     const picked = toValue(deps.selectedDate)
     return picked && individualDates.value.includes(picked) ? picked : individualDates.value[0]
+  })
+
+  // Where the date is the query's last and connections reach past midnight,
+  // or its first and missed ones reach back before, the departures on the
+  // day beyond were not loaded, so those connections are missing.
+  const midnightCut = computed((): 'before' | 'after' | undefined => {
+    const date = individualDate.value
+    const range = toValue(deps.selectedDateRange)
+    if (!date || range.length === 0) {
+      return undefined
+    }
+    const { startTime, endTime } = timeWindow.value
+    if (date === fmtDate(range[range.length - 1]!) && endTime + mostWalk.value + waitReach.value > 86400) {
+      return 'after'
+    }
+    return date === fmtDate(range[0]!) && startTime + missedReach.value < 0 ? 'before' : undefined
   })
 
   // The date's arrivals, and the departures they can reach, which is all the
@@ -387,10 +410,13 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     await Promise.all([
       distancesError.value ? undefined : loadDistances(),
+      // A load that succeeds leaves another's failure for a retry to clear.
       detailsError.value
         ? undefined
         : store.load(events.value?.missingTripIds ?? []).then((err) => {
-            detailsError.value = err
+            if (err) {
+              detailsError.value = err
+            }
           }),
     ])
   }
@@ -399,6 +425,11 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     distancesError.value = null
     return load()
   }
+  // A new scenario starts afresh, not held back by the last one's failure.
+  watch(() => result.value?.stopDepartureCache, () => {
+    detailsError.value = null
+    distancesError.value = null
+  })
   // Nothing is read while hidden, so the report does no work then; each
   // source compared by value, so a recompute that changes nothing loads
   // nothing.
@@ -471,13 +502,14 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     overview,
     individualDates,
     individualDate,
+    midnightCut,
     individualGrid,
     individualPoints,
     detailsLoading: computed(() => store.loading.value || distancesLoading.value > 0),
     detailsError: computed(() => detailsError.value ?? (distancesError.value ? `distances between stops: ${distancesError.value}` : null)),
     // Pairs of the stops with no distance to walk between them, which are
     // left out.
-    unknownPairs: computed(() => (distancesLoading.value > 0 ? 0 : walkTable.value.unknown)),
+    unknownPairs: computed(() => (distancesLoading.value > 0 || distancesFor.value !== distancesKey.value ? 0 : walkTable.value.unknown)),
     retry,
   }
 }

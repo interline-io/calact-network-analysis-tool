@@ -48,6 +48,15 @@ export interface TransferEvent {
   // just after, where it does.
   prevStation?: number
   nextStation?: number
+  // Every call on this visit to the stops a rider could leave the trip at
+  // (an arrival) or board it at (a departure), in time order, the event's own
+  // first. A connection uses whichever pair of calls serves the rider best.
+  calls?: TransferCall[]
+}
+
+export interface TransferCall {
+  stopId: number
+  time: number
 }
 
 export type TransferGrade = 'missed' | 'close' | 'acceptable' | 'unacceptable'
@@ -72,7 +81,11 @@ export const TRANSFER_GRADE_COLORS: Record<TransferGrade, { fill: string, text: 
 }
 
 export interface TransferConnection {
+  // At the call it is boarded at.
   departure: TransferEvent
+  // Where the rider leaves the arriving trip, where not at the arrival's own
+  // stop: staying on to another of the stops.
+  alight?: TransferCall
   walk: number
   // Seconds between arriving after the walk and the departure; negative for a
   // missed connection.
@@ -98,8 +111,6 @@ export interface TransferSettings {
   secondsPerMeter: number
   // Every connection, rather than the first on each route and direction.
   allConnections: boolean
-  // Connections that are likely the arriving vehicle turning back, which are
-  // otherwise left out.
   // Count connections back the way an arrival came or on its own way.
   countSameWay: boolean
   // Five increasing wait breakpoints, in seconds.
@@ -423,6 +434,9 @@ export function decodeTransferSettings (json: string | undefined): TransferSetti
   } catch {
     return out
   }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return out
+  }
   const strings = (v: unknown) => Array.isArray(v) && v.every(x => typeof x === 'string')
   if (raw.walkDistance === 'line' || raw.walkDistance === 'street') {
     out.walkDistance = raw.walkDistance
@@ -514,10 +528,13 @@ export interface TransferEvents {
 
 interface TripCall {
   stopTime: TripStopTime
-  // Whether the trip calls anywhere else before the stop, and after it.
+  // The first call of the visit to the stops this call is on: the calls in a
+  // row at the stops, which a trip passing the stops twice makes twice.
+  visit: number
+  // Whether the trip calls anywhere else before the visit, and after it.
   comesFrom: boolean
   goesOn: boolean
-  // The stations it calls at just before the stops and just after.
+  // The stations it calls at just before the visit and just after.
   prevStation?: number
   nextStation?: number
   // What the trip is signed for there.
@@ -540,19 +557,18 @@ function findCall (detail: TripDetail, stopId: number, departureTime: number, at
   if (!stopTime) {
     return null
   }
-  let prev: TripStopTime | undefined
-  let next: TripStopTime | undefined
-  for (let i = 0; i < stopTimes.length; i++) {
-    if (i !== index && !atStops.has(stopTimes[i]!.stopId)) {
-      if (i < index) {
-        prev = stopTimes[i]
-      } else {
-        next ??= stopTimes[i]
-      }
-    }
+  let first = index
+  while (first > 0 && atStops.has(stopTimes[first - 1]!.stopId)) {
+    first--
   }
+  let last = index
+  while (last < stopTimes.length - 1 && atStops.has(stopTimes[last + 1]!.stopId)) {
+    last++
+  }
+  const prev = stopTimes[first - 1]
+  const next = stopTimes[last + 1]
   const station = (s: TripStopTime | undefined) => s && (s.stationId ?? s.stopId)
-  return { stopTime, comesFrom: !!prev, goesOn: !!next, prevStation: station(prev), nextStation: station(next), headsign: tripHeadsignAt(detail, stopId) }
+  return { stopTime, visit: first, comesFrom: !!prev, goesOn: !!next, prevStation: station(prev), nextStation: station(next), headsign: tripHeadsignAt(detail, stopId) }
 }
 
 /**
@@ -560,13 +576,27 @@ function findCall (detail: TripDetail, stopId: number, departureTime: number, at
  * lets riders off, coming from somewhere else, and departs where it picks
  * them up, going on somewhere else; a trip moving only between the stops
  * does neither. Each says whether the trip ends (or starts) at the stops. A
- * trip at several of the stops arrives at the first of them and departs from
- * the last, the most time it gives a rider.
+ * trip calling at several of the stops in a row makes one arrival and one
+ * departure, at its first call, with every call a rider could use; one that
+ * leaves the stops and comes back makes one of each per visit.
  *
  * The departure cache gives each departure's time; the trip's details give its
  * arrival there (by the scheduled gap between the two), its place in the trip,
  * and drop-off rules.
  */
+// A call on a visit to the stops, keeping the visit's event at its first
+// call.
+function addCall (events: Map<string, TransferEvent>, key: string, e: TransferEvent) {
+  const seen = events.get(key)
+  const call = { stopId: e.stopId, time: e.time }
+  if (!seen) {
+    events.set(key, { ...e, calls: [call] })
+  } else if (!seen.calls!.some(c => c.stopId === call.stopId && c.time === call.time)) {
+    const calls = [...seen.calls!, call].sort((a, b) => a.time - b.time)
+    events.set(key, call.time < seen.time ? { ...e, calls } : { ...seen, calls })
+  }
+}
+
 export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   const arrivals = new Map<string, TransferEvent>()
   const departures = new Map<string, TransferEvent>()
@@ -632,14 +662,14 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
         if (!call) {
           continue
         }
-        const { stopTime, comesFrom, goesOn, headsign, prevStation, nextStation } = call
+        const { stopTime, visit, comesFrom, goesOn, headsign, prevStation, nextStation } = call
         const serviceDay = day - Math.floor(st.departureTime / SECONDS_PER_DAY)
         const serviceDate = dateOf(serviceDay)
         const base = serviceDay * SECONDS_PER_DAY
         // One run of the trip: a trip from frequencies.txt runs many times a
         // day under one id, each run offset from its stated times.
         const runOffset = st.departureTime - (stopTime.departure ?? st.departureTime)
-        const key = `${st.tripId}|${serviceDate}|${runOffset}`
+        const key = `${st.tripId}|${serviceDate}|${runOffset}|${visit}`
         const event = (time: number): TransferEvent => ({
           tripId: st.tripId,
           routeId: st.routeId,
@@ -659,17 +689,10 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
         if (comesFrom && stopTime.dropOffType !== 1) {
           const dwell = stopTime.arrival !== undefined && stopTime.departure !== undefined ? stopTime.departure - stopTime.arrival : 0
           const time = base + st.departureTime - Math.max(0, dwell)
-          const seen = arrivals.get(key)
-          if (!seen || time < seen.time) {
-            arrivals.set(key, { ...event(time), terminal: !goesOn })
-          }
+          addCall(arrivals, key, { ...event(time), terminal: !goesOn })
         }
         if (goesOn && (st.pickupType ?? stopTime.pickupType) !== 1) {
-          const time = base + st.departureTime
-          const seen = departures.get(key)
-          if (!seen || time > seen.time) {
-            departures.set(key, { ...event(time), terminal: !comesFrom })
-          }
+          addCall(departures, key, { ...event(base + st.departureTime), terminal: !comesFrom })
         }
       }
     }
@@ -697,6 +720,31 @@ function sharedWay (arrival: TransferEvent, departure: TransferEvent): TransferW
     return undefined
   }
   return next === arrival.prevStation ? 'back' : next === arrival.nextStation ? 'same' : undefined
+}
+
+// The calls to leave one trip at and board another at, with the walk and
+// wait between, that serve a rider best: the shortest wait of those made,
+// else the connection missed by the least. None where no pair falls within
+// the waits.
+function bestCalls (alights: TransferCall[], boards: TransferCall[], walkSeconds: (from: number, to: number) => number, minWait: number, maxWait: number) {
+  let best: { alight: TransferCall, board: TransferCall, walk: number, wait: number } | undefined
+  for (const alight of alights) {
+    for (const board of boards) {
+      const walk = walkSeconds(alight.stopId, board.stopId)
+      if (!Number.isFinite(walk)) {
+        continue
+      }
+      const wait = board.time - alight.time - walk
+      if (wait < minWait || wait > maxWait) {
+        continue
+      }
+      const better = !best || (wait >= 0 ? best.wait < 0 || wait < best.wait : best.wait < 0 && wait > best.wait)
+      if (better) {
+        best = { alight, board, walk, wait }
+      }
+    }
+  }
+  return best
 }
 
 // The first index in sorted events at or after time.
@@ -737,37 +785,47 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
   // The destinations (transferTripKey) an arrival has made a connection to,
   // cleared for each arrival.
   const made = new Set<string>()
+  const callsOf = (e: TransferEvent): TransferCall[] => e.calls ?? [{ stopId: e.stopId, time: e.time }]
+  // How long the longest visit's calls run past its first, so the search
+  // for departures starts early enough to reach a later call on one.
+  const span = departures.reduce((most, d) => Math.max(most, callsOf(d).at(-1)!.time - d.time), 0)
   return arrivals.map((arrival) => {
     const connections: TransferConnection[] = []
-    const last = arrival.time + opts.maxWalkSeconds + maxWait
-    // Departures come sorted by time, as transferEvents gives them.
-    for (let i = lowerBound(departures, arrival.time + minWait); i < departures.length && departures[i]!.time <= last; i++) {
+    const alights = callsOf(arrival)
+    const last = alights[alights.length - 1]!.time + opts.maxWalkSeconds + maxWait
+    // Departures come sorted by their first call's time, as transferEvents
+    // gives them.
+    for (let i = lowerBound(departures, arrival.time + minWait - span); i < departures.length && departures[i]!.time <= last; i++) {
       const departure = departures[i]!
       // Not the same route either way, which takes in the same trip.
       if (departure.routeId === arrival.routeId) {
         continue
       }
-      const walk = opts.walkSeconds(arrival.stopId, departure.stopId)
-      if (!Number.isFinite(walk)) {
-        continue
-      }
-      const wait = departure.time - arrival.time - walk
-      if (wait < minWait || wait > maxWait) {
+      const best = bestCalls(alights, callsOf(departure), opts.walkSeconds, minWait, maxWait)
+      if (!best) {
         continue
       }
       const way = sharedWay(arrival, departure)
       if (way && !opts.countSameWay) {
         continue
       }
-      connections.push({ departure, walk, wait, grade: transferGrade(wait, bp), ...(way ? { way } : {}) })
+      const { alight, board, walk, wait } = best
+      connections.push({
+        departure: board.stopId === departure.stopId && board.time === departure.time ? departure : { ...departure, ...board, ...calendarTime(board.time) },
+        ...(alight.stopId !== arrival.stopId || alight.time !== arrival.time ? { alight } : {}),
+        walk,
+        wait,
+        grade: transferGrade(wait, bp),
+        ...(way ? { way } : {}),
+      })
     }
-    // In departure order, as gathered: a destination's first connection
-    // made is the earliest departure a rider can take, which from a nearer
-    // stop may have the longer wait.
+    // In departure order, by the call boarded at: a destination's first
+    // connection made is the earliest departure a rider can take, which from
+    // a nearer stop may have the longer wait.
     made.clear()
     const kept = opts.allConnections
       ? connections
-      : connections.filter((c) => {
+      : connections.sort((a, b) => a.departure.time - b.departure.time).filter((c) => {
           const key = transferTripKey(c.departure)
           if (made.has(key)) {
             return false
@@ -803,12 +861,12 @@ export interface TransferOverview {
   medianWait?: number
 }
 
-// The figures over all of the groups' arrivals.
 // Connections by departure, earliest first; by wait where two leave at once.
 function inDepartureOrder (connections: TransferConnection[]): TransferConnection[] {
   return [...connections].sort((a, b) => a.departure.time - b.departure.time || a.wait - b.wait)
 }
 
+// The figures over all of the groups' arrivals.
 export function transferOverview (groups: TransferGroup[]): TransferOverview {
   const counts: Record<TransferGrade, number> = { missed: 0, close: 0, acceptable: 0, unacceptable: 0 }
   let connections = 0
@@ -869,8 +927,9 @@ function tripRef (e: TransferEvent): TransferTripRef {
 export interface TransferPairSummary {
   to: TransferTripRef
   // Connections back the way the arrival came or on its own way, where they
-  // are counted.
+  // are counted; and which way, where all go one.
   sameWay: number
+  way?: TransferWay
   // Connections by grade.
   missed: number
   close: number
@@ -942,7 +1001,10 @@ export function summarizeTransfers (groups: TransferGroup[]): TransferArrivalSum
           pairs.set(to.key, p)
         }
         p.pair[c.grade] += 1
-        p.pair.sameWay += c.way ? 1 : 0
+        if (c.way) {
+          p.pair.way = p.pair.sameWay === 0 || p.pair.way === c.way ? c.way : undefined
+          p.pair.sameWay += 1
+        }
         if (c.grade !== 'missed' && !firstMade.has(to.key)) {
           firstMade.add(to.key)
           p.firstWaits.push(c.wait)
@@ -992,7 +1054,9 @@ export interface TransferSummaryRow {
   to_route_color: string
   to_route_text_color: string
   to_agency_name: string
-  to_direction_id: number
+  // Blank, with the other to_ columns, for an arriving destination with no
+  // connections.
+  to_direction_id: number | ''
   to_headsign: string
   arrivals: number
   missed: number
@@ -1011,7 +1075,6 @@ function percent (share: number): number {
   return Math.round(share * 1000) / 10
 }
 
-// A row per pair of arriving and departing destinations, for the CSV.
 type Side = 'from' | 'to'
 type RouteColumns<P extends Side> = Record<`${P}_route_id` | `${P}_route_name` | `${P}_route_color` | `${P}_route_text_color` | `${P}_agency_name`, string>
 type StopColumns<P extends Side> = Record<`${P}_stop_id` | `${P}_stop_name`, string>
@@ -1035,9 +1098,31 @@ function stopColumns<P extends Side> (side: P, stop: TripTableStop | undefined):
   } as StopColumns<P>
 }
 
+// A row per pair of arriving and departing destinations, for the CSV; and one
+// for an arriving destination with none.
 export function transferSummaryRows (summaries: TransferArrivalSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
-  return summaries.flatMap(({ from: f, overview, pairs }) => {
+  return summaries.flatMap(({ from: f, overview, pairs }): TransferSummaryRow[] => {
     const from = routeColumns('from', routes.get(f.routeId))
+    // An arriving destination with no connections, as the Summary shows it.
+    if (pairs.length === 0) {
+      return [{
+        ...from,
+        from_direction_id: f.directionId,
+        from_headsign: f.headsign ?? '',
+        ...routeColumns('to', undefined),
+        to_direction_id: '',
+        to_headsign: '',
+        arrivals: overview.arrivals,
+        missed: 0,
+        close: 0,
+        acceptable: 0,
+        unacceptable: 0,
+        close_or_acceptable_share: 0,
+        close_share: 0,
+        acceptable_share: 0,
+        median_wait_seconds: '',
+      }]
+    }
     return pairs.map((s) => {
       return {
         ...from,
@@ -1113,18 +1198,19 @@ interface GridTripOptions {
   to: Map<string, TransferTripDestination>
 }
 
-// The tag for connections back the way the arrival came or on its own way.
+// The tag for connections back the way the arrival came or on its own way;
+// without a way, some of each.
 function sameWayTag (way: TransferWay | undefined, count: number, of: number): TransferTripTag {
   const text = way === 'back'
-    ? 'It goes back the way the arriving trip came'
+    ? 'back the way the arriving trip came'
     : way === 'same'
-      ? 'It goes on the way the arriving trip goes'
-      : 'They go back the way the arriving trip came, or on its way'
+      ? 'on the way the arriving trip goes'
+      : 'back the way the arriving trip came, or on its way'
   return {
     kind: way === 'same' ? 'same' : 'back',
     partial: count < of,
-    label: way === 'same' ? 'Same way' : 'Back the way it came',
-    title: of === 1 ? `${text}: not a change a rider needs.` : `${count.toLocaleString()} of these ${of.toLocaleString()} connections go back the way the arriving trip came, or on its way: not changes a rider needs.`,
+    label: way === 'same' ? 'Same way' : way === 'back' ? 'Back the way it came' : 'Back or same way',
+    title: of === 1 ? `It goes ${text}: not a change a rider needs.` : `${count.toLocaleString()} of these ${of.toLocaleString()} connections go ${text}: not changes a rider needs.`,
   }
 }
 
@@ -1171,7 +1257,7 @@ export function transferSummaryGrid (summaries: TransferArrivalSummary[], opts: 
         median_wait_seconds: overview.medianWait ?? '',
       },
       ...pairs.map((p): TransferSummaryGridRow => ({
-        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.sameWay > 0 ? [sameWayTag(undefined, p.sameWay, p.missed + p.close + p.acceptable + p.unacceptable)] : []),
+        ...gridTrip(p.to, 'to', opts, { id: `${group}>${p.to.key}`, group }, p.sameWay > 0 ? [sameWayTag(p.way, p.sameWay, p.missed + p.close + p.acceptable + p.unacceptable)] : []),
         arrivals: '',
         missed: p.missed,
         close: p.close,
@@ -1212,7 +1298,10 @@ export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & {
       ...connections.map((c, i) => ({
         ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }, c.way ? [sameWayTag(c.way, 1, 1)] : []),
         time: departureTime(c.departure, dayStart),
-        stop_name: opts.stops.get(c.departure.stopId)?.stop_name ?? '',
+        // Staying on the arriving trip to another of the stops, from there.
+        stop_name: c.alight
+          ? `${opts.stops.get(c.alight.stopId)?.stop_name ?? ''} → ${opts.stops.get(c.departure.stopId)?.stop_name ?? ''}`
+          : opts.stops.get(c.departure.stopId)?.stop_name ?? '',
         walk_seconds: c.walk,
         wait_seconds: c.wait,
         grade: c.grade,
@@ -1292,6 +1381,10 @@ export function transferRows (
     for (const c of connections) {
       rows.push({
         ...incoming,
+        // Where the rider stays on to another of the stops, leaving there.
+        ...(c.alight
+          ? { arrival_time: formatGtfsTimeFull(c.alight.time - dayStart), ...stopColumns('from', opts.stops.get(c.alight.stopId)) }
+          : {}),
         departure_time: departureTime(c.departure, dayStart),
         ...routeColumns('to', opts.routes.get(c.departure.routeId)),
         to_trip_id: opts.tripDetails.get(c.departure.tripId)?.tripId ?? '',

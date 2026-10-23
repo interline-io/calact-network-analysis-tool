@@ -558,7 +558,8 @@ function inRing (x: number, y: number, ring: [number, number][]): boolean {
 
 watch(() => props.stops, updateStops)
 watch(() => props.routes, updateRoutes)
-watch(selected, updatePicked)
+// The picked stops' routes follow the stops too, as a filter changes them.
+watch([selected, pickedRoutes], updatePicked)
 watch(() => props.highlight, setHighlight)
 watch(() => props.extent, updateExtent)
 watch(() => props.fitKey, () => nextTick(fit))

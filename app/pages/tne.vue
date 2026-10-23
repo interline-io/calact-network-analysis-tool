@@ -91,6 +91,7 @@
                 :extent="transferExtent"
                 :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"
+                :midnight-cut="transfers.midnightCut"
                 :route-choices="transfers.routeChoices"
                 :unknown-pairs="transfers.unknownPairs"
                 :summary-grid="transferView === 'summary' ? transfers.summaryGrid : []"
@@ -942,10 +943,16 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
 const reportTab = ref<ReportTab>('routes')
 // The stop or cluster ("transferAt"), and the stops added to or taken from
 // its own ("transferStops", as "+id" and "-id"), are in the URL, so a link
-// shares the analysis. A new subject starts from its own stops.
+// shares the analysis. A new subject starts from its own stops, and with
+// no trips filtered out, as the last one's routes may also serve it.
 const transferSubject = computed({
   get: () => query.value.transferAt?.toString() ?? '',
-  set: (v: string) => { setQuery({ transferAt: v || undefined, transferStops: undefined }) },
+  set: (v: string) => {
+    if (v !== transferSubject.value) {
+      transfers.settings = { ...transfers.settings, excludedFrom: [], excludedTo: [] }
+    }
+    setQuery({ transferAt: v || undefined, transferStops: undefined })
+  },
 })
 // The date shown ("transferDate"), in the URL too.
 const transferDate = computed({

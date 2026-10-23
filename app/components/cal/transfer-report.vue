@@ -176,6 +176,17 @@
         No trips arrive here within the filters.
       </p>
       <template v-else>
+        <!-- Dates are listed by departures, read before trips' details, so a
+             date whose trips only start here has none arriving. -->
+        <p v-if="overview.arrivals === 0 && !detailsLoading" class="cal-transfer-report-note">
+          No trips arrive here on this date within the filters.
+        </p>
+        <!-- Departures are loaded for the query's dates alone. -->
+        <p v-if="midnightCut" class="cal-transfer-report-note">
+          {{ midnightCut === 'after'
+            ? 'Departures after midnight fall past the query\'s last date, so connections onto them are left out; end the query a day later to count them.'
+            : 'Departures before midnight fall before the query\'s first date, so connections missed just after midnight are left out; start the query a day earlier to count them.' }}
+        </p>
         <!-- The view's key figures beside a bar of its connections by grade. -->
         <div class="cal-transfer-report-overview">
           <dl class="cal-transfer-report-figures">
@@ -338,6 +349,9 @@ const props = defineProps<{
   overview: TransferOverview
   individualDates: string[]
   individualDate?: string
+  // Whether connections across midnight are cut off, as the departures on
+  // the day after the query's last date, or before its first, are not loaded.
+  midnightCut?: 'before' | 'after'
   individualGrid: TransferGridRow[]
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
   // The breakpoints in use, in seconds.
