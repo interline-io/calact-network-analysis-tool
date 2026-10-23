@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bearingAndDistance, centerOf, compassRings, compassScale, quietBearing, transferCompassPlaces, transferRose } from './transfer-compass'
+import { bearingAndDistance, centerOf, compassRings, compassScale, quietBearing, spreadBearings, transferCompassPlaces, transferRose } from './transfer-compass'
 import type { TransferArrivalSummary, TransferRouteChoice, TransferTripDestination } from './transfers'
 
 const MILLBRAE: [number, number] = [-122.387, 37.600]
@@ -46,6 +46,15 @@ describe('transferCompassPlaces', () => {
     expect(sf).toMatchObject({ name: 'San Francisco', keys: ['a', 'b'], count: 15 })
   })
 
+  it('keeps stations of one name in different places apart', () => {
+    const twoCenters = [route([
+      destination('n', 1, { terminus: 'Transit Center', terminusPoint: SF }),
+      destination('s', 1, { terminus: 'Transit Center', terminusPoint: SAN_JOSE }),
+    ])]
+    const places = transferCompassPlaces(twoCenters, 'to', MILLBRAE)
+    expect(places.map(p => [p.name, p.keys])).toEqual([['Transit Center', ['s']], ['Transit Center', ['n']]])
+  })
+
   it('places arriving destinations by where their trips start, in bearing order', () => {
     expect(transferCompassPlaces(choices, 'from', MILLBRAE).map(p => p.name)).toEqual(['San Jose', 'Tamien'])
   })
@@ -62,7 +71,7 @@ describe('transferRose', () => {
       { to: ref('unplaced'), missed: 0, close: 5, acceptable: 0, unacceptable: 0 },
     ],
   }] as unknown as TransferArrivalSummary[]
-  const place = (name: string, bearing: number, keys: string[]) => ({ name, bearing, km: 10, keys, count: 1 })
+  const place = (name: string, bearing: number, keys: string[]) => ({ key: name, name, bearing, km: 10, keys, count: 1 })
   const compass = { from: [place('San Jose', 135, ['in'])], to: [place('San Francisco', 0, ['north']), place('Tamien', 140, ['south'])] }
   const info = {
     routes: new Map([[1, { route_id: 'R1', route_short_name: 'Local', agency_name: 'Caltrain' }]]),
@@ -92,5 +101,16 @@ describe('quietBearing', () => {
     expect(quietBearing([0, 90, 180])).toBe(270)
     expect(quietBearing([300, 60])).toBe(180)
     expect(quietBearing([])).toBe(45)
+  })
+})
+
+describe('spreadBearings', () => {
+  it('fans apart places either side of north', () => {
+    const [a, b] = spreadBearings([358, 2], 10)
+    expect(((b! - a!) % 360 + 360) % 360).toBeCloseTo(10)
+  })
+
+  it('leaves places far enough apart as they are', () => {
+    expect(spreadBearings([10, 100, 200], 10).map(a => Math.round(a % 360))).toEqual([10, 100, 200])
   })
 })

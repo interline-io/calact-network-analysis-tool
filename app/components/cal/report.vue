@@ -401,17 +401,19 @@ watch(activeReportTab, (tab) => {
   }
 })
 
+// Each immediate too, as the tab outlives this component: shown again with
+// its tab gone, it moves off it.
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
 
 watch(hasClusterData, (has) => {
   if (!has && activeReportTab.value === 'stop-clusters') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
 
 // Without fixed-route service the Transfer Analyst tab goes, so leave it
 // for Flex Areas, the one tab left.
@@ -419,7 +421,7 @@ watch(fixedRouteEnabled, (enabled) => {
   if (!enabled && isTransfers.value) {
     activeReportTab.value = 'flex'
   }
-})
+}, { immediate: true })
 
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {

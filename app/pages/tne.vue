@@ -38,7 +38,7 @@
             :scenario-loaded="!!scenarioData"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
-            @reset-scenario="clearScenario"
+            @reset-scenario="resetScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
           />
@@ -378,7 +378,13 @@ function clearScenario () {
   // Shared with the trip table, so this forgets both views' details.
   clearTripPanelDetails()
   clearAllResults()
-  // A new query starts the Transfer Analyst over too.
+}
+
+// Reset to start a new query, the Transfer Analyst over too. Apart from
+// clearScenario, which the leave guard also calls, as a URL write there would
+// cancel the navigation it just allowed.
+function resetScenario () {
+  clearScenario()
   setQuery({ transferAt: undefined, transferStops: undefined, transferDate: undefined })
   transfers.settings = decodeTransferSettings(undefined)
   transferView.value = 'summary'
@@ -1026,7 +1032,11 @@ function enableClustersForTransfers () {
 // Entered from a cluster, Stops & platforms opens first, as a cluster's
 // stops are the first thing to check.
 function openTransfers (subject: TripSubject) {
-  transferSubject.value = transferSubjectKey(subject)
+  // The same subject again keeps its stop edits.
+  const key = transferSubjectKey(subject)
+  if (key !== transferSubject.value) {
+    transferSubject.value = key
+  }
   transferSection.value = subject.kind === 'cluster' ? 'stops' : 'trips'
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
@@ -1214,13 +1224,17 @@ useClusterRefetch({
 
 // A Transfer Analyst subject the loaded scenario does not have, as from a
 // link made for another area or older data, is dropped with its stop edits
-// once the scenario has finished loading.
-watch(() => [transfers.subjectOptions, runInFlight.value, refetchInFlight.value, !!scenarioFilterResult.value] as const, ([options, running, refetching, loaded]) => {
-  const key = transferSubject.value
-  if (!key || !loaded || running > 0 || refetching > 0) {
+// once the scenario has finished loading. Its stops and clusters as loaded,
+// not as filtered, so a filter leaving the subject without service keeps it.
+watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
+  const subject = transferSubjectFromKey(transferSubject.value)
+  if (!subject || !data || running > 0 || refetching > 0) {
     return
   }
-  if (![...options.clusters, ...options.stops].some(o => o.key === key)) {
+  const known = subject.kind === 'stop'
+    ? data.stops.some(s => s.id === subject.stopId)
+    : subject.kind === 'cluster' && (data.stopClusters ?? []).some(c => c.id === subject.clusterId)
+  if (!known) {
     transferSubject.value = ''
   }
 })

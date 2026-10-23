@@ -49,23 +49,23 @@
           </template>
           <line
             v-for="p of placed"
-            :key="`port-${p.name}`"
+            :key="`port-${p.key}`"
             class="cal-transfer-rose-port"
             v-bind="p.port"
-            @click="toggleFlows(placeFlows(p.name), p.name)"
+            @click="toggleFlows(placeFlows(p.key), p.key)"
           />
           <circle class="cal-transfer-rose-center" r="5" />
         </svg>
         <span class="cal-transfer-rose-north" :style="at(0, -HEIGHT / 2 + 8)">N</span>
         <button
           v-for="p of placed"
-          :key="`label-${p.name}`"
+          :key="`label-${p.key}`"
           type="button"
           class="cal-transfer-rose-label"
           :class="[`cal-transfer-rose-label-${p.labelX < 0 ? 'left' : 'right'}`, { 'cal-transfer-rose-label-faded': emphasis && !p.involved }]"
           :style="at(p.labelX, p.labelY)"
-          @click="toggleFlows(placeFlows(p.name), p.name)"
-          @mouseenter="hover = { flows: new Set(placeFlows(p.name)), text: placeText(p.name) }"
+          @click="toggleFlows(placeFlows(p.key), p.key)"
+          @mouseenter="hover = { flows: new Set(placeFlows(p.key)), text: placeText(p.key) }"
           @mouseleave="hover = undefined"
         >
           <span class="cal-transfer-rose-label-name">{{ p.name }}</span>
@@ -75,8 +75,8 @@
         <template v-if="hover">
           {{ hover.text }}
         </template>
-        <template v-else-if="checked.size > 0">
-          Highlighted: {{ flowsText([...checked]) }}
+        <template v-else-if="checkedFlows.length > 0">
+          Highlighted: {{ flowsText(checkedFlows) }}
         </template>
         <template v-else>
           Each band pairs where arriving trips come from with where departing
@@ -104,7 +104,7 @@
         </cat-field>
         <span class="cal-transfer-rose-links">
           Highlight
-          <button type="button" class="cal-transfer-rose-link" @click="checked = new Set(rose.flows)">All</button>
+          <button type="button" class="cal-transfer-rose-link" @click="checked = new Set(rose.flows.map(flowKey))">All</button>
           <button type="button" class="cal-transfer-rose-link" @click="checked = new Set()">None</button>
         </span>
       </div>
@@ -145,7 +145,7 @@
               <span class="cal-transfer-rose-text">{{ row.label }}</span>
               <span v-if="row.place" class="cal-transfer-rose-place">{{ groupBy === 'from' ? 'to' : 'from' }} {{ row.place }}</span>
             </cat-checkbox>
-            <button type="button" class="cal-transfer-rose-link cal-transfer-rose-only" @click="checked = new Set(row.flows)">
+            <button type="button" class="cal-transfer-rose-link cal-transfer-rose-only" @click="checked = new Set(row.flows.map(flowKey))">
               Only
             </button>
           </span>
@@ -179,14 +179,17 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import { escapeHtml } from '~~/src/core'
+import { escapeHtml, groupBy as groupByKey } from '~~/src/core'
 import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  along,
   compassRings,
   compassScale,
   quietBearing,
+  spreadBearings,
+  spreadLabels,
   type TransferFocus,
   type TransferGradeCounts,
   type TransferRose,
@@ -205,7 +208,7 @@ const emit = defineEmits<{
 const uid = useId()
 const WIDTH = 680
 const HEIGHT = 420
-// Places lie between these radii, by the square root of their distance.
+// Places lie between these radii, by distance on a log scale.
 const INNER = 70
 const OUTER = 175
 // The widest place's flows, side by side, at most this wide.
@@ -215,12 +218,6 @@ const MIN_SPREAD = 10
 // One neutral color for every band, as a color would suggest more than which
 // pairing it is; and the accent for what is focused or under the pointer.
 const COLORS = { band: '#9aa1ab', accent: '#7a4dda' }
-
-// A unit vector along a bearing, in the SVG's frame (y down); and across it.
-function along (bearing: number): [number, number] {
-  const a = (bearing * Math.PI) / 180
-  return [Math.sin(a), -Math.cos(a)]
-}
 
 const maxKm = computed(() => Math.max(0.1, ...props.rose.places.map(p => p.km)))
 function radius (km: number): number {
@@ -237,43 +234,20 @@ const rings = computed(() => {
 
 // Each place's flows out (from it) and in (to it), and their width.
 const scale = computed(() => {
-  const totals = props.rose.places.map(p => props.rose.flows.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0))
+  const totals = props.rose.places.map(p => props.rose.flows.reduce((n, f) => n + (f.from === p.key ? f.total : 0) + (f.to === p.key ? f.total : 0), 0))
   return MOST_WIDTH / Math.max(1, ...totals)
 })
-
-// The angles to draw places at: their bearings, fanned apart where they
-// would draw on top of one another.
-function spread (bearings: number[]): number[] {
-  const order = bearings.map((_, i) => i).sort((a, b) => bearings[a]! - bearings[b]!)
-  const angles = [...bearings]
-  for (let pass = 0; pass < 60; pass++) {
-    let moved = false
-    for (let k = 0; k < order.length - 1; k++) {
-      const [i, j] = [order[k]!, order[k + 1]!]
-      const short = MIN_SPREAD - (angles[j]! - angles[i]!)
-      if (short > 0.01) {
-        angles[i] = angles[i]! - short / 2
-        angles[j] = angles[j]! + short / 2
-        moved = true
-      }
-    }
-    if (!moved) {
-      break
-    }
-  }
-  return angles
-}
 
 // Places on the rose: where, the bar where their flows meet them, and their
 // labels, spread apart down each side.
 const placed = computed(() => {
-  const angles = spread(props.rose.places.map(p => p.bearing))
+  const angles = spreadBearings(props.rose.places.map(p => p.bearing), MIN_SPREAD)
   const focused = emphasis.value
   const out = props.rose.places.map((p, i) => {
     const angle = angles[i]!
     const [ux, uy] = along(angle)
     const r = radius(p.km)
-    const total = props.rose.flows.reduce((n, f) => n + (f.from === p.name ? f.total : 0) + (f.to === p.name ? f.total : 0), 0)
+    const total = props.rose.flows.reduce((n, f) => n + (f.from === p.key ? f.total : 0) + (f.to === p.key ? f.total : 0), 0)
     const half = Math.max(2, (total * scale.value) / 2)
     const [tx, ty] = [-uy, ux]
     const x = ux * r
@@ -285,25 +259,13 @@ const placed = computed(() => {
       r,
       x,
       y,
-      involved: !focused || [...focused].some(f => f.from === p.name || f.to === p.name),
+      involved: !focused || [...focused].some(f => f.from === p.key || f.to === p.key),
       port: { x1: x - tx * half, y1: y - ty * half, x2: x + tx * half, y2: y + ty * half },
       labelX: ux * labelR + (ux < 0 ? -2 : 2),
       labelY: uy * labelR,
     }
   })
-  for (const left of [true, false]) {
-    const labels = out.filter(p => (p.labelX < 0) === left).sort((a, b) => a.labelY - b.labelY)
-    let last = Number.NEGATIVE_INFINITY
-    for (const p of labels) {
-      p.labelY = Math.max(p.labelY, last + LABEL_GAP, -HEIGHT / 2 + LABEL_GAP)
-      last = p.labelY
-    }
-    let next = Number.POSITIVE_INFINITY
-    for (const p of [...labels].reverse()) {
-      p.labelY = Math.min(p.labelY, next - LABEL_GAP, HEIGHT / 2 - LABEL_GAP / 2)
-      next = p.labelY
-    }
-  }
+  spreadLabels(out, -HEIGHT / 2 + LABEL_GAP, HEIGHT / 2 - LABEL_GAP / 2, LABEL_GAP)
   return out
 })
 
@@ -311,7 +273,7 @@ const placed = computed(() => {
 // destination's, side by side with the others at each bar: those leaving a
 // place first, then those reaching it, each in the order of the other end.
 const drawn = computed(() => {
-  const at = new Map(placed.value.map(p => [p.name, p]))
+  const at = new Map(placed.value.map(p => [p.key, p]))
   const slots = new Map<string, number>()
   const offset = (place: string, width: number) => {
     const p = at.get(place)!
@@ -354,24 +316,35 @@ const drawn = computed(() => {
 
 // The flows highlighted, by checking rows or clicking places and bands; and
 // those under the pointer, which show first.
-const checked = ref(new Set<TransferRoseFlow>())
+// Checked by the trips each pairs, as the flows themselves are rebuilt as
+// trip details arrive or settings change.
+function flowKey (f: TransferRoseFlow): string {
+  return `${f.fromKey}\u0000${f.toKey}`
+}
+const checked = ref(new Set<string>())
+const checkedFlows = computed(() => props.rose.flows.filter(f => checked.value.has(flowKey(f))))
 const hover = ref<{ flows: Set<TransferRoseFlow>, text: string }>()
-const emphasis = computed(() => hover.value?.flows ?? (checked.value.size > 0 ? checked.value : undefined))
+const emphasis = computed(() => {
+  if (hover.value?.flows.size) {
+    return hover.value.flows
+  }
+  return checkedFlows.value.length > 0 ? new Set(checkedFlows.value) : undefined
+})
 
 function setChecked (flows: TransferRoseFlow[], on: boolean) {
   const next = new Set(checked.value)
   for (const f of flows) {
     if (on) {
-      next.add(f)
+      next.add(flowKey(f))
     } else {
-      next.delete(f)
+      next.delete(flowKey(f))
     }
   }
   checked.value = next
 }
 
 function stateOf (row: { flows: TransferRoseFlow[] }): 'all' | 'some' | 'none' {
-  const n = row.flows.filter(f => checked.value.has(f)).length
+  const n = row.flows.filter(f => checked.value.has(flowKey(f))).length
   return n === 0 ? 'none' : n === row.flows.length ? 'all' : 'some'
 }
 
@@ -390,9 +363,17 @@ function show (flows: TransferRoseFlow[]) {
 }
 
 // A place's flows: those from it, grouped by origin; those to it, by
-// destination.
-function placeFlows (name: string) {
-  return props.rose.flows.filter(f => (groupBy.value === 'from' ? f.from : f.to) === name)
+// destination; or the other way where it has none this way.
+function placeFlows (key: string) {
+  const way = (from: boolean) => props.rose.flows.filter(f => (from ? f.from : f.to) === key)
+  const flows = way(groupBy.value === 'from')
+  return flows.length > 0 ? flows : way(groupBy.value !== 'from')
+}
+
+// A place's name, by its key.
+const placeNames = computed(() => new Map(props.rose.places.map(p => [p.key, p.name])))
+function nameOf (key: string): string {
+  return placeNames.value.get(key) ?? key
 }
 
 function sumOf (flows: TransferRoseFlow[]): { total: number, grades: TransferGradeCounts } {
@@ -421,18 +402,20 @@ function flowsText (flows: TransferRoseFlow[]): string {
     return flowText(flows[0]!)
   }
   const first = flows[0]
-  const ends = first && flows.every(f => f.from === first.from && f.to === first.to) ? `From ${first.from} to ${first.to}: ` : ''
+  const ends = first && flows.every(f => f.from === first.from && f.to === first.to) ? `From ${nameOf(first.from)} to ${nameOf(first.to)}: ` : ''
   return `${ends}${connections(sumOf(flows).total)} across ${flows.length.toLocaleString()} trip pairs.`
 }
 
 function flowText (f: TransferRoseFlow): string {
   const from = props.rose.from.get(f.fromKey)
   const to = props.rose.to.get(f.toKey)
-  return `${from?.route ?? ''} ${from?.label ?? ''} from ${f.from}, to ${to?.route ?? ''} ${to?.label ?? ''} toward ${f.to}: ${connections(f.total)} (${gradesText(f.grades)}).`
+  return `${from?.route ?? ''} ${from?.label ?? ''} from ${nameOf(f.from)}, to ${to?.route ?? ''} ${to?.label ?? ''} toward ${nameOf(f.to)}: ${connections(f.total)} (${gradesText(f.grades)}).`
 }
 
-function placeText (name: string): string {
-  return `${groupBy.value === 'from' ? 'From' : 'To'} ${name}: ${flowsText(placeFlows(name))}`
+function placeText (key: string): string {
+  const flows = placeFlows(key)
+  const from = flows[0]?.from === key
+  return `${from ? 'From' : 'To'} ${nameOf(key)}: ${flowsText(flows)}`
 }
 
 // The table's rows, grouped from where trips come from, or where they go:
@@ -461,13 +444,12 @@ interface Row {
   text: string
 }
 
+// Flows grouped, by most connections.
 function byTotal<K> (flows: TransferRoseFlow[], keyOf: (f: TransferRoseFlow) => K): [K, TransferRoseFlow[]][] {
-  const groups = new Map<K, TransferRoseFlow[]>()
-  for (const f of flows) {
-    const k = keyOf(f)
-    groups.set(k, [...(groups.get(k) ?? []), f])
-  }
-  return [...groups].sort((a, b) => sumOf(b[1]).total - sumOf(a[1]).total)
+  return [...groupByKey(flows, keyOf)]
+    .map(([k, list]) => ({ k, list, total: list.reduce((n, f) => n + f.total, 0) }))
+    .sort((a, b) => b.total - a.total)
+    .map(({ k, list }): [K, TransferRoseFlow[]] => [k, list])
 }
 
 const rows = computed((): Row[] => {
@@ -481,7 +463,7 @@ const rows = computed((): Row[] => {
   return byTotal(props.rose.flows, placeOf).flatMap(([place, flows]) => {
     const id = `${groupBy.value}:${place}`
     const totals = sumOf(flows)
-    const row: Row = { id, depth: 0, label: place, flows, ...totals, text: `${way} ${place}: ${flowsText(flows)}` }
+    const row: Row = { id, depth: 0, label: nameOf(place), flows, ...totals, text: `${way} ${nameOf(place)}: ${flowsText(flows)}` }
     if (!opened.value.has(id)) {
       return [row]
     }
@@ -489,13 +471,13 @@ const rows = computed((): Row[] => {
       const trip = tripOf(key, true)
       const tripId = `${id}|${key}`
       const name = `${trip?.route ?? ''} ${trip?.label ?? ''}`.trim()
-      const tripRow: Row = { id: tripId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: trips, ...sumOf(trips), text: `${name} ${from ? 'from' : 'to'} ${place}.` }
+      const tripRow: Row = { id: tripId, depth: 1, label: trip?.label ?? '', route: trip?.route, agency: trip?.agency, flows: trips, ...sumOf(trips), text: `${name} ${from ? 'from' : 'to'} ${nameOf(place)}.` }
       if (!opened.value.has(tripId)) {
         return [tripRow]
       }
       return [tripRow, ...byTotal(trips, otherKeyOf).map(([otherKey, pair]): Row => {
         const other = tripOf(otherKey, false)
-        return { id: `${tripId}>${otherKey}`, depth: 2, label: other?.label ?? '', route: other?.route, agency: other?.agency, place: otherPlaceOf(pair[0]!), flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
+        return { id: `${tripId}>${otherKey}`, depth: 2, label: other?.label ?? '', route: other?.route, agency: other?.agency, place: nameOf(otherPlaceOf(pair[0]!)), flows: pair, ...sumOf(pair), text: flowText(pair[0]!) }
       })]
     })]
   })

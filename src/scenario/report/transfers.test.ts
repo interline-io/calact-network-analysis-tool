@@ -426,12 +426,14 @@ describe('transferTripChoices', () => {
 })
 
 describe('transferEvents reach', () => {
-  it('needs the trips from a missed connection before the window to its end plus the longest walk and wait', () => {
+  it('needs the trips from a missed connection before the window to its end plus the longest walk and wait, or a long dwell', () => {
+    // The walk and wait reach 22 minutes past the window; a trip arriving in
+    // it may wait an hour before it leaves, so trips leaving by 9:00 count.
     const cache = cacheOf([
       [1, MON, hms(6, 54), 1, 0, 10],
       [1, MON, hms(6, 56), 2, 0, 10],
-      [1, MON, hms(8, 21), 3, 0, 10],
-      [1, MON, hms(8, 23), 4, 0, 10],
+      [1, MON, hms(8, 59), 3, 0, 10],
+      [1, MON, hms(9, 1), 4, 0, 10],
     ])
     const events = transferEvents({ stopIds: [1], dates: [MON], startTime: hms(7), endTime: hms(8), stopDepartureCache: cache, tripDetails: new Map(), ...reach })
     expect(events.missingTripIds.sort()).toEqual([2, 3])

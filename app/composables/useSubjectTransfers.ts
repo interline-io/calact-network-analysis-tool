@@ -72,6 +72,9 @@ export interface TransferStopEdits {
   removed: number[]
 }
 
+// Distance requests at once.
+const DISTANCES_CONCURRENCY = 4
+
 export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripDetailsStore) {
   const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
   // Breakpoints that cannot grade waits are not applied.
@@ -86,7 +89,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   })
   // Stops by their parent station (its feed version and GTFS id).
   const parentKey = (stop: Stop | undefined) => (stop?.parent?.stop_id ? `${stop.feed_version.sha1}|${stop.parent.stop_id}` : undefined)
-  const stopsByParent = computed(() => groupBy([...stops.value.values()].filter(parentKey), s => parentKey(s)!))
+  // Those with service only, as the Stops & platforms list shows.
+  const stopsByParent = computed(() => groupBy([...stops.value.values()].filter(s => s.marked && parentKey(s)), s => parentKey(s)!))
   // The subject's own stops: a cluster's members follow the filters, as the
   // trip panel's do. With them, the other stops of their parent stations, as
   // a station's other platforms, which a cluster of one stop per agency
@@ -200,7 +204,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       return
     }
     distancesLoading.value++
-    const results = await Promise.all(batches.map(async ({ mode, batch }) => {
+    const fetchBatch = async ({ mode, batch }: typeof batches[number]) => {
       try {
         const { query, variables } = stopDistancesRequest(batch, mode)
         const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
@@ -215,6 +219,15 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         }
         distancesError.value = err?.message || String(err)
         return undefined
+      }
+    }
+    // A few requests at a time, as for trip details, each worker taking the
+    // next batch: a station of many stops has hundreds of pairs.
+    const results: Awaited<ReturnType<typeof fetchBatch>>[] = []
+    const queue = [...batches]
+    await Promise.all(Array.from({ length: Math.min(DISTANCES_CONCURRENCY, queue.length) }, async () => {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        results.push(await fetchBatch(next))
       }
     }))
     for (const r of results) {

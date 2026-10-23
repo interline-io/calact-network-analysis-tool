@@ -16,6 +16,9 @@ import { summarizeGaps } from '../route-headway'
 import type { TripTableRoute, TripTableStop } from './subject-trips'
 
 const SECONDS_PER_DAY = 86400
+// The longest a trip is taken to wait at a stop, between arriving and
+// leaving, as a ferry or a long-distance train may.
+const LONGEST_DWELL = 3600
 
 // One trip at the subject's stops, as a rider would leave it (an arrival) or
 // board it (a departure).
@@ -603,9 +606,11 @@ export function transferEvents (opts: TransferEventsOptions): TransferEvents {
   // wait. One early in a day may connect from an arrival late the day
   // before, so is also read as a day later; one late in a day may be missed
   // by an arrival just after midnight, so is also read as a day earlier.
+  // Read by the time a trip leaves the stop, they run on a while longer, as
+  // a trip arriving in the window may wait at the stop before it leaves.
   const bp = opts.breakpoints
   const from = opts.startTime + Math.min(0, bp[0]!)
-  const until = opts.endTime + opts.maxWalkSeconds + bp[bp.length - 1]!
+  const until = opts.endTime + Math.max(opts.maxWalkSeconds + bp[bp.length - 1]!, LONGEST_DWELL)
   const inReach = (t: number) => t >= from && t <= until
   const crossesMidnight = (t: number) => inReach(t + SECONDS_PER_DAY) || inReach(t - SECONDS_PER_DAY)
   // The dates, whose departures all count, and the days either side, read
@@ -1199,6 +1204,14 @@ export function transferSummaryGrid (summaries: TransferArrivalSummary[], opts: 
   })
 }
 
+// A departure's time on its arrival's day, past 24:00 where it leaves after
+// midnight; on its own day where it left the evening before, as a connection
+// missed just after midnight.
+function departureTime (departure: TransferEvent, dayStart: number): string {
+  const seconds = departure.time - dayStart
+  return formatGtfsTimeFull(seconds >= 0 ? seconds : departure.seconds)
+}
+
 // The Individual report as nested rows: each arrival, then its connections.
 export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & { stops: Map<number, TripTableStop> }): TransferGridRow[] {
   return groups.flatMap(({ arrival, connections }): TransferGridRow[] => {
@@ -1216,7 +1229,7 @@ export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & {
       },
       ...connections.map((c, i) => ({
         ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }, c.way ? [sameWayTag(c.way, 1, 1)] : []),
-        time: formatGtfsTimeFull(c.departure.time - dayStart),
+        time: departureTime(c.departure, dayStart),
         stop_name: opts.stops.get(c.departure.stopId)?.stop_name ?? '',
         walk_seconds: c.walk,
         wait_seconds: c.wait,
@@ -1297,7 +1310,7 @@ export function transferRows (
     for (const c of connections) {
       rows.push({
         ...incoming,
-        departure_time: formatGtfsTimeFull(c.departure.time - dayStart),
+        departure_time: departureTime(c.departure, dayStart),
         ...routeColumns('to', opts.routes.get(c.departure.routeId)),
         to_trip_id: opts.tripDetails.get(c.departure.tripId)?.tripId ?? '',
         to_headsign: c.departure.headsign ?? '',

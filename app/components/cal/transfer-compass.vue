@@ -21,13 +21,13 @@
           </template>
         </g>
         <!-- Leaders from a place to its label, where the label moved off it. -->
-        <template v-for="p of layout" :key="`leader-${p.name}`">
+        <template v-for="p of layout" :key="`leader-${p.key}`">
           <line v-if="Math.abs(p.labelY - p.y) > 2" class="cal-transfer-compass-leader" :x1="p.x" :y1="p.y" :x2="p.labelX" :y2="p.labelY" />
         </template>
         <!-- A line to each place, arrowed in the trips' direction. -->
         <line
           v-for="p of layout"
-          :key="`line-${p.name}`"
+          :key="`line-${p.key}`"
           class="cal-transfer-compass-line"
           :class="`cal-transfer-compass-line-${p.state}`"
           v-bind="arrowEnds(p)"
@@ -35,7 +35,7 @@
         />
         <circle
           v-for="p of layout"
-          :key="`dot-${p.name}`"
+          :key="`dot-${p.key}`"
           class="cal-transfer-compass-dot"
           :class="`cal-transfer-compass-dot-${p.state}`"
           :cx="p.x"
@@ -69,7 +69,7 @@
       <!-- Each place's name, toggling its trips. -->
       <cat-tooltip
         v-for="p of layout"
-        :key="`label-${p.name}`"
+        :key="`label-${p.key}`"
         :text="p.text"
         class="cal-transfer-compass-label"
         :class="[`cal-transfer-compass-label-${p.labelX < 0 ? 'left' : 'right'}`, `cal-transfer-compass-label-${p.state}`]"
@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import { compassRings, compassScale, quietBearing, type TransferCompassPlace } from '~~/src/scenario'
+import { along, compassRings, compassScale, quietBearing, spreadBearings, spreadLabels, type TransferCompassPlace } from '~~/src/scenario'
 
 const props = defineProps<{
   // Named for the screen reader; the list beside it says the rest.
@@ -105,8 +105,8 @@ const emit = defineEmits<{
 const uid = useId()
 const WIDTH = 480
 const HEIGHT = 300
-// Places lie between these radii, by the square root of their distance, so
-// near ones spread out.
+// Places lie between these radii, by distance on a log scale, so near ones
+// spread out.
 const INNER = 18
 const OUTER = 118
 // Labels at least this far apart.
@@ -136,16 +136,10 @@ const rings = computed(() => {
   })
 })
 
-// A unit vector along a bearing, in the SVG's frame (y down).
-function along (bearing: number): [number, number] {
-  const a = (bearing * Math.PI) / 180
-  return [Math.sin(a), -Math.cos(a)]
-}
-
 const layout = computed(() => {
   const excluded = new Set(props.excluded)
   const maxCount = Math.max(1, ...props.places.map(p => p.count))
-  const angles = spread(props.places.map(p => p.bearing))
+  const angles = spreadBearings(props.places.map(p => p.bearing), MIN_SPREAD)
   const placed = props.places.map((p, i) => {
     const angle = angles[i]!
     const [ux, uy] = along(angle)
@@ -167,49 +161,12 @@ const layout = computed(() => {
       labelY: y,
     }
   })
-  // Labels on each side spread apart down the frame, then back up where
-  // they run off its foot.
-  for (const left of [true, false]) {
-    const labels = placed.filter(p => (p.labelX < 0) === left).sort((a, b) => a.y - b.y)
-    const top = -HEIGHT / 2 + LABEL_GAP
-    const bottom = HEIGHT / 2 - LABEL_GAP / 2
-    let last = Number.NEGATIVE_INFINITY
-    for (const p of labels) {
-      p.labelY = Math.max(p.labelY, last + LABEL_GAP, top)
-      last = p.labelY
-    }
-    let next = Number.POSITIVE_INFINITY
-    for (const p of [...labels].reverse()) {
-      p.labelY = Math.min(p.labelY, next - LABEL_GAP, bottom)
-      next = p.labelY
-    }
-  }
+  spreadLabels(placed, -HEIGHT / 2 + LABEL_GAP, HEIGHT / 2 - LABEL_GAP / 2, LABEL_GAP)
   return placed
 })
 
-// The angles to draw places at: their bearings, fanned apart where they
-// would draw on top of one another, at least MIN_SPREAD degrees apart.
+// Places at least this many degrees apart.
 const MIN_SPREAD = 8
-function spread (bearings: number[]): number[] {
-  const order = bearings.map((b, i) => i).sort((a, b) => bearings[a]! - bearings[b]!)
-  const angles = [...bearings]
-  for (let pass = 0; pass < 60; pass++) {
-    let moved = false
-    for (let k = 0; k < order.length - 1; k++) {
-      const [i, j] = [order[k]!, order[k + 1]!]
-      const short = MIN_SPREAD - (angles[j]! - angles[i]!)
-      if (short > 0.01) {
-        angles[i] = angles[i]! - short / 2
-        angles[j] = angles[j]! + short / 2
-        moved = true
-      }
-    }
-    if (!moved) {
-      break
-    }
-  }
-  return angles
-}
 
 // A line from the stops to a place, arrowed toward the stops for arriving
 // trips and toward the place for departing ones.
@@ -225,7 +182,7 @@ const DIRECTION = { from: 'Arriving from', to: 'Departing to' }
 
 function placeText (p: TransferCompassPlace, state: 'all' | 'some' | 'none'): string {
   const trips = `${p.count.toLocaleString()} ${p.count === 1 ? 'trip' : 'trips'}`
-  const where = `${DIRECTION[props.side]} ${p.name}, ${Math.round(p.km)} km ${NAMES[sectorOf(p.bearing)]}`
+  const where = `${DIRECTION[props.side]} ${p.name}, to the ${NAMES[sectorOf(p.bearing)]}`
   const included = { all: 'included', some: 'some included', none: 'left out' }[state]
   return `${where}: ${trips}, ${included}. Click to ${state === 'all' ? 'leave them out' : 'include them'}.`
 }
