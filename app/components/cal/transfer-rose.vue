@@ -91,9 +91,9 @@
     </figure>
 
     <!-- The flows from either end, each row checked to highlight its
-         flows. The middle rows, a trip with its connections to or from many,
-         give no figures of their own, as those only mean something for a
-         pair. -->
+         flows. Waits by grade only mean something for one arriving trip and
+         one departing trip, so only those rows show them; a place shows its
+         connections, the width of its bands; the trips between, nothing. -->
     <div class="cal-transfer-rose-list">
       <div class="cal-transfer-rose-tools">
         <cat-field label="Group by">
@@ -152,7 +152,7 @@
           <template v-if="row.depth !== 1">
             <span role="cell" class="cal-transfer-rose-num">{{ row.total.toLocaleString() }}</span>
             <span role="cell">
-              <cat-tooltip :text="gradesText(row.grades)" class="cal-transfer-rose-bar">
+              <cat-tooltip v-if="row.depth === 2" :text="gradesText(row.grades)" class="cal-transfer-rose-bar">
                 <span
                   v-for="g of TRANSFER_GRADES"
                   :key="g"
@@ -413,11 +413,16 @@ function gradesText (grades: TransferGradeCounts): string {
   return TRANSFER_GRADES.filter(g => grades[g] > 0).map(g => `${grades[g].toLocaleString()} ${TRANSFER_GRADE_LABELS[g].toLowerCase()}`).join(', ')
 }
 
+// Flows as text: one, a trip pair, with its waits by grade; several, their
+// connections and how many pairs, as waits pooled over pairs describe no
+// rider's trip.
 function flowsText (flows: TransferRoseFlow[]): string {
-  const { total, grades } = sumOf(flows)
+  if (flows.length === 1) {
+    return flowText(flows[0]!)
+  }
   const first = flows[0]
   const ends = first && flows.every(f => f.from === first.from && f.to === first.to) ? `From ${first.from} to ${first.to}: ` : ''
-  return `${ends}${connections(total)} (${gradesText(grades)}).`
+  return `${ends}${connections(sumOf(flows).total)} across ${flows.length.toLocaleString()} trip pairs.`
 }
 
 function flowText (f: TransferRoseFlow): string {
@@ -427,8 +432,7 @@ function flowText (f: TransferRoseFlow): string {
 }
 
 function placeText (name: string): string {
-  const { total, grades } = sumOf(placeFlows(name))
-  return `${groupBy.value === 'from' ? 'From' : 'To'} ${name}: ${connections(total)} (${gradesText(grades)}).`
+  return `${groupBy.value === 'from' ? 'From' : 'To'} ${name}: ${flowsText(placeFlows(name))}`
 }
 
 // The table's rows, grouped from where trips come from, or where they go:
@@ -477,7 +481,7 @@ const rows = computed((): Row[] => {
   return byTotal(props.rose.flows, placeOf).flatMap(([place, flows]) => {
     const id = `${groupBy.value}:${place}`
     const totals = sumOf(flows)
-    const row: Row = { id, depth: 0, label: place, flows, ...totals, text: `${way} ${place}: ${connections(totals.total)} (${gradesText(totals.grades)}).` }
+    const row: Row = { id, depth: 0, label: place, flows, ...totals, text: `${way} ${place}: ${flowsText(flows)}` }
     if (!opened.value.has(id)) {
       return [row]
     }
