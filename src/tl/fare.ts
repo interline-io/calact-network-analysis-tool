@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { fmtDate, WEEKDAY_BY_GETDAY } from '~~/src/core'
+import { fmtDate, groupBy, WEEKDAY_BY_GETDAY } from '~~/src/core'
 
 // Per-route fare summary from GTFS Fares v1 and v2 (#454). The rules use only
 // GTFS spec semantics, never names or other strings in the data. See
@@ -621,20 +621,6 @@ function feedIndex (fares: FeedFares): FeedIndex {
     feedIndexes.set(fares, index)
   }
   return index
-}
-
-function groupBy<T, K> (items: T[], key: (item: T) => K): Map<K, T[]> {
-  const groups = new Map<K, T[]>()
-  for (const item of items) {
-    const k = key(item)
-    const list = groups.get(k)
-    if (list) {
-      list.push(item)
-    } else {
-      groups.set(k, [item])
-    }
-  }
-  return groups
 }
 
 //////////

@@ -14,7 +14,7 @@
             :class="activeDates.has(date) ? 'is-info' : 'is-light'"
             @click="toggleDate(date)"
           >
-            {{ formatDate(date) }}
+            {{ formatServiceDate(date, 'EEE dd, MMM') }}
           </button>
         </div>
       </div>
@@ -70,8 +70,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { format } from 'date-fns'
-import { formatDuration } from '~~/src/core'
+import { formatDuration, formatServiceDate } from '~~/src/core'
 
 export interface ChartDeparture {
   serviceDate: string
@@ -122,11 +121,6 @@ function toggleDate (date: string) {
     next.add(date)
   }
   activeDates.value = next
-}
-
-function formatDate (dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return format(new Date(y!, m! - 1, d!), 'EEE dd, MMM')
 }
 
 const dayCount = computed(() => Math.max(1, effectiveActiveDates.value.size))

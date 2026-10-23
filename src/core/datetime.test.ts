@@ -16,6 +16,8 @@ import {
   getUTCDateNoTime,
   parseHMS,
   dateToSeconds,
+  timeWindowSeconds,
+  formatServiceDate,
   formatGtfsTime,
   formatGtfsTimeFull,
   formatDuration,
@@ -669,5 +671,25 @@ describe('wide date bounds', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 5, 6, 12, 0))
     expect(asDateString(wideMaxAllowedDate())).toBe(`${2026 + WIDE_DATE_YEARS_FORWARD}-06-06`)
+  })
+})
+
+describe('timeWindowSeconds', () => {
+  it('gives seconds since midnight for each bound', () => {
+    expect(timeWindowSeconds(new Date(2026, 9, 19, 7, 30), new Date(2026, 9, 19, 9, 0, 15))).toEqual({ startTime: 27000, endTime: 32415 })
+  })
+
+  it('covers all day where a bound is not set', () => {
+    expect(timeWindowSeconds(undefined, undefined)).toEqual({ startTime: 0, endTime: 86400 })
+  })
+})
+
+describe('formatServiceDate', () => {
+  it('formats a yyyy-MM-dd date in local time', () => {
+    expect(formatServiceDate('2026-10-19')).toBe('Mon 19, Oct, 2026')
+  })
+
+  it('takes another format', () => {
+    expect(formatServiceDate('2026-10-19', 'EEE dd, MMM')).toBe('Mon 19, Oct')
   })
 })
