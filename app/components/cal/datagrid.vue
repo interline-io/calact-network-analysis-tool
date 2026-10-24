@@ -1,6 +1,6 @@
 <template>
   <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
-    <div v-if="props.searchable || props.downloadable" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
+    <div v-if="props.searchable || props.downloadable || $slots['additional-downloads']" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
            other filters.
@@ -50,6 +50,11 @@
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
+        <!-- With column groups, the groups as <colgroup>s, so a group's
+             heading (scope="colgroup") is tied to its columns. -->
+        <template v-if="headerRows.length > 1">
+          <colgroup v-for="cell in headerRows[0]" :key="cell.column?.key ?? cell.group!.key" :span="cell.colspan ?? 1" />
+        </template>
         <thead>
           <!-- With column groups, a row of their headings over the grouped
                columns; the others span both rows. -->
@@ -148,7 +153,9 @@
                across pagination / sort. -->
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
             <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
-              <div class="cal-datagrid-shim-cell">
+              <!-- Grouped, the first column laid out as its rows are, indented
+                   and bold as a heading, the widest either can be. -->
+              <div class="cal-datagrid-shim-cell" :class="{ 'cal-datagrid-group-cell cal-datagrid-shim-group': isGroupColumn(column) }">
                 <span v-if="isGroupColumn(column)" class="cal-datagrid-group-indent" />
                 <slot
                   :name="`column-${column.key}`"
@@ -438,9 +445,20 @@ const sortedData = computed(() => {
 })
 
 // Grouped: the rows by group, in their first row's order, filtered and
-// sorted as groups.
+// sorted as groups. A row with no group stands alone, as its own.
+const ownGroups = new WeakMap<object, string>()
+let ownGroupCount = 0
 function groupOf (row: Record<string, any>): string {
-  return String(row[props.groupKey!])
+  const key = row[props.groupKey!]
+  if (key != null) {
+    return String(key)
+  }
+  let own = ownGroups.get(row)
+  if (own === undefined) {
+    own = `\u0000${ownGroupCount++}`
+    ownGroups.set(row, own)
+  }
+  return own
 }
 const groups = computed((): Record<string, any>[][] => {
   if (!props.groupKey) {
@@ -493,14 +511,21 @@ function isGroupColumn (column: TableColumn): boolean {
   return !!props.groupKey && column === tableReport.value.columns[0]
 }
 
-// A column's alignment and width, as classes on its header and cells.
+// A column's alignment and width, as classes on its header and cells; and
+// the first column marked, as with column groups its header is not the
+// first in its header row, for the frozen first column to pin.
 function columnClass (column: TableColumn) {
-  return { 'cal-datagrid-col-center': column.align === 'center', 'cal-datagrid-col-shrink': column.shrink }
+  return {
+    'cal-datagrid-col-center': column.align === 'center',
+    'cal-datagrid-col-shrink': column.shrink,
+    'cal-datagrid-first': column === tableReport.value?.columns[0],
+  }
 }
 
-// An open group's heading row, in a column that sums up the rows under it.
+// An open group's heading row, in a column that sums up the rows under it;
+// never the first column, which holds the group's button.
 function hidesValue (row: Record<string, any>, column: TableColumn): boolean {
-  return !!props.groupKey && !!column.groupSummary && opensGroup(row) && !closed.value.has(groupOf(row))
+  return !!props.groupKey && !!column.groupSummary && !isGroupColumn(column) && opensGroup(row) && !closed.value.has(groupOf(row))
 }
 
 function groupRowClass (row: Record<string, any>): string | undefined {
@@ -539,6 +564,11 @@ watch(() => tableReport.value?.data, () => {
 // Reset when the sort changes, so the user sees the new top of the list, or
 // when the rows are new.
 watch([sortKey, sortDir, () => props.resetKey], resetPaging)
+// New rows, or other groups or columns, start with every group open; a
+// refresh of the same rows keeps groups as they were.
+watch([() => props.resetKey, () => props.groupKey, () => tableReport.value?.columns], () => {
+  closed.value = new Set()
+})
 
 // Scrolling: the rows (or groups) shown so far, and more as the last row
 // nears the table's bottom edge.
@@ -639,7 +669,8 @@ const filterStatus = computed(() => {
   if (!(searchQuery.value || '').trim()) {
     return ''
   }
-  const shown = total.value
+  // Grouped, the rows in the groups kept, against all rows.
+  const shown = props.groupKey ? groups.value.reduce((n, rows) => n + rows.length, 0) : total.value
   if (shown === 0) {
     return 'No rows match the filter'
   }
@@ -828,8 +859,8 @@ const filterStatus = computed(() => {
   overflow-x: auto;
 
   .cal-report-table {
-    th:first-child,
-    td:first-child {
+    th.cal-datagrid-first,
+    td.cal-datagrid-first {
       position: sticky;
       left: 0;
       z-index: 2;
@@ -851,9 +882,14 @@ const filterStatus = computed(() => {
       }
     }
 
-    thead th:first-child {
+    thead th.cal-datagrid-first {
       background: var(--bulma-scheme-main-ter);
       z-index: 3;
+    }
+
+    // A group's heading row keeps its shade in the pinned cell too.
+    tr.cal-datagrid-group-head td.cal-datagrid-first {
+      background: var(--bulma-scheme-main-bis);
     }
   }
 }
@@ -930,6 +966,15 @@ const filterStatus = computed(() => {
   .cal-datagrid-sort-button {
     padding-left: 1.9rem;
   }
+
+  // An unsortable first column's label, past the button too.
+  .th-content {
+    margin-left: 1.15rem;
+  }
+}
+
+.cal-datagrid-shim-group {
+  font-weight: 600;
 }
 
 // Fix pagination element ordering
