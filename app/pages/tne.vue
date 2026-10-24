@@ -123,12 +123,14 @@
               :loading="isochroneShowLoading"
               :error="isochroneError"
               :empty="isochroneEmpty"
+              :cancelled="isochroneCancelled"
               :render="isochroneRender"
               @update="updateIsochroneParams"
               @move="moveIsochrone"
               @update:render="Object.assign(isochroneRender, $event)"
               @zoom="fitIsochroneKey++"
               @cancel="cancelIsochrone"
+              @retry="retryIsochrone"
               @close="closeIsochrone"
             />
             <!-- Keyed by subject, so each feature opens fresh. -->
@@ -947,7 +949,9 @@ const {
   error: isochroneError,
   empty: isochroneEmpty,
   render: isochroneRender,
+  cancelled: isochroneCancelled,
   cancel: cancelIsochrone,
+  retry: retryIsochrone,
 } = useIsochrone(isochroneParams, isochroneFetcher(useApiEndpoint('/routing/isochrone', 'default')))
 const isochroneFeatures = computed(() => isochroneMapFeatures(isochroneBands.value))
 const fitIsochroneKey = ref(0)

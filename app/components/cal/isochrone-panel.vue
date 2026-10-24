@@ -8,159 +8,172 @@
       variant="dark"
       @close="$emit('close')"
     >
-      <div class="cal-isochrone-body">
-        <!-- Over the settings while a request runs, once it has taken a
-             while; a click on it cancels the request. -->
-        <cat-loading :active="loading" can-cancel @cancel="$emit('cancel')" />
-        <!-- Toggle buttons bind ariaPressed and ariaLabel in an object: vue-tsc
+      <!-- Toggle buttons bind ariaPressed and ariaLabel in an object: vue-tsc
              reads the hyphenated attributes lint asks for as native ones. -->
-        <div class="cal-isochrone-row">
-          <div role="group" aria-label="Direction">
-            <cat-field addons>
-              <div v-for="d of directions" :key="d.label" class="control">
-                <cat-button
-                  size="small"
-                  :variant="params.arriveBy === d.arriveBy ? 'primary' : undefined"
-                  v-bind="{ ariaPressed: params.arriveBy === d.arriveBy }"
-                  @click="update({ arriveBy: d.arriveBy })"
-                >
-                  {{ d.label }}
-                </cat-button>
-              </div>
-            </cat-field>
-          </div>
-          <!-- Typed, pasted or copied; the icon is the map's marker. -->
-          <cat-input
-            class="cal-isochrone-place"
-            size="small"
-            :model-value="placeText"
-            :model-modifiers="{ lazy: true, trim: true }"
-            :icon="params.arriveBy ? 'flag-checkered' : 'circle'"
-            icon-right="content-copy"
-            icon-right-clickable
-            icon-right-aria-label="Copy coordinates"
-            :variant="placeInvalid ? 'danger' : undefined"
-            v-bind="{ ariaLabel: 'Latitude, longitude' }"
-            @update:model-value="onPlace"
-            @icon-right-click="copyPlace"
-          />
-        </div>
-
-        <div class="cal-isochrone-row">
-          <cat-field label="Date" label-size="small" class="cal-isochrone-date">
-            <cat-datepicker
-              :key="dateKey"
-              size="small"
-              :model-value="parseDate(params.date)"
-              @update:model-value="onDate"
-            />
+      <div class="cal-isochrone-row">
+        <div role="group" aria-label="Direction">
+          <cat-field addons>
+            <div v-for="d of directions" :key="d.label" class="control">
+              <cat-button
+                size="small"
+                :variant="params.arriveBy === d.arriveBy ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.arriveBy === d.arriveBy }"
+                @click="update({ arriveBy: d.arriveBy })"
+              >
+                {{ d.label }}
+              </cat-button>
+            </div>
           </cat-field>
-          <cat-field :label="params.arriveBy ? 'Arrive by' : 'Leave at'" label-size="small" class="cal-isochrone-time">
+        </div>
+        <!-- Typed, pasted or copied; the icon is the marker's shape. -->
+        <cat-input
+          class="cal-isochrone-place"
+          size="small"
+          :model-value="placeText"
+          :model-modifiers="{ lazy: true, trim: true }"
+          :icon="params.arriveBy ? 'flag-checkered' : 'circle'"
+          icon-right="content-copy"
+          icon-right-clickable
+          icon-right-aria-label="Copy coordinates"
+          :variant="placeInvalid ? 'danger' : undefined"
+          v-bind="{ ariaLabel: 'Latitude, longitude' }"
+          @update:model-value="onPlace"
+          @icon-right-click="copyPlace"
+        />
+      </div>
+
+      <div class="cal-isochrone-row">
+        <cat-field label="Date" label-size="small" class="cal-isochrone-date">
+          <!-- Typing nothing, or a date it can't read, it shows the one in
+                 use again itself. -->
+          <cat-datepicker
+            size="small"
+            :date-string="params.date"
+            @update:date-string="update({ date: $event })"
+          />
+        </cat-field>
+        <!-- A time left blank shows the one in use again once the field
+               loses focus. -->
+        <div class="cal-isochrone-time" @focusout="restoreTime">
+          <cat-field :label="params.arriveBy ? 'Arrive by' : 'Leave at'" label-size="small">
             <cal-timepicker
+              :key="timeKey"
               size="small"
               icon="clock"
               :model-value="parseTime(`${params.time}:00`)"
               @update:model-value="onTime"
             />
           </cat-field>
-          <cat-field label-size="small" class="cal-isochrone-walk">
-            <template #label>
-              Max walk
-              <cat-tooltip text="The farthest walk to the first stop, or from the last." position="left">
-                <i class="mdi mdi-information-outline" />
-              </cat-tooltip>
-            </template>
-            <cat-select
-              size="small"
-              :model-value="String(params.maxWalk)"
-              @update:model-value="update({ maxWalk: Number($event) })"
-            >
-              <option v-for="m of maxWalkChoices" :key="m" :value="String(m)">
-                {{ formatDistance(m) }}
-              </option>
-            </cat-select>
-          </cat-field>
         </div>
+        <cat-field label-size="small" class="cal-isochrone-walk">
+          <template #label>
+            Max walk
+            <cat-tooltip text="The farthest walk to the first stop, or from the last." position="left">
+              <i class="mdi mdi-information-outline" />
+            </cat-tooltip>
+          </template>
+          <cat-select
+            size="small"
+            :model-value="String(params.maxWalk)"
+            @update:model-value="update({ maxWalk: Number($event) })"
+          >
+            <option v-for="m of maxWalkChoices" :key="m" :value="String(m)">
+              {{ formatDistance(m) }}
+            </option>
+          </cat-select>
+        </cat-field>
+      </div>
 
-        <div role="group" aria-label="Travel time">
-          <cat-field label="Travel time" label-size="small" addons class="cal-isochrone-cutoffs">
-            <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
+      <div role="group" aria-label="Travel time">
+        <cat-field label="Travel time" label-size="small" addons class="cal-isochrone-cutoffs">
+          <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
+            <cat-button
+              size="small"
+              fullwidth
+              :style="cutoffStyle(m)"
+              v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
+              :disabled="params.cutoffs.includes(m) ? params.cutoffs.length === 1 : cutoffsFull"
+              @click="toggleCutoff(m)"
+            >
+              {{ cutoffLabel(m) }}
+            </cat-button>
+          </div>
+          <div class="control">
+            <cat-button
+              size="small"
+              icon-left="plus"
+              v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
+              :title="cutoffsFull ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
+              :disabled="cutoffsFull"
+              @click="startAddingCutoff"
+            />
+          </div>
+        </cat-field>
+      </div>
+      <cat-field v-if="addingCutoff">
+        <cat-input
+          ref="cutoffInput"
+          size="small"
+          placeholder="Add a time: 90, 1h30m, 2h"
+          :model-value="''"
+          :model-modifiers="{ lazy: true, trim: true }"
+          :variant="cutoffInvalid ? 'danger' : undefined"
+          v-bind="{ ariaLabel: 'Travel time to add' }"
+          @update:model-value="addCutoff"
+        />
+      </cat-field>
+      <p v-if="cutoffInvalid" class="cal-isochrone-error">
+        A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
+      </p>
+
+      <!-- Walking alone, or transit of the route types beside it. -->
+      <cat-field label="Ride" label-size="small" grouped>
+        <div class="control" role="group" aria-label="Ride">
+          <cat-field addons>
+            <div v-for="r of rides" :key="r.label" class="control">
               <cat-button
                 size="small"
-                fullwidth
-                :style="cutoffStyle(m)"
-                v-bind="{ ariaPressed: params.cutoffs.includes(m), ariaLabel: `${m} minutes` }"
-                :disabled="params.cutoffs.includes(m) ? params.cutoffs.length === 1 : cutoffsFull"
-                @click="toggleCutoff(m)"
+                :icon-left="r.icon"
+                :variant="params.mode.walkOnly === r.walkOnly ? 'primary' : undefined"
+                v-bind="{ ariaPressed: params.mode.walkOnly === r.walkOnly }"
+                @click="setWalkOnly(r.walkOnly)"
               >
-                {{ cutoffLabel(m) }}
+                {{ r.label }}
               </cat-button>
             </div>
-            <div class="control">
+          </cat-field>
+        </div>
+        <div class="control" role="group" aria-label="Route types">
+          <cat-field addons>
+            <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
               <cat-button
                 size="small"
-                icon-left="plus"
-                v-bind="{ ariaLabel: 'Add a travel time', ariaExpanded: addingCutoff }"
-                :title="cutoffsFull ? `At most ${ISOCHRONE_MAX_CUTOFFS} travel times` : 'Add a travel time'"
-                :disabled="cutoffsFull"
-                @click="startAddingCutoff"
+                :icon-left="routeTypeIcons.get(rt)"
+                :variant="selectedRouteTypes.includes(rt) ? 'primary' : undefined"
+                v-bind="{ ariaPressed: selectedRouteTypes.includes(rt), ariaLabel: routeTypeNames.get(rt) }"
+                :title="routeTypeNames.get(rt)"
+                :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
+                @click="toggleRouteType(rt, !selectedRouteTypes.includes(rt))"
               />
             </div>
           </cat-field>
         </div>
-        <cat-field v-if="addingCutoff">
-          <cat-input
-            ref="cutoffInput"
-            size="small"
-            placeholder="Add a time: 90, 1h30m, 2h"
-            :model-value="''"
-            :model-modifiers="{ lazy: true, trim: true }"
-            :variant="cutoffInvalid ? 'danger' : undefined"
-            v-bind="{ ariaLabel: 'Travel time to add' }"
-            @update:model-value="addCutoff"
-          />
-        </cat-field>
-        <p v-if="cutoffInvalid" class="cal-isochrone-error">
-          A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
-        </p>
+      </cat-field>
 
-        <!-- Walking alone, or transit of the route types beside it. -->
-        <cat-field label="Ride" label-size="small" grouped>
-          <div class="control" role="group" aria-label="Ride">
-            <cat-field addons>
-              <div v-for="r of rides" :key="r.label" class="control">
-                <cat-button
-                  size="small"
-                  :icon-left="r.icon"
-                  :variant="params.mode.walkOnly === r.walkOnly ? 'primary' : undefined"
-                  v-bind="{ ariaPressed: params.mode.walkOnly === r.walkOnly }"
-                  @click="setWalkOnly(r.walkOnly)"
-                >
-                  {{ r.label }}
-                </cat-button>
-              </div>
-            </cat-field>
-          </div>
-          <div class="control" role="group" aria-label="Route types">
-            <cat-field addons>
-              <div v-for="rt of ISOCHRONE_ROUTE_TYPES" :key="rt" class="control">
-                <cat-button
-                  size="small"
-                  :icon-left="routeTypeIcons.get(rt)"
-                  :variant="selectedRouteTypes.includes(rt) ? 'primary' : undefined"
-                  v-bind="{ ariaPressed: selectedRouteTypes.includes(rt), ariaLabel: routeTypeNames.get(rt) }"
-                  :title="routeTypeNames.get(rt)"
-                  :disabled="params.mode.walkOnly || (selectedRouteTypes.length === 1 && selectedRouteTypes.includes(rt))"
-                  @click="toggleRouteType(rt, !selectedRouteTypes.includes(rt))"
-                />
-              </div>
-            </cat-field>
-          </div>
-        </cat-field>
-
+      <!-- The result's status and actions. While a request runs, once it
+             has taken a while, they're covered; a click on the cover cancels
+             the request, and a change to a setting replaces it. -->
+      <div class="cal-isochrone-results">
+        <cat-loading :active="loading" can-cancel @cancel="$emit('cancel')" />
         <p class="cal-isochrone-status" aria-live="polite">
           <span v-if="error" class="cal-isochrone-error">Could not calculate travel times: {{ error }}</span>
           <span v-else-if="empty">Nothing reachable within these settings.</span>
+          <template v-else-if="cancelled">
+            Calculation cancelled.
+            <cat-button variant="ghost" size="small" @click="$emit('retry')">
+              Retry
+            </cat-button>
+          </template>
           <span v-else-if="loading" class="is-sr-only">Calculating travel times…</span>
         </p>
 
@@ -180,45 +193,45 @@
             :data="downloadFeatures"
           />
         </div>
-
-        <!-- Contouring knobs, for tuning against the router; blank is the
-             router's default. -->
-        <details v-if="debug">
-          <summary>Rendering (debug)</summary>
-          <cat-field label="expansion" label-size="small">
-            <cat-select
-              size="small"
-              :model-value="render.expansion ?? ''"
-              @update:model-value="setRender('expansion', $event || undefined)"
-            >
-              <option value="">
-                (default)
-              </option>
-              <option value="network">
-                network
-              </option>
-              <option value="disk">
-                disk
-              </option>
-            </cat-select>
-          </cat-field>
-          <cat-field v-for="k of numericRenderKeys" :key="k" :label="k" label-size="small">
-            <input
-              class="input is-small"
-              type="number"
-              :value="render[k] ?? ''"
-              @change="setRender(k, numberOrUndefined(($event.target as HTMLInputElement).value))"
-            >
-          </cat-field>
-        </details>
       </div>
+
+      <!-- Contouring knobs, for tuning against the router; blank is the
+             router's default. -->
+      <details v-if="debug">
+        <summary>Rendering (debug)</summary>
+        <cat-field label="expansion" label-size="small">
+          <cat-select
+            size="small"
+            :model-value="render.expansion ?? ''"
+            @update:model-value="setRender('expansion', $event || undefined)"
+          >
+            <option value="">
+              (default)
+            </option>
+            <option value="network">
+              network
+            </option>
+            <option value="disk">
+              disk
+            </option>
+          </cat-select>
+        </cat-field>
+        <cat-field v-for="k of numericRenderKeys" :key="k" :label="k" label-size="small">
+          <input
+            class="input is-small"
+            type="number"
+            :value="render[k] ?? ''"
+            @change="setRender(k, numberOrUndefined(($event.target as HTMLInputElement).value))"
+          >
+        </cat-field>
+      </details>
     </cat-msg>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { fmtDate, fmtTime, formatDuration, parseDate, parseTime, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
+import { fmtTime, formatDuration, parseTime, routeTypeIcons, routeTypeNames, type Feature, type Point, type RouteType } from '~~/src/core'
 import {
   ISOCHRONE_CUTOFF_CHOICES,
   ISOCHRONE_MAX_CUTOFFS,
@@ -246,6 +259,8 @@ const props = defineProps<{
   loading: boolean
   error: string | null
   empty: boolean
+  // The last request was cancelled before it answered.
+  cancelled: boolean
   // Contouring knobs, shown with the debug menu on.
   render: IsochroneRenderOptions
 }>()
@@ -260,6 +275,8 @@ const emit = defineEmits<{
   'zoom': []
   // Stop the request running.
   'cancel': []
+  // Ask again, after a cancel.
+  'retry': []
 }>()
 
 const { unitSystem } = useScenarioDisplay()
@@ -301,21 +318,22 @@ function update (next: Partial<IsochroneParams>) {
   emit('update', next)
 }
 
-// A cleared date has nothing to send, so the picker shows the one in use
-// again.
-const dateKey = ref(0)
-function onDate (d: Date | null | undefined) {
+// Undefined while a time is half typed or cleared: wait for the rest, and
+// if the field is left that way, show the time in use again.
+const timeKey = ref(0)
+let timeIncomplete = false
+function onTime (d: Date | undefined) {
+  timeIncomplete = !d
   if (d) {
-    update({ date: fmtDate(d) })
-  } else {
-    dateKey.value++
+    update({ time: fmtTime(d, 'HH:mm') })
   }
 }
 
-// Undefined while a time is half typed: wait for the rest.
-function onTime (d: Date | undefined) {
-  if (d) {
-    update({ time: fmtTime(d, 'HH:mm') })
+function restoreTime (e: FocusEvent) {
+  const stillInside = (e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)
+  if (timeIncomplete && !stillInside) {
+    timeIncomplete = false
+    timeKey.value++
   }
 }
 
@@ -463,6 +481,7 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 // Fields side by side; Bulma spaces fields one under another.
 .cal-isochrone-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   margin-bottom: 0.75rem;
@@ -472,9 +491,18 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
   }
 }
 
-// The loading overlay covers the settings, not the header.
-.cal-isochrone-body {
+// While the date picker's calendar is open, it shows over the panel's edge
+// rather than being clipped by the scrolling body, as main.scss lets query
+// panels' pickers. Only then: otherwise a panel the sidebar squeezes would
+// spill over the legend instead of scrolling.
+.cal-isochrone-panel :deep(.message-body:has(.cat-datepicker-dropdown.is-active)) {
+  overflow: visible;
+}
+
+// The loading cover sits over these, tall enough for its spinner.
+.cal-isochrone-results {
   position: relative;
+  min-height: 3.5rem;
 }
 
 // Holds the status line, empty while there's nothing to say.

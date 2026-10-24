@@ -150,7 +150,7 @@ describe('useIsochrone', () => {
   it('shows loading only once a request has taken a while', async () => {
     const { calls, fetcher } = controlledFetcher()
     const { state, scope } = setup(base, fetcher)
-    await vi.advanceTimersByTimeAsync(900)
+    await vi.advanceTimersByTimeAsync(400)
     expect(state.loading.value).toBe(true)
     expect(state.showLoading.value).toBe(false)
     await vi.advanceTimersByTimeAsync(200)
@@ -183,7 +183,7 @@ describe('useIsochrone', () => {
     scope.stop()
   })
 
-  it('cancels the request running, keeping the bands it had', async () => {
+  it('cancels the request running, dropping bands for settings since changed, until a retry', async () => {
     const { calls, fetcher } = controlledFetcher()
     const { params, state, scope } = setup(base, fetcher)
     calls[0]!.resolve(recorded('leaving-from'))
@@ -196,7 +196,18 @@ describe('useIsochrone', () => {
     expect(calls[1]!.signal.aborted).toBe(true)
     expect(state.loading.value).toBe(false)
     expect(state.showLoading.value).toBe(false)
+    expect(state.bands.value).toEqual([])
+    expect(state.cancelled.value).toBe(true)
     calls[1]!.resolve(recorded('walk-only'))
+    await nextTick()
+    await nextTick()
+    expect(state.bands.value).toEqual([])
+    // Retry asks again, for the settings as they are now.
+    state.retry()
+    expect(state.cancelled.value).toBe(false)
+    expect(calls).toHaveLength(3)
+    expect(calls[2]!.query.get('time')).toBe('09:00:00')
+    calls[2]!.resolve(recorded('leaving-from'))
     await nextTick()
     await nextTick()
     expect(state.bands.value.map(b => b.minutes)).toEqual([15, 30, 45])

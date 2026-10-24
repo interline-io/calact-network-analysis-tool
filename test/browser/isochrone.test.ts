@@ -191,18 +191,52 @@ test.describe('Isochrone panel', () => {
     await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeDisabled()
   })
 
-  test('covers the settings while a slow request runs, until cancelled', async ({ page }) => {
+  test('covers the results while a slow request runs; cancel, then retry', async ({ page }) => {
     const { status, body } = isochroneRecording('leaving-from')
+    let slow = true
     await page.route('**/routing/isochrone?**', async (route) => {
-      await new Promise(resolve => setTimeout(resolve, 4000))
+      if (slow) {
+        await new Promise(resolve => setTimeout(resolve, 4000))
+      }
       await route.fulfill({ status, contentType: 'application/json', body }).catch(() => {})
     })
     await page.goto(`/tne?isoPlace=${PLACE}`)
     const overlay = panel(page).locator('.cat-loading')
     await expect(overlay).toBeVisible({ timeout: 15000 })
+    // Settings stay clickable under a running request.
+    await expect(panel(page).getByRole('button', { name: '60 minutes' })).toBeEnabled()
     await overlay.locator('.cat-loading-background').click({ position: { x: 5, y: 5 } })
     await expect(overlay).toHaveCount(0)
+    await expect(panel(page).getByText('Calculation cancelled.')).toBeVisible()
     await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeDisabled()
+    slow = false
+    await panel(page).getByRole('button', { name: 'Retry' }).click()
+    await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeEnabled()
+    await expect(panel(page).getByText('Calculation cancelled.')).toHaveCount(0)
+  })
+
+  test('shows the whole calendar when the date picker opens', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}`)
+    await panel(page).getByRole('button', { name: /Choose date/ }).click({ timeout: 15000 })
+    const calendar = panel(page).getByRole('dialog', { name: 'Choose date' })
+    await expect(calendar).toBeVisible()
+    // Not clipped by the panel's scrolling body: its last row is on screen.
+    await expect(calendar.getByRole('row').last()).toBeInViewport()
+    const body = panel(page).locator('.message-body')
+    await expect(body).toHaveCSS('overflow-y', 'visible')
+    await page.keyboard.press('Escape')
+    await expect(body).toHaveCSS('overflow-y', 'auto')
+  })
+
+  test('shows the time in use again when the time is cleared', async ({ page }) => {
+    await routeIsochrone(page, 'leaving-from')
+    await page.goto(`/tne?isoPlace=${PLACE}&isoTime=09:15`)
+    const time = panel(page).locator('input[type="time"]')
+    await expect(time).toHaveValue('09:15', { timeout: 15000 })
+    await time.fill('')
+    await time.blur()
+    await expect(time).toHaveValue('09:15')
   })
 
   test('shows the router error', async ({ page }) => {
