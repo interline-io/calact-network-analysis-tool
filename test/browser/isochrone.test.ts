@@ -32,7 +32,7 @@ test.describe('Isochrone panel', () => {
     await expect(panel(page)).not.toContainText('Travel time: 45')
     // The bands arrived; the travel time buttons key them, darkest first, and
     // the legend keys only the place.
-    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeEnabled()
+    await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeEnabled()
     await expect(panel(page).getByRole('button', { name: '15 minutes' })).toHaveCSS('background-color', 'rgb(0, 68, 27)')
     await expect(legend(page).getByText('Leaving from here')).toBeVisible()
     await expect(legend(page)).not.toContainText('Within')
@@ -47,7 +47,7 @@ test.describe('Isochrone panel', () => {
   test('settings change the request and the URL', async ({ page }) => {
     const requests = await routeIsochrone(page, 'leaving-from')
     await page.goto(`/tne?isoPlace=${PLACE}&isoDate=2026-10-27`)
-    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeEnabled({ timeout: 15000 })
+    await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeEnabled({ timeout: 15000 })
 
     await panel(page).getByRole('button', { name: '60 minutes' }).click()
     await expect(page).toHaveURL(/isoCutoffs=15%2C30%2C45%2C60|isoCutoffs=15,30,45,60/)
@@ -182,7 +182,21 @@ test.describe('Isochrone panel', () => {
     }))
     await page.goto(`/tne?isoPlace=${PLACE}&isoCutoffs=15`)
     await expect(panel(page).getByText('Nothing reachable within these settings.')).toBeVisible({ timeout: 15000 })
-    await expect(panel(page).getByRole('button', { name: 'Show on map' })).toBeDisabled()
+    await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeDisabled()
+  })
+
+  test('covers the settings while a slow request runs, until cancelled', async ({ page }) => {
+    const { status, body } = isochroneRecording('leaving-from')
+    await page.route('**/routing/isochrone?**', async (route) => {
+      await new Promise(resolve => setTimeout(resolve, 4000))
+      await route.fulfill({ status, contentType: 'application/json', body }).catch(() => {})
+    })
+    await page.goto(`/tne?isoPlace=${PLACE}`)
+    const overlay = panel(page).locator('.cat-loading')
+    await expect(overlay).toBeVisible({ timeout: 15000 })
+    await overlay.locator('.cat-loading-background').click({ position: { x: 5, y: 5 } })
+    await expect(overlay).toHaveCount(0)
+    await expect(panel(page).getByRole('button', { name: 'Center on Map' })).toBeDisabled()
   })
 
   test('shows the router error', async ({ page }) => {

@@ -17,7 +17,7 @@ import {
 const ISOCHRONE_DEBOUNCE_MS = 350
 
 // A response that arrives sooner never shows the loading state.
-const ISOCHRONE_LOADING_DELAY_MS = 250
+const ISOCHRONE_LOADING_DELAY_MS = 1000
 
 // One request to the router: the only thing tests replace.
 export type IsochroneFetcher = (query: URLSearchParams, signal: AbortSignal) => Promise<{ status: number, body: string }>
@@ -41,6 +41,8 @@ export interface UseIsochroneReturn {
   empty: Ref<boolean>
   // Contouring knobs from the debug menu.
   render: IsochroneRenderOptions
+  // Stop the request running, or about to run; the bands stay as they were.
+  cancel: () => void
 }
 
 export function useIsochrone (
@@ -149,6 +151,12 @@ export function useIsochrone (
     { immediate: true },
   )
 
+  function cancel () {
+    clearTimeout(debounceTimer)
+    supersede()
+    setLoading(false)
+  }
+
   onScopeDispose(() => {
     clearTimeout(debounceTimer)
     clearTimeout(loadingTimer)
@@ -156,5 +164,5 @@ export function useIsochrone (
     controller?.abort()
   })
 
-  return { bands, loading, showLoading, error, empty, render }
+  return { bands, loading, showLoading, error, empty, render, cancel }
 }

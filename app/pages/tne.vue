@@ -128,6 +128,7 @@
               @move="moveIsochrone"
               @update:render="Object.assign(isochroneRender, $event)"
               @zoom="fitIsochroneKey++"
+              @cancel="cancelIsochrone"
               @close="closeIsochrone"
             />
             <!-- Keyed by subject, so each feature opens fresh. -->
@@ -946,6 +947,7 @@ const {
   error: isochroneError,
   empty: isochroneEmpty,
   render: isochroneRender,
+  cancel: cancelIsochrone,
 } = useIsochrone(isochroneParams, isochroneFetcher(useApiEndpoint('/routing/isochrone', 'default')))
 const isochroneFeatures = computed(() => isochroneMapFeatures(isochroneBands.value))
 const fitIsochroneKey = ref(0)
