@@ -1,6 +1,6 @@
 <template>
-  <div class="mb-6">
-    <div class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
+  <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
+    <div v-if="props.searchable || props.downloadable" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
            other filters.
@@ -9,7 +9,7 @@
            one — cat-tabs uses v-show (display:none drops it from the
            accessibility tree) and census-details uses v-if — so keep that
            invariant if a layout ever puts two datagrids side by side. -->
-      <div class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
+      <div v-if="props.searchable" class="cal-datagrid-filter" role="search" :aria-label="filterLabel">
         <!-- ariaLabel/aria-controls passed via a v-bind object: cat-search-bar
              sets inheritAttrs:false, so vue-tsc checks attributes against its
              declared props and rejects a plain :aria-controls; the object also
@@ -30,7 +30,7 @@
       <!-- Slot for additional download buttons, such as GeoJSON -->
       <slot name="additional-downloads" :data="tableReport.data" :loading="loading" />
 
-      <cat-field style="margin-left: auto;">
+      <cat-field v-if="props.downloadable" style="margin-left: auto;">
         <cal-csv-download
           :data="tableReport.data"
           :disabled="loading"
@@ -45,72 +45,100 @@
          since live regions inserted at announcement time are unreliable. -->
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
-    <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+    <div ref="tableContainer" class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
+      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'cal-report-table-dense': props.dense }">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
         <thead>
-          <tr>
-            <th
-              v-for="column in tableReport.columns"
-              :key="column.key"
-              scope="col"
-              :class="{ 'is-sortable-th': column.sortable, 'is-sorted': sortKey === column.key }"
-              :aria-sort="ariaSort(column)"
-            >
-              <!-- Sortable columns render the header as a real <button> so
-                   sorting is keyboard-operable (Enter/Space) and announced as a
-                   button; aria-sort on the <th> conveys the current direction.
-                   When the column also has a tooltip, the button lives inside
-                   cat-tooltip — cat-tooltip detects the focusable button and
-                   describes it (aria-describedby) rather than adding its own tab
-                   stop, so there's no nested interactive content. -->
-              <cat-tooltip
-                v-if="column.sortable && column.tooltip"
-                :text="column.tooltip"
-                position="bottom"
-                class="cal-datagrid-sort-tooltip"
+          <!-- With column groups, a row of their headings over the grouped
+               columns; the others span both rows. -->
+          <tr v-for="(headerRow, r) in headerRows" :key="r">
+            <template v-for="cell in headerRow" :key="cell.column?.key ?? cell.group!.key">
+              <th
+                v-if="cell.group"
+                scope="colgroup"
+                :colspan="cell.colspan"
+                class="cal-datagrid-colgroup"
               >
-                <button type="button" class="cal-datagrid-sort-button" @click="cycleSort(column)">
-                  {{ column.label }}
+                <cat-tooltip v-if="cell.group.tooltip" :text="cell.group.tooltip" position="bottom" class="col-header-tooltip">
+                  {{ cell.group.label }}
                   <cat-icon icon="information" size="small" />
+                </cat-tooltip>
+                <span v-else>{{ cell.group.label }}</span>
+              </th>
+              <th
+                v-else
+                scope="col"
+                :rowspan="cell.rowspan"
+                :class="[cell.column!.class, columnClass(cell.column!), { 'is-sortable-th': cell.column!.sortable, 'is-sorted': sortKey === cell.column!.key, 'cal-datagrid-group-th': isGroupColumn(cell.column!) }]"
+                :aria-sort="ariaSort(cell.column!)"
+              >
+                <!-- Grouped: every group open or closed at once, from the first
+                     column's header. -->
+                <button
+                  v-if="isGroupColumn(cell.column!)"
+                  type="button"
+                  class="cal-datagrid-group-toggle cal-datagrid-group-toggle-all"
+                  :aria-label="anyOpen ? 'Collapse all groups' : 'Expand all groups'"
+                  :title="anyOpen ? 'Collapse all' : 'Expand all'"
+                  @click="setAllOpen(!anyOpen)"
+                >
+                  <cat-icon size="small" :icon="anyOpen ? 'chevron-down' : 'chevron-right'" />
+                </button>
+                <!-- Sortable columns render the header as a real <button> so
+                     sorting is keyboard-operable (Enter/Space) and announced as a
+                     button; aria-sort on the <th> conveys the current direction.
+                     When the column also has a tooltip, the button lives inside
+                     cat-tooltip — cat-tooltip detects the focusable button and
+                     describes it (aria-describedby) rather than adding its own tab
+                     stop, so there's no nested interactive content. -->
+                <cat-tooltip
+                  v-if="cell.column!.sortable && cell.column!.tooltip"
+                  :text="cell.column!.tooltip"
+                  position="bottom"
+                  class="cal-datagrid-sort-tooltip"
+                >
+                  <button type="button" class="cal-datagrid-sort-button" @click="cycleSort(cell.column!)">
+                    {{ cell.column!.label }}
+                    <cat-icon icon="information" size="small" />
+                    <span class="cal-datagrid-sort-icon">
+                      <cat-icon
+                        :icon="sortIcon(cell.column!)"
+                        size="small"
+                        :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== cell.column!.key }"
+                      />
+                    </span>
+                  </button>
+                </cat-tooltip>
+                <button
+                  v-else-if="cell.column!.sortable"
+                  type="button"
+                  class="cal-datagrid-sort-button"
+                  @click="cycleSort(cell.column!)"
+                >
+                  {{ cell.column!.label }}
+                  <!-- Sort indicator. Always rendered for sortable columns so
+                       toggling the active chevron doesn't change column width;
+                       the inactive state shows a hidden chevron as a spacer. -->
                   <span class="cal-datagrid-sort-icon">
                     <cat-icon
-                      :icon="sortIcon(column)"
+                      :icon="sortIcon(cell.column!)"
                       size="small"
-                      :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
+                      :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== cell.column!.key }"
                     />
                   </span>
                 </button>
-              </cat-tooltip>
-              <button
-                v-else-if="column.sortable"
-                type="button"
-                class="cal-datagrid-sort-button"
-                @click="cycleSort(column)"
-              >
-                {{ column.label }}
-                <!-- Sort indicator. Always rendered for sortable columns so
-                     toggling the active chevron doesn't change column width;
-                     the inactive state shows a hidden chevron as a spacer. -->
-                <span class="cal-datagrid-sort-icon">
-                  <cat-icon
-                    :icon="sortIcon(column)"
-                    size="small"
-                    :class="{ 'cal-datagrid-sort-icon-placeholder': sortKey !== column.key }"
-                  />
+                <!-- Non-sortable columns: plain header content. -->
+                <span v-else class="th-content">
+                  <cat-tooltip v-if="cell.column!.tooltip" :text="cell.column!.tooltip" position="bottom" class="col-header-tooltip">
+                    {{ cell.column!.label }}
+                    <cat-icon icon="information" size="small" />
+                  </cat-tooltip>
+                  <span v-else>{{ cell.column!.label }}</span>
                 </span>
-              </button>
-              <!-- Non-sortable columns: plain header content. -->
-              <span v-else class="th-content">
-                <cat-tooltip v-if="column.tooltip" :text="column.tooltip" position="bottom" class="col-header-tooltip">
-                  {{ column.label }}
-                  <cat-icon icon="information" size="small" />
-                </cat-tooltip>
-                <span v-else>{{ column.label }}</span>
-              </span>
-            </th>
+              </th>
+            </template>
           </tr>
         </thead>
         <tbody>
@@ -119,8 +147,9 @@
                sizes each column to the worst case and widths stay constant
                across pagination / sort. -->
           <tr v-if="layoutShimRow" aria-hidden="true" class="cal-datagrid-shim">
-            <td v-for="column in tableReport.columns" :key="column.key">
+            <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
               <div class="cal-datagrid-shim-cell">
+                <span v-if="isGroupColumn(column)" class="cal-datagrid-group-indent" />
                 <slot
                   :name="`column-${column.key}`"
                   :row="layoutShimRow"
@@ -132,9 +161,39 @@
               </div>
             </td>
           </tr>
-          <tr v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx" :class="rowClass?.(row)">
-            <td v-for="column in tableReport.columns" :key="column.key">
+          <tr
+            v-for="(row, idx) in currentRows"
+            :key="row.id ?? row.geoid ?? row.location_id ?? idx"
+            :class="[rowClass?.(row), groupRowClass(row)]"
+          >
+            <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
+              <!-- An open group's heading leaves its sums to the rows under
+                   it. -->
+              <template v-if="hidesValue(row, column)" />
+              <!-- A group's heading opens and closes it. -->
+              <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
+                <button
+                  v-if="opensGroup(row)"
+                  type="button"
+                  class="cal-datagrid-group-toggle"
+                  :aria-expanded="!closed.has(groupOf(row))"
+                  :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
+                  @click="toggleGroup(groupOf(row))"
+                >
+                  <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
+                </button>
+                <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                <slot
+                  :name="`column-${column.key}`"
+                  :row="row"
+                  :column="column"
+                  :value="row[column.key]"
+                >
+                  {{ renderCell(column, row[column.key]) }}
+                </slot>
+              </span>
               <slot
+                v-else
                 :name="`column-${column.key}`"
                 :row="row"
                 :column="column"
@@ -144,29 +203,35 @@
               </slot>
             </td>
           </tr>
+          <!-- Scrolling: more rows load as this comes into view. -->
+          <tr v-if="props.scroll && shownCount < total" ref="more" class="cal-datagrid-more">
+            <td :colspan="tableReport.columns.length">
+              Loading more…
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
 
-    <div v-if="total > 0" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
+    <!-- Scrolling, the table says no more than its rows do. -->
+    <div v-if="total > 0 && !props.scroll" class="is-flex is-align-items-center mt-4" style="gap: 0.5rem;">
       <span class="has-text-grey">Showing {{ rangeStart }}-{{ rangeEnd }} of {{ total }} results</span>
       <cat-pagination
         v-model:current="current"
         :total="total"
-        :per-page="perPage"
+        :per-page="props.perPage"
         style="margin-left: auto;"
       />
     </div>
-    <div v-else class="has-text-grey mt-4">
+    <div v-else-if="total === 0" class="has-text-grey mt-4">
       No results found
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { formatCensusValue, toFiniteNumber, type TableColumn, type TableReport } from '~~/src/core'
+import { formatCensusValue, toFiniteNumber, type TableColumn, type TableColumnGroup, type TableReport } from '~~/src/core'
 
-const perPage = 20
 const loading = defineModel<boolean>('loading', { default: false })
 const tableReport = defineModel<TableReport>('tableReport', { required: true })
 const current = defineModel<number>('current', { default: 1 })
@@ -178,7 +243,7 @@ function renderCell (column: TableColumn, value: unknown): string {
   return value == null ? '' : String(value)
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   filename?: string
   // Horizontally scrollable, with the first column pinned.
   freezeFirstColumn?: boolean
@@ -193,7 +258,35 @@ const props = defineProps<{
   caption: string
   // A class for a row, such as one marking it apart from the rest.
   rowClass?: (row: any) => string | undefined
-}>()
+  // Fill the parent's height (a flex column), with the table scrolling inside
+  // and its header row pinned, so its scrollbars stay in view.
+  fill?: boolean
+  // Rows per page; 20 by default.
+  perPage?: number
+  // A text filter over the rows; true by default. A view that filters its
+  // rows by its own controls can leave it out.
+  searchable?: boolean
+  // A CSV download button; true by default. A view that downloads its rows
+  // from elsewhere on the page can leave it out.
+  downloadable?: boolean
+  // Smaller type and padding, for more rows in view.
+  dense?: boolean
+  // Rows in groups, by this field: each group's first row heads it. Sorting
+  // orders the groups by their headings and the rows within each group;
+  // pages hold whole groups; and a heading opens and closes its group.
+  groupKey?: string
+  // A group's heading row in words, naming its open and close button.
+  groupLabel?: (row: any) => string
+  // Rows load perPage at a time as the table scrolls, in place of pages.
+  scroll?: boolean
+  // Scrolling, what the rows are of: when it changes, loading starts over.
+  resetKey?: string
+}>(), {
+  // Vue reads a missing boolean prop as false; these default to shown.
+  searchable: true,
+  downloadable: true,
+  perPage: 20,
+})
 
 // cat-search-bar clears to null (not ''), so the model is nullable.
 const searchQuery = ref<string | null>('')
@@ -250,6 +343,38 @@ function cycleSort (column: TableColumn) {
     : `Sort by ${column.label} removed`)
 }
 
+// The header's rows: the columns; or with column groups, the groups'
+// headings and the ungrouped columns, spanning both rows, over the grouped
+// columns.
+interface HeaderCell {
+  column?: TableColumn
+  group?: TableColumnGroup
+  rowspan?: number
+  colspan?: number
+}
+const headerRows = computed((): HeaderCell[][] => {
+  const columns = tableReport.value?.columns ?? []
+  if (!columns.some(c => c.group)) {
+    return [columns.map(column => ({ column }))]
+  }
+  const top: HeaderCell[] = []
+  const bottom: HeaderCell[] = []
+  for (const column of columns) {
+    if (!column.group) {
+      top.push({ column, rowspan: 2 })
+      continue
+    }
+    const last = top[top.length - 1]
+    if (last?.group?.key === column.group.key) {
+      last.colspan = (last.colspan ?? 1) + 1
+    } else {
+      top.push({ group: column.group, colspan: 1 })
+    }
+    bottom.push({ column })
+  }
+  return [top, bottom]
+})
+
 const sortStatus = ref('')
 function announceSort (message: string) {
   // Clear first so repeating the same message still triggers an announcement.
@@ -259,32 +384,35 @@ function announceSort (message: string) {
   })
 }
 
+function matches (row: Record<string, any>, query: string): boolean {
+  return Object.values(row).some(val => String(val ?? '').toLowerCase().includes(query))
+}
+
+// The filter as typed, trimmed and in lower case.
+const query = computed(() => (searchQuery.value || '').trim().toLowerCase())
+
+// Grouped, the filter keeps whole groups, so is applied to them below.
 const filteredData = computed(() => {
   const data = tableReport?.value?.data || []
-  const query = (searchQuery.value || '').trim().toLowerCase()
-  if (!query) {
+  if (!query.value || props.groupKey) {
     return data
   }
-  return data.filter(row =>
-    Object.values(row).some(val =>
-      String(val ?? '').toLowerCase().includes(query),
-    ),
-  )
+  return data.filter(row => matches(row, query.value))
 })
 
-// Sort the filtered data. Nullish values are pushed to the end regardless
-// of direction so they don't pollute either tail of a sorted column.
-const sortedData = computed(() => {
-  const base = filteredData.value
+// The sort's comparison, if any. Nullish values are pushed to the end
+// regardless of direction so they don't pollute either tail of a sorted
+// column.
+const compareRows = computed(() => {
   const key = sortKey.value
   const dir = sortDir.value
   if (!key || !dir) {
-    return base
+    return undefined
   }
   const col = tableReport.value?.columns.find(c => c.key === key)
   const numeric = col?.numeric === true || col?.format !== undefined
   const sign = dir === 'asc' ? 1 : -1
-  return [...base].sort((a, b) => {
+  return (a: Record<string, any>, b: Record<string, any>): number => {
     const va = a[key]
     const vb = b[key]
     const aNil = va == null || va === ''
@@ -301,8 +429,86 @@ const sortedData = computed(() => {
       return sign * (na - nb)
     }
     return sign * String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' })
-  })
+  }
 })
+
+const sortedData = computed(() => {
+  const compare = compareRows.value
+  return compare ? [...filteredData.value].sort(compare) : filteredData.value
+})
+
+// Grouped: the rows by group, in their first row's order, filtered and
+// sorted as groups.
+function groupOf (row: Record<string, any>): string {
+  return String(row[props.groupKey!])
+}
+const groups = computed((): Record<string, any>[][] => {
+  if (!props.groupKey) {
+    return []
+  }
+  const byGroup = new Map<string, Record<string, any>[]>()
+  for (const row of filteredData.value) {
+    const id = groupOf(row)
+    const rows = byGroup.get(id)
+    if (rows) {
+      rows.push(row)
+    } else {
+      byGroup.set(id, [row])
+    }
+  }
+  let list = [...byGroup.values()]
+  if (query.value) {
+    list = list.filter(rows => rows.some(row => matches(row, query.value)))
+  }
+  const compare = compareRows.value
+  if (compare) {
+    list = list.map(([head, ...rest]) => [head!, ...rest.sort(compare)]).sort((a, b) => compare(a[0]!, b[0]!))
+  }
+  return list
+})
+
+// Groups closed to their heading; all open to begin with.
+const closed = ref(new Set<string>())
+// Each heading row, and whether its group has rows under it to open.
+const heads = computed(() => new Map(groups.value.map(rows => [rows[0], rows.length > 1])))
+function isGroupHead (row: Record<string, any>): boolean {
+  return heads.value.has(row)
+}
+function opensGroup (row: Record<string, any>): boolean {
+  return heads.value.get(row) === true
+}
+function toggleGroup (id: string) {
+  const next = new Set(closed.value)
+  if (!next.delete(id)) {
+    next.add(id)
+  }
+  closed.value = next
+}
+const anyOpen = computed(() => groups.value.some(rows => rows.length > 1 && !closed.value.has(groupOf(rows[0]!))))
+function setAllOpen (open: boolean) {
+  closed.value = open ? new Set() : new Set(groups.value.map(rows => groupOf(rows[0]!)))
+}
+// The grouped grid's first column, which holds the open and close buttons.
+function isGroupColumn (column: TableColumn): boolean {
+  return !!props.groupKey && column === tableReport.value.columns[0]
+}
+
+// A column's alignment and width, as classes on its header and cells.
+function columnClass (column: TableColumn) {
+  return { 'cal-datagrid-col-center': column.align === 'center', 'cal-datagrid-col-shrink': column.shrink }
+}
+
+// An open group's heading row, in a column that sums up the rows under it.
+function hidesValue (row: Record<string, any>, column: TableColumn): boolean {
+  return !!props.groupKey && !!column.groupSummary && opensGroup(row) && !closed.value.has(groupOf(row))
+}
+
+function groupRowClass (row: Record<string, any>): string | undefined {
+  if (!props.groupKey) {
+    return undefined
+  }
+  return isGroupHead(row) ? 'cal-datagrid-group-head' : 'cal-datagrid-group-row'
+}
 
 watch(searchQuery, () => {
   current.value = 1
@@ -317,19 +523,60 @@ watch(() => tableReport.value?.columns, () => {
   sortStatus.value = ''
 })
 
-// Reset pagination when data changes (e.g. tab switch, filter update)
+// Back to the first page, or scrolling, the first rows.
+function resetPaging () {
+  current.value = 1
+  shown.value = props.perPage
+}
+
+// Reset pagination when data changes (e.g. tab switch, filter update).
+// Scrolling, a refresh of the same rows keeps those loaded; resetKey says
+// when the rows are new.
 watch(() => tableReport.value?.data, () => {
   current.value = 1
 })
 
-// Reset pagination when sort changes so the user sees the new top of the list
-watch([sortKey, sortDir], () => {
-  current.value = 1
+// Reset when the sort changes, so the user sees the new top of the list, or
+// when the rows are new.
+watch([sortKey, sortDir, () => props.resetKey], resetPaging)
+
+// Scrolling: the rows (or groups) shown so far, and more as the last row
+// nears the table's bottom edge.
+const shown = ref(props.perPage)
+const shownCount = computed(() => Math.min(shown.value, total.value))
+const tableContainer = ref<HTMLElement>()
+const more = ref<HTMLElement>()
+let observer: IntersectionObserver | undefined
+watch(more, (el) => {
+  observer?.disconnect()
+  if (!el) {
+    return
+  }
+  // The table scrolls inside its container where it fills its parent, and
+  // with the page otherwise.
+  observer = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) {
+      shown.value += props.perPage
+    }
+  }, { root: props.fill ? tableContainer.value : null, rootMargin: '200px' })
+  observer.observe(el)
 })
+// After each load, looked at again: still in view, it loads more, as the
+// observer reports only changes.
+watch(shown, () => {
+  if (observer && more.value) {
+    observer.unobserve(more.value)
+    observer.observe(more.value)
+  }
+}, { flush: 'post' })
+onBeforeUnmount(() => observer?.disconnect())
 
 const currentRows = computed(() => {
-  const start = (current.value - 1) * perPage
-  const end = start + perPage
+  const start = props.scroll ? 0 : (current.value - 1) * props.perPage
+  const end = props.scroll ? shown.value : start + props.perPage
+  if (props.groupKey) {
+    return groups.value.slice(start, end).flatMap(rows => (closed.value.has(groupOf(rows[0]!)) ? rows.slice(0, 1) : rows))
+  }
   return sortedData.value.slice(start, end)
 })
 
@@ -364,14 +611,15 @@ const layoutShimRow = computed((): Record<string, any> | null => {
   }
   return shim
 })
+// Rows, or grouped, groups.
 const total = computed(() => {
-  return sortedData.value.length
+  return props.groupKey ? groups.value.length : sortedData.value.length
 })
 const rangeStart = computed(() => {
-  return total.value === 0 ? 0 : (current.value - 1) * perPage + 1
+  return total.value === 0 ? 0 : (current.value - 1) * props.perPage + 1
 })
 const rangeEnd = computed(() => {
-  return Math.min(current.value * perPage, total.value)
+  return Math.min(current.value * props.perPage, total.value)
 })
 
 // Screen-reader announcement of the filter's effect, fed into cat-search-bar's
@@ -414,6 +662,35 @@ const filterStatus = computed(() => {
   position: relative;
 }
 
+.cal-report-table.cal-report-table-dense {
+  font-size: 0.875rem;
+
+  th, td {
+    padding: 0.3rem 0.5rem;
+  }
+}
+
+.cal-datagrid-fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+
+  .table-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin-bottom: 0;
+  }
+
+  // The whole header, with any row of column groups, pinned as one.
+  .cal-report-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+}
+
 .cal-report-table {
   th, td {
     padding: 0.5rem 0.75rem;
@@ -422,6 +699,13 @@ const filterStatus = computed(() => {
     // Floor so short-header + short-data columns (e.g. "ID" / "1") stay
     // readable instead of collapsing to a few pixels wide.
     min-width: 4rem;
+  }
+
+  // A column group's heading, centered over its columns.
+  th.cal-datagrid-colgroup {
+    text-align: center;
+    font-size: 0.8em;
+    border-bottom-width: 1px;
   }
 
   th {
@@ -571,6 +855,80 @@ const filterStatus = computed(() => {
       background: var(--bulma-scheme-main-ter);
       z-index: 3;
     }
+  }
+}
+
+// Scrolling: the row that loads more, quietly.
+.cal-datagrid-more td {
+  text-align: center;
+  color: var(--bulma-text-weak);
+  font-size: 0.8em;
+}
+
+// A column only as wide as its content, and one centered, its sort button
+// too.
+.cal-report-table {
+  .cal-datagrid-col-shrink {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .cal-datagrid-col-center {
+    text-align: center;
+
+    .cal-datagrid-sort-button {
+      justify-content: center;
+    }
+  }
+
+  // A group's heading row, set apart from the rows under it.
+  tr.cal-datagrid-group-head td {
+    background: var(--bulma-scheme-main-bis);
+    font-weight: 600;
+    border-top: 2px solid var(--bulma-border);
+  }
+}
+
+// Grouped rows: a heading's open and close button, and the rows under it
+// indented past it.
+.cal-datagrid-group-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cal-datagrid-group-toggle {
+  flex: 0 0 1.25rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--bulma-text-weak);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--bulma-primary);
+  }
+}
+
+.cal-datagrid-group-indent {
+  display: inline-block;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+}
+
+.cal-report-table th.cal-datagrid-group-th {
+  position: relative;
+
+  .cal-datagrid-group-toggle-all {
+    position: absolute;
+    left: 0.4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+  }
+
+  .cal-datagrid-sort-button {
+    padding-left: 1.9rem;
   }
 }
 

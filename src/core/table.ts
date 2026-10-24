@@ -14,6 +14,23 @@ export interface TableColumn {
   // numeric columns rendered through a slot rather than formatCensusValue,
   // where string collation would order negative values incorrectly.
   numeric?: boolean
+  // A class for the column's header and cells.
+  class?: string
+  // Header and cells centered; and the column only as wide as its content.
+  align?: 'center'
+  shrink?: boolean
+  // A heading over this column and its neighbors of the same group, in a
+  // header row above theirs.
+  group?: TableColumnGroup
+  // In a grid of row groups, a heading row's value here sums up the rows
+  // under it, so shows only while its group is closed.
+  groupSummary?: boolean
+}
+
+export interface TableColumnGroup {
+  key: string
+  label: string
+  tooltip?: string
 }
 
 export interface TableReport {
