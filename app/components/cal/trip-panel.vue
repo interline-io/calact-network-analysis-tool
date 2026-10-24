@@ -66,7 +66,8 @@
           </table>
           <!-- How a route's numbers, and any caveat on its frequency, are
                worked out, in the full table's Calculations tab. Every route
-               has it, with or without a frequency. -->
+               has it, with or without a frequency. A stop or cluster opens
+               its transfers in the Reports tab's Transfer Analyst instead. -->
           <button
             v-if="subject.kind === 'route'"
             type="button"
@@ -75,6 +76,16 @@
           >
             How these are calculated
           </button>
+          <cat-button
+            v-else
+            class="mb-2"
+            size="small"
+            icon-left="transit-transfer"
+            fullwidth
+            @click="$emit('openTransfers')"
+          >
+            Enter Transfer Analyst
+          </cat-button>
 
           <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
             <caption class="is-sr-only">
@@ -179,6 +190,8 @@ const emit = defineEmits<{
   loadDetails: []
   // Open every trip in the full-size table.
   expandTrips: [tab?: TripDetailsTab]
+  // Open the Reports tab's transfers at this stop or cluster.
+  openTransfers: []
 }>()
 
 type TripPanelTab = 'overview' | 'trips'
