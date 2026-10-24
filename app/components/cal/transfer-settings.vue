@@ -23,7 +23,7 @@
         <label class="cal-transfer-settings-row">
           Seconds per meter
           <cat-input
-            :key="`pace-${emptied}`"
+            :key="`pace-${emptied.pace ?? 0}`"
             :model-value="settings.secondsPerMeter"
             :model-modifiers="{ lazy: true }"
             optional
@@ -33,7 +33,7 @@
             size="small"
             class="cal-transfer-settings-number"
             v-bind="{ ariaLabel: 'Walking seconds per meter' }"
-            @update:model-value="ifNumber($event, n => set({ secondsPerMeter: n }))"
+            @update:model-value="ifNumber('pace', $event, n => set({ secondsPerMeter: n }))"
           />
           <span class="cal-transfer-settings-help">{{ pace }}; no walk at the same stop</span>
         </label>
@@ -48,7 +48,7 @@
       <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
         <div class="cal-transfer-settings-scale">
           <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
-          <template v-for="(bound, i) of bounds" :key="`${bound}-${emptied}`">
+          <template v-for="(bound, i) of bounds" :key="`${bound}-${emptied[bound] ?? 0}`">
             <cat-input
               :model-value="minutes(settings.breakpoints[i])"
               :model-modifiers="{ lazy: true }"
@@ -58,7 +58,7 @@
               size="small"
               class="cal-transfer-settings-number"
               v-bind="{ ariaLabel: `${bound}, in minutes` }"
-              @update:model-value="ifNumber($event, n => setBreakpoint(i, n))"
+              @update:model-value="ifNumber(bound, $event, n => setBreakpoint(i, n))"
             />
             <span
               v-if="TRANSFER_GRADES[i]"
@@ -252,14 +252,15 @@ function minutes (seconds: number | undefined): number | undefined {
 }
 
 // A field's number, applied; a field left empty, or not a number, changes
-// nothing, rather than reading as 0, and shows its value again.
-const emptied = ref(0)
-function ifNumber (value: unknown, apply: (n: number) => void) {
+// nothing, rather than reading as 0, and that field alone is drawn again to
+// show its value, as cat-input keeps the emptied text while its value stays.
+const emptied = ref<Record<string, number>>({})
+function ifNumber (field: string, value: unknown, apply: (n: number) => void) {
   const n = value === '' || value === null || value === undefined ? Number.NaN : Number(value)
   if (Number.isFinite(n)) {
     apply(n)
   } else {
-    emptied.value++
+    emptied.value = { ...emptied.value, [field]: (emptied.value[field] ?? 0) + 1 }
   }
 }
 

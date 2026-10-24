@@ -213,6 +213,11 @@ describe('calculateTransfers', () => {
     const arrival = { ...event(1, 10, hms(8), 2), calls: [{ stopId: 2, time: at(hms(8)) }, { stopId: 1, time: at(hms(8, 3)) }] }
     const [stayOn] = calculateTransfers([arrival], [{ ...event(2, 20, hms(8, 4), 1) }], walkAB)
     expect(stayOn!.connections.map(c => [c.alight?.stopId, c.departure.stopId, c.walk, c.wait])).toEqual([[1, 1, 0, 60]])
+    // Arriving at stop 1 at 08:00 and on to stop 2 at 08:06, a rider for an
+    // 08:10 departure at stop 1 waits there, not riding on to walk back.
+    const ridePast = { ...event(1, 10, hms(8), 1), calls: [{ stopId: 1, time: at(hms(8)) }, { stopId: 2, time: at(hms(8, 6)) }] }
+    const [waits] = calculateTransfers([ridePast], [{ ...event(2, 20, hms(8, 10), 1) }], { ...walkAB, walkSeconds: (a: number, b: number) => (a === b ? 0 : 60) })
+    expect(waits!.connections.map(c => [c.alight?.stopId, c.walk, c.wait])).toEqual([[undefined, 0, 600]])
     // The CSV leaves the arriving trip where the rider does.
     const stops = new Map([[1, { stop_id: 'A', stop_name: 'A' }], [2, { stop_id: 'B', stop_name: 'B' }]]) as unknown as Map<number, TripTableStop>
     const [row] = transferRows([stayOn!], { routes: new Map(), stops, tripDetails: new Map() })

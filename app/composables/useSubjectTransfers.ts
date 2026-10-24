@@ -202,8 +202,15 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       }
       return chunkArray(wanted, STOP_DISTANCE_BATCH_SIZE).map(batch => ({ mode, batch }))
     })
+    // Recorded only while still what is asked for, so an older load ending
+    // after a newer one leaves the newer one's be.
+    const settle = () => {
+      if (asked === distancesKey.value) {
+        distancesFor.value = asked
+      }
+    }
     if (batches.length === 0) {
-      distancesFor.value = asked
+      settle()
       return
     }
     distancesLoading.value++
@@ -243,7 +250,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       }
     }
     triggerRef(distances)
-    distancesFor.value = asked
+    settle()
     distancesLoading.value--
   }
 

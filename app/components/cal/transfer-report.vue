@@ -177,8 +177,9 @@
       </p>
       <template v-else>
         <!-- Dates are listed by departures, read before trips' details, so a
-             date whose trips only start here has none arriving. -->
-        <p v-if="overview.arrivals === 0 && !detailsLoading" class="cal-transfer-report-note">
+             date whose trips only start here has none arriving; where details
+             failed or are missing, the note above says why instead. -->
+        <p v-if="overview.arrivals === 0 && !detailsLoading && !detailsError && missingDetails === 0" class="cal-transfer-report-note">
           No trips arrive here on this date within the filters.
         </p>
         <!-- Departures are loaded for the query's dates alone. -->

@@ -723,9 +723,10 @@ function sharedWay (arrival: TransferEvent, departure: TransferEvent): TransferW
 }
 
 // The calls to leave one trip at and board another at, with the walk and
-// wait between, that serve a rider best: the shortest wait of those made,
-// else the connection missed by the least. None where no pair falls within
-// the waits.
+// wait between, that serve a rider best: of those made, the earliest
+// boarding, left at the earliest call that makes it (riding on past a stop
+// to walk back to it is no shorter a transfer); else the connection missed
+// by the least. None where no pair falls within the waits.
 function bestCalls (alights: TransferCall[], boards: TransferCall[], walkSeconds: (from: number, to: number) => number, minWait: number, maxWait: number) {
   let best: { alight: TransferCall, board: TransferCall, walk: number, wait: number } | undefined
   for (const alight of alights) {
@@ -738,7 +739,9 @@ function bestCalls (alights: TransferCall[], boards: TransferCall[], walkSeconds
       if (wait < minWait || wait > maxWait) {
         continue
       }
-      const better = !best || (wait >= 0 ? best.wait < 0 || wait < best.wait : best.wait < 0 && wait > best.wait)
+      const better = !best || (wait >= 0
+        ? best.wait < 0 || board.time < best.board.time || (board.time === best.board.time && alight.time < best.alight.time)
+        : best.wait < 0 && wait > best.wait)
       if (better) {
         best = { alight, board, walk, wait }
       }
@@ -797,8 +800,10 @@ export function calculateTransfers (arrivals: TransferEvent[], departures: Trans
     // gives them.
     for (let i = lowerBound(departures, arrival.time + minWait - span); i < departures.length && departures[i]!.time <= last; i++) {
       const departure = departures[i]!
-      // Not the same route either way, which takes in the same trip.
-      if (departure.routeId === arrival.routeId) {
+      // Not the same route either way, which takes in the same trip; nor a
+      // departure whose last call leaves before any connection, which the
+      // search's early start reaches.
+      if (departure.routeId === arrival.routeId || callsOf(departure).at(-1)!.time < arrival.time + minWait) {
         continue
       }
       const best = bestCalls(alights, callsOf(departure), opts.walkSeconds, minWait, maxWait)
@@ -1101,47 +1106,27 @@ function stopColumns<P extends Side> (side: P, stop: TripTableStop | undefined):
 // A row per pair of arriving and departing destinations, for the CSV; and one
 // for an arriving destination with none.
 export function transferSummaryRows (summaries: TransferArrivalSummary[], routes: Map<number, TripTableRoute>): TransferSummaryRow[] {
-  return summaries.flatMap(({ from: f, overview, pairs }): TransferSummaryRow[] => {
+  return summaries.flatMap(({ from: f, overview, pairs }) => {
     const from = routeColumns('from', routes.get(f.routeId))
-    // An arriving destination with no connections, as the Summary shows it.
-    if (pairs.length === 0) {
-      return [{
-        ...from,
-        from_direction_id: f.directionId,
-        from_headsign: f.headsign ?? '',
-        ...routeColumns('to', undefined),
-        to_direction_id: '',
-        to_headsign: '',
-        arrivals: overview.arrivals,
-        missed: 0,
-        close: 0,
-        acceptable: 0,
-        unacceptable: 0,
-        close_or_acceptable_share: 0,
-        close_share: 0,
-        acceptable_share: 0,
-        median_wait_seconds: '',
-      }]
-    }
-    return pairs.map((s) => {
-      return {
-        ...from,
-        from_direction_id: f.directionId,
-        from_headsign: f.headsign ?? '',
-        ...routeColumns('to', routes.get(s.to.routeId)),
-        to_direction_id: s.to.directionId,
-        to_headsign: s.to.headsign ?? '',
-        arrivals: overview.arrivals,
-        missed: s.missed,
-        close: s.close,
-        acceptable: s.acceptable,
-        unacceptable: s.unacceptable,
-        close_or_acceptable_share: percent(s.closeOrAcceptableShare),
-        close_share: percent(s.closeShare),
-        acceptable_share: percent(s.acceptableShare),
-        median_wait_seconds: s.medianWait ?? '',
-      }
-    })
+    // An arriving destination with no connections, as the Summary shows it,
+    // has one row with no departing side.
+    return (pairs.length > 0 ? pairs : [undefined]).map((s): TransferSummaryRow => ({
+      ...from,
+      from_direction_id: f.directionId,
+      from_headsign: f.headsign ?? '',
+      ...routeColumns('to', s && routes.get(s.to.routeId)),
+      to_direction_id: s?.to.directionId ?? '',
+      to_headsign: s ? (s.to.headsign ?? '') : '',
+      arrivals: overview.arrivals,
+      missed: s?.missed ?? 0,
+      close: s?.close ?? 0,
+      acceptable: s?.acceptable ?? 0,
+      unacceptable: s?.unacceptable ?? 0,
+      close_or_acceptable_share: percent(s?.closeOrAcceptableShare ?? 0),
+      close_share: percent(s?.closeShare ?? 0),
+      acceptable_share: percent(s?.acceptableShare ?? 0),
+      median_wait_seconds: s?.medianWait ?? '',
+    }))
   })
 }
 
@@ -1400,7 +1385,8 @@ export function transferRows (
   return rows
 }
 
-const KM_PER_DEGREE = 111.32
+// Kilometers per degree of latitude.
+export const KM_PER_DEGREE = 111.32
 
 // The bearing (degrees clockwise from north) and distance (km) from one
 // [lon, lat] to another: flat-earth arithmetic, close enough over a short

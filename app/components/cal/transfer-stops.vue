@@ -71,7 +71,7 @@
 import { computed, ref } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
-import { bearingAndDistance } from '~~/src/scenario'
+import { KM_PER_DEGREE, bearingAndDistance } from '~~/src/scenario'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
@@ -107,9 +107,9 @@ const nearby = computed(() => {
   if (chosen.length === 0) {
     return []
   }
-  // Only stops in the picked ones' box, padded by the walk (a degree of
-  // latitude is about 111 km; of longitude, less), are measured.
-  const pad = NEARBY_KM / 111
+  // Only stops in the picked ones' box, padded by the walk (in degrees of
+  // latitude; of longitude, more), are measured.
+  const pad = NEARBY_KM / KM_PER_DEGREE
   const lats = chosen.map(c => c.lat)
   const padLon = pad / Math.cos((Math.max(...lats.map(Math.abs)) * Math.PI) / 180)
   const lons = chosen.map(c => c.lon)
