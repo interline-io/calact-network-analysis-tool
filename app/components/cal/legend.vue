@@ -38,6 +38,20 @@
           </div>
         </div>
 
+        <!-- Isochrone: its place. The panel's travel time buttons key its
+             bands. -->
+        <div v-if="props.isochroneArriveBy !== undefined" class="cal-map-legend-section">
+          <div class="legend-heading">
+            Travel time:
+          </div>
+          <div>
+            <div class="legend-item cal-isochrone-glyph cal-isochrone-glyph-small" :class="props.isochroneArriveBy ? 'cal-isochrone-glyph-destination' : 'cal-isochrone-glyph-origin'">
+              <i v-if="props.isochroneArriveBy" class="mdi mdi-flag-checkered" />
+            </div>
+            <div>{{ props.isochroneArriveBy ? 'Arriving here' : 'Leaving from here' }}</div>
+          </div>
+        </div>
+
         <!-- Geometry Style -->
         <div v-if="props.hasData" class="cal-map-legend-section">
           <div>
@@ -198,6 +212,9 @@ const props = defineProps<{
   choroplethClassification?: ChoroplethClassification
   // Stop clusters
   hasClusterData?: boolean
+  // Whether the open isochrone's place is a destination; undefined while
+  // none is open.
+  isochroneArriveBy?: boolean
 }>()
 
 defineEmits<{
@@ -212,7 +229,7 @@ const { geomSource } = useScenarioInputs()
 
 const showChoropleth = computed(() => showAggAreas.value && props.hasChoroplethData)
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
+const shouldShowLegend = computed(() => props.isochroneArriveBy !== undefined || props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification
