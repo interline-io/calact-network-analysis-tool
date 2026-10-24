@@ -369,6 +369,14 @@ describe('summarizeTransfers and transferOverview', () => {
     ])
   })
 
+  it('writes whole seconds, though walks come from distances', () => {
+    const fractional = calculateTransfers([event(1, 10, hms(7))], [event(2, 20, hms(7, 5), 2)], { ...walk, walkSeconds: (a: number, b: number) => (a === b ? 0 : 120.6) })
+    const [row] = transferRows(fractional, { routes: new Map(), stops: new Map(), tripDetails: new Map() })
+    expect([row!.walk_seconds, row!.wait_seconds]).toEqual([121, 179])
+    const [pair] = transferSummaryRows(summarizeTransfers(fractional), new Map())
+    expect(pair!.median_wait_seconds).toBe(179)
+  })
+
   it('writes a summary row for an arriving destination with no connections', () => {
     const lone = calculateTransfers([event(1, 30, hms(9))], departures, walk)
     const rows = transferSummaryRows(summarizeTransfers(lone), new Map())

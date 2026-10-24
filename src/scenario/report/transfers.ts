@@ -1125,7 +1125,7 @@ export function transferSummaryRows (summaries: TransferArrivalSummary[], routes
       close_or_acceptable_share: percent(s?.closeOrAcceptableShare ?? 0),
       close_share: percent(s?.closeShare ?? 0),
       acceptable_share: percent(s?.acceptableShare ?? 0),
-      median_wait_seconds: s?.medianWait ?? '',
+      median_wait_seconds: s?.medianWait === undefined ? '' : Math.round(s.medianWait),
     }))
   })
 }
@@ -1375,8 +1375,9 @@ export function transferRows (
         to_trip_id: opts.tripDetails.get(c.departure.tripId)?.tripId ?? '',
         to_headsign: c.departure.headsign ?? '',
         ...stopColumns('to', opts.stops.get(c.departure.stopId)),
-        walk_seconds: c.walk,
-        wait_seconds: c.wait,
+        // Whole seconds: walks come from distances.
+        walk_seconds: Math.round(c.walk),
+        wait_seconds: Math.round(c.wait),
         grade: c.grade,
         grade_label: TRANSFER_GRADE_LABELS[c.grade],
       })
