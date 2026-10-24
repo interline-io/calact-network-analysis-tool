@@ -114,6 +114,12 @@ test.describe('Isochrone panel', () => {
     await expect(panel(page).getByRole('button', { name: '240 minutes' })).toHaveAttribute('aria-pressed', 'true', { timeout: 15000 })
     await expect(panel(page).getByRole('button', { name: '90 minutes' })).toBeDisabled()
     await expect(panel(page).getByRole('button', { name: 'Add a travel time' })).toBeDisabled()
+    // Nine times and + wrap within the panel rather than running off it.
+    const panelBox = (await panel(page).boundingBox())!
+    for (const name of ['240 minutes', 'Add a travel time']) {
+      const box = (await panel(page).getByRole('button', { name }).boundingBox())!
+      expect(box.x + box.width).toBeLessThanOrEqual(panelBox.x + panelBox.width)
+    }
     // Unchoosing one makes room again.
     await panel(page).getByRole('button', { name: '100 minutes' }).click()
     await expect(panel(page).getByRole('button', { name: '90 minutes' })).toBeEnabled()

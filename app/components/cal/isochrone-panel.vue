@@ -83,7 +83,7 @@
         </div>
 
         <div role="group" aria-label="Travel time">
-          <cat-field label="Travel time" label-size="small" addons>
+          <cat-field label="Travel time" label-size="small" addons class="cal-isochrone-cutoffs">
             <div v-for="m of cutoffChoices" :key="m" class="control is-expanded">
               <cat-button
                 size="small"
@@ -479,6 +479,13 @@ function setRender<K extends keyof IsochroneRenderOptions> (k: K, v: IsochroneRe
 // Holds the status line, empty while there's nothing to say.
 .cal-isochrone-status:empty {
   display: none;
+}
+
+// Presets, typed-in times and +: as many as 15 buttons, so they wrap onto
+// more lines rather than run off the panel.
+.cal-isochrone-cutoffs :deep(.field.has-addons) {
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 .cal-isochrone-place {
