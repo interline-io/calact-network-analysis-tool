@@ -124,7 +124,7 @@
           A time from 1 minute to 4 hours, such as 90, 1h30m or 2h.
         </p>
 
-        <!-- Transit (of the route types beside it) or walking alone. -->
+        <!-- Walking alone, or transit of the route types beside it. -->
         <cat-field label="Ride" label-size="small" grouped>
           <div class="control" role="group" aria-label="Ride">
             <cat-field addons>
@@ -389,9 +389,10 @@ function toggleRouteType (rt: RouteType, on: boolean) {
   update({ mode: { walkOnly: false, routeTypes: on ? [...current, rt] : current.filter(t => t !== rt) } })
 }
 
+// Transit last, beside the route types it rides.
 const rides = [
-  { label: 'Transit', icon: 'bus-multiple', walkOnly: false },
   { label: 'Walk only', icon: 'walk', walkOnly: true },
+  { label: 'Transit', icon: 'bus-multiple', walkOnly: false },
 ]
 
 // Transit returns to what the scenario rides, or all of it if the scenario
