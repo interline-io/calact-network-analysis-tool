@@ -10,9 +10,12 @@ import { useApolloClient } from '@vue/apollo-composable'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   calculateTransfers,
+  centerOf,
   clusterDisplayName,
   resolveEffectiveWeekdays,
   summarizeTransfers,
+  transferCompassPlaces,
+  transferRose,
   transferEvents,
   transferGrid,
   transferOverview,
@@ -392,6 +395,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   const summary = computed(() => summarizeTransfers(dateGroups.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
+  // Where arriving trips come from and departing ones go, around the middle
+  // of the stops; and the connections by grade at each.
+  const compass = computed(() => {
+    const center = centerOf(stopIds.value.flatMap((id) => {
+      const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
+      return lon === undefined || lat === undefined ? [] : [[lon, lat] as [number, number]]
+    }))
+    return {
+      from: center ? transferCompassPlaces(routeChoices.value.from, 'from', center) : [],
+      to: center ? transferCompassPlaces(routeChoices.value.to, 'to', center) : [],
+    }
+  })
+  const rose = computed(() => transferRose(summary.value, compass.value, tripInfo.value))
 
   // The views' rows, flat, as CSV: built when asked for.
   function csvRows (kind: 'summary' | 'connections'): Record<string, unknown>[] {
@@ -504,6 +520,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     settings,
     breakpoints,
     routeChoices,
+    compass,
+    rose,
     missingDetails: computed(() => events.value?.missingTripIds.length ?? 0),
     csvRows,
     summaryGrid,

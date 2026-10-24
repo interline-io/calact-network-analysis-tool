@@ -23,6 +23,7 @@ query TripDetails($ids: [Int!], $limit: Int) {
       stop {
         id
         stop_name
+        geometry
         parent {
           id
           stop_name
@@ -51,7 +52,7 @@ export interface TripDetailsResponse {
       stop_headsign?: string | null
       pickup_type?: number | null
       drop_off_type?: number | null
-      stop?: { id: number, stop_name?: string | null, parent?: { id?: number | null, stop_name?: string | null } | null } | null
+      stop?: { id: number, stop_name?: string | null, geometry?: GeoJSON.Point | null, parent?: { id?: number | null, stop_name?: string | null } | null } | null
     } | null)[]
   }[]
 }
@@ -70,6 +71,9 @@ export interface TripDetail {
   lastStopName?: string
   // The first stop's own name and its station's, as a sign may name either.
   firstStopNames?: string[]
+  // And where those stops are, as [lon, lat].
+  firstStopPoint?: [number, number]
+  lastStopPoint?: [number, number]
   // Seconds since midnight; may run past 24:00 for after-midnight trips.
   startTime?: number
   endTime?: number
@@ -89,6 +93,11 @@ export interface TripStopTime {
   // GTFS pickup_type and drop_off_type; 1 means none at this stop.
   pickupType?: number | null
   dropOffType?: number | null
+}
+
+function stopPoint (stop: { geometry?: GeoJSON.Point | null } | null | undefined): [number, number] | undefined {
+  const [lon, lat] = stop?.geometry?.coordinates ?? []
+  return lon === undefined || lat === undefined ? undefined : [lon, lat]
 }
 
 function stationName (stop: { stop_name?: string | null, parent?: { stop_name?: string | null } | null } | null | undefined): string | undefined {
@@ -143,6 +152,8 @@ export function parseTripDetails (data: TripDetailsResponse | undefined): TripDe
       firstStopName: stationName(stopTimes[0]?.stop),
       lastStopName: stationName(stopTimes[stopTimes.length - 1]?.stop),
       firstStopNames: [stopTimes[0]?.stop?.stop_name, stopTimes[0]?.stop?.parent?.stop_name].filter((n): n is string => !!n),
+      firstStopPoint: stopPoint(stopTimes[0]?.stop),
+      lastStopPoint: stopPoint(stopTimes[stopTimes.length - 1]?.stop),
       startTime,
       endTime,
       stopCount: t.stop_times.length,
