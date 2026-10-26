@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount, createApp, h } from 'vue'
 import * as maplibre from 'maplibre-gl'
 import { BASEMAP_ATTRIBUTION, basemapStyle, protomapsLabelLayers } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
@@ -30,11 +30,18 @@ const emit = defineEmits([
   'showTrips',
   'popupShown',
   'popupClosed',
+  // Open an isochrone: from a stop's popup (featureId), or from a point picked
+  // with the map's context menu.
+  'isochroneFromStop',
+  'isochroneFromPoint',
+  'isochroneOriginMoved',
 ])
 
 const overlayFeatures = defineModel<Feature[]>('overlayFeatures', { default: () => [] })
 const stopBufferFeatures = defineModel<Feature[]>('stopBufferFeatures', { default: () => [] })
 const choroplethFeatures = defineModel<Feature[]>('choroplethFeatures', { default: () => [] })
+// Isochrone bands, longest first.
+const isochroneFeatures = defineModel<Feature[]>('isochroneFeatures', { default: () => [] })
 const selectableGeographies = defineModel<Feature[]>('selectableGeographies', { default: () => [] })
 const features = defineModel<Feature[]>('features', { default: () => [] })
 const flexFeatures = defineModel<Feature[]>('flexFeatures', { default: () => [] })
@@ -64,6 +71,12 @@ const props = defineProps<{
   fitOverlayKey?: number
   // Features to fit to when fitOverlayKey changes
   fitTargetFeatures?: Feature[]
+  // The open isochrone's place, as a draggable marker: drawn as an origin,
+  // or as a destination for arrive-by.
+  isochroneOrigin?: Point
+  isochroneArriveBy?: boolean
+  // Increment to fit the map to the isochrone bands.
+  fitIsochroneKey?: number
 }>()
 
 const { unitSystem, isAllDayMode } = useScenarioDisplay()
@@ -98,6 +111,29 @@ watch(() => choroplethFeatures.value, (v) => {
   nextTick(() => {
     updateChoroplethFeatures(v)
   })
+})
+
+watch(() => isochroneFeatures.value, (v) => {
+  nextTick(() => {
+    updateIsochroneFeatures(v)
+  })
+})
+
+// Bands are outlines only while the census choropleth has the fill.
+const isochroneOutlineOnly = computed(() => choroplethFeatures.value.length > 0)
+watch(isochroneOutlineOnly, () => {
+  applyIsochroneFill()
+})
+
+// By value: the params behind the place are rebuilt on any URL change.
+watch(() => props.isochroneOrigin && `${props.isochroneOrigin.lon},${props.isochroneOrigin.lat},${!!props.isochroneArriveBy}`, () => {
+  drawIsochroneOrigin(props.isochroneOrigin)
+})
+
+watch(() => props.fitIsochroneKey, () => {
+  if (map && isochroneFeatures.value.length) {
+    fitFeatures(isochroneFeatures.value)
+  }
 })
 
 watch(() => selectableGeographies.value, (v) => {
@@ -206,6 +242,10 @@ onBeforeUnmount(() => {
     currentPopupApp.unmount()
     currentPopupApp = undefined
   }
+  isochroneMenu?.remove()
+  isochroneMenu = undefined
+  isochroneOriginMarker?.remove()
+  isochroneOriginMarker = undefined
   map?.remove()
   map = undefined
 })
@@ -224,6 +264,8 @@ function initMap () {
   map = new maplibre.Map(opts)
   map.addControl(new maplibre.FullscreenControl())
   map.addControl(new maplibre.NavigationControl())
+  // Needs no layers, so it works while the basemap is still loading.
+  map.on('contextmenu', mapContextMenu)
 
   // Create choropleth tooltip element (must be in mounted context, not module scope)
   choroplethTooltip = document.createElement('div')
@@ -244,6 +286,9 @@ function initMap () {
     updateOverlayFeatures(overlayFeatures.value)
     updateStopBufferFeatures(stopBufferFeatures.value)
     updateChoroplethFeatures(choroplethFeatures.value)
+    updateIsochroneFeatures(isochroneFeatures.value)
+    applyIsochroneFill()
+    drawIsochroneOrigin(props.isochroneOrigin)
     updateSelectableGeographies(selectableGeographies.value)
     updateFeatures(features.value)
     updateFlexFeatures(flexFeatures.value)
@@ -261,6 +306,9 @@ function initMap () {
     let overlayDragActive = false
     map?.on('mousedown', 'overlay-polygons', (e: maplibre.MapLayerMouseEvent) => {
       if (markers.value.length === 0 || e.originalEvent.button !== 0) { return }
+      // A press on a marker or popup over the bbox is that element's, not
+      // the bbox's.
+      if (e.originalEvent.target !== map!.getCanvas()) { return }
       e.preventDefault()
       overlayDragActive = true
       map!.dragPan.disable()
@@ -378,17 +426,7 @@ function initMap () {
         }
       }
     })
-    // Right-click to remove from selection
-    map?.on('contextmenu', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
-      e.preventDefault()
-      const feature = e.features?.[0]
-      if (feature) {
-        const geoId = feature.properties?.['geography-id']
-        if (geoId != null) {
-          emit('selectableGeoRightClick', geoId.toString())
-        }
-      }
-    })
+    // Right-click to remove from selection: see mapContextMenu.
     // Hover: show feature name tooltip and pointer cursor (pointer only for clickable)
     // geoHoverPopup is declared at module scope so onBeforeUnmount can clean it up
     map?.on('mousemove', 'selectable-geo-fill', (e: maplibre.MapLayerMouseEvent) => {
@@ -432,6 +470,10 @@ function createSources () {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
     promoteId: 'geoid',
+  })
+  map?.addSource('isochrone', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
   })
   map?.addSource('selectableGeographies', {
     type: 'geojson',
@@ -511,6 +553,31 @@ function createLayers () {
         1.0,
         ['coalesce', ['get', 'stroke-opacity'], 0.7]
       ],
+    }
+  })
+
+  // Isochrone bands: above the choropleth, below the scenario's service so
+  // its stops and routes stay on top. Nested bands, each translucent, drawn
+  // longest first so the shorter ones darken toward the place. Not among
+  // the layers a click or hover queries, so they never take a click meant
+  // for a stop or route.
+  map?.addLayer({
+    id: 'isochrone-fill',
+    type: 'fill',
+    source: 'isochrone',
+    paint: {
+      'fill-color': ['get', 'fill'],
+      'fill-opacity': ISOCHRONE_FILL_OPACITY,
+    }
+  })
+  map?.addLayer({
+    id: 'isochrone-outline',
+    type: 'line',
+    source: 'isochrone',
+    paint: {
+      'line-color': ['get', 'fill'],
+      'line-width': 1.5,
+      'line-opacity': 0.9,
     }
   })
 
@@ -803,6 +870,19 @@ function updateChoroplethFeatures (features: Feature[]) {
   setSourceData('choropleth', features, isPolygon)
 }
 
+function updateIsochroneFeatures (features: Feature[]) {
+  setSourceData('isochrone', features, isPolygon)
+}
+
+const ISOCHRONE_FILL_OPACITY = 0.2
+
+function applyIsochroneFill () {
+  if (map?.getLayer('isochrone-fill')) {
+    map.setPaintProperty('isochrone-fill', 'fill-opacity', isochroneOutlineOnly.value ? 0 : ISOCHRONE_FILL_OPACITY)
+    map.setPaintProperty('isochrone-outline', 'line-width', isochroneOutlineOnly.value ? 2.5 : 1.5)
+  }
+}
+
 function updateOverlayFeatures (features: Feature[]) {
   setSourceData('overlayPolygons', features, isPolygon)
 }
@@ -983,6 +1063,13 @@ function removePopup () {
   }
 }
 
+// Dismissed: the popup, its highlight, and the selection it stood for.
+function closePopup () {
+  removePopup()
+  updateHighlight(undefined)
+  emit('popupClosed')
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1026,11 +1113,7 @@ function showPopupAtIndex (index: number) {
       },
       currentIndex: currentPopupIndex,
       total: total,
-      onClose: () => {
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
-      },
+      onClose: closePopup,
       onPrev: () => {
         if (currentPopupIndex > 0) {
           showPopupAtIndex(currentPopupIndex - 1)
@@ -1040,6 +1123,11 @@ function showPopupAtIndex (index: number) {
         if (currentPopupIndex < currentPopupFeatures.length - 1) {
           showPopupAtIndex(currentPopupIndex + 1)
         }
+      },
+      onTravelTime: (featureId: string | number) => {
+        // The isochrone panel takes over; its marker shows the place.
+        closePopup()
+        emit('isochroneFromStop', featureId)
       },
       onShowTrips: (featureType: string, featureId: string | number) => {
         emit('showTrips', featureType, featureId)
@@ -1167,6 +1255,102 @@ function mapClick (e: maplibre.MapMouseEvent) {
   }
 }
 
+// Right-click deselects a geography the query tab is selecting; anywhere
+// else it offers an isochrone from or to that point.
+let isochroneMenu: maplibre.Popup | undefined
+function mapContextMenu (e: maplibre.MapMouseEvent) {
+  isochroneMenu?.remove()
+  isochroneMenu = undefined
+  if (!map) {
+    return
+  }
+  e.preventDefault()
+  const geo = map.getLayer('selectable-geo-fill') ? map.queryRenderedFeatures(e.point, { layers: ['selectable-geo-fill'] })[0] : undefined
+  if (geo) {
+    const geoId = geo.properties?.['geography-id']
+    if (geoId != null) {
+      emit('selectableGeoRightClick', geoId.toString())
+    }
+    return
+  }
+  const point: Point = { lon: e.lngLat.lng, lat: e.lngLat.lat }
+  // Bulma's dropdown, open, as a popup at the point: its styles hang off the
+  // whole .dropdown > .dropdown-menu > .dropdown-content structure.
+  const dropdown = document.createElement('div')
+  dropdown.className = 'dropdown is-active'
+  const dropdownMenu = document.createElement('div')
+  dropdownMenu.className = 'dropdown-menu'
+  dropdownMenu.setAttribute('role', 'menu')
+  const menu = document.createElement('div')
+  menu.className = 'dropdown-content'
+  dropdownMenu.appendChild(menu)
+  dropdown.appendChild(dropdownMenu)
+  for (const [label, arriveBy] of [['Travel time from here', false], ['Travel time to here', true]] as const) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'dropdown-item'
+    button.setAttribute('role', 'menuitem')
+    button.textContent = label
+    button.addEventListener('click', () => {
+      isochroneMenu?.remove()
+      isochroneMenu = undefined
+      emit('isochroneFromPoint', point, arriveBy)
+    })
+    menu.appendChild(button)
+  }
+  isochroneMenu = new maplibre.Popup({ closeButton: false, className: 'cal-isochrone-menu-popup', offset: 4, anchor: 'top-left' })
+    .setLngLat(e.lngLat)
+    .setDOMContent(dropdown)
+    .addTo(map)
+}
+
+// The open isochrone's place, dragged to move it.
+let isochroneOriginMarker: maplibre.Marker | undefined
+function drawIsochroneOrigin (p: Point | undefined) {
+  if (!map) {
+    return
+  }
+  if (!p) {
+    isochroneOriginMarker?.remove()
+    isochroneOriginMarker = undefined
+    return
+  }
+  if (!isochroneOriginMarker) {
+    isochroneOriginMarker = new maplibre.Marker({ element: document.createElement('div'), draggable: true })
+      .setLngLat([p.lon, p.lat])
+      .addTo(map)
+    isochroneOriginMarker.on('dragend', () => {
+      const ll = isochroneOriginMarker?.getLngLat()
+      if (ll) {
+        emit('isochroneOriginMoved', { lon: ll.lng, lat: ll.lat })
+      }
+    })
+  }
+  isochroneOriginMarker.setLngLat([p.lon, p.lat])
+  styleIsochroneOrigin()
+}
+
+// A solid dot to leave from; a flag to arrive at.
+function styleIsochroneOrigin () {
+  const el = isochroneOriginMarker?.getElement()
+  if (!el) {
+    return
+  }
+  const arriveBy = !!props.isochroneArriveBy
+  // classList, not className: the marker's own maplibregl-marker classes
+  // position it.
+  el.classList.add('cal-isochrone-glyph')
+  el.classList.toggle('cal-isochrone-glyph-destination', arriveBy)
+  el.classList.toggle('cal-isochrone-glyph-origin', !arriveBy)
+  el.title = arriveBy ? 'Arriving here. Drag to move.' : 'Leaving from here. Drag to move.'
+  el.replaceChildren()
+  if (arriveBy) {
+    const icon = document.createElement('i')
+    icon.className = 'mdi mdi-flag-checkered'
+    el.appendChild(icon)
+  }
+}
+
 function mapZoom () {
   emit('setZoom', map?.getZoom())
 }
@@ -1232,6 +1416,17 @@ function mapMouseMove (e: maplibre.MapMouseEvent) {
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     max-width: 250px;
+  }
+
+  /* Right-click menu: Bulma's dropdown draws it, so the popup adds no box of
+     its own. */
+  .cal-isochrone-menu-popup .maplibregl-popup-content {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .cal-isochrone-menu-popup .maplibregl-popup-tip {
+    display: none;
   }
 
   /* Hover tooltip for selectable geographies */

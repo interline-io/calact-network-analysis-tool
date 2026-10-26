@@ -112,6 +112,14 @@
           <span class="icon is-small"><i class="mdi mdi-bus-clock" /></span>
           <span>Show trip information</span>
         </button>
+        <button
+          v-if="feature.featureType === 'stop'"
+          class="button is-small"
+          @click="$emit('travelTime', feature.featureId)"
+        >
+          <span class="icon is-small"><i class="mdi mdi-map-marker-radius" /></span>
+          <span>Travel time from here</span>
+        </button>
       </div>
 
       <!-- Navigation bar for multiple features -->
@@ -192,6 +200,8 @@ defineEmits<{
   prev: []
   next: []
   showTrips: [featureType: PopupFeatureData['featureType'], featureId: string | number]
+  // Open an isochrone from this stop.
+  travelTime: [featureId: string | number]
 }>()
 
 const hasMultiple = computed(() => props.total > 1)
@@ -300,7 +310,7 @@ const hasTripsAction = computed(() => ['stop', 'route', 'cluster'].includes(prop
   border-top: 1px solid #e0e0e0;
 }
 
-// Full width; a route's two actions share the row.
+// Full width; a stop's two actions share the row.
 .cal-popup-actions {
   display: flex;
   gap: 6px;

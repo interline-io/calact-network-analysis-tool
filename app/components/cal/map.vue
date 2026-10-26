@@ -30,6 +30,7 @@
         :has-choropleth-data="!!(props.choroplethFeatures && props.choroplethFeatures.length > 0)"
         :choropleth-classification="props.choroplethClassification"
         :has-cluster-data="hasClusterData"
+        :isochrone-arrive-by="props.isochroneArriveBy"
         @view-details="emit('viewCensusDetails')"
         @update:open="onLegendToggle"
       />
@@ -43,6 +44,10 @@
       :overlay-features="overlayFeatures"
       :stop-buffer-features="props.stopBufferFeatures || []"
       :choropleth-features="props.choroplethFeatures || []"
+      :isochrone-features="props.isochroneFeatures || []"
+      :isochrone-origin="props.isochroneOrigin"
+      :isochrone-arrive-by="props.isochroneArriveBy"
+      :fit-isochrone-key="props.fitIsochroneKey"
       :selectable-geographies="selectableGeographies"
       :features="displayFeatures"
       :flex-features="flexFeatures"
@@ -65,6 +70,9 @@
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
       @show-trips="handleShowTrips"
+      @isochrone-from-stop="handleIsochroneFromStop"
+      @isochrone-from-point="(point: Point, arriveBy: boolean) => emit('openIsochrone', point, { arriveBy })"
+      @isochrone-origin-moved="(point: Point) => emit('moveIsochrone', point)"
       @popup-shown="onPopupShown"
       @popup-closed="onPopupClosed"
     />
@@ -90,6 +98,10 @@ const emit = defineEmits<{
   selectionCleared: []
   selectAggregation: [row: Record<string, any>]
   viewCensusDetails: []
+  // Open an isochrone at a point: a stop's (named), or one picked on the map.
+  openIsochrone: [point: Point, opts: { arriveBy: boolean, stopName?: string }]
+  // The open isochrone's marker was dragged here.
+  moveIsochrone: [point: Point]
 }>()
 
 const props = defineProps<{
@@ -116,6 +128,12 @@ const props = defineProps<{
   sidebarPanelOpen?: boolean
   // Increment to clear the selection, as when the trip panel is closed.
   clearSelectionKey?: number
+  // The open isochrone's bands, longest first, and its place.
+  isochroneFeatures?: Feature[]
+  isochroneOrigin?: Point
+  isochroneArriveBy?: boolean
+  // Increment to fit the map to the isochrone bands.
+  fitIsochroneKey?: number
 }>()
 
 const { dataDisplayMode, hideUnmarked } = useScenarioDisplay()
@@ -1069,6 +1087,14 @@ watch(() => props.sidebarPanelOpen, (panelOpen) => {
 function onLegendToggle (value: boolean) {
   legendOpen.value = value
   legendAutoCollapsed = false
+}
+
+function handleIsochroneFromStop (featureId: string | number) {
+  const stop = stopFeatureLookup.value.get(String(featureId))
+  const [lon, lat] = stop?.geometry.coordinates || []
+  if (stop && lon !== undefined && lat !== undefined) {
+    emit('openIsochrone', { lon, lat }, { arriveBy: false, stopName: stop.stop_name || stop.stop_id })
+  }
 }
 
 function handleShowTrips (featureType: string, featureId: string | number) {

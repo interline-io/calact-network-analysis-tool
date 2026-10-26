@@ -99,6 +99,10 @@
           :fit-overlay-key="fitOverlayKey"
           :sidebar-panel-open="!!tripPanelSubject || !!selectedPanelData?.row"
           :clear-selection-key="mapSelectionClearKey"
+          :isochrone-features="isochroneFeatures"
+          :isochrone-origin="isochroneParams?.place"
+          :isochrone-arrive-by="isochroneParams?.arriveBy"
+          :fit-isochrone-key="fitIsochroneKey"
           @set-map-extent="setMapExtent"
           @set-export-features="exportFeatures = $event"
           @toggle-geography="toggleGeography"
@@ -106,8 +110,29 @@
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
           @selection-cleared="closeTripPanel"
+          @open-isochrone="openIsochrone"
+          @move-isochrone="moveIsochrone"
         >
           <template #sidebar-top>
+            <cal-isochrone-panel
+              v-if="isochroneParams"
+              :params="isochroneParams"
+              :stop-name="isochroneStopName"
+              :default-mode="isochroneDefaultMode"
+              :bands="isochroneBands"
+              :loading="isochroneShowLoading"
+              :error="isochroneError"
+              :empty="isochroneEmpty"
+              :cancelled="isochroneCancelled"
+              :render="isochroneRender"
+              @update="updateIsochroneParams"
+              @move="moveIsochrone"
+              @update:render="Object.assign(isochroneRender, $event)"
+              @zoom="fitIsochroneKey++"
+              @cancel="cancelIsochrone"
+              @retry="retryIsochrone"
+              @close="closeIsochrone"
+            />
             <!-- Keyed by subject, so each feature opens fresh. -->
             <cal-trip-panel
               v-if="tripPanelSubject && tripPanelTrips"
@@ -231,6 +256,8 @@ import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useFetchMode } from '~/composables/useFetchMode'
+import { useIsochroneParams } from '~/composables/useIsochroneParams'
+import { isochroneFetcher, useIsochrone } from '~/composables/useIsochrone'
 import {
   geographyLayerQuery,
   geographyBboxQuery,
@@ -239,6 +266,7 @@ import {
   parseFvids,
   fareCategoryLabels,
   formatFareAmount,
+  isochroneMapFeatures,
 } from '~~/src/tl'
 import type {
   CensusDataset,
@@ -267,7 +295,7 @@ import {
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
 } from '~~/src/core'
-import { useRouter } from '#imports'
+import { useApiEndpoint, useRouter } from '#imports'
 import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
 
 // Initialize composables
@@ -905,6 +933,55 @@ function onTripPanelClose () {
   closeTripPanel()
   mapSelectionClearKey.value++
 }
+
+// Isochrone (#486): what a rider reaches from a point, or what reaches it,
+// opened from a stop's popup or the map's right-click menu. Its settings live
+// in the URL; it needs no scenario, but takes its defaults from one.
+const {
+  params: isochroneParams,
+  defaultMode: isochroneDefaultMode,
+  update: updateIsochroneParams,
+  close: closeIsochroneParams,
+} = useIsochroneParams()
+const {
+  bands: isochroneBands,
+  showLoading: isochroneShowLoading,
+  error: isochroneError,
+  empty: isochroneEmpty,
+  render: isochroneRender,
+  cancelled: isochroneCancelled,
+  cancel: cancelIsochrone,
+  retry: retryIsochrone,
+} = useIsochrone(isochroneParams, isochroneFetcher(useApiEndpoint('/routing/isochrone', 'default')))
+const isochroneFeatures = computed(() => isochroneMapFeatures(isochroneBands.value))
+const fitIsochroneKey = ref(0)
+// The stop it was opened from, until the place moves off it. Not in the URL:
+// a link reopens it by its coordinates.
+const isochroneStopName = ref<string | undefined>(undefined)
+
+// The isochrone panel and the trip panel share the sidebar: opening one
+// closes the other.
+function openIsochrone (point: Point, opts: { arriveBy: boolean, stopName?: string }) {
+  if (tripPanelOpenedSubject.value) {
+    onTripPanelClose()
+  }
+  isochroneStopName.value = opts.stopName
+  // Other settings stay, so opening from another stop compares like with like.
+  updateIsochroneParams({ place: point, arriveBy: opts.arriveBy })
+}
+function moveIsochrone (point: Point) {
+  isochroneStopName.value = undefined
+  updateIsochroneParams({ place: point })
+}
+function closeIsochrone () {
+  isochroneStopName.value = undefined
+  closeIsochroneParams()
+}
+watch(tripPanelOpenedSubject, (subject) => {
+  if (subject && isochroneParams.value) {
+    closeIsochrone()
+  }
+})
 
 // Unique census geography IDs for the current aggregate layer across all marked stops.
 // Shared base for both the filter summary count and the choropleth geometry fetch.
