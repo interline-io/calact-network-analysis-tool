@@ -20,7 +20,7 @@ import {
   type TripTableRow,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { dateToSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import { timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
 import {
   RouteDepartureIndex,
   TRIP_DETAILS_CHUNK_SIZE,
@@ -226,12 +226,9 @@ export function useTripPanel (deps: UseTripPanelDeps, store: TripDetailsStore = 
     // By date string, not Date identity, so a caller's dates need not be the
     // same objects the scoping returned.
     const scoped = new Set(scopedDateRange.value.map(d => format(d, 'yyyy-MM-dd')))
-    const start = toValue(deps.startTime)
-    const end = toValue(deps.endTime)
     return subjectTrips(s, {
       dates: scopedDateRange.value,
-      startTime: start ? (dateToSeconds(start) ?? 0) : 0,
-      endTime: end ? (dateToSeconds(end) ?? 86400) : 86400,
+      ...timeWindowSeconds(toValue(deps.startTime), toValue(deps.endTime)),
       stopDepartureCache: r.stopDepartureCache,
       // The filter's own index, so the panel counts what the Routes report
       // counts; built here only for a result made without one.

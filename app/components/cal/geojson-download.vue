@@ -6,16 +6,7 @@
 
 <script>
 import stringify from '@aitodotai/json-stringify-pretty-compact'
-import { sanitizeFilename } from '@interline-io/catenary'
-
-function dataToBlob (features) {
-  const geojson = {
-    type: 'FeatureCollection',
-    features: features
-  }
-  const blob = new Blob([stringify(geojson, { maxLength: 100 })], { type: 'application/geo+json' })
-  return blob
-}
+import { useDownload } from '@interline-io/catenary'
 
 export default {
   props: {
@@ -27,15 +18,9 @@ export default {
     size: { type: String, default: undefined },
   },
   methods: {
-    async saveFile () {
-      const blob = await dataToBlob(this.data)
-      const e = document.createEvent('MouseEvents')
-      const a = document.createElement('a')
-      a.download = sanitizeFilename(this.filename + '.geojson')
-      a.href = window.URL.createObjectURL(blob)
-      a.dataset.downloadurl = ['application/geo+json', a.download, a.href].join(':')
-      e.initEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null)
-      a.dispatchEvent(e)
+    saveFile () {
+      const geojson = { type: 'FeatureCollection', features: this.data }
+      useDownload().download({ filename: this.filename + '.geojson', data: stringify(geojson, { maxLength: 100 }), mimeType: 'application/geo+json' })
     }
   }
 }
