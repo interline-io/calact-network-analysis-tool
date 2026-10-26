@@ -7,7 +7,7 @@
       :class="{ 'cal-transfer-report-bar-open': panelOpen }"
     >
       <div class="cal-transfer-report-toolbar">
-        <cat-field label="Station or stop cluster" class="cal-transfer-report-subject">
+        <cat-field label="Station or stop cluster" class="cal-transfer-report-subject" :class="{ 'cal-transfer-report-subject-alone': !hasSubject }">
           <cat-select v-model="subjectChoice">
             <option value="" disabled>
               Pick a station or stop cluster
@@ -141,10 +141,12 @@
       </div>
     </div>
 
-    <!-- How to start, beside, without clusters, why only single stops are
-         listed: a station's stops seldom serve both sides of a transfer. -->
-    <div v-if="!hasSubject || clusteringOff" class="columns cal-transfer-report-start">
-      <div v-if="!hasSubject" class="column">
+    <!-- Before anything is picked, how to start, beside, without clusters,
+         why only single stops are listed: a station's stops seldom serve
+         both sides of a transfer. Once one is picked, its stops can be
+         changed under Stops & platforms, so neither shows. -->
+    <div v-if="!hasSubject" class="columns cal-transfer-report-start">
+      <div class="column">
         <cat-msg variant="info" title="Pick where to look" class="content">
           <p>Choose a station or stop cluster above, or:</p>
           <ul>
@@ -690,6 +692,11 @@ const grid = computed(() => (view.value === 'summary'
 .cal-transfer-report-subject :deep(select) {
   // Not as wide as its longest option, so the toolbar keeps to one line.
   width: 16rem;
+}
+
+// Alone in the toolbar, before anything is picked, as wide as it needs.
+.cal-transfer-report-subject.cal-transfer-report-subject-alone :deep(select) {
+  width: auto;
 }
 
 // Narrower, the stop picker narrows and the settings toggles show only
