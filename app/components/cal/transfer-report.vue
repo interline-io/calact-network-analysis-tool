@@ -141,21 +141,32 @@
       </div>
     </div>
 
-    <!-- Without clusters, only single stops can be picked, and a station's
-         stops seldom serve both sides of a transfer. -->
-    <p v-if="clusteringOff" class="cal-transfer-report-note">
-      Stop clusters are off, so only single stops are listed; pick one and
-      add other stops to it under Stops & platforms, or
-      <cat-button size="small" class="ml-1" @click="$emit('enableClusters')">
-        Turn on stop clusters
-      </cat-button>
-    </p>
-    <p v-if="!hasSubject" class="cal-transfer-report-note">
-      Pick a station or stop cluster to see its transfers, or use "Enter Transfer
-      Analyst" in a stop's or cluster's trip information on the map.
-    </p>
+    <!-- How to start, beside, without clusters, why only single stops are
+         listed: a station's stops seldom serve both sides of a transfer. -->
+    <div v-if="!hasSubject || clusteringOff" class="columns cal-transfer-report-start">
+      <div v-if="!hasSubject" class="column">
+        <cat-msg variant="info" title="Pick where to look" class="content">
+          <p>Choose a station or stop cluster above, or:</p>
+          <ul>
+            <li>On the map, open a stop's or cluster's trip information and choose Enter Transfer Analyst.</li>
+            <li>In Stop Clusters, use a row's Transfer Analyst link.</li>
+          </ul>
+        </cat-msg>
+      </div>
+      <div v-if="clusteringOff" class="column">
+        <cat-msg variant="warning" title="Stop clusters are off">
+          <p class="mb-3">
+            Only single stops are listed. Pick one and add others under Stops &
+            platforms, or group nearby stops into clusters.
+          </p>
+          <cat-button @click="$emit('enableClusters')">
+            Turn on stop clusters
+          </cat-button>
+        </cat-msg>
+      </div>
+    </div>
 
-    <template v-else>
+    <template v-if="hasSubject">
       <p v-if="detailsError" class="cal-transfer-report-error">
         Could not load details for some trips: {{ detailsError }}
         <cat-button size="small" class="ml-2" @click="$emit('retry')">
@@ -902,6 +913,19 @@ const grid = computed(() => (view.value === 'summary'
 .cal-transfer-report-note {
   color: var(--bulma-text-weak);
   margin-bottom: 1rem;
+}
+
+// The boxes on how to start fill their columns' height alike.
+.cal-transfer-report-start {
+  margin-top: 0;
+
+  .column {
+    display: flex;
+  }
+
+  :deep(.message) {
+    flex: 1;
+  }
 }
 
 .cal-transfer-report-time {
