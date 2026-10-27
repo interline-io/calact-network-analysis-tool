@@ -208,10 +208,10 @@
                 Show on map
               </cat-button>
               <cat-button
-                v-if="props.savedGeographyAccess?.save"
+                v-if="props.savedGeographyAccess?.save && upload"
                 variant="success"
                 size="small"
-                :disabled="!upload?.result"
+                :disabled="!upload.result"
                 @click="showSaveModal = true"
               >
                 Save GeoJSON bounds…
