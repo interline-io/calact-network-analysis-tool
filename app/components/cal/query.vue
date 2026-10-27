@@ -206,6 +206,15 @@
           />
           <template v-if="savedGeographies.length === 0">
             <cal-geography-upload @loaded="emit('fitToGeographies')" />
+            <div v-if="!upload && props.savedGeographyManageUrl" class="cal-boundary-actions mt-2">
+              <div class="control">
+                <a v-bind="manageLinkAttrs" class="button is-ghost is-small">
+                  Manage saved boundaries
+                  <cat-icon icon="open-in-new" size="small" />
+                  <span class="is-sr-only"> (opens in a new tab)</span>
+                </a>
+              </div>
+            </div>
             <div v-if="upload" class="cal-boundary-actions mt-2">
               <cat-button variant="ghost" size="small" @click="clearUpload">
                 Cancel
@@ -240,14 +249,8 @@
             </p>
             <div class="cal-boundary-actions mt-2">
               <div v-if="props.savedGeographyManageUrl" class="control">
-                <a
-                  :href="props.savedGeographyManageUrl"
-                  target="_blank"
-                  rel="noopener"
-                  class="button is-ghost is-small"
-                  title="Download or delete saved boundaries in your Interline account"
-                >
-                  Interline account
+                <a v-bind="manageLinkAttrs" class="button is-ghost is-small">
+                  Manage saved boundaries
                   <cat-icon icon="open-in-new" size="small" />
                   <span class="is-sr-only"> (opens in a new tab)</span>
                 </a>
@@ -634,6 +637,14 @@ watch(savedGeographies, (ids, oldIds) => {
     geographyIds.value = []
   }
 })
+
+// The page in the user's Interline account that lists their saved boundaries
+const manageLinkAttrs = computed(() => ({
+  href: props.savedGeographyManageUrl,
+  target: '_blank',
+  rel: 'noopener',
+  title: 'View, download or delete your saved boundaries in your Interline account',
+}))
 
 // Saving: what the modal saves, from the upload or the selected boundaries
 const showSaveModal = ref(false)
