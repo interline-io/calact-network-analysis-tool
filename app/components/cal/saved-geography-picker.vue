@@ -31,7 +31,7 @@
     </p>
     <p v-if="manageUrl" class="help">
       Download or delete saved boundaries on
-      <a :href="manageUrl" target="_blank" rel="noopener">your Interline account<span class="is-sr-only"> (opens in a new tab)</span></a>.
+      <a :href="manageUrl" target="_blank" rel="noopener">your Interline account<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
     </p>
   </div>
 </template>

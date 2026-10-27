@@ -76,7 +76,7 @@
     </p>
     <p v-if="manageUrl" class="help mt-3">
       Saved geographies are kept in your Interline account. You can also download or delete them, along with anything else you've stored, on
-      <a :href="manageUrl" target="_blank" rel="noopener">your account's Assets page<span class="is-sr-only"> (opens in a new tab)</span></a>.
+      <a :href="manageUrl" target="_blank" rel="noopener">your account's Assets page<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
     </p>
 
     <cat-modal
