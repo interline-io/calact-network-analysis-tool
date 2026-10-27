@@ -207,12 +207,7 @@
           <template v-if="savedGeographies.length === 0">
             <cal-geography-upload @loaded="emit('fitToGeographies')" />
             <div v-if="upload" class="cal-boundary-actions mt-2">
-              <cat-button
-                variant="ghost"
-                size="small"
-                class="cal-boundary-cancel"
-                @click="clearUpload"
-              >
+              <cat-button variant="ghost" size="small" @click="clearUpload">
                 Cancel
               </cat-button>
               <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
@@ -220,7 +215,7 @@
               </cat-button>
               <cat-button
                 v-if="props.savedGeographyAccess?.save && upload"
-                variant="success"
+                variant="ghost"
                 size="small"
                 :disabled="!upload.result"
                 @click="showSaveModal = true"
@@ -815,11 +810,6 @@ const validQueryParams = computed(() => {
     justify-content: flex-end;
     gap: 0.25rem;
     margin-bottom: 0.25rem;
-  }
-
-  // Cancel sits at the left, apart from the actions on the current step
-  .cal-boundary-cancel {
-    margin-right: auto;
   }
 
   .cal-query {

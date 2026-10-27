@@ -11,70 +11,64 @@
       You haven't saved any geographies yet. On the Transit Network Explorer's Query tab, upload a GeoJSON file or select administrative boundaries, then save them.
     </p>
 
-    <ul v-if="geographies && geographies.length > 0" class="cal-saved-geography-list">
-      <li v-for="g of geographies" :key="g.id" class="cal-saved-geography-row">
-        <button
-          type="button"
-          class="cal-saved-geography-star"
-          :class="{ 'is-favorite': isFavorite(g) }"
-          :disabled="!access?.update || busy.has(g.id)"
-          :aria-pressed="isFavorite(g)"
-          :aria-label="isFavorite(g) ? `Remove ${g.name} from favorites` : `Add ${g.name} to favorites`"
-          :title="isFavorite(g) ? 'Favorite: listed first' : 'Add to favorites'"
-          @click="toggleFavorite(g)"
-        >
-          <cat-icon :icon="isFavorite(g) ? 'star' : 'star-outline'" />
-        </button>
-
-        <div class="cal-saved-geography-name">
-          <form v-if="renaming === g.id" class="cal-saved-geography-rename" @submit.prevent="saveRename(g)">
-            <cat-input v-model="renameText" :maxlength="200" v-bind="{ ariaLabel: `New name for ${g.name}` }" />
-            <cat-button size="small" variant="primary" :loading="busy.has(g.id)" @click="saveRename(g)">
-              Save
-            </cat-button>
-            <cat-button size="small" @click="renaming = ''">
-              Cancel
-            </cat-button>
-          </form>
-          <template v-else>
-            <strong>{{ g.name }}</strong>
+    <table v-if="geographies && geographies.length > 0" class="table is-fullwidth">
+      <tbody>
+        <tr v-for="g of geographies" :key="g.id">
+          <td>
             <cat-button
-              v-if="access?.update"
               variant="ghost"
-              size="small"
-              icon-left="pencil"
-              v-bind="{ ariaLabel: `Rename ${g.name}` }"
-              @click="startRename(g)"
+              :icon-left="isFavorite(g) ? 'star' : 'star-outline'"
+              :disabled="!access?.update || busy.has(g.id)"
+              :title="isFavorite(g) ? 'Favorite: listed first' : 'Add to favorites'"
+              v-bind="{ ariaPressed: isFavorite(g), ariaLabel: isFavorite(g) ? `Remove ${g.name} from favorites` : `Add ${g.name} to favorites` }"
+              @click="toggleFavorite(g)"
             />
-            <p class="help">
-              {{ describe(g) }}
-            </p>
-          </template>
-        </div>
-
-        <div class="cal-saved-geography-actions">
-          <cat-button size="small" @click="load(g)">
-            Load
-          </cat-button>
-          <cat-button
-            v-if="access?.download"
-            size="small"
-            icon-left="download"
-            :loading="downloading === g.id"
-            @click="download(g)"
-          >
-            Download
-          </cat-button>
-          <cat-button v-if="access?.delete" size="small" variant="danger" outlined @click="deleting = g">
-            Delete
-          </cat-button>
-        </div>
-      </li>
-    </ul>
+          </td>
+          <td>
+            <form v-if="renaming === g.id" class="field is-grouped" @submit.prevent="saveRename(g)">
+              <cat-input v-model="renameText" :maxlength="200" v-bind="{ ariaLabel: `New name for ${g.name}` }" />
+              <cat-button variant="primary" :loading="busy.has(g.id)" @click="saveRename(g)">
+                Save
+              </cat-button>
+              <cat-button @click="renaming = ''">
+                Cancel
+              </cat-button>
+            </form>
+            <template v-else>
+              <strong>{{ g.name }}</strong>
+              <p class="help">
+                {{ describe(g) }}
+              </p>
+            </template>
+          </td>
+          <td>
+            <div class="field is-grouped is-grouped-right">
+              <cat-button @click="load(g)">
+                Load
+              </cat-button>
+              <cat-button v-if="access?.update" @click="startRename(g)">
+                Rename
+              </cat-button>
+              <cat-button
+                v-if="access?.download"
+                icon-left="download"
+                :loading="downloading === g.id"
+                @click="download(g)"
+              >
+                Download
+              </cat-button>
+              <cat-button v-if="access?.delete" variant="danger" outlined @click="deleting = g">
+                Delete
+              </cat-button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
     <p v-if="actionError" class="help is-danger" role="alert">
       {{ actionError }}
     </p>
-    <p v-if="manageUrl" class="help mt-3">
+    <p v-if="manageUrl" class="help">
       Saved geographies are kept in your Interline account. You can also download or delete them, along with anything else you've stored, on
       <a :href="manageUrl" target="_blank" rel="noopener">your account's Assets page<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
     </p>
@@ -209,47 +203,3 @@ function confirmDelete () {
   })
 }
 </script>
-
-<style scoped lang="scss">
-.cal-saved-geography-list {
-  list-style: none;
-  margin: 0;
-}
-
-.cal-saved-geography-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--bulma-border-weak, #ededed);
-}
-
-.cal-saved-geography-star {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--bulma-grey);
-  &.is-favorite {
-    color: #e6a700;
-  }
-  &:disabled {
-    cursor: default;
-  }
-}
-
-.cal-saved-geography-name {
-  flex: 1;
-  min-width: 0;
-}
-
-.cal-saved-geography-rename {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
-.cal-saved-geography-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-</style>

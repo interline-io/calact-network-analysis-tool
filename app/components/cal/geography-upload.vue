@@ -11,17 +11,16 @@
       @dragleave.prevent="dragging = false"
       @drop.prevent="onDrop"
     >
-      <cat-icon icon="cloud-upload" />
-      <label class="button is-small">
-        <input
-          ref="fileInput"
-          type="file"
-          accept=".geojson,.json,application/geo+json,application/json"
-          class="cal-geography-upload-input"
-          @change="onFileInput"
-        >
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".geojson,.json,application/geo+json,application/json"
+        class="is-hidden"
+        @change="onFileInput"
+      >
+      <cat-button icon-left="cloud-upload" @click="fileInput?.click()">
         Choose a file to upload
-      </label>
+      </cat-button>
       <p class="help">
         or drag and drop a GeoJSON file here
       </p>
@@ -35,7 +34,7 @@
       {{ uploadError }}
     </p>
 
-    <div v-if="upload" class="cal-geography-upload-summary">
+    <div v-if="upload">
       <p v-if="upload.parsed.features.length === 1" class="help">
         <code>{{ upload.filename }}</code>
       </p>
@@ -50,7 +49,7 @@
         <p class="help">
           Selected features will be merged together into a single boundary.
         </p>
-        <div class="cal-geography-upload-actions">
+        <div class="field is-grouped">
           <cat-button variant="ghost" size="small" @click="setSelected(allIndexes)">
             Select all
           </cat-button>
@@ -74,7 +73,7 @@
         Choose at least one feature.
       </p>
 
-      <cat-msg title="Simplification options" variant="light" expandable class="cal-geography-upload-options">
+      <cat-msg title="Simplification options" variant="light" expandable>
         <ul>
           <li>
             <cat-checkbox :model-value="upload.options.trimPrecision" @update:model-value="setOption('trimPrecision', !!$event)">
@@ -184,54 +183,20 @@ function setOption (key: keyof UploadProcessOptions, value: boolean) {
 </script>
 
 <style scoped lang="scss">
+// The drop target, outlined so it reads as one
 .cal-geography-upload-drop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
+  text-align: center;
   padding: 0.75rem;
   border: 2px dashed var(--bulma-border);
-  border-radius: 6px;
+  border-radius: var(--bulma-radius);
   &.is-dragging {
     border-color: var(--bulma-link);
-    background: var(--bulma-link-light, #eef3fc);
   }
 }
 
-// Hidden but still focusable through its label
-.cal-geography-upload-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.cal-geography-upload-drop label:focus-within {
-  outline: 2px solid var(--bulma-link);
-  outline-offset: 2px;
-}
-
-.cal-geography-upload-summary {
-  margin-top: 0.5rem;
-}
-
-.cal-geography-upload-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-
+// A long file's features scroll rather than push the rest of the panel away
 .cal-geography-upload-features {
-  list-style: none;
-  margin: 0;
   max-height: 12rem;
   overflow-y: auto;
-}
-
-.cal-geography-upload-options {
-  margin-top: 0.5rem;
-  ul {
-    list-style: none;
-    margin: 0;
-  }
 }
 </style>
