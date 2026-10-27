@@ -74,6 +74,10 @@
     <p v-if="actionError" class="help is-danger" role="alert">
       {{ actionError }}
     </p>
+    <p v-if="manageUrl" class="help mt-3">
+      Saved geographies are kept in your Interline account. You can also download or delete them, along with anything else you've stored, on
+      <a :href="manageUrl" target="_blank" rel="noopener">your account's Assets page<span class="is-sr-only"> (opens in a new tab)</span></a>.
+    </p>
 
     <cat-modal
       :model-value="!!deleting"
@@ -107,7 +111,7 @@ import { savedGeographyErrorMessage, useSavedGeographies } from '~/composables/u
 // The user's saved geographies, to star, rename, load into a query, download
 // or delete. Self-contained: it reads and writes them itself.
 
-const { access, geographies, loading, error, ensureLoaded, get, rename, setFavorite, remove } = useSavedGeographies()
+const { access, geographies, loading, error, manageUrl, ensureLoaded, get, rename, setFavorite, remove } = useSavedGeographies()
 onMounted(() => { void ensureLoaded() })
 
 const busy = reactive(new Set<string>())

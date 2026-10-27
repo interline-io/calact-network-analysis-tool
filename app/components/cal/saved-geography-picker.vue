@@ -33,7 +33,11 @@
     <p v-if="error" class="help is-danger" role="alert">
       Couldn't load your saved boundaries: {{ error }}
     </p>
-    <p v-else-if="search && shown.every(g => g.id === modelValue)" class="help">
+    <p v-else-if="manageUrl" class="help">
+      Download or delete saved boundaries on
+      <a :href="manageUrl" target="_blank" rel="noopener">your Interline account<span class="is-sr-only"> (opens in a new tab)</span></a>.
+    </p>
+    <p v-if="search && shown.every(g => g.id === modelValue)" class="help">
       No saved boundaries match "{{ search }}".
     </p>
   </div>
@@ -58,7 +62,7 @@ const emit = defineEmits<{
 // Lists this long or shorter don't need filtering
 const FILTER_MIN = 8
 
-const { geographies, loading, error, ensureLoaded } = useSavedGeographies()
+const { geographies, loading, error, manageUrl, ensureLoaded } = useSavedGeographies()
 onMounted(() => { void ensureLoaded() })
 
 const search = ref('')

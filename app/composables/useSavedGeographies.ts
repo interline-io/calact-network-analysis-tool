@@ -31,6 +31,9 @@ export function useSavedGeographies () {
   const geographies = useState<SavedGeography[] | null>('cal-saved-geographies', () => null)
   const loading = useState<boolean>('cal-saved-geographies-loading', () => false)
   const error = useState<string>('cal-saved-geographies-error', () => '')
+  // The Assets tab of the user's Interline account, which lists everything
+  // they've stored, with download and delete
+  const manageUrl = useState<string>('cal-saved-geographies-manage-url', () => '')
 
   // What the user's plan allows, from their IWA roles. Without an Interline
   // account (or signed out, as in local development) it allows nothing.
@@ -57,8 +60,9 @@ export function useSavedGeographies () {
     loading.value = true
     error.value = ''
     try {
-      const resp = await $fetch<{ geographies: SavedGeography[] }>('/api/iwa/geographies')
+      const resp = await $fetch<{ geographies: SavedGeography[], manageUrl: string }>('/api/iwa/geographies')
       geographies.value = sortSavedGeographies(resp.geographies)
+      manageUrl.value = resp.manageUrl
     } catch (e) {
       error.value = savedGeographyErrorMessage(e)
     } finally {
@@ -107,5 +111,5 @@ export function useSavedGeographies () {
     geographies.value = (geographies.value || []).filter(other => other.id !== g.id)
   }
 
-  return { access, geographies, loading, error, loadAccess, refresh, ensureLoaded, create, get, rename, setFavorite, remove }
+  return { access, geographies, loading, error, manageUrl, loadAccess, refresh, ensureLoaded, create, get, rename, setFavorite, remove }
 }
