@@ -30,13 +30,12 @@ export default defineNuxtConfig({
   modules: [
     '@interline-io/tlv2-auth',
     '@nuxt/eslint',
-    '@nuxt/devtools',
   ],
 
   ssr: false,
 
   devtools: {
-    enabled: isDev,
+    enabled: false,
   },
 
   css: [
