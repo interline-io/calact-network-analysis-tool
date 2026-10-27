@@ -199,9 +199,9 @@
         <div v-if="geomSource === 'custom'" class="container is-max-tablet">
           <cal-saved-geography-picker
             v-if="props.savedGeographyAccess?.list"
-            v-model="savedGeography"
+            v-model="savedGeographies"
           />
-          <template v-if="!savedGeography">
+          <template v-if="savedGeographies.length === 0">
             <cal-geography-upload @loaded="emit('fitToGeographies')" />
             <div class="cal-boundary-actions mt-2">
               <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
@@ -221,7 +221,7 @@
           <template v-else>
             <p v-if="props.savedGeographyLoading" class="help">
               <cat-icon icon="loading" size="small" />
-              Loading the saved boundary...
+              Loading the saved boundaries...
             </p>
             <p
               v-for="message of props.savedGeographyMessages || []"
@@ -419,6 +419,8 @@ const props = defineProps<{
   // What the user's Interline plan allows with saved geographies
   savedGeographyAccess?: SavedGeographyAccess
   savedGeographyLoading?: boolean
+  // The chosen saved boundaries have loaded and can run together
+  savedSelectionRunnable?: boolean
   // Problems loading the chosen saved geography
   savedGeographyMessages?: { variant: 'danger' | 'warning', text: string }[]
 }>()
@@ -434,7 +436,7 @@ const {
   geographyIds,
   geomSource,
   geomLayer,
-  savedGeography,
+  savedGeographies,
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
@@ -596,13 +598,13 @@ watch(geomSource, (newValue, oldValue) => {
     geomResult.value = undefined
   }
   if (oldValue === 'custom') {
-    savedGeography.value = ''
+    savedGeographies.value = []
   }
 })
 
-// Going from a saved set of boundaries back to uploading drops its boundaries
-watch(savedGeography, (id, oldId) => {
-  if (geomSource.value === 'custom' && oldId && !id) {
+// Going from saved sets of boundaries back to uploading drops their boundaries
+watch(savedGeographies, (ids, oldIds) => {
+  if (geomSource.value === 'custom' && oldIds.length > 0 && ids.length === 0) {
     geographyIds.value = []
   }
 })
@@ -617,7 +619,7 @@ const adminSaveReady = computed(() => {
 })
 
 const saveRequest = computed((): { defaultName: string, summary: string, geography: Omit<SavedGeographyCreate, 'name'> } | null => {
-  if (geomSource.value === 'custom' && !savedGeography.value && upload.value?.result) {
+  if (geomSource.value === 'custom' && savedGeographies.value.length === 0 && upload.value?.result) {
     const { filename } = upload.value
     const { features, polygon, vertexCount } = upload.value.result
     return {
@@ -638,7 +640,7 @@ const saveRequest = computed((): { defaultName: string, summary: string, geograp
       defaultName: names.length <= 3 ? names.join('; ') : `${names.slice(0, 2).join('; ')} and ${names.length - 2} more`,
       summary: `${geos.length} administrative ${geos.length === 1 ? 'boundary' : 'boundaries'}: ${names.join('; ')}.`,
       geography: {
-        metadata: { source: 'admin_boundary', bbox: bboxMetadata(polygonBbox(featuresToPolygon(outlines))), feature_count: geos.length },
+        metadata: { source: 'admin_boundary', bbox: bboxMetadata(polygonBbox(featuresToPolygon(outlines))), feature_count: geos.length, dataset: geoDatasetName.value },
         content: {
           type: 'admin_boundaries',
           dataset: geoDatasetName.value,
@@ -655,7 +657,7 @@ const saveRequest = computed((): { defaultName: string, summary: string, geograp
 function onGeographySaved (saved: SavedGeography) {
   showToast(`Saved "${saved.name}" to your profile`, 'success')
   if (geomSource.value === 'custom') {
-    savedGeography.value = saved.id
+    savedGeographies.value = [saved.id]
   }
 }
 
@@ -727,8 +729,10 @@ const queryBlockedReason = computed(() => {
     return 'Cannot run query: select at least one administrative boundary.'
   }
   if (geomSource.value === 'custom') {
-    if (savedGeography.value) {
-      return 'Cannot run query: the saved boundary hasn\'t loaded.'
+    if (savedGeographies.value.length > 0) {
+      return props.savedGeographyLoading
+        ? 'Cannot run query: the saved boundaries haven\'t loaded.'
+        : 'Cannot run query: the chosen saved boundaries can\'t run together.'
     }
     return upload.value
       ? 'Cannot run query: choose at least one feature from the file.'
@@ -761,8 +765,8 @@ const validQueryParams = computed(() => {
 
   // An uploaded area, or a saved one: its polygon, or its boundaries' ids
   if (geomSource.value === 'custom') {
-    if (savedGeography.value) {
-      return hasValidDate && !props.savedGeographyLoading && (!!props.queryPolygon || (geographyIds.value?.length ?? 0) > 0)
+    if (savedGeographies.value.length > 0) {
+      return hasValidDate && !!props.savedSelectionRunnable && (!!props.queryPolygon || (geographyIds.value?.length ?? 0) > 0)
     }
     return hasValidDate && !!props.queryPolygon
   }

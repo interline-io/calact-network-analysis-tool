@@ -23,9 +23,9 @@ interface ScenarioInputs {
   geographyIds: WritableComputedRef<number[]>
   geomSource: WritableComputedRef<string>
   geomLayer: WritableComputedRef<string>
-  // The saved boundary (an IWA asset id) the 'custom' geomSource loads; empty
-  // means an uploaded file
-  savedGeography: WritableComputedRef<string>
+  // The saved boundaries (IWA asset ids) the 'custom' geomSource combines into
+  // one area; none means an uploaded file
+  savedGeographies: WritableComputedRef<string[]>
   geoDatasetName: WritableComputedRef<string>
   includeFixedRoute: WritableComputedRef<boolean | undefined>
   includeFlexAreas: WritableComputedRef<boolean | undefined>
@@ -90,9 +90,9 @@ export function useScenarioInputs (): ScenarioInputs {
     set: (v) => { setQuery({ geomLayer: v || undefined }) }
   })
 
-  const savedGeography = computed<string>({
-    get: () => query.value.savedGeography?.toString() || '',
-    set: (v) => { setQuery({ savedGeography: v || undefined }) }
+  const savedGeographies = computed<string[]>({
+    get: () => getArrayParam('savedGeographies') || [],
+    set: (v) => { setQuery({ savedGeographies: v.length > 0 ? v.join(',') : undefined }) }
   })
 
   const geoDatasetName = computed<string>({
@@ -200,7 +200,7 @@ export function useScenarioInputs (): ScenarioInputs {
     geographyIds,
     geomSource,
     geomLayer,
-    savedGeography,
+    savedGeographies,
     geoDatasetName,
     includeFixedRoute,
     includeFlexAreas,

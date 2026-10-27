@@ -33,6 +33,8 @@ export interface SavedGeographyMetadata {
   tags?: string[]
   // For an upload, the file it came from
   filename?: string
+  // For an admin_boundary set, the census dataset its geographies are from
+  dataset?: string
 }
 
 // A saved geography as listed, without its content

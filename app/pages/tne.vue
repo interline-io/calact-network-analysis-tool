@@ -39,6 +39,7 @@
             :query-polygon="queryPolygon"
             :saved-geography-access="savedGeographyAccess ?? undefined"
             :saved-geography-loading="savedGeographyLoading"
+            :saved-selection-runnable="savedSelectionRunnable"
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
@@ -437,6 +438,7 @@ const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeog
 const {
   savedGeographyAccess,
   savedGeographyLoading,
+  savedSelectionRunnable,
   queryPolygon,
   queryAreaName,
   queryGeographyMessages,
