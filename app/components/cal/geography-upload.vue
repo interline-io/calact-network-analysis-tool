@@ -35,9 +35,16 @@
     </p>
 
     <div v-if="upload">
-      <p v-if="upload.parsed.features.length === 1" class="help">
-        <code>{{ upload.filename }}</code>
-      </p>
+      <template v-if="upload.parsed.features.length === 1">
+        <p class="help">
+          <code>{{ upload.filename }}</code>
+        </p>
+        <div class="field is-grouped">
+          <cat-button variant="ghost" size="small" @click="emit('showOnMap')">
+            Show on map
+          </cat-button>
+        </div>
+      </template>
       <p v-if="upload.parsed.skipped > 0" class="help">
         {{ upload.parsed.skipped }} {{ upload.parsed.skipped === 1 ? 'feature' : 'features' }} without polygons skipped.
       </p>
@@ -55,6 +62,9 @@
           </cat-button>
           <cat-button variant="ghost" size="small" @click="setSelected([])">
             Select none
+          </cat-button>
+          <cat-button variant="ghost" size="small" :disabled="!upload.result" @click="emit('showOnMap')">
+            Show on map
           </cat-button>
         </div>
         <ul class="cal-geography-upload-features">
@@ -103,6 +113,8 @@ import { useUploadedGeography } from '~/composables/useUploadedGeography'
 const emit = defineEmits<{
   // A new file was read, for the parent to fit the map to it
   loaded: []
+  // Fit the map to the chosen features
+  showOnMap: []
 }>()
 
 const { upload, uploadError, loadFile, setSelected, setOptions } = useUploadedGeography()

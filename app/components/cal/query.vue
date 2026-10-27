@@ -205,32 +205,36 @@
             v-model="savedGeographies"
           />
           <template v-if="savedGeographies.length === 0">
-            <cal-geography-upload @loaded="emit('fitToGeographies')" />
-            <div v-if="!upload && props.savedGeographyManageUrl" class="cal-boundary-actions mt-2">
-              <div class="control">
-                <a v-bind="manageLinkAttrs" class="button is-ghost is-small">
-                  Manage saved boundaries
-                  <cat-icon icon="open-in-new" size="small" />
-                  <span class="is-sr-only"> (opens in a new tab)</span>
-                </a>
+            <cal-geography-upload @loaded="emit('fitToGeographies')" @show-on-map="emit('fitToGeographies')" />
+            <div v-if="!upload && props.savedGeographyManageUrl" class="level is-mobile mt-2">
+              <div class="level-left" />
+              <div class="level-right">
+                <div class="field is-grouped">
+                  <div v-if="props.savedGeographyManageUrl" class="control">
+                    <a v-bind="manageLinkAttrs" class="button is-small">
+                      <span>Manage saved boundaries<span class="is-sr-only"> (opens in a new tab)</span></span>
+                      <cat-icon icon="open-in-new" size="small" />
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
-            <div v-if="upload" class="cal-boundary-actions mt-2">
-              <cat-button variant="ghost" size="small" @click="clearUpload">
-                Cancel
-              </cat-button>
-              <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
-                Show on map
-              </cat-button>
-              <cat-button
-                v-if="props.savedGeographyAccess?.save && upload"
-                variant="ghost"
-                size="small"
-                :disabled="!upload.result"
-                @click="showSaveModal = true"
-              >
-                Save GeoJSON bounds…
-              </cat-button>
+            <div v-if="upload" class="level is-mobile mt-2">
+              <div class="level-left">
+                <cat-button size="small" @click="clearUpload">
+                  Cancel
+                </cat-button>
+              </div>
+              <div class="level-right">
+                <cat-button
+                  v-if="props.savedGeographyAccess?.save"
+                  size="small"
+                  :disabled="!upload.result"
+                  @click="showSaveModal = true"
+                >
+                  Save GeoJSON bounds…
+                </cat-button>
+              </div>
             </div>
           </template>
           <template v-else>
@@ -247,22 +251,25 @@
             >
               {{ message.text }}
             </p>
-            <div class="cal-boundary-actions mt-2">
-              <div v-if="props.savedGeographyManageUrl" class="control">
-                <a v-bind="manageLinkAttrs" class="button is-ghost is-small">
-                  Manage saved boundaries
-                  <cat-icon icon="open-in-new" size="small" />
-                  <span class="is-sr-only"> (opens in a new tab)</span>
-                </a>
+            <div class="level is-mobile mt-2">
+              <div class="level-left" />
+              <div class="level-right">
+                <div class="field is-grouped">
+                  <div v-if="props.savedGeographyManageUrl" class="control">
+                    <a v-bind="manageLinkAttrs" class="button is-small">
+                      <span>Manage saved boundaries<span class="is-sr-only"> (opens in a new tab)</span></span>
+                      <cat-icon icon="open-in-new" size="small" />
+                    </a>
+                  </div>
+                  <cat-button
+                    v-if="props.queryPolygon || geographyIds.length > 0"
+                    size="small"
+                    @click="emit('fitToGeographies')"
+                  >
+                    Show on map
+                  </cat-button>
+                </div>
               </div>
-              <cat-button
-                v-if="props.queryPolygon || geographyIds.length > 0"
-                variant="ghost"
-                size="small"
-                @click="emit('fitToGeographies')"
-              >
-                Show on map
-              </cat-button>
             </div>
           </template>
         </div>
