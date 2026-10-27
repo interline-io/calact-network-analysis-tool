@@ -197,13 +197,24 @@
         </div>
 
         <div v-if="geomSource === 'custom'" class="container is-max-tablet">
+          <!-- A wizard of sorts: choose saved boundaries or upload a file;
+               review the file's features (Cancel discards it); saving returns
+               to the saved boundaries with the new one chosen. -->
           <cal-saved-geography-picker
-            v-if="props.savedGeographyAccess?.list"
+            v-if="props.savedGeographyAccess?.list && !(upload && savedGeographies.length === 0)"
             v-model="savedGeographies"
           />
           <template v-if="savedGeographies.length === 0">
             <cal-geography-upload @loaded="emit('fitToGeographies')" />
-            <div class="cal-boundary-actions mt-2">
+            <div v-if="upload" class="cal-boundary-actions mt-2">
+              <cat-button
+                variant="ghost"
+                size="small"
+                class="cal-boundary-cancel"
+                @click="clearUpload"
+              >
+                Cancel
+              </cat-button>
               <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
                 Show on map
               </cat-button>
@@ -464,7 +475,7 @@ const {
   fvids,
   applyDatesAndFvids,
 } = useScenarioInputs()
-const { upload } = useUploadedGeography()
+const { upload, clear: clearUpload } = useUploadedGeography()
 const { showToast } = useToastNotification()
 
 const showFvPicker = ref(false)
@@ -678,6 +689,8 @@ function onGeographySaved (saved: SavedGeography) {
   showToast(`Saved "${saved.name}" to your profile`, 'success')
   if (geomSource.value === 'custom') {
     savedGeographies.value = [saved.id]
+    // The upload is saved, so the next upload starts afresh
+    clearUpload()
   }
 }
 
@@ -802,6 +815,11 @@ const validQueryParams = computed(() => {
     justify-content: flex-end;
     gap: 0.25rem;
     margin-bottom: 0.25rem;
+  }
+
+  // Cancel sits at the left, apart from the actions on the current step
+  .cal-boundary-cancel {
+    margin-right: auto;
   }
 
   .cal-query {

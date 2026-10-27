@@ -1,6 +1,9 @@
 <template>
   <div class="cal-geography-upload">
+    <!-- Once a file is read, the panel moves on to its features; Cancel in
+         the query panel clears it to choose another -->
     <div
+      v-if="!upload"
       class="cal-geography-upload-drop"
       :class="{ 'is-dragging': dragging }"
       @dragenter.prevent="dragging = true"
@@ -17,7 +20,7 @@
           class="cal-geography-upload-input"
           @change="onFileInput"
         >
-        {{ upload ? 'Choose another file' : 'Choose a file to upload' }}
+        Choose a file to upload
       </label>
       <p class="help">
         or drag and drop a GeoJSON file here
