@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   parseGeographyUpload,
   processUpload,
+  roundGeometry,
   suggestUploadName,
   UploadError,
   uploadFeatureCollection,
@@ -158,6 +159,22 @@ describe('processUpload', () => {
       { name: 'East', coordinates: square(-122.6, 45.5) },
     ))
     expect(processUpload(parsed.features, { trimPrecision: true, simplify: true }).errors).toEqual([])
+  })
+})
+
+describe('roundGeometry', () => {
+  it('rounds positions, drops a third coordinate and repeated points', () => {
+    const ring = [[-122.123456, 45.123456, 10], [-122.0, 45.1234561], [-122.0, 45.2], [-122.1, 45.2], [-122.123456, 45.123456]]
+    const g = roundGeometry({ type: 'Polygon', coordinates: [ring] }, 2)
+    expect(g).toEqual({ type: 'Polygon', coordinates: [[[-122.12, 45.12], [-122, 45.12], [-122, 45.2], [-122.1, 45.2], [-122.12, 45.12]]] })
+  })
+
+  it('drops rings rounding leaves too small, keeping the geometry if all are', () => {
+    const tiny = square(-122.5, 45.5, 0.000001)
+    const multi: GeoJSON.MultiPolygon = { type: 'MultiPolygon', coordinates: [square(-122.7, 45.5), tiny] }
+    expect((roundGeometry(multi, 5) as GeoJSON.MultiPolygon).coordinates).toHaveLength(1)
+    const onlyTiny: GeoJSON.Polygon = { type: 'Polygon', coordinates: tiny }
+    expect(roundGeometry(onlyTiny, 5)).toBe(onlyTiny)
   })
 })
 

@@ -6,11 +6,8 @@
 // and measures the cleaned polygon like any other query area.
 
 import area from '@turf/area'
-import cleanCoords from '@turf/clean-coords'
-import { feature, featureCollection } from '@turf/helpers'
 import intersect from '@turf/intersect'
 import kinks from '@turf/kinks'
-import truncate from '@turf/truncate'
 import { feature as topoFeature } from 'topojson-client'
 import { topology } from 'topojson-server'
 import { presimplify, simplify } from 'topojson-simplify'
@@ -207,9 +204,7 @@ export function processUpload (features: UploadFeature[], options: UploadProcess
   const trimmed = features.map((f): UploadFeature => {
     let geometry: PolygonalGeometry = f.geometry
     if (options.trimPrecision) {
-      // Rounding can land neighboring positions on the same point, which
-      // would read as the outline crossing itself
-      geometry = cleanCoords(truncate(geometry, { precision: UPLOAD_COORDINATE_PRECISION, coordinates: 2 }))
+      geometry = roundGeometry(geometry, UPLOAD_COORDINATE_PRECISION)
     }
     return { ...f, geometry }
   })
@@ -256,6 +251,40 @@ function bboxesOverlap (a: PolygonalGeometry, b: PolygonalGeometry): boolean {
   return ba.sw.lon < bb.ne.lon && bb.sw.lon < ba.ne.lon && ba.sw.lat < bb.ne.lat && bb.sw.lat < ba.ne.lat
 }
 
+// Rounds each position to a number of decimal places, dropping any third
+// coordinate. Rounding can land neighboring positions on the same point, which
+// would read as the outline crossing itself, so repeats are dropped too. A ring
+// left with fewer than 4 positions is too small to keep; if every ring of the
+// geometry is, it's kept unrounded.
+export function roundGeometry (g: PolygonalGeometry, precision: number): PolygonalGeometry {
+  const factor = 10 ** precision
+  const roundRing = (ring: GeoJSON.Position[]): GeoJSON.Position[] => {
+    const out: GeoJSON.Position[] = []
+    for (const pos of ring) {
+      const p = [Math.round(pos[0]! * factor) / factor, Math.round(pos[1]! * factor) / factor]
+      const prev = out[out.length - 1]
+      if (!prev || prev[0] !== p[0] || prev[1] !== p[1]) {
+        out.push(p)
+      }
+    }
+    return out
+  }
+  const roundPolygon = (rings: GeoJSON.Position[][]): GeoJSON.Position[][] | null => {
+    const [outer, ...holes] = rings.map(roundRing)
+    if (!outer || outer.length < 4) {
+      return null
+    }
+    return [outer, ...holes.filter(h => h.length >= 4)]
+  }
+  const parts = (g.type === 'Polygon' ? [g.coordinates] : g.coordinates)
+    .map(roundPolygon)
+    .filter((p): p is GeoJSON.Position[][] => p !== null)
+  if (parts.length === 0) {
+    return g
+  }
+  return g.type === 'Polygon' ? { type: 'Polygon', coordinates: parts[0]! } : { type: 'MultiPolygon', coordinates: parts }
+}
+
 // Simplifies features as one topology (TopoJSON), so a border two features
 // share is simplified once and stays shared, with no gaps or slivers opening
 // between neighbors. minWeight is the Visvalingam effective area, in square
@@ -286,7 +315,13 @@ const OVERLAP_TOLERANCE = 0.01
 // Whether two features share more than a sliver of area. This covers one
 // inside the other, too.
 function featuresOverlap (a: PolygonalGeometry, b: PolygonalGeometry): boolean {
-  const shared = intersect(featureCollection([feature(a), feature(b)]))
+  const shared = intersect({
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: {}, geometry: a },
+      { type: 'Feature', properties: {}, geometry: b },
+    ],
+  })
   if (!shared) {
     return false
   }
