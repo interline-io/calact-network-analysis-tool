@@ -40,6 +40,7 @@
             :saved-geography-access="savedGeographyAccess ?? undefined"
             :saved-geography-loading="savedGeographyLoading"
             :saved-selection-runnable="savedSelectionRunnable"
+            :saved-selection-kind="savedSelectionKind ?? undefined"
             :saved-geography-manage-url="savedGeographyManageUrl || undefined"
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
@@ -440,6 +441,7 @@ const {
   savedGeographyAccess,
   savedGeographyLoading,
   savedSelectionRunnable,
+  savedSelectionKind,
   savedGeographyManageUrl,
   queryPolygon,
   queryAreaName,

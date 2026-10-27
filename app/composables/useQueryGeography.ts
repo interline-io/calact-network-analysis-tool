@@ -131,12 +131,13 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     }
   }, { immediate: true })
 
-  // The polygon a run uses: the upload, or the chosen saved uploads together
+  // The polygon a run uses: a file being reviewed, or else the chosen saved
+  // uploads together
   const queryPolygon = computed((): QueryPolygon | undefined => {
     if (geomSource.value !== 'custom') {
       return undefined
     }
-    if (selectedIds.value.length === 0) {
+    if (upload.value || selectedIds.value.length === 0) {
       return uploadPolygon.value
     }
     if (selectionKind.value !== 'upload') {
@@ -150,7 +151,7 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     if (geomSource.value !== 'custom') {
       return undefined
     }
-    if (selectedIds.value.length === 0 && upload.value?.result) {
+    if (upload.value?.result) {
       const names = upload.value.result.features.map(f => f.name)
       return names.length <= 3 ? names.join('; ') : `${names.length} features from ${upload.value.filename}`
     }
@@ -213,6 +214,7 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     savedGeographyManageUrl: computed(() => (geographies.value?.length ?? 0) > 0 ? manageUrl.value : ''),
     savedGeographyLoading: loading,
     savedSelectionRunnable,
+    savedSelectionKind: selectionKind,
     queryPolygon,
     queryAreaName,
     queryGeographyMessages: messages,
