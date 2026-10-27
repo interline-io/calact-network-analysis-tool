@@ -106,8 +106,8 @@ export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
 export const geomSources = {
   mapExtent: 'Covering extent of map',
   bbox: 'Dragging bounding box',
-  adminBoundary: 'Administrative Boundary',
-  custom: 'Saved or uploaded boundary',
+  adminBoundary: 'Administrative boundaries (US Census)',
+  custom: 'Saved or uploaded boundaries',
 } as const
 
 // Uploaded geographies (#477) are cleaned up before use, unless the user turns

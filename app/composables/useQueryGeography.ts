@@ -37,7 +37,7 @@ export interface QueryGeographyMessage {
 export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeography[]>) {
   const { geomSource, savedGeographies, geographyIds, geoDatasetName } = useScenarioInputs()
   const { upload, uploadPolygon } = useUploadedGeography()
-  const { access, loadAccess, get } = useSavedGeographies()
+  const { access, manageUrl, loadAccess, get } = useSavedGeographies()
 
   // Kept for the session by id, so coming back to the page, or adding a
   // boundary to the selection, doesn't fetch the others again
@@ -209,6 +209,7 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
 
   return {
     savedGeographyAccess: access,
+    savedGeographyManageUrl: manageUrl,
     savedGeographyLoading: loading,
     savedSelectionRunnable,
     queryPolygon,

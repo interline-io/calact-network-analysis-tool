@@ -7,7 +7,7 @@
         :open-on-focus="true"
         :loading="loading"
         icon="magnify"
-        placeholder="Search saved boundaries..."
+        :placeholder="placeholder"
         empty-text="None chosen: upload a file below"
         fullwidth
         v-bind="{ ariaLabel: 'Saved boundaries' }"
@@ -25,13 +25,6 @@
     </cat-field>
     <p v-if="error" class="help is-danger" role="alert">
       Couldn't load your saved boundaries: {{ error }}
-    </p>
-    <p v-else-if="chosenKind" class="help">
-      Chosen boundaries run as one area. {{ chosenKind === 'upload' ? 'Uploaded boundaries' : 'Census boundary sets' }} can be combined with others of the same kind.
-    </p>
-    <p v-if="manageUrl" class="help">
-      Download or delete saved boundaries on
-      <a :href="manageUrl" target="_blank" rel="noopener">your Interline account<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
     </p>
   </div>
 </template>
@@ -55,13 +48,21 @@ const emit = defineEmits<{
   'update:modelValue': [ids: string[]]
 }>()
 
-const { geographies, loading, error, manageUrl, ensureLoaded } = useSavedGeographies()
+const { geographies, loading, error, ensureLoaded } = useSavedGeographies()
 onMounted(() => { void ensureLoaded() })
 
 const hasAny = computed(() => (geographies.value?.length ?? 0) > 0)
 
 const chosen = computed(() => (geographies.value || []).filter(g => props.modelValue.includes(g.id)))
 const chosenKind = computed(() => chosen.value[0]?.metadata.source)
+
+// Chosen boundaries run as one area, and only others of their kind can join
+const placeholder = computed(() => {
+  if (!chosenKind.value) {
+    return 'Search saved boundaries...'
+  }
+  return chosenKind.value === 'upload' ? 'Add uploaded boundaries...' : 'Add Census boundaries...'
+})
 
 function combinable (g: SavedGeography): boolean {
   const first = chosen.value[0]

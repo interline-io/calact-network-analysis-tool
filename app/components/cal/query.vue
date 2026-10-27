@@ -232,8 +232,26 @@
             >
               {{ message.text }}
             </p>
-            <div v-if="props.queryPolygon || geographyIds.length > 0" class="cal-boundary-actions mt-2">
-              <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
+            <div class="cal-boundary-actions mt-2">
+              <div v-if="props.savedGeographyManageUrl" class="control">
+                <a
+                  :href="props.savedGeographyManageUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="button is-ghost is-small"
+                  title="Download or delete saved boundaries in your Interline account"
+                >
+                  Interline account
+                  <cat-icon icon="open-in-new" size="small" />
+                  <span class="is-sr-only"> (opens in a new tab)</span>
+                </a>
+              </div>
+              <cat-button
+                v-if="props.queryPolygon || geographyIds.length > 0"
+                variant="ghost"
+                size="small"
+                @click="emit('fitToGeographies')"
+              >
                 Show on map
               </cat-button>
             </div>
@@ -421,6 +439,8 @@ const props = defineProps<{
   savedGeographyLoading?: boolean
   // The chosen saved boundaries have loaded and can run together
   savedSelectionRunnable?: boolean
+  // Where the user can download or delete saved boundaries
+  savedGeographyManageUrl?: string
   // Problems loading the chosen saved geography
   savedGeographyMessages?: { variant: 'danger' | 'warning', text: string }[]
 }>()

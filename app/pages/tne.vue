@@ -40,6 +40,7 @@
             :saved-geography-access="savedGeographyAccess ?? undefined"
             :saved-geography-loading="savedGeographyLoading"
             :saved-selection-runnable="savedSelectionRunnable"
+            :saved-geography-manage-url="savedGeographyManageUrl || undefined"
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
@@ -439,6 +440,7 @@ const {
   savedGeographyAccess,
   savedGeographyLoading,
   savedSelectionRunnable,
+  savedGeographyManageUrl,
   queryPolygon,
   queryAreaName,
   queryGeographyMessages,
