@@ -2,7 +2,7 @@
 // (via each stop's route_stops) the route ids that gate the downstream
 // routes/departures/buffer phases.
 
-import { chunkArray, queryAreaVariables, type Bbox, type GraphQLClient } from '~~/src/core'
+import { chunkArray, stopLocationFilter, type Bbox, type GraphQLClient, type QueryPolygon } from '~~/src/core'
 import { stopQuery, type StopGql } from '~~/src/tl'
 import { phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
@@ -13,6 +13,7 @@ export interface StopsPhaseConfig {
   feedVersions: FeedVersionRef[]
   bbox?: Bbox
   geographyIds?: number[]
+  polygon?: QueryPolygon
   // GraphQL page size; pagination continues until a short page.
   stopLimit?: number
 }
@@ -49,17 +50,13 @@ export async function runStopsPhase (
   const { queue, progressEvent, done } = phaseQueue<StopFetchTask>('stops', emit, task => fetchStopPage(task), opts)
 
   async function fetchStopPage (task: StopFetchTask): Promise<void> {
-    const area = queryAreaVariables(config)
     const variables = {
       after: task.after,
       limit: stopLimit,
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
-        location: {
-          bbox: area.bbox,
-          geography_ids: area.geographyIds,
-        }
+        location: stopLocationFilter(config),
       }
     }
     const response = await client.query<{ stops: StopGql[] }>(stopQuery, variables)

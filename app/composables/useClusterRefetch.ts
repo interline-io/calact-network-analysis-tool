@@ -40,6 +40,7 @@ export function useClusterRefetch (deps: UseClusterRefetchDeps): void {
         feedVersions,
         bbox: config.bbox,
         geographyIds: config.geographyIds,
+        polygon: config.polygon,
         geoDatasetName: config.geoDatasetName,
         maxDistanceMeters: clusterDistance.value,
         stopLimit: config.stopLimit,

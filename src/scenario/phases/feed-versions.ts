@@ -2,7 +2,7 @@
 // takes feed version sha1s (stops, flex) as input.
 
 import bbox from '@turf/bbox'
-import { convertBbox, type Bbox, type GraphQLClient } from '~~/src/core'
+import { convertBbox, polygonBbox, type Bbox, type GraphQLClient, type QueryPolygon } from '~~/src/core'
 import {
   applyFeedVersionOverrides,
   feedVersionQuery,
@@ -18,6 +18,7 @@ const FEED_VERSION_PAGE_SIZE = 100
 export interface FeedVersionsPhaseConfig {
   bbox?: Bbox
   geographyIds?: number[]
+  polygon?: QueryPolygon
   geoDatasetName: string
   // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>
@@ -25,12 +26,16 @@ export interface FeedVersionsPhaseConfig {
   excludedFeeds?: string[]
 }
 
-// The bbox to search for feeds: the user's, or one around the selected admin
-// boundaries when they resolve to geometry.
+// The bbox to search for feeds: one around the query polygon, or around the
+// selected admin boundaries when they resolve to geometry, or the user's.
 async function resolveSearchBbox (
-  config: { bbox?: Bbox, geographyIds?: number[], geoDatasetName: string },
+  config: { bbox?: Bbox, geographyIds?: number[], polygon?: QueryPolygon, geoDatasetName: string },
   client: GraphQLClient,
 ): Promise<Bbox | undefined> {
+  const aroundPolygon = polygonBbox(config.polygon)
+  if (aroundPolygon) {
+    return aroundPolygon
+  }
   if (!config.geographyIds || config.geographyIds.length === 0) {
     return config.bbox
   }
@@ -124,7 +129,7 @@ export async function runFeedVersionsPhase (
   // Fail fast rather than paginate the world: with no bbox the feeds query
   // is unbounded and would return every feed in the system.
   if (!searchBbox) {
-    throw new Error('[FeedVersions] No search area — bbox missing and geographyIds resolved to no geometries')
+    throw new Error('[FeedVersions] No search area — bbox missing and the polygon or geographyIds resolved to no geometries')
   }
 
   // Use the bbox (either user-specified or computed around admin boundaries)

@@ -104,7 +104,7 @@
               </template>
               <cat-select v-model="geomSource">
                 <option
-                  v-for="[key, label] of Object.entries(geomSources)"
+                  v-for="[key, label] of geomSourceOptions"
                   :key="key"
                   :value="key"
                 >
@@ -149,6 +149,15 @@
                  anchors inside the label slot were keyboard-unreachable and
                  their text polluted the taginput's accessible name. -->
             <div v-if="geographyIds.length > 0" class="cal-boundary-actions">
+              <cat-button
+                v-if="props.savedGeographyAccess?.save"
+                variant="ghost"
+                size="small"
+                :disabled="!adminSaveReady"
+                @click="showSaveModal = true"
+              >
+                Save boundaries…
+              </cat-button>
               <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
                 Show on map
               </cat-button>
@@ -185,6 +194,46 @@
               </template>
             </cat-taginput>
           </cat-field>
+        </div>
+
+        <div v-if="geomSource === 'upload'" class="container is-max-tablet">
+          <cal-geography-upload @loaded="emit('fitToGeographies')" />
+          <div class="cal-boundary-actions mt-2">
+            <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
+              Show on map
+            </cat-button>
+            <cat-button
+              v-if="props.savedGeographyAccess?.save"
+              variant="success"
+              size="small"
+              :disabled="!uploadSaveReady"
+              @click="showSaveModal = true"
+            >
+              Save GeoJSON bounds…
+            </cat-button>
+          </div>
+        </div>
+
+        <div v-if="geomSource === 'saved'" class="container is-max-tablet">
+          <cal-saved-geography-picker v-model="savedGeography" />
+          <p v-if="props.savedGeographyLoading" class="help">
+            <cat-icon icon="loading" size="small" />
+            Loading the saved geography...
+          </p>
+          <p
+            v-for="message of props.savedGeographyMessages || []"
+            :key="message.text"
+            class="help"
+            :class="message.variant === 'danger' ? 'is-danger' : 'has-text-warning-dark'"
+            role="alert"
+          >
+            {{ message.text }}
+          </p>
+          <div v-if="props.queryPolygon || geographyIds.length > 0" class="cal-boundary-actions mt-2">
+            <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
+              Show on map
+            </cat-button>
+          </div>
         </div>
       </cat-msg>
 
@@ -296,8 +345,16 @@
       :start-date="startDate"
       :end-date="endDate"
       :fvids="fvids"
-      :bbox="bbox"
+      :bbox="polygonBbox(props.queryPolygon) ?? bbox"
       @apply="onModalApply"
+    />
+
+    <cal-save-geography-modal
+      v-model:open="showSaveModal"
+      :default-name="saveRequest?.defaultName ?? ''"
+      :geography="saveRequest?.geography ?? null"
+      :summary="saveRequest?.summary ?? ''"
+      @saved="onGeographySaved"
     />
   </div>
 </template>
@@ -305,24 +362,37 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useLazyQuery } from '@vue/apollo-composable'
-import type { Point } from '~~/src/core'
 import {
   asDateString,
+  bboxMetadata,
   cannedBboxes,
+  featuresToPolygon,
   fmtDate,
   geomSources,
   normalizeDate,
   PANEL_PADDING,
+  polygonBbox,
   QUERY_PANEL_WIDTH,
+  suggestUploadName,
+  uploadFeatureCollection,
   validEndDate,
   wideMaxAllowedDate,
   wideMinAllowedDate,
+  type Point,
+  type QueryPolygon,
+  type SavedGeography,
+  type SavedGeographyCreate,
 } from '~~/src/core'
 import { type CensusDataset, type CensusGeography, geographySearchQuery, parseFvids } from '~~/src/tl'
 import CalFeedVersionPickerModal from '~/components/cal/feed-version-picker-modal.vue'
 import CalFeedVersionOverrideSummary from '~/components/cal/feed-version-override-summary.vue'
 import CalEndDateField from '~/components/cal/end-date-field.vue'
 import { useFetchMode } from '~/composables/useFetchMode'
+import { useUploadedGeography } from '~/composables/useUploadedGeography'
+import type { SavedGeographyAccess } from '~/composables/useSavedGeographies'
+import CalGeographyUpload from '~/components/cal/geography-upload.vue'
+import CalSavedGeographyPicker from '~/components/cal/saved-geography-picker.vue'
+import CalSaveGeographyModal from '~/components/cal/save-geography-modal.vue'
 
 const emit = defineEmits([
   'fitToGeographies',
@@ -340,6 +410,13 @@ const props = defineProps<{
   mapExtentCenter?: Point
   censusGeographiesSelected?: CensusGeography[]
   scenarioLoaded?: boolean
+  // The uploaded or saved area a query would run on
+  queryPolygon?: QueryPolygon
+  // What the user's Interline plan allows with saved geographies
+  savedGeographyAccess?: SavedGeographyAccess
+  savedGeographyLoading?: boolean
+  // Problems loading the chosen saved geography
+  savedGeographyMessages?: { variant: 'danger' | 'warning', text: string }[]
 }>()
 
 const panelWidthPx = `${QUERY_PANEL_WIDTH}px`
@@ -353,6 +430,7 @@ const {
   geographyIds,
   geomSource,
   geomLayer,
+  savedGeography,
   geoDatasetName,
   includeFixedRoute,
   includeFlexAreas,
@@ -360,6 +438,8 @@ const {
   fvids,
   applyDatesAndFvids,
 } = useScenarioInputs()
+const { upload } = useUploadedGeography()
+const { showToast } = useToastNotification()
 
 const showFvPicker = ref(false)
 const fvOverrideCount = computed(() => {
@@ -502,15 +582,79 @@ watch(geomSource, (newValue, oldValue) => {
         searchInput.focus()
       }
     })
-  } else if (oldValue === 'adminBoundary' && newValue !== 'adminBoundary') {
-    // Clear selected geographies when switching away from Administrative Boundary.
-    // censusGeographiesSelected upstream is computed from geographyIds so it
-    // updates automatically once we clear the IDs.
+  } else if (oldValue === 'adminBoundary' || oldValue === 'saved') {
+    // Clear selected geographies when switching away from Administrative
+    // Boundary, or from a saved set of them. censusGeographiesSelected
+    // upstream is computed from geographyIds so it updates automatically once
+    // we clear the IDs.
     geographyIds.value = []
     geomSearch.value = ''
     geomResult.value = undefined
   }
+  if (oldValue === 'saved') {
+    savedGeography.value = ''
+  }
 })
+
+// Loading a saved geography is offered only when the plan allows listing them
+const geomSourceOptions = computed(() => Object.entries(geomSources)
+  .filter(([key]) => key !== 'saved' || props.savedGeographyAccess?.list || geomSource.value === 'saved'))
+
+// Saving: what the modal saves, from the upload or the selected boundaries
+const showSaveModal = ref(false)
+
+const uploadSaveReady = computed(() => !!upload.value?.result && upload.value.result.errors.length === 0)
+
+// The selected boundaries' geometry arrives after their ids
+const adminSaveReady = computed(() => {
+  const loaded = new Set((props.censusGeographiesSelected || []).map(g => g.id))
+  return geographyIds.value.length > 0 && geographyIds.value.every(id => loaded.has(id))
+})
+
+const saveRequest = computed((): { defaultName: string, summary: string, geography: Omit<SavedGeographyCreate, 'name'> } | null => {
+  if (geomSource.value === 'upload' && upload.value?.result && uploadSaveReady.value) {
+    const { filename } = upload.value
+    const { features, polygon, vertexCount } = upload.value.result
+    return {
+      defaultName: suggestUploadName(filename, features),
+      summary: `${features.length} ${features.length === 1 ? 'feature' : 'features'} from ${filename}, with ${vertexCount.toLocaleString()} points.`,
+      geography: {
+        metadata: { source: 'upload', bbox: bboxMetadata(polygonBbox(polygon)), feature_count: features.length, filename },
+        content: uploadFeatureCollection(features),
+      },
+    }
+  }
+  if (geomSource.value === 'adminBoundary' && adminSaveReady.value) {
+    const geos = props.censusGeographiesSelected || []
+    const names = geos.map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
+    const outlines = geos.filter(g => g.geometry?.type === 'Polygon' || g.geometry?.type === 'MultiPolygon')
+      .map(g => ({ geometry: g.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon }))
+    return {
+      defaultName: names.length <= 3 ? names.join('; ') : `${names.slice(0, 2).join('; ')} and ${names.length - 2} more`,
+      summary: `${geos.length} administrative ${geos.length === 1 ? 'boundary' : 'boundaries'}: ${names.join('; ')}.`,
+      geography: {
+        metadata: { source: 'admin_boundary', bbox: bboxMetadata(polygonBbox(featuresToPolygon(outlines))), feature_count: geos.length },
+        content: {
+          type: 'admin_boundaries',
+          dataset: geoDatasetName.value,
+          geographies: geos.map(g => ({ id: g.id, geoid: g.geoid, name: g.name, layer: g.layer?.name ?? '' })),
+        },
+      },
+    }
+  }
+  return null
+})
+
+// A saved upload is used from the saved list from then on, so the URL can
+// name it. Saved boundaries are already in the URL as their ids.
+function onGeographySaved (saved: SavedGeography) {
+  showToast(`Saved "${saved.name}" to your profile`, 'success')
+  if (geomSource.value === 'upload') {
+    // Set in the same tick, so both land in one navigation
+    geomSource.value = 'saved'
+    savedGeography.value = saved.id
+  }
+}
 
 const selectedGeographyTagOptions = computed((): { value: number, label: string }[] => {
   // Combine selected geographies, viewport geographies, and search results
@@ -579,6 +723,16 @@ const queryBlockedReason = computed(() => {
   if (geomSource.value === 'adminBoundary' && (geographyIds.value?.length ?? 0) === 0) {
     return 'Cannot run query: select at least one administrative boundary.'
   }
+  if (geomSource.value === 'upload') {
+    return upload.value?.result?.errors.length
+      ? 'Cannot run query: fix the problems with the uploaded file.'
+      : 'Cannot run query: upload a GeoJSON file of the area.'
+  }
+  if (geomSource.value === 'saved') {
+    return savedGeography.value
+      ? 'Cannot run query: the saved geography hasn\'t loaded.'
+      : 'Cannot run query: choose a saved geography.'
+  }
   if (!bbox?.value?.valid) {
     return 'Cannot run query: set the geographic bounds first.'
   }
@@ -602,6 +756,14 @@ const validQueryParams = computed(() => {
   // If using administrative boundaries, must have at least one geography selected
   if (geomSource.value === 'adminBoundary') {
     return hasValidDate && (geographyIds.value?.length ?? 0) > 0
+  }
+
+  // An uploaded area, or a saved one: its polygon, or its boundaries' ids
+  if (geomSource.value === 'upload') {
+    return hasValidDate && !!props.queryPolygon
+  }
+  if (geomSource.value === 'saved') {
+    return hasValidDate && !!savedGeography.value && !props.savedGeographyLoading && (!!props.queryPolygon || (geographyIds.value?.length ?? 0) > 0)
   }
 
   // For other modes (bbox, map extent), use existing validation

@@ -33,6 +33,16 @@
         </div>
       </div>
 
+      <div v-if="savedGeographyAccess?.list" class="mb-4">
+        <h3 class="title is-3">
+          Saved geographies
+        </h3>
+        <p class="mb-2">
+          Areas you've saved from the Query tab. Starred ones are listed first when you load a saved boundary.
+        </p>
+        <cal-saved-geography-manager />
+      </div>
+
       <div class="mb-4">
         <h3 class="title is-3">
           Interline account
@@ -63,8 +73,13 @@
 
 <script setup lang="ts">
 import type { IwaMe } from '~~/server/api/iwa/me.get'
+import CalSavedGeographyManager from '~/components/cal/saved-geography-manager.vue'
+import { useSavedGeographies } from '~/composables/useSavedGeographies'
 
 const user = useUser()
+
+const { access: savedGeographyAccess, loadAccess } = useSavedGeographies()
+onMounted(() => { void loadAccess() })
 
 function logout () {
   useLogout()

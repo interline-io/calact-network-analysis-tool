@@ -21,13 +21,14 @@
 import { format } from 'date-fns'
 import {
   parseHMS,
-  queryAreaVariables,
+  stopLocationFilter,
   routeTypeNames,
   STOP_CLUSTER_NEAR_MAX_RADIUS,
   STOP_CLUSTER_NEAR_RADIUS_FACTOR,
   WEEKDAY_BY_GETDAY,
   type Bbox,
   type GraphQLClient,
+  type QueryPolygon,
   type Weekday,
 } from '~~/src/core'
 import {
@@ -483,6 +484,7 @@ export interface StopClusterFetchConfig {
   feedVersions: FeedVersionRef[]
   bbox?: Bbox
   geographyIds?: number[]
+  polygon?: QueryPolygon
   geoDatasetName: string
   // The PostGIS nearby_stops radius (meters) — the cluster max distance.
   maxDistanceMeters: number
@@ -534,7 +536,6 @@ async function fetchStopClusterInputs (
   const { queue } = phaseQueue<StopClusterFetchTask>('stop-clusters', emit, task => fetchPage(task), opts)
 
   async function fetchPage (task: StopClusterFetchTask): Promise<void> {
-    const area = queryAreaVariables(config)
     const variables = {
       after: task.after,
       limit: stopLimit,
@@ -543,10 +544,7 @@ async function fetchStopClusterInputs (
       where: {
         location_type: 0,
         feed_version_sha1: task.feedVersionSha1,
-        location: {
-          bbox: area.bbox,
-          geography_ids: area.geographyIds,
-        },
+        location: stopLocationFilter(config),
       },
     }
     const response = await client.query<{ stops: StopClusterStopResponse[] }>(stopClusterQuery, variables)

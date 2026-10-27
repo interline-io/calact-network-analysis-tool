@@ -23,6 +23,8 @@ interface ScenarioInputs {
   geographyIds: WritableComputedRef<number[]>
   geomSource: WritableComputedRef<string>
   geomLayer: WritableComputedRef<string>
+  // The saved geography (an IWA asset id) the 'saved' geomSource loads
+  savedGeography: WritableComputedRef<string>
   geoDatasetName: WritableComputedRef<string>
   includeFixedRoute: WritableComputedRef<boolean | undefined>
   includeFlexAreas: WritableComputedRef<boolean | undefined>
@@ -85,6 +87,11 @@ export function useScenarioInputs (): ScenarioInputs {
   const geomLayer = computed<string>({
     get: () => query.value.geomLayer?.toString() || 'place',
     set: (v) => { setQuery({ geomLayer: v || undefined }) }
+  })
+
+  const savedGeography = computed<string>({
+    get: () => query.value.savedGeography?.toString() || '',
+    set: (v) => { setQuery({ savedGeography: v || undefined }) }
   })
 
   const geoDatasetName = computed<string>({
@@ -192,6 +199,7 @@ export function useScenarioInputs (): ScenarioInputs {
     geographyIds,
     geomSource,
     geomLayer,
+    savedGeography,
     geoDatasetName,
     includeFixedRoute,
     includeFlexAreas,

@@ -128,18 +128,110 @@ export function convertBbox (bbox?: Bbox): { min_lon?: number, min_lat?: number,
   }
 }
 
-// Whether a config carries a search area: a bbox or at least one geography
-// id. The one validation every run entry point shares, client and server.
-export function hasSearchArea (config: { bbox?: Bbox, geographyIds?: number[] }): boolean {
-  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0
+// A query area from an uploaded or saved geography, in WGS84. Sent with each
+// request, since the Transitland server doesn't store it.
+export type QueryPolygon = GeoJSON.MultiPolygon
+
+// The ways a config can name its query area. The first of polygon,
+// geographyIds and bbox that is set is the one used (queryAreaVariables).
+export interface QueryArea {
+  bbox?: Bbox
+  geographyIds?: number[]
+  polygon?: QueryPolygon
 }
 
-// The query area for a location filter: the geography ids when there are any,
-// otherwise the bbox. The server lets a bbox outrank geography ids and ignores
-// an empty id list, so at most one is set.
-export function queryAreaVariables (config: { bbox?: Bbox, geographyIds?: number[] }) {
-  if (config.geographyIds && config.geographyIds.length > 0) {
-    return { bbox: undefined, geographyIds: config.geographyIds }
+// The parts of a query polygon, for filters that take one Polygon at a time
+// (census geographies' `within`).
+export function polygonParts (polygon?: QueryPolygon): GeoJSON.Polygon[] {
+  return (polygon?.coordinates || []).map(coordinates => ({ type: 'Polygon', coordinates }))
+}
+
+// Whether a config carries a search area: a bbox, at least one geography id,
+// or a polygon. The one validation every run entry point shares, client and
+// server.
+export function hasSearchArea (config: QueryArea): boolean {
+  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0 || polygonParts(config.polygon).length > 0
+}
+
+// The query area for a location filter: the polygon's parts when there is
+// one, then the geography ids when there are any, otherwise the bbox. The
+// server lets a bbox outrank the others and ignores an empty id list, so at
+// most one is set.
+export function queryAreaVariables (config: QueryArea): {
+  bbox?: ReturnType<typeof convertBbox>
+  geographyIds?: number[]
+  polygons?: GeoJSON.Polygon[]
+} {
+  const polygons = polygonParts(config.polygon)
+  if (polygons.length > 0) {
+    return { bbox: undefined, geographyIds: undefined, polygons }
   }
-  return { bbox: convertBbox(config.bbox), geographyIds: undefined }
+  if (config.geographyIds && config.geographyIds.length > 0) {
+    return { bbox: undefined, geographyIds: config.geographyIds, polygons: undefined }
+  }
+  return { bbox: convertBbox(config.bbox), geographyIds: undefined, polygons: undefined }
+}
+
+// The `location` filter for a stops query. A polygon goes as one feature, which
+// the server matches stops against whole, so a MultiPolygon needs one request.
+export function stopLocationFilter (config: QueryArea) {
+  const area = queryAreaVariables(config)
+  return {
+    bbox: area.bbox,
+    geography_ids: area.geographyIds,
+    features: config.polygon && area.polygons
+      ? [{ type: 'Feature', id: 'query-area', properties: {}, geometry: config.polygon }]
+      : undefined,
+  }
+}
+
+// The bbox around a query polygon (min/max of its coordinates), for queries
+// that take only a bbox, such as the feeds search.
+export function polygonBbox (polygon?: QueryPolygon): Bbox | undefined {
+  let minLon = Infinity
+  let minLat = Infinity
+  let maxLon = -Infinity
+  let maxLat = -Infinity
+  for (const part of polygon?.coordinates || []) {
+    for (const ring of part) {
+      for (const [lon, lat] of ring) {
+        if (lon === undefined || lat === undefined) {
+          continue
+        }
+        minLon = Math.min(minLon, lon)
+        minLat = Math.min(minLat, lat)
+        maxLon = Math.max(maxLon, lon)
+        maxLat = Math.max(maxLat, lat)
+      }
+    }
+  }
+  if (!Number.isFinite(minLon)) {
+    return undefined
+  }
+  return { sw: { lon: minLon, lat: minLat }, ne: { lon: maxLon, lat: maxLat }, valid: true }
+}
+
+// Collects polygonal outlines into one MultiPolygon by listing their polygons
+// together. No union: the outlines are clipped to non-overlapping parts of a
+// query polygon, so they don't overlap either. A geometry that isn't a
+// Polygon or MultiPolygon is kept as it is.
+export function collectPolygons (a?: Geometry, b?: Geometry): Geometry | undefined {
+  if (!a || !b) {
+    return a ?? b
+  }
+  const polygonsOf = (g: Geometry): any[] | undefined => {
+    if (g.type === 'Polygon') {
+      return [g.coordinates]
+    }
+    if (g.type === 'MultiPolygon') {
+      return g.coordinates
+    }
+    return undefined
+  }
+  const pa = polygonsOf(a)
+  const pb = polygonsOf(b)
+  if (!pa || !pb) {
+    return a
+  }
+  return { type: 'MultiPolygon', coordinates: [...pa, ...pb] }
 }

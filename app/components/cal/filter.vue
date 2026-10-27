@@ -206,6 +206,8 @@ const props = defineProps<{
   scenarioFilterResult?: ScenarioFilterResult
   agencyFilterItems?: AgencyFilterItem[]
   censusGeographiesSelected?: CensusGeography[]
+  // The name of an uploaded or saved query area
+  queryAreaName?: string
   censusGeographyLayerOptions?: { label: string, value: string }[]
   aggregateGeoCount?: number
   aggregateLayerLabel?: string
@@ -223,6 +225,9 @@ const {
 } = useScenarioFilters()
 
 const geographicBoundaryLabel = computed(() => {
+  if ((geomSource.value === 'upload' || geomSource.value === 'saved') && props.queryAreaName) {
+    return props.queryAreaName
+  }
   if (geomSource.value === 'adminBoundary' && props.censusGeographiesSelected?.length) {
     return props.censusGeographiesSelected
       .map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)

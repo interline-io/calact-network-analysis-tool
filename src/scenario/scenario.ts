@@ -3,6 +3,7 @@ import {
   type RouteType,
   type Weekday,
   type Bbox,
+  type QueryPolygon,
   type GraphQLClient,
   type RequestFailure,
   GenericStreamReceiver,
@@ -53,6 +54,8 @@ export interface ScenarioConfig {
   startDate?: Date
   endDate?: Date
   geographyIds?: number[]
+  // An uploaded or saved area, in place of the bbox and geographyIds.
+  polygon?: QueryPolygon
   stopLimit?: number
   aggregateLayer?: string
   geoDatasetName: string
@@ -343,6 +346,7 @@ export class ScenarioFetcher {
     const feedVersions = await runFeedVersionsPhase({
       bbox: this.config.bbox,
       geographyIds: this.config.geographyIds,
+      polygon: this.config.polygon,
       geoDatasetName: this.config.geoDatasetName,
       feedVersionOverrides: this.config.feedVersionOverrides,
       excludedFeeds: this.config.excludedFeeds,
@@ -358,6 +362,7 @@ export class ScenarioFetcher {
           feedVersions: fvRefs,
           bbox: this.config.bbox,
           geographyIds: this.config.geographyIds,
+          polygon: this.config.polygon,
           stopLimit: this.config.stopLimit,
         }, this.client, emit, { onError })
       : Promise.resolve(undefined)
@@ -482,6 +487,7 @@ export class ScenarioFetcher {
     await runCensusValuesPhase({
       bbox: this.config.bbox,
       geographyIds: this.config.geographyIds,
+      polygon: this.config.polygon,
       geoDatasetName,
       tableDatasetName,
       aggregateLayer,
@@ -530,6 +536,7 @@ export class ScenarioFetcher {
         feedVersions: fvRefs,
         bbox: this.config.bbox,
         geographyIds: this.config.geographyIds,
+        polygon: this.config.polygon,
         geoDatasetName: this.config.geoDatasetName,
         maxDistanceMeters: distance,
         stopLimit: this.config.stopLimit,

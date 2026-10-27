@@ -13,6 +13,7 @@ import {
   type GraphQLClient,
   type Geometry,
   type Bbox,
+  type QueryPolygon,
 } from '~~/src/core'
 import {
   phaseDone,
@@ -337,6 +338,7 @@ export async function runWsdotGeographiesPhase (
       geoDatasetLayer: LEVEL_GEOGRAPHY_LAYER,
       bbox: config.bbox,
       geographyIds: config.geographyIds,
+      polygon: config.polygon,
     })
     completed++
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
@@ -379,6 +381,8 @@ interface getGeographyDataConfig {
   // Admin boundaries for runs started from geography ids; take precedence over
   // bbox in the query.
   geographyIds?: number[]
+  // An uploaded or saved area, in place of both.
+  polygon?: QueryPolygon
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -402,6 +406,7 @@ async function getGeographyData (
     tableNames: [config.tableDatasetTable],
     bbox: config.bbox,
     geographyIds: config.geographyIds,
+    polygon: config.polygon,
     stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
   })

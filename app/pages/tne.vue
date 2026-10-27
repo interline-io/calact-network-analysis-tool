@@ -36,6 +36,10 @@
             :map-extent-center="mapExtentCenter"
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
+            :query-polygon="queryPolygon"
+            :saved-geography-access="savedGeographyAccess ?? undefined"
+            :saved-geography-loading="savedGeographyLoading"
+            :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="clearScenario"
@@ -52,6 +56,7 @@
             :scenario-filter-result="scenarioFilterResult"
             :agency-filter-items="agencyFilterItems"
             :census-geographies-selected="censusGeographiesSelected"
+            :query-area-name="queryAreaName"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :aggregate-geo-count="aggregateGeoCount"
             :aggregate-layer-label="aggregateLayerLabel"
@@ -86,6 +91,7 @@
         <!-- This is a component for displaying the map and legend -->
         <cal-map
           :census-geographies-selected="censusGeographiesSelected"
+          :query-polygon="queryPolygon"
           :viewport-geographies="viewportGeographies"
           :scenario-filter-result="scenarioFilterResult"
           :display-edit-bbox-mode="displayEditBboxMode"
@@ -230,6 +236,7 @@ import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
+import { useQueryGeography } from '~/composables/useQueryGeography'
 import { useFetchMode } from '~/composables/useFetchMode'
 import {
   geographyLayerQuery,
@@ -427,6 +434,14 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
 /////////////////
 
 const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers()
+const {
+  savedGeographyAccess,
+  savedGeographyLoading,
+  queryPolygon,
+  queryAreaName,
+  queryGeographyMessages,
+  savedGeographyLoads,
+} = useQueryGeography(censusGeographiesSelected)
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
@@ -680,9 +695,20 @@ function fitToGeographies () {
 
 // A newly picked geography's geometry arrives after geographyIds changes, so
 // a fit request waits until censusGeographiesSelected matches the selection.
+// An uploaded or saved polygon is ready once it's there.
 const selectedGeographiesLoaded = computed(() => {
+  if (queryPolygon.value) {
+    return true
+  }
   const loaded = new Set(censusGeographiesSelected.value.map(g => g.id))
   return loaded.size === geographyIds.value.length && geographyIds.value.every(id => loaded.has(id))
+})
+// Loading a saved geography, or a changed upload, shows it, as picking a
+// boundary from the search does
+watch([savedGeographyLoads, queryPolygon], ([loads, polygon], [prevLoads, prevPolygon]) => {
+  if (loads !== prevLoads || (polygon && polygon !== prevPolygon)) {
+    fitToGeographies()
+  }
 })
 watch([geographyFitPending, selectedGeographiesLoaded], ([pending, loaded]) => {
   if (pending && loaded) {
@@ -768,6 +794,8 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   startDate: startDate.value,
   endDate: endDate.value,
   geographyIds: geographyIds.value,
+  // An uploaded or saved area, in place of the bbox and geographyIds
+  polygon: queryPolygon.value,
   // Data loading toggles from Query tab > Advanced Settings
   includeFixedRoute: includeFixedRoute.value,
   includeFlexAreas: includeFlexAreas.value,

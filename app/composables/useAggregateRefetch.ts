@@ -71,6 +71,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
       const body: CensusValuesPhaseConfig = {
         bbox: config.bbox,
         geographyIds: config.geographyIds,
+        polygon: config.polygon,
         geoDatasetName: config.geoDatasetName,
         // The predicate above guarantees these are set.
         tableDatasetName: config.tableDatasetName!,
