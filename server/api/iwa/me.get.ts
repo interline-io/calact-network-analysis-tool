@@ -36,12 +36,14 @@ export default defineEventHandler(async (event): Promise<IwaMe> => {
     // unknown_user, account_disabled, ...), since they say what to fix
     const { response, data } = err as IwaFetchError
     if (response) {
+      console.warn(`[iwa] /user_api/me returned ${response.status} ${data?.error ?? ''}: ${data?.message ?? ''}`)
       throw createError({
         statusCode: response.status,
         statusMessage: data?.message ?? response.statusText,
         data: { error: data?.error },
       })
     }
+    console.warn(`[iwa] Couldn't reach ${base}/user_api/me:`, err)
     throw createError({ statusCode: 502, statusMessage: `Couldn't reach IWA at ${base}` })
   }
 })

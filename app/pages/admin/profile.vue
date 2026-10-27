@@ -81,9 +81,15 @@ async function checkIwa () {
   try {
     iwaAccount.value = await $fetch<IwaMe>('/api/iwa/me')
   } catch (e) {
-    const err = e as { statusCode?: number, statusMessage?: string, data?: { data?: { error?: string } } }
-    const code = err.data?.data?.error
-    iwaError.value = [err.statusCode, code, err.statusMessage].filter(Boolean).join(' · ') || String(e)
+    // The message comes from the error body: over HTTP/2 a response has no
+    // status text, so $fetch's own statusMessage is empty
+    const err = e as {
+      statusCode?: number
+      statusMessage?: string
+      data?: { statusMessage?: string, message?: string, data?: { error?: string } }
+    }
+    const message = err.data?.statusMessage || err.data?.message || err.statusMessage
+    iwaError.value = [err.statusCode, err.data?.data?.error, message].filter(Boolean).join(' · ') || String(e)
   } finally {
     iwaLoading.value = false
   }
