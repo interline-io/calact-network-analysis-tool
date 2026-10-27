@@ -306,8 +306,8 @@
 
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
-import type { TransferSettingsSection } from './transfer-settings.vue'
-import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
+import type { TransferSettingsSection } from './settings.vue'
+import type { TransferMapRoute, TransferMapStop } from './stops-map.vue'
 import * as Plot from '@observablehq/plot'
 import {
   type TransferOverview,

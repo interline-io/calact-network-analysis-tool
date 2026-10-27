@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
+import type { TransferMapRoute, TransferMapStop } from './stops-map.vue'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
 import { KM_PER_DEGREE, bearingAndDistance } from '~~/src/scenario'
 

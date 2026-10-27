@@ -51,6 +51,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 ### Directory Structure
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
+- `app/components/cal/transfer/` — Transfer Analyst: its report, settings, stops and platforms map, and trip tags
 - `app/components/analysis/` — Analysis-specific views: WSDOT service levels, WSDOT stops/routes, VisionEval
 - `app/composables/` — `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`, `useToastNotification`
 - `app/layouts/` — `default` (sidebar + login-gated content area)
@@ -104,6 +105,7 @@ Critical information from collaborators is often in the issue follow-up comments
 - Tests use `filename.test.ts` pattern alongside source files in `src/`
 - Package manager: pnpm (v10.x)
 - CSS class names on our own components are prefixed with `cal-` (e.g. `cal-map-sidebar`, `cal-census-details-header`). Do not introduce unprefixed class names for component-internal styling — they can collide with Bulma, Catenary, or other libraries.
+- A major feature's components live in their own directory under `app/components/cal/`, as the Transfer Analyst's do in `cal/transfer/`. Name the files without the directory's prefix: Nuxt prefixes the path, so `cal/transfer/report.vue` is `<cal-transfer-report>`.
 
 ## Geometry operations: server-side only
 
