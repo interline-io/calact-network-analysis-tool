@@ -34,12 +34,14 @@
 
     <div v-if="upload" class="cal-geography-upload-summary">
       <p class="help">
-        <strong>{{ upload.filename }}</strong>:
-        {{ upload.parsed.features.length }} polygon {{ upload.parsed.features.length === 1 ? 'feature' : 'features' }}<span v-if="upload.parsed.skipped > 0">
-          ({{ upload.parsed.skipped }} without polygons skipped)</span>
+        <strong>{{ upload.filename }}</strong><span v-if="upload.parsed.skipped > 0">
+          ({{ upload.parsed.skipped }} {{ upload.parsed.skipped === 1 ? 'feature' : 'features' }} without polygons skipped)</span>
       </p>
 
-      <cat-field v-if="upload.parsed.features.length > 1" label="Features to include">
+      <cat-field v-if="upload.parsed.features.length > 1" label="Features to save">
+        <p class="help">
+          Selected features will be merged together into a single boundary.
+        </p>
         <div class="cal-geography-upload-actions">
           <cat-button variant="ghost" size="small" @click="setSelected(allIndexes)">
             Select all
@@ -60,17 +62,11 @@
         </ul>
       </cat-field>
 
-      <template v-if="upload.result">
-        <p class="help">
-          {{ upload.result.vertexCount.toLocaleString() }} points<span v-if="upload.result.vertexCount !== upload.result.originalVertexCount">
-            (from {{ upload.result.originalVertexCount.toLocaleString() }})</span>
-        </p>
-      </template>
-      <p v-else class="help is-danger">
+      <p v-if="!upload.result" class="help is-danger">
         Choose at least one feature.
       </p>
 
-      <cat-msg title="Upload options" variant="light" expandable class="cal-geography-upload-options">
+      <cat-msg title="Simplification options" variant="light" expandable class="cal-geography-upload-options">
         <ul>
           <li>
             <cat-checkbox :model-value="upload.options.trimPrecision" @update:model-value="setOption('trimPrecision', !!$event)">
@@ -83,8 +79,9 @@
             </cat-checkbox>
           </li>
         </ul>
-        <p class="help">
-          Every request in a query carries the area, and finer detail than this rarely changes a transit analysis. Turn these off to use the file's outlines as they are.
+        <p v-if="upload.result" class="help">
+          {{ upload.result.vertexCount.toLocaleString() }} points<span v-if="upload.result.vertexCount !== upload.result.originalVertexCount">
+            (from {{ upload.result.originalVertexCount.toLocaleString() }})</span>
         </p>
       </cat-msg>
     </div>

@@ -8,7 +8,7 @@
         :loading="loading"
         icon="magnify"
         :placeholder="placeholder"
-        empty-text="None chosen: upload a file below"
+        empty-text="Select a saved boundary or upload..."
         fullwidth
         v-bind="{ ariaLabel: 'Saved boundaries' }"
         @update:model-value="emit('update:modelValue', $event.map(String))"
