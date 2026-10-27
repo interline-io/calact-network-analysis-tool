@@ -33,12 +33,17 @@
     </p>
 
     <div v-if="upload" class="cal-geography-upload-summary">
-      <p class="help">
-        <strong>{{ upload.filename }}</strong><span v-if="upload.parsed.skipped > 0">
-          ({{ upload.parsed.skipped }} {{ upload.parsed.skipped === 1 ? 'feature' : 'features' }} without polygons skipped)</span>
+      <p v-if="upload.parsed.features.length === 1" class="help">
+        <code>{{ upload.filename }}</code>
+      </p>
+      <p v-if="upload.parsed.skipped > 0" class="help">
+        {{ upload.parsed.skipped }} {{ upload.parsed.skipped === 1 ? 'feature' : 'features' }} without polygons skipped.
       </p>
 
-      <cat-field v-if="upload.parsed.features.length > 1" label="Features to save">
+      <cat-field v-if="upload.parsed.features.length > 1">
+        <template #label>
+          Features in <code>{{ upload.filename }}</code>
+        </template>
         <p class="help">
           Selected features will be merged together into a single boundary.
         </p>
