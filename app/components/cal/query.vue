@@ -104,7 +104,7 @@
               </template>
               <cat-select v-model="geomSource">
                 <option
-                  v-for="[key, label] of geomSourceOptions"
+                  v-for="[key, label] of Object.entries(geomSources)"
                   :key="key"
                   :value="key"
                 >
@@ -196,44 +196,48 @@
           </cat-field>
         </div>
 
-        <div v-if="geomSource === 'upload'" class="container is-max-tablet">
-          <cal-geography-upload @loaded="emit('fitToGeographies')" />
-          <div class="cal-boundary-actions mt-2">
-            <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
-              Show on map
-            </cat-button>
-            <cat-button
-              v-if="props.savedGeographyAccess?.save"
-              variant="success"
-              size="small"
-              :disabled="!uploadSaveReady"
-              @click="showSaveModal = true"
+        <div v-if="geomSource === 'custom'" class="container is-max-tablet">
+          <cal-saved-geography-picker
+            v-if="props.savedGeographyAccess?.list"
+            v-model="savedGeography"
+          />
+          <template v-if="!savedGeography">
+            <cal-geography-upload @loaded="emit('fitToGeographies')" />
+            <div class="cal-boundary-actions mt-2">
+              <cat-button v-if="props.queryPolygon" variant="ghost" size="small" @click="emit('fitToGeographies')">
+                Show on map
+              </cat-button>
+              <cat-button
+                v-if="props.savedGeographyAccess?.save"
+                variant="success"
+                size="small"
+                :disabled="!upload?.result"
+                @click="showSaveModal = true"
+              >
+                Save GeoJSON bounds…
+              </cat-button>
+            </div>
+          </template>
+          <template v-else>
+            <p v-if="props.savedGeographyLoading" class="help">
+              <cat-icon icon="loading" size="small" />
+              Loading the saved boundary...
+            </p>
+            <p
+              v-for="message of props.savedGeographyMessages || []"
+              :key="message.text"
+              class="help"
+              :class="message.variant === 'danger' ? 'is-danger' : 'has-text-warning-dark'"
+              role="alert"
             >
-              Save GeoJSON bounds…
-            </cat-button>
-          </div>
-        </div>
-
-        <div v-if="geomSource === 'saved'" class="container is-max-tablet">
-          <cal-saved-geography-picker v-model="savedGeography" />
-          <p v-if="props.savedGeographyLoading" class="help">
-            <cat-icon icon="loading" size="small" />
-            Loading the saved geography...
-          </p>
-          <p
-            v-for="message of props.savedGeographyMessages || []"
-            :key="message.text"
-            class="help"
-            :class="message.variant === 'danger' ? 'is-danger' : 'has-text-warning-dark'"
-            role="alert"
-          >
-            {{ message.text }}
-          </p>
-          <div v-if="props.queryPolygon || geographyIds.length > 0" class="cal-boundary-actions mt-2">
-            <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
-              Show on map
-            </cat-button>
-          </div>
+              {{ message.text }}
+            </p>
+            <div v-if="props.queryPolygon || geographyIds.length > 0" class="cal-boundary-actions mt-2">
+              <cat-button variant="ghost" size="small" @click="emit('fitToGeographies')">
+                Show on map
+              </cat-button>
+            </div>
+          </template>
         </div>
       </cat-msg>
 
@@ -582,7 +586,7 @@ watch(geomSource, (newValue, oldValue) => {
         searchInput.focus()
       }
     })
-  } else if (oldValue === 'adminBoundary' || oldValue === 'saved') {
+  } else if (oldValue === 'adminBoundary' || oldValue === 'custom') {
     // Clear selected geographies when switching away from Administrative
     // Boundary, or from a saved set of them. censusGeographiesSelected
     // upstream is computed from geographyIds so it updates automatically once
@@ -591,19 +595,20 @@ watch(geomSource, (newValue, oldValue) => {
     geomSearch.value = ''
     geomResult.value = undefined
   }
-  if (oldValue === 'saved') {
+  if (oldValue === 'custom') {
     savedGeography.value = ''
   }
 })
 
-// Loading a saved geography is offered only when the plan allows listing them
-const geomSourceOptions = computed(() => Object.entries(geomSources)
-  .filter(([key]) => key !== 'saved' || props.savedGeographyAccess?.list || geomSource.value === 'saved'))
+// Going from a saved set of boundaries back to uploading drops its boundaries
+watch(savedGeography, (id, oldId) => {
+  if (geomSource.value === 'custom' && oldId && !id) {
+    geographyIds.value = []
+  }
+})
 
 // Saving: what the modal saves, from the upload or the selected boundaries
 const showSaveModal = ref(false)
-
-const uploadSaveReady = computed(() => !!upload.value?.result && upload.value.result.errors.length === 0)
 
 // The selected boundaries' geometry arrives after their ids
 const adminSaveReady = computed(() => {
@@ -612,7 +617,7 @@ const adminSaveReady = computed(() => {
 })
 
 const saveRequest = computed((): { defaultName: string, summary: string, geography: Omit<SavedGeographyCreate, 'name'> } | null => {
-  if (geomSource.value === 'upload' && upload.value?.result && uploadSaveReady.value) {
+  if (geomSource.value === 'custom' && !savedGeography.value && upload.value?.result) {
     const { filename } = upload.value
     const { features, polygon, vertexCount } = upload.value.result
     return {
@@ -645,13 +650,11 @@ const saveRequest = computed((): { defaultName: string, summary: string, geograp
   return null
 })
 
-// A saved upload is used from the saved list from then on, so the URL can
+// A saved upload is chosen from the saved list from then on, so the URL can
 // name it. Saved boundaries are already in the URL as their ids.
 function onGeographySaved (saved: SavedGeography) {
   showToast(`Saved "${saved.name}" to your profile`, 'success')
-  if (geomSource.value === 'upload') {
-    // Set in the same tick, so both land in one navigation
-    geomSource.value = 'saved'
+  if (geomSource.value === 'custom') {
     savedGeography.value = saved.id
   }
 }
@@ -723,15 +726,13 @@ const queryBlockedReason = computed(() => {
   if (geomSource.value === 'adminBoundary' && (geographyIds.value?.length ?? 0) === 0) {
     return 'Cannot run query: select at least one administrative boundary.'
   }
-  if (geomSource.value === 'upload') {
-    return upload.value?.result?.errors.length
-      ? 'Cannot run query: fix the problems with the uploaded file.'
-      : 'Cannot run query: upload a GeoJSON file of the area.'
-  }
-  if (geomSource.value === 'saved') {
-    return savedGeography.value
-      ? 'Cannot run query: the saved geography hasn\'t loaded.'
-      : 'Cannot run query: choose a saved geography.'
+  if (geomSource.value === 'custom') {
+    if (savedGeography.value) {
+      return 'Cannot run query: the saved boundary hasn\'t loaded.'
+    }
+    return upload.value
+      ? 'Cannot run query: choose at least one feature from the file.'
+      : 'Cannot run query: choose a saved boundary or upload a GeoJSON file.'
   }
   if (!bbox?.value?.valid) {
     return 'Cannot run query: set the geographic bounds first.'
@@ -759,11 +760,11 @@ const validQueryParams = computed(() => {
   }
 
   // An uploaded area, or a saved one: its polygon, or its boundaries' ids
-  if (geomSource.value === 'upload') {
+  if (geomSource.value === 'custom') {
+    if (savedGeography.value) {
+      return hasValidDate && !props.savedGeographyLoading && (!!props.queryPolygon || (geographyIds.value?.length ?? 0) > 0)
+    }
     return hasValidDate && !!props.queryPolygon
-  }
-  if (geomSource.value === 'saved') {
-    return hasValidDate && !!savedGeography.value && !props.savedGeographyLoading && (!!props.queryPolygon || (geographyIds.value?.length ?? 0) > 0)
   }
 
   // For other modes (bbox, map extent), use existing validation

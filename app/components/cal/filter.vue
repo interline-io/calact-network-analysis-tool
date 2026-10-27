@@ -225,7 +225,7 @@ const {
 } = useScenarioFilters()
 
 const geographicBoundaryLabel = computed(() => {
-  if ((geomSource.value === 'upload' || geomSource.value === 'saved') && props.queryAreaName) {
+  if (geomSource.value === 'custom' && props.queryAreaName) {
     return props.queryAreaName
   }
   if (geomSource.value === 'adminBoundary' && props.censusGeographiesSelected?.length) {

@@ -109,7 +109,7 @@ Critical information from collaborators is often in the issue follow-up comments
 
 Avoid client-side geometry operations (union, buffer, intersection, difference, area, etc.) — including via turf.js or any other JS geometry library. These libraries are not production-grade and cannot be trusted to agree closely with the calculations done in PostGIS on the backend. Always perform geometric work server-side via the Transitland GraphQL API (e.g. `stop_buffer`, `intersection_area`, `intersection_geometry`) and consume the results on the client. If a feature appears to require client-side geometry, treat that as a signal to extend the backend or adjust the design — not to introduce client-side geometric math.
 
-**Exception:** checking and shrinking an uploaded geography (#477, `src/core/geography-upload.ts`) — validating it (self-intersections, overlapping features), rounding its coordinates, and simplifying it as a TopoJSON topology so shared borders stay shared. These prepare the input the server then clips and measures; they never stand in for a result PostGIS computes.
+**Exception:** shrinking an uploaded boundary (#477, `src/core/geography-upload.ts`) — rounding its coordinates, and simplifying it as a TopoJSON topology so shared borders stay shared. This prepares the input the server then repairs, clips and measures; it never stands in for a result PostGIS computes.
 
 **Exception:** computing a bounding box around features client-side (min/max of coordinates, e.g. `@turf/bbox` or hand-rolled) is fine — it's arithmetic, not a geometric calculation, and the result only needs to be approximate (e.g. for padding a query area or framing a map view). The ban is on operations whose correctness depends on agreeing with PostGIS.
 

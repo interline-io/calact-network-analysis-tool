@@ -88,7 +88,6 @@ describe('processUpload', () => {
       { name: 'B', coordinates: square(-122.5, 45.5) },
     ))
     const result = processUpload(parsed.features, opts)
-    expect(result.errors).toEqual([])
     expect(result.polygon.type).toBe('MultiPolygon')
     expect(result.polygon.coordinates).toHaveLength(2)
     expect(result.vertexCount).toBe(10)
@@ -99,7 +98,6 @@ describe('processUpload', () => {
     const ring = [[-122.7, 45.5], [-122.6, 45.5], [-122.6000001, 45.5000001], [-122.6, 45.6], [-122.7, 45.6], [-122.7, 45.5]]
     const parsed = parseGeographyUpload(collection({ name: 'A', coordinates: [ring] }))
     const result = processUpload(parsed.features, { trimPrecision: true, simplify: false })
-    expect(result.errors).toEqual([])
     expect(result.vertexCount).toBe(5)
   })
 
@@ -126,7 +124,6 @@ describe('processUpload', () => {
     const east = [[...border, [-122.5, 45.6], [-122.5, 45.5], border[0]!]]
     const parsed = parseGeographyUpload(collection({ name: 'West', coordinates: west }, { name: 'East', coordinates: east }))
     const result = processUpload(parsed.features, { trimPrecision: true, simplify: true })
-    expect(result.errors).toEqual([])
     const onBorder = (g: GeoJSON.Polygon | GeoJSON.MultiPolygon) => {
       const ring = g.type === 'Polygon' ? g.coordinates[0]! : g.coordinates[0]![0]!
       return ring.filter(([lon]) => Math.abs(lon! + 122.6) < 0.001).map(p => p.join(',')).sort()
@@ -134,31 +131,6 @@ describe('processUpload', () => {
     const westBorder = onBorder(result.features[0]!.geometry)
     expect(westBorder.length).toBeLessThan(50)
     expect(new Set(westBorder)).toEqual(new Set(onBorder(result.features[1]!.geometry)))
-  })
-
-  it('reports an outline that crosses itself', () => {
-    const bowtie = [[[-122.7, 45.5], [-122.6, 45.6], [-122.6, 45.5], [-122.7, 45.6], [-122.7, 45.5]]]
-    const parsed = parseGeographyUpload(collection({ name: 'Bowtie', coordinates: bowtie }))
-    expect(processUpload(parsed.features, opts).errors).toEqual([expect.stringContaining('"Bowtie" has an outline that crosses itself')])
-  })
-
-  it('reports features that overlap, or one inside another', () => {
-    const parsed = parseGeographyUpload(collection(
-      { name: 'A', coordinates: square(-122.7, 45.5) },
-      { name: 'B', coordinates: square(-122.65, 45.55) },
-      { name: 'Inside A', coordinates: square(-122.69, 45.51, 0.02) },
-    ))
-    const errors = processUpload(parsed.features, opts).errors
-    expect(errors).toContainEqual(expect.stringContaining('"A" and "B" overlap'))
-    expect(errors).toContainEqual(expect.stringContaining('"A" and "Inside A" overlap'))
-  })
-
-  it('accepts neighbors that share an edge', () => {
-    const parsed = parseGeographyUpload(collection(
-      { name: 'West', coordinates: square(-122.7, 45.5) },
-      { name: 'East', coordinates: square(-122.6, 45.5) },
-    ))
-    expect(processUpload(parsed.features, { trimPrecision: true, simplify: true }).errors).toEqual([])
   })
 })
 

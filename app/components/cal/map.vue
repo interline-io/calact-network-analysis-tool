@@ -23,6 +23,7 @@
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
         :show-bbox="showBbox"
+        :has-boundary="!!props.queryPolygon || props.censusGeographiesSelected.length > 0"
         :flex-enabled="flexServicesEnabled"
         :flex-color-by="flexColorBy"
         :flex-style-data="flexStyleData"
@@ -643,7 +644,8 @@ const overlayFeatures = computed((): Feature[] => {
         })
       }
     }
-  } else if (!hasGeographies && !inAdminBoundaryMode) {
+  } else if (!hasGeographies && !inAdminBoundaryMode && geomSource.value !== 'custom') {
+    // A saved or uploaded boundary not yet chosen leaves nothing to draw
     for (const feature of bboxArea.value) {
       forDisplay.push(toRaw(feature))
     }

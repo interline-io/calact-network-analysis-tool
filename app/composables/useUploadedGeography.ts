@@ -70,11 +70,8 @@ export function useUploadedGeography () {
     uploadError.value = ''
   }
 
-  // The query area, when the chosen features make a usable one
-  const uploadPolygon = computed(() => {
-    const result = upload.value?.result
-    return result && result.errors.length === 0 ? result.polygon : undefined
-  })
+  // The query area, once at least one feature is chosen
+  const uploadPolygon = computed(() => upload.value?.result?.polygon)
 
   return { upload, uploadError, uploadPolygon, loadFile, setSelected, setOptions, clear }
 }

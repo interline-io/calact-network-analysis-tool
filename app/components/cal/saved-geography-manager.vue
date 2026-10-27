@@ -156,7 +156,7 @@ function saveRename (g: SavedGeography) {
 }
 
 function load (g: SavedGeography) {
-  void navigateTo({ path: '/tne', query: { geomSource: 'saved', savedGeography: g.id } })
+  void navigateTo({ path: '/tne', query: { geomSource: 'custom', savedGeography: g.id } })
 }
 
 // A saved boundary set is kept as references, so its download fetches the

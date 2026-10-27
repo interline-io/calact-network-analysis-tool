@@ -30,8 +30,6 @@
     "@protomaps/basemaps": "5.7.2",
     "@turf/area": "7.3.4",
     "@turf/bbox": "7.2.0",
-    "@turf/intersect": "7.3.4",
-    "@turf/kinks": "7.3.4",
     "@types/big-json": "3.2.0",
     "@types/node": "latest",
     "@vue/apollo-composable": "4.2.2",

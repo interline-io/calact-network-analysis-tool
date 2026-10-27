@@ -59,7 +59,7 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
   let requested = ''
   watch([geomSource, savedGeography], async ([source, id]) => {
     loadError.value = ''
-    if (source !== 'saved' || !id) {
+    if (source !== 'custom' || !id) {
       return
     }
     if (loaded.value?.id === id) {
@@ -101,19 +101,19 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     }
   }, { immediate: true })
 
-  const savedLoaded = computed(() => geomSource.value === 'saved' && loaded.value?.id === savedGeography.value ? loaded.value : null)
+  const savedLoaded = computed(() => geomSource.value === 'custom' && savedGeography.value && loaded.value?.id === savedGeography.value ? loaded.value : null)
 
   // The polygon a run uses, if the area is an upload or a saved upload
   const queryPolygon = computed((): QueryPolygon | undefined => {
-    if (geomSource.value === 'upload') {
-      return uploadPolygon.value
+    if (geomSource.value !== 'custom') {
+      return undefined
     }
-    return savedLoaded.value?.polygon
+    return savedGeography.value ? savedLoaded.value?.polygon : uploadPolygon.value
   })
 
   // What the area is called, for describing a run
   const queryAreaName = computed((): string | undefined => {
-    if (geomSource.value === 'upload' && upload.value?.result) {
+    if (geomSource.value === 'custom' && !savedGeography.value && upload.value?.result) {
       const names = upload.value.result.features.map(f => f.name)
       return names.length <= 3 ? names.join('; ') : `${names.length} features from ${upload.value.filename}`
     }
@@ -123,7 +123,7 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
   // Problems with the saved geography: it couldn't load, or its boundaries
   // have changed since it was saved
   const messages = computed((): QueryGeographyMessage[] => {
-    if (geomSource.value !== 'saved') {
+    if (geomSource.value !== 'custom' || !savedGeography.value) {
       return []
     }
     if (loadError.value) {

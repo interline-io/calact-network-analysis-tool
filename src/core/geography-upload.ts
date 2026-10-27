@@ -1,18 +1,15 @@
 // Reading an uploaded GeoJSON file into a query area (#477).
 //
-// Turf and TopoJSON run here only to check an upload and to make it smaller
-// (trimming coordinate precision and simplifying), as the user can turn off.
-// They never compute results that need to agree with PostGIS: the server clips
-// and measures the cleaned polygon like any other query area.
+// The file's chosen features make up one boundary, made smaller by rounding
+// coordinates and simplifying (with TopoJSON), as the user can turn off. That
+// is all the geometry done here: the server repairs, clips and measures the
+// boundary like any other query area.
 
-import area from '@turf/area'
-import intersect from '@turf/intersect'
-import kinks from '@turf/kinks'
 import { feature as topoFeature } from 'topojson-client'
 import { topology } from 'topojson-server'
 import { presimplify, simplify } from 'topojson-simplify'
 import { UPLOAD_COORDINATE_PRECISION, UPLOAD_SIMPLIFY_MIN_WEIGHT } from './constants'
-import { polygonBbox, type QueryPolygon } from './geom'
+import type { QueryPolygon } from './geom'
 
 export type PolygonalGeometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
 
@@ -46,8 +43,6 @@ export interface ProcessedUpload {
   vertexCount: number
   // Before trimming and simplifying
   originalVertexCount: number
-  // Problems that keep the area from being used
-  errors: string[]
 }
 
 // A problem with the file itself, with a message for the user
@@ -197,10 +192,9 @@ export function featuresToPolygon (features: { geometry: PolygonalGeometry }[]):
   return { type: 'MultiPolygon', coordinates }
 }
 
-// Trims and simplifies the chosen features, as the options say, and checks
-// that they make a usable query area
+// Trims and simplifies the chosen features, as the options say, into one
+// boundary
 export function processUpload (features: UploadFeature[], options: UploadProcessOptions): ProcessedUpload {
-  const errors: string[] = []
   const trimmed = features.map((f): UploadFeature => {
     let geometry: PolygonalGeometry = f.geometry
     if (options.trimPrecision) {
@@ -209,46 +203,13 @@ export function processUpload (features: UploadFeature[], options: UploadProcess
     return { ...f, geometry }
   })
   const processed = options.simplify ? simplifyTogether(trimmed, UPLOAD_SIMPLIFY_MIN_WEIGHT) : trimmed
-
-  for (const f of processed) {
-    if (kinks(f.geometry).features.length > 0) {
-      errors.push(options.simplify
-        ? `"${f.name}" has an outline that crosses itself. Try turning off simplifying, or fix the file.`
-        : `"${f.name}" has an outline that crosses itself. Fix the file and upload it again.`)
-    }
-  }
-
-  // Parts are measured one at a time and summed, so overlapping features
-  // would count the overlap twice. Checked on coarse outlines whatever the
-  // options, since intersecting detailed ones can take seconds.
-  const outlines = simplifyTogether(processed, OVERLAP_CHECK_MIN_WEIGHT)
-  for (let i = 0; i < outlines.length; i++) {
-    for (let j = i + 1; j < outlines.length; j++) {
-      const a = outlines[i]!
-      const b = outlines[j]!
-      if (bboxesOverlap(a.geometry, b.geometry) && featuresOverlap(a.geometry, b.geometry)) {
-        errors.push(`"${a.name}" and "${b.name}" overlap. Choose features that don't overlap.`)
-      }
-    }
-  }
-
   const polygon = featuresToPolygon(processed)
   return {
     polygon,
     features: processed,
     vertexCount: countVertices(polygon),
     originalVertexCount: features.reduce((n, f) => n + countVertices(f.geometry), 0),
-    errors,
   }
-}
-
-function bboxesOverlap (a: PolygonalGeometry, b: PolygonalGeometry): boolean {
-  const ba = polygonBbox(featuresToPolygon([{ geometry: a }]))
-  const bb = polygonBbox(featuresToPolygon([{ geometry: b }]))
-  if (!ba || !bb) {
-    return false
-  }
-  return ba.sw.lon < bb.ne.lon && bb.sw.lon < ba.ne.lon && ba.sw.lat < bb.ne.lat && bb.sw.lat < ba.ne.lat
 }
 
 // Rounds each position to a number of decimal places, dropping any third
@@ -301,31 +262,6 @@ function simplifyTogether (features: UploadFeature[], minWeight: number): Upload
   const topo = simplify(presimplify(topology(objects) as Parameters<typeof presimplify>[0]), minWeight)
   const simplified = topoFeature(topo, topo.objects.area!) as GeoJSON.FeatureCollection<PolygonalGeometry | null>
   return features.map((f, i) => ({ ...f, geometry: simplified.features[i]?.geometry ?? f.geometry }))
-}
-
-// The simplifying weight for the outlines the overlap check compares, about
-// ten times coarser than UPLOAD_SIMPLIFY_MIN_WEIGHT
-const OVERLAP_CHECK_MIN_WEIGHT = 1e-6
-// Of the smaller feature's area, how much two features may share before they
-// count as overlapping. Neighbors whose files don't quite agree on a border
-// cross a little along it; a feature that really overlaps another shares far
-// more.
-const OVERLAP_TOLERANCE = 0.01
-
-// Whether two features share more than a sliver of area. This covers one
-// inside the other, too.
-function featuresOverlap (a: PolygonalGeometry, b: PolygonalGeometry): boolean {
-  const shared = intersect({
-    type: 'FeatureCollection',
-    features: [
-      { type: 'Feature', properties: {}, geometry: a },
-      { type: 'Feature', properties: {}, geometry: b },
-    ],
-  })
-  if (!shared) {
-    return false
-  }
-  return area(shared) > OVERLAP_TOLERANCE * Math.min(area(a), area(b))
 }
 
 // A name for an upload: its one feature's name, or the file's name

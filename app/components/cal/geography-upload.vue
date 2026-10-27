@@ -65,9 +65,6 @@
           {{ upload.result.vertexCount.toLocaleString() }} points<span v-if="upload.result.vertexCount !== upload.result.originalVertexCount">
             (from {{ upload.result.originalVertexCount.toLocaleString() }})</span>
         </p>
-        <p v-for="message of upload.result.errors" :key="message" class="help is-danger" role="alert">
-          {{ message }}
-        </p>
       </template>
       <p v-else class="help is-danger">
         Choose at least one feature.

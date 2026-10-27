@@ -107,8 +107,7 @@ export const geomSources = {
   mapExtent: 'Covering extent of map',
   bbox: 'Dragging bounding box',
   adminBoundary: 'Administrative Boundary',
-  upload: 'Upload GeoJSON',
-  saved: 'Load Saved Boundary',
+  custom: 'Saved or uploaded boundary',
 } as const
 
 // Uploaded geographies (#477) are cleaned up before use, unless the user turns

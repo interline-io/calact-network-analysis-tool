@@ -23,7 +23,8 @@ interface ScenarioInputs {
   geographyIds: WritableComputedRef<number[]>
   geomSource: WritableComputedRef<string>
   geomLayer: WritableComputedRef<string>
-  // The saved geography (an IWA asset id) the 'saved' geomSource loads
+  // The saved boundary (an IWA asset id) the 'custom' geomSource loads; empty
+  // means an uploaded file
   savedGeography: WritableComputedRef<string>
   geoDatasetName: WritableComputedRef<string>
   includeFixedRoute: WritableComputedRef<boolean | undefined>
