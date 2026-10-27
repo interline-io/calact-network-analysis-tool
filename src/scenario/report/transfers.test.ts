@@ -365,7 +365,7 @@ describe('summarizeTransfers and transferOverview', () => {
       [false, '07:03:00', 'close'],
       [true, '07:30:00', ''],
       [false, '07:45:00', 'unacceptable'],
-      [true, '08:00:00', 'none'],
+      [true, '08:00:00', ''],
     ])
   })
 

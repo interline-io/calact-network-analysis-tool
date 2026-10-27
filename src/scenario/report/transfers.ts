@@ -1171,8 +1171,8 @@ export interface TransferGridRow extends TransferGridTrip {
   stop_name: string
   walk_seconds: number | ''
   wait_seconds: number | ''
-  // Blank on a heading row with connections; 'none' on one without.
-  grade: TransferGrade | 'none' | ''
+  // Blank on a heading row.
+  grade: TransferGrade | ''
   grade_label: string
 }
 
@@ -1277,8 +1277,8 @@ export function transferGrid (groups: TransferGroup[], opts: GridTripOptions & {
         stop_name: opts.stops.get(arrival.stopId)?.stop_name ?? '',
         walk_seconds: '',
         wait_seconds: '',
-        grade: connections.length > 0 ? '' : 'none',
-        grade_label: connections.length > 0 ? '' : 'No connection',
+        grade: '',
+        grade_label: '',
       },
       ...connections.map((c, i) => ({
         ...gridTrip(c.departure, 'to', opts, { id: `${group}>${i}`, group }, c.way ? [sameWayTag(c.way, 1, 1)] : []),

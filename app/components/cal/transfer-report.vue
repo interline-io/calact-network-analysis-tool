@@ -221,7 +221,7 @@
              unused. -->
         <cal-datagrid
           :key="view"
-          fill
+          sticky-header
           dense
           :searchable="false"
           :downloadable="false"
@@ -230,7 +230,8 @@
           :reset-key="`${subject}|${individualDate ?? ''}`"
           :loading="detailsLoading"
           group-key="group"
-          :group-label="(row: TransferGridTrip) => `${row.route_name} ${row.headsign}`"
+          :group-label="tripName"
+          empty-group-note="No outgoing trips within the current settings"
           v-bind="grid"
         >
           <!-- The trip: its route, then its destination, where an arriving one
@@ -296,7 +297,6 @@
               :style="waitStyle(row.grade)"
               :title="row.grade_label"
             >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade_label }}</span></span>
-            <span v-else class="cal-transfer-report-none">{{ row.grade_label }}</span>
           </template>
         </cal-datagrid>
       </template>
@@ -467,7 +467,7 @@ const DURATION_COLUMNS = ['walk_seconds', 'median_wait_seconds']
 
 // A wait's colors by its grade; none for an arrival's own row.
 function waitStyle (grade: TransferGridRow['grade'] | undefined) {
-  const colors = grade && grade !== 'none' ? TRANSFER_GRADE_COLORS[grade] : undefined
+  const colors = grade ? TRANSFER_GRADE_COLORS[grade] : undefined
   return colors && { background: colors.fill, color: colors.text }
 }
 
@@ -541,13 +541,28 @@ function showInIndividual (f: TransferFocus) {
   view.value = 'individual'
 }
 
-// A Summary row in Individual: an arriving destination's arrivals, or under
-// one, only their connections onto the departing destination.
-function showRow (row: TransferSummaryGridRow) {
-  showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
+// A trip by its route and destination.
+function tripName (row: TransferGridTrip): string {
+  return `${row.route_name} ${row.headsign}`
 }
 
 const { showToast } = useToastNotification()
+
+// A Summary row in Individual: an arriving destination's arrivals, or under
+// one, only their connections onto the departing destination. The trip
+// filters open to show what they keep, and a toast says what changed.
+function showRow (row: TransferSummaryGridRow) {
+  const head = row.head ? row : props.summaryGrid.find(r => r.id === row.group)!
+  const arrivals = `arrivals on ${tripName(head)}`
+  showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
+  openSection.value = 'trips'
+  showToast(row.head ? `Filtered to ${arrivals}` : `Filtered to ${arrivals} and connections onto ${tripName(row)}`)
+  // Scrolled down to the row, the report starts again from its top, where
+  // the filters open.
+  if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
+    root.value?.scrollIntoView({ block: 'start' })
+  }
+}
 
 async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart') {
   if (what === 'link') {
@@ -678,13 +693,7 @@ const grid = computed(() => (view.value === 'summary'
 </script>
 
 <style scoped lang="scss">
-// Fills the Reports tab's height: the controls and charts at their own
-// height, and the table the rest, scrolling inside.
 .cal-transfer-report {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
   // The toolbar fits its controls to this width.
   container-type: inline-size;
 }
@@ -731,8 +740,8 @@ const grid = computed(() => (view.value === 'summary'
 // The controls as an action bar; an open panel hangs from it, the two as
 // one surface.
 .cal-transfer-report-bar {
-  flex: 0 0 auto;
-  margin-bottom: 0.75rem;
+  // The block spacing, so the results below read apart from the controls.
+  margin-bottom: 1.5rem;
 
   // The panels framed here, as they only ever open from the bar.
   > .cal-transfer-settings,
@@ -885,7 +894,6 @@ const grid = computed(() => (view.value === 'summary'
   align-items: center;
   gap: 0.5rem 2rem;
   margin-bottom: 0.75rem;
-  flex: 0 0 auto;
 }
 
 .cal-transfer-report-figures {
@@ -992,12 +1000,6 @@ const grid = computed(() => (view.value === 'summary'
   text-align: center;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-// An arrival with no connection, said plainly.
-.cal-transfer-report-none {
-  color: var(--bulma-text-weak);
-  font-weight: normal;
 }
 
 // The route, and beside it the destination, where it comes from and its

@@ -13,18 +13,50 @@
       @view="view = $event"
       @hover="mapHover = $event"
     />
-    <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
-      <div class="cal-transfer-stops-head">
-        <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
-        <button v-if="listed.some(s => !picked.has(s.id))" type="button" class="cal-transfer-stops-link" @click="selectListed">
-          Select all
-        </button>
-        <button v-if="stops.length > 0" type="button" class="cal-transfer-stops-link" @click="stops = []">
-          Unselect all
-        </button>
+    <div class="cal-transfer-stops-side">
+      <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
+        <div class="cal-transfer-stops-head">
+          <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
+          <!-- Both always shown, so neither takes the other's place under the
+               pointer. -->
+          <button type="button" class="cal-transfer-stops-link" :disabled="!listed.some(s => !picked.has(s.id))" @click="selectListed">
+            Select all
+          </button>
+          <button type="button" class="cal-transfer-stops-link" :disabled="stops.length === 0" @click="unselectAll">
+            Unselect all
+          </button>
+        </div>
+        <div v-for="group of groups" :key="group.operator" class="cal-transfer-stops-group">
+          <div class="cal-transfer-stops-operator">
+            {{ group.operator || 'Unknown operator' }}
+          </div>
+          <ul>
+            <li
+              v-for="s of group.stops"
+              :key="s.id"
+              :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
+              @mouseenter="rowHover = s.id"
+              @mouseleave="rowHover = undefined"
+            >
+              <cat-checkbox :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
+                <span
+                  :class="s.platform ? 'cal-transfer-stops-shape-platform' : 'cal-transfer-stops-shape-stop'"
+                  :title="s.platform ? 'Platform in a station' : 'Stop'"
+                />
+                <span class="cal-transfer-stops-name" :title="s.name">{{ s.name }}</span>
+                <span v-if="s.platform" class="is-sr-only">, platform</span>
+                <span class="cal-transfer-stops-routes" :title="s.routes">{{ s.routes }}</span>
+              </cat-checkbox>
+            </li>
+          </ul>
+        </div>
+        <p v-if="groups.length === 0" class="cal-transfer-stops-empty">
+          No stops in view.
+        </p>
       </div>
       <!-- Stops close to those picked but not picked, as a station's stops
-           on another feed that its cluster left out. -->
+           on another feed that its cluster left out. Below the list, so the
+           list stays put as this comes and goes. -->
       <p v-if="nearby.length > 0" class="cal-transfer-stops-nearby">
         Nearby, not picked:
         <template v-for="(s, i) of nearby" :key="s.id">
@@ -36,39 +68,12 @@
           Add all
         </button>
       </p>
-      <div v-for="group of groups" :key="group.operator" class="cal-transfer-stops-group">
-        <div class="cal-transfer-stops-operator">
-          {{ group.operator || 'Unknown operator' }}
-        </div>
-        <ul>
-          <li
-            v-for="s of group.stops"
-            :key="s.id"
-            :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
-            @mouseenter="rowHover = s.id"
-            @mouseleave="rowHover = undefined"
-          >
-            <cat-checkbox :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
-              <span
-                :class="s.platform ? 'cal-transfer-stops-shape-platform' : 'cal-transfer-stops-shape-stop'"
-                :title="s.platform ? 'Platform in a station' : 'Stop'"
-              />
-              <span class="cal-transfer-stops-name" :title="s.name">{{ s.name }}</span>
-              <span v-if="s.platform" class="is-sr-only">, platform</span>
-              <span class="cal-transfer-stops-routes" :title="s.routes">{{ s.routes }}</span>
-            </cat-checkbox>
-          </li>
-        </ul>
-      </div>
-      <p v-if="groups.length === 0" class="cal-transfer-stops-empty">
-        No stops in view.
-      </p>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './transfer-stops-map.vue'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
 import { KM_PER_DEGREE, bearingAndDistance } from '~~/src/scenario'
@@ -89,11 +94,18 @@ const rowHover = ref<number>()
 const mapHover = ref<number>()
 const picked = computed(() => new Set(stops.value))
 
+// Stops unpicked from the list stay listed until the map moves, so the list
+// never shifts under the pointer.
+const unpicked = ref(new Set<number>())
+
 // The map's view, west, south, east, north; and the stops listed: those in
-// it, and those picked wherever they are.
+// it, and those picked or just unpicked wherever they are.
 const view = ref<[number, number, number, number]>()
+watch(view, () => {
+  unpicked.value = new Set()
+})
 const listed = computed(() => props.mapStops.filter((s) => {
-  if (picked.value.has(s.id)) {
+  if (picked.value.has(s.id) || unpicked.value.has(s.id)) {
     return true
   }
   const v = view.value
@@ -133,7 +145,15 @@ function selectListed () {
 }
 
 function setPicked (id: number, on: boolean) {
+  if (!on) {
+    unpicked.value = new Set([...unpicked.value, id])
+  }
   stops.value = on ? [...stops.value, id] : stops.value.filter(x => x !== id)
+}
+
+function unselectAll () {
+  unpicked.value = new Set([...unpicked.value, ...stops.value])
+  stops.value = []
 }
 </script>
 
@@ -152,8 +172,11 @@ function setPicked (id: number, on: boolean) {
   }
 }
 
-.cal-transfer-stops-list {
+.cal-transfer-stops-side {
   min-width: 0;
+}
+
+.cal-transfer-stops-list {
   max-height: 17.5rem;
   overflow-y: auto;
 }
@@ -168,10 +191,16 @@ function setPicked (id: number, on: boolean) {
     font-weight: 600;
     color: var(--bulma-text-strong);
   }
+
+  // The buttons keep to the right, so a change in the count's width never
+  // moves them.
+  button:first-of-type {
+    margin-left: auto;
+  }
 }
 
 .cal-transfer-stops-nearby {
-  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
   padding: 0.35rem 0.5rem;
   border-radius: 4px;
   background: var(--bulma-scheme-main-ter);
@@ -195,6 +224,12 @@ function setPicked (id: number, on: boolean) {
   color: var(--bulma-link);
   cursor: pointer;
   text-decoration: underline;
+
+  &:disabled {
+    color: var(--bulma-text-weak);
+    cursor: default;
+    text-decoration: none;
+  }
 }
 
 .cal-transfer-stops-group {

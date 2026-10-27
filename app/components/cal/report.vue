@@ -1,5 +1,5 @@
 <template>
-  <div class="cal-report" :class="{ 'cal-report-fill': isTransfers }">
+  <div class="cal-report">
     <div class="cal-report-title-row">
       <cal-title :title="reportHeading">
         {{ reportHeading }}
@@ -13,14 +13,13 @@
       />
     </div>
 
-    <div class="cal-report-header" :class="isTransfers ? 'cal-report-header-tight' : 'block'">
-      <!-- Over the Transfer Analyst, which fills the page, smaller. -->
-      <div class="cal-report-filter-tags" :class="isTransfers ? 'mb-3' : 'mb-4'">
+    <div class="cal-report-header block">
+      <div class="cal-report-filter-tags mb-4">
         <span
           v-for="tag of filterTags"
           :key="tag.label + tag.value"
-          class="tag"
-          :class="[tag.active ? 'is-primary' : 'is-light', { 'is-medium': !isTransfers }]"
+          class="tag is-medium"
+          :class="tag.active ? 'is-primary' : 'is-light'"
         >
           {{ tag.label }}: {{ tag.value }}
         </span>
@@ -73,8 +72,7 @@
       </p>
     </cat-msg>
 
-    <!-- Transfers at one stop or cluster, given by the page: it fills the
-         tab's height, its table scrolling inside. -->
+    <!-- Transfers at one stop or cluster, given by the page. -->
     <slot v-if="isTransfers" name="transfers" />
 
     <cal-datagrid
@@ -185,7 +183,7 @@
         </span>
       </template>
     </cal-datagrid>
-    <div v-if="!isTransfers" class="cal-report-spacer" />
+    <div class="cal-report-spacer" />
   </div>
 </template>
 
@@ -357,9 +355,8 @@ const reportHeading = computed(() => {
 export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
 const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
-// The Transfer Analyst fills the tab with its own controls, table, and
-// downloads, in a slot the page fills, and keeps out of the map's display
-// mode.
+// The Transfer Analyst shows its own controls, table, and downloads, in a
+// slot the page fills, and keeps out of the map's display mode.
 const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
@@ -556,33 +553,10 @@ const activeTableReport = computed((): TableReport => {
     padding-right:20px;
   }
 
-  // The Transfer Analyst tab fills the page's height, rather than growing
-  // past it.
-  .cal-report-fill {
-    min-height: 0;
-    overflow: hidden;
-    padding-bottom: 1rem;
-  }
-
-  // Over a report that fills the page, less space under the tabs.
-  .cal-report-header-tight {
-    margin-bottom: 0.5rem;
-
-    :deep(.tabs) {
-      margin-bottom: 0;
-    }
-  }
-
   .cal-report-title-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-
-    // Smaller than a page title, so the reports below get the room.
-    :deep(h1.title) {
-      font-size: 2rem;
-      margin: 0.75rem 0 0.5rem;
-    }
   }
 
   .cal-report-filter-tags {
