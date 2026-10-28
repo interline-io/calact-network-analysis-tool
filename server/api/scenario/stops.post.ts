@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'feedVersions must be non-empty' })
   }
   if (!hasSearchArea(config)) {
-    throw createError({ statusCode: 400, statusMessage: 'Either bbox or geographyIds must be provided' })
+    throw createError({ statusCode: 400, statusMessage: 'One of bbox, geographyIds or polygon must be provided' })
   }
   return streamPhaseResponse(event, 'stops', 'Starting stops phase', (client, emit, onError) =>
     runStopsPhase(config, client, emit, { onError }))

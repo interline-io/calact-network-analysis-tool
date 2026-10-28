@@ -18,6 +18,13 @@
             <div>Selected boundary</div>
           </div>
         </div>
+        <!-- Saved or uploaded boundary -->
+        <div v-else-if="geomSource === 'custom'" :class="{ 'is-hidden': !queryAreaShown }" class="cal-map-legend-section">
+          <div>
+            <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
+            <div>Boundary for Query</div>
+          </div>
+        </div>
         <!-- BBOX -->
         <div v-else-if="props.displayEditBboxMode || props.showBbox" class="cal-map-legend-section">
           <div>
@@ -188,6 +195,8 @@ const props = defineProps<{
   hasData: boolean
   displayEditBboxMode?: boolean
   showBbox?: boolean
+  // A saved or uploaded boundary (or saved boundaries) is drawn
+  hasBoundary?: boolean
   // Flex Services props
   flexEnabled?: boolean
   flexColorBy?: string
@@ -212,7 +221,13 @@ const { geomSource } = useScenarioInputs()
 
 const showChoropleth = computed(() => showAggAreas.value && props.hasChoroplethData)
 
-const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary' || showChoropleth.value)
+// In the saved or uploaded boundary mode, the query area shows only once
+// there's a boundary
+const queryAreaShown = computed(() => geomSource.value === 'custom'
+  ? !!(props.showBbox && props.hasBoundary)
+  : props.displayEditBboxMode || props.showBbox || geomSource.value === 'adminBoundary')
+
+const shouldShowLegend = computed(() => props.hasData || props.hasFlexData || props.hasClusterData || queryAreaShown.value || showChoropleth.value)
 
 function bucketLabel (i: number): string {
   const c = props.choroplethClassification

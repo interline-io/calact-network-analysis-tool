@@ -1,8 +1,7 @@
 // Phase 1: the active feed versions in the query area. Everything downstream
 // takes feed version sha1s (stops, flex) as input.
 
-import bbox from '@turf/bbox'
-import { convertBbox, type Bbox, type GraphQLClient } from '~~/src/core'
+import { convertBbox, mergePolygons, polygonBbox, type Bbox, type GraphQLClient, type QueryArea } from '~~/src/core'
 import {
   applyFeedVersionOverrides,
   feedVersionQuery,
@@ -15,9 +14,7 @@ import { phaseDone, type PhaseEmit } from './common'
 
 const FEED_VERSION_PAGE_SIZE = 100
 
-export interface FeedVersionsPhaseConfig {
-  bbox?: Bbox
-  geographyIds?: number[]
+export interface FeedVersionsPhaseConfig extends QueryArea {
   geoDatasetName: string
   // Picker overrides: onestop_id → fv_id. Record (not Map) for BFF JSON.
   feedVersionOverrides?: Record<string, number>
@@ -25,12 +22,15 @@ export interface FeedVersionsPhaseConfig {
   excludedFeeds?: string[]
 }
 
-// The bbox to search for feeds: the user's, or one around the selected admin
-// boundaries when they resolve to geometry.
+// The bbox to search for feeds: one around the query polygon, or around the
+// selected admin boundaries when they resolve to geometry, or the user's.
 async function resolveSearchBbox (
-  config: { bbox?: Bbox, geographyIds?: number[], geoDatasetName: string },
+  config: QueryArea & { geoDatasetName: string },
   client: GraphQLClient,
 ): Promise<Bbox | undefined> {
+  if (config.polygon?.coordinates.length) {
+    return polygonBbox(config.polygon)
+  }
   if (!config.geographyIds || config.geographyIds.length === 0) {
     return config.bbox
   }
@@ -44,29 +44,12 @@ async function resolveSearchBbox (
       dataset_name: config.geoDatasetName
     }
   )
-
-  // Combine all geometries into a FeatureCollection
-  const features = geogResponse.data?.census_datasets?.[0]?.geographies?.map(g => ({
-    type: 'Feature' as const,
-    geometry: g.geometry,
-    properties: {}
-  })) || []
-
-  if (features.length === 0) {
+  const geometries = (geogResponse.data?.census_datasets?.[0]?.geographies || []).map(g => g.geometry).filter(Boolean)
+  if (geometries.length === 0) {
     console.warn('No features found in census datasets response')
     return config.bbox
   }
-
-  // Calculate bbox that contains all administrative boundaries
-  const [minX, minY, maxX, maxY] = bbox({
-    type: 'FeatureCollection' as const,
-    features
-  })
-  return {
-    sw: { lon: minX, lat: minY },
-    ne: { lon: maxX, lat: maxY },
-    valid: true
-  }
+  return polygonBbox(mergePolygons(geometries))
 }
 
 // GraphQL lookup + warning surfacing wrapped around applyFeedVersionOverrides
@@ -124,7 +107,7 @@ export async function runFeedVersionsPhase (
   // Fail fast rather than paginate the world: with no bbox the feeds query
   // is unbounded and would return every feed in the system.
   if (!searchBbox) {
-    throw new Error('[FeedVersions] No search area — bbox missing and geographyIds resolved to no geometries')
+    throw new Error('[FeedVersions] No search area: bbox missing and the polygon or geographyIds resolved to no geometries')
   }
 
   // Use the bbox (either user-specified or computed around admin boundaries)

@@ -316,6 +316,57 @@ describe('stop-buffer clips (integration)', () => {
   }, 120000)
 })
 
+// --- Polygon query area suite ---------------------------------------------------
+//
+// An uploaded or saved area runs as a polygon. Census geographies take one
+// Polygon at a time, so a MultiPolygon runs once per part, merged by geoid.
+// Split down the middle, the bbox as two parts must find the same stops and
+// the same areas as the bbox itself, including tracts straddling the split.
+describe('polygon query area (integration)', () => {
+  const client = integrationClient()
+  const RADIUS = 100
+  const MID = -122.68
+  const { sw, ne } = BBOX
+  const ring = (w: number, e: number) => [[[w, sw.lat], [e, sw.lat], [e, ne.lat], [w, ne.lat], [w, sw.lat]]]
+  const POLYGON: GeoJSON.MultiPolygon = { type: 'MultiPolygon', coordinates: [ring(sw.lon, MID), ring(MID, ne.lon)] }
+
+  const bboxConfig: ScenarioConfig = {
+    ...censusConfig('tract'),
+    reportName: 'polygon-area-test',
+    includeFixedRoute: true,
+    stopBufferRadius: RADIUS,
+    includeOutsideClip: true,
+  }
+
+  let byBbox: ScenarioData
+  let byPolygon: ScenarioData
+  beforeAll(async () => {
+    byBbox = await runScenarioFetcher(noopController(), bboxConfig, client)
+    // The run's bbox is still sent, as the app does; the polygon outranks it.
+    byPolygon = await runScenarioFetcher(noopController(), { ...bboxConfig, polygon: POLYGON }, client)
+  }, 300000)
+
+  it('finds the same stops', () => {
+    expect(byBbox.stops.length).toBeGreaterThan(0)
+    expect(byPolygon.stops.map(s => s.id).sort()).toEqual(byBbox.stops.map(s => s.id).sort())
+  })
+
+  it('sums each tract across the parts', () => {
+    const tracts = [...byBbox.censusGeographies!.entries()]
+    expect(tracts.length).toBeGreaterThan(0)
+    expect(byPolygon.censusGeographies!.size).toBe(tracts.length)
+    for (const [geoid, geo] of tracts) {
+      const merged = byPolygon.censusGeographies!.get(geoid)
+      expect(merged, `expected ${geoid} in the polygon run`).toBeDefined()
+      expect(merged!.values['b01003_001']).toBe(geo.values['b01003_001'])
+      // The parts are densified separately, so allow a little over a m².
+      expect(Math.abs(merged!.intersectionArea - geo.intersectionArea), `${geoid} area`).toBeLessThan(5)
+      expect(Math.abs(merged!.bufferIntersectionArea! - geo.bufferIntersectionArea!), `${geoid} buffer clip`).toBeLessThan(5)
+      expect(Math.abs(merged!.outsideIntersectionArea! - geo.outsideIntersectionArea!), `${geoid} outside clip`).toBeLessThan(5)
+    }
+  })
+})
+
 // --- Per-stop census suite ------------------------------------------------------
 //
 // The other suites run with includeFixedRoute:false, so nothing there covers the

@@ -106,8 +106,25 @@ export const WEEKDAY_BY_GETDAY: readonly Weekday[] = [
 export const geomSources = {
   mapExtent: 'Covering extent of map',
   bbox: 'Dragging bounding box',
-  adminBoundary: 'Administrative Boundary',
+  adminBoundary: 'Administrative boundaries (US Census)',
+  custom: 'Saved or uploaded boundaries',
 } as const
+
+// Uploaded geographies (#477) are cleaned up before use, unless the user turns
+// a step off. NAT analyses gain little from survey-grade outlines, and every
+// request in a run carries the polygon.
+//
+// Decimal places kept in each coordinate: 5 is about 1 m.
+export const UPLOAD_COORDINATE_PRECISION = 5
+// Visvalingam simplifying threshold, as the area in square degrees of the
+// triangle a position makes with its neighbors: 1e-7 is about 850 m² at these
+// latitudes, such as a 15 m jog in 115 m of border.
+export const UPLOAD_SIMPLIFY_MIN_WEIGHT = 1e-7
+// Larger files aren't read at all.
+export const UPLOAD_MAX_FILE_BYTES = 50 * 1024 * 1024
+// The largest geography that can be saved: Interline stores saved geographies
+// as documents of at most 2 MB, less room for the rest of the document.
+export const SAVED_GEOGRAPHY_MAX_BYTES = 1.9 * 1024 * 1024
 
 export const routeColorModes = [
   'Mode',

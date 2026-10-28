@@ -41,8 +41,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as maplibre from 'maplibre-gl'
-import bbox from '@turf/bbox'
-import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR, escapeHtml } from '~~/src/core'
+import { TRANSFER_PICKED_COLOR, TRANSFER_UNPICKED_COLOR, escapeHtml, isPolygonal, mergePolygons, polygonBbox } from '~~/src/core'
 import { basemapStyle } from '~/utils/basemap'
 import { useRuntimeConfig } from '#imports'
 
@@ -143,13 +142,13 @@ const pickedRoutes = computed(() => {
 // The extent's bounding box, padded by a fifth of its size (and at least
 // about 500 m), for the map's panning bounds; none without an extent.
 function extentBounds (): maplibre.LngLatBounds | undefined {
-  const [west, south, east, north] = bbox({ type: 'FeatureCollection', features: props.extent })
-  if (!Number.isFinite(west)) {
+  const b = polygonBbox(mergePolygons(props.extent.map(f => f.geometry).filter(isPolygonal)))
+  if (!b) {
     return undefined
   }
-  const padLon = Math.max((east - west) / 5, 0.006)
-  const padLat = Math.max((north - south) / 5, 0.0045)
-  return new maplibre.LngLatBounds([west - padLon, south - padLat], [east + padLon, north + padLat])
+  const padLon = Math.max((b.ne.lon - b.sw.lon) / 5, 0.006)
+  const padLat = Math.max((b.ne.lat - b.sw.lat) / 5, 0.0045)
+  return new maplibre.LngLatBounds([b.sw.lon - padLon, b.sw.lat - padLat], [b.ne.lon + padLon, b.ne.lat + padLat])
 }
 
 function updateExtent () {
