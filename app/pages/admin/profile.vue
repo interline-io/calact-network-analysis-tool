@@ -53,15 +53,19 @@
         </p>
       </section>
 
-      <section v-if="savedGeographyAccess?.list" id="saved-boundaries" class="mb-5">
-        <h2 class="title is-4">
-          Saved boundaries
-        </h2>
-        <p class="mb-2">
-          Boundaries you've saved from the Query tab. Starred ones are listed first when you choose a saved boundary.
-        </p>
-        <cal-saved-geography-manager />
-      </section>
+      <!-- The anchor renders right away, so a link here can scroll to it
+           before the access check decides whether the section shows -->
+      <div id="saved-boundaries">
+        <section v-if="savedGeographyAccess?.list" class="mb-5">
+          <h2 class="title is-4">
+            Saved boundaries
+          </h2>
+          <p class="mb-2">
+            Boundaries you've saved from the Query tab. Starred ones are listed first when you choose a saved boundary.
+          </p>
+          <cal-saved-geography-manager />
+        </section>
+      </div>
 
       <!-- For troubleshooting: what the sign-in carries, and whether Interline
            accepts it. Shown only with the sidebar's debug toggle on. -->
@@ -153,6 +157,8 @@ async function checkIwa () {
   iwaError.value = ''
   try {
     iwaAccount.value = await $fetch<IwaMe>('/api/iwa/me')
+    // Clears an earlier failed check from Your access
+    void loadAccess()
   } catch (e) {
     const err = e as { statusCode?: number, data?: { data?: { error?: string } } }
     iwaError.value = [err.statusCode, err.data?.data?.error, iwaErrorMessage(e)].filter(Boolean).join(' · ')

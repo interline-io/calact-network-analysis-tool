@@ -36,8 +36,9 @@ export function useSavedGeographies () {
 
   // What the user's plan allows, from their IWA roles. Without an Interline
   // account (or signed out, as in local development) it allows nothing.
+  // Checked once per session, except that a check that failed is tried again.
   async function loadAccess (): Promise<SavedGeographyAccess> {
-    if (access.value) {
+    if (access.value && !accessError.value) {
       return access.value
     }
     try {
@@ -48,6 +49,7 @@ export function useSavedGeographies () {
         allowed[permission as SavedGeographyPermission] = roles.has(role)
       }
       access.value = allowed
+      accessError.value = ''
     } catch (e) {
       accessError.value = iwaErrorMessage(e)
       console.warn('[saved-geographies] No Interline account access:', accessError.value)

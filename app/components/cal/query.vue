@@ -242,8 +242,10 @@
               </cat-button>
               <div v-else-if="!upload && !addingFile" class="field is-grouped">
                 <div v-if="props.accountHasSavedBoundaries" class="control">
-                  <nuxt-link to="/admin/profile#saved-boundaries" class="button is-small" title="Your saved boundaries, on your account page">
-                    Manage saved boundaries
+                  <!-- A new tab, as leaving this page drops the results -->
+                  <nuxt-link to="/admin/profile#saved-boundaries" target="_blank" rel="noopener" class="button is-small" title="Your saved boundaries, on your account page">
+                    <span>Manage saved boundaries<span class="is-sr-only"> (opens in a new tab)</span></span>
+                    <cat-icon icon="open-in-new" size="small" />
                   </nuxt-link>
                 </div>
                 <cat-button
