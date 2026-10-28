@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { queryAreaVariables, type Bbox, type Geometry, type GraphQLClient, type CensusValues } from '~~/src/core'
+import { chunkArray, collectPolygons, hasSearchArea, queryAreaVariables, type Geometry, type GraphQLClient, type CensusValues, type QueryArea } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
@@ -27,16 +27,12 @@ export interface CensusGeographyFeature {
   geometry: Geometry | null
 }
 
-export interface FetchCensusIntersectionConfig {
+export interface FetchCensusIntersectionConfig extends QueryArea {
   client: GraphQLClient
   geoDatasetName: string
   geoDatasetLayer: string
   tableDatasetName: string
   tableNames: string[]
-  bbox?: Bbox
-  // Census geographies; the server clips to their union rather than to an
-  // axis-aligned bbox. Takes precedence over `bbox`.
-  geographyIds?: number[]
   stopIds?: Iterable<number>
   stopBufferRadius?: number
   includeIntersectionGeometry?: boolean
@@ -75,6 +71,7 @@ query GeographyIntersection(
   $tableNames: [String!]!,
   $tableDatasetName: String,
   $bbox: BoundingBox,
+  $within: Polygon,
   $geographyIds: [Int!],
   $stopIds: [Int!],
   $stopBufferRadius: Float,
@@ -91,6 +88,7 @@ query GeographyIntersection(
         layer: $layer,
         location: {
           bbox: $bbox,
+          within: $within,
           geography_ids: $geographyIds,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius}
         }
@@ -123,13 +121,10 @@ query GeographyIntersection(
 }
 `
 
-export interface FetchClipIntersectionsConfig {
+export interface FetchClipIntersectionsConfig extends QueryArea {
   client: GraphQLClient
   geoDatasetName: string
   geoDatasetLayer: string
-  bbox?: Bbox
-  // Takes precedence over `bbox`, matching the query-area pass.
-  geographyIds?: number[]
   stopIds: Iterable<number>
   stopBufferRadius: number
   // Clip to the part of the query area outside the stop buffers instead.
@@ -153,6 +148,7 @@ query ClipIntersection(
   $geoDatasetName: String,
   $layer: String!,
   $bbox: BoundingBox,
+  $within: Polygon,
   $geographyIds: [Int!],
   $stopIds: [Int!],
   $stopBufferRadius: Float,
@@ -168,6 +164,7 @@ query ClipIntersection(
         layer: $layer,
         location: {
           bbox: $bbox,
+          within: $within,
           geography_ids: $geographyIds,
           stop_buffer: {stop_ids: $stopIds, radius: $stopBufferRadius, exclude: $exclude}
         }
@@ -189,11 +186,10 @@ export async function fetchClipIntersections (
 ): Promise<Map<string, ClipIntersection>> {
   const stopIds = Array.from(config.stopIds)
   const out = new Map<string, ClipIntersection>()
-  const area = queryAreaVariables(config)
-  if (!(area.bbox || area.geographyIds) || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+  if (!hasSearchArea(config) || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
     return out
   }
-  const result = await config.client.query<{
+  const results = await queryEachPass(config, pass => config.client.query<{
     census_datasets: {
       geographies: {
         geoid: string
@@ -204,23 +200,24 @@ export async function fetchClipIntersections (
   }>(clipIntersectionQuery, {
     geoDatasetName: config.geoDatasetName,
     layer: config.geoDatasetLayer,
-    bbox: area.bbox,
-    geographyIds: area.geographyIds,
+    ...pass,
     stopIds,
     stopBufferRadius: config.stopBufferRadius,
     exclude: config.exclude || false,
     includeGeometry: config.includeGeometry || false,
-  })
-  for (const geoDataset of result.data?.census_datasets || []) {
-    for (const geography of geoDataset.geographies || []) {
-      // Multiple rows per geoid are possible in other backend clip modes;
-      // sum so a split clip isn't silently reduced to one part. The composed
-      // clip we use yields one row, so the first geometry is the whole clip.
-      const prev = out.get(geography.geoid)
-      out.set(geography.geoid, {
-        area: (prev?.area || 0) + (geography.intersection_area || 0),
-        geometry: prev?.geometry ?? geography.intersection_geometry ?? undefined,
-      })
+  }))
+  for (const result of results) {
+    for (const geoDataset of result.data?.census_datasets || []) {
+      for (const geography of geoDataset.geographies || []) {
+        // Sum so a clip split across a polygon's parts isn't reduced to one
+        // part. Within one pass the composed clip yields one row per geoid;
+        // across passes the parts' clipped outlines are collected together.
+        const prev = out.get(geography.geoid)
+        out.set(geography.geoid, {
+          area: (prev?.area || 0) + (geography.intersection_area || 0),
+          geometry: collectPolygons(prev?.geometry, geography.intersection_geometry ?? undefined),
+        })
+      }
     }
   }
   return out
@@ -293,10 +290,34 @@ export async function fetchBufferClipGeometry (
   return out
 }
 
+// The query-area variables for each request a census query takes: one per
+// part of a polygon, since `within` takes a single Polygon, or else one with
+// the bbox or geography ids (both unset for a stops-only query).
+function areaPasses (config: QueryArea): { bbox?: ReturnType<typeof queryAreaVariables>['bbox'], within?: GeoJSON.Polygon, geographyIds?: number[] }[] {
+  const area = queryAreaVariables(config)
+  if (area.polygons) {
+    return area.polygons.map(within => ({ within }))
+  }
+  return [{ bbox: area.bbox, geographyIds: area.geographyIds }]
+}
+
+// How many of a polygon's parts are queried at once, as the scenario phases
+// cap their requests. A file of hundreds of districts shouldn't send hundreds
+// of census queries together.
+const AREA_PASS_CONCURRENCY = 8
+
+// Runs a census query once per area pass, a few at a time, in pass order
+async function queryEachPass<T> (config: QueryArea, run: (pass: ReturnType<typeof areaPasses>[number]) => Promise<T>): Promise<T[]> {
+  const results: T[] = []
+  for (const batch of chunkArray(areaPasses(config), AREA_PASS_CONCURRENCY)) {
+    results.push(...await Promise.all(batch.map(run)))
+  }
+  return results
+}
+
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
-  const area = queryAreaVariables(config)
   const variables = {
     geoDatasetName: config.geoDatasetName,
     tableDatasetName: config.tableDatasetName,
@@ -304,26 +325,37 @@ export async function fetchCensusIntersection (
     layer: config.geoDatasetLayer,
     stopBufferRadius: config.stopBufferRadius,
     stopIds: config.stopIds ? Array.from(config.stopIds) : [],
-    bbox: area.bbox,
-    geographyIds: area.geographyIds,
     includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
-  const result = await config.client.query<{ census_datasets: geographyIntersectionResponse[] }>(
-    geographyIntersectionQuery,
-    variables,
-  )
+  const results = await queryEachPass(config, pass =>
+    config.client.query<{ census_datasets: geographyIntersectionResponse[] }>(
+      geographyIntersectionQuery,
+      { ...variables, ...pass },
+    ))
   const features: CensusGeographyFeature[] = []
-  for (const geoDataset of result.data?.census_datasets || []) {
+  // A geography that straddles parts of a polygon comes back once per part,
+  // each with the area inside that part. Summed, they give its intersection
+  // with the whole polygon where the parts don't overlap; where they do, the
+  // overlap counts twice (the UI says so). The ratio is capped at 1.
+  const byGeoid = new Map<string, CensusGeographyFeature>()
+  for (const geoDataset of results.flatMap(result => result.data?.census_datasets || [])) {
     for (const geography of geoDataset.geographies || []) {
       const totalArea = geography.geometry_area || 0
       if (totalArea === 0) {
+        continue
+      }
+      const prev = byGeoid.get(geography.geoid)
+      if (prev) {
+        prev.properties.intersection_area += geography.intersection_area || 0
+        prev.properties.intersection_ratio = Math.min(prev.properties.intersection_area / totalArea, 1.0)
+        prev.geometry = collectPolygons(prev.geometry ?? undefined, geography.intersection_geometry ?? undefined) ?? null
         continue
       }
       const intersectionArea = geography.intersection_area || 0
       const intersectionRatio = Math.min(intersectionArea / totalArea, 1.0)
       // Flatten the per-(geography, table) value rows into one keyed map.
       const values = parseAcsValues(geography.values, config.tableDatasetName)
-      features.push({
+      const feature: CensusGeographyFeature = {
         id: geography.geoid,
         type: 'Feature',
         properties: {
@@ -342,7 +374,9 @@ export async function fetchCensusIntersection (
           values,
         },
         geometry: geography.intersection_geometry,
-      })
+      }
+      byGeoid.set(geography.geoid, feature)
+      features.push(feature)
     }
   }
   return features

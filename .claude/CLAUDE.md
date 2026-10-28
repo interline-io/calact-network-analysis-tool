@@ -45,7 +45,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 - Data fetching lives in the container page (`app/pages/tne.vue`) or composables it calls. The main scenario results stream in from the `/api/scenario` endpoint as NDJSON over `fetch` — the Transitland GraphQL queries run **server-side** in `server/api/` → `src/scenario`, not via client Apollo. Supporting data fetched client-side with Apollo `useQuery` (census layers, choropleth/buffer geometry, viewport geographies) is kept here too. Fetched and derived results flow down to child components as plain props.
 - The main data-flow components (filter, report, map, census panel) — and any composables/helpers they use — must be driveable from plain props, so they render and test without a live scenario stream or a seeded Apollo cache. Composables/helpers that *process props or derive new values from props* are fine anywhere; the constraint is no fetching or direct Apollo-cache access (nothing that can't be passed in as plain data).
 - Exception: the URL-backed `useScenario*` composables (`useScenarioInputs` / `useScenarioFilters` / `useScenarioDisplay`) may be called by any component — they read the route query, which is trivial to provide in a test. (Subject to revisiting.)
-- Exception: self-contained interactive widgets that fetch their own options — the feed-version and census-dataset pickers, and query.vue's geography typeahead — may own their Apollo queries; their data isn't part of the scenario-result graph.
+- Exception: self-contained interactive widgets that fetch their own options — the feed-version and census-dataset pickers, and query.vue's geography typeahead — may own their Apollo queries; their data isn't part of the scenario-result graph. The saved-geography picker, save modal and profile manager likewise read and write the user's saved geographies themselves (`useSavedGeographies`); loading the chosen one into the query area stays in tne.vue (`useQueryGeography`).
 - Keep `tne.vue` as the composition root so the app's data-flow graph is readable in one place.
 
 ### Directory Structure
@@ -108,6 +108,8 @@ Critical information from collaborators is often in the issue follow-up comments
 ## Geometry operations: server-side only
 
 Avoid client-side geometry operations (union, buffer, intersection, difference, area, etc.) — including via turf.js or any other JS geometry library. These libraries are not production-grade and cannot be trusted to agree closely with the calculations done in PostGIS on the backend. Always perform geometric work server-side via the Transitland GraphQL API (e.g. `stop_buffer`, `intersection_area`, `intersection_geometry`) and consume the results on the client. If a feature appears to require client-side geometry, treat that as a signal to extend the backend or adjust the design — not to introduce client-side geometric math.
+
+**Exception:** shrinking an uploaded boundary (#477, `src/core/geography-upload.ts`) — rounding its coordinates, and simplifying it as a TopoJSON topology so shared borders stay shared. This prepares the input the server then repairs, clips and measures; it never stands in for a result PostGIS computes.
 
 **Exception:** computing a bounding box around features client-side (min/max of coordinates, e.g. `@turf/bbox` or hand-rolled) is fine — it's arithmetic, not a geometric calculation, and the result only needs to be approximate (e.g. for padding a query area or framing a map view). The ban is on operations whose correctness depends on agreeing with PostGIS.
 

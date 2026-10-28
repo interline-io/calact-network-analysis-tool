@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (!hasSearchArea(config)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Either bbox or geographyIds must be provided'
+      statusMessage: 'One of bbox, geographyIds or polygon must be provided'
     })
   }
 

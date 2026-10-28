@@ -23,6 +23,7 @@
         :has-data="hasData"
         :display-edit-bbox-mode="displayEditBboxMode"
         :show-bbox="showBbox"
+        :has-boundary="!!props.queryPolygon || props.censusGeographiesSelected.length > 0"
         :flex-enabled="flexServicesEnabled"
         :flex-color-by="flexColorBy"
         :flex-style-data="flexStyleData"
@@ -75,7 +76,7 @@
 import { ref, computed, toRaw, watch, toRef } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { type CensusGeography, type Stop, stopToStopCsv, type Route, routeToRouteCsv, routesById } from '~~/src/tl'
-import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo } from '~~/src/core'
+import type { Bbox, Feature, Geometry, Point, PopupFeature, ChoroplethClassification, ClusterMemberInfo, QueryPolygon } from '~~/src/core'
 import { bboxString, categoricalColors, routeTypeNames, flexColors, createCategoryColorScale } from '~~/src/core'
 import { buildStyleData, clusterDisplayName, visibleAgencyIds, type Matcher, type ScenarioFilterResult, type StopCluster, type TripSubject } from '~~/src/scenario'
 
@@ -96,6 +97,8 @@ const props = defineProps<{
   displayEditBboxMode?: boolean
   showBbox?: boolean
   censusGeographiesSelected: CensusGeography[]
+  // An uploaded or saved query area, drawn in place of the bbox or boundaries
+  queryPolygon?: QueryPolygon
   // Viewport geographies for click-to-select in adminBoundary mode
   viewportGeographies?: CensusGeography[]
   scenarioFilterResult?: ScenarioFilterResult
@@ -592,9 +595,16 @@ function onSelectableGeoRightClick (featureId: string) {
   }
 }
 
+function queryPolygonFeature (polygon: QueryPolygon): Feature {
+  return { type: 'Feature', id: 'query-polygon', geometry: polygon, properties: {} }
+}
+
 // Features to fit map to when fitOverlayKey is triggered (button or initial load).
 // Uses censusGeographiesSelected which is always populated for selected geography IDs.
 const fitTargetFeatures = computed((): Feature[] => {
+  if (props.queryPolygon) {
+    return [queryPolygonFeature(props.queryPolygon)]
+  }
   return props.censusGeographiesSelected.map(geo => ({
     type: 'Feature',
     id: geo.id.toString(),
@@ -617,8 +627,13 @@ const overlayFeatures = computed((): Feature[] => {
   // (pre-query with viewport geos loaded). Post-query, let overlay features show normally.
   const inAdminBoundaryMode = geomSource.value === 'adminBoundary' && (props.viewportGeographies?.length ?? 0) > 0
 
-  // Show admin geographies OR bbox, never both (mirrors server-side priority)
-  if (hasGeographies && !inAdminBoundaryMode) {
+  // Show the polygon, admin geographies OR bbox, never more than one (mirrors
+  // server-side priority)
+  if (props.queryPolygon) {
+    if (props.showBbox) {
+      forDisplay.push(queryPolygonFeature(props.queryPolygon))
+    }
+  } else if (hasGeographies && !inAdminBoundaryMode) {
     if (props.showBbox) {
       for (const feature of props.censusGeographiesSelected) {
         forDisplay.push({
@@ -629,7 +644,8 @@ const overlayFeatures = computed((): Feature[] => {
         })
       }
     }
-  } else if (!hasGeographies && !inAdminBoundaryMode) {
+  } else if (!hasGeographies && !inAdminBoundaryMode && geomSource.value !== 'custom') {
+    // A saved or uploaded boundary not yet chosen leaves nothing to draw
     for (const feature of bboxArea.value) {
       forDisplay.push(toRaw(feature))
     }

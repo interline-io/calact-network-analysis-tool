@@ -4,19 +4,16 @@
 import {
   REQUIRED_ACS_TABLES,
   hasSearchArea,
-  type Bbox,
   type CensusGeographyData,
   type Geometry,
   type GraphQLClient,
+  queryArea,
+  type QueryArea,
 } from '~~/src/core'
 import { fetchCensusIntersection, fetchClipIntersections, type ClipIntersection } from '~~/src/tl'
 import { phaseDone, type PhaseEmit } from './common'
 
-export interface CensusValuesPhaseConfig {
-  bbox?: Bbox
-  // Admin-boundary selection. The server clips to their union, in place of
-  // the bbox.
-  geographyIds?: number[]
+export interface CensusValuesPhaseConfig extends QueryArea {
   geoDatasetName: string
   // ACS dataset (e.g. `acsdt5y2021`).
   tableDatasetName: string
@@ -59,8 +56,7 @@ export async function runCensusValuesPhase (
     geoDatasetLayer: config.aggregateLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: REQUIRED_ACS_TABLES,
-    bbox: config.bbox,
-    geographyIds: config.geographyIds,
+    ...queryArea(config),
     includeIntersectionGeometry: config.includeIntersectionGeometry,
   })
 
@@ -84,8 +80,7 @@ export async function runCensusValuesPhase (
         client,
         geoDatasetName: config.geoDatasetName,
         geoDatasetLayer: config.aggregateLayer,
-        bbox: config.bbox,
-        geographyIds: config.geographyIds,
+        ...queryArea(config),
         stopIds,
         stopBufferRadius: radius,
         exclude,

@@ -33,6 +33,16 @@
         </div>
       </div>
 
+      <div v-if="savedGeographyAccess?.list" class="mb-4">
+        <h3 class="title is-3">
+          Saved geographies
+        </h3>
+        <p class="mb-2">
+          Areas you've saved from the Query tab. Starred ones are listed first when you load a saved boundary.
+        </p>
+        <cal-saved-geography-manager />
+      </div>
+
       <div class="mb-4">
         <h3 class="title is-3">
           Interline account
@@ -63,8 +73,13 @@
 
 <script setup lang="ts">
 import type { IwaMe } from '~~/server/api/iwa/me.get'
+import CalSavedGeographyManager from '~/components/cal/saved-geography-manager.vue'
+import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
 
 const user = useUser()
+
+const { access: savedGeographyAccess, loadAccess } = useSavedGeographies()
+onMounted(() => { void loadAccess() })
 
 function logout () {
   useLogout()
@@ -81,15 +96,8 @@ async function checkIwa () {
   try {
     iwaAccount.value = await $fetch<IwaMe>('/api/iwa/me')
   } catch (e) {
-    // The message comes from the error body: over HTTP/2 a response has no
-    // status text, so $fetch's own statusMessage is empty
-    const err = e as {
-      statusCode?: number
-      statusMessage?: string
-      data?: { statusMessage?: string, message?: string, data?: { error?: string } }
-    }
-    const message = err.data?.statusMessage || err.data?.message || err.statusMessage
-    iwaError.value = [err.statusCode, err.data?.data?.error, message].filter(Boolean).join(' · ') || String(e)
+    const err = e as { statusCode?: number, data?: { data?: { error?: string } } }
+    iwaError.value = [err.statusCode, err.data?.data?.error, iwaErrorMessage(e)].filter(Boolean).join(' · ')
   } finally {
     iwaLoading.value = false
   }
