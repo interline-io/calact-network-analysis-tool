@@ -998,7 +998,7 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
   return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
 })
 const transferView = ref<TransferReportView>('summary')
-const transferSection = ref<TransferReportSection | undefined>('trips')
+const transferSection = ref<TransferReportSection>()
 // A link to the analysis as shown: the URL, which holds the subject, its
 // stops, the date, and the times; and besides, its view and its settings
 // where not the defaults, which are read back once when the link is opened.
@@ -1032,15 +1032,15 @@ if (query.value.transferAt) {
 function enableClustersForTransfers () {
   clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
 }
-// Entered from a cluster, Stops & platforms opens first, as a cluster's
-// stops are the first thing to check.
+// Entered from a cluster, Stops & platforms opens, as a cluster's stops are
+// the first thing to check; entered from a stop, the settings stay closed.
 function openTransfers (subject: TripSubject) {
   // The same subject again keeps its stop edits.
   const key = transferSubjectKey(subject)
   if (key !== transferSubject.value) {
     transferSubject.value = key
   }
-  transferSection.value = subject.kind === 'cluster' ? 'stops' : 'trips'
+  transferSection.value = subject.kind === 'cluster' ? 'stops' : undefined
   reportTab.value = 'transfers'
   activeTab.value = { tab: 'report', sub: '' }
 }

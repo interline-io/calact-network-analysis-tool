@@ -19,19 +19,12 @@
     </div>
     <div class="cal-transfer-stops-map-tools">
       <cat-button
-        size="small"
         icon-left="lasso"
         :variant="lassoOn ? 'primary' : undefined"
         v-bind="{ 'aria-pressed': lassoOn }"
         @click="lassoOn = !lassoOn"
       >
         Lasso
-      </cat-button>
-      <cat-button v-if="inView.some(id => !picked.has(id))" size="small" @click="selectInView">
-        Select all in view
-      </cat-button>
-      <cat-button v-if="selected.length > 0" size="small" @click="selected = []">
-        Unselect all
       </cat-button>
     </div>
     <p class="cal-transfer-stops-map-hint">
@@ -221,22 +214,11 @@ function toggle (id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
 }
 
-// The map's view, west, south, east, north; and the stops in it.
-const bounds = ref<[number, number, number, number]>()
-const picked = computed(() => new Set(selected.value))
-const inView = computed(() => {
-  const v = bounds.value
-  return v ? props.stops.filter(s => s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]).map(s => s.id) : []
-})
-function selectInView () {
-  selected.value = [...new Set([...selected.value, ...inView.value])]
-}
-
+// The map's view, west, south, east, north, for the list.
 function emitView () {
   const b = map?.getBounds()
   if (b) {
-    bounds.value = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-    emit('view', bounds.value)
+    emit('view', [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])
   }
 }
 
@@ -353,6 +335,12 @@ function initMap () {
     zoom: 15,
     maxZoom: MAX_ZOOM,
     minZoom: MIN_ZOOM,
+    // The buttons zoom, not the wheel, a double click, a box, or a pinch, so
+    // scrolling the page across the map never zooms the map.
+    scrollZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    touchZoomRotate: false,
     center: [-122.4, 45.5],
     // The map data's credits only, not MapLibre's own, which the control
     // adds by default.
@@ -616,18 +604,17 @@ onBeforeUnmount(() => {
   left: 0.5rem;
   z-index: 3;
   display: flex;
-  gap: 0.35rem;
+  gap: 0.75rem;
 }
 
 :deep(.cal-transfer-stops-map-chooser) {
   display: grid;
-  gap: 0.35rem;
-  font-size: 0.8rem;
+  gap: 0.5rem;
 
   label {
     display: flex;
     align-items: flex-start;
-    gap: 0.4rem;
+    gap: 0.5rem;
     cursor: pointer;
   }
 
@@ -644,9 +631,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
-  margin: 0.25rem 0 0;
-  font-size: 0.75rem;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0 0;
   color: var(--bulma-text-weak);
 }
 

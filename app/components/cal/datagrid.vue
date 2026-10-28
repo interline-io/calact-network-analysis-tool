@@ -46,7 +46,7 @@
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
     <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'cal-report-table-dense': props.dense }">
+      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -282,8 +282,6 @@ const props = withDefaults(defineProps<{
   // A CSV download button; true by default. A view that downloads its rows
   // from elsewhere on the page can leave it out.
   downloadable?: boolean
-  // Smaller type and padding, for more rows in view.
-  dense?: boolean
   // Rows in groups, by this field: each group's first row heads it. Sorting
   // orders the groups by their headings and the rows within each group;
   // pages hold whole groups; and a heading opens and closes its group.
@@ -703,14 +701,6 @@ const filterStatus = computed(() => {
   position: relative;
 }
 
-.cal-report-table.cal-report-table-dense {
-  font-size: 0.875rem;
-
-  th, td {
-    padding: 0.3rem 0.5rem;
-  }
-}
-
 .cal-datagrid-sticky {
   // The header sticks to the nearest box that scrolls, so this one must not;
   // a table wider than the page is cut off.
@@ -729,17 +719,21 @@ const filterStatus = computed(() => {
 .cal-report-table {
   th, td {
     padding: 0.5rem 0.75rem;
-    white-space: nowrap;
     vertical-align: middle;
     // Floor so short-header + short-data columns (e.g. "ID" / "1") stay
     // readable instead of collapsing to a few pixels wide.
     min-width: 4rem;
   }
 
+  // Cells keep to one line; a header wraps at its spaces, where the table
+  // would otherwise grow wider than the page.
+  td {
+    white-space: nowrap;
+  }
+
   // A column group's heading, centered over its columns.
   th.cal-datagrid-colgroup {
     text-align: center;
-    font-size: 0.8em;
     border-bottom-width: 1px;
   }
 
@@ -902,7 +896,6 @@ const filterStatus = computed(() => {
 .cal-datagrid-more td {
   text-align: center;
   color: var(--bulma-text-weak);
-  font-size: 0.8em;
 }
 
 // A column only as wide as its content, and one centered, its sort button

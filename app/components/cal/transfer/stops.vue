@@ -164,8 +164,7 @@ function unselectAll () {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
   gap: 0.75rem 1.5rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
+  padding: 1.25rem;
 
   @media (max-width: 48rem) {
     grid-template-columns: minmax(0, 1fr);
@@ -185,7 +184,7 @@ function unselectAll () {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5em;
 
   span {
     font-weight: 600;
@@ -200,15 +199,10 @@ function unselectAll () {
 }
 
 .cal-transfer-stops-nearby {
-  margin-top: 0.5rem;
-  padding: 0.35rem 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: 4px;
   background: var(--bulma-scheme-main-ter);
-  font-size: 0.8rem;
-
-  .cal-transfer-stops-link {
-    font-size: inherit;
-  }
 }
 
 .cal-transfer-stops-nearby-operator {
@@ -220,7 +214,6 @@ function unselectAll () {
   border: 0;
   padding: 0;
   font: inherit;
-  font-size: 0.75rem;
   color: var(--bulma-link);
   cursor: pointer;
   text-decoration: underline;
@@ -233,7 +226,7 @@ function unselectAll () {
 }
 
 .cal-transfer-stops-group {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 
   ul {
     margin: 0;
@@ -244,13 +237,13 @@ function unselectAll () {
   li :deep(.checkbox) {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.5rem;
     min-width: 0;
   }
 }
 
 li {
-  padding: 0 0.25rem;
+  padding: 0.25em 0.5em;
   border-radius: 4px;
 
   &:hover,
@@ -260,12 +253,9 @@ li {
 }
 
 .cal-transfer-stops-operator {
-  font-size: 0.75rem;
   font-weight: 600;
   color: var(--bulma-text-weak);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin: 0.25rem 0 0.1rem;
+  margin-bottom: 0.25em;
 }
 
 // The map's shapes: a circle for a stop, a square for a platform.
@@ -292,18 +282,17 @@ li {
   white-space: nowrap;
 }
 
+// The routes take what room the name leaves.
 .cal-transfer-stops-routes {
-  flex: 0 1 auto;
-  min-width: 2rem;
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--bulma-text-weak);
-  font-size: 0.75rem;
 }
 
 .cal-transfer-stops-empty {
   color: var(--bulma-text-weak);
-  font-size: 0.75rem;
 }
 </style>

@@ -30,7 +30,6 @@
             type="number"
             min="0.1"
             step="0.1"
-            size="small"
             class="cal-transfer-settings-number"
             v-bind="{ ariaLabel: 'Walking seconds per meter' }"
             @update:model-value="ifNumber('pace', $event, n => set({ secondsPerMeter: n }))"
@@ -43,11 +42,10 @@
       </cat-fieldset>
 
       <!-- The grades as a bar across the wait, as Transfer Analyst draws it:
-           each grade in its color, with its range, the waits that bound them
-           between, and beyond the ends, waits that are not transfers. -->
+           each grade in its color, with its range, and the waits that bound
+           them between. -->
       <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
         <div class="cal-transfer-settings-scale">
-          <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
           <template v-for="(bound, i) of bounds" :key="`${bound}-${emptied[bound] ?? 0}`">
             <cat-input
               :model-value="minutes(settings.breakpoints[i])"
@@ -55,7 +53,6 @@
               optional
               type="number"
               step="0.5"
-              size="small"
               class="cal-transfer-settings-number"
               v-bind="{ ariaLabel: `${bound}, in minutes` }"
               @update:model-value="ifNumber(bound, $event, n => setBreakpoint(i, n))"
@@ -69,9 +66,9 @@
               <span>{{ range(i) }}</span>
             </span>
           </template>
-          <span class="cal-transfer-settings-band cal-transfer-settings-band-none">Not a transfer</span>
         </div>
         <p class="cal-transfer-settings-help">
+          Waits outside these ranges are not transfers.
           <span v-if="!breakpointsValid" class="cal-transfer-settings-warning">Each must be more than the one before; the defaults apply until then.</span>
           <button type="button" class="cal-transfer-settings-link" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
             Reset
@@ -123,7 +120,7 @@
             v-for="row of side.rows"
             :key="row.id"
             class="cal-transfer-settings-item"
-            :class="row.operator ? 'cal-transfer-settings-operator' : [`cal-transfer-settings-depth-${row.depth}`, { 'cal-transfer-settings-sub': !row.badge }]"
+            :class="row.operator ? 'cal-transfer-settings-operator' : `cal-transfer-settings-depth-${row.depth}`"
           >
             <!-- An operator's routes show unless closed; a direction's
                  destinations, once opened. -->
@@ -241,10 +238,11 @@ const pace = computed(() => {
 // The five breakpoints, by what each starts or ends, and the grades between.
 const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.unacceptable} up to`]
 
-// A grade's range, between the breakpoints either side of it: "-5 to 0 min".
+// A grade's range in minutes, between the breakpoints either side of it:
+// "-5 to 0".
 function range (i: number): string {
   const [from, to] = [minutes(settings.value.breakpoints[i]), minutes(settings.value.breakpoints[i + 1])]
-  return `${from ?? ''} to ${to ?? ''} min`
+  return `${from ?? ''} to ${to ?? ''}`
 }
 
 function minutes (seconds: number | undefined): number | undefined {
@@ -417,7 +415,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings {
   display: grid;
   gap: 0.75rem 2rem;
-  padding: 0.75rem 1rem;
+  padding: 1.25rem;
 
   // Sized by its own width, which the page's sidebar changes too.
   &.cal-transfer-settings-wait-walk {
@@ -445,7 +443,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 // the panel below; narrower, everything stacks.
 .cal-transfer-settings-wait-walk-grid {
   display: grid;
-  gap: 0.75rem 2rem;
+  gap: 1.5rem 2rem;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-areas:
     'walk connections'
@@ -489,24 +487,20 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 
 .cal-transfer-settings-options {
   display: grid;
-  gap: 0.25rem 1.5rem;
-
-  p {
-    margin-bottom: 0.4rem;
-  }
+  gap: 0.75rem 1.5rem;
 }
 
 .cal-transfer-settings-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 1rem;
-  margin-bottom: 0.4rem;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .cal-transfer-settings-number {
   :deep(input) {
-    width: 3.5rem;
+    width: 5rem;
   }
 }
 
@@ -514,8 +508,8 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-scale {
   display: flex;
   align-items: stretch;
-  gap: 0.35rem;
-  margin-bottom: 0.4rem;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
   overflow-x: auto;
 
   .cal-transfer-settings-number {
@@ -523,30 +517,22 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   }
 }
 
-// A grade's band, sharing the bar's width: its name over its range.
+// A grade's band, sharing the bar's width: its name over its range. Never
+// narrower than those, so the bar scrolls instead.
 .cal-transfer-settings-band {
   flex: 1 1 0;
-  min-width: 5.5rem;
+  min-width: max-content;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.5rem;
+  padding: 0.5em 0.75em;
   border-radius: 4px;
-  line-height: 1.2;
   white-space: nowrap;
 
   strong {
     color: inherit;
   }
-}
-
-// Beyond the ends, plainly.
-.cal-transfer-settings-band-none {
-  flex: 0 1 auto;
-  min-width: 0;
-  color: var(--bulma-text-weak);
-  border: 1px dashed var(--bulma-border);
 }
 
 .cal-transfer-settings-help {
@@ -575,7 +561,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-side-head {
   display: flex;
   align-items: baseline;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5em;
 
   span {
     font-weight: 600;
@@ -584,9 +570,9 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   }
 }
 
-// One line per row, the count at the end, scrolling past a dozen or so.
+// One line per row, the count at the end, scrolling past a handful.
 .cal-transfer-settings-list {
-  max-height: 12rem;
+  max-height: 20rem;
   overflow-y: auto;
   margin: 0;
   list-style: none;
@@ -598,8 +584,8 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.15rem 0.5rem;
+  gap: 0.5rem;
+  padding: 0.5em 0.75em;
   border-bottom: 1px solid var(--bulma-border-weak);
 
   &:last-child {
@@ -609,24 +595,22 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   // An operator's row: a heading over its routes, which keep their indent.
   &.cal-transfer-settings-operator {
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
     color: var(--bulma-text-weak);
     background: var(--bulma-scheme-main-bis);
   }
 
+  // Each level in by a caret's width and the gap that follows.
   &.cal-transfer-settings-depth-1 {
-    padding-left: 1.75rem;
+    padding-left: 2.5rem;
   }
 
   &.cal-transfer-settings-depth-2 {
-    padding-left: 3rem;
-  }
-
-  &.cal-transfer-settings-depth-3 {
     padding-left: 4.25rem;
   }
 
+  &.cal-transfer-settings-depth-3 {
+    padding-left: 6rem;
+  }
 }
 
 .cal-transfer-settings-caret {
@@ -646,7 +630,7 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   :deep(.checkbox) {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.5rem;
     min-width: 0;
   }
 }

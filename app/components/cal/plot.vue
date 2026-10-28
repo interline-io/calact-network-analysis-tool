@@ -27,8 +27,9 @@ function draw () {
   const chart = Plot.plot({
     ...options,
     width,
-    // Text and rules in the theme's text color, on the page's background.
-    style: { background: 'transparent', color: 'var(--bulma-text)', fontSize: '12px' },
+    // Text in the page's font and the theme's text color, as are the rules,
+    // on the page's background.
+    style: { background: 'transparent', color: 'var(--bulma-text)', font: 'inherit' },
   })
   chart.setAttribute('aria-hidden', 'true')
   el.replaceChildren(chart)
