@@ -4,7 +4,10 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
+      <!-- Hidden on the Transfer Analyst, which has its own downloads; the
+           scenario's features say nothing of transfers. -->
       <cal-geojson-download
+        v-if="!isTransfers"
         :data="downloadFeatures"
         variant="primary"
       />
@@ -29,6 +32,7 @@
         <cat-tab-item v-if="fixedRouteEnabled && hasClusterData" value="stop-clusters" label="Stop Clusters" />
         <cat-tab-item v-if="fixedRouteEnabled" value="agencies" label="Agencies" />
         <cat-tab-item v-if="hasFlexData" value="flex" label="Flex Areas" />
+        <cat-tab-item v-if="fixedRouteEnabled && $slots.transfers" value="transfers" label="Transfer Analyst" />
       </cat-tabs>
     </div>
 
@@ -68,7 +72,11 @@
       </p>
     </cat-msg>
 
+    <!-- Transfers at one stop or cluster, given by the page. -->
+    <slot v-if="isTransfers" name="transfers" />
+
     <cal-datagrid
+      v-else
       :table-report="activeTableReport"
       :caption="activeReportTabLabel"
     >
@@ -138,6 +146,15 @@
           <cat-icon icon="arrow-expand" size="small" class="cal-report-drill-icon" />
         </button>
         <span v-else>{{ value }}</span>
+        <button
+          v-if="value && row.id != null"
+          type="button"
+          class="cal-report-cell-button ml-3"
+          title="Open this cluster in Transfer Analyst"
+          @click="emit('openTransfers', { kind: 'cluster', clusterId: row.id })"
+        >
+          Transfer Analyst
+        </button>
       </template>
       <template
         v-for="key of fareAmountColumns"
@@ -192,6 +209,8 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
+  // Transfers at a stop or cluster, in the Transfer Analyst tab.
+  openTransfers: [subject: TripSubject]
 }>()
 
 // The trips/frequency columns all render a drill button into the route's trip
@@ -332,9 +351,13 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
-type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex'
+// The report's tabs.
+export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
-const activeReportTab = ref<ReportTab>('routes')
+const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
+// Whether the Transfer Analyst tab is open: it shows the page's slot in place
+// of a table, and has no map display mode.
+const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
   'routes': 'Routes',
@@ -343,6 +366,7 @@ const reportTabLabels: Record<ReportTab, string> = {
   'stop-clusters': 'Stop Clusters',
   'agencies': 'Agencies',
   'flex': 'Flex Areas',
+  'transfers': 'Transfer Analyst',
 }
 
 const activeReportTabLabel = computed(() => reportTabLabels[activeReportTab.value])
@@ -357,8 +381,10 @@ const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?
 // areas shows an empty table instead of hiding the tab.
 const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
-// Sync dataDisplayMode when user switches tabs
-const modeMap: Record<ReportTab, DataDisplayMode> = {
+// Sync dataDisplayMode when the user switches tabs. The Transfer Analyst has
+// no display mode of its own, so opening it keeps the current mode, and a mode
+// change doesn't switch away from the Transfer Analyst.
+const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
   'stops-aggregated': 'Stop visits',
@@ -368,23 +394,39 @@ const modeMap: Record<ReportTab, DataDisplayMode> = {
 }
 
 watch(activeReportTab, (tab) => {
-  dataDisplayMode.value = modeMap[tab]
+  const mode = modeMap[tab]
+  if (mode) {
+    dataDisplayMode.value = mode
+  }
 })
 
+// Immediate, as the tab (a v-model) outlives this component: remounted with
+// its tab gone, the report switches tabs.
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
 
 watch(hasClusterData, (has) => {
   if (!has && activeReportTab.value === 'stop-clusters') {
     activeReportTab.value = 'stops'
   }
-})
+}, { immediate: true })
+
+// Without fixed-route service the Transfer Analyst tab goes, so leave it
+// for Flex Areas, the one tab left.
+watch(fixedRouteEnabled, (enabled) => {
+  if (!enabled && isTransfers.value) {
+    activeReportTab.value = 'flex'
+  }
+}, { immediate: true })
 
 // Keep tab in sync if dataDisplayMode changes externally; immediate to set correct initial tab
 watch(dataDisplayMode, (mode) => {
+  if (isTransfers.value) {
+    return
+  }
   if (mode === 'Transit mode' || mode === 'Route frequency') {
     activeReportTab.value = 'routes'
   } else if (mode === 'Stop visits' && activeReportTab.value !== 'stops-aggregated' && activeReportTab.value !== 'stop-clusters') {

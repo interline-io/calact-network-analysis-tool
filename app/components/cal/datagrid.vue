@@ -1,5 +1,5 @@
 <template>
-  <div :class="props.fill ? 'cal-datagrid-fill' : 'mb-6'">
+  <div class="mb-6" :class="{ 'cal-datagrid-sticky': props.stickyHeader && !tooWide }">
     <div v-if="props.searchable || props.downloadable || $slots['additional-downloads']" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
@@ -45,8 +45,8 @@
          since live regions inserted at announcement time are unreliable. -->
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
-    <div ref="tableContainer" class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth" :class="{ 'cal-report-table-dense': props.dense }">
+    <div ref="box" class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
+      <table :id="tableId" ref="table" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -168,29 +168,35 @@
               </div>
             </td>
           </tr>
-          <tr
-            v-for="(row, idx) in currentRows"
-            :key="row.id ?? row.geoid ?? row.location_id ?? idx"
-            :class="[rowClass?.(row), groupRowClass(row)]"
-          >
-            <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
-              <!-- An open group's heading leaves its sums to the rows under
-                   it. -->
-              <template v-if="hidesValue(row, column)" />
-              <!-- A group's heading opens and closes it. -->
-              <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
-                <button
-                  v-if="opensGroup(row)"
-                  type="button"
-                  class="cal-datagrid-group-toggle"
-                  :aria-expanded="!closed.has(groupOf(row))"
-                  :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
-                  @click="toggleGroup(groupOf(row))"
-                >
-                  <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
-                </button>
-                <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+          <template v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
+            <tr :class="[rowClass?.(row), groupRowClass(row)]">
+              <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
+                <!-- An open group's heading leaves its sums to its rows. -->
+                <template v-if="hidesValue(row, column)" />
+                <!-- A group's heading opens and closes the group. -->
+                <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
+                  <button
+                    v-if="opensGroup(row)"
+                    type="button"
+                    class="cal-datagrid-group-toggle"
+                    :aria-expanded="!closed.has(groupOf(row))"
+                    :aria-label="`${closed.has(groupOf(row)) ? 'Show' : 'Hide'} rows under ${props.groupLabel?.(row) ?? 'this row'}`"
+                    @click="toggleGroup(groupOf(row))"
+                  >
+                    <cat-icon size="small" :icon="closed.has(groupOf(row)) ? 'chevron-right' : 'chevron-down'" />
+                  </button>
+                  <span v-else :class="isGroupHead(row) ? 'cal-datagrid-group-toggle' : 'cal-datagrid-group-indent'" />
+                  <slot
+                    :name="`column-${column.key}`"
+                    :row="row"
+                    :column="column"
+                    :value="row[column.key]"
+                  >
+                    {{ renderCell(column, row[column.key]) }}
+                  </slot>
+                </span>
                 <slot
+                  v-else
                   :name="`column-${column.key}`"
                   :row="row"
                   :column="column"
@@ -198,18 +204,18 @@
                 >
                   {{ renderCell(column, row[column.key]) }}
                 </slot>
-              </span>
-              <slot
-                v-else
-                :name="`column-${column.key}`"
-                :row="row"
-                :column="column"
-                :value="row[column.key]"
-              >
-                {{ renderCell(column, row[column.key]) }}
-              </slot>
-            </td>
-          </tr>
+              </td>
+            </tr>
+            <!-- The note under a heading that has no other rows. -->
+            <tr v-if="showsEmptyGroupNote(row)" class="cal-datagrid-group-row cal-datagrid-group-note">
+              <td :colspan="tableReport.columns.length">
+                <span class="cal-datagrid-group-cell">
+                  <span class="cal-datagrid-group-indent" />
+                  {{ props.emptyGroupNote }}
+                </span>
+              </td>
+            </tr>
+          </template>
           <!-- Scrolling: more rows load as this comes into view. -->
           <tr v-if="props.scroll && shownCount < total" ref="more" class="cal-datagrid-more">
             <td :colspan="tableReport.columns.length">
@@ -265,9 +271,9 @@ const props = withDefaults(defineProps<{
   caption: string
   // A class for a row, such as one marking it apart from the rest.
   rowClass?: (row: any) => string | undefined
-  // Fill the parent's height (a flex column), with the table scrolling inside
-  // and its header row pinned, so its scrollbars stay in view.
-  fill?: boolean
+  // Pin the header row to the top of the window while the page scrolls, as
+  // long as the table fits its box; a wider table scrolls sideways instead.
+  stickyHeader?: boolean
   // Rows per page; 20 by default.
   perPage?: number
   // A text filter over the rows; true by default. A view that filters its
@@ -276,14 +282,14 @@ const props = withDefaults(defineProps<{
   // A CSV download button; true by default. A view that downloads its rows
   // from elsewhere on the page can leave it out.
   downloadable?: boolean
-  // Smaller type and padding, for more rows in view.
-  dense?: boolean
   // Rows in groups, by this field: each group's first row heads it. Sorting
   // orders the groups by their headings and the rows within each group;
   // pages hold whole groups; and a heading opens and closes its group.
   groupKey?: string
   // A group's heading row in words, naming its open and close button.
   groupLabel?: (row: any) => string
+  // A note shown under each group heading that has no other rows.
+  emptyGroupNote?: string
   // Rows load perPage at a time as the table scrolls, in place of pages.
   scroll?: boolean
   // Scrolling, what the rows are of: when it changes, loading starts over.
@@ -495,6 +501,11 @@ function isGroupHead (row: Record<string, any>): boolean {
 function opensGroup (row: Record<string, any>): boolean {
   return heads.value.get(row) === true
 }
+// Whether a heading with no other rows shows the note; closing its group
+// hides the note.
+function showsEmptyGroupNote (row: Record<string, any>): boolean {
+  return !!props.emptyGroupNote && heads.value.get(row) === false && !closed.value.has(groupOf(row))
+}
 function toggleGroup (id: string) {
   const next = new Set(closed.value)
   if (!next.delete(id)) {
@@ -571,10 +582,9 @@ watch([() => props.resetKey, () => props.groupKey, () => tableReport.value?.colu
 })
 
 // Scrolling: the rows (or groups) shown so far, and more as the last row
-// nears the table's bottom edge.
+// nears the bottom of the window.
 const shown = ref(props.perPage)
 const shownCount = computed(() => Math.min(shown.value, total.value))
-const tableContainer = ref<HTMLElement>()
 const more = ref<HTMLElement>()
 let observer: IntersectionObserver | undefined
 watch(more, (el) => {
@@ -582,13 +592,11 @@ watch(more, (el) => {
   if (!el) {
     return
   }
-  // The table scrolls inside its container where it fills its parent, and
-  // with the page otherwise.
   observer = new IntersectionObserver((entries) => {
     if (entries.some(e => e.isIntersecting)) {
       shown.value += props.perPage
     }
-  }, { root: props.fill ? tableContainer.value : null, rootMargin: '200px' })
+  }, { rootMargin: '200px' })
   observer.observe(el)
 })
 // After each load, looked at again: still in view, it loads more, as the
@@ -600,6 +608,27 @@ watch(shown, () => {
   }
 }, { flush: 'post' })
 onBeforeUnmount(() => observer?.disconnect())
+
+// A sticky header pins to the nearest box that scrolls, so the header can pin
+// to the window only while the table fits its box; a wider table scrolls
+// sideways in its box instead.
+const box = ref<HTMLElement>()
+const table = ref<HTMLElement>()
+const tooWide = ref(false)
+let sizeObserver: ResizeObserver | undefined
+onMounted(() => {
+  const b = box.value
+  const t = table.value
+  if (!props.stickyHeader || !b || !t) {
+    return
+  }
+  sizeObserver = new ResizeObserver(() => {
+    tooWide.value = t.offsetWidth > b.clientWidth
+  })
+  sizeObserver.observe(b)
+  sizeObserver.observe(t)
+})
+onBeforeUnmount(() => sizeObserver?.disconnect())
 
 const currentRows = computed(() => {
   const start = props.scroll ? 0 : (current.value - 1) * props.perPage
@@ -693,25 +722,10 @@ const filterStatus = computed(() => {
   position: relative;
 }
 
-.cal-report-table.cal-report-table-dense {
-  font-size: 0.875rem;
-
-  th, td {
-    padding: 0.3rem 0.5rem;
-  }
-}
-
-.cal-datagrid-fill {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-
+.cal-datagrid-sticky {
+  // The header sticks to the nearest box that scrolls, so this one must not.
   .table-container {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    margin-bottom: 0;
+    overflow: visible;
   }
 
   // The whole header, with any row of column groups, pinned as one.
@@ -725,17 +739,21 @@ const filterStatus = computed(() => {
 .cal-report-table {
   th, td {
     padding: 0.5rem 0.75rem;
-    white-space: nowrap;
     vertical-align: middle;
     // Floor so short-header + short-data columns (e.g. "ID" / "1") stay
     // readable instead of collapsing to a few pixels wide.
     min-width: 4rem;
   }
 
+  // Cells keep to one line; a header wraps at its spaces, where the table
+  // would otherwise grow wider than the page.
+  td {
+    white-space: nowrap;
+  }
+
   // A column group's heading, centered over its columns.
   th.cal-datagrid-colgroup {
     text-align: center;
-    font-size: 0.8em;
     border-bottom-width: 1px;
   }
 
@@ -898,7 +916,6 @@ const filterStatus = computed(() => {
 .cal-datagrid-more td {
   text-align: center;
   color: var(--bulma-text-weak);
-  font-size: 0.8em;
 }
 
 // A column only as wide as its content, and one centered, its sort button
@@ -922,6 +939,10 @@ const filterStatus = computed(() => {
     background: var(--bulma-scheme-main-bis);
     font-weight: 600;
     border-top: 2px solid var(--bulma-border);
+  }
+
+  tr.cal-datagrid-group-note td {
+    color: var(--bulma-text-weak);
   }
 }
 
@@ -973,7 +994,10 @@ const filterStatus = computed(() => {
   }
 }
 
+// Block-level flex, not the group cell's inline-flex, which would give the
+// zero-height shim row a line's height.
 .cal-datagrid-shim-group {
+  display: flex;
   font-weight: 600;
 }
 

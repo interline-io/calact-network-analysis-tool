@@ -75,6 +75,18 @@
           >
             How these are calculated
           </button>
+          <!-- A stop or cluster opens its transfers in the Transfer
+               Analyst. -->
+          <cat-button
+            v-else
+            class="mb-2"
+            size="small"
+            icon-left="transit-transfer"
+            fullwidth
+            @click="$emit('openTransfers')"
+          >
+            Enter Transfer Analyst
+          </cat-button>
 
           <table v-if="breakdown.length" class="cal-trip-panel-table cal-trip-panel-breakdown">
             <caption class="is-sr-only">
@@ -179,6 +191,8 @@ const emit = defineEmits<{
   loadDetails: []
   // Open every trip in the full-size table.
   expandTrips: [tab?: TripDetailsTab]
+  // Open the Reports tab's transfers at this stop or cluster.
+  openTransfers: []
 }>()
 
 type TripPanelTab = 'overview' | 'trips'

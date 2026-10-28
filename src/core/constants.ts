@@ -186,6 +186,14 @@ export const MIN_GAPS_FOR_IRREGULAR = 3
 // than this ratio (1.5 = one direction's average gap is at least 50% longer).
 export const FREQUENCY_DIRECTION_DIVERGENCE_RATIO = 1.5
 
+// The default transfer grade breakpoints, in seconds of wait after walking:
+// missed from -5 to 0 minutes, close to 6, acceptable to 10, unacceptable to
+// 20. A connection outside -5 to 20 minutes is not a transfer.
+export const TRANSFER_GRADE_BREAKPOINTS = [-5 * 60, 0, 6 * 60, 10 * 60, 20 * 60] as const
+// The default walking time per meter between two different stops: 1 second,
+// about 3.6 km/h (2.2 mph).
+export const TRANSFER_WALK_SECONDS_PER_METER = 1
+
 export const DEFAULT_TIME_WINDOW = {
   start: '06:00:00',
   end: '10:00:00',
@@ -351,6 +359,11 @@ export const FARE_MIN_DEFAULT = 1
 // distinct from the agency/mode palette. Single source of truth: map layers read
 // it directly; legend.vue / map-popup.vue bind it into CSS via v-bind (no manual sync).
 export const STOP_CLUSTER_COLOR = '#d6336c'
+
+// The Transfer Analyst's stops map colors: a picked stop's, and an unpicked
+// stop's or route's.
+export const TRANSFER_PICKED_COLOR = '#7a4dda'
+export const TRANSFER_UNPICKED_COLOR = '#5b6470'
 
 export const censusLayerLabels: Record<string, { singular: string, plural: string }> = {
   'state': { singular: 'State', plural: 'states' },

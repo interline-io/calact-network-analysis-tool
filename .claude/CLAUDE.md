@@ -51,6 +51,7 @@ To use local copies of dependencies: run `pnpm link ../catenary` or `pnpm link .
 ### Directory Structure
 - `app/pages/` — File-based routes: `index.vue` (home), `tne.vue` (Transit Network Explorer — the main app), `help.vue`, `admin/profile.vue`
 - `app/components/cal/` — Main UI: query builder, map, data grid, filtering, reports, CSV/GeoJSON download, map sharing
+- `app/components/cal/transfer/` — Transfer Analyst: its report, settings, stops and platforms map, and trip tags
 - `app/components/analysis/` — Analysis-specific views: WSDOT service levels, WSDOT stops/routes, VisionEval
 - `app/composables/` — `useAnalysisResults`, `useFlexAreaFormatting`, `useDebugMenu`, `useToastNotification`
 - `app/layouts/` — `default` (sidebar + login-gated content area)
@@ -104,6 +105,7 @@ Critical information from collaborators is often in the issue follow-up comments
 - Tests use `filename.test.ts` pattern alongside source files in `src/`
 - Package manager: pnpm (v10.x)
 - CSS class names on our own components are prefixed with `cal-` (e.g. `cal-map-sidebar`, `cal-census-details-header`). Do not introduce unprefixed class names for component-internal styling — they can collide with Bulma, Catenary, or other libraries.
+- A major feature's components live in their own directory under `app/components/cal/`, as the Transfer Analyst's do in `cal/transfer/`. Name the files without the directory's prefix: Nuxt prefixes the path, so `cal/transfer/report.vue` is `<cal-transfer-report>`.
 
 ## Geometry operations: server-side only
 
@@ -112,6 +114,14 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 **Exception:** shrinking an uploaded boundary (#477, `src/core/geography-upload.ts`) — rounding its coordinates, and simplifying it as a TopoJSON topology so shared borders stay shared. This prepares the input the server then repairs, clips and measures; it never stands in for a result PostGIS computes.
 
 **Exception:** computing a bounding box around features client-side (min/max of coordinates, e.g. `@turf/bbox` or hand-rolled) is fine — it's arithmetic, not a geometric calculation, and the result only needs to be approximate (e.g. for padding a query area or framing a map view). The ban is on operations whose correctness depends on agreeing with PostGIS.
+
+## GraphQL documents: static literals only
+
+Every GraphQL query is a static `gql` literal, with its values passed as variables. Never build a document at runtime: no generated aliases, repeated fields, field lists, fragments or variable declarations, and no `gql(…)` called on an assembled string, even when only indices vary. This is absolutely forbidden. When one request can't express what a feature needs, the API lacks a capability: add it in transitland-lib, with a tlserver pin bump, or send one static request per item.
+
+## Transitland operators: not without review
+
+calact works with GTFS agencies (`agency` on routes, `agencies` on feed versions) and never with Transitland's operator concept. That covers the GraphQL `Operator` type and everything that reaches one: `operators` queries, `Agency.operator`, `Feed.associated_operators`, and operator Onestop IDs, including `operator_onestop_id` filters and `Agency.onestop_id`, which can hold its operator's ID. Bringing in any of them needs a serious discussion with the repo owner and vetting first; don't add one on your own initiative, even where it looks like a better fit than agencies.
 
 ## Environment Variables
 

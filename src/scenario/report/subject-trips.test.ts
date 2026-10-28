@@ -147,7 +147,7 @@ describe('tripTableRows', () => {
     ], {
       routes: new Map([[10, { route_id: 'R10', route_short_name: '10', route_long_name: 'Tenth', agency_name: 'TriMet' }]]),
       stops: new Map([[1, { stop_id: 'S1', stop_name: 'Main & 1st' }]]),
-      tripDetails: new Map([[100, { id: 100, tripId: 't100', headsign: 'Downtown', stopHeadsigns: new Map(), startTime: hms(7), endTime: hms(8, 5), stopCount: 30 }]]),
+      tripDetails: new Map([[100, { id: 100, tripId: 't100', headsign: 'Downtown', stopHeadsigns: new Map(), startTime: hms(7), endTime: hms(8, 5), stopCount: 30, stopTimes: [] }]]),
       describedDates: [MON, TUE],
     })
     expect(rows[0]).toEqual({

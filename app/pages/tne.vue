@@ -45,7 +45,7 @@
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
-            @reset-scenario="clearScenario"
+            @reset-scenario="resetScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
             @upload-saved="rememberSavedGeography($event.id, $event.name, $event.polygon)"
@@ -73,6 +73,7 @@
 
         <div v-if="activeTab.tab === 'report'" class="cal-tab-content cal-tab-report">
           <cal-report
+            v-model:tab="reportTab"
             :census-geography-layer-options="censusGeographyLayerOptions"
             :scenario-filter-result="scenarioFilterResult"
             :export-features="exportFeatures"
@@ -80,7 +81,46 @@
             :flex-display-features="flexFeaturesForReport"
             @open-buffer-details="openBufferDetails"
             @open-trips="openReportTrips"
-          />
+            @open-transfers="openTransfers"
+          >
+            <template #transfers>
+              <cal-transfer-report
+                v-model:subject="transferSubject"
+                v-model:view="transferView"
+                v-model:section="transferSection"
+                v-model:date="transferDate"
+                v-model:settings="transfers.settings"
+                :title="transfers.title"
+                :subject-options="transfers.subjectOptions"
+                :custom-from="transfers.customFrom"
+                :share-url="transferShareUrl"
+                :stops="transfers.stopIds"
+                :map-stops="transferSection === 'stops' ? transfers.mapStops : []"
+                :map-routes="transferSection === 'stops' ? transfers.mapRoutes : []"
+                :extent="transferExtent"
+                :clustering-off="clusterDistance === 0"
+                :breakpoints="transfers.breakpoints"
+                :midnight-cut="transfers.midnightCut"
+                :route-choices="transfers.routeChoices"
+                :unknown-pairs="transfers.unknownPairs"
+                :summary-grid="transferView === 'summary' ? transfers.summaryGrid : []"
+                :csv-rows="transfers.csvRows"
+                :overview="transfers.overview"
+                :individual-dates="transfers.individualDates"
+                :individual-date="transfers.individualDate"
+                :individual-grid="transferView === 'individual' ? transfers.individualGrid : []"
+                :individual-points="transferView === 'individual' ? transfers.individualPoints : []"
+                :missing-details="transfers.missingDetails"
+                :details-loading="transfers.detailsLoading"
+                :details-error="transfers.detailsError"
+                @retry="transfers.retry()"
+                @open-trips="openReportTrips({ kind: 'route', routeId: $event })"
+                @update:stops="transfers.setStopIds($event)"
+                @reset-stops="transferStopEdits = { added: [], removed: [] }"
+                @enable-clusters="enableClustersForTransfers"
+              />
+            </template>
+          </cal-report>
         </div>
 
         <div v-if="activeTab.tab === 'analysis'" class="cal-tab-content cal-tab-analysis">
@@ -115,6 +155,7 @@
           @select-aggregation="onSelectAggregation"
           @view-census-details="openCensusDetails"
           @show-trips="openTripPanel"
+          @open-transfers="openTransfers"
           @selection-cleared="closeTripPanel"
         >
           <template #sidebar-top>
@@ -132,6 +173,7 @@
               @close="onTripPanelClose"
               @load-details="loadTripPanelDetails('preview')"
               @expand-trips="openTripTable"
+              @open-transfers="tripPanelOpenedSubject && openTransfers(tripPanelOpenedSubject)"
             />
             <cal-census-panel
               :row="selectedPanelData?.row ?? null"
@@ -232,12 +274,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
 import { createTripDetailsStore, useTripPanel } from '~/composables/useTripPanel'
 import type { TripDetailsTab } from '~/components/cal/trip-details.vue'
+import type { TransferReportSection, TransferReportView } from '~/components/cal/transfer/report.vue'
+import type { ReportTab } from '~/components/cal/report.vue'
+import { transferSubjectFromKey, transferSubjectKey, useSubjectTransfers, type TransferStopEdits } from '~/composables/useSubjectTransfers'
 import { useStopBufferFeatures } from '~/composables/useStopBufferFeatures'
 import { useCensusGeographyLayers } from '~/composables/useCensusGeographyLayers'
 import { useQueryGeography } from '~/composables/useQueryGeography'
@@ -277,9 +322,10 @@ import {
   QUERY_PANEL_WIDTH,
   FILTER_COLLAPSED_WIDTH,
   FILTER_EXPANDED_WIDTH,
+  STOP_CLUSTER_DEFAULT_DISTANCE,
 } from '~~/src/core'
 import { useRouter } from '#imports'
-import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject } from '~~/src/scenario'
+import { getSelectedDateRange, type ScenarioConfig, type ScenarioData, type ScenarioFilter, type ScenarioFilterResult, type TripSubject, decodeTransferSettings, encodeTransferSettings } from '~~/src/scenario'
 
 // Initialize composables
 const { query, setQuery } = useUrlQuery()
@@ -342,6 +388,16 @@ function clearScenario () {
   // Shared with the trip table, so this forgets both views' details.
   clearTripPanelDetails()
   clearAllResults()
+}
+
+// Resets the query and the Transfer Analyst for a new query. Kept apart from
+// clearScenario, which the leave guard also calls: a URL write there would
+// cancel the navigation the guard just allowed.
+function resetScenario () {
+  clearScenario()
+  setQuery({ transferAt: undefined, transferStops: undefined, transferDate: undefined })
+  transfers.settings = decodeTransferSettings(undefined)
+  transferView.value = 'summary'
 }
 
 // Route navigation guard to prevent accidentally leaving /tne with loaded scenario or analysis data
@@ -921,6 +977,117 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
     tripTable.loadDetails('all')
   }
 })
+
+// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst:
+// picked there, or opened from a map popup, the trip panel, or a Stop
+// Clusters row.
+const reportTab = ref<ReportTab>('routes')
+// Loaded when first shown, as it brings Observable Plot, which no other view
+// uses.
+const CalTransferReport = defineAsyncComponent(() => import('~/components/cal/transfer/report.vue'))
+// The subject ("transferAt") and its stop edits ("transferStops": "+id",
+// "-id") live in the URL, so a link shares the analysis. A new subject starts
+// from its own stops and clears the trip filters, which could also hide its
+// trips.
+const transferSubject = computed({
+  get: () => query.value.transferAt?.toString() ?? '',
+  set: (v: string) => {
+    if (v !== transferSubject.value) {
+      transfers.settings = { ...transfers.settings, excludedFrom: [], excludedTo: [] }
+    }
+    setQuery({ transferAt: v || undefined, transferStops: undefined })
+  },
+})
+// The date shown ("transferDate"), in the URL too.
+const transferDate = computed({
+  get: () => query.value.transferDate?.toString() || undefined,
+  set: (v: string | undefined) => { setQuery({ transferDate: v || undefined }) },
+})
+const transferStopEdits = computed<TransferStopEdits>({
+  get: () => {
+    const parts = (query.value.transferStops?.toString() ?? '').split(',').filter(Boolean)
+    const ids = (sign: string) => parts.filter(p => p.startsWith(sign)).map(p => Number(p.slice(1))).filter(Number.isFinite)
+    return { added: ids('+'), removed: ids('-') }
+  },
+  set: ({ added, removed }) => {
+    const value = [...added.map(id => `+${id}`), ...removed.map(id => `-${id}`)].join(',')
+    setQuery({ transferStops: value || undefined })
+  },
+})
+const transfers = reactive(useSubjectTransfers({
+  subject: () => transferSubjectFromKey(transferSubject.value),
+  scenarioFilterResult,
+  selectedDateRange,
+  selectedWeekdays,
+  selectedWeekdayMode,
+  startTime,
+  endTime,
+  active: () => activeTab.value.tab === 'report' && reportTab.value === 'transfers',
+  stopEdits: transferStopEdits,
+  selectedDate: transferDate,
+}, tripDetailsStore))
+// The query's area: the chosen boundaries, or the bounding box.
+const transferExtent = computed((): GeoJSON.Feature[] => {
+  if (geographyIds.value.length > 0) {
+    return (censusGeographiesSelected.value || [])
+      .filter(g => g.geometry)
+      .map(g => ({ type: 'Feature' as const, geometry: g.geometry as GeoJSON.Geometry, properties: {} }))
+  }
+  const b = bbox.value
+  if (!b?.valid) {
+    return []
+  }
+  const ring = [[b.sw.lon, b.sw.lat], [b.ne.lon, b.sw.lat], [b.ne.lon, b.ne.lat], [b.sw.lon, b.ne.lat], [b.sw.lon, b.sw.lat]]
+  return [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }]
+})
+const transferView = ref<TransferReportView>('summary')
+const transferSection = ref<TransferReportSection>()
+// A link to the analysis as shown: the current URL, which holds the subject,
+// its stops, the date, and the times, plus the view and any settings that
+// differ from the defaults, read once when the link opens.
+function transferShareUrl (): string {
+  const url = new URL(window.location.href)
+  const settings = encodeTransferSettings(transfers.settings)
+  for (const [key, value] of [['transferView', transferView.value === 'summary' ? undefined : transferView.value], ['transferSettings', settings]] as const) {
+    if (value) {
+      url.searchParams.set(key, value)
+    } else {
+      url.searchParams.delete(key)
+    }
+  }
+  return url.href
+}
+if (query.value.transferView || query.value.transferSettings) {
+  const shared = query.value.transferView?.toString()
+  if (shared === 'individual') {
+    transferView.value = shared
+  }
+  if (query.value.transferSettings) {
+    transfers.settings = decodeTransferSettings(query.value.transferSettings.toString())
+  }
+  setQuery({ transferView: undefined, transferSettings: undefined })
+}
+if (query.value.transferAt) {
+  reportTab.value = 'transfers'
+}
+// Turns stop clustering on at its default distance, which refetches only the
+// clusters and keeps the rest of the scenario.
+function enableClustersForTransfers () {
+  clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
+}
+// Opens the Transfer Analyst at a subject. A cluster opens Stops & platforms,
+// as its stops are the first thing to check; a stop leaves the settings
+// closed.
+function openTransfers (subject: TripSubject) {
+  // The same subject again keeps its stop edits.
+  const key = transferSubjectKey(subject)
+  if (key !== transferSubject.value) {
+    transferSubject.value = key
+  }
+  transferSection.value = subject.kind === 'cluster' ? 'stops' : undefined
+  reportTab.value = 'transfers'
+  activeTab.value = { tab: 'report', sub: '' }
+}
 function showTrips (subject: TripSubject, fromPanel: boolean, tab: TripDetailsTab = 'trips') {
   tripTable.open(subject)
   tripTableFromPanel = fromPanel
@@ -1100,6 +1267,23 @@ useClusterRefetch({
   refetchInFlight,
   runInFlight,
   fetchMode,
+})
+
+// Once the scenario finishes loading, drop a Transfer Analyst subject it
+// lacks (from a link for another area or older data, say), with its stop
+// edits. Check the stops and clusters as loaded, not as filtered, so a
+// subject that a filter leaves without service stays.
+watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
+  const subject = transferSubjectFromKey(transferSubject.value)
+  if (!subject || !data || running > 0 || refetching > 0) {
+    return
+  }
+  const known = subject.kind === 'stop'
+    ? data.stops.some(s => s.id === subject.stopId)
+    : subject.kind === 'cluster' && (data.stopClusters ?? []).some(c => c.id === subject.clusterId)
+  if (!known) {
+    transferSubject.value = ''
+  }
 })
 
 // reload each stop's census geography when the Aggregate-by layer changes —

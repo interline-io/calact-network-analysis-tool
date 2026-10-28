@@ -28,6 +28,7 @@ const emit = defineEmits([
   'selectableGeoClick',
   'selectableGeoRightClick',
   'showTrips',
+  'openTransfers',
   'popupShown',
   'popupClosed',
 ])
@@ -983,6 +984,13 @@ function removePopup () {
   }
 }
 
+// Removes the popup and its highlight, as the popup's close button does.
+function closePopup () {
+  removePopup()
+  updateHighlight(undefined)
+  emit('popupClosed')
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1026,11 +1034,7 @@ function showPopupAtIndex (index: number) {
       },
       currentIndex: currentPopupIndex,
       total: total,
-      onClose: () => {
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
-      },
+      onClose: closePopup,
       onPrev: () => {
         if (currentPopupIndex > 0) {
           showPopupAtIndex(currentPopupIndex - 1)
@@ -1047,6 +1051,12 @@ function showPopupAtIndex (index: number) {
         // highlighted, and a cluster stays selected, so the map still shows
         // what the panel describes.
         removePopup()
+      },
+      onOpenTransfers: (featureType: string, featureId: string | number) => {
+        emit('openTransfers', featureType, featureId)
+        // The Reports tab replaces the map, and no panel takes over the
+        // selection, so close the popup as its close button would.
+        closePopup()
       },
     })
   })

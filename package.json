@@ -27,6 +27,7 @@
     "@mdi/font": "7.4.47",
     "@nuxt/eslint": "1.16.0",
     "@nuxt/eslint-config": "1.16.0",
+    "@observablehq/plot": "0.6.17",
     "@protomaps/basemaps": "5.7.2",
     "@turf/area": "7.3.4",
     "@types/big-json": "3.2.0",

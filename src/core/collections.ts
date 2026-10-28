@@ -12,3 +12,11 @@ export function groupBy<T, K> (items: Iterable<T>, keyOf: (item: T) => K): Map<K
   }
   return groups
 }
+
+// Names in order, a blank one last.
+export function compareNamesBlankLast (a: string, b: string): number {
+  if (!a || !b) {
+    return Number(!a) - Number(!b)
+  }
+  return a.localeCompare(b)
+}

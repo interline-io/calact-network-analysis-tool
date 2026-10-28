@@ -66,6 +66,7 @@
       @overlay-drag="onOverlayDrag"
       @overlay-drag-end="onOverlayDragEnd"
       @show-trips="handleShowTrips"
+      @open-transfers="handleOpenTransfers"
       @popup-shown="onPopupShown"
       @popup-closed="onPopupClosed"
     />
@@ -86,6 +87,8 @@ const emit = defineEmits<{
   setExportFeatures: [value: Feature[]]
   toggleGeography: [geographyId: number]
   showTrips: [subject: TripSubject]
+  // A stop's or cluster's transfers, in the Reports tab.
+  openTransfers: [subject: TripSubject]
   // The selection the trip panel describes is gone: replaced by a new map
   // click, dismissed, or dropped by the filters.
   selectionCleared: []
@@ -1087,14 +1090,30 @@ function onLegendToggle (value: boolean) {
   legendAutoCollapsed = false
 }
 
-function handleShowTrips (featureType: string, featureId: string | number) {
+// The trip subject a popup's feature names, if any.
+function featureSubject (featureType: string, featureId: string | number): TripSubject | undefined {
   const id = Number(featureId)
   if (featureType === 'stop' && Number.isFinite(id)) {
-    emit('showTrips', { kind: 'stop', stopId: id })
-  } else if (featureType === 'route' && Number.isFinite(id)) {
-    emit('showTrips', { kind: 'route', routeId: id })
-  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
-    emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
+    return { kind: 'stop', stopId: id }
+  }
+  if (featureType === 'route' && Number.isFinite(id)) {
+    return { kind: 'route', routeId: id }
+  }
+  return featureType === 'cluster' && clusterById.value.has(String(featureId)) ? { kind: 'cluster', clusterId: String(featureId) } : undefined
+}
+
+function handleShowTrips (featureType: string, featureId: string | number) {
+  const subject = featureSubject(featureType, featureId)
+  if (subject) {
+    emit('showTrips', subject)
+  }
+}
+
+// A route has no transfers of its own.
+function handleOpenTransfers (featureType: string, featureId: string | number) {
+  const subject = featureSubject(featureType, featureId)
+  if (subject && subject.kind !== 'route') {
+    emit('openTransfers', subject)
   }
 }
 </script>
