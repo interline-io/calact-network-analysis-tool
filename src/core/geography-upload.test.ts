@@ -114,6 +114,28 @@ describe('processUpload', () => {
     expect(result.vertexCount).toBeLessThan(20)
   })
 
+  it('keeps features too small to simplify as they are, not flattened', () => {
+    // A circle about 10 m across, and two 10 m squares sharing an edge, all
+    // smaller than the simplifying threshold
+    const circle: GeoJSON.Position[] = []
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * 2 * Math.PI
+      circle.push([-122.6 + 0.00006 * Math.cos(a), 45.5 + 0.00004 * Math.sin(a)])
+    }
+    circle.push(circle[0]!)
+    const parsed = parseGeographyUpload(collection(
+      { name: 'Circle', coordinates: [circle] },
+      { name: 'West', coordinates: square(-122.7, 45.5, 0.0001) },
+      { name: 'East', coordinates: square(-122.6999, 45.5, 0.0001) },
+    ))
+    const result = processUpload(parsed.features, { trimPrecision: true, simplify: true })
+    for (const part of result.polygon.coordinates) {
+      for (const ring of part) {
+        expect(new Set(ring.map(p => p.join(','))).size, 'distinct positions in a ring').toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
   it('simplifies a shared border once, so neighbors still meet', () => {
     // West and East share a wobbly border along lon -122.6
     const border: GeoJSON.Position[] = []

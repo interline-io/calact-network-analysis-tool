@@ -124,7 +124,8 @@ export function useQueryGeography (censusGeographiesSelected: () => CensusGeogra
     loaded.value = { ...loaded.value, [id]: { name, polygon: markRaw(polygon) } }
   }
 
-  async function loadOne (id: string): Promise<void> {
+  // Loads one saved boundary, returning why it couldn't be used, if it couldn't
+  async function loadOne (id: string): Promise<string | undefined> {
     try {
       const saved = await get(id)
       if (isUploadDocument(saved.content)) {
@@ -132,29 +133,34 @@ export function useQueryGeography (censusGeographiesSelected: () => CensusGeogra
       } else if (isAdminBoundaryDocument(saved.content)) {
         loaded.value = { ...loaded.value, [id]: { name: saved.name, adminBoundaries: saved.content } }
       } else {
-        loadErrors.value.push(`"${saved.name}" isn't a boundary this version of the app can read.`)
+        return `"${saved.name}" isn't a boundary this version of the app can read.`
       }
     } catch (e) {
       const status = (e as { statusCode?: number }).statusCode
-      loadErrors.value.push(status === 404
+      return status === 404
         ? 'A boundary in this link isn\'t in your account. Saved boundaries belong to the person who saved them: ask them to download it from their profile and send you the file to upload.'
-        : `Couldn't load a saved boundary: ${iwaErrorMessage(e)}`)
+        : `Couldn't load a saved boundary: ${iwaErrorMessage(e)}`
     }
+    return undefined
   }
 
   let requested = ''
   watch(selectedIds, async (ids) => {
     loadErrors.value = []
-    const missing = ids.filter(id => !loaded.value[id])
-    if (missing.length === 0) {
-      return
-    }
     const key = ids.join(',')
     requested = key
+    const missing = ids.filter(id => !loaded.value[id])
+    if (missing.length === 0) {
+      // An earlier selection's load may still be running, but it's not this one's
+      loading.value = false
+      return
+    }
     loading.value = true
-    await Promise.all(missing.map(loadOne))
-    // A later choice has replaced this one
+    const errors = await Promise.all(missing.map(loadOne))
+    // A later choice has replaced this one, so these loads' errors and fit
+    // belong to a selection no longer shown
     if (requested === key) {
+      loadErrors.value = errors.filter((e): e is string => !!e)
       loading.value = false
       loads.value++
     }

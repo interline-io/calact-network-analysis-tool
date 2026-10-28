@@ -107,7 +107,7 @@ export async function runFeedVersionsPhase (
   // Fail fast rather than paginate the world: with no bbox the feeds query
   // is unbounded and would return every feed in the system.
   if (!searchBbox) {
-    throw new Error('[FeedVersions] No search area — bbox missing and the polygon or geographyIds resolved to no geometries')
+    throw new Error('[FeedVersions] No search area: bbox missing and the polygon or geographyIds resolved to no geometries')
   }
 
   // Use the bbox (either user-specified or computed around admin boundaries)

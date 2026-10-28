@@ -229,14 +229,13 @@ export function polygonBbox (g?: PolygonalGeometry): Bbox | undefined {
   return { sw: { lon: minLon, lat: minLat }, ne: { lon: maxLon, lat: maxLat }, valid: true }
 }
 
-function isPolygonal (g: Geometry): g is PolygonalGeometry {
-  return g.type === 'Polygon' || g.type === 'MultiPolygon'
+export function isPolygonal (g: { type?: string } | null | undefined): g is PolygonalGeometry {
+  return g?.type === 'Polygon' || g?.type === 'MultiPolygon'
 }
 
-// Collects clipped outlines into one MultiPolygon (mergePolygons). The
-// outlines are clipped to non-overlapping parts of a query polygon, so they
-// don't overlap either. A geometry that isn't a Polygon or MultiPolygon is
-// kept as it is.
+// Collects a geography's outlines clipped to each part of a query polygon into
+// one MultiPolygon (mergePolygons). Where parts overlap, so do the outlines. A
+// geometry that isn't a Polygon or MultiPolygon is kept as it is.
 export function collectPolygons (a?: Geometry, b?: Geometry): Geometry | undefined {
   if (!a || !b) {
     return a ?? b

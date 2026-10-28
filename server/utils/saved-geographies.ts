@@ -3,6 +3,7 @@
 // server/api/iwa/geographies to that app and kind, and check what they send.
 
 import type { H3Event } from 'h3'
+import { iwaFetch } from '~~/server/utils/iwa'
 import { createError, getRouterParam } from 'h3'
 import {
   isAdminBoundaryDocument,
@@ -14,6 +15,7 @@ import {
   type SavedGeographyContent,
   type SavedGeographyMetadata,
   type SavedGeographyWithContent,
+  jsonByteLength,
 } from '~~/src/core'
 
 // A user asset as IWA returns it
@@ -33,8 +35,18 @@ const MAX_NAME_LENGTH = 200
 const SOURCES = ['upload', 'admin_boundary']
 const ASSET_ID = /^[0-9a-f-]{36}$/i
 
-export function isSavedGeographyAsset (asset: IwaAsset): boolean {
+function isSavedGeographyAsset (asset: IwaAsset): boolean {
   return asset.app === SAVED_GEOGRAPHY_APP && asset.kind === SAVED_GEOGRAPHY_KIND
+}
+
+// The route's saved geography. The user's other assets, from other apps or of
+// other kinds, are a 404, so these routes can't read or change them.
+export async function findSavedGeographyAsset (event: H3Event): Promise<IwaAsset> {
+  const asset = await iwaFetch<IwaAsset>(event, `/assets/${assetIdParam(event)}`)
+  if (!isSavedGeographyAsset(asset)) {
+    throw createError({ statusCode: 404, statusMessage: 'No such saved geography' })
+  }
+  return asset
 }
 
 export function toSavedGeography (asset: IwaAsset): SavedGeography {
@@ -88,7 +100,7 @@ export function checkContent (source: SavedGeographyMetadata['source'], content:
   if (!checked) {
     throw createError({ statusCode: 422, statusMessage: `This isn't a geography of the ${source} kind.` })
   }
-  if (JSON.stringify(checked.content).length > SAVED_GEOGRAPHY_MAX_BYTES) {
+  if (jsonByteLength(checked.content) > SAVED_GEOGRAPHY_MAX_BYTES) {
     throw createError({ statusCode: 413, statusMessage: 'This geography is too large to save. Turn on rounding and simplifying under Simplification options, or choose fewer features.' })
   }
   return checked

@@ -389,6 +389,7 @@ import {
   cannedBboxes,
   fmtDate,
   geomSources,
+  isPolygonal,
   mergePolygons,
   normalizeDate,
   PANEL_PADDING,
@@ -400,7 +401,6 @@ import {
   wideMaxAllowedDate,
   wideMinAllowedDate,
   type Point,
-  type PolygonalGeometry,
   type QueryPolygon,
   type SavedGeography,
   type SaveGeographyRequest,
@@ -672,7 +672,7 @@ const saveRequest = computed((): SaveGeographyRequest | null => {
   if (geomSource.value === 'adminBoundary' && adminSaveReady.value) {
     const geos = props.censusGeographiesSelected || []
     const names = geos.map(g => g.adm1_name ? `${g.name}, ${g.adm1_name}` : g.name)
-    const outlines = geos.map(g => g.geometry).filter((g): g is PolygonalGeometry => g?.type === 'Polygon' || g?.type === 'MultiPolygon')
+    const outlines = geos.map(g => g.geometry).filter(isPolygonal)
     return {
       defaultName: names.length <= 3 ? names.join('; ') : `${names.slice(0, 2).join('; ')} and ${names.length - 2} more`,
       summary: `${geos.length} administrative ${geos.length === 1 ? 'boundary' : 'boundaries'}: ${names.join('; ')}.`,

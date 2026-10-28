@@ -54,7 +54,7 @@
           Features in <code>{{ upload.filename }}</code>
         </template>
         <p class="help">
-          Selected features will be merged together into a single boundary.
+          Selected features will be merged together into a single boundary. Where they overlap, census figures count the overlap twice.
         </p>
         <div class="field is-grouped">
           <cat-button variant="ghost" size="small" @click="setSelected(allIndexes)">

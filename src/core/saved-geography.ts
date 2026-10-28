@@ -2,7 +2,7 @@
 // account, as IWA user assets (interline-web-app#784) of this app and kind.
 // The server routes in server/api/iwa/geographies read and write them.
 
-import { mergePolygons, type PolygonalGeometry, type QueryPolygon } from './geom'
+import { isPolygonal, mergePolygons, type PolygonalGeometry, type QueryPolygon } from './geom'
 
 export const SAVED_GEOGRAPHY_APP = 'calact_nat'
 export const SAVED_GEOGRAPHY_KIND = 'geography'
@@ -81,6 +81,12 @@ export interface SavedGeographyUpdate {
   metadata?: SavedGeographyMetadata
 }
 
+// A document's size as IWA measures it: its JSON in UTF-8 bytes, not
+// characters, so names in other scripts count fully
+export function jsonByteLength (content: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(content)).length
+}
+
 export function isFavorite (g: Pick<SavedGeography, 'metadata'>): boolean {
   return g.metadata.tags?.includes(FAVORITE_TAG) ?? false
 }
@@ -118,7 +124,7 @@ export function isUploadDocument (content: unknown): content is UploadDocument {
 
 // An uploaded geography's polygons, as one query area
 export function uploadDocumentPolygon (content: UploadDocument): QueryPolygon {
-  return mergePolygons(content.features.map(f => f.geometry).filter(g => g?.type === 'Polygon' || g?.type === 'MultiPolygon'))
+  return mergePolygons(content.features.map(f => f.geometry).filter(isPolygonal))
 }
 
 // The bbox metadata for a polygon

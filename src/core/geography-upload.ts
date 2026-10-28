@@ -7,9 +7,9 @@
 
 import { feature as topoFeature } from 'topojson-client'
 import { topology } from 'topojson-server'
-import { presimplify, simplify } from 'topojson-simplify'
+import { filter, filterWeight, presimplify, simplify } from 'topojson-simplify'
 import { UPLOAD_COORDINATE_PRECISION, UPLOAD_SIMPLIFY_MIN_WEIGHT } from './constants'
-import { mergePolygons, polygonsOf, type PolygonalGeometry, type QueryPolygon } from './geom'
+import { isPolygonal, mergePolygons, polygonsOf, type PolygonalGeometry, type QueryPolygon } from './geom'
 
 // One polygon feature from an upload
 export interface UploadFeature {
@@ -92,9 +92,9 @@ export function parseGeographyUpload (text: string): ParsedUpload {
       : [f?.geometry]
     let found = false
     for (const g of geometries) {
-      if ((g?.type === 'Polygon' || g?.type === 'MultiPolygon') && Array.isArray(g.coordinates) && g.coordinates.length > 0) {
+      if (isPolygonal(g) && Array.isArray(g.coordinates) && g.coordinates.length > 0) {
         checkCoordinates(g)
-        polygons.push({ geometry: { type: g.type, coordinates: g.coordinates }, properties })
+        polygons.push({ geometry: g.type === 'Polygon' ? { type: 'Polygon', coordinates: g.coordinates } : { type: 'MultiPolygon', coordinates: g.coordinates }, properties })
         found = true
       }
     }
@@ -232,8 +232,12 @@ export function roundGeometry (g: PolygonalGeometry, precision: number): Polygon
 // Simplifies features as one topology (TopoJSON), so a border two features
 // share is simplified once and stays shared, with no gaps or slivers opening
 // between neighbors. minWeight is the Visvalingam effective area, in square
-// degrees, below which a position is dropped. Arcs keep their ends, so a ring
-// never collapses.
+// degrees, below which a position is dropped.
+//
+// A ring made of one closed arc, or of arcs it shares with a neighbor, can
+// lose every inner position and flatten to nothing, so rings left smaller
+// than minWeight are dropped too. A feature that loses every ring keeps its
+// unsimplified outline: it's too small to need simplifying.
 function simplifyTogether (features: UploadFeature[], minWeight: number): UploadFeature[] {
   const objects = {
     area: {
@@ -242,9 +246,16 @@ function simplifyTogether (features: UploadFeature[], minWeight: number): Upload
     },
   }
   // topojson-simplify types its input with properties of {}, not null
-  const topo = simplify(presimplify(topology(objects) as Parameters<typeof presimplify>[0]), minWeight)
-  const simplified = topoFeature(topo, topo.objects.area!) as GeoJSON.FeatureCollection<PolygonalGeometry | null>
-  return features.map((f, i) => ({ ...f, geometry: simplified.features[i]?.geometry ?? f.geometry }))
+  const simplifiedArcs = simplify(presimplify(topology(objects) as Parameters<typeof presimplify>[0]), minWeight)
+  const topo = filter(simplifiedArcs, filterWeight(simplifiedArcs, minWeight))
+  // Filtering can empty a geometry, or the whole collection, leaving no type
+  const area = topo.objects.area
+  const geometries = area && 'geometries' in area ? area.geometries : []
+  return features.map((f, i) => {
+    const g = geometries[i]
+    const geometry = g?.type ? (topoFeature(topo, g) as GeoJSON.Feature<PolygonalGeometry | null>).geometry : null
+    return { ...f, geometry: geometry ?? f.geometry }
+  })
 }
 
 // A name for an upload: its one feature's name, or the file's name

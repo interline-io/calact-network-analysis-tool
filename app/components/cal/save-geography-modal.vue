@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { SAVED_GEOGRAPHY_MAX_BYTES, type SavedGeography, type SaveGeographyRequest } from '~~/src/core'
+import { jsonByteLength, SAVED_GEOGRAPHY_MAX_BYTES, type SavedGeography, type SaveGeographyRequest } from '~~/src/core'
 import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
 
 // Saves a geography to the user's Interline account: the caller builds what's
@@ -68,7 +68,7 @@ watch(() => props.open, (open) => {
   }
 })
 
-const size = computed(() => props.request ? JSON.stringify(props.request.geography.content).length : 0)
+const size = computed(() => props.request ? jsonByteLength(props.request.geography.content) : 0)
 const tooLarge = computed(() => size.value > SAVED_GEOGRAPHY_MAX_BYTES)
 const sizeMb = computed(() => (size.value / 1024 / 1024).toFixed(1))
 const maxMb = (SAVED_GEOGRAPHY_MAX_BYTES / 1024 / 1024).toFixed(1)

@@ -335,7 +335,8 @@ export async function fetchCensusIntersection (
   const features: CensusGeographyFeature[] = []
   // A geography that straddles parts of a polygon comes back once per part,
   // each with the area inside that part. Summed, they give its intersection
-  // with the whole polygon, as the parts don't overlap.
+  // with the whole polygon where the parts don't overlap; where they do, the
+  // overlap counts twice (the UI says so). The ratio is capped at 1.
   const byGeoid = new Map<string, CensusGeographyFeature>()
   for (const geoDataset of results.flatMap(result => result.data?.census_datasets || [])) {
     for (const geography of geoDataset.geographies || []) {

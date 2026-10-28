@@ -4,10 +4,11 @@
 import { readBody } from 'h3'
 import type { SavedGeography, SavedGeographyUpdate } from '~~/src/core'
 import { iwaFetch } from '~~/server/utils/iwa'
-import { assetIdParam, checkMetadata, checkName, toSavedGeography, type IwaAsset } from '~~/server/utils/saved-geographies'
+import { checkMetadata, checkName, findSavedGeographyAsset, toSavedGeography, type IwaAsset } from '~~/server/utils/saved-geographies'
 
 export default defineEventHandler(async (event): Promise<SavedGeography> => {
-  const id = assetIdParam(event)
+  // Only this app's saved geographies can be changed here
+  const { id } = await findSavedGeographyAsset(event)
   const body = await readBody<SavedGeographyUpdate>(event)
   const update: SavedGeographyUpdate = {}
   if (body?.name !== undefined) {
