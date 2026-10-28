@@ -33,7 +33,7 @@
             <div>
               <strong>Network Analysis Tool</strong>
               <p class="help">
-                Explore, analyze and download transit service across California, Oregon and Washington.
+                Explore and analyze transit service across California, Oregon and Washington.
               </p>
             </div>
           </li>
@@ -49,7 +49,7 @@
         </ul>
         <p>
           Your Interline account shows your plan and any other Interline products you can use:
-          <a :href="accountUrl" target="_blank" rel="noopener">view your Interline account<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
+          <a :href="accountUrl" target="_blank" rel="noopener">view your Interline account<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>
         </p>
       </section>
 
