@@ -2,18 +2,18 @@
   <div class="cal-saved-geography-manager">
     <p v-if="loading && !geographies" class="help">
       <cat-icon icon="loading" size="small" />
-      Loading your saved geographies...
+      Loading your saved boundaries...
     </p>
     <p v-else-if="error" class="help is-danger" role="alert">
-      Couldn't load your saved geographies: {{ error }}
+      Couldn't load your saved boundaries: {{ error }}
     </p>
     <p v-else-if="geographies && geographies.length === 0" class="notification">
-      You haven't saved any geographies yet. On the Transit Network Explorer's Query tab, upload a GeoJSON file or select administrative boundaries, then save them.
+      You haven't saved any boundaries yet. On the Transit Network Explorer's Query tab, upload a GeoJSON file or select administrative boundaries, then save them.
     </p>
 
     <table v-if="geographies?.length" class="table is-fullwidth">
       <caption class="is-sr-only">
-        Saved geographies, favorites first
+        Saved boundaries, favorites first
       </caption>
       <tbody>
         <tr v-for="g of geographies" :key="g.id">
@@ -71,14 +71,14 @@
     <p v-if="actionError" class="help is-danger" role="alert">
       {{ actionError }}
     </p>
-    <p v-if="manageUrl" class="help">
-      Saved geographies are kept in your Interline account. You can also download or delete them, along with anything else you've stored, on
+    <p v-if="geographies" class="help">
+      Saved boundaries are kept in your Interline account. You can also download or delete them, along with anything else you've stored, on
       <a :href="manageUrl" target="_blank" rel="noopener">your account's Assets page<cat-icon icon="open-in-new" size="small" /><span class="is-sr-only"> (opens in a new tab)</span></a>.
     </p>
 
     <cat-modal
       :model-value="!!deleting"
-      title="Delete saved geography"
+      title="Delete saved boundary"
       size="small"
       @update:model-value="deleting = $event ? deleting : null"
     >
@@ -103,13 +103,18 @@ import { useApolloClient } from '@vue/apollo-composable'
 import { useDownload } from '@interline-io/catenary'
 import { fmtDate, isAdminBoundaryDocument, isFavorite, type SavedGeography } from '~~/src/core'
 import { geographyLayerQuery, type CensusDataset } from '~~/src/tl/census'
+import { useInterlineAccountUrl } from '~/composables/useInterlineAccount'
 import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
 
 // The user's saved geographies, to star, rename, load into a query, download
 // or delete. Self-contained: it reads and writes them itself.
 
-const { access, geographies, loading, error, manageUrl, ensureLoaded, get, rename, setFavorite, remove } = useSavedGeographies()
+const { access, geographies, loading, error, ensureLoaded, get, rename, setFavorite, remove } = useSavedGeographies()
 onMounted(() => { void ensureLoaded() })
+
+// The Assets tab of the user's Interline account, which lists everything
+// they've stored, with download and delete
+const manageUrl = useInterlineAccountUrl('assets')
 
 const busy = reactive(new Set<string>())
 const actionError = ref('')

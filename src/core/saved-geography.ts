@@ -20,6 +20,15 @@ export const SAVED_GEOGRAPHY_ROLES = {
 
 export type SavedGeographyPermission = keyof typeof SAVED_GEOGRAPHY_ROLES
 
+// What each permission lets the user do, as a verb, in the order to list them
+export const SAVED_GEOGRAPHY_ACTIONS: Record<SavedGeographyPermission, string> = {
+  list: 'view',
+  save: 'save',
+  update: 'rename',
+  download: 'download',
+  delete: 'delete',
+}
+
 // - upload: an uploaded GeoJSON file's chosen features, kept as GeoJSON
 // - admin_boundary: a set of census geographies, kept as references
 export type SavedGeographySource = 'upload' | 'admin_boundary'

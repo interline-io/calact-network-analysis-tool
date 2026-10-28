@@ -241,11 +241,10 @@
                 Save GeoJSON bounds…
               </cat-button>
               <div v-else-if="!upload && !addingFile" class="field is-grouped">
-                <div v-if="props.savedGeographyManageUrl" class="control">
-                  <a v-bind="manageLinkAttrs" class="button is-small">
-                    <span>Manage saved boundaries<span class="is-sr-only"> (opens in a new tab)</span></span>
-                    <cat-icon icon="open-in-new" size="small" />
-                  </a>
+                <div v-if="props.accountHasSavedBoundaries" class="control">
+                  <nuxt-link to="/admin/profile#saved-boundaries" class="button is-small" title="Your saved boundaries, on your account page">
+                    Manage saved boundaries
+                  </nuxt-link>
                 </div>
                 <cat-button
                   v-if="savedGeographies.length > 0 && (props.queryPolygon || (props.censusGeographiesSelected?.length ?? 0) > 0)"
@@ -442,8 +441,8 @@ const props = defineProps<{
   savedGeographyLoading?: boolean
   // The chosen saved boundaries have loaded and can run together
   savedSelectionRunnable?: boolean
-  // Where the user can download or delete saved boundaries
-  savedGeographyManageUrl?: string
+  // The user has saved boundaries, to manage on their account page
+  accountHasSavedBoundaries?: boolean
   // What kind of saved boundaries are chosen
   savedSelectionKind?: SavedSelectionKind
   // Problems loading the chosen saved geography
@@ -634,14 +633,6 @@ watch(geomSource, (newValue, oldValue) => {
 
 // The feed archive picker searches around the uploaded or saved boundary
 const pickerBbox = computed(() => polygonBbox(props.queryPolygon) ?? bbox.value)
-
-// The page in the user's Interline account that lists their saved boundaries
-const manageLinkAttrs = computed(() => ({
-  href: props.savedGeographyManageUrl,
-  target: '_blank',
-  rel: 'noopener',
-  title: 'View, download or delete your saved boundaries in your Interline account',
-}))
 
 // Saving: what the modal saves, from the upload or the selected boundaries
 const showSaveModal = ref(false)

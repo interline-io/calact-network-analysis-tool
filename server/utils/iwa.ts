@@ -26,7 +26,7 @@ export async function iwaFetch<T> (event: H3Event, path: string, opts: IwaFetchO
     throw createError({ statusCode: 401, statusMessage: 'Sign in to use your Interline account' })
   }
 
-  const base = useRuntimeConfig(event).iwaBaseUrl
+  const base = useRuntimeConfig(event).public.iwaBaseUrl
   const url = `${base}/user_api${path}`
   try {
     return await $fetch<T>(url, {
