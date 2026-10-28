@@ -89,7 +89,7 @@ export function checkContent (source: SavedGeographyMetadata['source'], content:
     throw createError({ statusCode: 422, statusMessage: `This isn't a geography of the ${source} kind.` })
   }
   if (JSON.stringify(checked.content).length > SAVED_GEOGRAPHY_MAX_BYTES) {
-    throw createError({ statusCode: 413, statusMessage: 'This geography is too large to save. Turn on trimming and simplifying, or choose fewer features.' })
+    throw createError({ statusCode: 413, statusMessage: 'This geography is too large to save. Turn on rounding and simplifying under Simplification options, or choose fewer features.' })
   }
   return checked
 }

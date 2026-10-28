@@ -9,9 +9,7 @@ import { feature as topoFeature } from 'topojson-client'
 import { topology } from 'topojson-server'
 import { presimplify, simplify } from 'topojson-simplify'
 import { UPLOAD_COORDINATE_PRECISION, UPLOAD_SIMPLIFY_MIN_WEIGHT } from './constants'
-import type { QueryPolygon } from './geom'
-
-export type PolygonalGeometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
+import { mergePolygons, polygonsOf, type PolygonalGeometry, type QueryPolygon } from './geom'
 
 // One polygon feature from an upload
 export interface UploadFeature {
@@ -120,8 +118,7 @@ export function parseGeographyUpload (text: string): ParsedUpload {
 // Rejects coordinates that can't be longitude and latitude, the usual sign of
 // a file in a projected coordinate system without a crs member
 function checkCoordinates (g: PolygonalGeometry) {
-  const parts = g.type === 'Polygon' ? [g.coordinates] : g.coordinates
-  for (const part of parts) {
+  for (const part of polygonsOf(g)) {
     for (const ring of part) {
       if (!Array.isArray(ring) || ring.length < 4) {
         throw new UploadError('This file has a polygon ring with fewer than 4 positions.')
@@ -168,28 +165,14 @@ function guessNameProperty (props: Record<string, unknown>[]): string | undefine
   return best && best.score >= 1 ? best.key : undefined
 }
 
-export function countVertices (g: PolygonalGeometry | QueryPolygon): number {
-  const parts = g.type === 'Polygon' ? [g.coordinates] : g.coordinates
+function countVertices (g: PolygonalGeometry): number {
   let n = 0
-  for (const part of parts) {
+  for (const part of polygonsOf(g)) {
     for (const ring of part) {
       n += ring.length
     }
   }
   return n
-}
-
-// The polygons of each feature, as one MultiPolygon
-export function featuresToPolygon (features: { geometry: PolygonalGeometry }[]): QueryPolygon {
-  const coordinates: GeoJSON.Position[][][] = []
-  for (const f of features) {
-    if (f.geometry.type === 'Polygon') {
-      coordinates.push(f.geometry.coordinates)
-    } else {
-      coordinates.push(...f.geometry.coordinates)
-    }
-  }
-  return { type: 'MultiPolygon', coordinates }
 }
 
 // Trims and simplifies the chosen features, as the options say, into one
@@ -203,7 +186,7 @@ export function processUpload (features: UploadFeature[], options: UploadProcess
     return { ...f, geometry }
   })
   const processed = options.simplify ? simplifyTogether(trimmed, UPLOAD_SIMPLIFY_MIN_WEIGHT) : trimmed
-  const polygon = featuresToPolygon(processed)
+  const polygon = mergePolygons(processed.map(f => f.geometry))
   return {
     polygon,
     features: processed,
@@ -237,7 +220,7 @@ export function roundGeometry (g: PolygonalGeometry, precision: number): Polygon
     }
     return [outer, ...holes.filter(h => h.length >= 4)]
   }
-  const parts = (g.type === 'Polygon' ? [g.coordinates] : g.coordinates)
+  const parts = polygonsOf(g)
     .map(roundPolygon)
     .filter((p): p is GeoJSON.Position[][] => p !== null)
   if (parts.length === 0) {

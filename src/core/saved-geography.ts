@@ -2,8 +2,7 @@
 // account, as IWA user assets (interline-web-app#784) of this app and kind.
 // The server routes in server/api/iwa/geographies read and write them.
 
-import { featuresToPolygon, type PolygonalGeometry } from './geography-upload'
-import type { QueryPolygon } from './geom'
+import { mergePolygons, type PolygonalGeometry, type QueryPolygon } from './geom'
 
 export const SAVED_GEOGRAPHY_APP = 'calact_nat'
 export const SAVED_GEOGRAPHY_KIND = 'geography'
@@ -70,6 +69,13 @@ export interface SavedGeographyCreate {
   content: SavedGeographyContent
 }
 
+// What the save modal saves, with the name it suggests and a description
+export interface SaveGeographyRequest {
+  defaultName: string
+  summary: string
+  geography: Omit<SavedGeographyCreate, 'name'>
+}
+
 export interface SavedGeographyUpdate {
   name?: string
   metadata?: SavedGeographyMetadata
@@ -112,7 +118,7 @@ export function isUploadDocument (content: unknown): content is UploadDocument {
 
 // An uploaded geography's polygons, as one query area
 export function uploadDocumentPolygon (content: UploadDocument): QueryPolygon {
-  return featuresToPolygon(content.features.filter(f => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'))
+  return mergePolygons(content.features.map(f => f.geometry).filter(g => g?.type === 'Polygon' || g?.type === 'MultiPolygon'))
 }
 
 // The bbox metadata for a polygon

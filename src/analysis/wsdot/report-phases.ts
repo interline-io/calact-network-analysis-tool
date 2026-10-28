@@ -12,8 +12,8 @@ import {
   hasSearchArea,
   type GraphQLClient,
   type Geometry,
-  type Bbox,
-  type QueryPolygon,
+  queryArea,
+  type QueryArea,
 } from '~~/src/core'
 import {
   phaseDone,
@@ -336,9 +336,7 @@ export async function runWsdotGeographiesPhase (
     bboxIntersection = await getGeographyData({
       ...baseGeographyConfig,
       geoDatasetLayer: LEVEL_GEOGRAPHY_LAYER,
-      bbox: config.bbox,
-      geographyIds: config.geographyIds,
-      polygon: config.polygon,
+      ...queryArea(config),
     })
     completed++
     const bboxChunks = chunkArray(bboxIntersection, PROGRESS_LIMIT_BBOX_FEATURES)
@@ -376,13 +374,8 @@ export async function runWsdotGeographiesPhase (
   return { bboxIntersection }
 }
 
-interface getGeographyDataConfig {
+interface getGeographyDataConfig extends QueryArea {
   client: GraphQLClient
-  // Admin boundaries for runs started from geography ids; take precedence over
-  // bbox in the query.
-  geographyIds?: number[]
-  // An uploaded or saved area, in place of both.
-  polygon?: QueryPolygon
   tableDatasetName: string
   tableDatasetTable: string
   tableDatasetTableCol: string
@@ -390,7 +383,6 @@ interface getGeographyDataConfig {
   geoDatasetLayer: string
   stopIds?: Set<number>
   stopBufferRadius?: number
-  bbox?: Bbox
 }
 
 // Census intersection features with the configured population column
@@ -404,9 +396,7 @@ async function getGeographyData (
     geoDatasetLayer: config.geoDatasetLayer,
     tableDatasetName: config.tableDatasetName,
     tableNames: [config.tableDatasetTable],
-    bbox: config.bbox,
-    geographyIds: config.geographyIds,
-    polygon: config.polygon,
+    ...queryArea(config),
     stopIds: config.stopIds,
     stopBufferRadius: config.stopBufferRadius,
   })

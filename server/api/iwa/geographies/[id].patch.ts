@@ -17,6 +17,6 @@ export default defineEventHandler(async (event): Promise<SavedGeography> => {
     // IWA replaces metadata whole, so the caller sends all of it
     update.metadata = checkMetadata(body.metadata)
   }
-  const asset = await iwaFetch<IwaAsset>(event, `/assets/${id}`, { method: 'PATCH', body: { ...update } })
+  const asset = await iwaFetch<IwaAsset>(event, `/assets/${id}`, { method: 'PATCH', body: update })
   return toSavedGeography(asset)
 })

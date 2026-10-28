@@ -1,5 +1,5 @@
 import { gql } from 'graphql-tag'
-import { collectPolygons, queryAreaVariables, type Bbox, type Geometry, type GraphQLClient, type CensusValues, type QueryArea, type QueryPolygon } from '~~/src/core'
+import { chunkArray, collectPolygons, hasSearchArea, queryAreaVariables, type Geometry, type GraphQLClient, type CensusValues, type QueryArea } from '~~/src/core'
 import { parseAcsValues } from './census'
 
 // Single source of truth for the Transitland `census_datasets.geographies`
@@ -27,19 +27,12 @@ export interface CensusGeographyFeature {
   geometry: Geometry | null
 }
 
-export interface FetchCensusIntersectionConfig {
+export interface FetchCensusIntersectionConfig extends QueryArea {
   client: GraphQLClient
   geoDatasetName: string
   geoDatasetLayer: string
   tableDatasetName: string
   tableNames: string[]
-  bbox?: Bbox
-  // Census geographies; the server clips to their union rather than to an
-  // axis-aligned bbox. Takes precedence over `bbox`.
-  geographyIds?: number[]
-  // An uploaded or saved area. Takes precedence over both; queried one part
-  // at a time (areaPasses).
-  polygon?: QueryPolygon
   stopIds?: Iterable<number>
   stopBufferRadius?: number
   includeIntersectionGeometry?: boolean
@@ -128,15 +121,10 @@ query GeographyIntersection(
 }
 `
 
-export interface FetchClipIntersectionsConfig {
+export interface FetchClipIntersectionsConfig extends QueryArea {
   client: GraphQLClient
   geoDatasetName: string
   geoDatasetLayer: string
-  bbox?: Bbox
-  // Takes precedence over `bbox`, matching the query-area pass.
-  geographyIds?: number[]
-  // Takes precedence over both, matching the query-area pass.
-  polygon?: QueryPolygon
   stopIds: Iterable<number>
   stopBufferRadius: number
   // Clip to the part of the query area outside the stop buffers instead.
@@ -198,11 +186,10 @@ export async function fetchClipIntersections (
 ): Promise<Map<string, ClipIntersection>> {
   const stopIds = Array.from(config.stopIds)
   const out = new Map<string, ClipIntersection>()
-  const area = queryAreaVariables(config)
-  if (!(area.bbox || area.geographyIds || area.polygons) || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
+  if (!hasSearchArea(config) || stopIds.length === 0 || !(config.stopBufferRadius > 0)) {
     return out
   }
-  const results = await Promise.all(areaPasses(config).map(pass => config.client.query<{
+  const results = await queryEachPass(config, pass => config.client.query<{
     census_datasets: {
       geographies: {
         geoid: string
@@ -218,7 +205,7 @@ export async function fetchClipIntersections (
     stopBufferRadius: config.stopBufferRadius,
     exclude: config.exclude || false,
     includeGeometry: config.includeGeometry || false,
-  })))
+  }))
   for (const result of results) {
     for (const geoDataset of result.data?.census_datasets || []) {
       for (const geography of geoDataset.geographies || []) {
@@ -314,6 +301,20 @@ function areaPasses (config: QueryArea): { bbox?: ReturnType<typeof queryAreaVar
   return [{ bbox: area.bbox, geographyIds: area.geographyIds }]
 }
 
+// How many of a polygon's parts are queried at once, as the scenario phases
+// cap their requests. A file of hundreds of districts shouldn't send hundreds
+// of census queries together.
+const AREA_PASS_CONCURRENCY = 8
+
+// Runs a census query once per area pass, a few at a time, in pass order
+async function queryEachPass<T> (config: QueryArea, run: (pass: ReturnType<typeof areaPasses>[number]) => Promise<T>): Promise<T[]> {
+  const results: T[] = []
+  for (const batch of chunkArray(areaPasses(config), AREA_PASS_CONCURRENCY)) {
+    results.push(...await Promise.all(batch.map(run)))
+  }
+  return results
+}
+
 export async function fetchCensusIntersection (
   config: FetchCensusIntersectionConfig,
 ): Promise<CensusGeographyFeature[]> {
@@ -326,11 +327,11 @@ export async function fetchCensusIntersection (
     stopIds: config.stopIds ? Array.from(config.stopIds) : [],
     includeIntersectionGeometry: config.includeIntersectionGeometry || false,
   }
-  const results = await Promise.all(areaPasses(config).map(pass =>
+  const results = await queryEachPass(config, pass =>
     config.client.query<{ census_datasets: geographyIntersectionResponse[] }>(
       geographyIntersectionQuery,
       { ...variables, ...pass },
-    )))
+    ))
   const features: CensusGeographyFeature[] = []
   // A geography that straddles parts of a polygon comes back once per part,
   // each with the area inside that part. Summed, they give its intersection

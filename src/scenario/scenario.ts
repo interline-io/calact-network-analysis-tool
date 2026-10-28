@@ -2,8 +2,6 @@ import {
   type WeekdayMode,
   type RouteType,
   type Weekday,
-  type Bbox,
-  type QueryPolygon,
   type GraphQLClient,
   type RequestFailure,
   GenericStreamReceiver,
@@ -12,6 +10,8 @@ import {
   logMemory,
   type CensusGeographyData,
   STOP_BUFFER_DEFAULT_LAYER,
+  queryArea,
+  type QueryArea,
 } from '~~/src/core'
 import type {
   FlexAreaFeature,
@@ -48,14 +48,10 @@ import {
 } from './phases'
 
 // Configuration for scenario fetching
-export interface ScenarioConfig {
+export interface ScenarioConfig extends QueryArea {
   reportName: string
-  bbox?: Bbox
   startDate?: Date
   endDate?: Date
-  geographyIds?: number[]
-  // An uploaded or saved area, in place of the bbox and geographyIds.
-  polygon?: QueryPolygon
   stopLimit?: number
   aggregateLayer?: string
   geoDatasetName: string
@@ -344,9 +340,7 @@ export class ScenarioFetcher {
 
     // FIRST STAGE: the active feed versions in the query area
     const feedVersions = await runFeedVersionsPhase({
-      bbox: this.config.bbox,
-      geographyIds: this.config.geographyIds,
-      polygon: this.config.polygon,
+      ...queryArea(this.config),
       geoDatasetName: this.config.geoDatasetName,
       feedVersionOverrides: this.config.feedVersionOverrides,
       excludedFeeds: this.config.excludedFeeds,
@@ -360,9 +354,7 @@ export class ScenarioFetcher {
     const stopsPromise: Promise<StopsPhaseResult | undefined> = enabled.has('stops')
       ? runStopsPhase({
           feedVersions: fvRefs,
-          bbox: this.config.bbox,
-          geographyIds: this.config.geographyIds,
-          polygon: this.config.polygon,
+          ...queryArea(this.config),
           stopLimit: this.config.stopLimit,
         }, this.client, emit, { onError })
       : Promise.resolve(undefined)
@@ -485,9 +477,7 @@ export class ScenarioFetcher {
       return
     }
     await runCensusValuesPhase({
-      bbox: this.config.bbox,
-      geographyIds: this.config.geographyIds,
-      polygon: this.config.polygon,
+      ...queryArea(this.config),
       geoDatasetName,
       tableDatasetName,
       aggregateLayer,
@@ -534,9 +524,7 @@ export class ScenarioFetcher {
     await runStopClustersPhase(
       {
         feedVersions: fvRefs,
-        bbox: this.config.bbox,
-        geographyIds: this.config.geographyIds,
-        polygon: this.config.polygon,
+        ...queryArea(this.config),
         geoDatasetName: this.config.geoDatasetName,
         maxDistanceMeters: distance,
         stopLimit: this.config.stopLimit,

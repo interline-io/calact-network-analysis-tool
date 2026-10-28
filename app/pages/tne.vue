@@ -37,17 +37,18 @@
             :census-geographies-selected="censusGeographiesSelected"
             :scenario-loaded="!!scenarioData"
             :query-polygon="queryPolygon"
-            :saved-geography-access="savedGeographyAccess ?? undefined"
+            :saved-geography-access="savedGeographyAccess"
             :saved-geography-loading="savedGeographyLoading"
             :saved-selection-runnable="savedSelectionRunnable"
-            :saved-selection-kind="savedSelectionKind ?? undefined"
-            :saved-geography-manage-url="savedGeographyManageUrl || undefined"
+            :saved-selection-kind="savedSelectionKind"
+            :saved-geography-manage-url="savedGeographyManageUrl"
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
             @reset-scenario="clearScenario"
             @fit-to-geographies="fitToGeographies"
             @clear-geographies="clearGeographies"
+            @upload-saved="rememberSavedGeography($event.id, $event.name, $event.polygon)"
           />
         </div>
 
@@ -436,7 +437,9 @@ const agencyFilterItems = computed((): AgencyFilterItem[] => {
 // Geography datasets
 /////////////////
 
-const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers()
+// The query area from a saved or uploaded boundary, and the census
+// geographies it (or the Administrative boundaries mode) names. The geoid
+// check reads the census geographies, so it takes them lazily.
 const {
   savedGeographyAccess,
   savedGeographyLoading,
@@ -444,10 +447,13 @@ const {
   savedSelectionKind,
   savedGeographyManageUrl,
   queryPolygon,
+  queryGeographyIds,
   queryAreaName,
   queryGeographyMessages,
   savedGeographyLoads,
-} = useQueryGeography(censusGeographiesSelected)
+  rememberSavedGeography,
+} = useQueryGeography(() => censusGeographiesSelected.value)
+const { censusGeographyLayerOptions, censusGeographiesSelected } = useCensusGeographyLayers(queryGeographyIds)
 
 const acsDatasetLabel = computed(() => formatAcsDatasetLabel(SCENARIO_DEFAULTS.tableDatasetName))
 
@@ -707,7 +713,7 @@ const selectedGeographiesLoaded = computed(() => {
     return true
   }
   const loaded = new Set(censusGeographiesSelected.value.map(g => g.id))
-  return loaded.size === geographyIds.value.length && geographyIds.value.every(id => loaded.has(id))
+  return loaded.size === queryGeographyIds.value.length && queryGeographyIds.value.every(id => loaded.has(id))
 })
 // Loading a saved geography, or a changed upload, shows it, as picking a
 // boundary from the search does
@@ -799,7 +805,7 @@ const scenarioConfig = computed((): ScenarioConfig => ({
   bbox: bbox.value,
   startDate: startDate.value,
   endDate: endDate.value,
-  geographyIds: geographyIds.value,
+  geographyIds: queryGeographyIds.value,
   // An uploaded or saved area, in place of the bbox and geographyIds
   polygon: queryPolygon.value,
   // Data loading toggles from Query tab > Advanced Settings

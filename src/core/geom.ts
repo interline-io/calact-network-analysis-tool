@@ -132,12 +132,30 @@ export function convertBbox (bbox?: Bbox): { min_lon?: number, min_lat?: number,
 // request, since the Transitland server doesn't store it.
 export type QueryPolygon = GeoJSON.MultiPolygon
 
+export type PolygonalGeometry = GeoJSON.Polygon | GeoJSON.MultiPolygon
+
 // The ways a config can name its query area. The first of polygon,
 // geographyIds and bbox that is set is the one used (queryAreaVariables).
 export interface QueryArea {
   bbox?: Bbox
   geographyIds?: number[]
   polygon?: QueryPolygon
+}
+
+// Just the query area of a config, to pass on to a phase or query
+export function queryArea (config: QueryArea): QueryArea {
+  return { bbox: config.bbox, geographyIds: config.geographyIds, polygon: config.polygon }
+}
+
+// A Polygon or MultiPolygon's polygons, as MultiPolygon coordinates
+export function polygonsOf (g: PolygonalGeometry): GeoJSON.Position[][][] {
+  return g.type === 'Polygon' ? [g.coordinates] : g.coordinates
+}
+
+// Polygonal geometries listed together as one MultiPolygon. No union: where
+// they overlap, the overlap is in the result twice.
+export function mergePolygons (geometries: PolygonalGeometry[]): QueryPolygon {
+  return { type: 'MultiPolygon', coordinates: geometries.flatMap(polygonsOf) }
 }
 
 // The parts of a query polygon, for filters that take one Polygon at a time
@@ -150,7 +168,7 @@ export function polygonParts (polygon?: QueryPolygon): GeoJSON.Polygon[] {
 // or a polygon. The one validation every run entry point shares, client and
 // server.
 export function hasSearchArea (config: QueryArea): boolean {
-  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0 || polygonParts(config.polygon).length > 0
+  return !!config.bbox || (config.geographyIds?.length ?? 0) > 0 || (config.polygon?.coordinates.length ?? 0) > 0
 }
 
 // The query area for a location filter: the polygon's parts when there is
@@ -179,20 +197,20 @@ export function stopLocationFilter (config: QueryArea) {
   return {
     bbox: area.bbox,
     geography_ids: area.geographyIds,
-    features: config.polygon && area.polygons
+    features: area.polygons
       ? [{ type: 'Feature', id: 'query-area', properties: {}, geometry: config.polygon }]
       : undefined,
   }
 }
 
-// The bbox around a query polygon (min/max of its coordinates), for queries
-// that take only a bbox, such as the feeds search.
-export function polygonBbox (polygon?: QueryPolygon): Bbox | undefined {
+// The bbox around polygonal geometry (min/max of its coordinates), for
+// queries that take only a bbox, such as the feeds search
+export function polygonBbox (g?: PolygonalGeometry): Bbox | undefined {
   let minLon = Infinity
   let minLat = Infinity
   let maxLon = -Infinity
   let maxLat = -Infinity
-  for (const part of polygon?.coordinates || []) {
+  for (const part of g ? polygonsOf(g) : []) {
     for (const ring of part) {
       for (const [lon, lat] of ring) {
         if (lon === undefined || lat === undefined) {
@@ -211,27 +229,17 @@ export function polygonBbox (polygon?: QueryPolygon): Bbox | undefined {
   return { sw: { lon: minLon, lat: minLat }, ne: { lon: maxLon, lat: maxLat }, valid: true }
 }
 
-// Collects polygonal outlines into one MultiPolygon by listing their polygons
-// together. No union: the outlines are clipped to non-overlapping parts of a
-// query polygon, so they don't overlap either. A geometry that isn't a
-// Polygon or MultiPolygon is kept as it is.
+function isPolygonal (g: Geometry): g is PolygonalGeometry {
+  return g.type === 'Polygon' || g.type === 'MultiPolygon'
+}
+
+// Collects clipped outlines into one MultiPolygon (mergePolygons). The
+// outlines are clipped to non-overlapping parts of a query polygon, so they
+// don't overlap either. A geometry that isn't a Polygon or MultiPolygon is
+// kept as it is.
 export function collectPolygons (a?: Geometry, b?: Geometry): Geometry | undefined {
   if (!a || !b) {
     return a ?? b
   }
-  const polygonsOf = (g: Geometry): any[] | undefined => {
-    if (g.type === 'Polygon') {
-      return [g.coordinates]
-    }
-    if (g.type === 'MultiPolygon') {
-      return g.coordinates
-    }
-    return undefined
-  }
-  const pa = polygonsOf(a)
-  const pb = polygonsOf(b)
-  if (!pa || !pb) {
-    return a
-  }
-  return { type: 'MultiPolygon', coordinates: [...pa, ...pb] }
+  return isPolygonal(a) && isPolygonal(b) ? mergePolygons([a, b]) : a
 }

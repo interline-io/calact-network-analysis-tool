@@ -2,18 +2,15 @@
 // (via each stop's route_stops) the route ids that gate the downstream
 // routes/departures/buffer phases.
 
-import { chunkArray, stopLocationFilter, type Bbox, type GraphQLClient, type QueryPolygon } from '~~/src/core'
+import { chunkArray, stopLocationFilter, type GraphQLClient, type QueryArea } from '~~/src/core'
 import { stopQuery, type StopGql } from '~~/src/tl'
 import { phaseQueue, type FeedVersionRef, type PhaseEmit, type PhaseOpts } from './common'
 
 // Emission batch size for streamed stops.
 const PROGRESS_LIMIT_STOPS = 1000
 
-export interface StopsPhaseConfig {
+export interface StopsPhaseConfig extends QueryArea {
   feedVersions: FeedVersionRef[]
-  bbox?: Bbox
-  geographyIds?: number[]
-  polygon?: QueryPolygon
   // GraphQL page size; pagination continues until a short page.
   stopLimit?: number
 }

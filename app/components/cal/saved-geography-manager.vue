@@ -11,7 +11,10 @@
       You haven't saved any geographies yet. On the Transit Network Explorer's Query tab, upload a GeoJSON file or select administrative boundaries, then save them.
     </p>
 
-    <table v-if="geographies && geographies.length > 0" class="table is-fullwidth">
+    <table v-if="geographies?.length" class="table is-fullwidth">
+      <caption class="is-sr-only">
+        Saved geographies, favorites first
+      </caption>
       <tbody>
         <tr v-for="g of geographies" :key="g.id">
           <td>
@@ -52,7 +55,7 @@
               <cat-button
                 v-if="access?.download"
                 icon-left="download"
-                :loading="downloading === g.id"
+                :loading="busy.has(g.id)"
                 @click="download(g)"
               >
                 Download
@@ -99,8 +102,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
 import { useDownload } from '@interline-io/catenary'
 import { fmtDate, isAdminBoundaryDocument, isFavorite, type SavedGeography } from '~~/src/core'
-import { geographyLayerQuery } from '~~/src/tl/census'
-import { savedGeographyErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
+import { geographyLayerQuery, type CensusDataset } from '~~/src/tl/census'
+import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
 
 // The user's saved geographies, to star, rename, load into a query, download
 // or delete. Self-contained: it reads and writes them itself.
@@ -117,7 +120,7 @@ async function act (g: SavedGeography, what: string, fn: () => Promise<unknown>)
   try {
     await fn()
   } catch (e) {
-    actionError.value = `Couldn't ${what} "${g.name}": ${savedGeographyErrorMessage(e)}`
+    actionError.value = `Couldn't ${what} "${g.name}": ${iwaErrorMessage(e)}`
   } finally {
     busy.delete(g.id)
   }
@@ -160,34 +163,28 @@ function load (g: SavedGeography) {
 // A saved boundary set is kept as references, so its download fetches the
 // boundaries' outlines to make a file anyone can upload
 const { resolveClient } = useApolloClient()
-const downloading = ref('')
 function download (g: SavedGeography) {
-  downloading.value = g.id
   void act(g, 'download', async () => {
-    try {
-      const saved = await get(g.id)
-      let geojson: unknown = saved.content
-      if (isAdminBoundaryDocument(saved.content)) {
-        const doc = saved.content
-        const resp = await resolveClient().query<{ census_datasets: { geographies: { id: number, geoid: string, name: string, geometry: GeoJSON.Geometry, layer: { name: string } }[] }[] }>({
-          query: geographyLayerQuery,
-          variables: { geography_ids: doc.geographies.map(x => x.id), include_geographies: true, dataset_name: doc.dataset },
-        })
-        const found = resp.data?.census_datasets?.[0]?.geographies || []
-        geojson = {
-          type: 'FeatureCollection',
-          features: found.map(x => ({
-            type: 'Feature',
-            properties: { name: x.name, geoid: x.geoid, layer: x.layer?.name, dataset: doc.dataset },
-            geometry: x.geometry,
-          })),
-        }
+    const saved = await get(g.id)
+    let geojson: unknown = saved.content
+    if (isAdminBoundaryDocument(saved.content)) {
+      const doc = saved.content
+      const resp = await resolveClient().query<{ census_datasets: CensusDataset[] }>({
+        query: geographyLayerQuery,
+        variables: { geography_ids: doc.geographies.map(x => x.id), include_geographies: true, dataset_name: doc.dataset },
+      })
+      const found = resp.data?.census_datasets?.[0]?.geographies || []
+      geojson = {
+        type: 'FeatureCollection',
+        features: found.map(x => ({
+          type: 'Feature',
+          properties: { name: x.name, geoid: x.geoid, layer: x.layer?.name, dataset: doc.dataset },
+          geometry: x.geometry,
+        })),
       }
-      const filename = `${g.name.replace(/[\\/:*?"<>|]+/g, '_')}.geojson`
-      useDownload().download({ filename, data: JSON.stringify(geojson), mimeType: 'application/geo+json' })
-    } finally {
-      downloading.value = ''
     }
+    // The download makes the name safe for a file
+    useDownload().download({ filename: `${g.name}.geojson`, data: JSON.stringify(geojson), mimeType: 'application/geo+json' })
   })
 }
 

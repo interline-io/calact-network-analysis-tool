@@ -1,29 +1,28 @@
 // The query area from an uploaded or saved geography (#477), for tne.vue to
-// pass down: the polygon a run uses, its name, and the loading of the saved
-// boundaries the URL names.
+// pass down: the polygon a run uses, the census geography ids, its name, and
+// the loading of the saved boundaries the URL names.
 //
 // Several saved boundaries of one kind combine into one area. Saved uploads
 // become the run's polygon, their parts listed together. Saved sets of admin
-// boundaries are written into geographyIds, the same path the Administrative
-// Boundary mode uses (the server merges them), after checking the ids still
-// name the same places. The server takes one kind of area at a time, so the
-// two kinds can't be combined.
+// boundaries become the run's geography ids (the server merges them), checked
+// against the geoids they were saved with. The server takes one kind of area
+// at a time, so the two kinds can't be combined.
 
-import { computed, markRaw, ref, watch, type Ref } from 'vue'
+import { computed, markRaw, ref, watch } from 'vue'
 import {
   isAdminBoundaryDocument,
   isUploadDocument,
+  mergePolygons,
   uploadDocumentPolygon,
   type AdminBoundaryDocument,
   type QueryPolygon,
 } from '~~/src/core'
 import type { CensusGeography } from '~~/src/tl'
 import { useScenarioInputs } from './useScenarioInputs'
-import { savedGeographyErrorMessage, useSavedGeographies } from './useSavedGeographies'
+import { iwaErrorMessage, useSavedGeographies } from './useSavedGeographies'
 import { useUploadedGeography } from './useUploadedGeography'
 
 export interface LoadedSavedGeography {
-  id: string
   name: string
   polygon?: QueryPolygon
   adminBoundaries?: AdminBoundaryDocument
@@ -34,9 +33,16 @@ export interface QueryGeographyMessage {
   text: string
 }
 
-export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeography[]>) {
+export type SavedSelectionKind = 'upload' | 'admin_boundary'
+
+// What keeps chosen saved boundaries from running together
+type SelectionProblem = 'mixed' | 'datasets'
+
+// censusGeographiesSelected is read lazily, as it comes from the geography ids
+// this returns
+export function useQueryGeography (censusGeographiesSelected: () => CensusGeography[]) {
   const { geomSource, savedGeographies, geographyIds, geoDatasetName } = useScenarioInputs()
-  const { upload, uploadPolygon } = useUploadedGeography()
+  const { upload } = useUploadedGeography()
   const { access, geographies, manageUrl, loadAccess, get } = useSavedGeographies()
 
   // Kept for the session by id, so coming back to the page, or adding a
@@ -49,7 +55,13 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
 
   void loadAccess()
 
-  const selectedIds = computed(() => geomSource.value === 'custom' ? savedGeographies.value : [])
+  // The URL's list is a new array whenever any parameter changes, so keep the
+  // previous one while the ids are the same, or the area would be rebuilt and
+  // redrawn on every filter change
+  const selectedIds = computed<string[]>((prev) => {
+    const ids = geomSource.value === 'custom' ? savedGeographies.value : []
+    return prev && prev.join(',') === ids.join(',') ? prev : ids
+  })
 
   // The chosen boundaries, once all have loaded
   const selection = computed((): LoadedSavedGeography[] | null => {
@@ -57,39 +69,68 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     return all.length > 0 && all.every(g => !!g) ? all as LoadedSavedGeography[] : null
   })
 
-  const selectionKind = computed((): 'upload' | 'admin_boundary' | 'mixed' | null => {
+  const selectionKind = computed((): SavedSelectionKind | undefined => {
+    const s = selection.value
+    if (!s) {
+      return undefined
+    }
+    return s.every(g => g.polygon) ? 'upload' : 'admin_boundary'
+  })
+
+  const selectionProblem = computed((): SelectionProblem | null => {
     const s = selection.value
     if (!s) {
       return null
     }
     const uploads = s.filter(g => g.polygon).length
-    if (uploads === s.length) {
-      return 'upload'
+    if (uploads > 0 && uploads < s.length) {
+      return 'mixed'
     }
-    return uploads === 0 ? 'admin_boundary' : 'mixed'
+    if (new Set(s.map(g => g.adminBoundaries?.dataset).filter(Boolean)).size > 1) {
+      return 'datasets'
+    }
+    return null
   })
 
-  const adminDatasets = computed(() => new Set((selection.value || []).map(g => g.adminBoundaries?.dataset).filter(Boolean)))
-
-  // Writes the chosen boundary sets into the inputs the boundaries mode uses
-  function applyAdminBoundaries (docs: AdminBoundaryDocument[]) {
-    const ids = [...new Set(docs.flatMap(doc => doc.geographies.map(g => g.id)))]
-    if (ids.join(',') !== geographyIds.value.join(',')) {
-      geographyIds.value = ids
+  // The saved boundary sets that make up the area, when that's what's chosen
+  // and nothing being uploaded takes their place
+  const adminDocs = computed((): AdminBoundaryDocument[] => {
+    if (upload.value || selectionKind.value !== 'admin_boundary' || selectionProblem.value) {
+      return []
     }
+    return selection.value!.map(g => g.adminBoundaries!)
+  })
+
+  // The census geography ids a run uses: those picked in the Administrative
+  // boundaries mode, or those of the chosen saved sets
+  const queryGeographyIds = computed((): number[] => {
+    if (geomSource.value === 'adminBoundary') {
+      return geographyIds.value
+    }
+    return [...new Set(adminDocs.value.flatMap(doc => doc.geographies.map(g => g.id)))]
+  })
+
+  // A saved set's ids name geographies in its dataset, so the dataset follows
+  watch(adminDocs, (docs) => {
     const dataset = docs[0]?.dataset
     if (dataset && dataset !== geoDatasetName.value) {
       geoDatasetName.value = dataset
     }
+  })
+
+  // Keeps a saved upload's polygon, as when it was just saved, so choosing it
+  // doesn't fetch it back
+  function remember (id: string, name: string, polygon: QueryPolygon) {
+    loaded.value = { ...loaded.value, [id]: { name, polygon: markRaw(polygon) } }
   }
 
   async function loadOne (id: string): Promise<void> {
     try {
       const saved = await get(id)
       if (isUploadDocument(saved.content)) {
-        loaded.value = { ...loaded.value, [id]: { id, name: saved.name, polygon: markRaw(uploadDocumentPolygon(saved.content)) } }
+        remember(id, saved.name, uploadDocumentPolygon(saved.content))
       } else if (isAdminBoundaryDocument(saved.content)) {
-        loaded.value = { ...loaded.value, [id]: { id, name: saved.name, adminBoundaries: saved.content } }
+        loaded.value = { ...loaded.value, [id]: { name: saved.name, adminBoundaries: saved.content } }
       } else {
         loadErrors.value.push(`"${saved.name}" isn't a boundary this version of the app can read.`)
       }
@@ -97,36 +138,24 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
       const status = (e as { statusCode?: number }).statusCode
       loadErrors.value.push(status === 404
         ? 'A boundary in this link isn\'t in your account. Saved boundaries belong to the person who saved them: ask them to download it from their profile and send you the file to upload.'
-        : `Couldn't load a saved boundary: ${savedGeographyErrorMessage(e)}`)
+        : `Couldn't load a saved boundary: ${iwaErrorMessage(e)}`)
     }
   }
 
   let requested = ''
   watch(selectedIds, async (ids) => {
     loadErrors.value = []
-    const key = ids.join(',')
-    requested = key
     const missing = ids.filter(id => !loaded.value[id])
-    if (missing.length > 0) {
-      loading.value = true
-      await Promise.all(missing.map(loadOne))
-      // A later choice has replaced this one
-      if (requested !== key) {
-        return
-      }
-      loading.value = false
-    }
-    const s = selection.value
-    if (!s) {
+    if (missing.length === 0) {
       return
     }
-    if (selectionKind.value === 'admin_boundary' && adminDatasets.value.size <= 1) {
-      applyAdminBoundaries(s.map(g => g.adminBoundaries!))
-    } else if (geographyIds.value.length > 0) {
-      // Uploads (or a selection that can't run) leave no boundaries behind
-      geographyIds.value = []
-    }
-    if (missing.length > 0) {
+    const key = ids.join(',')
+    requested = key
+    loading.value = true
+    await Promise.all(missing.map(loadOne))
+    // A later choice has replaced this one
+    if (requested === key) {
+      loading.value = false
       loads.value++
     }
   }, { immediate: true })
@@ -138,12 +167,12 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
       return undefined
     }
     if (upload.value || selectedIds.value.length === 0) {
-      return uploadPolygon.value
+      return upload.value?.result?.polygon
     }
-    if (selectionKind.value !== 'upload') {
+    if (selectionKind.value !== 'upload' || selectionProblem.value) {
       return undefined
     }
-    return { type: 'MultiPolygon', coordinates: selection.value!.flatMap(g => g.polygon!.coordinates) }
+    return mergePolygons(selection.value!.map(g => g.polygon!))
   })
 
   // What the area is called, for describing a run
@@ -171,10 +200,10 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     if (!s) {
       return []
     }
-    if (selectionKind.value === 'mixed') {
+    if (selectionProblem.value === 'mixed') {
       return [{ variant: 'danger', text: 'Uploaded boundaries and Census boundary sets can\'t be combined in one query. Remove one kind.' }]
     }
-    if (selectionKind.value === 'admin_boundary' && adminDatasets.value.size > 1) {
+    if (selectionProblem.value === 'datasets') {
       return [{ variant: 'danger', text: 'These Census boundary sets are from different Census datasets, so they can\'t be combined. Remove one.' }]
     }
     if (selectionKind.value === 'upload') {
@@ -186,10 +215,11 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
     // Only once the selected geographies are these sets', not a previous one's
     const docGeographies = s.flatMap(g => g.adminBoundaries!.geographies)
     const docIds = new Set(docGeographies.map(g => g.id))
-    if (censusGeographiesSelected.value.length === 0 || !censusGeographiesSelected.value.every(g => docIds.has(g.id))) {
+    const selected = censusGeographiesSelected()
+    if (selected.length === 0 || !selected.every(g => docIds.has(g.id))) {
       return []
     }
-    const found = new Map(censusGeographiesSelected.value.map(g => [g.id, g]))
+    const found = new Map(selected.map(g => [g.id, g]))
     const changed = docGeographies.filter(g => found.get(g.id)?.geoid !== g.geoid)
     if (changed.length === 0) {
       return []
@@ -201,23 +231,21 @@ export function useQueryGeography (censusGeographiesSelected: Ref<CensusGeograph
   })
 
   // Whether the chosen boundaries make an area a query can run on
-  const savedSelectionRunnable = computed(() => {
-    if (selectedIds.value.length === 0 || loading.value || loadErrors.value.length > 0) {
-      return false
-    }
-    return selectionKind.value === 'upload' || (selectionKind.value === 'admin_boundary' && adminDatasets.value.size <= 1)
-  })
+  const savedSelectionRunnable = computed(() =>
+    selectedIds.value.length > 0 && !loading.value && loadErrors.value.length === 0 && !!selectionKind.value && !selectionProblem.value)
 
   return {
-    savedGeographyAccess: access,
+    savedGeographyAccess: computed(() => access.value ?? undefined),
     // Only once there's something saved to manage
-    savedGeographyManageUrl: computed(() => (geographies.value?.length ?? 0) > 0 ? manageUrl.value : ''),
+    savedGeographyManageUrl: computed(() => (geographies.value?.length ?? 0) > 0 ? manageUrl.value : undefined),
     savedGeographyLoading: loading,
     savedSelectionRunnable,
     savedSelectionKind: selectionKind,
     queryPolygon,
+    queryGeographyIds,
     queryAreaName,
     queryGeographyMessages: messages,
     savedGeographyLoads: loads,
+    rememberSavedGeography: remember,
   }
 }

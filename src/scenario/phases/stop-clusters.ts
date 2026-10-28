@@ -26,10 +26,9 @@ import {
   STOP_CLUSTER_NEAR_MAX_RADIUS,
   STOP_CLUSTER_NEAR_RADIUS_FACTOR,
   WEEKDAY_BY_GETDAY,
-  type Bbox,
   type GraphQLClient,
-  type QueryPolygon,
   type Weekday,
+  type QueryArea,
 } from '~~/src/core'
 import {
   stopClusterNearQuery,
@@ -480,11 +479,8 @@ const NEARBY_STOPS_LIMIT = 1000
 
 // Config for the clustering phase / standalone refetch. JSON-serializable so it
 // crosses the BFF boundary (mirrors BufferFetchConfig).
-export interface StopClusterFetchConfig {
+export interface StopClusterFetchConfig extends QueryArea {
   feedVersions: FeedVersionRef[]
-  bbox?: Bbox
-  geographyIds?: number[]
-  polygon?: QueryPolygon
   geoDatasetName: string
   // The PostGIS nearby_stops radius (meters) — the cluster max distance.
   maxDistanceMeters: number

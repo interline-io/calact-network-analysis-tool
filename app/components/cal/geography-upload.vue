@@ -106,14 +106,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { UPLOAD_MAX_FILE_BYTES, type UploadProcessOptions } from '~~/src/core'
 import { useUploadedGeography } from '~/composables/useUploadedGeography'
 
+// The map fits a newly read file on its own; this asks for it again
 const emit = defineEmits<{
-  // A new file was read, for the parent to fit the map to it
-  loaded: []
-  // Fit the map to the chosen features
   showOnMap: []
 }>()
 
@@ -126,8 +124,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 const allIndexes = computed(() => upload.value?.parsed.features.map(f => f.index) ?? [])
 
-// Processing a large file holds the page for a second or so; this lets the
-// "Checking" line paint first
+// Processing a large file holds the page for a moment; this lets the
+// "Checking" line paint first (after Vue's update, which runs before the frame)
 function afterPaint (): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)))
 }
@@ -135,7 +133,6 @@ function afterPaint (): Promise<void> {
 async function busy (name: string, fn: () => void) {
   readingName.value = name
   reading.value = true
-  await nextTick()
   await afterPaint()
   try {
     fn()
@@ -151,9 +148,6 @@ async function readFile (file: File) {
   }
   const text = await file.text()
   await busy(file.name, () => loadFile(file.name, text))
-  if (upload.value) {
-    emit('loaded')
-  }
 }
 
 function onFileInput (e: Event) {
@@ -182,7 +176,7 @@ function toggleFeature (index: number, on: boolean) {
   } else {
     selected.delete(index)
   }
-  void busy('the features', () => setSelected([...selected].sort((a, b) => a - b)))
+  void busy('the features', () => setSelected([...selected]))
 }
 
 function setOption (key: keyof UploadProcessOptions, value: boolean) {

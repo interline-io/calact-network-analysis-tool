@@ -4,7 +4,7 @@
 // down to child components as plain props, per the "State ownership & data flow"
 // convention in CLAUDE.md (Apollo access stays in the container, not in leaves).
 
-import { computed, type ComputedRef } from 'vue'
+import { computed, type ComputedRef, type Ref } from 'vue'
 import { useQuery } from '@vue/apollo-composable'
 import { geographyLayerQuery, type CensusDataset, type CensusGeography } from '~~/src/tl'
 import { useScenarioInputs } from '~/composables/useScenarioInputs'
@@ -48,8 +48,10 @@ function formatCensusLayerLabel (_dsName: string, layerName: string): string {
     ?? layerName.replace(/^layer:\s*/i, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export function useCensusGeographyLayers (): UseCensusGeographyLayersReturn {
-  const { geoDatasetName, geographyIds } = useScenarioInputs()
+// geographyIds are the query's census geographies, whether picked one by one
+// or from saved boundary sets
+export function useCensusGeographyLayers (geographyIds: Ref<number[]>): UseCensusGeographyLayersReturn {
+  const { geoDatasetName } = useScenarioInputs()
 
   const { result } = useQuery<{ census_datasets: CensusDataset[] }>(
     geographyLayerQuery,

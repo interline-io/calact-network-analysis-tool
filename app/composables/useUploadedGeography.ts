@@ -29,9 +29,6 @@ export function useUploadedGeography () {
   // would cost more than the processing itself
   const upload = useState<UploadedGeography | null>('cal-uploaded-geography', () => null)
   const uploadError = useState<string>('cal-uploaded-geography-error', () => '')
-  // Set while adding a file with saved boundaries already chosen, before the
-  // file is read
-  const addingFile = useState<boolean>('cal-uploaded-geography-adding', () => false)
 
   function reprocess (u: Omit<UploadedGeography, 'result'>) {
     const features = u.parsed.features.filter(f => u.selected.includes(f.index))
@@ -71,11 +68,7 @@ export function useUploadedGeography () {
   function clear () {
     upload.value = null
     uploadError.value = ''
-    addingFile.value = false
   }
 
-  // The query area, once at least one feature is chosen
-  const uploadPolygon = computed(() => upload.value?.result?.polygon)
-
-  return { upload, uploadError, addingFile, uploadPolygon, loadFile, setSelected, setOptions, clear }
+  return { upload, uploadError, loadFile, setSelected, setOptions, clear }
 }

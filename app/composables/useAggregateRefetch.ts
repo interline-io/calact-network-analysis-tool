@@ -8,6 +8,7 @@ import { ref, watchEffect, type Ref } from 'vue'
 import { useScenarioDisplay } from './useScenarioDisplay'
 import { useScenarioInputs } from './useScenarioInputs'
 import { useStreamingRefetch, type StreamingRefetchDeps } from './useStreamingRefetch'
+import { queryArea } from '~~/src/core'
 import { phaseEnabled, type CensusValuesPhaseConfig } from '~~/src/scenario'
 
 // scenarioReceiver is created by useScenarioRun and shared so refetched
@@ -69,9 +70,7 @@ export function useAggregateRefetch (deps: UseAggregateRefetchDeps): { refresh: 
         return 'skip'
       }
       const body: CensusValuesPhaseConfig = {
-        bbox: config.bbox,
-        geographyIds: config.geographyIds,
-        polygon: config.polygon,
+        ...queryArea(config),
         geoDatasetName: config.geoDatasetName,
         // The predicate above guarantees these are set.
         tableDatasetName: config.tableDatasetName!,

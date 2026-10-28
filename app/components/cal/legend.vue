@@ -19,7 +19,7 @@
           </div>
         </div>
         <!-- Saved or uploaded boundary -->
-        <div v-else-if="geomSource === 'custom'" :class="{ 'is-hidden': !(props.showBbox && props.hasBoundary) }" class="cal-map-legend-section">
+        <div v-else-if="geomSource === 'custom'" :class="{ 'is-hidden': !queryAreaShown }" class="cal-map-legend-section">
           <div>
             <div class="legend-item legend-marker-square" style="border:solid red 1px;" />
             <div>Boundary for Query</div>

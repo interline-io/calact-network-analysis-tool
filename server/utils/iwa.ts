@@ -14,7 +14,7 @@ interface IwaFetchError {
 type IwaFetchOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   query?: Record<string, string | number | undefined>
-  body?: Record<string, unknown>
+  body?: object
 }
 
 // Fetches an IWA /user_api path (e.g. `/me`) for the request's user. Throws an

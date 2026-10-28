@@ -18,10 +18,10 @@ export type SavedGeographyAccess = Record<SavedGeographyPermission, boolean>
 
 const NO_ACCESS: SavedGeographyAccess = { list: false, save: false, update: false, delete: false, download: false }
 
-// A failed request's message: the server's statusMessage, which carries IWA's
-// own explanation. Over HTTP/2 a response has no status text, so $fetch's own
+// A failed request to the server's IWA routes, as a message: the server's
+// statusMessage, which carries IWA's own explanation. Over HTTP/2 a response has no status text, so $fetch's own
 // statusMessage is empty.
-export function savedGeographyErrorMessage (e: unknown): string {
+export function iwaErrorMessage (e: unknown): string {
   const err = e as { statusCode?: number, statusMessage?: string, data?: { statusMessage?: string, message?: string } }
   return err.data?.statusMessage || err.data?.message || err.statusMessage || String(e)
 }
@@ -50,7 +50,7 @@ export function useSavedGeographies () {
       }
       access.value = allowed
     } catch (e) {
-      console.warn('[saved-geographies] No Interline account access:', savedGeographyErrorMessage(e))
+      console.warn('[saved-geographies] No Interline account access:', iwaErrorMessage(e))
       access.value = { ...NO_ACCESS }
     }
     return access.value
@@ -64,7 +64,7 @@ export function useSavedGeographies () {
       geographies.value = sortSavedGeographies(resp.geographies)
       manageUrl.value = resp.manageUrl
     } catch (e) {
-      error.value = savedGeographyErrorMessage(e)
+      error.value = iwaErrorMessage(e)
     } finally {
       loading.value = false
     }
@@ -111,5 +111,5 @@ export function useSavedGeographies () {
     geographies.value = (geographies.value || []).filter(other => other.id !== g.id)
   }
 
-  return { access, geographies, loading, error, manageUrl, loadAccess, refresh, ensureLoaded, create, get, rename, setFavorite, remove }
+  return { access, geographies, loading, error, manageUrl, loadAccess, ensureLoaded, create, get, rename, setFavorite, remove }
 }

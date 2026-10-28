@@ -15,10 +15,10 @@
         />
       </cat-field>
       <p class="help">
-        {{ summary }}
+        {{ request?.summary }}
       </p>
       <p v-if="tooLarge" class="help is-danger" role="alert">
-        This geography is {{ sizeMb }} MB, more than the {{ maxMb }} MB that can be saved. Turn on rounding and simplifying under Upload options, or choose fewer features.
+        This geography is {{ sizeMb }} MB, more than the {{ maxMb }} MB that can be saved. Turn on rounding and simplifying under Simplification options, or choose fewer features.
       </p>
       <p v-if="error" class="help is-danger" role="alert">
         {{ error }}
@@ -39,18 +39,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { SAVED_GEOGRAPHY_MAX_BYTES, type SavedGeography, type SavedGeographyCreate } from '~~/src/core'
-import { savedGeographyErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
+import { SAVED_GEOGRAPHY_MAX_BYTES, type SavedGeography, type SaveGeographyRequest } from '~~/src/core'
+import { iwaErrorMessage, useSavedGeographies } from '~/composables/useSavedGeographies'
 
 // Saves a geography to the user's Interline account: the caller builds what's
 // saved, and the user names it.
 const props = defineProps<{
   open: boolean
-  defaultName: string
-  // What to save, but its name
-  geography: Omit<SavedGeographyCreate, 'name'> | null
-  // Describes what's being saved, e.g. "3 county boundaries"
-  summary: string
+  // What to save, but its name; null while closed
+  request: SaveGeographyRequest | null
 }>()
 
 const emit = defineEmits<{
@@ -66,28 +63,28 @@ const error = ref('')
 
 watch(() => props.open, (open) => {
   if (open) {
-    name.value = props.defaultName
+    name.value = props.request?.defaultName ?? ''
     error.value = ''
   }
 })
 
-const size = computed(() => props.geography ? JSON.stringify(props.geography.content).length : 0)
+const size = computed(() => props.request ? JSON.stringify(props.request.geography.content).length : 0)
 const tooLarge = computed(() => size.value > SAVED_GEOGRAPHY_MAX_BYTES)
 const sizeMb = computed(() => (size.value / 1024 / 1024).toFixed(1))
 const maxMb = (SAVED_GEOGRAPHY_MAX_BYTES / 1024 / 1024).toFixed(1)
 
 async function save () {
-  if (!props.geography || !name.value.trim() || tooLarge.value || saving.value) {
+  if (!props.request || !name.value.trim() || tooLarge.value || saving.value) {
     return
   }
   saving.value = true
   error.value = ''
   try {
-    const saved = await create({ ...props.geography, name: name.value.trim() })
+    const saved = await create({ ...props.request.geography, name: name.value.trim() })
     emit('saved', saved)
     emit('update:open', false)
   } catch (e) {
-    error.value = `Couldn't save: ${savedGeographyErrorMessage(e)}`
+    error.value = `Couldn't save: ${iwaErrorMessage(e)}`
   } finally {
     saving.value = false
   }
