@@ -28,17 +28,17 @@ export function iwaErrorMessage (e: unknown): string {
 
 export function useSavedGeographies () {
   const access = useState<SavedGeographyAccess | null>('cal-saved-geography-access', () => null)
+  // Why access couldn't be checked, as opposed to the plan not allowing it
+  const accessError = useState<string>('cal-saved-geography-access-error', () => '')
   const geographies = useState<SavedGeography[] | null>('cal-saved-geographies', () => null)
   const loading = useState<boolean>('cal-saved-geographies-loading', () => false)
   const error = useState<string>('cal-saved-geographies-error', () => '')
-  // The Assets tab of the user's Interline account, which lists everything
-  // they've stored, with download and delete
-  const manageUrl = useState<string>('cal-saved-geographies-manage-url', () => '')
 
   // What the user's plan allows, from their IWA roles. Without an Interline
   // account (or signed out, as in local development) it allows nothing.
+  // Checked once per session, except that a check that failed is tried again.
   async function loadAccess (): Promise<SavedGeographyAccess> {
-    if (access.value) {
+    if (access.value && !accessError.value) {
       return access.value
     }
     try {
@@ -49,8 +49,10 @@ export function useSavedGeographies () {
         allowed[permission as SavedGeographyPermission] = roles.has(role)
       }
       access.value = allowed
+      accessError.value = ''
     } catch (e) {
-      console.warn('[saved-geographies] No Interline account access:', iwaErrorMessage(e))
+      accessError.value = iwaErrorMessage(e)
+      console.warn('[saved-geographies] No Interline account access:', accessError.value)
       access.value = { ...NO_ACCESS }
     }
     return access.value
@@ -60,9 +62,8 @@ export function useSavedGeographies () {
     loading.value = true
     error.value = ''
     try {
-      const resp = await $fetch<{ geographies: SavedGeography[], manageUrl: string }>('/api/iwa/geographies')
+      const resp = await $fetch<{ geographies: SavedGeography[] }>('/api/iwa/geographies')
       geographies.value = sortSavedGeographies(resp.geographies)
-      manageUrl.value = resp.manageUrl
     } catch (e) {
       error.value = iwaErrorMessage(e)
     } finally {
@@ -111,5 +112,5 @@ export function useSavedGeographies () {
     geographies.value = (geographies.value || []).filter(other => other.id !== g.id)
   }
 
-  return { access, geographies, loading, error, manageUrl, loadAccess, ensureLoaded, create, get, rename, setFavorite, remove }
+  return { access, accessError, geographies, loading, error, loadAccess, ensureLoaded, create, get, rename, setFavorite, remove }
 }

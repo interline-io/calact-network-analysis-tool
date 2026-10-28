@@ -43,7 +43,7 @@ type SelectionProblem = 'mixed' | 'datasets'
 export function useQueryGeography (censusGeographiesSelected: () => CensusGeography[]) {
   const { geomSource, savedGeographies, geographyIds, geoDatasetName } = useScenarioInputs()
   const { upload } = useUploadedGeography()
-  const { access, geographies, manageUrl, loadAccess, get } = useSavedGeographies()
+  const { access, geographies, loadAccess, get } = useSavedGeographies()
 
   // Kept for the session by id, so coming back to the page, or adding a
   // boundary to the selection, doesn't fetch the others again
@@ -242,8 +242,8 @@ export function useQueryGeography (censusGeographiesSelected: () => CensusGeogra
 
   return {
     savedGeographyAccess: computed(() => access.value ?? undefined),
-    // Only once there's something saved to manage
-    savedGeographyManageUrl: computed(() => (geographies.value?.length ?? 0) > 0 ? manageUrl.value : undefined),
+    // Whether there's something saved to manage
+    accountHasSavedBoundaries: computed(() => (geographies.value?.length ?? 0) > 0),
     savedGeographyLoading: loading,
     savedSelectionRunnable,
     savedSelectionKind: selectionKind,

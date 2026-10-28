@@ -60,11 +60,12 @@ export default defineNuxtConfig({
         default: { base: '', apikey: '', apikeyWithToken: true },
       },
     },
-    // Interline Web App, called from the server with the signed-in user's
-    // access token (its /user_api). IWA has no staging, so every environment
-    // uses production unless NUXT_IWA_BASE_URL points elsewhere.
-    iwaBaseUrl: 'https://app.interline.io',
     public: {
+      // Interline Web App, called from the server with the signed-in user's
+      // access token (its /user_api), and linked to for the user's account.
+      // IWA has no staging, so every environment uses production unless
+      // NUXT_PUBLIC_IWA_BASE_URL points elsewhere.
+      iwaBaseUrl: 'https://app.interline.io',
       tlv2: {
         protomapsApikey: ''
       },

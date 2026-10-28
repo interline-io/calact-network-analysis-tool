@@ -1,5 +1,4 @@
-// The signed-in user's saved geographies, without their content, and where in
-// their Interline account they can see everything they've stored
+// The signed-in user's saved geographies, without their content
 
 import { SAVED_GEOGRAPHY_APP, SAVED_GEOGRAPHY_KIND, type SavedGeography } from '~~/src/core'
 import { iwaFetch } from '~~/server/utils/iwa'
@@ -9,7 +8,7 @@ import { toSavedGeography, type IwaAsset } from '~~/server/utils/saved-geographi
 // newest ones.
 const PAGE_SIZE = 500
 
-export default defineEventHandler(async (event): Promise<{ geographies: SavedGeography[], manageUrl: string }> => {
+export default defineEventHandler(async (event): Promise<{ geographies: SavedGeography[] }> => {
   const resp = await iwaFetch<{ assets: IwaAsset[] }>(event, '/assets', {
     query: {
       'app': SAVED_GEOGRAPHY_APP,
@@ -19,6 +18,5 @@ export default defineEventHandler(async (event): Promise<{ geographies: SavedGeo
   })
   return {
     geographies: resp.assets.map(toSavedGeography),
-    manageUrl: `${useRuntimeConfig(event).iwaBaseUrl}/users/me?tab=assets`,
   }
 })

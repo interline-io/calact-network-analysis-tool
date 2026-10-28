@@ -41,7 +41,7 @@
             :saved-geography-loading="savedGeographyLoading"
             :saved-selection-runnable="savedSelectionRunnable"
             :saved-selection-kind="savedSelectionKind"
-            :saved-geography-manage-url="savedGeographyManageUrl"
+            :account-has-saved-boundaries="accountHasSavedBoundaries"
             :saved-geography-messages="queryGeographyMessages"
             @explore="runQuery"
             @switch-to-analysis-tab="setTab({ tab: 'analysis', sub: '' })"
@@ -445,7 +445,7 @@ const {
   savedGeographyLoading,
   savedSelectionRunnable,
   savedSelectionKind,
-  savedGeographyManageUrl,
+  accountHasSavedBoundaries,
   queryPolygon,
   queryGeographyIds,
   queryAreaName,
