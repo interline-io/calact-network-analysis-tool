@@ -4,8 +4,8 @@
       <cal-title :title="reportHeading">
         {{ reportHeading }}
       </cal-title>
-      <!-- The scenario's features, which say nothing of transfers, so not on
-           the Transfer Analyst, which has its own downloads. -->
+      <!-- Hidden on the Transfer Analyst, which has its own downloads; the
+           scenario's features say nothing of transfers. -->
       <cal-geojson-download
         v-if="!isTransfers"
         :data="downloadFeatures"
@@ -209,8 +209,7 @@ const emit = defineEmits<{
   // Every trip behind a row's count, in the full trip table; for a route's
   // frequency, on the tab that shows how it was worked out.
   openTrips: [subject: TripSubject, tab?: TripDetailsTab]
-  // Transfers at a stop or cluster, in the Transfer Analyst tab, which the
-  // page opens.
+  // Transfers at a stop or cluster, in the Transfer Analyst tab.
   openTransfers: [subject: TripSubject]
 }>()
 
@@ -352,11 +351,12 @@ const reportHeading = computed(() => {
   return `Reports: ${fmtDate(startDate.value, 'dd MMM, yyyy')} - ${fmtDate(endDate.value, 'dd MMM, yyyy')}`
 })
 
+// The report's tabs.
 export type ReportTab = 'routes' | 'stops' | 'stops-aggregated' | 'stop-clusters' | 'agencies' | 'flex' | 'transfers'
 
 const activeReportTab = defineModel<ReportTab>('tab', { default: 'routes' })
-// The Transfer Analyst shows its own controls, table, and downloads, in a
-// slot the page fills, and keeps out of the map's display mode.
+// Whether the Transfer Analyst tab is open: it shows the page's slot in place
+// of a table, and has no map display mode.
 const isTransfers = computed(() => activeReportTab.value === 'transfers')
 
 const reportTabLabels: Record<ReportTab, string> = {
@@ -381,8 +381,9 @@ const hasClusterData = computed(() => (props.scenarioFilterResult?.stopClusters?
 // areas shows an empty table instead of hiding the tab.
 const hasFlexData = computed(() => (props.scenarioFilterResult?.flexAreas?.length ?? 0) > 0)
 
-// Sync dataDisplayMode when user switches tabs. Transfer Analyst has no map
-// display mode of its own, so leaves it be, and the mode does not move off it.
+// Sync dataDisplayMode when the user switches tabs. The Transfer Analyst has
+// no display mode of its own, so opening it keeps the current mode, and a mode
+// change doesn't switch away from the Transfer Analyst.
 const modeMap: Partial<Record<ReportTab, DataDisplayMode>> = {
   'routes': 'Transit mode',
   'stops': 'Stop visits',
@@ -399,8 +400,8 @@ watch(activeReportTab, (tab) => {
   }
 })
 
-// Each immediate too, as the tab outlives this component: shown again with
-// its tab gone, it moves off it.
+// Immediate, as the tab (a v-model) outlives this component: remounted with
+// its tab gone, the report switches tabs.
 watch(hasAggregateLayer, (has) => {
   if (!has && activeReportTab.value === 'stops-aggregated') {
     activeReportTab.value = 'stops'

@@ -113,6 +113,10 @@ Avoid client-side geometry operations (union, buffer, intersection, difference, 
 
 **Exception:** computing a bounding box around features client-side (min/max of coordinates, e.g. `@turf/bbox` or hand-rolled) is fine — it's arithmetic, not a geometric calculation, and the result only needs to be approximate (e.g. for padding a query area or framing a map view). The ban is on operations whose correctness depends on agreeing with PostGIS.
 
+## GraphQL documents: static literals only
+
+Every GraphQL query is a static `gql` literal, with its values passed as variables. Never build a document at runtime: no generated aliases, repeated fields, field lists, fragments or variable declarations, and no `gql(…)` called on an assembled string, even when only indices vary. This is absolutely forbidden. When one request can't express what a feature needs, the API lacks a capability: add it in transitland-lib, with a tlserver pin bump, or send one static request per item.
+
 ## Transitland operators: not without review
 
 calact works with GTFS agencies (`agency` on routes, `agencies` on feed versions) and never with Transitland's operator concept. That covers the GraphQL `Operator` type and everything that reaches one: `operators` queries, `Agency.operator`, `Feed.associated_operators`, and operator Onestop IDs, including `operator_onestop_id` filters and `Agency.onestop_id`, which can hold its operator's ID. Bringing in any of them needs a serious discussion with the repo owner and vetting first; don't add one on your own initiative, even where it looks like a better fit than agencies.

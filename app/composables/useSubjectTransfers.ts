@@ -1,9 +1,8 @@
 // Transfers at a stop or stop cluster: its arrivals paired with the departures
-// soon after, graded, as the Reports tab's Transfer Analyst shows them.
+// soon after, and graded.
 //
-// Called from tne.vue, which passes the results to <cal-transfer-report> as
-// props. Trip details come from the store the trip panel and table share;
-// distances between the stops, from the Transitland directions API.
+// Trip details come from the store the trip panel and table share, and
+// distances between the stops from the Transitland directions API.
 
 import { computed, ref, shallowRef, toValue, triggerRef, watch, type MaybeRefOrGetter, type Ref } from 'vue'
 import { useApolloClient } from '@vue/apollo-composable'
@@ -12,6 +11,7 @@ import {
   calculateTransfers,
   clusterDisplayName,
   resolveEffectiveWeekdays,
+  routeLabel,
   summarizeTransfers,
   transferEvents,
   transferGrid,
@@ -28,21 +28,22 @@ import {
   type TripSubject,
 } from '~~/src/scenario'
 import { scopeDatesToWeekdays } from '~~/src/scenario/route-headway'
-import { chunkArray, fmtDate, groupBy, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
+import { fmtDate, groupBy, timeWindowSeconds, type Weekday, type WeekdayMode } from '~~/src/core'
 import {
-  STOP_DISTANCE_BATCH_SIZE,
-  parseStopDistances,
+  parseStopDistance,
   routesById,
-  stopDistancesRequest,
+  stopDistanceQuery,
+  stopDistanceVariables,
   stopPairKey,
   stopPairs,
   type Stop,
   type StopDistanceMode,
-  type StopDistancesResponse,
+  type StopDistanceResponse,
   type StopPoint,
 } from '~~/src/tl'
 import type { TripDetailsStore } from './useTripPanel'
 
+// The inputs useSubjectTransfers reads.
 export interface UseSubjectTransfersDeps {
   // A stop or cluster; a route has no transfers of its own.
   subject: MaybeRefOrGetter<TripSubject | undefined>
@@ -52,18 +53,19 @@ export interface UseSubjectTransfersDeps {
   selectedWeekdayMode: MaybeRefOrGetter<WeekdayMode | undefined>
   startTime: MaybeRefOrGetter<Date | undefined>
   endTime: MaybeRefOrGetter<Date | undefined>
-  // While the report is shown: the trip details and stop distances it needs
-  // are fetched then, as they come to be needed.
+  // Whether the report is shown; trip details and stop distances load only
+  // then.
   active: MaybeRefOrGetter<boolean>
-  // Stops added to the subject's, and of its own, those taken out: so a
-  // station's other platform can join a cluster. Held by the page (in the
-  // URL), which clears them for each subject.
+  // Stops added to the subject's own, and own stops removed, so a station's
+  // other platform can join a cluster. Kept in the URL and cleared for each
+  // new subject.
   stopEdits: Ref<TransferStopEdits>
   // The date whose arrivals both views show (yyyy-MM-dd); the first with
-  // service when unset. Held by the page, in the URL.
+  // service when unset. Kept in the URL.
   selectedDate: MaybeRefOrGetter<string | undefined>
 }
 
+// Stops added to a subject's own, and own stops removed.
 export interface TransferStopEdits {
   added: number[]
   removed: number[]
@@ -72,6 +74,7 @@ export interface TransferStopEdits {
 // Distance requests at once.
 const DISTANCES_CONCURRENCY = 4
 
+// The Transfer Analyst's data for a subject, built while the report is shown.
 export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripDetailsStore) {
   const settings = ref<TransferSettings>({ ...DEFAULT_TRANSFER_SETTINGS })
   // Breakpoints that cannot grade waits are not applied.
@@ -88,10 +91,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const parentKey = (stop: Stop | undefined) => (stop?.parent?.stop_id ? `${stop.feed_version.sha1}|${stop.parent.stop_id}` : undefined)
   // Those with service only, as the Stops & platforms list shows.
   const stopsByParent = computed(() => groupBy([...stops.value.values()].filter(s => s.marked && parentKey(s)), s => parentKey(s)!))
-  // The subject's own stops: a cluster's members follow the filters, as the
-  // trip panel's do. With them, the other stops of their parent stations, as
-  // a station's other platforms, which a cluster of one stop per agency
-  // leaves out, are where riders transfer too.
+  // The subject's own stops and the other stops of their parent stations, as
+  // riders transfer at a station's other platforms too, which a cluster of one
+  // stop per agency omits. A cluster's members follow the filters.
   const subjectStopIds = computed((): number[] => {
     const s = toValue(deps.subject)
     const own = s?.kind === 'stop'
@@ -106,9 +108,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     return [...ids]
   })
-  // The same array while its stops stay the same, so what follows them (the
-  // Individual table's columns and sort, among others) is left be by URL
-  // writes that change nothing here.
+  // Keeps the same array while the stops are unchanged, so a URL write that
+  // changes nothing here doesn't recompute what depends on the stops.
   const stopIds = computed((previous?: number[]): number[] => {
     const { added, removed } = deps.stopEdits.value
     const out = new Set(removed)
@@ -116,7 +117,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const next = [...own, ...added.filter(id => stops.value.has(id) && !own.includes(id))]
     return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
   })
-  // The stops picked, as added to and taken from the subject's own.
+  // Records the picked stops as additions to, and removals from, the
+  // subject's own.
   function setStopIds (ids: number[]) {
     const own = new Set(subjectStopIds.value)
     const picked = new Set(ids)
@@ -136,41 +138,40 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
       return {
         id: s.id,
         name: s.stop_name || s.stop_id,
-        operator: names(stopRoutes.map(r => r?.agency?.agency_name)),
+        operator: names(stopRoutes.map(r => r?.agency_name)),
         routes: names(stopRoutes.map(r => r?.route_short_name || r?.route_long_name)),
         platform: !!s.parent?.stop_id,
         routeIds: s.route_stops.map(rs => rs.route_id),
         lon: lon!,
         lat: lat!,
       }
-    })
-    .sort((a, b) => a.name.localeCompare(b.name)))
+    }))
   // The routes at those stops, with their representative lines.
   const mapRoutes = computed(() => [...new Set(mapStops.value.flatMap(s => s.routeIds))]
     .map(id => routes.value.get(id))
     .filter(r => !!r?.geometry)
     .map(r => ({
       id: r!.id,
-      name: r!.route_short_name || r!.route_long_name || r!.route_id,
-      operator: r!.agency?.agency_name ?? '',
+      name: routeLabel(r),
+      operator: r!.agency_name,
       color: r!.route_color || undefined,
       geometry: r!.geometry!,
     })))
-  // Scoped as the reports scope them.
+  // The scenario's dates, scoped to its weekdays as the other reports are.
   const dates = computed(() => scopeDatesToWeekdays(
     toValue(deps.selectedDateRange),
     resolveEffectiveWeekdays(toValue(deps.selectedWeekdays), toValue(deps.selectedWeekdayMode)),
   ).map(d => fmtDate(d)))
   const timeWindow = computed(() => timeWindowSeconds(toValue(deps.startTime), toValue(deps.endTime)))
 
-  // Meters between the subject's stops, by stopPairKey, for each source asked
-  // for; kept across subjects, as a pair's distance does not change.
+  // Meters between pairs of stops, by mode, then stopPairKey; kept across
+  // subjects, as a pair's distance does not change.
   const distances = shallowRef(new Map<StopDistanceMode, Map<string, number>>())
   const distancesRequested = new Set<string>()
   const distancesLoading = ref(0)
   const distancesError = ref<string | null>(null)
-  // The pairs and sources the last load asked for, so pairs not yet asked
-  // for are not taken as having no distance.
+  // The distancesKey of the last load to settle, so pairs not yet requested
+  // don't count as having no distance.
   const distancesFor = ref('')
   const { resolveClient } = useApolloClient()
 
@@ -178,74 +179,76 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     const [lon, lat] = stops.value.get(id)?.geometry.coordinates ?? []
     return lon !== undefined && lat !== undefined ? [{ id, lon, lat }] : []
   }))
-  // Every pair of the stops, each asked for once. That grows as the square
-  // of the stops: a large station's many platforms (40 make 780 pairs,
-  // routed one by one on the street network) would call for asking only
-  // pairs within a plausible walk.
+  // Every pair of the stops, each requested once, in a request of its own.
+  // Pairs grow as the square of the stops (40 platforms make 780), so a large
+  // station would call for requesting only pairs within a plausible walk.
   const pairs = computed(() => stopPairs(stopPoints.value))
-  // The sources the walk reads: a straight line always, as the street
-  // network's fallback where it cannot route a pair. Read through the one
-  // setting, so other settings changing leave it, and what follows it, be.
+  // The distance sources to read: a straight line always, as the street
+  // network's fallback where it cannot route a pair. A computed of its own, so
+  // a change to another setting leaves the distance requests alone.
   const walkDistance = computed(() => settings.value.walkDistance)
   const distanceModes = computed((): StopDistanceMode[] => (walkDistance.value === 'street' ? ['WALK', 'LINE'] : ['LINE']))
   const distancesKey = computed(() => `${distanceModes.value.join(',')}|${stopIds.value.join(',')}`)
 
-  // Each mode's pairs not yet asked for, fetched in parallel batches, and
-  // applied together.
+  // Fetches each mode's distances for the pairs not yet requested, a few
+  // pairs at a time, and applies the results together.
   async function loadDistances (): Promise<void> {
     const asked = distancesKey.value
     const requestKey = (mode: StopDistanceMode, a: StopPoint, b: StopPoint) => `${mode}|${stopPairKey(a.id, b.id)}`
-    const batches = distanceModes.value.flatMap((mode) => {
-      const wanted = pairs.value.filter(([a, b]) => !distancesRequested.has(requestKey(mode, a, b)))
-      for (const [a, b] of wanted) {
-        distancesRequested.add(requestKey(mode, a, b))
-      }
-      return chunkArray(wanted, STOP_DISTANCE_BATCH_SIZE).map(batch => ({ mode, batch }))
-    })
-    // Recorded only while still what is asked for, so an older load ending
-    // after a newer one leaves the newer one's be.
+    const requests = distanceModes.value.flatMap(mode => pairs.value
+      .filter(([a, b]) => !distancesRequested.has(requestKey(mode, a, b)))
+      .map(([a, b]) => ({ mode, a, b })))
+    for (const { mode, a, b } of requests) {
+      distancesRequested.add(requestKey(mode, a, b))
+    }
+    // Settles only while this load is still current, so an older load that
+    // ends after a newer one can't overwrite the newer one's key.
     const settle = () => {
       if (asked === distancesKey.value) {
         distancesFor.value = asked
       }
     }
-    if (batches.length === 0) {
+    if (requests.length === 0) {
       settle()
       return
     }
     distancesLoading.value++
-    const fetchBatch = async ({ mode, batch }: typeof batches[number]) => {
-      try {
-        const { query, variables } = stopDistancesRequest(batch, mode)
-        const response = await resolveClient().query<StopDistancesResponse>({ query, variables, fetchPolicy: 'no-cache', errorPolicy: 'all' })
-        if (!response.data && response.errors?.length) {
-          throw new Error(response.errors[0]!.message)
-        }
-        return { mode, meters: parseStopDistances(batch, response.data) }
-      } catch (err: any) {
-        // Let a retry ask again.
-        for (const [a, b] of batch) {
-          distancesRequested.delete(requestKey(mode, a, b))
-        }
-        distancesError.value = err?.message || String(err)
-        return undefined
+    // One pair's distance, or why it failed.
+    const fetchPair = async ({ mode, a, b }: typeof requests[number]) => {
+      // The query rejects only on a network error; the server's own errors
+      // come back in the response.
+      const outcome = await resolveClient()
+        .query<StopDistanceResponse>({ query: stopDistanceQuery, variables: stopDistanceVariables(a, b, mode), fetchPolicy: 'no-cache', errorPolicy: 'all' })
+        .then(response => ({ response }), (err: unknown) => ({ error: err instanceof Error ? err.message : String(err) }))
+      if ('error' in outcome) {
+        return { mode, a, b, error: outcome.error }
       }
+      const { response } = outcome
+      if (!response.data && response.errors?.length) {
+        return { mode, a, b, error: response.errors[0]!.message }
+      }
+      return { mode, a, b, meters: parseStopDistance(response.data) }
     }
     // A few requests at a time, as for trip details, each worker taking the
-    // next batch: a station of many stops has hundreds of pairs.
-    const results: Awaited<ReturnType<typeof fetchBatch>>[] = []
-    const queue = [...batches]
+    // next pair: a station of many stops has hundreds of pairs.
+    const results: Awaited<ReturnType<typeof fetchPair>>[] = []
+    const queue = [...requests]
     await Promise.all(Array.from({ length: Math.min(DISTANCES_CONCURRENCY, queue.length) }, async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
-        results.push(await fetchBatch(next))
+        results.push(await fetchPair(next))
       }
     }))
     for (const r of results) {
-      if (r) {
+      if (r.error !== undefined) {
+        // Let a retry ask again.
+        distancesRequested.delete(requestKey(r.mode, r.a, r.b))
+        distancesError.value ??= r.error
+        continue
+      }
+      // An unrouted pair has no distance, and stays out of the table.
+      if (r.meters !== undefined) {
         const known = distances.value.get(r.mode) ?? new Map<string, number>()
-        for (const [key, meters] of r.meters) {
-          known.set(key, meters)
-        }
+        known.set(stopPairKey(r.a.id, r.b.id), r.meters)
         distances.value.set(r.mode, known)
       }
     }
@@ -254,10 +257,10 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     distancesLoading.value--
   }
 
-  // Walking seconds between each pair of the stops, from the chosen source,
-  // falling back to a straight line; built once per change of distances or
-  // pace, as every candidate connection reads it.
   const secondsPerMeter = computed(() => Math.max(0, Number(settings.value.secondsPerMeter) || 0))
+  // Walking seconds between each pair of the stops, from the chosen source,
+  // falling back to a straight line. Built once per change of distances or
+  // pace, as every candidate connection reads the table.
   const walkTable = computed(() => {
     const table = new Map<number, Map<number, number>>()
     let unknown = 0
@@ -280,9 +283,9 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return { table, unknown, most }
   })
 
-  // How far the departures read reach: only the outer breakpoints and the
-  // longest walk, so editing a grade's bounds or loading a distance under
-  // the longest leaves the events be.
+  // How far the departures reach: only the outer breakpoints and the longest
+  // walk, so editing an inner breakpoint or loading a shorter distance doesn't
+  // recompute the events.
   const missedReach = computed(() => breakpoints.value[0]!)
   const waitReach = computed(() => breakpoints.value[breakpoints.value.length - 1]!)
   const mostWalk = computed(() => walkTable.value.most)
@@ -304,8 +307,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return picked && individualDates.value.includes(picked) ? picked : individualDates.value[0]
   })
 
-  // The date's arrivals, and the departures they can reach, which is all the
-  // views show, so all the trip details fetched are for.
+  // The date's arrivals and the departures they can reach: everything the
+  // views show, and so the only trips whose details are fetched.
   const events = computed(() => {
     const r = result.value
     if (!r || stopIds.value.length === 0 || !individualDate.value) {
@@ -313,19 +316,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     }
     return transferEvents({
       stopIds: stopIds.value,
-      dates: [individualDate.value],
+      date: individualDate.value,
       ...timeWindow.value,
       stopDepartureCache: r.stopDepartureCache,
       tripDetails: store.details.value,
       maxWalkSeconds: mostWalk.value,
-      breakpoints: [missedReach.value, waitReach.value],
+      minWait: missedReach.value,
+      maxWait: waitReach.value,
     })
   })
 
-  // Where the date is the query's last and an arrival's connections reach
-  // past midnight, or its first and an arrival's missed ones reach back
-  // before, the departures on the day beyond were not loaded, so those
-  // connections are missing.
+  // Which side of the date has connections the report cannot see: departures
+  // after midnight past the query's last date, or before midnight ahead of
+  // its first, were never loaded.
   const midnightCut = computed((): 'before' | 'after' | undefined => {
     const date = individualDate.value
     const range = toValue(deps.selectedDateRange)
@@ -352,18 +355,19 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     to: transferTripInfo(routeChoices.value.to),
   }))
 
-  // The trips left out, each read through its own setting, so other
-  // settings changing leave what follows them be.
+  // The settings the calculation reads, each a computed of its own setting,
+  // so a change to another setting doesn't recompute what depends on these.
   const excludedFromKeys = computed(() => settings.value.excludedFrom)
   const excludedToKeys = computed(() => settings.value.excludedTo)
+  const allConnections = computed(() => settings.value.allConnections)
+  const countSameWay = computed(() => settings.value.countSameWay)
   const excludedFrom = computed(() => new Set(excludedFromKeys.value))
   const excludedTo = computed(() => new Set(excludedToKeys.value))
   const arrivals = computed(() => (events.value?.arrivals ?? []).filter(a => !excludedFrom.value.has(transferTripKey(a))))
 
-  // The date's arrivals and their connections, worked out for that date
-  // alone. Departures left out are dropped after: each destination's first
-  // connection stands apart from the others', so dropping some leaves the
-  // rest as they were.
+  // The date's arrivals and their connections. Excluded departures are
+  // dropped afterward: each destination's first connection is found apart
+  // from the others', so dropping some leaves the rest unchanged.
   const allDateGroups = computed(() => {
     const e = events.value
     if (!e) {
@@ -377,8 +381,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
         walkSeconds: (from, to) => (from === to ? 0 : (table.get(from)?.get(to) ?? Number.NaN)),
         maxWalkSeconds: mostWalk.value,
         breakpoints: breakpoints.value,
-        allConnections: settings.value.allConnections,
-        countSameWay: settings.value.countSameWay,
+        allConnections: allConnections.value,
+        countSameWay: countSameWay.value,
       },
     )
   })
@@ -393,7 +397,7 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
   const summary = computed(() => summarizeTransfers(dateGroups.value))
   const summaryGrid = computed(() => transferSummaryGrid(summary.value, tripInfo.value))
 
-  // The views' rows, flat, as CSV: built when asked for.
+  // The views' rows as flat CSV records, built on demand.
   function csvRows (kind: 'summary' | 'connections'): Record<string, unknown>[] {
     return kind === 'summary'
       ? transferSummaryRows(summary.value, routes.value) as unknown as Record<string, unknown>[]
@@ -406,11 +410,13 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     return g.connections.map(c => ({ hour, waitMinutes: c.wait / 60, grade: c.grade }))
   }))
 
-  // While shown, the details of the trips the report is missing, and the
-  // distances between its stops. Each widens what the other needs (a longer
-  // walk reaches later departures), so both follow their own inputs. After a
-  // failure, loading waits for a retry rather than asking again at once.
-  // Each waits on its own failure, so one failing leaves the other loading.
+  // Loads the missing trip details and stop distances while the report is
+  // shown.
+  //
+  // Each source follows its own inputs, as distances can widen which trips
+  // need details: a longer walk reaches later departures. After a failure, a
+  // source waits for a retry rather than asking again at once, and the other
+  // source keeps loading.
   const detailsError = ref<string | null>(null)
   async function load (): Promise<void> {
     if (!toValue(deps.active) || stopIds.value.length === 0) {
@@ -447,33 +453,22 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
     () => load(),
   )
 
-  // The subject by name, as the report's heading and download names; with
-  // its count of stops where they have been changed.
-  const title = computed(() => {
+  // The subject's name.
+  const subjectName = computed(() => {
     const s = toValue(deps.subject)
-    let name = ''
     if (s?.kind === 'stop') {
       const stop = stops.value.get(s.stopId)
-      name = stop?.stop_name || stop?.stop_id || ''
-    } else if (cluster.value) {
-      name = clusterDisplayName(cluster.value.name, cluster.value.nearName)
+      return stop?.stop_name || stop?.stop_id || ''
     }
-    return custom.value ? `${name} (${stopIds.value.length} stops)` : name
+    return cluster.value ? clusterDisplayName(cluster.value.name, cluster.value.nearName) : ''
   })
-  // Stops picked apart from the subject's own: how many, and from which
-  // subject; none where they are its own.
+  // Whether the picked stops differ from the subject's own.
   const custom = computed(() => deps.stopEdits.value.added.length > 0 || deps.stopEdits.value.removed.length > 0)
-  const customSubject = computed(() => {
-    if (!custom.value) {
-      return undefined
-    }
-    const s = toValue(deps.subject)
-    const own = s?.kind === 'stop' ? stops.value.get(s.stopId)?.stop_name : cluster.value ? clusterDisplayName(cluster.value.name, cluster.value.nearName) : ''
-    return { count: stopIds.value.length, from: own ?? '' }
-  })
+  // The subject's name, with its count of stops once they have been changed.
+  const title = computed(() => (custom.value ? `${subjectName.value} (${stopIds.value.length} stops)` : subjectName.value))
 
-  // What the report can be about: the scenario's clusters, then its stops
-  // with service, each by name.
+  // The subjects to offer: the scenario's clusters, then its stops with
+  // service, each by name.
   const subjectOptions = computed(() => {
     const r = result.value
     const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
@@ -495,7 +490,8 @@ export function useSubjectTransfers (deps: UseSubjectTransfersDeps, store: TripD
 
   return {
     title,
-    customSubject,
+    // For a custom set of stops, the subject they came from.
+    customFrom: computed(() => (custom.value ? subjectName.value : undefined)),
     subjectOptions,
     stopIds,
     setStopIds,
@@ -537,7 +533,7 @@ function distinctLabels (clusters: { key: string, label: string, memberNames: st
   })
 }
 
-// A stop or cluster as a picker's value, and back.
+// A stop or cluster as a picker's value.
 export function transferSubjectKey (subject: TripSubject | undefined): string {
   if (subject?.kind === 'stop') {
     return `stop:${subject.stopId}`
@@ -545,6 +541,7 @@ export function transferSubjectKey (subject: TripSubject | undefined): string {
   return subject?.kind === 'cluster' ? `cluster:${subject.clusterId}` : ''
 }
 
+// The stop or cluster a picker's value names, if any.
 export function transferSubjectFromKey (key: string): TripSubject | undefined {
   const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)]
   if (kind === 'stop' && Number.isFinite(Number(id))) {

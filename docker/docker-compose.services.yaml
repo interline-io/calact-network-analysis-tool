@@ -45,8 +45,9 @@ services:
       PGPASSWORD: postgres
       PGDATABASE: calact_tlserver
       TL_LOG: info
-      # Straight-line `directions` (mode LINE), as production answers them,
-      # for transfer walking distances. Needs no routing data.
+      # Answer `directions` in mode LINE with the straight-line router, as
+      # production does, for transfer walking distances. Needs no routing
+      # data.
       TL_ROUTER_LINE: line
     ports:
       - "28080:8080"

@@ -73,3 +73,22 @@ $duration: 1000ms;
     padding: 8px 10px;
   }
 }
+
+// A button that reads as a link, for an action among text.
+.cal-link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--bulma-link);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:disabled {
+    color: var(--bulma-text-weak);
+    text-decoration: none;
+    cursor: default;
+  }
+}

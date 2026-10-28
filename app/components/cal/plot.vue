@@ -6,9 +6,9 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as Plot from '@observablehq/plot'
 
-// An Observable Plot chart, drawn at its container's width and redrawn when
-// that width or the options change. The chart is an image to assistive
-// technology, named by `label`; the data belongs in a table alongside it.
+// An Observable Plot chart at its container's width, redrawn when the width
+// or the options change. Assistive technology reads the chart as one image
+// named by `label`, so give its data in a table beside the chart.
 const props = defineProps<{
   // The chart's options for a given width, in pixels.
   options: (width: number) => Plot.PlotOptions
@@ -27,8 +27,8 @@ function draw () {
   const chart = Plot.plot({
     ...options,
     width,
-    // Text in the page's font and the theme's text color, as are the rules,
-    // on the page's background.
+    // Text and rules in the page's font and the theme's text color, on a
+    // transparent background.
     style: { background: 'transparent', color: 'var(--bulma-text)', font: 'inherit' },
   })
   chart.setAttribute('aria-hidden', 'true')

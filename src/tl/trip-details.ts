@@ -78,11 +78,12 @@ export interface TripDetail {
   stopTimes: TripStopTime[]
 }
 
+// One of a trip's stop times.
 export interface TripStopTime {
   stopId: number
   // Its parent station, else the stop itself: so a station's platforms are
   // one place.
-  stationId?: number
+  stationId: number
   // Seconds since midnight, as the feed gives them; either may be missing.
   arrival?: number
   departure?: number

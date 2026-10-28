@@ -66,8 +66,7 @@
           </table>
           <!-- How a route's numbers, and any caveat on its frequency, are
                worked out, in the full table's Calculations tab. Every route
-               has it, with or without a frequency. A stop or cluster opens
-               its transfers in the Reports tab's Transfer Analyst instead. -->
+               has it, with or without a frequency. -->
           <button
             v-if="subject.kind === 'route'"
             type="button"
@@ -76,6 +75,8 @@
           >
             How these are calculated
           </button>
+          <!-- A stop or cluster opens its transfers in the Transfer
+               Analyst. -->
           <cat-button
             v-else
             class="mb-2"

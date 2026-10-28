@@ -1,147 +1,145 @@
 <template>
-  <div ref="root" class="cal-transfer-report">
-    <!-- What the report is about, then how it is viewed; the settings open
-         below, on request. -->
-    <div class="cal-transfer-report-bar">
-      <div class="cal-transfer-report-toolbar">
-        <!-- Where, on which date, and at what times of day. -->
-        <div class="cal-transfer-report-toolbar-row">
-          <cat-field label="Station or stop cluster" class="cal-transfer-report-subject" :class="{ 'cal-transfer-report-subject-alone': !hasSubject }">
-            <cat-select v-model="subjectChoice">
-              <option value="" disabled>
-                Pick a station or stop cluster
+  <div ref="root">
+    <!-- The subject, date, and times, then the view and its settings, which
+         open below on request. -->
+    <div class="mb-6">
+      <!-- Where, on which date, and at what times of day. -->
+      <div class="cal-transfer-report-row">
+        <cat-field label="Station or stop cluster" class="mb-0">
+          <cat-select v-model="subjectChoice">
+            <option value="" disabled>
+              Pick a station or stop cluster
+            </option>
+            <!-- Shown when the picked stops differ from the subject's own;
+                 picking the subject again restores its own stops. -->
+            <option v-if="customFrom !== undefined" value="custom" disabled>
+              Custom: {{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} (from {{ customFrom }})
+            </option>
+            <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
+              <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
+                {{ o.label }}
               </option>
-              <!-- Stops picked apart from the subject's own; picking the
-                   subject again starts from its own stops. -->
-              <option v-if="customSubject" value="custom" disabled>
-                Custom: {{ customSubject.count }} {{ customSubject.count === 1 ? 'stop' : 'stops' }} (from {{ customSubject.from }})
+            </optgroup>
+            <optgroup label="Stops">
+              <option v-for="o of subjectOptions.stops" :key="o.key" :value="o.key">
+                {{ o.label }}
               </option>
-              <optgroup v-if="subjectOptions.clusters.length" label="Stop clusters">
-                <option v-for="o of subjectOptions.clusters" :key="o.key" :value="o.key">
-                  {{ o.label }}
-                </option>
-              </optgroup>
-              <optgroup label="Stops">
-                <option v-for="o of subjectOptions.stops" :key="o.key" :value="o.key">
-                  {{ o.label }}
-                </option>
-              </optgroup>
+            </optgroup>
+          </cat-select>
+        </cat-field>
+        <template v-if="hasSubject">
+          <!-- Which arrivals to show: one date at a time, in either view. -->
+          <cat-field v-if="individualDates.length > 0" label="Date" class="mb-0">
+            <cat-select
+              :model-value="individualDate"
+              @update:model-value="date = $event || undefined"
+            >
+              <option v-for="d of individualDates" :key="d" :value="d">
+                {{ formatServiceDate(d) }}
+              </option>
             </cat-select>
           </cat-field>
-          <template v-if="hasSubject">
-            <!-- Which arrivals to show: one date at a time, in either view. -->
-            <cat-field v-if="individualDates.length > 0" label="Date" class="cal-transfer-report-date">
-              <cat-select
-                :model-value="individualDate"
-                @update:model-value="date = $event || undefined"
-              >
-                <option v-for="d of individualDates" :key="d" :value="d">
-                  {{ formatServiceDate(d) }}
-                </option>
-              </cat-select>
-            </cat-field>
-            <!-- The scenario's time of day, as the Filter tab sets it: arrivals
-                 between the two; either left empty, from or to the day's end. -->
-            <cat-fieldset label="Time of day" class="cal-transfer-report-times">
-              <div class="cal-transfer-report-times-row">
-                <label>
-                  <span class="is-sr-only">Arrivals from</span>
-                  <cal-timepicker v-model="startTime" />
-                </label>
-                <span aria-hidden="true">to</span>
-                <label>
-                  <span class="is-sr-only">Arrivals until</span>
-                  <cal-timepicker v-model="endTime" />
-                </label>
-              </div>
-            </cat-fieldset>
-          </template>
-        </div>
-        <!-- The view, its settings, and Share. -->
-        <div v-if="hasSubject" class="cal-transfer-report-toolbar-row">
-          <cat-tabs v-model="view" type="toggle" class="cal-transfer-report-view" v-bind="{ ariaLabel: 'View' }">
-            <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" :icon="v.icon" />
-          </cat-tabs>
-          <!-- The settings, each opening below the toolbar, one at a time,
-               then Share. -->
-          <div class="cal-transfer-report-actions">
-            <cat-button
-              v-for="t of settingsToggles"
-              :key="t.section"
-              :icon-left="t.icon"
-              :variant="openSection === t.section ? 'primary' : undefined"
-              :outlined="openSection === t.section"
-              v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId }"
-              @click="openSection = openSection === t.section ? undefined : t.section"
-            >
-              {{ t.label }}
-              <!-- The share of trips the filters keep, on the button's corner,
-                   so it shows at a glance without widening the button; said
-                   in full on hover and to screen readers. -->
-              <span v-if="t.badge" class="tag is-rounded cal-transfer-report-badge" :title="t.badge.title">
-                <span aria-hidden="true">{{ t.badge.short }}</span>
-                <span class="is-sr-only">{{ t.badge.title }}</span>
-              </span>
-            </cat-button>
-            <cat-dropdown position="bottom-right" @select="download">
-              <template #trigger>
-                <cat-button icon-left="share-variant">
-                  Share
-                </cat-button>
-              </template>
-              <cat-dropdown-item value="link">
-                Copy link to this view
-              </cat-dropdown-item>
-              <cat-dropdown-item value="summary" :disabled="detailsLoading">
-                Download summary report (CSV)
-              </cat-dropdown-item>
-              <cat-dropdown-item value="connections" :disabled="detailsLoading">
-                Download individual report (CSV)
-              </cat-dropdown-item>
-              <!-- The chart as shown, so from its own view. -->
-              <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
-                Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
-              </cat-dropdown-item>
-            </cat-dropdown>
-          </div>
+          <!-- The scenario's time of day, shared with the Filter tab: arrivals
+               between the two times, an empty one meaning the day's start or
+               end. -->
+          <cat-fieldset label="Time of day">
+            <div class="is-flex is-align-items-center is-gap-1">
+              <label>
+                <span class="is-sr-only">Arrivals from</span>
+                <cal-timepicker v-model="startTime" />
+              </label>
+              <span aria-hidden="true">to</span>
+              <label>
+                <span class="is-sr-only">Arrivals until</span>
+                <cal-timepicker v-model="endTime" />
+              </label>
+            </div>
+          </cat-fieldset>
+        </template>
+      </div>
+      <!-- The view, its settings, and Share. -->
+      <div v-if="hasSubject" class="cal-transfer-report-row mt-4">
+        <cat-tabs v-model="view" type="toggle" class="cal-transfer-report-view" v-bind="{ ariaLabel: 'View' }">
+          <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" :icon="v.icon" />
+        </cat-tabs>
+        <!-- The settings, each opening below the toolbar, one at a time,
+             then Share. -->
+        <div class="buttons ml-auto">
+          <cat-button
+            v-for="t of settingsToggles"
+            :key="t.section"
+            :icon-left="t.icon"
+            :variant="openSection === t.section ? 'primary' : undefined"
+            :outlined="openSection === t.section"
+            v-bind="{ 'aria-expanded': openSection === t.section, 'aria-controls': settingsId }"
+            @click="openSection = openSection === t.section ? undefined : t.section"
+          >
+            {{ t.label }}
+            <!-- The share of trips the filters keep, on the button's corner,
+                 so it shows at a glance without widening the button; said in
+                 full on hover and to screen readers. -->
+            <span v-if="t.badge" class="tag is-rounded cal-transfer-report-badge" :title="t.badge.title">
+              <span aria-hidden="true">{{ t.badge.short }}</span>
+              <span class="is-sr-only">{{ t.badge.title }}</span>
+            </span>
+          </cat-button>
+          <cat-dropdown position="bottom-right" @select="download">
+            <template #trigger>
+              <cat-button icon-left="share-variant">
+                Share
+              </cat-button>
+            </template>
+            <cat-dropdown-item value="link">
+              Copy link to this view
+            </cat-dropdown-item>
+            <cat-dropdown-item value="summary" :disabled="detailsLoading">
+              Download summary report (CSV)
+            </cat-dropdown-item>
+            <cat-dropdown-item value="connections" :disabled="detailsLoading">
+              Download individual report (CSV)
+            </cat-dropdown-item>
+            <!-- The chart as drawn, so only from the Individual view. -->
+            <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
+              Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
+            </cat-dropdown-item>
+          </cat-dropdown>
         </div>
       </div>
 
-      <!-- The subject's stops, to add to or take from: a station's other
-         platform, say, that its cluster left out. -->
-      <cal-transfer-stops
-        v-if="hasSubject && openSection === 'stops'"
-        v-bind="{ id: settingsId }"
-        :model-value="stops"
-        :map-stops="mapStops"
-        :map-routes="mapRoutes"
-        :extent="extent"
-        :fit-key="subject"
-        @update:model-value="$emit('update:stops', $event)"
-      />
-      <cal-transfer-settings
-        v-else-if="panelOpen"
-        v-bind="{ id: settingsId }"
-        v-model="settings"
-        :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
-        :route-choices="routeChoices"
-        :unknown-pairs="unknownPairs"
-        @open-trips="$emit('openTrips', $event)"
-      />
-      <!-- The open panel hides from a slim strip along its bottom edge. -->
-      <div v-if="panelOpen" class="cal-transfer-report-panel-strip">
-        <button type="button" :aria-controls="settingsId" @click="openSection = undefined">
+      <!-- The open settings panel, framed below the toolbar; the strip along
+           its bottom edge hides the panel. -->
+      <div v-if="panelOpen" :id="settingsId" class="cal-transfer-report-panel">
+        <!-- Add or remove the subject's stops, such as a station's other
+             platform that its cluster omits. -->
+        <cal-transfer-stops
+          v-if="openSection === 'stops'"
+          :model-value="stops"
+          :map-stops="mapStops"
+          :map-routes="mapRoutes"
+          :extent="extent"
+          :fit-key="subject"
+          @update:model-value="$emit('update:stops', $event)"
+        />
+        <cal-transfer-settings
+          v-else
+          v-model="settings"
+          :section="openSection === 'trips' ? 'trips' : 'wait-walk'"
+          :route-choices="routeChoices"
+          :unknown-pairs="unknownPairs"
+          @open-trips="$emit('openTrips', $event)"
+        />
+        <button type="button" class="cal-transfer-report-panel-strip" :aria-controls="settingsId" @click="openSection = undefined">
           <cat-icon icon="chevron-up" size="small" />
           Hide settings
         </button>
       </div>
     </div>
 
-    <!-- Before anything is picked, how to start, beside, without clusters,
-         why only single stops are listed: a station's stops seldom serve
-         both sides of a transfer. Once one is picked, its stops can be
-         changed under Stops & platforms, so neither shows. -->
-    <div v-if="!hasSubject" class="columns cal-transfer-report-start">
+    <!-- Before a subject is picked: how to start and, with clustering off, why
+         only single stops are listed (a station's stops seldom serve both
+         sides of a transfer). Once one is picked, Stops & platforms changes
+         its stops, so neither shows. -->
+    <div v-if="!hasSubject" class="columns">
       <div class="column">
         <cat-msg variant="info" title="Pick where to look" class="content">
           <p>Choose a station or stop cluster above, or:</p>
@@ -165,51 +163,53 @@
     </div>
 
     <template v-if="hasSubject">
-      <p v-if="detailsError" class="cal-transfer-report-error">
+      <p v-if="detailsError" class="has-text-danger mb-4">
         Could not load details for some trips: {{ detailsError }}
         <cat-button class="ml-2" @click="$emit('retry')">
           Retry
         </cat-button>
       </p>
-      <p v-else-if="detailsLoading" class="cal-transfer-report-note">
+      <p v-else-if="detailsLoading" class="has-text-grey mb-4">
         Loading trip details{{ missingDetails > 0 ? `: ${missingDetails.toLocaleString()} trips to go` : '' }}…
       </p>
-      <p v-else-if="missingDetails > 0" class="cal-transfer-report-note">
+      <p v-else-if="missingDetails > 0" class="has-text-grey mb-4">
         Details for {{ missingDetails.toLocaleString() }} {{ missingDetails === 1 ? 'trip' : 'trips' }} could not be found, so {{ missingDetails === 1 ? 'its' : 'their' }} transfers are left out.
       </p>
 
-      <p v-if="stops.length === 0" class="cal-transfer-report-note">
+      <p v-if="stops.length === 0" class="has-text-grey mb-4">
         No stops are picked; pick some under Stops & platforms.
       </p>
-      <p v-else-if="individualDates.length === 0" class="cal-transfer-report-note">
+      <p v-else-if="individualDates.length === 0" class="has-text-grey mb-4">
         No trips arrive here within the filters.
       </p>
       <template v-else>
         <!-- Dates are listed by departures, read before trips' details, so a
              date whose trips only start here has none arriving; where details
              failed or are missing, the note above says why instead. -->
-        <p v-if="overview.arrivals === 0 && !detailsLoading && !detailsError && missingDetails === 0" class="cal-transfer-report-note">
+        <p v-if="overview.arrivals === 0 && !detailsLoading && !detailsError && missingDetails === 0" class="has-text-grey mb-4">
           No trips arrive here on this date within the filters.
         </p>
         <!-- Departures are loaded for the query's dates alone. -->
-        <p v-if="midnightCut" class="cal-transfer-report-note">
+        <p v-if="midnightCut" class="has-text-grey mb-4">
           {{ midnightCut === 'after'
             ? 'Departures after midnight fall past the query\'s last date, so connections onto them are left out; end the query a day later to count them.'
             : 'Departures before midnight fall before the query\'s first date, so connections missed just after midnight are left out; start the query a day earlier to count them.' }}
         </p>
         <!-- The view's key figures beside a bar of its connections by grade. -->
-        <div class="cal-transfer-report-overview">
-          <dl class="cal-transfer-report-figures">
+        <div class="columns is-vcentered">
+          <dl class="column is-narrow is-flex is-gap-3">
             <div v-for="f of figures(overview)" :key="f.label">
-              <dt>
+              <dt class="has-text-grey">
                 <cat-tooltip :text="f.tooltip">
                   {{ f.label }}
                 </cat-tooltip>
               </dt>
-              <dd>{{ f.value }}</dd>
+              <dd class="has-text-weight-semibold">
+                {{ f.value }}
+              </dd>
             </div>
           </dl>
-          <cal-plot class="cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
+          <cal-plot class="column mb-0 cal-transfer-report-grades" :options="gradeBar" :label="gradeChartLabel(overview.grades)" />
         </div>
         <cal-plot v-if="view === 'individual'" class="cal-transfer-report-wait-chart" :options="waitChart" label="Each connection's wait by the time its trip arrives, colored by grade" />
         <!-- One grid for Summary or Individual, keyed so each starts on its
@@ -229,46 +229,44 @@
           empty-group-note="No outgoing trips within the current settings"
           v-bind="grid"
         >
-          <!-- The trip: its route, then its destination, where an arriving one
-               comes from, and its tags as icons, wrapping beside the route.
-               In Summary, the destination links to the row's arrivals and
+          <!-- The trip: its route, then its destination, an arriving trip's
+               origin, and its tags as icons, wrapping beside the route. In
+               Summary, the destination links to the row's arrivals and
                connections in Individual. The grid's hidden sizing row carries
                no tags, so is guarded. -->
           <template #column-route_name="{ row }">
             <span v-if="row.route_name" class="cal-transfer-report-trip">
               <cal-route-badge :label="row.route_name" :title="row.agency_name" />
-              <span class="cal-transfer-report-trip-name">
-                <cat-tooltip v-if="view === 'summary'" :text="showTooltip(row as TransferGridTrip)">
-                  <button type="button" class="cal-transfer-report-show" @click="showRow(row as TransferSummaryGridRow)">{{ row.headsign }}</button>
-                </cat-tooltip>
-                <cat-tooltip v-else-if="row.sign && row.sign !== row.headsign" :text="`Signed ${row.sign}`">{{ row.headsign }}</cat-tooltip>
-                <span v-else>{{ row.headsign }}</span>
-                <span v-if="row.origin" class="cal-transfer-report-origin">from {{ row.origin }}</span>
-                <cal-transfer-trip-tags :tags="row.tags ?? []" />
-              </span>
+              <cat-tooltip v-if="view === 'summary'" :text="showTooltip(row as TransferGridTrip)">
+                <button type="button" class="cal-link-button" @click="showRow(row as TransferSummaryGridRow)">{{ row.headsign }}</button>
+              </cat-tooltip>
+              <cat-tooltip v-else-if="row.sign && row.sign !== row.headsign" :text="`Signed ${row.sign}`">{{ row.headsign }}</cat-tooltip>
+              <span v-else>{{ row.headsign }}</span>
+              <span v-if="row.origin" class="has-text-grey has-text-weight-normal">from {{ row.origin }}</span>
+              <cal-transfer-trip-tags :tags="row.tags ?? []" />
             </span>
           </template>
           <template #column-stop_name="{ value }">
-            <span class="cal-transfer-report-clip cal-transfer-report-stop" :title="value">{{ value }}</span>
+            <span class="cal-transfer-report-stop" :title="value">{{ value }}</span>
           </template>
           <template #column-time="{ value }">
-            <span class="cal-transfer-report-time">{{ tripTimeLabel(value) }}</span>
+            {{ tripTimeLabel(value) }}
           </template>
           <template v-for="key of DURATION_COLUMNS" :key="key" #[`column-${key}`]="{ value }">
-            <span class="cal-transfer-report-time">{{ value === '' ? '' : formatWait(value) }}</span>
+            {{ value === '' ? '' : formatWait(value) }}
           </template>
           <!-- A grade's count highlighted in its color; blank where none, so
                the grid does not print the 0. -->
           <template v-for="g of TRANSFER_GRADES" :key="g" #[`column-${g}`]="{ value }">
-            <span :class="{ 'cal-transfer-report-count': value > 0 }" :style="value > 0 ? { background: gradeTint(g) } : undefined">{{ value > 0 ? value.toLocaleString() : '' }}</span>
+            <span :class="{ 'cal-transfer-report-chip': value > 0 }" :style="value > 0 ? { background: gradeTint(g) } : undefined">{{ value > 0 ? value.toLocaleString() : '' }}</span>
           </template>
           <template #column-arrivals="{ value }">
-            <span class="cal-transfer-report-time">{{ value === '' ? '' : value.toLocaleString() }}</span>
+            {{ value === '' ? '' : value.toLocaleString() }}
           </template>
           <!-- The share as a bar on a 0 to 100% track: the close part, then
                the acceptable part, in their grade colors. -->
           <template #column-close_or_acceptable_share="{ value, row }">
-            <span class="cal-transfer-report-share">
+            <span class="is-inline-flex is-align-items-center is-gap-1">
               <span
                 class="cal-transfer-report-share-track"
                 :title="`Close ${row.close_share}%, acceptable ${row.acceptable_share}%`"
@@ -277,7 +275,7 @@
                 <span class="cal-transfer-report-share-bar" :style="{ width: `${row.close_share}%`, background: TRANSFER_GRADE_COLORS.close.fill }" />
                 <span class="cal-transfer-report-share-bar" :style="{ width: `${row.acceptable_share}%`, background: TRANSFER_GRADE_COLORS.acceptable.fill }" />
               </span>
-              <span class="cal-transfer-report-time">{{ value }}%</span>
+              {{ value }}%
             </span>
           </template>
           <!-- The grade is the wait's color, and text for screen readers. The
@@ -285,7 +283,7 @@
           <template #column-wait_seconds="{ row }">
             <span
               v-if="waitStyle(row.grade)"
-              class="cal-transfer-report-wait"
+              class="cal-transfer-report-chip"
               :style="waitStyle(row.grade)"
               :title="row.grade_label"
             >{{ formatWait(row.wait_seconds) }}<span class="is-sr-only">, {{ row.grade_label }}</span></span>
@@ -306,6 +304,7 @@ import {
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  choiceDestinations,
   focusFilters,
   formatWait,
   tripTimeLabel,
@@ -324,32 +323,36 @@ import { csvString } from '~/utils/download'
 import { useDownload } from '@interline-io/catenary'
 import { useToastNotification } from '~/composables/useToastNotification'
 
+// The report's two views.
 export type TransferReportView = 'summary' | 'individual'
+// A settings panel the toolbar opens.
 export type TransferReportSection = TransferSettingsSection | 'stops'
 
 const props = defineProps<{
-  // What the transfers are at, as the downloads' file names.
+  // The subject's name, for the downloads' file names.
   title: string
-  // The stops and clusters the report can be about, as picker options.
+  // The subjects to offer in the picker: clusters and stops.
   subjectOptions: { clusters: { key: string, label: string }[], stops: { key: string, label: string }[] }
-  // Stops picked apart from the subject's own: how many, and from which.
-  customSubject?: { count: number, from: string }
+  // Set when the picked stops differ from the subject's own: the subject's
+  // name.
+  customFrom?: string
   // A link to the analysis as shown, to copy.
   shareUrl: () => string
-  // The stops the transfers are at: the subject's, as changed; and every stop
-  // that can be added.
+  // The picked stops (the subject's own, as edited), then every stop that can
+  // be added, and the routes at them.
   stops: number[]
   mapStops: TransferMapStop[]
   mapRoutes: TransferMapRoute[]
-  // The query's area, which the stops were loaded from.
+  // The query's area, which bounds the loaded stops.
   extent: GeoJSON.Feature[]
   // Whether stop clustering is off, so only single stops can be picked.
   clusteringOff: boolean
-  // Each view's rows, nested: an arriving trip (or destination), then the
-  // departing ones it connects to.
+  // Each view's rows, nested: an arriving trip (or destination), then its
+  // departing trips.
   summaryGrid: TransferSummaryGridRow[]
-  // Each view's rows, flat, as CSV, built when asked for. Only the view
-  // shown has its grid and chart points.
+  individualGrid: TransferGridRow[]
+  // Each view's rows as flat CSV records, built on demand. Only the shown
+  // view's grid and chart points are filled.
   csvRows: (kind: 'summary' | 'connections') => Record<string, unknown>[]
   // The date's figures, as both views show them.
   overview: TransferOverview
@@ -358,7 +361,6 @@ const props = defineProps<{
   // Whether connections across midnight are cut off, as the departures on
   // the day after the query's last date, or before its first, are not loaded.
   midnightCut?: 'before' | 'after'
-  individualGrid: TransferGridRow[]
   individualPoints: { hour: number, waitMinutes: number, grade: TransferGrade }[]
   // The breakpoints in use, in seconds.
   breakpoints: number[]
@@ -378,7 +380,7 @@ const emit = defineEmits<{
   'openTrips': [routeId: number]
   // The stops picked, or the subject's own again.
   'update:stops': [stopIds: number[]]
-  // Turn on stop clustering, and run the scenario again.
+  // Turn on stop clustering.
   'enableClusters': []
   // The subject's own stops again, its edits dropped.
   'resetStops': []
@@ -389,7 +391,7 @@ const subject = defineModel<string>('subject', { required: true })
 // The picker shows Custom while the stops are not the subject's own; picking
 // the subject again, or another, starts from its own stops.
 const subjectChoice = computed({
-  get: () => (props.customSubject ? 'custom' : subject.value),
+  get: () => (props.customFrom !== undefined ? 'custom' : subject.value),
   set: (v: string) => {
     if (v === subject.value) {
       emit('resetStops')
@@ -404,10 +406,9 @@ const date = defineModel<string | undefined>('date')
 // The scenario's time of day, shared with the Filter tab, through the URL.
 const { startTime, endTime } = useScenarioFilters()
 const settings = defineModel<TransferSettings>('settings', { required: true })
-// The settings panel open, one at a time, or none: none to begin with, and
-// Stops & platforms on entering from a cluster.
+// The open settings panel, if any; one opens at a time.
 const openSection = defineModel<TransferReportSection | undefined>('section', { required: true })
-// The open panel, while there is a subject to show it for.
+// Whether a settings panel shows: one is open and a subject is picked.
 const panelOpen = computed(() => hasSubject.value && !!openSection.value)
 const settingsId = useId()
 
@@ -418,7 +419,7 @@ const tripsKept = computed(() => {
   let kept = 0
   const tally = (routes: TransferRouteChoice[], excluded: string[]) => {
     const out = new Set(excluded)
-    for (const d of routes.flatMap(r => r.directions.flatMap(dir => dir.destinations))) {
+    for (const d of choiceDestinations(routes)) {
       total += d.count
       kept += out.has(d.key) ? 0 : d.count
     }
@@ -463,7 +464,7 @@ function waitStyle (grade: TransferGridRow['grade'] | undefined) {
   return colors && { background: colors.fill, color: colors.text }
 }
 
-// A grade's color, faint enough to read text on in either theme.
+// A faint tint of a grade's color, which keeps text readable in either theme.
 function gradeTint (grade: TransferGrade): string {
   return `${TRANSFER_GRADE_COLORS[grade].fill}40`
 }
@@ -502,7 +503,7 @@ function gradeChart (counts: TransferGradeCount[]) {
     color: gradeColor,
     marks: [
       Plot.barX(segments, { x1: 'x1', x2: 'x2', fill: 'grade', title: label, insetRight: 1 }),
-      // A grade's label where its segment is wide enough to hold it.
+      // A grade's label, where its segment is wide enough for the label.
       ...TRANSFER_GRADES.map(grade => Plot.text(
         segments.filter(s => s.grade === grade && (s.count / Math.max(1, x)) * width > label(s).length * 9 + 8),
         { x: (s: typeof segments[number]) => (s.x1 + s.x2) / 2, text: label, fill: TRANSFER_GRADE_COLORS[grade].text, fontWeight: 600 },
@@ -523,11 +524,10 @@ function hourLabel (hour: number): string {
   return formatGtfsTime(Math.round(hour * 60) * 60)
 }
 
-// The downloads, named for the subject and date.
 const root = ref<HTMLElement>()
 const { download: save } = useDownload()
-// The trip filters narrowed to some trips, within those already set, and
-// Individual shown.
+// Narrows the trip filters to a focus, within those already set, and shows
+// Individual.
 function showInIndividual (f: TransferFocus) {
   settings.value = { ...settings.value, ...focusFilters(f, props.routeChoices, settings.value) }
   view.value = 'individual'
@@ -546,22 +546,23 @@ function showTooltip (row: TransferGridTrip): string {
   return row.sign && row.sign !== row.headsign ? `Show in Individual (signed ${row.sign})` : 'Show in Individual'
 }
 
-// A Summary row in Individual: an arriving destination's arrivals, or under
-// one, only their connections onto the departing destination. The trip
-// filters open to show what they keep, and a toast says what changed.
+// Shows a Summary row in Individual: a heading row's arrivals or, for a row
+// beneath one, only their connections onto its departing destination. The
+// trip filters open to show what they keep, and a toast says what changed.
 function showRow (row: TransferSummaryGridRow) {
   const head = row.head ? row : props.summaryGrid.find(r => r.id === row.group)!
   const arrivals = `arrivals on ${tripName(head)}`
   showInIndividual(row.head ? { from: [row.group] } : { from: [row.group], to: [row.id.slice(row.group.length + 1)] })
   openSection.value = 'trips'
   showToast(row.head ? `Filtered to ${arrivals}` : `Filtered to ${arrivals} and connections onto ${tripName(row)}`)
-  // Scrolled down to the row, the report starts again from its top, where
-  // the filters open.
+  // If the page is scrolled past the report's top, scroll back to the top,
+  // where the filters open.
   if ((root.value?.getBoundingClientRect().top ?? 0) < 0) {
     root.value?.scrollIntoView({ block: 'start' })
   }
 }
 
+// The downloads, named for the subject and date.
 async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart') {
   if (what === 'link') {
     try {
@@ -587,7 +588,8 @@ async function download (what: 'link' | 'summary' | 'connections' | 'wait-chart'
 }
 
 // Charts one above another as one SVG, at their drawn sizes, on white.
-function stackedSvg (svgs: SVGSVGElement[], gap = 12): string {
+function stackedSvg (svgs: SVGSVGElement[]): string {
+  const gap = 12
   const sizes = svgs.map(svg => svg.getBoundingClientRect())
   const width = Math.ceil(Math.max(...sizes.map(r => r.width)))
   const height = Math.ceil(sizes.reduce((h, r) => h + r.height, 0) + gap * (svgs.length - 1))
@@ -636,7 +638,7 @@ const waitChart = computed(() => {
 })
 
 // Columns as wide as their contents, and the grade counts centered too, so
-// the From and To columns take the rest.
+// the Trip column takes the rest.
 const NARROW = { shrink: true }
 const COUNT = { shrink: true, align: 'center' as const }
 
@@ -652,8 +654,8 @@ const TRIP_COLUMN: TableColumn = {
 const CONNECTIONS = { key: 'connections', label: 'Connections by wait', tooltip: 'Departures within reach of each arrival, counted by the grade of the wait.' }
 const FIRST = { key: 'first', label: 'First connection', tooltip: 'The soonest departure each arrival makes: for an incoming trip, on any route; for an outgoing trip, on it.' }
 
-// An incoming trip's figures sum up the outgoing trips under it, so show only
-// while its group is closed.
+// A heading row's figures sum up its group, so they show only while the
+// group is closed.
 const summaryColumns: TableColumn[] = [
   TRIP_COLUMN,
   { key: 'arrivals', label: 'Arrivals', sortable: true, numeric: true, tooltip: 'Trips arriving on this route and destination.', ...NARROW },
@@ -662,10 +664,10 @@ const summaryColumns: TableColumn[] = [
   { key: 'median_wait_seconds', label: 'Median wait', sortable: true, numeric: true, tooltip: 'Median wait for the first connection, over arrivals that make one.', ...NARROW, group: FIRST, groupSummary: true },
 ]
 
-// The Individual table's columns, with the stop where there are several.
-// Apart from its rows, so the grid keeps its sort as rows change.
-// Each trip, when and where; then the transfer to it, walking and waiting.
+// The Transfer column group: the walk between stops, then the wait.
 const TRANSFER = { key: 'transfer', label: 'Transfer', tooltip: 'From the incoming trip to the outgoing one: the walk between their stops, then the wait.' }
+// The Individual table's columns, with the stop where there are several. A
+// computed apart from the rows, so the grid keeps its sort as rows change.
 const individualColumns = computed((): TableColumn[] => [
   { key: 'time', label: 'Time', sortable: true, tooltip: 'When the trip arrives, or for a departing trip beneath it, leaves.', ...NARROW },
   { ...TRIP_COLUMN, tooltip: 'Each incoming trip, and where it comes from, with its connections beneath it.' },
@@ -674,7 +676,7 @@ const individualColumns = computed((): TableColumn[] => [
   { key: 'wait_seconds', label: 'Wait', sortable: true, numeric: true, tooltip: 'Time between reaching the departing stop and the departure, colored by grade. Negative when missed.', ...NARROW, group: TRANSFER },
 ])
 
-// The shown view's table; its CSV downloads are the Export menu's.
+// The shown view's table; its CSV downloads are in the Share menu.
 const grid = computed(() => (view.value === 'summary'
   ? {
       tableReport: { columns: summaryColumns, data: props.summaryGrid } as TableReport,
@@ -687,229 +689,80 @@ const grid = computed(() => (view.value === 'summary'
 </script>
 
 <style scoped lang="scss">
-// A set width rather than its longest option's, which a long cluster name or
-// a custom set of stops can make wide.
-.cal-transfer-report-subject :deep(select) {
-  width: 16rem;
-}
-
-// Alone in the toolbar, before anything is picked, as wide as it needs.
-.cal-transfer-report-subject.cal-transfer-report-subject-alone :deep(select) {
-  width: auto;
-}
-
-// The controls on the page, and an open panel framed below them.
-.cal-transfer-report-bar {
-  // Clear space before the results, so each reads as its own section.
-  margin-bottom: 3rem;
-
-  // The panels framed here, as they only ever open from the bar; the strip
-  // below them closes the frame.
-  > .cal-transfer-settings,
-  > .cal-transfer-stops {
-    margin-top: 1rem;
-    border: 1px solid var(--bulma-border);
-    border-radius: var(--bulma-radius) var(--bulma-radius) 0 0;
-  }
-}
-
-.cal-transfer-report-panel-strip {
-  display: flex;
-  border: 1px solid var(--bulma-border);
-  border-top: 0;
-  border-radius: 0 0 var(--bulma-radius) var(--bulma-radius);
-  background: var(--bulma-scheme-main-bis);
-  overflow: hidden;
-
-  button {
-    flex: 1 1 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25em;
-    padding: 0.5em 0;
-    border: 0;
-    background: none;
-    color: var(--bulma-text-weak);
-    font: inherit;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--bulma-scheme-main-ter);
-      color: var(--bulma-text-strong);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--bulma-primary);
-      outline-offset: -2px;
-    }
-  }
-}
-
-// The subject, then the view and its settings, one row over the other.
-.cal-transfer-report-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-
-  :deep(.field) {
-    margin-bottom: 0;
-  }
-
-  // Labels quieter than the controls they name.
-  :deep(.label) {
-    color: var(--bulma-text-weak);
-  }
-}
-
-// Controls at their own width, wrapping where the bar is narrow; only the
-// stop picker gives way, once alone on its line.
-.cal-transfer-report-toolbar-row {
+// Controls at their own width, wrapping where the bar is narrow.
+.cal-transfer-report-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.75rem 1rem;
-
-  > * {
-    flex-shrink: 0;
-  }
-
-  > .cal-transfer-report-subject {
-    flex-shrink: 1;
-    min-width: 9rem;
-
-    :deep(.select),
-    :deep(select) {
-      max-width: 100%;
-    }
-  }
-
-  // Wide enough for its date in full.
-  > .cal-transfer-report-date {
-    flex: none;
-    min-width: 10.5rem;
-  }
+  gap: 1rem;
 }
 
-.cal-transfer-report-times {
-  margin-bottom: 0;
-
-  // The two times on one line, with "to" between.
-  .cal-transfer-report-times-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  :deep(input) {
-    width: 6.25rem;
-  }
+// No space under the view's tabs, which Bulma spaces as a block.
+.cal-transfer-report-view {
+  --bulma-block-spacing: 0;
 }
 
-.cal-transfer-report-view :deep(.cat-tabs) {
-  margin-bottom: 0;
-}
-
-// The settings, and Share after them, at the row's end.
-.cal-transfer-report-actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-left: auto;
-
-  // The badge sits on the button's corner.
-  :deep(.button) {
-    position: relative;
-    overflow: visible;
-  }
-}
-
+// The badge sits on its button's corner.
 .cal-transfer-report-badge {
   position: absolute;
   top: -0.6rem;
   right: -0.6rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 2px var(--bulma-scheme-main);
-  pointer-events: none;
 }
 
-// The figures and the grade bar, one row.
-.cal-transfer-report-overview {
+// An open settings panel, framed below the controls.
+.cal-transfer-report-panel {
+  margin-top: 1rem;
+  border: 1px solid var(--bulma-border);
+  border-radius: var(--bulma-radius);
+}
+
+.cal-transfer-report-panel-strip {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 2rem;
-  margin-bottom: 1.5rem;
-}
+  justify-content: center;
+  gap: 0.25em;
+  width: 100%;
+  padding: 0.5em 0;
+  border: 0;
+  border-top: 1px solid var(--bulma-border);
+  border-radius: 0 0 var(--bulma-radius) var(--bulma-radius);
+  background: var(--bulma-scheme-main-bis);
+  color: var(--bulma-text-weak);
+  font: inherit;
+  cursor: pointer;
 
-.cal-transfer-report-figures {
-  display: flex;
-  gap: 1.5rem;
-  margin: 0;
-
-  dt {
-    color: var(--bulma-text-weak);
-  }
-
-  dd {
-    margin: 0;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
+  &:hover {
+    background: var(--bulma-scheme-main-ter);
     color: var(--bulma-text-strong);
   }
 }
 
-.cal-transfer-report-grades {
-  flex: 1 1 24rem;
-  margin: 0;
+// The route, then the destination, origin, and tags, which wrap where the
+// table is narrow.
+.cal-transfer-report-trip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4em;
+  white-space: normal;
 }
 
-.cal-transfer-report-error {
-  color: var(--bulma-danger);
-  margin-bottom: 1rem;
-}
-
-.cal-transfer-report-note {
-  color: var(--bulma-text-weak);
-  margin-bottom: 1rem;
-}
-
-// The boxes on how to start fill their columns' height alike.
-.cal-transfer-report-start {
-  margin-top: 0;
-
-  .column {
-    display: flex;
-  }
-
-  :deep(.message) {
-    flex: 1;
-  }
-}
-
-.cal-transfer-report-time {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-// Long headsigns and stop names are cut short, whole on hover, so each row
-// stays one line and the table fits the page.
-.cal-transfer-report-clip {
+// Long stop names are cut short, whole on hover, so each row stays one line.
+.cal-transfer-report-stop {
   display: inline-block;
-  max-width: 14rem;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
 }
 
-.cal-transfer-report-stop {
-  max-width: 12rem;
-}
-
-.cal-transfer-report-share {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+// A grade's count, or a wait, on its grade's color.
+.cal-transfer-report-chip {
+  display: inline-block;
+  min-width: 3em;
+  padding: 0 0.4em;
+  border-radius: var(--bulma-radius-small);
+  text-align: center;
 }
 
 .cal-transfer-report-share-track {
@@ -924,70 +777,5 @@ const grid = computed(() => (view.value === 'summary'
 .cal-transfer-report-share-bar {
   display: block;
   height: 100%;
-}
-
-// The grid's cells, outside this component's scope.
-.cal-transfer-report-count {
-  display: inline-block;
-  min-width: 2.25em;
-  padding: 0 0.4em;
-  border-radius: 4px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.cal-transfer-report-wait {
-  display: inline-block;
-  min-width: 3.5em;
-  padding: 0 0.4em;
-  border-radius: 4px;
-  text-align: center;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-// The route, and beside it the destination, where it comes from and its
-// tags, which wrap within their own column where the table is narrow, and
-// narrower still, below the route.
-.cal-transfer-report-trip {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: first baseline;
-  gap: 0 0.4em;
-  white-space: normal;
-
-  // The route keeps its width; the rest wraps.
-  > :first-child {
-    flex: none;
-  }
-}
-
-.cal-transfer-report-trip-name {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 0.35em;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-// A Summary row's destination, as a link to the row in Individual.
-.cal-transfer-report-show {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: var(--bulma-link);
-  text-align: left;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.cal-transfer-report-origin {
-  color: var(--bulma-text-weak);
-  font-weight: normal;
 }
 </style>

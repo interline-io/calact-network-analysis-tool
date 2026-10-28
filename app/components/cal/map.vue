@@ -1074,23 +1074,30 @@ function onLegendToggle (value: boolean) {
   legendAutoCollapsed = false
 }
 
-function handleShowTrips (featureType: string, featureId: string | number) {
+// The trip subject a popup's feature names, if any.
+function featureSubject (featureType: string, featureId: string | number): TripSubject | undefined {
   const id = Number(featureId)
   if (featureType === 'stop' && Number.isFinite(id)) {
-    emit('showTrips', { kind: 'stop', stopId: id })
-  } else if (featureType === 'route' && Number.isFinite(id)) {
-    emit('showTrips', { kind: 'route', routeId: id })
-  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
-    emit('showTrips', { kind: 'cluster', clusterId: String(featureId) })
+    return { kind: 'stop', stopId: id }
+  }
+  if (featureType === 'route' && Number.isFinite(id)) {
+    return { kind: 'route', routeId: id }
+  }
+  return featureType === 'cluster' && clusterById.value.has(String(featureId)) ? { kind: 'cluster', clusterId: String(featureId) } : undefined
+}
+
+function handleShowTrips (featureType: string, featureId: string | number) {
+  const subject = featureSubject(featureType, featureId)
+  if (subject) {
+    emit('showTrips', subject)
   }
 }
 
+// A route has no transfers of its own.
 function handleOpenTransfers (featureType: string, featureId: string | number) {
-  const id = Number(featureId)
-  if (featureType === 'stop' && Number.isFinite(id)) {
-    emit('openTransfers', { kind: 'stop', stopId: id })
-  } else if (featureType === 'cluster' && clusterById.value.has(String(featureId))) {
-    emit('openTransfers', { kind: 'cluster', clusterId: String(featureId) })
+  const subject = featureSubject(featureType, featureId)
+  if (subject && subject.kind !== 'route') {
+    emit('openTransfers', subject)
   }
 }
 </script>

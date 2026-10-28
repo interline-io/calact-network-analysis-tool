@@ -1,50 +1,71 @@
 <template>
-  <section
-    class="cal-transfer-settings"
-    :class="section === 'trips' ? 'cal-transfer-settings-trips' : 'cal-transfer-settings-wait-walk'"
-    :aria-label="section === 'trips' ? 'Trip filtering' : 'Wait and walking settings'"
-  >
-    <div v-if="section === 'wait-walk'" class="cal-transfer-settings-wait-walk-grid">
-      <cat-fieldset label="Walking between stops" class="cal-transfer-settings-walk">
-        <div class="cal-transfer-settings-row">
-          <cat-radio
-            v-for="o of walkOptions"
-            :key="o.value"
-            :model-value="settings.walkDistance"
-            :native-value="o.value"
-            :disabled="o.disabled"
-            @update:model-value="set({ walkDistance: $event as TransferSettings['walkDistance'] })"
-          >
-            <cat-tooltip :text="o.tooltip">
-              {{ o.label }}
-            </cat-tooltip>
-          </cat-radio>
+  <section class="p-5" :aria-label="section === 'trips' ? 'Trip filtering' : 'Wait and walking settings'">
+    <template v-if="section === 'wait-walk'">
+      <div class="columns">
+        <div class="column">
+          <cat-fieldset label="Walking between stops">
+            <div class="field">
+              <cat-radio
+                v-for="o of walkOptions"
+                :key="o.value"
+                :model-value="settings.walkDistance"
+                :native-value="o.value"
+                @update:model-value="set({ walkDistance: $event as TransferSettings['walkDistance'] })"
+              >
+                <cat-tooltip :text="o.tooltip">
+                  {{ o.label }}
+                </cat-tooltip>
+              </cat-radio>
+            </div>
+            <label class="is-flex is-flex-wrap-wrap is-align-items-center is-gap-2">
+              Seconds per meter
+              <cat-input
+                :key="`pace-${emptied.pace ?? 0}`"
+                :model-value="settings.secondsPerMeter"
+                :model-modifiers="{ lazy: true }"
+                optional
+                type="number"
+                min="0.1"
+                step="0.1"
+                class="cal-transfer-settings-number"
+                v-bind="{ ariaLabel: 'Walking seconds per meter' }"
+                @update:model-value="ifNumber('pace', $event, n => set({ secondsPerMeter: n }))"
+              />
+              <span class="has-text-grey">{{ pace }}; no walk at the same stop</span>
+            </label>
+            <p v-if="unknownPairs > 0" class="has-text-warning-on-scheme mt-3">
+              No distance for {{ unknownPairs }} {{ unknownPairs === 1 ? 'pair' : 'pairs' }} of stops; transfers between them are left out.
+            </p>
+          </cat-fieldset>
         </div>
-        <label class="cal-transfer-settings-row">
-          Seconds per meter
-          <cat-input
-            :key="`pace-${emptied.pace ?? 0}`"
-            :model-value="settings.secondsPerMeter"
-            :model-modifiers="{ lazy: true }"
-            optional
-            type="number"
-            min="0.1"
-            step="0.1"
-            class="cal-transfer-settings-number"
-            v-bind="{ ariaLabel: 'Walking seconds per meter' }"
-            @update:model-value="ifNumber('pace', $event, n => set({ secondsPerMeter: n }))"
-          />
-          <span class="cal-transfer-settings-help">{{ pace }}; no walk at the same stop</span>
-        </label>
-        <p v-if="unknownPairs > 0" class="cal-transfer-settings-warning">
-          No distance for {{ unknownPairs }} {{ unknownPairs === 1 ? 'pair' : 'pairs' }} of stops; transfers between them are left out.
-        </p>
-      </cat-fieldset>
+        <div class="column">
+          <cat-fieldset label="Connections">
+            <div class="field">
+              <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
+                Show every connection
+              </cat-checkbox>
+              <p class="has-text-grey">
+                Otherwise each arrival shows its first connection to each route,
+                direction, and destination, and any it missed before then.
+              </p>
+            </div>
+            <div class="field">
+              <cat-checkbox :model-value="settings.countSameWay" @update:model-value="set({ countSameWay: !!$event })">
+                Count trips back or on the same way
+              </cat-checkbox>
+              <p class="has-text-grey">
+                A trip going back the way the arriving one came, or on the way
+                it goes, is not a change a rider needs, so is not counted as a
+                transfer unless checked.
+              </p>
+            </div>
+          </cat-fieldset>
+        </div>
+      </div>
 
-      <!-- The grades as a bar across the wait, as Transfer Analyst draws it:
-           each grade in its color, with its range, and the waits that bound
-           them between. -->
-      <cat-fieldset label="Grades (minutes of wait)" class="cal-transfer-settings-grades">
+      <!-- The grades as a bar across the wait: each grade in its color with
+           its range, and between the grades, the waits that bound them. -->
+      <cat-fieldset label="Grades (minutes of wait)">
         <div class="cal-transfer-settings-scale">
           <template v-for="(bound, i) of bounds" :key="`${bound}-${emptied[bound] ?? 0}`">
             <cat-input
@@ -62,59 +83,35 @@
               class="cal-transfer-settings-band"
               :style="{ background: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].fill, color: TRANSFER_GRADE_COLORS[TRANSFER_GRADES[i]!].text }"
             >
-              <strong>{{ TRANSFER_GRADE_LABELS[TRANSFER_GRADES[i]!] }}</strong>
-              <span>{{ range(i) }}</span>
+              <span class="is-block has-text-weight-bold">{{ TRANSFER_GRADE_LABELS[TRANSFER_GRADES[i]!] }}</span>
+              <span class="is-block">{{ range(i) }}</span>
             </span>
           </template>
         </div>
-        <p class="cal-transfer-settings-help">
+        <p class="has-text-grey">
           Waits outside these ranges are not transfers.
-          <span v-if="!breakpointsValid" class="cal-transfer-settings-warning">Each must be more than the one before; the defaults apply until then.</span>
-          <button type="button" class="cal-transfer-settings-link" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
+          <span v-if="!breakpointsValid" class="has-text-warning-on-scheme">Each must be more than the one before; the defaults apply until then.</span>
+          <button type="button" class="cal-link-button ml-2" @click="set({ breakpoints: [...DEFAULT_TRANSFER_SETTINGS.breakpoints] })">
             Reset
           </button>
         </p>
       </cat-fieldset>
+    </template>
 
-      <cat-fieldset label="Connections" class="cal-transfer-settings-connections">
-        <div class="cal-transfer-settings-options">
-          <div>
-            <cat-checkbox :model-value="settings.allConnections" @update:model-value="set({ allConnections: !!$event })">
-              Show every connection
-            </cat-checkbox>
-            <p class="cal-transfer-settings-help">
-              Otherwise each arrival shows its first connection to each route,
-              direction, and destination, and any it missed before then.
-            </p>
-          </div>
-          <div>
-            <cat-checkbox :model-value="settings.countSameWay" @update:model-value="set({ countSameWay: !!$event })">
-              Count trips back or on the same way
-            </cat-checkbox>
-            <p class="cal-transfer-settings-help">
-              A trip going back the way the arriving one came, or on the way
-              it goes, is not a change a rider needs, so is not counted as a
-              transfer unless checked.
-            </p>
-          </div>
-        </div>
-      </cat-fieldset>
-    </div>
-
-    <!-- Arriving and departing trips side by side, as www groups a stop's
-         departures: each route, its directions ("Toward X"), and their
-         destinations, opened on request, with trip counts. -->
-    <template v-else>
-      <div v-for="side of sides" :key="side.key" class="cal-transfer-settings-side" role="group" :aria-label="`${side.legend} trips`">
-        <div class="cal-transfer-settings-side-head">
-          <span>{{ side.legend }} trips</span>
-          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [] })">
+    <!-- Arriving and departing trips side by side: each route, its
+         directions ("Toward X"), and their destinations, opened on request,
+         with trip counts. -->
+    <div v-else class="columns">
+      <div v-for="side of sides" :key="side.key" class="column cal-transfer-settings-side" role="group" :aria-label="`${side.legend} trips`">
+        <p class="mb-2">
+          <strong>{{ side.legend }} trips</strong>
+          <button type="button" class="cal-link-button ml-2" @click="set({ [side.key]: [] })">
             All
           </button>
-          <button type="button" class="cal-transfer-settings-link" @click="set({ [side.key]: [...new Set(side.rows.flatMap(r => r.keys))] })">
+          <button type="button" class="cal-link-button ml-2" @click="set({ [side.key]: [...new Set(side.rows.flatMap(r => r.keys))] })">
             None
           </button>
-        </div>
+        </p>
         <ul class="cal-transfer-settings-list">
           <li
             v-for="row of side.rows"
@@ -125,24 +122,14 @@
             <!-- An operator's routes show unless closed; a direction's
                  destinations, once opened. -->
             <button
-              v-if="row.collapseKey"
+              v-if="row.toggle"
               type="button"
-              class="cal-transfer-settings-caret"
-              :aria-expanded="!collapsed.has(row.collapseKey)"
-              :aria-label="`${collapsed.has(row.collapseKey) ? 'Show' : 'Hide'} routes of ${row.label}`"
-              @click="toggleCollapsed(row.collapseKey)"
+              class="cal-link-button cal-transfer-settings-caret"
+              :aria-expanded="row.toggle.open"
+              :aria-label="`${row.toggle.open ? 'Hide' : 'Show'} ${row.toggle.shows} ${row.label}`"
+              @click="toggle(row.toggle.key)"
             >
-              <cat-icon size="small" :icon="collapsed.has(row.collapseKey) ? 'chevron-right' : 'chevron-down'" />
-            </button>
-            <button
-              v-else-if="row.openKey"
-              type="button"
-              class="cal-transfer-settings-caret"
-              :aria-expanded="opened.has(row.openKey)"
-              :aria-label="`${opened.has(row.openKey) ? 'Hide' : 'Show'} destinations for ${row.label}`"
-              @click="toggleOpen(row.openKey)"
-            >
-              <cat-icon size="small" :icon="opened.has(row.openKey) ? 'chevron-down' : 'chevron-right'" />
+              <cat-icon size="small" :icon="row.toggle.open ? 'chevron-down' : 'chevron-right'" />
             </button>
             <span v-else class="cal-transfer-settings-caret" />
             <cat-checkbox
@@ -152,35 +139,36 @@
               @update:model-value="setKeys(side.key, row.keys, !!$event)"
             >
               <cal-route-badge v-if="row.badge" :label="row.badge" :title="row.title" />
-              <span class="cal-transfer-settings-item-label" :title="row.title">{{ row.label }}</span>
-              <span v-if="row.origin" class="cal-transfer-settings-origin" :title="`From ${row.origin}`">from {{ row.origin }}</span>
+              <span class="cal-transfer-settings-clip" :title="row.title">{{ row.label }}</span>
+              <span v-if="row.origin" class="cal-transfer-settings-clip has-text-grey" :title="`From ${row.origin}`">from {{ row.origin }}</span>
               <cal-transfer-trip-tags :tags="row.tags" />
             </cat-checkbox>
             <button
               v-if="row.routeId !== undefined"
               type="button"
-              class="cal-transfer-settings-view-trips"
+              class="cal-link-button px-1"
               :title="`View trips for route ${row.badge}`"
               :aria-label="`View trips for route ${row.badge}`"
               @click="emit('openTrips', row.routeId)"
             >
               <cat-icon size="small" icon="table-clock" />
             </button>
-            <span class="cal-transfer-settings-count">{{ row.count.toLocaleString() }}</span>
+            <span class="has-text-grey">{{ row.count.toLocaleString() }}</span>
           </li>
         </ul>
       </div>
-    </template>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   DEFAULT_TRANSFER_SETTINGS,
   TRANSFER_GRADES,
   TRANSFER_GRADE_COLORS,
   TRANSFER_GRADE_LABELS,
+  choiceDestinations,
   validBreakpoints,
   transferTripTags,
   type TransferRouteChoice,
@@ -190,6 +178,7 @@ import {
 } from '~~/src/scenario'
 import { compareNamesBlankLast, groupBy } from '~~/src/core'
 
+// The panel to show: waits and walking, or trip filtering.
 export type TransferSettingsSection = 'wait-walk' | 'trips'
 
 const props = defineProps<{
@@ -208,8 +197,9 @@ const emit = defineEmits<{
   openTrips: [routeId: number]
 }>()
 
-// Each change merged onto the last, which the model reads back only once
-// the page has taken it: two changes in one tick would otherwise lose one.
+// Merges each change onto the last one sent: the model shows a change only
+// once the page applies the change, so two changes in one tick would
+// otherwise lose one.
 let latest: TransferSettings | undefined
 function set (change: Partial<TransferSettings>) {
   latest = { ...(latest ?? settings.value), ...change }
@@ -219,10 +209,9 @@ function set (change: Partial<TransferSettings>) {
   })
 }
 
-const walkOptions: { value: TransferSettings['walkDistance'], label: string, tooltip: string, disabled?: boolean }[] = [
+const walkOptions: { value: TransferSettings['walkDistance'], label: string, tooltip: string }[] = [
   { value: 'line', label: 'Straight line', tooltip: 'The straight-line distance between the stops.' },
   { value: 'street', label: 'Street network', tooltip: 'The distance along streets and paths, from OpenStreetMap; a straight line where no route is found.' },
-  { value: 'pathways', label: 'GTFS-Pathways', tooltip: 'Coming later: walks through stations along the paths, stairs, and elevators their feeds publish.', disabled: true },
 ]
 
 // 1 second per meter is 3.6 km/h.
@@ -235,7 +224,7 @@ const pace = computed(() => {
   return `${kmh.toFixed(1)} km/h (${(kmh / 1.609344).toFixed(1)} mph)`
 })
 
-// The five breakpoints, by what each starts or ends, and the grades between.
+// The breakpoints' labels, by the grade each starts, or for the last, ends.
 const bounds = [...TRANSFER_GRADES.map(g => `${TRANSFER_GRADE_LABELS[g]} from`), `${TRANSFER_GRADE_LABELS.unacceptable} up to`]
 
 // A grade's range in minutes, between the breakpoints either side of it:
@@ -249,9 +238,9 @@ function minutes (seconds: number | undefined): number | undefined {
   return seconds === undefined ? undefined : seconds / 60
 }
 
-// A field's number, applied; a field left empty, or not a number, changes
-// nothing, rather than reading as 0, and that field alone is drawn again to
-// show its value, as cat-input keeps the emptied text while its value stays.
+// Applies a field's number. An empty or non-numeric field changes nothing,
+// rather than reading as 0, and is redrawn by key to show its value again,
+// as cat-input keeps the emptied text while the value stays the same.
 const emptied = ref<Record<string, number>>({})
 function ifNumber (field: string, value: unknown, apply: (n: number) => void) {
   const n = value === '' || value === null || value === undefined ? Number.NaN : Number(value)
@@ -272,8 +261,8 @@ const breakpointsValid = computed(() => validBreakpoints(settings.value.breakpoi
 
 type Side = 'excludedFrom' | 'excludedTo'
 
-// One line of a side's list: a route, a direction, or a destination, with
-// the destination keys its checkbox covers.
+// One line of a side's list: an operator, a route, a direction, or a
+// destination, with the destination keys its checkbox covers.
 interface Row {
   id: string
   depth: number
@@ -282,36 +271,33 @@ interface Row {
   title?: string
   count: number
   keys: string[]
-  // For one destination: where an arriving one comes from, and its tags.
+  // For one destination: an arriving one's origin, and its tags.
   origin?: string
   tags: TransferTripTag[]
   // On a route's first row, the route, to show its trips.
   routeId?: number
-  // An operator's row, over its routes; and the key that closes it.
+  // An operator's heading row over its routes.
   operator?: boolean
-  collapseKey?: string
+  // Set where the row opens and closes: its key, whether it is open, and what
+  // it shows, for its button's label.
+  toggle?: { key: string, open: boolean, shows: string }
   // Whether all, some, or none of the keys are included.
   state: 'all' | 'some' | 'none'
-  // Set where the row opens to destinations.
-  openKey?: string
 }
 
-// Operators closed to hide their routes, all open to begin with; and rows
-// opened to show their destinations, all closed to begin with.
-const collapsed = ref(new Set<string>())
-const opened = ref(new Set<string>())
-function toggleIn (keys: Ref<Set<string>>, key: string) {
-  const next = new Set(keys.value)
+// Rows switched from how they start: operators start open, showing their
+// routes, and directions start closed, hiding their destinations.
+const toggled = ref(new Set<string>())
+function toggle (key: string) {
+  const next = new Set(toggled.value)
   if (!next.delete(key)) {
     next.add(key)
   }
-  keys.value = next
+  toggled.value = next
 }
-const toggleCollapsed = (key: string) => toggleIn(collapsed, key)
-const toggleOpen = (key: string) => toggleIn(opened, key)
 
-// Where the routes come from more than one operator, each operator's routes
-// under a row for it, operators by name; otherwise the routes alone.
+// With routes from more than one operator, each operator's routes under its
+// own row, operators by name; otherwise the routes alone.
 function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] {
   const byOperator = groupBy(routes, r => r.operator)
   if (byOperator.size < 2) {
@@ -320,20 +306,21 @@ function rows (side: Side, routes: TransferRouteChoice[]): Omit<Row, 'state'>[] 
   return [...byOperator]
     .sort(([a], [b]) => compareNamesBlankLast(a, b))
     .flatMap(([operator, list]) => {
-      const collapseKey = `${side}|${operator}`
+      const key = `operator|${side}|${operator}`
+      const open = !toggled.value.has(key)
       return [
         {
           id: `o${operator}`,
           depth: 0,
           label: operator || 'Unknown operator',
           count: list.reduce((n, r) => n + r.count, 0),
-          keys: list.flatMap(r => r.directions.flatMap(d => d.destinations.map(x => x.key))),
+          keys: choiceDestinations(list).map(x => x.key),
           tags: [],
           operator: true,
-          collapseKey,
+          toggle: { key, open, shows: 'routes of' },
         },
         // A level in from the operator.
-        ...(collapsed.value.has(collapseKey) ? [] : routeRows(side, list, 1)),
+        ...(open ? routeRows(side, list, 1) : []),
       ]
     })
 }
@@ -344,17 +331,18 @@ function routeRows (side: Side, routes: TransferRouteChoice[], base = 0): Omit<R
   const out: Omit<Row, 'state'>[] = []
   const tripSide = side === 'excludedFrom' ? 'from' : 'to'
   const about = (d: TransferTripDestination | undefined) => ({
-    // Named "From" its origin, a destination needs no origin beside.
+    // A destination labeled "From" its origin shows no separate origin.
     origin: tripSide === 'from' && !d?.namedByOrigin ? d?.run.origin : undefined,
     tags: transferTripTags(d, tripSide),
   })
   for (const route of routes) {
     const single = route.directions.length === 1
-    const routeKeys = route.directions.flatMap(d => d.destinations.map(x => x.key))
+    const routeKeys = choiceDestinations([route]).map(x => x.key)
     const title = route.longName || route.label
     for (const [i, dir] of route.directions.entries()) {
       const depth = base + (single ? 0 : 1)
-      const openKey = dir.destinations.length > 1 ? `${side}|${route.id}|${dir.directionId}` : undefined
+      const key = dir.destinations.length > 1 ? `direction|${side}|${route.id}|${dir.directionId}` : undefined
+      const open = !!key && toggled.value.has(key)
       if (i === 0 && !single) {
         // The long name beside the badge, where it says more than the badge.
         const label = route.longName !== route.label ? route.longName : ''
@@ -368,11 +356,11 @@ function routeRows (side: Side, routes: TransferRouteChoice[], base = 0): Omit<R
         title,
         count: dir.count,
         keys: dir.destinations.map(x => x.key),
-        openKey,
+        toggle: key ? { key, open, shows: 'destinations for' } : undefined,
         ...(dir.destinations.length === 1 ? about(dir.destinations[0]) : { tags: [] }),
         routeId: single ? route.id : undefined,
       })
-      if (openKey && opened.value.has(openKey)) {
+      if (open) {
         for (const dest of dir.destinations) {
           out.push({ id: `x${dest.key}`, depth: depth + 1, label: dest.label, count: dest.count, keys: [dest.key], ...about(dest) })
         }
@@ -410,111 +398,21 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 </script>
 
 <style scoped lang="scss">
-// The settings across the panel's width, in a grid that wraps on narrow
-// screens.
-.cal-transfer-settings {
-  display: grid;
-  gap: 0.75rem 2rem;
-  padding: 1.25rem;
-
-  // Sized by its own width, which the page's sidebar changes too.
-  &.cal-transfer-settings-wait-walk {
-    display: block;
-    container-type: inline-size;
-  }
-
-  // Arriving and departing side by side; one above the other on narrow
-  // screens.
-  &.cal-transfer-settings-trips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-
-    @media (max-width: 48rem) {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
-  > * {
-    margin-bottom: 0;
-    min-width: 0;
-  }
-}
-
-// Walking at its own width beside connections, and the grade bar across
-// the panel below; narrower, everything stacks.
-.cal-transfer-settings-wait-walk-grid {
-  display: grid;
-  gap: 1.5rem 2rem;
-  grid-template-columns: max-content minmax(0, 1fr);
-  grid-template-areas:
-    'walk connections'
-    'grades grades';
-
-  > * {
-    margin-bottom: 0;
-    min-width: 0;
-  }
-
-  .cal-transfer-settings-walk {
-    grid-area: walk;
-  }
-
-  .cal-transfer-settings-connections {
-    grid-area: connections;
-  }
-
-  .cal-transfer-settings-grades {
-    grid-area: grades;
-  }
-
-  .cal-transfer-settings-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @container (max-width: 64rem) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'walk'
-      'connections'
-      'grades';
-  }
-
-  @container (max-width: 40rem) {
-    .cal-transfer-settings-options {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-}
-
-.cal-transfer-settings-options {
-  display: grid;
-  gap: 0.75rem 1.5rem;
-}
-
-.cal-transfer-settings-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
-  margin-bottom: 0.75rem;
-}
-
+// Number fields as wide as their few digits: at full width, five of them
+// would push the grade bar off the panel.
 .cal-transfer-settings-number {
-  :deep(input) {
-    width: 5rem;
-  }
+  flex: none;
+  width: 5rem;
 }
 
-// Inputs and grade chips alternating on one line.
+// Inputs and grade bands alternating on one line, scrolling sideways where
+// the panel is narrow.
 .cal-transfer-settings-scale {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
   overflow-x: auto;
-
-  .cal-transfer-settings-number {
-    align-self: center;
-  }
 }
 
 // A grade's band, sharing the bar's width: its name over its range. Never
@@ -522,63 +420,23 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-band {
   flex: 1 1 0;
   min-width: max-content;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   padding: 0.5em 0.75em;
-  border-radius: 4px;
+  border-radius: var(--bulma-radius-small);
+  text-align: center;
   white-space: nowrap;
-
-  strong {
-    color: inherit;
-  }
 }
 
-.cal-transfer-settings-help {
-  color: var(--bulma-text-weak);
-}
-
-.cal-transfer-settings-warning {
-  color: var(--bulma-warning-on-scheme, var(--bulma-text-strong));
-}
-
-.cal-transfer-settings-link {
-  background: none;
-  border: 0;
-  padding: 0;
-  margin-left: 0.5rem;
-  font: inherit;
-  color: var(--bulma-link);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
+// Each side's column shrinks with the panel, cutting its rows short.
 .cal-transfer-settings-side {
   min-width: 0;
-}
-
-.cal-transfer-settings-side-head {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 0.5em;
-
-  span {
-    font-weight: 600;
-    color: var(--bulma-text-strong);
-    margin-right: 0.25rem;
-  }
 }
 
 // One line per row, the count at the end, scrolling past a handful.
 .cal-transfer-settings-list {
   max-height: 20rem;
   overflow-y: auto;
-  margin: 0;
-  list-style: none;
   border: 1px solid var(--bulma-border);
   border-radius: var(--bulma-radius);
-  background: var(--bulma-scheme-main);
 }
 
 .cal-transfer-settings-item {
@@ -595,7 +453,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   // An operator's row: a heading over its routes, which keep their indent.
   &.cal-transfer-settings-operator {
     font-weight: 600;
-    color: var(--bulma-text-weak);
     background: var(--bulma-scheme-main-bis);
   }
 
@@ -613,53 +470,19 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   }
 }
 
+// A caret's room, kept on a row without one, so the rows line up.
 .cal-transfer-settings-caret {
   flex: 0 0 1.25rem;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--bulma-text-weak);
-  cursor: pointer;
 }
 
 .cal-transfer-settings-item-check {
   flex: 1 1 auto;
   min-width: 0;
-
-  :deep(label),
-  :deep(.checkbox) {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-  }
 }
 
-.cal-transfer-settings-item-label {
+.cal-transfer-settings-clip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.cal-transfer-settings-origin {
-  flex: 0 1 auto;
-  min-width: 3rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--bulma-text-weak);
-}
-
-.cal-transfer-settings-view-trips {
-  background: none;
-  border: 0;
-  padding: 0 0.25rem;
-  color: var(--bulma-link);
-  cursor: pointer;
-}
-
-.cal-transfer-settings-count {
-  color: var(--bulma-text-weak);
-  font-variant-numeric: tabular-nums;
 }
 </style>

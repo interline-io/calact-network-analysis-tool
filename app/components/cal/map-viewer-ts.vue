@@ -984,6 +984,13 @@ function removePopup () {
   }
 }
 
+// Removes the popup and its highlight, as the popup's close button does.
+function closePopup () {
+  removePopup()
+  updateHighlight(undefined)
+  emit('popupClosed')
+}
+
 function showPopupAtIndex (index: number) {
   if (currentPopupFeatures.length === 0) { return }
 
@@ -1027,11 +1034,7 @@ function showPopupAtIndex (index: number) {
       },
       currentIndex: currentPopupIndex,
       total: total,
-      onClose: () => {
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
-      },
+      onClose: closePopup,
       onPrev: () => {
         if (currentPopupIndex > 0) {
           showPopupAtIndex(currentPopupIndex - 1)
@@ -1052,10 +1055,8 @@ function showPopupAtIndex (index: number) {
       onOpenTransfers: (featureType: string, featureId: string | number) => {
         emit('openTransfers', featureType, featureId)
         // The Reports tab replaces the map, and no panel takes over the
-        // selection, so it closes as the popup's close button closes it.
-        removePopup()
-        updateHighlight(undefined)
-        emit('popupClosed')
+        // selection, so close the popup as its close button would.
+        closePopup()
       },
     })
   })

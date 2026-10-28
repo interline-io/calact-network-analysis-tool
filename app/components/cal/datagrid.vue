@@ -171,10 +171,9 @@
           <template v-for="(row, idx) in currentRows" :key="row.id ?? row.geoid ?? row.location_id ?? idx">
             <tr :class="[rowClass?.(row), groupRowClass(row)]">
               <td v-for="column in tableReport.columns" :key="column.key" :class="[column.class, columnClass(column)]">
-                <!-- An open group's heading leaves its sums to the rows under
-                     it. -->
+                <!-- An open group's heading leaves its sums to its rows. -->
                 <template v-if="hidesValue(row, column)" />
-                <!-- A group's heading opens and closes it. -->
+                <!-- A group's heading opens and closes the group. -->
                 <span v-else-if="isGroupColumn(column)" class="cal-datagrid-group-cell">
                   <button
                     v-if="opensGroup(row)"
@@ -272,8 +271,8 @@ const props = withDefaults(defineProps<{
   caption: string
   // A class for a row, such as one marking it apart from the rest.
   rowClass?: (row: any) => string | undefined
-  // The header row stays at the top of the page while the rows scroll, as
-  // long as the table fits; a wider one scrolls sideways, as others do.
+  // Pin the header row to the top of the window while the page scrolls, as
+  // long as the table fits its box; a wider table scrolls sideways instead.
   stickyHeader?: boolean
   // Rows per page; 20 by default.
   perPage?: number
@@ -502,8 +501,8 @@ function isGroupHead (row: Record<string, any>): boolean {
 function opensGroup (row: Record<string, any>): boolean {
   return heads.value.get(row) === true
 }
-// A heading with no other rows gets the note, which closing every group
-// hides too.
+// Whether a heading with no other rows shows the note; closing its group
+// hides the note.
 function showsEmptyGroupNote (row: Record<string, any>): boolean {
   return !!props.emptyGroupNote && heads.value.get(row) === false && !closed.value.has(groupOf(row))
 }
@@ -583,7 +582,7 @@ watch([() => props.resetKey, () => props.groupKey, () => tableReport.value?.colu
 })
 
 // Scrolling: the rows (or groups) shown so far, and more as the last row
-// nears the bottom of the page.
+// nears the bottom of the window.
 const shown = ref(props.perPage)
 const shownCount = computed(() => Math.min(shown.value, total.value))
 const more = ref<HTMLElement>()
@@ -610,9 +609,9 @@ watch(shown, () => {
 }, { flush: 'post' })
 onBeforeUnmount(() => observer?.disconnect())
 
-// The header pins to the nearest box that scrolls, so it stays pinned only
-// while the table fits its box; a wider table scrolls sideways in its box,
-// as other tables do.
+// A sticky header pins to the nearest box that scrolls, so the header can pin
+// to the window only while the table fits its box; a wider table scrolls
+// sideways in its box instead.
 const box = ref<HTMLElement>()
 const table = ref<HTMLElement>()
 const tooWide = ref(false)
@@ -995,8 +994,8 @@ const filterStatus = computed(() => {
   }
 }
 
-// A block, not the group cell's inline-flex, which would give the zero-height
-// shim row a line's height.
+// Block-level flex, not the group cell's inline-flex, which would give the
+// zero-height shim row a line's height.
 .cal-datagrid-shim-group {
   display: flex;
   font-weight: 600;

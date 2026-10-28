@@ -83,11 +83,11 @@
                 v-model:settings="transfers.settings"
                 :title="transfers.title"
                 :subject-options="transfers.subjectOptions"
-                :custom-subject="transfers.customSubject"
+                :custom-from="transfers.customFrom"
                 :share-url="transferShareUrl"
                 :stops="transfers.stopIds"
-                :map-stops="transfers.mapStops"
-                :map-routes="transfers.mapRoutes"
+                :map-stops="transferSection === 'stops' ? transfers.mapStops : []"
+                :map-routes="transferSection === 'stops' ? transfers.mapRoutes : []"
                 :extent="transferExtent"
                 :clustering-off="clusterDistance === 0"
                 :breakpoints="transfers.breakpoints"
@@ -264,7 +264,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, shallowRef, watch } from 'vue'
 import { useQuery, useLazyQuery } from '@vue/apollo-composable'
 import { useFlexDisplayFeatures } from '~/composables/useFlexDisplayFeatures'
 import { useBufferDetails } from '~/composables/useBufferDetails'
@@ -379,9 +379,9 @@ function clearScenario () {
   clearAllResults()
 }
 
-// Reset to start a new query, the Transfer Analyst over too. Apart from
-// clearScenario, which the leave guard also calls, as a URL write there would
-// cancel the navigation it just allowed.
+// Resets the query and the Transfer Analyst for a new query. Kept apart from
+// clearScenario, which the leave guard also calls: a URL write there would
+// cancel the navigation the guard just allowed.
 function resetScenario () {
   clearScenario()
   setQuery({ transferAt: undefined, transferStops: undefined, transferDate: undefined })
@@ -938,13 +938,17 @@ watch([() => tripTable.trips, showTripTable, tripTableTab], () => {
   }
 })
 
-// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst: picked
-// there, or opened from the trip panel or a Stop Clusters row.
+// Transfers at a stop or cluster, in the Reports tab's Transfer Analyst:
+// picked there, or opened from a map popup, the trip panel, or a Stop
+// Clusters row.
 const reportTab = ref<ReportTab>('routes')
-// The stop or cluster ("transferAt"), and the stops added to or taken from
-// its own ("transferStops", as "+id" and "-id"), are in the URL, so a link
-// shares the analysis. A new subject starts from its own stops, and with
-// no trips filtered out, as the last one's routes may also serve it.
+// Loaded when first shown, as it brings Observable Plot, which no other view
+// uses.
+const CalTransferReport = defineAsyncComponent(() => import('~/components/cal/transfer/report.vue'))
+// The subject ("transferAt") and its stop edits ("transferStops": "+id",
+// "-id") live in the URL, so a link shares the analysis. A new subject starts
+// from its own stops and clears the trip filters, which could also hide its
+// trips.
 const transferSubject = computed({
   get: () => query.value.transferAt?.toString() ?? '',
   set: (v: string) => {
@@ -982,8 +986,7 @@ const transfers = reactive(useSubjectTransfers({
   stopEdits: transferStopEdits,
   selectedDate: transferDate,
 }, tripDetailsStore))
-// The query's area, as the stops map outlines it: the chosen boundaries, or
-// the bounding box.
+// The query's area: the chosen boundaries, or the bounding box.
 const transferExtent = computed((): GeoJSON.Feature[] => {
   if (geographyIds.value.length > 0) {
     return (censusGeographiesSelected.value || [])
@@ -999,9 +1002,9 @@ const transferExtent = computed((): GeoJSON.Feature[] => {
 })
 const transferView = ref<TransferReportView>('summary')
 const transferSection = ref<TransferReportSection>()
-// A link to the analysis as shown: the URL, which holds the subject, its
-// stops, the date, and the times; and besides, its view and its settings
-// where not the defaults, which are read back once when the link is opened.
+// A link to the analysis as shown: the current URL, which holds the subject,
+// its stops, the date, and the times, plus the view and any settings that
+// differ from the defaults, read once when the link opens.
 function transferShareUrl (): string {
   const url = new URL(window.location.href)
   const settings = encodeTransferSettings(transfers.settings)
@@ -1027,13 +1030,14 @@ if (query.value.transferView || query.value.transferSettings) {
 if (query.value.transferAt) {
   reportTab.value = 'transfers'
 }
-// Stop clustering on at its default distance; the clusters alone are then
-// fetched again, the rest of the scenario kept.
+// Turns stop clustering on at its default distance, which refetches only the
+// clusters and keeps the rest of the scenario.
 function enableClustersForTransfers () {
   clusterDistance.value = STOP_CLUSTER_DEFAULT_DISTANCE
 }
-// Entered from a cluster, Stops & platforms opens, as a cluster's stops are
-// the first thing to check; entered from a stop, the settings stay closed.
+// Opens the Transfer Analyst at a subject. A cluster opens Stops & platforms,
+// as its stops are the first thing to check; a stop leaves the settings
+// closed.
 function openTransfers (subject: TripSubject) {
   // The same subject again keeps its stop edits.
   const key = transferSubjectKey(subject)
@@ -1225,10 +1229,10 @@ useClusterRefetch({
   fetchMode,
 })
 
-// A Transfer Analyst subject the loaded scenario does not have, as from a
-// link made for another area or older data, is dropped with its stop edits
-// once the scenario has finished loading. Its stops and clusters as loaded,
-// not as filtered, so a filter leaving the subject without service keeps it.
+// Once the scenario finishes loading, drop a Transfer Analyst subject it
+// lacks (from a link for another area or older data, say), with its stop
+// edits. Check the stops and clusters as loaded, not as filtered, so a
+// subject that a filter leaves without service stays.
 watch(() => [scenarioData.value, scenarioData.value?.stops.length, scenarioData.value?.stopClusters?.length, runInFlight.value, refetchInFlight.value] as const, ([data, _stops, _clusters, running, refetching]) => {
   const subject = transferSubjectFromKey(transferSubject.value)
   if (!subject || !data || running > 0 || refetching > 0) {

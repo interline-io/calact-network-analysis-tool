@@ -1,73 +1,74 @@
 <template>
-  <!-- The stops the transfers are at: on a map to pick by where they are,
-       and as a list, by operator, of those in the map's view and those
-       picked. -->
-  <section class="cal-transfer-stops" aria-label="Stops and platforms">
-    <cal-transfer-stops-map
-      v-model="stops"
-      :stops="mapStops"
-      :routes="mapRoutes"
-      :extent="extent"
-      :fit-key="fitKey"
-      :highlight="rowHover"
-      @view="view = $event"
-      @hover="mapHover = $event"
-    />
-    <div class="cal-transfer-stops-side">
-      <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
-        <div class="cal-transfer-stops-head">
-          <span>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</span>
-          <!-- Both always shown, so neither takes the other's place under the
-               pointer. -->
-          <button type="button" class="cal-transfer-stops-link" :disabled="!listed.some(s => !picked.has(s.id))" @click="selectListed">
-            Select all
-          </button>
-          <button type="button" class="cal-transfer-stops-link" :disabled="stops.length === 0" @click="unselectAll">
-            Unselect all
-          </button>
-        </div>
-        <div v-for="group of groups" :key="group.operator" class="cal-transfer-stops-group">
-          <div class="cal-transfer-stops-operator">
-            {{ group.operator || 'Unknown operator' }}
+  <!-- The transfer stops: a map to pick them by location, and a list by
+       operator of the stops in view and those picked. -->
+  <section class="p-5" aria-label="Stops and platforms">
+    <div class="columns">
+      <cal-transfer-stops-map
+        v-model="stops"
+        class="column is-three-fifths"
+        :stops="mapStops"
+        :routes="mapRoutes"
+        :extent="extent"
+        :fit-key="fitKey"
+        :highlight="rowHover"
+        @view="view = $event"
+        @hover="mapHover = $event"
+      />
+      <div class="column cal-transfer-stops-side">
+        <div class="cal-transfer-stops-list" role="group" aria-label="Stops">
+          <div class="is-flex is-align-items-baseline is-gap-1.5 mb-2">
+            <strong>{{ stops.length }} {{ stops.length === 1 ? 'stop' : 'stops' }} picked</strong>
+            <!-- Both always shown, at the row's end, so neither takes the
+                 other's place under the pointer. -->
+            <button type="button" class="cal-link-button ml-auto" :disabled="!listed.some(s => !picked.has(s.id))" @click="selectListed">
+              Select all
+            </button>
+            <button type="button" class="cal-link-button" :disabled="stops.length === 0" @click="unselectAll">
+              Unselect all
+            </button>
           </div>
-          <ul>
-            <li
-              v-for="s of group.stops"
-              :key="s.id"
-              :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
-              @mouseenter="rowHover = s.id"
-              @mouseleave="rowHover = undefined"
-            >
-              <cat-checkbox :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
-                <span
-                  :class="s.platform ? 'cal-transfer-stops-shape-platform' : 'cal-transfer-stops-shape-stop'"
-                  :title="s.platform ? 'Platform in a station' : 'Stop'"
-                />
-                <span class="cal-transfer-stops-name" :title="s.name">{{ s.name }}</span>
-                <span v-if="s.platform" class="is-sr-only">, platform</span>
-                <span class="cal-transfer-stops-routes" :title="s.routes">{{ s.routes }}</span>
-              </cat-checkbox>
-            </li>
-          </ul>
+          <div v-for="group of groups" :key="group.operator" class="mb-3">
+            <div class="has-text-weight-semibold has-text-grey mb-1">
+              {{ group.operator || 'Unknown operator' }}
+            </div>
+            <ul>
+              <li
+                v-for="s of group.stops"
+                :key="s.id"
+                :class="{ 'cal-transfer-stops-hovered': mapHover === s.id }"
+                @mouseenter="rowHover = s.id"
+                @mouseleave="rowHover = undefined"
+              >
+                <cat-checkbox class="is-flex" :model-value="picked.has(s.id)" @update:model-value="setPicked(s.id, !!$event)">
+                  <!-- The map's shapes: a circle for a stop, a square for a
+                       platform. -->
+                  <cat-icon size="small" :icon="s.platform ? 'square-rounded-outline' : 'circle-outline'" v-bind="{ title: s.platform ? 'Platform in a station' : 'Stop' }" />
+                  <span class="cal-transfer-stops-clip" :title="s.name">{{ s.name }}</span>
+                  <span v-if="s.platform" class="is-sr-only">, platform</span>
+                  <span class="cal-transfer-stops-clip cal-transfer-stops-routes has-text-grey" :title="s.routes">{{ s.routes }}</span>
+                </cat-checkbox>
+              </li>
+            </ul>
+          </div>
+          <p v-if="groups.length === 0" class="has-text-grey">
+            No stops in view.
+          </p>
         </div>
-        <p v-if="groups.length === 0" class="cal-transfer-stops-empty">
-          No stops in view.
+        <!-- Stops close to those picked but not picked, as a station's stops
+             on another feed that its cluster left out. Below the list, so the
+             list stays put as this comes and goes. -->
+        <p v-if="nearby.length > 0" class="notification mt-3">
+          Nearby, not picked:
+          <template v-for="(s, i) of nearby" :key="s.id">
+            <button type="button" class="cal-link-button" :title="`Add ${s.name} (${s.operator})`" @click="setPicked(s.id, true)">
+              {{ s.name }}
+            </button><span class="has-text-grey"> ({{ s.operator || 'unknown operator' }})</span>{{ i < nearby.length - 1 ? ', ' : ' ' }}
+          </template>
+          <button v-if="nearby.length > 1" type="button" class="cal-link-button" @click="stops = [...stops, ...nearby.map(s => s.id)]">
+            Add all
+          </button>
         </p>
       </div>
-      <!-- Stops close to those picked but not picked, as a station's stops
-           on another feed that its cluster left out. Below the list, so the
-           list stays put as this comes and goes. -->
-      <p v-if="nearby.length > 0" class="cal-transfer-stops-nearby">
-        Nearby, not picked:
-        <template v-for="(s, i) of nearby" :key="s.id">
-          <button type="button" class="cal-transfer-stops-link" :title="`Add ${s.name} (${s.operator})`" @click="setPicked(s.id, true)">
-            {{ s.name }}
-          </button><span class="cal-transfer-stops-nearby-operator"> ({{ s.operator || 'unknown operator' }})</span>{{ i < nearby.length - 1 ? ', ' : ' ' }}
-        </template>
-        <button v-if="nearby.length > 1" type="button" class="cal-transfer-stops-link" @click="stops = [...stops, ...nearby.map(s => s.id)]">
-          Add all
-        </button>
-      </p>
     </div>
   </section>
 </template>
@@ -75,13 +76,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { TransferMapRoute, TransferMapStop } from './stops-map.vue'
-import { compareNamesBlankLast, groupBy } from '~~/src/core'
-import { KM_PER_DEGREE, bearingAndDistance } from '~~/src/scenario'
+import { TRANSFER_PICKED_COLOR, compareNamesBlankLast, groupBy } from '~~/src/core'
 
 const props = defineProps<{
   mapStops: TransferMapStop[]
   mapRoutes: TransferMapRoute[]
-  // The query's area, which the stops were loaded from.
+  // The query's area, which bounds the loaded stops.
   extent: GeoJSON.Feature[]
   // Frames the map anew when it changes: the subject.
   fitKey: string
@@ -98,8 +98,8 @@ const picked = computed(() => new Set(stops.value))
 // never shifts under the pointer.
 const unpicked = ref(new Set<number>())
 
-// The map's view, west, south, east, north; and the stops listed: those in
-// it, and those picked or just unpicked wherever they are.
+// The map's view (west, south, east, north), and the listed stops: those in
+// view, plus those picked or just unpicked anywhere.
 const view = ref<[number, number, number, number]>()
 watch(view, () => {
   unpicked.value = new Set()
@@ -112,34 +112,28 @@ const listed = computed(() => props.mapStops.filter((s) => {
   return !!v && s.lon >= v[0] && s.lat >= v[1] && s.lon <= v[2] && s.lat <= v[3]
 }))
 
-// Stops within a short walk of one picked, not picked themselves, by name.
+// Stops within a short walk of one picked, not picked themselves, by name:
+// those in a box around a picked stop, padded by the walk. A box is close
+// enough for a suggestion and keeps distance measuring off the client.
 const NEARBY_KM = 0.15
+// Kilometers per degree of latitude.
+const KM_PER_DEGREE = 111.32
 const nearby = computed(() => {
-  const chosen = props.mapStops.filter(s => picked.value.has(s.id))
-  if (chosen.length === 0) {
-    return []
-  }
-  // Only stops in the picked ones' box, padded by the walk (in degrees of
-  // latitude; of longitude, more), are measured.
-  const pad = NEARBY_KM / KM_PER_DEGREE
-  const lats = chosen.map(c => c.lat)
-  const padLon = pad / Math.cos((Math.max(...lats.map(Math.abs)) * Math.PI) / 180)
-  const lons = chosen.map(c => c.lon)
-  const [west, east, south, north] = [Math.min(...lons) - padLon, Math.max(...lons) + padLon, Math.min(...lats) - pad, Math.max(...lats) + pad]
+  const padLat = NEARBY_KM / KM_PER_DEGREE
+  const boxes = props.mapStops
+    .filter(s => picked.value.has(s.id))
+    .map(c => ({ c, padLon: padLat / Math.cos((c.lat * Math.PI) / 180) }))
   return props.mapStops
-    .filter(s => !picked.value.has(s.id) && s.lon >= west && s.lon <= east && s.lat >= south && s.lat <= north)
-    .filter(s => chosen.some(c => bearingAndDistance([c.lon, c.lat], [s.lon, s.lat]).km <= NEARBY_KM))
+    .filter(s => !picked.value.has(s.id) && boxes.some(({ c, padLon }) => Math.abs(s.lat - c.lat) <= padLat && Math.abs(s.lon - c.lon) <= padLon))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 // By operator, then name.
-const groups = computed(() => {
-  return [...groupBy(listed.value, s => s.operator)]
-    .sort(([a], [b]) => compareNamesBlankLast(a, b))
-    .map(([operator, list]) => ({ operator, stops: list }))
-})
+const groups = computed(() => [...groupBy(listed.value, s => s.operator)]
+  .sort(([a], [b]) => compareNamesBlankLast(a, b))
+  .map(([operator, list]) => ({ operator, stops: list.sort((a, b) => a.name.localeCompare(b.name)) })))
 
-// Every stop listed picked.
+// Picks every listed stop.
 function selectListed () {
   stops.value = [...new Set([...stops.value, ...listed.value.map(s => s.id)])]
 }
@@ -158,19 +152,7 @@ function unselectAll () {
 </script>
 
 <style scoped lang="scss">
-// The map at most of the width, the list beside it; one above the other on
-// narrow screens.
-.cal-transfer-stops {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
-  gap: 0.75rem 1.5rem;
-  padding: 1.25rem;
-
-  @media (max-width: 48rem) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
+// The list's column shrinks with the panel, cutting its rows short.
 .cal-transfer-stops-side {
   min-width: 0;
 }
@@ -180,103 +162,17 @@ function unselectAll () {
   overflow-y: auto;
 }
 
-.cal-transfer-stops-head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-bottom: 0.5em;
-
-  span {
-    font-weight: 600;
-    color: var(--bulma-text-strong);
-  }
-
-  // The buttons keep to the right, so a change in the count's width never
-  // moves them.
-  button:first-of-type {
-    margin-left: auto;
-  }
-}
-
-.cal-transfer-stops-nearby {
-  margin-top: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  background: var(--bulma-scheme-main-ter);
-}
-
-.cal-transfer-stops-nearby-operator {
-  color: var(--bulma-text-weak);
-}
-
-.cal-transfer-stops-link {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: var(--bulma-link);
-  cursor: pointer;
-  text-decoration: underline;
-
-  &:disabled {
-    color: var(--bulma-text-weak);
-    cursor: default;
-    text-decoration: none;
-  }
-}
-
-.cal-transfer-stops-group {
-  margin-bottom: 0.75rem;
-
-  ul {
-    margin: 0;
-    list-style: none;
-  }
-
-  li :deep(label),
-  li :deep(.checkbox) {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-}
-
 li {
   padding: 0.25em 0.5em;
-  border-radius: 4px;
+  border-radius: var(--bulma-radius-small);
 
   &:hover,
   &.cal-transfer-stops-hovered {
-    background: color-mix(in srgb, #7a4dda 15%, transparent);
+    background: color-mix(in srgb, v-bind(TRANSFER_PICKED_COLOR) 15%, transparent);
   }
 }
 
-.cal-transfer-stops-operator {
-  font-weight: 600;
-  color: var(--bulma-text-weak);
-  margin-bottom: 0.25em;
-}
-
-// The map's shapes: a circle for a stop, a square for a platform.
-.cal-transfer-stops-shape-stop,
-.cal-transfer-stops-shape-platform {
-  flex: 0 0 auto;
-  width: 0.6rem;
-  height: 0.6rem;
-  border: 2px solid #5b6470;
-  background: #ffffff;
-}
-
-.cal-transfer-stops-shape-stop {
-  border-radius: 50%;
-}
-
-.cal-transfer-stops-shape-platform {
-  border-radius: 2px;
-}
-
-.cal-transfer-stops-name {
+.cal-transfer-stops-clip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -285,14 +181,5 @@ li {
 // The routes take what room the name leaves.
 .cal-transfer-stops-routes {
   flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--bulma-text-weak);
-}
-
-.cal-transfer-stops-empty {
-  color: var(--bulma-text-weak);
 }
 </style>
