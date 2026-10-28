@@ -1,11 +1,8 @@
 <template>
   <div ref="root" class="cal-transfer-report">
-    <!-- What the report is about, then how it is viewed, in one bar; the
-         settings open below it, hung from it, on request. -->
-    <div
-      class="cal-transfer-report-bar"
-      :class="{ 'cal-transfer-report-bar-open': panelOpen }"
-    >
+    <!-- What the report is about, then how it is viewed; the settings open
+         below, on request. -->
+    <div class="cal-transfer-report-bar">
       <div class="cal-transfer-report-toolbar">
         <!-- Where, on which date, and at what times of day. -->
         <div class="cal-transfer-report-toolbar-row">
@@ -65,8 +62,9 @@
           <cat-tabs v-model="view" type="toggle" class="cal-transfer-report-view" v-bind="{ ariaLabel: 'View' }">
             <cat-tab-item v-for="v of views" :key="v.value" :value="v.value" :label="v.label" :icon="v.icon" />
           </cat-tabs>
-          <!-- Each opens its settings below the toolbar, one at a time. -->
-          <div class="cal-transfer-report-settings-toggles">
+          <!-- The settings, each opening below the toolbar, one at a time,
+               then Share. -->
+          <div class="cal-transfer-report-actions">
             <cat-button
               v-for="t of settingsToggles"
               :key="t.section"
@@ -85,27 +83,27 @@
                 <span class="is-sr-only">{{ t.badge.title }}</span>
               </span>
             </cat-button>
+            <cat-dropdown position="bottom-right" @select="download">
+              <template #trigger>
+                <cat-button icon-left="share-variant">
+                  Share
+                </cat-button>
+              </template>
+              <cat-dropdown-item value="link">
+                Copy link to this view
+              </cat-dropdown-item>
+              <cat-dropdown-item value="summary" :disabled="detailsLoading">
+                Download summary report (CSV)
+              </cat-dropdown-item>
+              <cat-dropdown-item value="connections" :disabled="detailsLoading">
+                Download individual report (CSV)
+              </cat-dropdown-item>
+              <!-- The chart as shown, so from its own view. -->
+              <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
+                Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
+              </cat-dropdown-item>
+            </cat-dropdown>
           </div>
-          <cat-dropdown position="bottom-right" @select="download">
-            <template #trigger>
-              <cat-button icon-left="share-variant">
-                Share
-              </cat-button>
-            </template>
-            <cat-dropdown-item value="link">
-              Copy link to this view
-            </cat-dropdown-item>
-            <cat-dropdown-item value="summary" :disabled="detailsLoading">
-              Download summary report (CSV)
-            </cat-dropdown-item>
-            <cat-dropdown-item value="connections" :disabled="detailsLoading">
-              Download individual report (CSV)
-            </cat-dropdown-item>
-            <!-- The chart as shown, so from its own view. -->
-            <cat-dropdown-item value="wait-chart" :disabled="view !== 'individual' || detailsLoading">
-              Download wait chart (SVG){{ view === 'individual' ? '' : ' (Individual view)' }}
-            </cat-dropdown-item>
-          </cat-dropdown>
         </div>
       </div>
 
@@ -700,23 +698,18 @@ const grid = computed(() => (view.value === 'summary'
   width: auto;
 }
 
-// The controls as an action bar; an open panel hangs from it, the two as
-// one surface.
+// The controls on the page, and an open panel framed below them.
 .cal-transfer-report-bar {
-  // The block spacing, so the results below read apart from the controls.
-  margin-bottom: 1.5rem;
+  // Clear space before the results, so each reads as its own section.
+  margin-bottom: 3rem;
 
-  // The panels framed here, as they only ever open from the bar.
+  // The panels framed here, as they only ever open from the bar; the strip
+  // below them closes the frame.
   > .cal-transfer-settings,
   > .cal-transfer-stops {
+    margin-top: 1rem;
     border: 1px solid var(--bulma-border);
-    border-top: 0;
-    background: var(--bulma-scheme-main);
-  }
-
-  &.cal-transfer-report-bar-open .cal-transfer-report-toolbar {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+    border-radius: var(--bulma-radius) var(--bulma-radius) 0 0;
   }
 }
 
@@ -758,10 +751,6 @@ const grid = computed(() => (view.value === 'summary'
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.25rem;
-  border: 1px solid var(--bulma-border);
-  border-radius: var(--bulma-radius);
-  background: var(--bulma-scheme-main-bis);
 
   :deep(.field) {
     margin-bottom: 0;
@@ -822,7 +811,7 @@ const grid = computed(() => (view.value === 'summary'
 }
 
 // The settings, and Share after them, at the row's end.
-.cal-transfer-report-settings-toggles {
+.cal-transfer-report-actions {
   display: flex;
   gap: 0.75rem;
   margin-left: auto;

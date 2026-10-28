@@ -1,5 +1,5 @@
 <template>
-  <div class="mb-6" :class="{ 'cal-datagrid-sticky': props.stickyHeader }">
+  <div class="mb-6" :class="{ 'cal-datagrid-sticky': props.stickyHeader && !tooWide }">
     <div v-if="props.searchable || props.downloadable || $slots['additional-downloads']" class="is-flex is-align-items-center mb-4" style="gap: 0.5rem;">
       <!-- Search landmark so screen-reader users can jump to the table filter;
            labelled (via filterLabel, from the caption) to distinguish it from
@@ -45,8 +45,8 @@
          since live regions inserted at announcement time are unreliable. -->
     <span class="is-sr-only" role="status">{{ sortStatus }}</span>
 
-    <div class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
-      <table :id="tableId" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
+    <div ref="box" class="table-container" :class="{ 'is-freeze-first': props.freezeFirstColumn }">
+      <table :id="tableId" ref="table" class="cal-report-table table is-bordered is-striped is-hoverable is-fullwidth">
         <caption class="is-sr-only">
           {{ props.caption }}
         </caption>
@@ -272,7 +272,8 @@ const props = withDefaults(defineProps<{
   caption: string
   // A class for a row, such as one marking it apart from the rest.
   rowClass?: (row: any) => string | undefined
-  // The header row stays at the top of the page while the rows scroll.
+  // The header row stays at the top of the page while the rows scroll, as
+  // long as the table fits; a wider one scrolls sideways, as others do.
   stickyHeader?: boolean
   // Rows per page; 20 by default.
   perPage?: number
@@ -609,6 +610,27 @@ watch(shown, () => {
 }, { flush: 'post' })
 onBeforeUnmount(() => observer?.disconnect())
 
+// The header pins to the nearest box that scrolls, so it stays pinned only
+// while the table fits its box; a wider table scrolls sideways in its box,
+// as other tables do.
+const box = ref<HTMLElement>()
+const table = ref<HTMLElement>()
+const tooWide = ref(false)
+let sizeObserver: ResizeObserver | undefined
+onMounted(() => {
+  const b = box.value
+  const t = table.value
+  if (!props.stickyHeader || !b || !t) {
+    return
+  }
+  sizeObserver = new ResizeObserver(() => {
+    tooWide.value = t.offsetWidth > b.clientWidth
+  })
+  sizeObserver.observe(b)
+  sizeObserver.observe(t)
+})
+onBeforeUnmount(() => sizeObserver?.disconnect())
+
 const currentRows = computed(() => {
   const start = props.scroll ? 0 : (current.value - 1) * props.perPage
   const end = props.scroll ? shown.value : start + props.perPage
@@ -702,8 +724,7 @@ const filterStatus = computed(() => {
 }
 
 .cal-datagrid-sticky {
-  // The header sticks to the nearest box that scrolls, so this one must not;
-  // a table wider than the page is cut off.
+  // The header sticks to the nearest box that scrolls, so this one must not.
   .table-container {
     overflow: visible;
   }
