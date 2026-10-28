@@ -56,13 +56,8 @@ const hasAny = computed(() => (geographies.value?.length ?? 0) > 0)
 const chosen = computed(() => (geographies.value || []).filter(g => props.modelValue.includes(g.id)))
 const chosenKind = computed(() => chosen.value[0]?.metadata.source)
 
-// Chosen boundaries run as one area, and only others of their kind can join
-const placeholder = computed(() => {
-  if (!chosenKind.value) {
-    return 'Search saved boundaries...'
-  }
-  return chosenKind.value === 'upload' ? 'Add uploaded boundaries...' : 'Add Census boundaries...'
-})
+// Chosen boundaries run as one area, so more can join them
+const placeholder = computed(() => chosenKind.value ? 'Select additional saved boundaries...' : 'Select saved boundaries...')
 
 function combinable (g: SavedGeography): boolean {
   const first = chosen.value[0]
