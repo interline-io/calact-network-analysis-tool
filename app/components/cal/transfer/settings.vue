@@ -418,7 +418,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   display: grid;
   gap: 0.75rem 2rem;
   padding: 0.75rem 1rem;
-  font-size: 0.875rem;
 
   // Sized by its own width, which the page's sidebar changes too.
   &.cal-transfer-settings-wait-walk {
@@ -534,7 +533,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
   justify-content: center;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  font-size: 0.75rem;
   line-height: 1.2;
   white-space: nowrap;
 
@@ -553,12 +551,10 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 
 .cal-transfer-settings-help {
   color: var(--bulma-text-weak);
-  font-size: 0.75rem;
 }
 
 .cal-transfer-settings-warning {
   color: var(--bulma-warning-on-scheme, var(--bulma-text-strong));
-  font-size: 0.75rem;
 }
 
 .cal-transfer-settings-link {
@@ -579,11 +575,9 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 .cal-transfer-settings-side-head {
   display: flex;
   align-items: baseline;
-  font-size: 0.75rem;
   margin-bottom: 0.25rem;
 
   span {
-    font-size: 0.875rem;
     font-weight: 600;
     color: var(--bulma-text-strong);
     margin-right: 0.25rem;
@@ -614,7 +608,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
 
   // An operator's row: a heading over its routes, which keep their indent.
   &.cal-transfer-settings-operator {
-    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -634,10 +627,6 @@ function setKeys (side: Side, keys: string[], included: boolean) {
     padding-left: 4.25rem;
   }
 
-  // A direction or destination, under its route.
-  &.cal-transfer-settings-sub {
-    font-size: 0.8125rem;
-  }
 }
 
 .cal-transfer-settings-caret {

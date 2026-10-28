@@ -834,7 +834,6 @@ const grid = computed(() => (view.value === 'summary'
   // Small labels, as a bar's: the controls carry the weight.
   :deep(.label) {
     margin-bottom: 0.2rem;
-    font-size: 0.75rem;
     font-weight: 600;
     color: var(--bulma-text-weak);
   }
@@ -880,7 +879,6 @@ const grid = computed(() => (view.value === 'summary'
   right: -0.6rem;
   height: 1.35rem;
   padding: 0 0.45rem;
-  font-size: 0.7rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 2px var(--bulma-scheme-main);
@@ -902,13 +900,11 @@ const grid = computed(() => (view.value === 'summary'
   margin: 0;
 
   dt {
-    font-size: 0.75rem;
     color: var(--bulma-text-weak);
   }
 
   dd {
     margin: 0;
-    font-size: 1.25rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--bulma-text-strong);
